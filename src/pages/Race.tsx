@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, PartModel, RaceResultModel, SponsorModel } from '@/types/f1'
-import { F1_2026_CALENDAR, AI_GRID_TEAMS, ENGINE_SUPPLIERS } from '@/lib/f1-data'
+import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
 import {
@@ -150,10 +150,14 @@ export default function RacePage() {
     setSimResults(null)
     setCompleted(false)
 
-    // Build grid of 20-22 drivers (Player 2 drivers + AI grid)
+    // Build dynamic grid (Player 2 drivers + AI rivals)
+    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
+    const aiRivals = getAICompetitors(team?.team_key, isCustomTeam)
+
     const grid: SimDriverEntry[] = []
 
-    // 1. Add Player's 2 drivers
+    // 1. Add Player's 2 drivers (uses carLevel + team strength weighting)
+    const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
     drivers.forEach((d) => {
       // Driver score calculation
       let driverSkill = d.speed * 0.4 + d.consistency * 0.35 + d.defense * 0.25
@@ -161,8 +165,8 @@ export default function RacePage() {
         driverSkill = d.speed * 0.25 + d.rain * 0.45 + d.consistency * 0.3
       }
 
-      // Total car score
-      const carScore = playerCarLevel
+      // Total car performance combining car parts level + team strength rating
+      const effectiveCarScore = playerCarLevel * 0.7 + playerTeamStrength * 0.3
       // Random race variability (-8 to +8)
       const luck = (Math.random() - 0.5) * 16
 
@@ -173,11 +177,11 @@ export default function RacePage() {
         driverId: d.id,
         driverName: d.name,
         teamId: team?.id || 'player',
-        teamName: team?.name || 'Escuderia Brasil',
+        teamName: team?.name || 'Sua Escuderia',
         teamColor: team?.color || '#FF3B30',
         isPlayer: true,
         flag: d.nationality === 'Brasil' ? '🇧🇷' : '🏁',
-        score: driverSkill * 0.45 + carScore * 0.45 + luck,
+        score: driverSkill * 0.4 + effectiveCarScore * 0.5 + luck,
         position: 0,
         points: 0,
         fastestLap: false,
@@ -188,9 +192,10 @@ export default function RacePage() {
       })
     })
 
-    // 2. Add AI Grid Teams
-    AI_GRID_TEAMS.forEach((aiTeam) => {
+    // 2. Add AI Grid Teams (using their strength + carLevel)
+    aiRivals.forEach((aiTeam) => {
       const sup = ENGINE_SUPPLIERS.find((s) => s.name === aiTeam.engine) || ENGINE_SUPPLIERS[0]
+      const effectiveAiCar = aiTeam.carLevel * 0.6 + aiTeam.strength * 0.4
 
       // Driver 1
       let d1Skill =
@@ -214,7 +219,7 @@ export default function RacePage() {
         teamColor: aiTeam.color,
         isPlayer: false,
         flag: aiTeam.driver1.flag,
-        score: d1Skill * 0.45 + aiTeam.carLevel * 0.45 + d1Luck,
+        score: d1Skill * 0.4 + effectiveAiCar * 0.5 + d1Luck,
         position: 0,
         points: 0,
         fastestLap: false,
@@ -246,7 +251,7 @@ export default function RacePage() {
         teamColor: aiTeam.color,
         isPlayer: false,
         flag: aiTeam.driver2.flag,
-        score: d2Skill * 0.45 + aiTeam.carLevel * 0.45 + d2Luck,
+        score: d2Skill * 0.4 + effectiveAiCar * 0.5 + d2Luck,
         position: 0,
         points: 0,
         fastestLap: false,
@@ -541,7 +546,7 @@ export default function RacePage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
                 <Flag className="w-5 h-5 text-[#E10600]" />
-                Escalação da {team?.name || 'Escuderia Brasil'}
+                Escalação da {team?.name || 'Sua Escuderia'}
               </CardTitle>
               <CardDescription className="text-xs text-[#8B95A7]">
                 Atributos calibrados para as características do {gpInfo.circuit}
@@ -607,6 +612,10 @@ export default function RacePage() {
                 </span>
                 <span>
                   Nível do Carro: <strong className="text-[#F5F7FA]">{playerCarLevel}/100</strong>
+                </span>
+                <span>
+                  Força da Equipe:{' '}
+                  <strong className="text-amber-400">{team?.strength ?? 58}/100</strong>
                 </span>
                 <span>
                   Aerodinâmica: <strong className="text-emerald-400">{aeroRating}</strong>

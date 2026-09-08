@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Loader2 } from 'lucide-react'
 
 export function ProtectedRoute() {
-  const { user, isLoading } = useAuth()
+  const { user, team, isLoading } = useAuth()
 
   if (isLoading) {
     return (
@@ -18,6 +18,11 @@ export function ProtectedRoute() {
 
   if (!user) {
     return <Navigate to="/auth" replace />
+  }
+
+  // If user is authenticated but has not selected/created a team yet, redirect to team selection
+  if (!team) {
+    return <Navigate to="/selecionar-equipe" replace />
   }
 
   return <Outlet />

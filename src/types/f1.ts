@@ -7,6 +7,9 @@ export interface TeamModel {
   strategy_level: number // 0-100
   budget: number
   engine_supplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+  strength?: number // 0-100 rating baseado em momento atual + história
+  is_custom?: boolean // true se criada pelo jogador (12ª equipe)
+  team_key?: string // chave da equipe se for do grid oficial ('mclaren', 'ferrari', etc)
   user_id?: string
   created?: string
   updated?: string

@@ -162,4 +162,196 @@ export const f1Service = {
   ): Promise<RaceResultModel> {
     return await pb.collection('race_results').create<RaceResultModel>(data)
   },
+
+  // Initialize Team (Official or Custom 12th)
+  async initializeOfficialTeam(
+    userId: string,
+    teamKey: string,
+    officialData: {
+      name: string
+      color: string
+      engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+      strength: number
+      carLevel: number
+      budget: number
+      driver1: {
+        name: string
+        nationality: string
+        age: number
+        speed: number
+        consistency: number
+        rain: number
+        defense: number
+        salary: number
+      }
+      driver2: {
+        name: string
+        nationality: string
+        age: number
+        speed: number
+        consistency: number
+        rain: number
+        defense: number
+        salary: number
+      }
+    },
+  ): Promise<TeamModel> {
+    // 1. Create team
+    const newTeam = await pb.collection('teams').create<TeamModel>({
+      name: officialData.name,
+      color: officialData.color,
+      chassis_level: Math.round(officialData.strength * 0.9),
+      aero_level: Math.round(officialData.strength * 0.9),
+      strategy_level: Math.round(officialData.strength * 0.88),
+      budget: officialData.budget,
+      engine_supplier: officialData.engine,
+      strength: officialData.strength,
+      is_custom: false,
+      team_key: teamKey,
+      user_id: userId,
+    })
+
+    // 2. Create season 2026
+    await pb.collection('seasons').create({
+      year: 2026,
+      current_round: 1,
+      total_rounds: 24,
+      team_id: newTeam.id,
+    })
+
+    // 3. Create 6 parts calibrated to strength
+    const initialPartLevel = Math.max(3, Math.min(10, Math.round(officialData.strength / 11)))
+    const partNames = [
+      'Chassi',
+      'Asa dianteira',
+      'Asa traseira',
+      'Assoalho',
+      'Suspensão',
+      'Aerodinâmica ativa',
+    ]
+    for (const pName of partNames) {
+      await pb.collection('parts').create({
+        name: pName,
+        level: initialPartLevel,
+        team_id: newTeam.id,
+      })
+    }
+
+    // 4. Initial sponsor matching official prestige
+    const sponsorVal = Math.round(officialData.strength * 350000)
+    await pb.collection('sponsors').create({
+      name: `${officialData.name.split(' ')[0]} Global Partner`,
+      value_per_round: sponsorVal,
+      requirement: 'Sem exigência',
+      status: 'ativo',
+      rounds_remaining: 24,
+      team_id: newTeam.id,
+    })
+
+    // 5. Initial event
+    await pb.collection('events').create({
+      message: `Você assumiu o comando da lendária ${officialData.name} para a temporada 2026!`,
+      type: 'contrato',
+      team_id: newTeam.id,
+    })
+
+    // 6. Assign official drivers to this team
+    for (const d of [officialData.driver1, officialData.driver2]) {
+      try {
+        const existing = await pb.collection('drivers').getFirstListItem(`name = "${d.name}"`)
+        await pb.collection('drivers').update(existing.id, {
+          team_id: newTeam.id,
+          salary: d.salary,
+          speed: d.speed,
+          consistency: d.consistency,
+          rain: d.rain,
+          defense: d.defense,
+        })
+      } catch (_) {
+        await pb.collection('drivers').create({
+          name: d.name,
+          nationality: d.nationality,
+          age: d.age,
+          speed: d.speed,
+          consistency: d.consistency,
+          rain: d.rain,
+          defense: d.defense,
+          salary: d.salary,
+          contract_end: 2027,
+          team_id: newTeam.id,
+        })
+      }
+    }
+
+    return newTeam
+  },
+
+  async initializeCustomTeam(
+    userId: string,
+    teamName: string,
+    engineSupplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford',
+    teamColor: string = '#E10600',
+  ): Promise<TeamModel> {
+    // 12th Team: Start with rookie strength ~55, humble budget ~130M, NO drivers hired yet
+    const initialStrength = 55
+    const initialBudget = 130000000
+
+    const newTeam = await pb.collection('teams').create<TeamModel>({
+      name: teamName,
+      color: teamColor,
+      chassis_level: 45,
+      aero_level: 45,
+      strategy_level: 45,
+      budget: initialBudget,
+      engine_supplier: engineSupplier,
+      strength: initialStrength,
+      is_custom: true,
+      team_key: 'custom_12th',
+      user_id: userId,
+    })
+
+    // 2. Create season 2026
+    await pb.collection('seasons').create({
+      year: 2026,
+      current_round: 1,
+      total_rounds: 24,
+      team_id: newTeam.id,
+    })
+
+    // 3. Create 6 parts level 4
+    const partNames = [
+      'Chassi',
+      'Asa dianteira',
+      'Asa traseira',
+      'Assoalho',
+      'Suspensão',
+      'Aerodinâmica ativa',
+    ]
+    for (const pName of partNames) {
+      await pb.collection('parts').create({
+        name: pName,
+        level: 4,
+        team_id: newTeam.id,
+      })
+    }
+
+    // 4. Initial modest sponsor
+    await pb.collection('sponsors').create({
+      name: 'Venture Capital Motorsport',
+      value_per_round: 18000000,
+      requirement: 'Sem exigência',
+      status: 'ativo',
+      rounds_remaining: 24,
+      team_id: newTeam.id,
+    })
+
+    // 5. Initial event: notify that user must hire 2 drivers
+    await pb.collection('events').create({
+      message: `Bem-vindo à F1! A nova ${teamName} foi homologada como a 12ª equipe do grid. Acesse a aba Equipe para contratar seus 2 pilotos titulares!`,
+      type: 'contrato',
+      team_id: newTeam.id,
+    })
+
+    return newTeam
+  },
 }

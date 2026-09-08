@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, RaceResultModel } from '@/types/f1'
-import { AI_GRID_TEAMS } from '@/lib/f1-data'
+import { getAICompetitors } from '@/lib/f1-data'
 import { Trophy, Award, Users, Flag, TrendingUp, ShieldCheck } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -117,6 +117,10 @@ export default function StandingsPage() {
     const currentRound = season?.current_round || 1
     const pastRounds = Math.max(0, currentRound - 1)
 
+    // Determine if player has custom 12th team or operates an official one
+    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
+    const aiGrid = getAICompetitors(team?.team_key, isCustomTeam)
+
     // 1. Drivers map
     const dMap: Record<string, DriverStanding> = {}
 
@@ -136,11 +140,18 @@ export default function StandingsPage() {
       }
     })
 
-    // Init AI Drivers
-    AI_GRID_TEAMS.forEach((aiTeam) => {
-      // Base estimated points per past round based on car & driver speed
-      const d1BasePts = Math.max(0, Math.round((aiTeam.driver1.speed - 75) * 0.4 * pastRounds))
-      const d2BasePts = Math.max(0, Math.round((aiTeam.driver2.speed - 75) * 0.3 * pastRounds))
+    // Init AI Drivers from dynamic grid
+    aiGrid.forEach((aiTeam) => {
+      // Estimated points factoring both driver speed and team strength
+      const teamMultiplier = aiTeam.strength / 80
+      const d1BasePts = Math.max(
+        0,
+        Math.round((aiTeam.driver1.speed - 75) * 0.4 * pastRounds * teamMultiplier),
+      )
+      const d2BasePts = Math.max(
+        0,
+        Math.round((aiTeam.driver2.speed - 75) * 0.3 * pastRounds * teamMultiplier),
+      )
 
       dMap[`${aiTeam.id}_d1`] = {
         id: `${aiTeam.id}_d1`,
@@ -186,8 +197,8 @@ export default function StandingsPage() {
     // 2. Teams map
     const tMap: Record<string, TeamStanding> = {}
 
-    // Init AI Teams
-    AI_GRID_TEAMS.forEach((aiTeam) => {
+    // Init AI Teams from dynamic grid
+    aiGrid.forEach((aiTeam) => {
       const p1 = dMap[`${aiTeam.id}_d1`]?.points || 0
       const p2 = dMap[`${aiTeam.id}_d2`]?.points || 0
       const w1 = dMap[`${aiTeam.id}_d1`]?.wins || 0
@@ -247,8 +258,9 @@ export default function StandingsPage() {
             Classificação Geral F1 2026
           </h1>
           <p className="text-sm text-[#8B95A7] mt-0.5">
-            Acompanhe o acúmulo de pontos, vitórias e pódios dos Pilotos e Construtores ao longo das
-            24 etapas.
+            Grid oficial com{' '}
+            {team?.is_custom ? '12 equipes (11 oficiais + 12ª sua escuderia)' : '11 equipes'} •
+            Pontuação, vitórias e pódios ao longo das 24 etapas.
           </p>
         </div>
       </div>

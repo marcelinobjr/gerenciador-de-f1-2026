@@ -52,6 +52,10 @@ export default function TeamPage() {
 
   const [isProcessing, setIsProcessing] = useState(false)
 
+  // Team strength calculation / display
+  const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
+  const teamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
+
   const loadData = async () => {
     if (!team) return
     try {
@@ -278,9 +282,25 @@ export default function TeamPage() {
             Equipe & Mercado de Pilotos
           </h1>
           <p className="text-sm text-[#8B95A7] mt-0.5">
-            Gerencie os contratos dos seus dois pilotos titulares, avalie o staff técnico e negocie
-            no mercado livre da F1 2026.
+            Gerencie os contratos dos seus pilotos titulares, avalie a força da escuderia e negocie
+            no mercado livre da F1 2026 (incluindo pilotos fora do grid).
           </p>
+        </div>
+
+        {/* Indicador de Força da Equipe */}
+        <div className="bg-[#11161F] border border-[#1F2733] px-4 py-2.5 rounded-xl flex items-center gap-3">
+          <div className="text-right">
+            <span className="text-[10px] font-mono text-[#8B95A7] uppercase block">
+              Força da Escuderia
+            </span>
+            <span className="text-xl font-mono font-black text-amber-400">{teamStrength}/100</span>
+          </div>
+          <Badge
+            variant="outline"
+            className="text-[10px] font-mono border-amber-500/40 text-amber-400 bg-amber-500/10"
+          >
+            {isCustomTeam ? '12ª Equipe Própria' : 'Equipe Oficial 2026'}
+          </Badge>
         </div>
       </div>
 

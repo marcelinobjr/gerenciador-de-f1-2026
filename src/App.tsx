@@ -14,6 +14,7 @@ import CarPage from './pages/Car'
 import SponsorsPage from './pages/Sponsors'
 import RacePage from './pages/Race'
 import StandingsPage from './pages/Standings'
+import TeamSelectionPage from './pages/TeamSelection'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -25,6 +26,9 @@ const App = () => (
         <Routes>
           {/* Public Route */}
           <Route path="/auth" element={<AuthPage />} />
+
+          {/* Team Selection Route for authenticated users without a team */}
+          <Route path="/selecionar-equipe" element={<TeamSelectionPage />} />
 
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>

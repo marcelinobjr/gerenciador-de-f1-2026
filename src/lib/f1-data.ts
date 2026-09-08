@@ -282,12 +282,434 @@ export const ENGINE_SUPPLIERS: EngineSupplierSpec[] = [
   },
 ]
 
+export interface OfficialGridTeam {
+  key: string
+  name: string
+  color: string
+  engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+  strength: number // 0-100 rating
+  carLevel: number
+  budget: number
+  historySummary: string
+  currentSituation: string
+  driver1: {
+    name: string
+    speed: number
+    consistency: number
+    rain: number
+    defense: number
+    nationality: string
+    flag: string
+    age: number
+    salary: number
+  }
+  driver2: {
+    name: string
+    speed: number
+    consistency: number
+    rain: number
+    defense: number
+    nationality: string
+    flag: string
+    age: number
+    salary: number
+  }
+}
+
+// As 11 equipes oficiais do grid da F1 2026 com notas históricas, situação recente e força calibrada
+export const OFFICIAL_GRID_TEAMS: OfficialGridTeam[] = [
+  {
+    key: 'mclaren',
+    name: 'McLaren F1 Team',
+    color: '#FF8000',
+    engine: 'Mercedes',
+    strength: 92,
+    carLevel: 92,
+    budget: 175000000,
+    historySummary:
+      '8 Mundiais de Construtores e 12 de Pilotos. Uma das marcas mais lendárias do automobilismo.',
+    currentSituation:
+      'Dominante e veloz. Vem de temporadas vitoriosas (2024-2025) com a melhor dupla jovem do grid.',
+    driver1: {
+      name: 'Lando Norris',
+      speed: 89,
+      consistency: 86,
+      rain: 84,
+      defense: 82,
+      nationality: 'Reino Unido',
+      flag: '🇬🇧',
+      age: 26,
+      salary: 30000000,
+    },
+    driver2: {
+      name: 'Oscar Piastri',
+      speed: 88,
+      consistency: 87,
+      rain: 82,
+      defense: 81,
+      nationality: 'Austrália',
+      flag: '🇦🇺',
+      age: 25,
+      salary: 28000000,
+    },
+  },
+  {
+    key: 'ferrari',
+    name: 'Scuderia Ferrari',
+    color: '#E8002D',
+    engine: 'Ferrari',
+    strength: 87,
+    carLevel: 88,
+    budget: 180000000,
+    historySummary:
+      'A escuderia mais antiga e laureada da história da F1 (16 Construtores, 15 Pilotos).',
+    currentSituation:
+      'Pressão máxima por títulos. Hamilton chegou a Maranello para formar uma superdupla com Leclerc.',
+    driver1: {
+      name: 'Lewis Hamilton',
+      speed: 91,
+      consistency: 88,
+      rain: 87,
+      defense: 84,
+      nationality: 'Reino Unido',
+      flag: '🇬🇧',
+      age: 41,
+      salary: 45000000,
+    },
+    driver2: {
+      name: 'Charles Leclerc',
+      speed: 90,
+      consistency: 85,
+      rain: 82,
+      defense: 84,
+      nationality: 'Mônaco',
+      flag: '🇲🇨',
+      age: 28,
+      salary: 35000000,
+    },
+  },
+  {
+    key: 'redbull',
+    name: 'Red Bull Racing',
+    color: '#1E41FF',
+    engine: 'Ford',
+    strength: 86,
+    carLevel: 87,
+    budget: 180000000,
+    historySummary: 'Hexacampeã mundial de construtores e heptacampeã de pilotos na era moderna.',
+    currentSituation:
+      'Em reconstrução estrutural após a saída de Adrian Newey e adaptação aos motores Red Bull-Ford.',
+    driver1: {
+      name: 'Max Verstappen',
+      speed: 95,
+      consistency: 91,
+      rain: 88,
+      defense: 90,
+      nationality: 'Holanda',
+      flag: '🇳🇱',
+      age: 28,
+      salary: 50000000,
+    },
+    driver2: {
+      name: 'Liam Lawson',
+      speed: 81,
+      consistency: 79,
+      rain: 77,
+      defense: 78,
+      nationality: 'Nova Zelândia',
+      flag: '🇳🇿',
+      age: 24,
+      salary: 8000000,
+    },
+  },
+  {
+    key: 'mercedes',
+    name: 'Mercedes-AMG Petronas',
+    color: '#27F4D2',
+    engine: 'Mercedes',
+    strength: 85,
+    carLevel: 86,
+    budget: 175000000,
+    historySummary: '8 títulos consecutivos de construtores (2014-2021) na era híbrida original.',
+    currentSituation:
+      'Nova geração liderada por Russell e a promessa italiana Antonelli sob o comando de Toto Wolff.',
+    driver1: {
+      name: 'George Russell',
+      speed: 86,
+      consistency: 85,
+      rain: 80,
+      defense: 83,
+      nationality: 'Reino Unido',
+      flag: '🇬🇧',
+      age: 28,
+      salary: 26000000,
+    },
+    driver2: {
+      name: 'Andrea Kimi Antonelli',
+      speed: 84,
+      consistency: 79,
+      rain: 78,
+      defense: 76,
+      nationality: 'Itália',
+      flag: '🇮🇹',
+      age: 19,
+      salary: 8000000,
+    },
+  },
+  {
+    key: 'astonmartin',
+    name: 'Aston Martin Aramco',
+    color: '#229971',
+    engine: 'Honda',
+    strength: 80,
+    carLevel: 82,
+    budget: 160000000,
+    historySummary:
+      'Tradição britânica de luxo e velocidade, operando em nova fábrica ultramoderna em Silverstone.',
+    currentSituation:
+      'Agora equipe de fábrica da Honda com parceria técnica pesada, túnel de vento de ponta e Fernando Alonso.',
+    driver1: {
+      name: 'Fernando Alonso',
+      speed: 88,
+      consistency: 86,
+      rain: 90,
+      defense: 87,
+      nationality: 'Espanha',
+      flag: '🇪🇸',
+      age: 44,
+      salary: 20000000,
+    },
+    driver2: {
+      name: 'Lance Stroll',
+      speed: 77,
+      consistency: 75,
+      rain: 80,
+      defense: 75,
+      nationality: 'Canadá',
+      flag: '🇨🇦',
+      age: 27,
+      salary: 10000000,
+    },
+  },
+  {
+    key: 'williams',
+    name: 'Williams Racing',
+    color: '#64C4FF',
+    engine: 'Mercedes',
+    strength: 74,
+    carLevel: 78,
+    budget: 145000000,
+    historySummary:
+      '9 Mundiais de Construtores e 7 de Pilotos. Um dos nomes sagrados da história da categoria.',
+    currentSituation:
+      'Fase clara de ascensão sob a liderança de James Vowles e contratação de peso de Carlos Sainz.',
+    driver1: {
+      name: 'Carlos Sainz',
+      speed: 85,
+      consistency: 84,
+      rain: 80,
+      defense: 82,
+      nationality: 'Espanha',
+      flag: '🇪🇸',
+      age: 31,
+      salary: 24000000,
+    },
+    driver2: {
+      name: 'Alexander Albon',
+      speed: 83,
+      consistency: 82,
+      rain: 78,
+      defense: 80,
+      nationality: 'Tailândia',
+      flag: '🇹🇭',
+      age: 29,
+      salary: 14000000,
+    },
+  },
+  {
+    key: 'racingbulls',
+    name: 'Visa Cash App RB',
+    color: '#6692FF',
+    engine: 'Ford',
+    strength: 72,
+    carLevel: 76,
+    budget: 135000000,
+    historySummary:
+      'Herdeira da Toro Rosso e Minardi em Faenza, famosa por forjar grandes campeões.',
+    currentSituation:
+      'Equipe irmã da Red Bull, focada em agressividade e ponte de talentos jovens com Tsunoda e Hadjar.',
+    driver1: {
+      name: 'Yuki Tsunoda',
+      speed: 82,
+      consistency: 79,
+      rain: 76,
+      defense: 79,
+      nationality: 'Japão',
+      flag: '🇯🇵',
+      age: 26,
+      salary: 8000000,
+    },
+    driver2: {
+      name: 'Isack Hadjar',
+      speed: 78,
+      consistency: 76,
+      rain: 75,
+      defense: 74,
+      nationality: 'França',
+      flag: '🇫🇷',
+      age: 21,
+      salary: 4000000,
+    },
+  },
+  {
+    key: 'alpine',
+    name: 'Alpine F1 Team',
+    color: '#0093CC',
+    engine: 'Mercedes',
+    strength: 70,
+    carLevel: 75,
+    budget: 140000000,
+    historySummary:
+      'Origens na Renault campeã em 2005-2006 com Alonso e equipe Benetton dos anos 90.',
+    currentSituation:
+      'Transição estratégica com motores clientes Mercedes e reestruturação executiva em Enstone.',
+    driver1: {
+      name: 'Pierre Gasly',
+      speed: 83,
+      consistency: 81,
+      rain: 80,
+      defense: 80,
+      nationality: 'França',
+      flag: '🇫🇷',
+      age: 30,
+      salary: 15000000,
+    },
+    driver2: {
+      name: 'Jack Doohan',
+      speed: 77,
+      consistency: 75,
+      rain: 74,
+      defense: 74,
+      nationality: 'Austrália',
+      flag: '🇦🇺',
+      age: 23,
+      salary: 4500000,
+    },
+  },
+  {
+    key: 'haas',
+    name: 'Haas F1 Team',
+    color: '#B6BABD',
+    engine: 'Ferrari',
+    strength: 70,
+    carLevel: 75,
+    budget: 130000000,
+    historySummary:
+      'Única equipe americana do grid na última década, estreante em 2016 com modelo enxuto.',
+    currentSituation:
+      'Nova fase competitiva sob Ayao Komatsu, parceria técnica Ferrari reforçada e dupla Ocon/Bearman.',
+    driver1: {
+      name: 'Esteban Ocon',
+      speed: 82,
+      consistency: 81,
+      rain: 82,
+      defense: 83,
+      nationality: 'França',
+      flag: '🇫🇷',
+      age: 29,
+      salary: 12000000,
+    },
+    driver2: {
+      name: 'Oliver Bearman',
+      speed: 80,
+      consistency: 78,
+      rain: 77,
+      defense: 77,
+      nationality: 'Reino Unido',
+      flag: '🇬🇧',
+      age: 20,
+      salary: 5000000,
+    },
+  },
+  {
+    key: 'audi',
+    name: 'Audi F1 Team',
+    color: '#FF2A00',
+    engine: 'Ferrari',
+    strength: 68,
+    carLevel: 74,
+    budget: 150000000,
+    historySummary:
+      'A gigante alemã das 24h de Le Mans e rali assumiu o controle integral da tradicional Sauber (Hinwil).',
+    currentSituation:
+      'Primeiro ano oficial com a marca dos quatro anéis, liderança de Mattia Binotto e Nico Hülkenberg.',
+    driver1: {
+      name: 'Nico Hülkenberg',
+      speed: 83,
+      consistency: 84,
+      rain: 81,
+      defense: 81,
+      nationality: 'Alemanha',
+      flag: '🇩🇪',
+      age: 38,
+      salary: 10000000,
+    },
+    driver2: {
+      name: 'Gabriel Bortoleto',
+      speed: 80,
+      consistency: 79,
+      rain: 81,
+      defense: 77,
+      nationality: 'Brasil',
+      flag: '🇧🇷',
+      age: 21,
+      salary: 6000000,
+    },
+  },
+  {
+    key: 'cadillac',
+    name: 'Cadillac F1 Team',
+    color: '#D4AF37',
+    engine: 'Ferrari',
+    strength: 62,
+    carLevel: 68,
+    budget: 120000000,
+    historySummary:
+      'A marca premium da General Motors estreia como a 11ª equipe do grid da Fórmula 1 em 2026.',
+    currentSituation:
+      'Estreante absoluta no circo da F1. Desafio de adaptação rápido, orçamento em crescimento e sede nos EUA/UK.',
+    driver1: {
+      name: 'Franco Colapinto',
+      speed: 81,
+      consistency: 78,
+      rain: 76,
+      defense: 76,
+      nationality: 'Argentina',
+      flag: '🇦🇷',
+      age: 23,
+      salary: 8000000,
+    },
+    driver2: {
+      name: 'Pietro Fittipaldi',
+      speed: 78,
+      consistency: 77,
+      rain: 80,
+      defense: 74,
+      nationality: 'Brasil',
+      flag: '🇧🇷',
+      age: 29,
+      salary: 6000000,
+    },
+  },
+]
+
 export interface AICompetitor {
   id: string
   name: string
   color: string
   engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
   carLevel: number
+  strength: number
   driver1: {
     name: string
     speed: number
@@ -308,258 +730,47 @@ export interface AICompetitor {
   }
 }
 
-export const AI_GRID_TEAMS: AICompetitor[] = [
-  {
-    id: 'ai_redbull',
-    name: 'Red Bull Racing',
-    color: '#1E41FF',
-    engine: 'Ford',
-    carLevel: 88,
+// Retorna as equipes IA rivais baseado se o jogador assumiu uma existente ou criou a 12ª
+export function getAICompetitors(
+  playerTeamKey?: string,
+  isCustomTeam: boolean = true,
+): AICompetitor[] {
+  return OFFICIAL_GRID_TEAMS.filter((team) => {
+    // Se o jogador assumiu uma equipe oficial existente (ex: ferrari), remove ela da IA
+    if (!isCustomTeam && playerTeamKey && team.key === playerTeamKey) {
+      return false
+    }
+    return true
+  }).map((team) => ({
+    id: `ai_${team.key}`,
+    name: team.name,
+    color: team.color,
+    engine: team.engine,
+    carLevel: team.carLevel,
+    strength: team.strength,
     driver1: {
-      name: 'Max Verstappen',
-      speed: 95,
-      consistency: 90,
-      rain: 88,
-      defense: 88,
-      nationality: 'Holanda',
-      flag: '🇳🇱',
+      name: team.driver1.name,
+      speed: team.driver1.speed,
+      consistency: team.driver1.consistency,
+      rain: team.driver1.rain,
+      defense: team.driver1.defense,
+      nationality: team.driver1.nationality,
+      flag: team.driver1.flag,
     },
     driver2: {
-      name: 'Liam Lawson',
-      speed: 82,
-      consistency: 79,
-      rain: 76,
-      defense: 77,
-      nationality: 'Nova Zelândia',
-      flag: '🇳🇿',
+      name: team.driver2.name,
+      speed: team.driver2.speed,
+      consistency: team.driver2.consistency,
+      rain: team.driver2.rain,
+      defense: team.driver2.defense,
+      nationality: team.driver2.nationality,
+      flag: team.driver2.flag,
     },
-  },
-  {
-    id: 'ai_ferrari',
-    name: 'Scuderia Ferrari',
-    color: '#E8002D',
-    engine: 'Ferrari',
-    carLevel: 87,
-    driver1: {
-      name: 'Lewis Hamilton',
-      speed: 91,
-      consistency: 88,
-      rain: 86,
-      defense: 83,
-      nationality: 'Reino Unido',
-      flag: '🇬🇧',
-    },
-    driver2: {
-      name: 'Charles Leclerc',
-      speed: 89,
-      consistency: 85,
-      rain: 81,
-      defense: 84,
-      nationality: 'Mônaco',
-      flag: '🇲🇨',
-    },
-  },
-  {
-    id: 'ai_mclaren',
-    name: 'McLaren F1 Team',
-    color: '#FF8000',
-    engine: 'Mercedes',
-    carLevel: 89,
-    driver1: {
-      name: 'Lando Norris',
-      speed: 88,
-      consistency: 85,
-      rain: 83,
-      defense: 81,
-      nationality: 'Reino Unido',
-      flag: '🇬🇧',
-    },
-    driver2: {
-      name: 'Oscar Piastri',
-      speed: 87,
-      consistency: 86,
-      rain: 81,
-      defense: 79,
-      nationality: 'Austrália',
-      flag: '🇦🇺',
-    },
-  },
-  {
-    id: 'ai_mercedes',
-    name: 'Mercedes-AMG Petronas',
-    color: '#27F4D2',
-    engine: 'Mercedes',
-    carLevel: 86,
-    driver1: {
-      name: 'George Russell',
-      speed: 86,
-      consistency: 84,
-      rain: 79,
-      defense: 83,
-      nationality: 'Reino Unido',
-      flag: '🇬🇧',
-    },
-    driver2: {
-      name: 'Andrea Kimi Antonelli',
-      speed: 84,
-      consistency: 78,
-      rain: 77,
-      defense: 76,
-      nationality: 'Itália',
-      flag: '🇮🇹',
-    },
-  },
-  {
-    id: 'ai_astonmartin',
-    name: 'Aston Martin Aramco',
-    color: '#229971',
-    engine: 'Honda',
-    carLevel: 83,
-    driver1: {
-      name: 'Fernando Alonso',
-      speed: 88,
-      consistency: 85,
-      rain: 90,
-      defense: 86,
-      nationality: 'Espanha',
-      flag: '🇪🇸',
-    },
-    driver2: {
-      name: 'Lance Stroll',
-      speed: 77,
-      consistency: 74,
-      rain: 80,
-      defense: 74,
-      nationality: 'Canadá',
-      flag: '🇨🇦',
-    },
-  },
-  {
-    id: 'ai_alpine',
-    name: 'Alpine F1 Team',
-    color: '#0093CC',
-    engine: 'Mercedes',
-    carLevel: 78,
-    driver1: {
-      name: 'Pierre Gasly',
-      speed: 83,
-      consistency: 81,
-      rain: 79,
-      defense: 80,
-      nationality: 'França',
-      flag: '🇫🇷',
-    },
-    driver2: {
-      name: 'Jack Doohan',
-      speed: 76,
-      consistency: 75,
-      rain: 74,
-      defense: 73,
-      nationality: 'Austrália',
-      flag: '🇦🇺',
-    },
-  },
-  {
-    id: 'ai_williams',
-    name: 'Williams Racing',
-    color: '#64C4FF',
-    engine: 'Mercedes',
-    carLevel: 80,
-    driver1: {
-      name: 'Carlos Sainz',
-      speed: 85,
-      consistency: 83,
-      rain: 79,
-      defense: 81,
-      nationality: 'Espanha',
-      flag: '🇪🇸',
-    },
-    driver2: {
-      name: 'Alexander Albon',
-      speed: 83,
-      consistency: 82,
-      rain: 78,
-      defense: 80,
-      nationality: 'Tailândia',
-      flag: '🇹🇭',
-    },
-  },
-  {
-    id: 'ai_racingbulls',
-    name: 'Visa Cash App RB',
-    color: '#6692FF',
-    engine: 'Ford',
-    carLevel: 79,
-    driver1: {
-      name: 'Yuki Tsunoda',
-      speed: 81,
-      consistency: 78,
-      rain: 76,
-      defense: 79,
-      nationality: 'Japão',
-      flag: '🇯🇵',
-    },
-    driver2: {
-      name: 'Isack Hadjar',
-      speed: 78,
-      consistency: 76,
-      rain: 75,
-      defense: 74,
-      nationality: 'França',
-      flag: '🇫🇷',
-    },
-  },
-  {
-    id: 'ai_audi',
-    name: 'Audi F1 Team',
-    color: '#FF2A00',
-    engine: 'Ferrari',
-    carLevel: 79,
-    driver1: {
-      name: 'Nico Hülkenberg',
-      speed: 82,
-      consistency: 84,
-      rain: 80,
-      defense: 81,
-      nationality: 'Alemanha',
-      flag: '🇩🇪',
-    },
-    driver2: {
-      name: 'Gabriel Bortoleto Jr.',
-      speed: 79,
-      consistency: 78,
-      rain: 77,
-      defense: 75,
-      nationality: 'Brasil',
-      flag: '🇧🇷',
-    },
-  },
-  {
-    id: 'ai_haas',
-    name: 'Haas F1 Team',
-    color: '#B6BABD',
-    engine: 'Ferrari',
-    carLevel: 77,
-    driver1: {
-      name: 'Esteban Ocon',
-      speed: 82,
-      consistency: 80,
-      rain: 81,
-      defense: 83,
-      nationality: 'França',
-      flag: '🇫🇷',
-    },
-    driver2: {
-      name: 'Oliver Bearman',
-      speed: 80,
-      consistency: 77,
-      rain: 76,
-      defense: 76,
-      nationality: 'Reino Unido',
-      flag: '🇬🇧',
-    },
-  },
-]
+  }))
+}
+
+// Fallback estático compatível para imports existentes
+export const AI_GRID_TEAMS: AICompetitor[] = getAICompetitors()
 
 export const AVAILABLE_MARKET_SPONSORS = [
   {

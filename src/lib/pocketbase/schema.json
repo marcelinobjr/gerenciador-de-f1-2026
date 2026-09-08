@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T14:18:35.764Z",
+  "generatedAt": "2026-09-08T15:02:23.636Z",
   "collections": [
     {
       "name": "users",
@@ -118,6 +118,24 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "strength",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_custom",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "team_key",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_teams_user ON teams (user_id)"]

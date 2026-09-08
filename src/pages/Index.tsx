@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, EventModel, PartModel, RaceResultModel } from '@/types/f1'
-import { F1_2026_CALENDAR, AI_GRID_TEAMS } from '@/lib/f1-data'
+import { F1_2026_CALENDAR, getAICompetitors } from '@/lib/f1-data'
 import { formatCurrency, formatDateTimeBR } from '@/lib/formatters'
 import {
   Trophy,
@@ -90,10 +90,14 @@ export default function Index() {
     const currentRound = season?.current_round || 1
     const completedRounds = Math.max(0, currentRound - 1)
 
-    // Rough competitor totals
-    const competitorsWithPoints = AI_GRID_TEAMS.map((aiTeam, idx) => {
-      // Base points per completed round according to car level
-      const estimatedPts = Math.round((aiTeam.carLevel - 65) * 0.45 * completedRounds)
+    // Rough competitor totals - use getAICompetitors to filter out player's team if official
+    const isCustom = team?.is_custom ?? team?.name === 'Escuderia Brasil'
+    const aiTeams = getAICompetitors(team?.team_key, isCustom)
+
+    const competitorsWithPoints = aiTeams.map((aiTeam) => {
+      // Base points per completed round according to team strength & car level
+      const baseRating = (aiTeam.strength + aiTeam.carLevel) / 2
+      const estimatedPts = Math.max(0, Math.round((baseRating - 65) * 0.45 * completedRounds))
       return {
         id: aiTeam.id,
         name: aiTeam.name,
@@ -103,7 +107,7 @@ export default function Index() {
 
     const allTeams = [
       ...competitorsWithPoints,
-      { id: team?.id || 'player', name: team?.name || 'Escuderia Brasil', points: tPoints },
+      { id: team?.id || 'player', name: team?.name || 'Sua Escuderia', points: tPoints },
     ].sort((a, b) => b.points - a.points)
 
     const myRank = allTeams.findIndex((t) => t.id === (team?.id || 'player')) + 1
@@ -133,6 +137,10 @@ export default function Index() {
     return { bar: 'bg-[#22C55E]', text: 'text-[#22C55E]', label: 'Excelente' }
   }
   const moraleStyle = getMoraleColor(morale)
+
+  const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
+  const totalGridTeams = isCustomTeam ? 12 : 11
+  const playerStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -193,11 +201,12 @@ export default function Index() {
                 <span className="text-3xl font-extrabold font-mono text-[#F5F7FA]">
                   {constructorPosition}º
                 </span>
-                <span className="text-xs text-[#8B95A7] font-mono">/ 11 equipes</span>
+                <span className="text-xs text-[#8B95A7] font-mono">/ {totalGridTeams} equipes</span>
               </div>
             )}
             <p className="text-[11px] text-[#8B95A7] mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3 text-[#00A6FB]" /> Grid Oficial 2026
+              <TrendingUp className="w-3 h-3 text-[#00A6FB]" />{' '}
+              {isCustomTeam ? 'Grid de 12 Equipes (12ª Própria)' : 'Grid Oficial de 11 Equipes'}
             </p>
           </CardContent>
         </Card>
@@ -426,11 +435,22 @@ export default function Index() {
               })
             )}
 
-            <div className="p-3 rounded-lg bg-[#161D29]/40 border border-[#1F2733] flex items-center justify-between text-xs font-mono text-[#8B95A7]">
-              <span>Fornecedor de Motor:</span>
-              <strong className="text-[#00A6FB] font-semibold">
-                {team?.engine_supplier || 'Mercedes'} (50/50 Híbrido)
-              </strong>
+            <div className="p-3 rounded-lg bg-[#161D29]/40 border border-[#1F2733] space-y-2 text-xs font-mono">
+              <div className="flex items-center justify-between text-[#8B95A7]">
+                <span>Fornecedor de Motor:</span>
+                <strong className="text-[#00A6FB] font-semibold">
+                  {team?.engine_supplier || 'Mercedes'} (50/50 Híbrido)
+                </strong>
+              </div>
+              <div className="flex items-center justify-between text-[#8B95A7] pt-1 border-t border-[#1F2733]/60">
+                <span>Força da Escuderia (Rating):</span>
+                <div className="flex items-center gap-1.5">
+                  <strong className="text-amber-400 font-bold">{playerStrength}/100</strong>
+                  <span className="text-[10px] text-[#8B95A7]">
+                    ({isCustomTeam ? '12ª Equipe Própria' : 'Equipe Oficial 2026'})
+                  </span>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
