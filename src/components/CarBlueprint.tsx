@@ -1069,60 +1069,582 @@ export const CarBlueprint: React.FC<CarBlueprintProps> = ({
           </div>
         )}
 
-        {/* 2. SIDE VIEW DEDICATED (From original blueprint visual reference) */}
+        {/* 2. SIDE VIEW DEDICATED (VETORIAL SVG TÉCNICO PERFIL F1 2026) */}
         {activeView === 'side' && (
           <div className="relative rounded-xl border border-cyan-500/20 bg-[#060C16] p-4 flex flex-col items-center">
             <div className="w-full flex items-center justify-between text-xs text-cyan-400/80 mb-2">
-              <span>PROJEÇÃO LATERAL // ELEVAÇÃO Z-AXIS</span>
-              <span>FIA SPEC DIM: L=5000mm H=950mm</span>
+              <span>PROJEÇÃO LATERAL // ELEVAÇÃO Z-AXIS (CAD 2D)</span>
+              <span>FIA SPEC 2026 • L=5.000mm • H=950mm • ENTRE-EIXOS=3.400mm</span>
             </div>
-            {/* Cropped to the middle view of the blueprint image */}
-            <div className="relative w-full overflow-hidden rounded-lg border border-[#1E293B] max-h-[300px] flex items-center justify-center bg-[#070e1c]">
-              <img
-                src={blueprintImg}
-                alt="Vista Lateral Blueprint F1 2026"
-                className="w-full object-cover max-h-[460px] opacity-90 filter contrast-125 brightness-110 -my-[32%]"
-              />
-              {/* Overlay clickable hotspots over the blueprint photo */}
+
+            <div className="relative w-full flex items-center justify-center py-2 bg-[#070E1C] rounded-lg border border-[#1E293B]">
+              <svg
+                viewBox="0 0 960 340"
+                className="w-full h-auto max-h-[360px] drop-shadow-[0_10px_30px_rgba(0,166,251,0.15)] select-none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <filter id="sideCyanGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  <pattern id="sideGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2="20"
+                      y2="0"
+                      stroke="rgba(0,166,251,0.08)"
+                      strokeWidth="0.5"
+                    />
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="20"
+                      stroke="rgba(0,166,251,0.08)"
+                      strokeWidth="0.5"
+                    />
+                  </pattern>
+                  <linearGradient id="sideChassisGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#0B132B" />
+                    <stop offset="25%" stopColor={teamColor} stopOpacity="0.9" />
+                    <stop offset="70%" stopColor={teamColor} stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#0F172A" />
+                  </linearGradient>
+                </defs>
+
+                {/* Grid */}
+                <rect x="20" y="20" width="920" height="300" fill="url(#sideGrid)" rx="8" />
+
+                {/* Cotas técnicas de altura e comprimento */}
+                <line
+                  x1="40"
+                  y1="305"
+                  x2="920"
+                  y2="305"
+                  stroke="#00A6FB"
+                  strokeWidth="0.75"
+                  strokeDasharray="3 3"
+                  opacity="0.6"
+                />
+                <line
+                  x1="40"
+                  y1="298"
+                  x2="40"
+                  y2="312"
+                  stroke="#00A6FB"
+                  strokeWidth="1"
+                  opacity="0.7"
+                />
+                <line
+                  x1="920"
+                  y1="298"
+                  x2="920"
+                  y2="312"
+                  stroke="#00A6FB"
+                  strokeWidth="1"
+                  opacity="0.7"
+                />
+                <text
+                  x="480"
+                  y="322"
+                  fill="#00A6FB"
+                  fontSize="10"
+                  fontFamily="monospace"
+                  textAnchor="middle"
+                  opacity="0.8"
+                >
+                  ◄—— COMPRIMENTO TOTAL 5.000 mm ——►
+                </text>
+
+                {/* Cota de Altura (950mm até o topo do santantônio) */}
+                <line
+                  x1="935"
+                  y1="65"
+                  x2="935"
+                  y2="270"
+                  stroke="#38BDF8"
+                  strokeWidth="0.75"
+                  strokeDasharray="2 2"
+                  opacity="0.5"
+                />
+                <line
+                  x1="928"
+                  y1="65"
+                  x2="942"
+                  y2="65"
+                  stroke="#38BDF8"
+                  strokeWidth="1"
+                  opacity="0.6"
+                />
+                <line
+                  x1="928"
+                  y1="270"
+                  x2="942"
+                  y2="270"
+                  stroke="#38BDF8"
+                  strokeWidth="1"
+                  opacity="0.6"
+                />
+                <text
+                  x="948"
+                  y="172"
+                  fill="#38BDF8"
+                  fontSize="8"
+                  fontFamily="monospace"
+                  transform="rotate(90, 948, 172)"
+                  textAnchor="middle"
+                  opacity="0.7"
+                >
+                  ALTURA MÁX 950 mm
+                </text>
+
+                {/* Sombra de pista */}
+                <ellipse cx="480" cy="268" rx="430" ry="8" fill="#000000" opacity="0.7" />
+
+                {/* Assoalho / Venturi Floor */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => floorPart && onSelectPart(floorPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('assoalho')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <path
+                    d="M 180 236 L 790 236 L 830 216 L 850 238 L 170 238 Z"
+                    fill={isSelected(floorPart) ? 'rgba(0, 166, 251, 0.35)' : '#0F172A'}
+                    stroke={isSelected(floorPart) || isHovered('assoalho') ? '#00A6FB' : '#334155'}
+                    strokeWidth={isSelected(floorPart) || isHovered('assoalho') ? 2.5 : 1.2}
+                    filter={isSelected(floorPart) ? 'url(#sideCyanGlow)' : undefined}
+                  />
+                  {/* Venturi tunnel strakes */}
+                  <line
+                    x1="330"
+                    y1="236"
+                    x2="345"
+                    y2="226"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                    opacity="0.6"
+                  />
+                  <line
+                    x1="460"
+                    y1="236"
+                    x2="475"
+                    y2="226"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                    opacity="0.6"
+                  />
+                  <line
+                    x1="620"
+                    y1="236"
+                    x2="635"
+                    y2="226"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                    opacity="0.6"
+                  />
+                  <line
+                    x1="770"
+                    y1="236"
+                    x2="800"
+                    y2="220"
+                    stroke="#00A6FB"
+                    strokeWidth="1.2"
+                    opacity="0.7"
+                  />
+                </g>
+
+                {/* Asa Traseira */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => rearWingPart && onSelectPart(rearWingPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('asa traseira')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <rect
+                    x="795"
+                    y="65"
+                    width="18"
+                    height="140"
+                    rx="3"
+                    fill={isSelected(rearWingPart) ? 'rgba(0, 166, 251, 0.4)' : '#1E293B'}
+                    stroke={
+                      isSelected(rearWingPart) || isHovered('asa traseira') ? '#00A6FB' : '#475569'
+                    }
+                    strokeWidth={isSelected(rearWingPart) || isHovered('asa traseira') ? 2.5 : 1.5}
+                    filter={isSelected(rearWingPart) ? 'url(#sideCyanGlow)' : undefined}
+                  />
+                  <path
+                    d="M 765 80 L 860 80 L 855 116 L 770 106 Z"
+                    fill={teamColor}
+                    stroke="#0B0F19"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="M 760 67 L 860 67 L 855 77 L 765 77 Z"
+                    fill="#334155"
+                    stroke="#00A6FB"
+                    strokeWidth="0.8"
+                  />
+                  <text
+                    x="810"
+                    y="98"
+                    fill="#FFFFFF"
+                    fontSize="9"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    letterSpacing="1"
+                    textAnchor="middle"
+                  >
+                    {wingSponsor.slice(0, 9).toUpperCase()}
+                  </text>
+                </g>
+
+                {/* Monocoque & Sidepods */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => chassiPart && onSelectPart(chassiPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('chassi')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <path
+                    d="M 120 200 C 160 190, 230 180, 300 170 C 340 165, 370 140, 410 130 C 440 123, 480 115, 520 115 C 560 115, 610 120, 660 140 C 700 155, 750 180, 790 190 L 790 230 L 260 230 C 210 230, 160 215, 120 200 Z"
+                    fill="url(#sideChassisGrad)"
+                    stroke={
+                      isSelected(chassiPart) || isHovered('chassi')
+                        ? '#00A6FB'
+                        : 'rgba(255,255,255,0.4)'
+                    }
+                    strokeWidth={isSelected(chassiPart) || isHovered('chassi') ? 2.5 : 1.5}
+                    filter={isSelected(chassiPart) ? 'url(#sideCyanGlow)' : undefined}
+                  />
+                  {/* Sidepod intake */}
+                  <path
+                    d="M 330 180 L 360 160 L 375 160 L 355 205 L 330 205 Z"
+                    fill="#050B14"
+                    stroke="#38BDF8"
+                    strokeWidth="1"
+                  />
+                  {/* Patrocinador Principal */}
+                  <g transform="translate(420, 176)">
+                    <rect
+                      x="-10"
+                      y="-12"
+                      width="160"
+                      height="24"
+                      rx="4"
+                      fill="#000000"
+                      opacity="0.45"
+                    />
+                    <text
+                      x="70"
+                      y="5"
+                      fill="#FFFFFF"
+                      fontSize="13"
+                      fontWeight="900"
+                      fontFamily="monospace"
+                      letterSpacing="2"
+                      textAnchor="middle"
+                    >
+                      {mainSponsor.slice(0, 13).toUpperCase()}
+                    </text>
+                  </g>
+                </g>
+
+                {/* Cockpit + Halo */}
+                <path
+                  d="M 370 157 C 385 137, 420 127, 470 127 L 470 147 C 430 147, 400 153, 370 163 Z"
+                  fill="#0A0F1D"
+                />
+                <path
+                  d="M 390 160 Q 430 125 480 130 Q 460 140 420 155 Z"
+                  fill="#1E293B"
+                  stroke="#64748B"
+                  strokeWidth="1.5"
+                />
+                <circle
+                  cx="445"
+                  cy="138"
+                  r="12"
+                  fill="#F59E0B"
+                  stroke="#000000"
+                  strokeWidth="1.5"
+                />
+                <path d="M 436 137 L 454 137 L 452 142 L 438 142 Z" fill="#0F172A" />
+
+                {/* Sharkfin & Aerodinâmica Ativa */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => activeAeroPart && onSelectPart(activeAeroPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('aerodinâmica ativa')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <path
+                    d="M 470 119 L 490 80 L 540 80 L 690 140 L 520 119 Z"
+                    fill={isSelected(activeAeroPart) ? 'rgba(0, 166, 251, 0.4)' : '#1E293B'}
+                    stroke={
+                      isSelected(activeAeroPart) || isHovered('aerodinâmica ativa')
+                        ? '#00A6FB'
+                        : '#475569'
+                    }
+                    strokeWidth={
+                      isSelected(activeAeroPart) || isHovered('aerodinâmica ativa') ? 2.5 : 1.5
+                    }
+                    filter={isSelected(activeAeroPart) ? 'url(#sideCyanGlow)' : undefined}
+                  />
+                  <ellipse
+                    cx="495"
+                    cy="94"
+                    rx="9"
+                    ry="13"
+                    fill="#050B14"
+                    stroke="#00A6FB"
+                    strokeWidth="1.2"
+                  />
+                  <text
+                    x="590"
+                    y="108"
+                    fill="#38BDF8"
+                    fontSize="8"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    letterSpacing="1"
+                  >
+                    X/Z-MODE AERO
+                  </text>
+                  <text
+                    x="600"
+                    y="126"
+                    fill="#E2E8F0"
+                    fontSize="9"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    textAnchor="middle"
+                  >
+                    {sideSponsor.slice(0, 11).toUpperCase()}
+                  </text>
+                </g>
+
+                {/* Asa Dianteira & Bico */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => frontWingPart && onSelectPart(frontWingPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('asa dianteira')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <path
+                    d="M 70 212 L 160 200 L 310 174 L 310 190 L 160 217 L 70 220 Z"
+                    fill={teamColor}
+                    stroke={
+                      isSelected(frontWingPart) || isHovered('asa dianteira')
+                        ? '#00A6FB'
+                        : 'rgba(255,255,255,0.4)'
+                    }
+                    strokeWidth={isSelected(frontWingPart) || isHovered('asa dianteira') ? 2 : 1}
+                  />
+                  <rect
+                    x="48"
+                    y="206"
+                    width="12"
+                    height="40"
+                    rx="2"
+                    fill={isSelected(frontWingPart) ? 'rgba(0, 166, 251, 0.4)' : '#1E293B'}
+                    stroke={
+                      isSelected(frontWingPart) || isHovered('asa dianteira')
+                        ? '#00A6FB'
+                        : '#475569'
+                    }
+                    strokeWidth={
+                      isSelected(frontWingPart) || isHovered('asa dianteira') ? 2.5 : 1.5
+                    }
+                    filter={isSelected(frontWingPart) ? 'url(#sideCyanGlow)' : undefined}
+                  />
+                  <path d="M 50 231 L 140 228 L 140 240 L 50 242 Z" fill={teamColor} />
+                  <path
+                    d="M 50 221 L 125 220 L 125 227 L 50 229 Z"
+                    fill="#334155"
+                    stroke="#38BDF8"
+                    strokeWidth="0.8"
+                  />
+                </g>
+
+                {/* Suspensão & Rodas */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => suspensionPart && onSelectPart(suspensionPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('suspensão')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  {/* Front wishbones */}
+                  <line
+                    x1="210"
+                    y1="211"
+                    x2="290"
+                    y2="181"
+                    stroke={
+                      isSelected(suspensionPart) || isHovered('suspensão') ? '#00A6FB' : '#64748B'
+                    }
+                    strokeWidth={isSelected(suspensionPart) ? 4 : 2.5}
+                  />
+                  <line
+                    x1="210"
+                    y1="226"
+                    x2="280"
+                    y2="214"
+                    stroke={
+                      isSelected(suspensionPart) || isHovered('suspensão') ? '#00A6FB' : '#475569'
+                    }
+                    strokeWidth={isSelected(suspensionPart) ? 4 : 2.5}
+                  />
+
+                  {/* Rear wishbones */}
+                  <line
+                    x1="760"
+                    y1="211"
+                    x2="690"
+                    y2="181"
+                    stroke={
+                      isSelected(suspensionPart) || isHovered('suspensão') ? '#00A6FB' : '#64748B'
+                    }
+                    strokeWidth={isSelected(suspensionPart) ? 4 : 2.5}
+                  />
+                  <line
+                    x1="760"
+                    y1="226"
+                    x2="700"
+                    y2="214"
+                    stroke={
+                      isSelected(suspensionPart) || isHovered('suspensão') ? '#00A6FB' : '#475569'
+                    }
+                    strokeWidth={isSelected(suspensionPart) ? 4 : 2.5}
+                  />
+
+                  {/* Front Wheel 18" */}
+                  <circle
+                    cx="210"
+                    cy="222"
+                    r="46"
+                    fill="#0A0E17"
+                    stroke="#334155"
+                    strokeWidth="2.5"
+                  />
+                  <circle
+                    cx="210"
+                    cy="222"
+                    r="28"
+                    fill="#1E293B"
+                    stroke="#475569"
+                    strokeWidth="1.5"
+                  />
+                  <circle
+                    cx="210"
+                    cy="222"
+                    r="41"
+                    fill="none"
+                    stroke={isSelected(suspensionPart) ? '#00A6FB' : '#F59E0B'}
+                    strokeWidth={isSelected(suspensionPart) ? 3.5 : 2}
+                  />
+                  <circle cx="210" cy="222" r="8" fill="#E10600" />
+                  <circle cx="210" cy="222" r="3" fill="#FFFFFF" />
+
+                  {/* Rear Wheel 18" */}
+                  <circle
+                    cx="760"
+                    cy="222"
+                    r="48"
+                    fill="#0A0E17"
+                    stroke="#334155"
+                    strokeWidth="2.5"
+                  />
+                  <circle
+                    cx="760"
+                    cy="222"
+                    r="30"
+                    fill="#1E293B"
+                    stroke="#475569"
+                    strokeWidth="1.5"
+                  />
+                  <circle
+                    cx="760"
+                    cy="222"
+                    r="43"
+                    fill="none"
+                    stroke={isSelected(suspensionPart) ? '#00A6FB' : '#F59E0B'}
+                    strokeWidth={isSelected(suspensionPart) ? 3.5 : 2}
+                  />
+                  <circle cx="760" cy="222" r="8" fill="#E10600" />
+                  <circle cx="760" cy="222" r="3" fill="#FFFFFF" />
+                </g>
+              </svg>
+            </div>
+
+            {/* Part selection tags bar */}
+            <div className="w-full flex flex-wrap items-center justify-center gap-2 mt-3 pt-2 border-t border-[#1E293B]">
               <button
                 type="button"
                 onClick={() => frontWingPart && onSelectPart(frontWingPart.id)}
-                className="absolute left-[5%] bottom-[20%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(frontWingPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
                 Asa Dianteira ({frontWingPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => suspensionPart && onSelectPart(suspensionPart.id)}
-                className="absolute left-[20%] bottom-[35%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(suspensionPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
                 Suspensão ({suspensionPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => chassiPart && onSelectPart(chassiPart.id)}
-                className="absolute left-[45%] top-[35%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(chassiPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
-                Chassi ({chassiPart?.condition ?? 100}%)
+                Chassi / Monocoque ({chassiPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => activeAeroPart && onSelectPart(activeAeroPart.id)}
-                className="absolute left-[52%] top-[12%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(activeAeroPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
                 Aero Ativa ({activeAeroPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => rearWingPart && onSelectPart(rearWingPart.id)}
-                className="absolute right-[8%] top-[20%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(rearWingPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
                 Asa Traseira ({rearWingPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => floorPart && onSelectPart(floorPart.id)}
-                className="absolute left-[42%] bottom-[12%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(floorPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
                 Assoalho ({floorPart?.condition ?? 100}%)
               </button>
@@ -1130,72 +1652,1023 @@ export const CarBlueprint: React.FC<CarBlueprintProps> = ({
           </div>
         )}
 
-        {/* 3. TOP VIEW DEDICATED */}
+        {/* 3. TOP VIEW DEDICATED (VETORIAL SVG TÉCNICO VISTA SUPERIOR PLANTA BAIXA) */}
         {activeView === 'top' && (
           <div className="relative rounded-xl border border-cyan-500/20 bg-[#060C16] p-4 flex flex-col items-center">
             <div className="w-full flex items-center justify-between text-xs text-cyan-400/80 mb-2">
-              <span>PROJEÇÃO SUPERIOR // PLANTA BAIXA AERODINÂMICA</span>
-              <span>LARGURA TOTAL MÁXIMA: 2.000 mm</span>
+              <span>PROJEÇÃO SUPERIOR // PLANTA BAIXA AERODINÂMICA (CAD 2D)</span>
+              <span>LARGURA TOTAL MÁXIMA: 2.000 mm • DIÂMETRO RODAS: 18"</span>
             </div>
-            {/* Cropped to the top section of the blueprint reference */}
-            <div className="relative w-full overflow-hidden rounded-lg border border-[#1E293B] max-h-[300px] flex items-center justify-center bg-[#070e1c]">
-              <img
-                src={blueprintImg}
-                alt="Vista Superior Blueprint F1 2026"
-                className="w-full object-cover max-h-[460px] opacity-90 filter contrast-125 brightness-110 -mt-2 -mb-[64%]"
-              />
+
+            <div className="relative w-full flex items-center justify-center py-2 bg-[#070E1C] rounded-lg border border-[#1E293B]">
+              <svg
+                viewBox="0 0 960 360"
+                className="w-full h-auto max-h-[380px] drop-shadow-[0_10px_30px_rgba(0,166,251,0.15)] select-none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <filter id="topCyanGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  <pattern id="topGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2="20"
+                      y2="0"
+                      stroke="rgba(0,166,251,0.08)"
+                      strokeWidth="0.5"
+                    />
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="20"
+                      stroke="rgba(0,166,251,0.08)"
+                      strokeWidth="0.5"
+                    />
+                  </pattern>
+                  <linearGradient id="topBodyGrad" x1="0%" y1="50%" x2="100%" y2="50%">
+                    <stop offset="0%" stopColor="#0B132B" />
+                    <stop offset="30%" stopColor={teamColor} stopOpacity="0.9" />
+                    <stop offset="70%" stopColor={teamColor} stopOpacity="0.9" />
+                    <stop offset="100%" stopColor="#0F172A" />
+                  </linearGradient>
+                </defs>
+
+                {/* Grid */}
+                <rect x="20" y="20" width="920" height="320" fill="url(#topGrid)" rx="8" />
+
+                {/* Linha de centro do carro (eixo de simetria) */}
+                <line
+                  x1="30"
+                  y1="180"
+                  x2="930"
+                  y2="180"
+                  stroke="#00A6FB"
+                  strokeWidth="0.7"
+                  strokeDasharray="6 3"
+                  opacity="0.4"
+                />
+
+                {/* Cotas de Largura Máxima (2000mm) */}
+                <line
+                  x1="935"
+                  y1="40"
+                  x2="935"
+                  y2="320"
+                  stroke="#38BDF8"
+                  strokeWidth="0.75"
+                  strokeDasharray="2 2"
+                  opacity="0.5"
+                />
+                <line
+                  x1="928"
+                  y1="40"
+                  x2="942"
+                  y2="40"
+                  stroke="#38BDF8"
+                  strokeWidth="1"
+                  opacity="0.6"
+                />
+                <line
+                  x1="928"
+                  y1="320"
+                  x2="942"
+                  y2="320"
+                  stroke="#38BDF8"
+                  strokeWidth="1"
+                  opacity="0.6"
+                />
+                <text
+                  x="948"
+                  y="180"
+                  fill="#38BDF8"
+                  fontSize="8"
+                  fontFamily="monospace"
+                  transform="rotate(90, 948, 180)"
+                  textAnchor="middle"
+                  opacity="0.7"
+                >
+                  LARGURA TOTAL 2.000 mm
+                </text>
+
+                {/* Sombra de chassi sob o carro */}
+                <ellipse cx="480" cy="180" rx="420" ry="85" fill="#000000" opacity="0.5" />
+
+                {/* 1. Assoalho (Bordas externas do assoalho em vista de topo) */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => floorPart && onSelectPart(floorPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('assoalho')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <path
+                    d="M 310 115 L 680 115 L 720 130 L 720 230 L 680 245 L 310 245 L 290 220 L 290 140 Z"
+                    fill={isSelected(floorPart) ? 'rgba(0, 166, 251, 0.3)' : '#0A0F1D'}
+                    stroke={isSelected(floorPart) || isHovered('assoalho') ? '#00A6FB' : '#1E293B'}
+                    strokeWidth={isSelected(floorPart) || isHovered('assoalho') ? 2 : 1}
+                    filter={isSelected(floorPart) ? 'url(#topCyanGlow)' : undefined}
+                  />
+                  {/* Floor edge winglets */}
+                  <line
+                    x1="380"
+                    y1="112"
+                    x2="480"
+                    y2="112"
+                    stroke="#38BDF8"
+                    strokeWidth="2"
+                    opacity="0.7"
+                  />
+                  <line
+                    x1="380"
+                    y1="248"
+                    x2="480"
+                    y2="248"
+                    stroke="#38BDF8"
+                    strokeWidth="2"
+                    opacity="0.7"
+                  />
+                </g>
+
+                {/* 2. Sidepods & Monocoque */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => chassiPart && onSelectPart(chassiPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('chassi')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  {/* Left Sidepod */}
+                  <path
+                    d="M 330 140 C 370 120, 480 120, 560 135 C 640 150, 680 160, 710 170 L 710 180 L 330 180 Z"
+                    fill="url(#topBodyGrad)"
+                    stroke={
+                      isSelected(chassiPart) || isHovered('chassi')
+                        ? '#00A6FB'
+                        : 'rgba(255,255,255,0.4)'
+                    }
+                    strokeWidth={isSelected(chassiPart) || isHovered('chassi') ? 2 : 1.2}
+                    filter={isSelected(chassiPart) ? 'url(#topCyanGlow)' : undefined}
+                  />
+                  {/* Right Sidepod */}
+                  <path
+                    d="M 330 220 C 370 240, 480 240, 560 225 C 640 210, 680 200, 710 190 L 710 180 L 330 180 Z"
+                    fill="url(#topBodyGrad)"
+                    stroke={
+                      isSelected(chassiPart) || isHovered('chassi')
+                        ? '#00A6FB'
+                        : 'rgba(255,255,255,0.4)'
+                    }
+                    strokeWidth={isSelected(chassiPart) || isHovered('chassi') ? 2 : 1.2}
+                    filter={isSelected(chassiPart) ? 'url(#topCyanGlow)' : undefined}
+                  />
+
+                  {/* Bico frontal afilado */}
+                  <path
+                    d="M 75 180 L 170 166 L 310 158 L 310 202 L 170 194 Z"
+                    fill={teamColor}
+                    stroke={
+                      isSelected(chassiPart) || isHovered('chassi')
+                        ? '#00A6FB'
+                        : 'rgba(255,255,255,0.5)'
+                    }
+                    strokeWidth="1.2"
+                  />
+
+                  {/* Radiator air intakes (entradas dos sidepods) */}
+                  <rect
+                    x="330"
+                    y="125"
+                    width="12"
+                    height="30"
+                    rx="2"
+                    fill="#050B14"
+                    stroke="#38BDF8"
+                    strokeWidth="1.2"
+                  />
+                  <rect
+                    x="330"
+                    y="205"
+                    width="12"
+                    height="30"
+                    rx="2"
+                    fill="#050B14"
+                    stroke="#38BDF8"
+                    strokeWidth="1.2"
+                  />
+
+                  {/* Patrocinador em cada sidepod */}
+                  <text
+                    x="460"
+                    y="152"
+                    fill="#FFFFFF"
+                    fontSize="11"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    letterSpacing="1"
+                    textAnchor="middle"
+                  >
+                    {mainSponsor.slice(0, 11).toUpperCase()}
+                  </text>
+                  <text
+                    x="460"
+                    y="214"
+                    fill="#FFFFFF"
+                    fontSize="11"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    letterSpacing="1"
+                    textAnchor="middle"
+                  >
+                    {mainSponsor.slice(0, 11).toUpperCase()}
+                  </text>
+                </g>
+
+                {/* 3. Cockpit, Halo & Capacete */}
+                <ellipse
+                  cx="430"
+                  cy="180"
+                  rx="55"
+                  ry="22"
+                  fill="#0A0E17"
+                  stroke="#334155"
+                  strokeWidth="1.5"
+                />
+                {/* Halo V-structure */}
+                <path
+                  d="M 400 180 L 465 168 L 470 180 L 465 192 Z"
+                  fill="#1E293B"
+                  stroke="#64748B"
+                  strokeWidth="1.5"
+                />
+                {/* Capacete do piloto */}
+                <circle
+                  cx="435"
+                  cy="180"
+                  r="12"
+                  fill="#F59E0B"
+                  stroke="#000000"
+                  strokeWidth="1.5"
+                />
+                <ellipse cx="433" cy="180" rx="3" ry="8" fill="#0F172A" />
+
+                {/* 4. Aerodinâmica Ativa / Tampa do Motor & Shark Fin */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => activeAeroPart && onSelectPart(activeAeroPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('aerodinâmica ativa')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  {/* Airbox intake */}
+                  <ellipse
+                    cx="495"
+                    cy="180"
+                    rx="9"
+                    ry="14"
+                    fill="#050B14"
+                    stroke="#00A6FB"
+                    strokeWidth="1.5"
+                  />
+                  {/* Fin central */}
+                  <line
+                    x1="505"
+                    y1="180"
+                    x2="710"
+                    y2="180"
+                    stroke="#38BDF8"
+                    strokeWidth="3"
+                    opacity="0.8"
+                  />
+                  <text
+                    x="610"
+                    y="174"
+                    fill="#38BDF8"
+                    fontSize="8"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    textAnchor="middle"
+                  >
+                    ATV-AERO
+                  </text>
+                </g>
+
+                {/* 5. Asa Dianteira (Vista Superior - 2000mm) */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => frontWingPart && onSelectPart(frontWingPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('asa dianteira')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  {/* Asa dianteira esquerda */}
+                  <path
+                    d="M 50 50 L 150 75 L 140 166 L 65 174 Z"
+                    fill={teamColor}
+                    stroke={
+                      isSelected(frontWingPart) || isHovered('asa dianteira')
+                        ? '#00A6FB'
+                        : 'rgba(255,255,255,0.4)'
+                    }
+                    strokeWidth={isSelected(frontWingPart) || isHovered('asa dianteira') ? 2 : 1}
+                    filter={isSelected(frontWingPart) ? 'url(#topCyanGlow)' : undefined}
+                  />
+                  {/* Asa dianteira direita */}
+                  <path
+                    d="M 50 310 L 150 285 L 140 194 L 65 186 Z"
+                    fill={teamColor}
+                    stroke={
+                      isSelected(frontWingPart) || isHovered('asa dianteira')
+                        ? '#00A6FB'
+                        : 'rgba(255,255,255,0.4)'
+                    }
+                    strokeWidth={isSelected(frontWingPart) || isHovered('asa dianteira') ? 2 : 1}
+                    filter={isSelected(frontWingPart) ? 'url(#topCyanGlow)' : undefined}
+                  />
+                  {/* Flaps e Endplates */}
+                  <rect
+                    x="45"
+                    y="45"
+                    width="8"
+                    height="35"
+                    rx="2"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                  />
+                  <rect
+                    x="45"
+                    y="280"
+                    width="8"
+                    height="35"
+                    rx="2"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                  />
+                  {/* Flap lines */}
+                  <line
+                    x1="60"
+                    y1="70"
+                    x2="135"
+                    y2="92"
+                    stroke="#FFFFFF"
+                    strokeWidth="1"
+                    opacity="0.6"
+                  />
+                  <line
+                    x1="60"
+                    y1="290"
+                    x2="135"
+                    y2="268"
+                    stroke="#FFFFFF"
+                    strokeWidth="1"
+                    opacity="0.6"
+                  />
+                </g>
+
+                {/* 6. Asa Traseira (Vista Superior) */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => rearWingPart && onSelectPart(rearWingPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('asa traseira')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <rect
+                    x="755"
+                    y="75"
+                    width="60"
+                    height="210"
+                    rx="4"
+                    fill={teamColor}
+                    stroke={
+                      isSelected(rearWingPart) || isHovered('asa traseira') ? '#00A6FB' : '#0B0F19'
+                    }
+                    strokeWidth={isSelected(rearWingPart) || isHovered('asa traseira') ? 2.5 : 1.5}
+                    filter={isSelected(rearWingPart) ? 'url(#topCyanGlow)' : undefined}
+                  />
+                  {/* Endplates laterais */}
+                  <rect
+                    x="750"
+                    y="70"
+                    width="70"
+                    height="8"
+                    rx="2"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                  />
+                  <rect
+                    x="750"
+                    y="282"
+                    width="70"
+                    height="8"
+                    rx="2"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                  />
+                  {/* Texto do patrocinador na asa traseira */}
+                  <text
+                    x="785"
+                    y="184"
+                    fill="#FFFFFF"
+                    fontSize="11"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    letterSpacing="2"
+                    textAnchor="middle"
+                    transform="rotate(-90, 785, 184)"
+                  >
+                    {wingSponsor.slice(0, 11).toUpperCase()}
+                  </text>
+                </g>
+
+                {/* 7. Suspensão & 4 Rodas (Topo) */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => suspensionPart && onSelectPart(suspensionPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('suspensão')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  {/* Front wishbone arms */}
+                  <line x1="175" y1="80" x2="230" y2="160" stroke="#64748B" strokeWidth="2.5" />
+                  <line x1="175" y1="280" x2="230" y2="200" stroke="#64748B" strokeWidth="2.5" />
+                  <line x1="210" y1="80" x2="250" y2="165" stroke="#475569" strokeWidth="2.5" />
+                  <line x1="210" y1="280" x2="250" y2="195" stroke="#475569" strokeWidth="2.5" />
+
+                  {/* Rear wishbone arms */}
+                  <line x1="720" y1="90" x2="670" y2="165" stroke="#64748B" strokeWidth="2.5" />
+                  <line x1="720" y1="270" x2="670" y2="195" stroke="#64748B" strokeWidth="2.5" />
+
+                  {/* Roda Dianteira Esquerda */}
+                  <rect
+                    x="175"
+                    y="42"
+                    width="70"
+                    height="34"
+                    rx="4"
+                    fill="#0A0E17"
+                    stroke={isSelected(suspensionPart) ? '#00A6FB' : '#334155'}
+                    strokeWidth="2"
+                  />
+                  <rect x="183" y="47" width="54" height="24" rx="2" fill="#1E293B" />
+                  <line x1="210" y1="42" x2="210" y2="76" stroke="#F59E0B" strokeWidth="2" />
+
+                  {/* Roda Dianteira Direita */}
+                  <rect
+                    x="175"
+                    y="284"
+                    width="70"
+                    height="34"
+                    rx="4"
+                    fill="#0A0E17"
+                    stroke={isSelected(suspensionPart) ? '#00A6FB' : '#334155'}
+                    strokeWidth="2"
+                  />
+                  <rect x="183" y="289" width="54" height="24" rx="2" fill="#1E293B" />
+                  <line x1="210" y1="284" x2="210" y2="318" stroke="#F59E0B" strokeWidth="2" />
+
+                  {/* Roda Traseira Esquerda (Mais larga) */}
+                  <rect
+                    x="715"
+                    y="38"
+                    width="76"
+                    height="42"
+                    rx="4"
+                    fill="#0A0E17"
+                    stroke={isSelected(suspensionPart) ? '#00A6FB' : '#334155'}
+                    strokeWidth="2"
+                  />
+                  <rect x="725" y="44" width="56" height="30" rx="2" fill="#1E293B" />
+                  <line x1="753" y1="38" x2="753" y2="80" stroke="#F59E0B" strokeWidth="2" />
+
+                  {/* Roda Traseira Direita */}
+                  <rect
+                    x="715"
+                    y="280"
+                    width="76"
+                    height="42"
+                    rx="4"
+                    fill="#0A0E17"
+                    stroke={isSelected(suspensionPart) ? '#00A6FB' : '#334155'}
+                    strokeWidth="2"
+                  />
+                  <rect x="725" y="286" width="56" height="30" rx="2" fill="#1E293B" />
+                  <line x1="753" y1="280" x2="753" y2="322" stroke="#F59E0B" strokeWidth="2" />
+                </g>
+              </svg>
+            </div>
+
+            {/* Quick Part Hotspot Buttons */}
+            <div className="w-full flex flex-wrap items-center justify-center gap-2 mt-3 pt-2 border-t border-[#1E293B]">
               <button
                 type="button"
                 onClick={() => frontWingPart && onSelectPart(frontWingPart.id)}
-                className="absolute right-[8%] top-[45%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(frontWingPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
                 Asa Dianteira ({frontWingPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => chassiPart && onSelectPart(chassiPart.id)}
-                className="absolute left-[45%] top-[45%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(chassiPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
-                Cockpit & Sidepods ({chassiPart?.condition ?? 100}%)
+                Sidepods & Monocoque ({chassiPart?.condition ?? 100}%)
+              </button>
+              <button
+                type="button"
+                onClick={() => activeAeroPart && onSelectPart(activeAeroPart.id)}
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(activeAeroPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                Aero Ativa & Airbox ({activeAeroPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => rearWingPart && onSelectPart(rearWingPart.id)}
-                className="absolute left-[10%] top-[45%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(rearWingPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
                 Asa Traseira ({rearWingPart?.condition ?? 100}%)
+              </button>
+              <button
+                type="button"
+                onClick={() => floorPart && onSelectPart(floorPart.id)}
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(floorPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                Assoalho ({floorPart?.condition ?? 100}%)
+              </button>
+              <button
+                type="button"
+                onClick={() => suspensionPart && onSelectPart(suspensionPart.id)}
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(suspensionPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                Suspensão & Rodas ({suspensionPart?.condition ?? 100}%)
               </button>
             </div>
           </div>
         )}
 
-        {/* 4. FRONT & REAR VIEW */}
+        {/* 4. FRONT & REAR VIEW (VETORIAL SVG TÉCNICO VISTA FRONTAL E TRASEIRA) */}
         {activeView === 'front-rear' && (
           <div className="relative rounded-xl border border-cyan-500/20 bg-[#060C16] p-4 flex flex-col items-center">
             <div className="w-full flex items-center justify-between text-xs text-cyan-400/80 mb-2">
-              <span>PROJEÇÃO FRONTAL & TRASEIRA // DIFUSOR & CONDUTOS DE FREIO</span>
-              <span>REGULAMENTO ATIVO F1 2026</span>
+              <span>PROJEÇÃO FRONTAL & TRASEIRA // DIFUSOR, CONDUTOS & HALO</span>
+              <span>LARGURA: 2.000 mm • ALTURA DO HALO: 950 mm</span>
             </div>
-            {/* Cropped to the bottom section of the blueprint reference */}
-            <div className="relative w-full overflow-hidden rounded-lg border border-[#1E293B] max-h-[300px] flex items-center justify-center bg-[#070e1c]">
-              <img
-                src={blueprintImg}
-                alt="Vista Frontal e Traseira Blueprint F1 2026"
-                className="w-full object-cover max-h-[460px] opacity-90 filter contrast-125 brightness-110 -mt-[64%] mb-0"
-              />
+
+            <div className="relative w-full flex items-center justify-center py-2 bg-[#070E1C] rounded-lg border border-[#1E293B]">
+              <svg
+                viewBox="0 0 960 340"
+                className="w-full h-auto max-h-[360px] drop-shadow-[0_10px_30px_rgba(0,166,251,0.15)] select-none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <filter id="frCyanGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  <pattern id="frGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2="20"
+                      y2="0"
+                      stroke="rgba(0,166,251,0.08)"
+                      strokeWidth="0.5"
+                    />
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="20"
+                      stroke="rgba(0,166,251,0.08)"
+                      strokeWidth="0.5"
+                    />
+                  </pattern>
+                </defs>
+
+                {/* Grid */}
+                <rect x="20" y="20" width="920" height="300" fill="url(#frGrid)" rx="8" />
+
+                {/* Linha divisória entre Frontal e Traseira */}
+                <line
+                  x1="480"
+                  y1="30"
+                  x2="480"
+                  y2="310"
+                  stroke="#00A6FB"
+                  strokeWidth="0.75"
+                  strokeDasharray="4 4"
+                  opacity="0.4"
+                />
+                <text
+                  x="240"
+                  y="48"
+                  fill="#38BDF8"
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily="monospace"
+                  textAnchor="middle"
+                >
+                  PROJEÇÃO FRONTAL (AERO DIANTEIRA & HALO)
+                </text>
+                <text
+                  x="720"
+                  y="48"
+                  fill="#38BDF8"
+                  fontSize="11"
+                  fontWeight="bold"
+                  fontFamily="monospace"
+                  textAnchor="middle"
+                >
+                  PROJEÇÃO TRASEIRA (DIFUSOR & ASA TRASEIRA)
+                </text>
+
+                {/* ==================== VISTA FRONTAL (ESQUERDA: cx 240) ==================== */}
+                {/* Linha do solo */}
+                <line x1="40" y1="265" x2="440" y2="265" stroke="#334155" strokeWidth="1" />
+                <ellipse cx="240" cy="265" rx="190" ry="6" fill="#000000" opacity="0.6" />
+
+                {/* Rodas Frontais */}
+                {/* Roda Dianteira Esquerda */}
+                <rect
+                  x="50"
+                  y="180"
+                  width="36"
+                  height="85"
+                  rx="5"
+                  fill="#0A0E17"
+                  stroke="#334155"
+                  strokeWidth="2"
+                />
+                <rect
+                  x="55"
+                  y="195"
+                  width="26"
+                  height="55"
+                  rx="3"
+                  fill="#1E293B"
+                  stroke="#475569"
+                  strokeWidth="1"
+                />
+                <line x1="50" y1="222" x2="86" y2="222" stroke="#F59E0B" strokeWidth="2" />
+
+                {/* Roda Dianteira Direita */}
+                <rect
+                  x="394"
+                  y="180"
+                  width="36"
+                  height="85"
+                  rx="5"
+                  fill="#0A0E17"
+                  stroke="#334155"
+                  strokeWidth="2"
+                />
+                <rect
+                  x="399"
+                  y="195"
+                  width="26"
+                  height="55"
+                  rx="3"
+                  fill="#1E293B"
+                  stroke="#475569"
+                  strokeWidth="1"
+                />
+                <line x1="394" y1="222" x2="430" y2="222" stroke="#F59E0B" strokeWidth="2" />
+
+                {/* Asa Dianteira Frontal */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => frontWingPart && onSelectPart(frontWingPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('asa dianteira')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <rect
+                    x="44"
+                    y="240"
+                    width="392"
+                    height="15"
+                    rx="2"
+                    fill={teamColor}
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                  />
+                  <rect
+                    x="44"
+                    y="215"
+                    width="6"
+                    height="42"
+                    rx="1"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                  />
+                  <rect
+                    x="430"
+                    y="215"
+                    width="6"
+                    height="42"
+                    rx="1"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1"
+                  />
+                  {/* Flaps */}
+                  <line
+                    x1="70"
+                    y1="247"
+                    x2="200"
+                    y2="247"
+                    stroke="#FFFFFF"
+                    strokeWidth="1.2"
+                    opacity="0.8"
+                  />
+                  <line
+                    x1="280"
+                    y1="247"
+                    x2="410"
+                    y2="247"
+                    stroke="#FFFFFF"
+                    strokeWidth="1.2"
+                    opacity="0.8"
+                  />
+                </g>
+
+                {/* Braços de Suspensão Frontais */}
+                <line x1="86" y1="200" x2="195" y2="215" stroke="#64748B" strokeWidth="2.5" />
+                <line x1="86" y1="245" x2="195" y2="240" stroke="#475569" strokeWidth="2.5" />
+                <line x1="394" y1="200" x2="285" y2="215" stroke="#64748B" strokeWidth="2.5" />
+                <line x1="394" y1="245" x2="285" y2="240" stroke="#475569" strokeWidth="2.5" />
+
+                {/* Bico Monocoque Central Frontal */}
+                <polygon
+                  points="215,250 265,250 255,185 225,185"
+                  fill={teamColor}
+                  stroke="#FFFFFF"
+                  strokeWidth="1"
+                  opacity="0.9"
+                />
+
+                {/* Entradas dos sidepods (radiadores) */}
+                <path
+                  d="M 160 210 L 205 210 L 200 248 L 155 248 Z"
+                  fill="#050B14"
+                  stroke="#38BDF8"
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="M 320 210 L 275 210 L 280 248 L 325 248 Z"
+                  fill="#050B14"
+                  stroke="#38BDF8"
+                  strokeWidth="1.5"
+                />
+
+                {/* Cockpit / Halo Frontal */}
+                <path
+                  d="M 205 180 Q 240 120 275 180 Z"
+                  fill="none"
+                  stroke="#64748B"
+                  strokeWidth="3"
+                />
+                <line x1="240" y1="130" x2="240" y2="185" stroke="#64748B" strokeWidth="3.5" />
+                {/* Capacete do piloto */}
+                <circle cx="240" cy="168" r="10" fill="#F59E0B" stroke="#000000" strokeWidth="1" />
+                <rect x="234" y="166" width="12" height="4" fill="#0F172A" />
+
+                {/* Airbox entrada superior */}
+                <ellipse
+                  cx="240"
+                  cy="115"
+                  rx="14"
+                  ry="10"
+                  fill="#050B14"
+                  stroke="#00A6FB"
+                  strokeWidth="1.5"
+                />
+
+                {/* ==================== VISTA TRASEIRA (DIREITA: cx 720) ==================== */}
+                {/* Linha do solo */}
+                <line x1="520" y1="265" x2="920" y2="265" stroke="#334155" strokeWidth="1" />
+                <ellipse cx="720" cy="265" rx="190" ry="6" fill="#000000" opacity="0.6" />
+
+                {/* Rodas Traseiras (mais largas) */}
+                <rect
+                  x="530"
+                  y="172"
+                  width="44"
+                  height="93"
+                  rx="5"
+                  fill="#0A0E17"
+                  stroke="#334155"
+                  strokeWidth="2"
+                />
+                <rect
+                  x="536"
+                  y="190"
+                  width="32"
+                  height="58"
+                  rx="3"
+                  fill="#1E293B"
+                  stroke="#475569"
+                  strokeWidth="1"
+                />
+                <line x1="530" y1="220" x2="574" y2="220" stroke="#F59E0B" strokeWidth="2" />
+
+                <rect
+                  x="866"
+                  y="172"
+                  width="44"
+                  height="93"
+                  rx="5"
+                  fill="#0A0E17"
+                  stroke="#334155"
+                  strokeWidth="2"
+                />
+                <rect
+                  x="872"
+                  y="190"
+                  width="32"
+                  height="58"
+                  rx="3"
+                  fill="#1E293B"
+                  stroke="#475569"
+                  strokeWidth="1"
+                />
+                <line x1="866" y1="220" x2="910" y2="220" stroke="#F59E0B" strokeWidth="2" />
+
+                {/* Difusor Traseiro Venturi */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => floorPart && onSelectPart(floorPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('assoalho')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  <polygon
+                    points="630,265 810,265 825,230 615,230"
+                    fill={isSelected(floorPart) ? 'rgba(0,166,251,0.35)' : '#0F172A'}
+                    stroke="#00A6FB"
+                    strokeWidth="1.5"
+                    filter={isSelected(floorPart) ? 'url(#frCyanGlow)' : undefined}
+                  />
+                  {/* Difusor strakes */}
+                  <line x1="660" y1="265" x2="655" y2="230" stroke="#38BDF8" strokeWidth="1.5" />
+                  <line x1="695" y1="265" x2="693" y2="230" stroke="#38BDF8" strokeWidth="1.5" />
+                  <line x1="720" y1="265" x2="720" y2="230" stroke="#E10600" strokeWidth="2" />
+                  <line x1="745" y1="265" x2="747" y2="230" stroke="#38BDF8" strokeWidth="1.5" />
+                  <line x1="780" y1="265" x2="785" y2="230" stroke="#38BDF8" strokeWidth="1.5" />
+                  {/* Luz de chuva traseira FIA LED */}
+                  <rect
+                    x="714"
+                    y="248"
+                    width="12"
+                    height="12"
+                    rx="2"
+                    fill="#E10600"
+                    stroke="#FFFFFF"
+                    strokeWidth="0.8"
+                  />
+                </g>
+
+                {/* Escapamento Central V6 1.6T */}
+                <circle cx="720" cy="205" r="10" fill="#0A0E17" stroke="#F59E0B" strokeWidth="2" />
+
+                {/* Asa Traseira Completa */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => rearWingPart && onSelectPart(rearWingPart.id)}
+                  onMouseEnter={() => setHoveredPartKey('asa traseira')}
+                  onMouseLeave={() => setHoveredPartKey(null)}
+                >
+                  {/* Pilares de sustentação tipo pescoço de cisne */}
+                  <line x1="705" y1="180" x2="705" y2="105" stroke="#64748B" strokeWidth="3" />
+                  <line x1="735" y1="180" x2="735" y2="105" stroke="#64748B" strokeWidth="3" />
+                  {/* Main plane */}
+                  <rect
+                    x="585"
+                    y="95"
+                    width="270"
+                    height="26"
+                    rx="3"
+                    fill={teamColor}
+                    stroke="#00A6FB"
+                    strokeWidth="1.5"
+                  />
+                  {/* Flap superior DRS */}
+                  <rect
+                    x="590"
+                    y="80"
+                    width="260"
+                    height="10"
+                    rx="2"
+                    fill="#334155"
+                    stroke="#38BDF8"
+                    strokeWidth="1"
+                  />
+                  {/* Endplates traseiros */}
+                  <rect
+                    x="580"
+                    y="70"
+                    width="10"
+                    height="70"
+                    rx="2"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1.2"
+                  />
+                  <rect
+                    x="850"
+                    y="70"
+                    width="10"
+                    height="70"
+                    rx="2"
+                    fill="#1E293B"
+                    stroke="#00A6FB"
+                    strokeWidth="1.2"
+                  />
+                  <text
+                    x="720"
+                    y="112"
+                    fill="#FFFFFF"
+                    fontSize="10"
+                    fontWeight="bold"
+                    fontFamily="monospace"
+                    letterSpacing="1"
+                    textAnchor="middle"
+                  >
+                    {wingSponsor.slice(0, 10).toUpperCase()}
+                  </text>
+                </g>
+              </svg>
+            </div>
+
+            {/* Quick Part Hotspot Buttons */}
+            <div className="w-full flex flex-wrap items-center justify-center gap-2 mt-3 pt-2 border-t border-[#1E293B]">
               <button
                 type="button"
                 onClick={() => frontWingPart && onSelectPart(frontWingPart.id)}
-                className="absolute left-[20%] bottom-[12%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(frontWingPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
-                Asa Dianteira & Bico ({frontWingPart?.condition ?? 100}%)
+                Asa Dianteira Frontal ({frontWingPart?.condition ?? 100}%)
               </button>
               <button
                 type="button"
                 onClick={() => floorPart && onSelectPart(floorPart.id)}
-                className="absolute right-[22%] bottom-[12%] px-2 py-1 rounded bg-[#08101E]/90 border border-cyan-400 text-[10px] text-cyan-300 hover:scale-105 transition-all shadow-lg"
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(floorPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
               >
-                Difusor Traseiro ({floorPart?.condition ?? 100}%)
+                Difusor Traseiro & Assoalho ({floorPart?.condition ?? 100}%)
+              </button>
+              <button
+                type="button"
+                onClick={() => rearWingPart && onSelectPart(rearWingPart.id)}
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(rearWingPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                Asa Traseira & DRS ({rearWingPart?.condition ?? 100}%)
+              </button>
+              <button
+                type="button"
+                onClick={() => suspensionPart && onSelectPart(suspensionPart.id)}
+                className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                  isSelected(suspensionPart)
+                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                    : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                Suspensão & Bitola ({suspensionPart?.condition ?? 100}%)
               </button>
             </div>
           </div>

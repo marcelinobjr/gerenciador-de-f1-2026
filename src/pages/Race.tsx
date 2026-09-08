@@ -39,6 +39,9 @@ import {
   Activity,
   HeartPulse,
   Wrench,
+  Radio,
+  AlertTriangle,
+  ArrowDownCircle,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -81,6 +84,26 @@ interface SimDriverEntry {
   morale?: number
   physicalCondition?: number
   pitStopsDone?: number
+  hasWingDamage?: boolean
+}
+
+export interface LiveRaceEvent {
+  id: string
+  lap: number
+  type:
+    | 'overtake'
+    | 'fastest_lap'
+    | 'tire_warning'
+    | 'incident'
+    | 'safety_car'
+    | 'weather'
+    | 'pit_stop'
+    | 'info'
+  message: string
+  driverName?: string
+  teamColor?: string
+  isPlayer?: boolean
+  timestamp: string
 }
 
 interface SessionTimeResult {
@@ -205,6 +228,22 @@ export default function RacePage() {
   const [raceIncidents, setRaceIncidents] = useState<string[]>([])
   const [safetyCarActive, setSafetyCarActive] = useState(false)
 
+  // Live race feed & simulation settings
+  const [liveEvents, setLiveEvents] = useState<LiveRaceEvent[]>([])
+  const [simSpeed, setSimSpeed] = useState<number>(1) // 1x, 2x, 4x, or instant
+  const [autoSimulateWithoutPause, setAutoSimulateWithoutPause] = useState<boolean>(false)
+
+  // Modals for tactical decisions during race
+  // 1. Broken wing / Touch damage decision modal
+  const [wingDamageModalOpen, setWingDamageModalOpen] = useState(false)
+  const [wingDamageDriver, setWingDamageDriver] = useState<SimDriverEntry | null>(null)
+  const [wingDamageTireChoice, setWingDamageTireChoice] = useState<TireCompound>('duro')
+
+  // 2. Safety car decision modal
+  const [safetyCarModalOpen, setSafetyCarModalOpen] = useState(false)
+  const [safetyCarReason, setSafetyCarReason] = useState<string>('')
+  const [safetyCarTireChoice, setSafetyCarTireChoice] = useState<TireCompound>('medio')
+
   // Weather and forecast state
   const [weather, setWeather] = useState<'seco' | 'chuva'>('seco')
   const [forecast, setForecast] = useState<WeatherForecast>({
@@ -214,13 +253,14 @@ export default function RacePage() {
     trackTemp: 35,
   })
 
-  // Dynamic live race state (for tire wear, weather shifts & rain decision modal)
+  // Dynamic live race state (for tire wear, weather shifts & tactical decision modals)
   const [liveRaceState, setLiveRaceState] = useState<{
     inProgress: boolean
     currentLap: number
     totalLaps: number
     weather: 'seco' | 'chuva'
     grid: SimDriverEntry[]
+    safetyCarLapRemaining?: number
   } | null>(null)
 
   // Rain Decision Modal state
@@ -892,6 +932,21 @@ export default function RacePage() {
       })
     })
 
+    // Initial live race event
+    const startEvent: LiveRaceEvent = {
+      id: `ev_start_${Date.now()}`,
+      lap: 1,
+      type: 'info',
+      message: `🟢 LUZES APAGADAS! Largada autorizada para o ${gpInfo.name} com 24 monopostos na pista!`,
+      timestamp: new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    }
+
+    setLiveEvents([startEvent])
+
     // Save live race state and begin simulation loop
     setLiveRaceState({
       inProgress: true,
@@ -904,72 +959,341 @@ export default function RacePage() {
     // Ensure race session tab is actively viewed
     setActiveSession('race')
 
-    // Check if rain starts mid-race
-    let rainLapToUse: number | null = null
-    if (weather === 'seco' && forecast.probability >= 35) {
-      rainLapToUse = forecast.rainLapStart || Math.round(gpInfo.laps * 0.4)
-    }
-
-    simulateRaceStage(initialGrid, 1, weather, rainLapToUse)
+    // Start live narrated simulation loop
+    runLiveRaceLoop(initialGrid, 1, weather)
   }
 
-  // Simulation execution engine
-  const simulateRaceStage = (
-    currentGrid: SimDriverEntry[],
-    startLap: number,
+  // HELPER: Generate periodic narrated race events as laps progress
+  const generateLapNarratedEvents = (
+    currentLap: number,
+    grid: SimDriverEntry[],
     currentWeather: 'seco' | 'chuva',
-    rainAtLap: number | null,
+  ): LiveRaceEvent[] => {
+    const events: LiveRaceEvent[] = []
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    const playerDrivers = grid.filter((g) => g.isPlayer && !g.dnf)
+
+    // 1. Critical tire wear warning for player
+    playerDrivers.forEach((pd) => {
+      if ((pd.tireWear || 0) >= 75 && (pd.tireWear || 0) < 82 && Math.random() < 0.4) {
+        events.push({
+          id: `ev_tire_${currentLap}_${pd.driverId}`,
+          lap: currentLap,
+          type: 'tire_warning',
+          message: `⚠️ RÁDIO DA EQUIPE: "${pd.driverName}, seus pneus ${formatTireName(pd.tireCompound)} atingiram ${pd.tireWear}% de desgaste! Perda iminente de aderência."`,
+          driverName: pd.driverName,
+          teamColor: pd.teamColor,
+          isPlayer: true,
+          timestamp: nowStr,
+        })
+      } else if ((pd.tireWear || 0) >= 88 && Math.random() < 0.5) {
+        events.push({
+          id: `ev_crit_tire_${currentLap}_${pd.driverId}`,
+          lap: currentLap,
+          type: 'tire_warning',
+          message: `🚨 PNEU EM FIM DE VIDA! ${pd.driverName} relata forte granulação e risco de delaminação (${pd.tireWear}% desgaste).`,
+          driverName: pd.driverName,
+          teamColor: pd.teamColor,
+          isPlayer: true,
+          timestamp: nowStr,
+        })
+      }
+    })
+
+    // 2. Overtakes involving the player or Top 5
+    if (Math.random() < 0.35 && playerDrivers.length > 0) {
+      const p = playerDrivers[Math.floor(Math.random() * playerDrivers.length)]
+      const isOvertaking = Math.random() > 0.45
+      if (isOvertaking) {
+        events.push({
+          id: `ev_overtake_${currentLap}_${p.driverId}`,
+          lap: currentLap,
+          type: 'overtake',
+          message: `⚡ ULTRAPASSAGEM! ${p.driverName} aciona o modo de ataque elétrico 350kW na reta e ganha posição com bela manobra!`,
+          driverName: p.driverName,
+          teamColor: p.teamColor,
+          isPlayer: true,
+          timestamp: nowStr,
+        })
+      } else {
+        events.push({
+          id: `ev_def_${currentLap}_${p.driverId}`,
+          lap: currentLap,
+          type: 'overtake',
+          message: `🛡️ DEFESA DE POSIÇÃO: ${p.driverName} fecha a porta na frenagem e segura o ataque do adversário!`,
+          driverName: p.driverName,
+          teamColor: p.teamColor,
+          isPlayer: true,
+          timestamp: nowStr,
+        })
+      }
+    }
+
+    // 3. Fastest lap shoutout
+    if (currentLap > 3 && Math.random() < 0.2) {
+      const candidates = grid.filter((g) => !g.dnf)
+      const fastDriver = candidates[Math.floor(Math.random() * candidates.length)]
+      if (fastDriver) {
+        events.push({
+          id: `ev_fl_${currentLap}_${fastDriver.driverId}`,
+          lap: currentLap,
+          type: 'fastest_lap',
+          message: `🟣 VOLTA MAIS RÁPIDA! ${fastDriver.driverName} (${fastDriver.teamName}) crava o melhor tempo da prova com 1:${Math.floor(18 + Math.random() * 8)}.${Math.floor(100 + Math.random() * 899)}.`,
+          driverName: fastDriver.driverName,
+          teamColor: fastDriver.teamColor,
+          isPlayer: fastDriver.isPlayer,
+          timestamp: nowStr,
+        })
+      }
+    }
+
+    // 4. Rival AI pit stops
+    const aiInPits = grid.filter((g) => !g.isPlayer && !g.dnf && g.pitLap === currentLap)
+    aiInPits.forEach((ai) => {
+      events.push({
+        id: `ev_pit_${currentLap}_${ai.driverId}`,
+        lap: currentLap,
+        type: 'pit_stop',
+        message: `🔧 BOX, BOX! ${ai.driverName} (${ai.teamName}) nos boxes para troca de pneus (${formatTireName(ai.secondCompound)}). Parada realizada em ${(2.1 + Math.random() * 0.8).toFixed(2)}s.`,
+        driverName: ai.driverName,
+        teamColor: ai.teamColor,
+        isPlayer: false,
+        timestamp: nowStr,
+      })
+    })
+
+    return events
+  }
+
+  // LIVE RACE NARRATED LOOP RUNNER
+  const runLiveRaceLoop = (
+    initialGrid: SimDriverEntry[],
+    startLap: number,
+    initialWeather: 'seco' | 'chuva',
   ) => {
+    let currentGrid = [...initialGrid]
+    let currentLap = startLap
+    let currentWeather = initialWeather
     const totalLaps = gpInfo.laps
     const abrasiveness = gpInfo.tireAbrasiveness || 6
-    const setupPenalty = calculateSetupDelta('race')
-    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
-    const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
 
-    // Stop and ask player if rain arrives mid-race
-    if (rainAtLap && startLap < rainAtLap) {
-      const targetLap = rainAtLap
-      setSimText(`Largada! Volta 1 até a Volta ${targetLap}...`)
-      setSimProgress(Math.round((targetLap / totalLaps) * 100))
+    // Pre-calculate possible dynamic milestone laps (if not already triggered)
+    const rainLap =
+      initialWeather === 'seco' && forecast.probability >= 35
+        ? forecast.rainLapStart || Math.round(totalLaps * 0.42)
+        : null
 
-      setTimeout(() => {
-        // Wear accumulates up to targetLap
-        const updatedGrid = currentGrid.map((entry) => {
-          const lapsStint = targetLap
-          const compoundWearRate =
-            entry.tireCompound === 'macio' ? 3.8 : entry.tireCompound === 'medio' ? 2.5 : 1.8
-          const wearInc = Math.min(
-            95,
-            Math.round(lapsStint * compoundWearRate * (abrasiveness / 5)),
-          )
-          return {
-            ...entry,
-            tireWear: Math.min(100, (entry.tireWear || 5) + wearInc),
-          }
-        })
+    // Safety car trigger lap (chance ~45% in full GP)
+    const safetyCarLap =
+      Math.random() < 0.45 ? Math.round(totalLaps * (0.28 + Math.random() * 0.4)) : null
 
-        // RAIN STARTS! PAUSE SIMULATION AND OPEN DECISION MODAL!
+    // Wing damage touch trigger lap (chance ~40% for player in GP)
+    const wingDamageLap =
+      Math.random() < 0.4 ? Math.round(totalLaps * (0.22 + Math.random() * 0.45)) : null
+
+    const stepIntervalMs = autoSimulateWithoutPause ? 80 : Math.max(150, Math.round(650 / simSpeed))
+
+    const timer = setInterval(() => {
+      currentLap += 1
+      const pct = Math.min(99, Math.round((currentLap / totalLaps) * 100))
+      setSimProgress(pct)
+      setSimText(
+        `Volta ${currentLap} de ${totalLaps} • ${gpInfo.circuit} • Velocidade ${simSpeed}x`,
+      )
+
+      // Accumulate wear and fatigue for all active cars
+      currentGrid = currentGrid.map((entry) => {
+        if (entry.dnf) return entry
+        const compoundWearRate =
+          entry.tireCompound === 'macio'
+            ? 3.2
+            : entry.tireCompound === 'medio'
+              ? 2.2
+              : entry.tireCompound === 'duro'
+                ? 1.5
+                : 2.4
+        const inc = (compoundWearRate * (abrasiveness / 5)) / 1.5
+        const currentWear = Math.min(100, Math.round((entry.tireWear || 5) + inc))
+
+        // AI regular pit stop execution when pitLap reached
+        let nextCompound = entry.tireCompound
+        let pitStops = entry.pitStopsDone || 0
+        if (!entry.isPlayer && entry.pitLap === currentLap && pitStops === 0) {
+          nextCompound = entry.secondCompound || 'duro'
+          pitStops += 1
+        }
+
+        return {
+          ...entry,
+          tireWear: currentWear,
+          tireCompound: nextCompound,
+          pitStopsDone: pitStops,
+        }
+      })
+
+      // Generate narrated events for this lap
+      const newEvents = generateLapNarratedEvents(currentLap, currentGrid, currentWeather)
+      if (newEvents.length > 0) {
+        setLiveEvents((prev) => [...newEvents, ...prev].slice(0, 40))
+      }
+
+      // Update live race state
+      setLiveRaceState({
+        inProgress: true,
+        currentLap,
+        totalLaps,
+        weather: currentWeather,
+        grid: currentGrid,
+      })
+
+      // CHECK DECISION PAUSE 1: RAIN ARRIVAL
+      if (
+        !autoSimulateWithoutPause &&
+        rainLap &&
+        currentLap === rainLap &&
+        currentWeather === 'seco'
+      ) {
+        clearInterval(timer)
+        currentWeather = 'chuva'
         setWeather('chuva')
-        setActiveSession('race')
+
+        const rainEvent: LiveRaceEvent = {
+          id: `ev_rain_${currentLap}`,
+          lap: currentLap,
+          type: 'weather',
+          message: `🌧️ CLIMA MUDOU! Asfalto molhado e chuva moderada no ${gpInfo.circuit}! A corrida foi pausada pela Direção de Prova.`,
+          timestamp: new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }),
+        }
+        setLiveEvents((prev) => [rainEvent, ...prev])
+
         setLiveRaceState({
           inProgress: true,
-          currentLap: targetLap,
+          currentLap,
           totalLaps,
           weather: 'chuva',
-          grid: updatedGrid,
+          grid: currentGrid,
         })
         setIsSimulatingSession(false)
         setRainDecisionOpen(true)
         toast({
           title: '🌧️ COMEÇOU A CHOVER NA PISTA!',
-          description: `Volta ${targetLap}/${totalLaps}: Asfalto molhado! Decida a estratégia de pneus imediatamente.`,
+          description: `Volta ${currentLap}/${totalLaps}: Asfalto molhado! Decida a estratégia de pneus imediatamente.`,
         })
-      }, 1200)
-      return
-    }
+        return
+      }
 
-    // Otherwise complete full race simulation
-    finishRaceSimulation(currentGrid, currentWeather)
+      // CHECK DECISION PAUSE 2: TOQUE COM DANO / ASA QUEBRADA DO JOGADOR
+      if (
+        !autoSimulateWithoutPause &&
+        wingDamageLap &&
+        currentLap === wingDamageLap &&
+        !wingDamageModalOpen
+      ) {
+        const playerEntries = currentGrid.filter((g) => g.isPlayer && !g.dnf && !g.hasWingDamage)
+        if (playerEntries.length > 0) {
+          clearInterval(timer)
+          const affectedDriver = playerEntries[0]
+          affectedDriver.hasWingDamage = true
+
+          const dmgEvent: LiveRaceEvent = {
+            id: `ev_wing_${currentLap}`,
+            lap: currentLap,
+            type: 'incident',
+            message: `💥 CONTATO NA PISTA! ${affectedDriver.driverName} tocou no carro rival na curva! ASA DIANTEIRA QUEBRADA! Fim de placa solto.`,
+            driverName: affectedDriver.driverName,
+            teamColor: affectedDriver.teamColor,
+            isPlayer: true,
+            timestamp: new Date().toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }),
+          }
+          setLiveEvents((prev) => [dmgEvent, ...prev])
+
+          setWingDamageDriver(affectedDriver)
+          setWingDamageTireChoice(affectedDriver.secondCompound || 'duro')
+          setIsSimulatingSession(false)
+          setWingDamageModalOpen(true)
+          toast({
+            variant: 'destructive',
+            title: '💥 TOQUE COM DANO / ASA QUEBRADA!',
+            description: `Volta ${currentLap}/${totalLaps}: ${affectedDriver.driverName} danificou a asa dianteira! Chamar para o box trocar?`,
+          })
+          return
+        }
+      }
+
+      // CHECK DECISION PAUSE 3: SAFETY CAR ENTRA NA PISTA
+      if (
+        !autoSimulateWithoutPause &&
+        safetyCarLap &&
+        currentLap === safetyCarLap &&
+        !safetyCarActive &&
+        !safetyCarModalOpen
+      ) {
+        clearInterval(timer)
+        setSafetyCarActive(true)
+
+        // Find a rival who caused the incident or spun
+        const rivalAccident = currentGrid.find((g) => !g.isPlayer && !g.dnf) || currentGrid[1]
+        const reason = `Acidente de ${rivalAccident.driverName} (${rivalAccident.teamName}) no setor 2 com detritos espalhados no traçado`
+        setSafetyCarReason(reason)
+
+        const scEvent: LiveRaceEvent = {
+          id: `ev_sc_${currentLap}`,
+          lap: currentLap,
+          type: 'safety_car',
+          message: `🟡 SAFETY CAR NA PISTA! Bernd Mayländer entra com o Aston Martin Vantage! ${reason}. Velocidade controlada.`,
+          timestamp: new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }),
+        }
+        setLiveEvents((prev) => [scEvent, ...prev])
+
+        // AI rival teams rationally decide pit stops under Safety Car (cheap pit stop window!)
+        currentGrid.forEach((entry) => {
+          if (!entry.isPlayer && !entry.dnf) {
+            // 70% of AI drivers take advantage of cheap SC pit stop if tire wear > 40%
+            if ((entry.tireWear || 0) > 40 && (entry.pitStopsDone || 0) < 2) {
+              entry.tireCompound = entry.secondCompound || 'duro'
+              entry.tireWear = 8
+              entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+            }
+          }
+        })
+
+        // Default player tire choice to secondary compound or available
+        const p1 = currentGrid.find((g) => g.isPlayer && !g.dnf)
+        if (p1) {
+          setSafetyCarTireChoice(p1.secondCompound || 'duro')
+        }
+
+        setIsSimulatingSession(false)
+        setSafetyCarModalOpen(true)
+        toast({
+          title: '🟡 SAFETY CAR NA PISTA!',
+          description: `Volta ${currentLap}/${totalLaps}: Janela barata de pit stop aberta! Entrar nos boxes ou ficar na pista?`,
+        })
+        return
+      }
+
+      // Check if race laps completed
+      if (currentLap >= totalLaps) {
+        clearInterval(timer)
+        finishRaceSimulation(currentGrid, currentWeather)
+      }
+    }, stepIntervalMs)
   }
 
   // Handle Player Rain Decision (Intermediate, Extreme Wet, or Wait X laps)
@@ -982,6 +1306,11 @@ export default function RacePage() {
     const currentLap = liveRaceState.currentLap
     const totalLaps = gpInfo.laps
     const incidents = [...raceIncidents]
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
 
     // AI rivals rationally pit for wet tires right away or on next lap
     currentGrid.forEach((entry) => {
@@ -1001,16 +1330,35 @@ export default function RacePage() {
       const accidentRisk = Math.min(75, waitLaps * 18) // High crash risk on wet track with slicks
       const hadAccident = Math.random() * 100 < accidentRisk
 
-      incidents.push(
-        `🌧️ ESTRATÉGIA ARRISCADA: Você decidiu aguardar ${waitLaps} volta(s) com pneus slicks na pista molhada!`,
-      )
+      const waitMsg = `🌧️ ESTRATÉGIA ARRISCADA: Você decidiu aguardar ${waitLaps} volta(s) com slicks no asfalto molhado!`
+      incidents.push(waitMsg)
+      setLiveEvents((prev) => [
+        {
+          id: `ev_wait_${Date.now()}`,
+          lap: currentLap,
+          type: 'weather',
+          message: waitMsg,
+          timestamp: nowStr,
+        },
+        ...prev,
+      ])
+
       if (hadAccident) {
-        incidents.push(
-          `💥 AQUAPLANAGEM: Carro da equipe perdeu completamente a aderência no asfalto encharcado e rodou!`,
-        )
+        const crashMsg = `💥 AQUAPLANAGEM: Carro da equipe perdeu completamente a aderência na água e colidiu!`
+        incidents.push(crashMsg)
+        setLiveEvents((prev) => [
+          {
+            id: `ev_crash_${Date.now()}`,
+            lap: currentLap,
+            type: 'incident',
+            message: crashMsg,
+            timestamp: nowStr,
+          },
+          ...prev,
+        ])
       } else {
         incidents.push(
-          `⏱️ PERDA DE RITMO: Sem aderência no molhado com slicks, o carro perdeu aproximadamente ${(waitLaps * 2.8).toFixed(1)}s por volta e posições no pelotão antes de colocar intermediários!`,
+          `⏱️ PERDA DE RITMO: Sem aderência no molhado com slicks, perdeu ~${(waitLaps * 2.8).toFixed(1)}s por volta antes de colocar intermediários!`,
         )
       }
 
@@ -1022,7 +1370,6 @@ export default function RacePage() {
             entry.dnf = true
             entry.dnfReason = 'Aquaplanagem com pneus de pista seca na chuva'
           } else {
-            // After waiting the selected laps, driver eventually pits for intermediates
             entry.tireCompound = 'intermediario'
             entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
             if (tireStock.intermediario > 0) {
@@ -1043,9 +1390,18 @@ export default function RacePage() {
           [chosenTire]: Math.max(0, prev[chosenTire] - 1),
         }))
       }
-      incidents.push(
-        `🌧️ PIT STOP EMERGENCIAL: Equipe chamou os carros para troca imediata para pneus ${formatTireName(chosenTire)}.`,
-      )
+      const pitMsg = `🌧️ PIT STOP EMERGENCIAL: Equipe chamou os carros para troca imediata para pneus ${formatTireName(chosenTire)}.`
+      incidents.push(pitMsg)
+      setLiveEvents((prev) => [
+        {
+          id: `ev_wetpit_${Date.now()}`,
+          lap: currentLap,
+          type: 'pit_stop',
+          message: pitMsg,
+          timestamp: nowStr,
+        },
+        ...prev,
+      ])
       currentGrid.forEach((entry) => {
         if (entry.isPlayer) {
           entry.tireCompound = chosenTire
@@ -1057,11 +1413,193 @@ export default function RacePage() {
 
     setRaceIncidents(incidents)
     setSimText('Retomando corrida sob condições de chuva...')
-    setSimProgress(75)
 
-    setTimeout(() => {
-      finishRaceSimulation(currentGrid, 'chuva')
-    }, 1000)
+    // Resume narrated race loop until finish
+    runLiveRaceLoop(currentGrid, currentLap, 'chuva')
+  }
+
+  // Handle Player Decision for Broken Wing / Touch Damage
+  const handleConfirmWingDamageDecision = (decision: 'pit_trocar' | 'continuar') => {
+    setWingDamageModalOpen(false)
+    setIsSimulatingSession(true)
+
+    if (!liveRaceState) return
+    const currentGrid = [...liveRaceState.grid]
+    const currentLap = liveRaceState.currentLap
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+
+    const driver = wingDamageDriver
+    if (!driver) return
+
+    if (decision === 'pit_trocar') {
+      // Pit stop immediately to replace the front wing cone
+      // Time penalty in pit: ~12s extra for nose cone change, but car returns with full pace and zero aero loss
+      if (tireStock[wingDamageTireChoice] > 0) {
+        setTireStock((prev) => ({
+          ...prev,
+          [wingDamageTireChoice]: Math.max(0, prev[wingDamageTireChoice] - 1),
+        }))
+      }
+
+      currentGrid.forEach((entry) => {
+        if (entry.driverId === driver.driverId) {
+          entry.hasWingDamage = false
+          entry.tireCompound = wingDamageTireChoice
+          entry.tireWear = 8 // Fresh rubber
+          entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+          entry.score -= 10 // Pit time loss with nose change
+        }
+      })
+
+      const msg = `🔧 PIT STOP PARA TROCA DE BICO E ASA: ${driver.driverName} entrou nos boxes! A equipe trocou o bico e montou pneus ${formatTireName(wingDamageTireChoice)} em rápidos 13.8s. O carro volta à pista com 100% de downforce!`
+      setRaceIncidents((prev) => [...prev, msg])
+      setLiveEvents((prev) => [
+        {
+          id: `ev_wing_pit_${Date.now()}`,
+          lap: currentLap,
+          type: 'pit_stop',
+          message: msg,
+          driverName: driver.driverName,
+          teamColor: driver.teamColor,
+          isPlayer: true,
+          timestamp: nowStr,
+        },
+        ...prev,
+      ])
+      toast({
+        title: 'Asa Substituída com Sucesso',
+        description: `${driver.driverName} retornou com aerodinâmica íntegra e pneus novos.`,
+      })
+    } else {
+      // Stay on track with broken wing: heavy pace penalty (-25 score) + 30% chance of sudden DNF or secondary crash
+      const secondaryCrash = Math.random() < 0.28
+      currentGrid.forEach((entry) => {
+        if (entry.driverId === driver.driverId) {
+          entry.hasWingDamage = true
+          entry.score -= 28 // Severe continuous downforce penalty
+          if (secondaryCrash) {
+            entry.dnf = true
+            entry.dnfReason = 'Perda total de controle por colapso da asa dianteira danificada'
+          }
+        }
+      })
+
+      const msg = secondaryCrash
+        ? `💥 ACIDENTE GRAVE! Sem sustentação aerodinâmica com a asa quebrada, ${driver.driverName} escapou na curva de alta velocidade e bateu no guard-rail! Fim de prova.`
+        : `⚠️ DECISÃO ARRISCADA: ${driver.driverName} permaneceu na pista com a asa quebrada! O carro está sofrendo com saída de frente extrema (-2.4s por volta).`
+
+      setRaceIncidents((prev) => [...prev, msg])
+      setLiveEvents((prev) => [
+        {
+          id: `ev_wing_stay_${Date.now()}`,
+          lap: currentLap,
+          type: 'incident',
+          message: msg,
+          driverName: driver.driverName,
+          teamColor: driver.teamColor,
+          isPlayer: true,
+          timestamp: nowStr,
+        },
+        ...prev,
+      ])
+    }
+
+    // Resume loop
+    runLiveRaceLoop(currentGrid, currentLap, liveRaceState.weather)
+  }
+
+  // Handle Player Decision for Safety Car (Cheap Pit Stop or Stay Out)
+  const handleConfirmSafetyCarDecision = (decision: 'pit_sc' | 'stay_out') => {
+    setSafetyCarModalOpen(false)
+    setIsSimulatingSession(true)
+
+    if (!liveRaceState) return
+    const currentGrid = [...liveRaceState.grid]
+    const currentLap = liveRaceState.currentLap
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+
+    if (decision === 'pit_sc') {
+      // Pit stop under Safety Car is cheap! Only loses ~10-12s instead of ~22-25s in green flag!
+      if (tireStock[safetyCarTireChoice] > 0) {
+        setTireStock((prev) => ({
+          ...prev,
+          [safetyCarTireChoice]: Math.max(0, prev[safetyCarTireChoice] - 1),
+        }))
+      }
+
+      currentGrid.forEach((entry) => {
+        if (entry.isPlayer && !entry.dnf) {
+          entry.tireCompound = safetyCarTireChoice
+          entry.tireWear = 6 // Fresh tires
+          entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+          entry.score += 6 // Tactical gain: fresh tires with cheap delta!
+        }
+      })
+
+      const msg = `🟡 PIT STOP ESTRATÉGICO SOB SAFETY CAR: A equipe aproveitou o delta reduzido de velocidade para colocar pneus ${formatTireName(safetyCarTireChoice)} com perda mínima de tempo de pista!`
+      setRaceIncidents((prev) => [...prev, msg])
+      setLiveEvents((prev) => [
+        {
+          id: `ev_sc_pit_${Date.now()}`,
+          lap: currentLap,
+          type: 'pit_stop',
+          message: msg,
+          isPlayer: true,
+          timestamp: nowStr,
+        },
+        ...prev,
+      ])
+      toast({
+        title: 'Pit Stop Sob Safety Car Executado!',
+        description: `Pneus novos (${formatTireName(safetyCarTireChoice)}) montados perdendo pouquíssimo tempo de pelotão.`,
+      })
+    } else {
+      // Stay on track: retain track position, but tire wear will continue without fresh rubber
+      currentGrid.forEach((entry) => {
+        if (entry.isPlayer && !entry.dnf) {
+          entry.score += 3 // Kept track position on the restart
+        }
+      })
+
+      const msg = `🟡 ESTRATÉGIA DE PISTA: A equipe optou por não parar nos boxes sob Safety Car para manter a posição na relargada.`
+      setRaceIncidents((prev) => [...prev, msg])
+      setLiveEvents((prev) => [
+        {
+          id: `ev_sc_stay_${Date.now()}`,
+          lap: currentLap,
+          type: 'info',
+          message: msg,
+          isPlayer: true,
+          timestamp: nowStr,
+        },
+        ...prev,
+      ])
+    }
+
+    // Safety Car leaves after 3 laps
+    const scRestartLap = Math.min(gpInfo.laps, currentLap + 3)
+    const restartMsg = `🟢 SAFETY CAR NA BOX NESTA VOLTA! Bernd Mayländer apaga as luzes no teto do SC. Corrida relargada!`
+    setLiveEvents((prev) => [
+      {
+        id: `ev_sc_restart_${Date.now()}`,
+        lap: scRestartLap,
+        type: 'info',
+        message: restartMsg,
+        timestamp: nowStr,
+      },
+      ...prev,
+    ])
+
+    // Resume loop
+    runLiveRaceLoop(currentGrid, currentLap, liveRaceState.weather)
   }
 
   // Calculate final positions, points, tire degradation & race results
@@ -1846,17 +2384,58 @@ export default function RacePage() {
                     )}
 
                     {/* Action button to execute session */}
-                    <div className="pt-2">
+                    <div className="pt-2 space-y-2">
                       {isRaceSession ? (
-                        <Button
-                          size="lg"
-                          onClick={handleStartRace}
-                          disabled={isSimulatingSession || isDone}
-                          className="w-full bg-gradient-to-r from-[#E10600] to-[#FF6B35] hover:from-[#FF2E25] hover:to-[#FF7B48] text-white font-extrabold shadow-lg"
-                        >
-                          <Play className="w-4 h-4 mr-2 fill-current" />
-                          {isDone ? 'Corrida Concluída' : 'Largada da Corrida (GP)'}
-                        </Button>
+                        <>
+                          <div className="flex flex-col sm:flex-row items-center gap-2">
+                            <Button
+                              size="lg"
+                              onClick={handleStartRace}
+                              disabled={isSimulatingSession || isDone}
+                              className="flex-1 w-full bg-gradient-to-r from-[#E10600] to-[#FF6B35] hover:from-[#FF2E25] hover:to-[#FF7B48] text-white font-extrabold shadow-lg"
+                            >
+                              <Play className="w-4 h-4 mr-2 fill-current" />
+                              {isDone ? 'Corrida Concluída' : 'Iniciar Corrida Narrada (Ao Vivo)'}
+                            </Button>
+
+                            {!isDone && (
+                              <div className="flex items-center gap-1.5 p-1 bg-[#0B0E14] border border-[#1F2733] rounded-lg">
+                                <span className="text-[10px] text-[#8B95A7] px-1 font-mono">
+                                  Velocidade:
+                                </span>
+                                {[1, 2, 4].map((spd) => (
+                                  <button
+                                    key={spd}
+                                    type="button"
+                                    onClick={() => setSimSpeed(spd)}
+                                    className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all ${
+                                      simSpeed === spd
+                                        ? 'bg-[#00A6FB] text-[#0B0E14]'
+                                        : 'text-[#8B95A7] hover:text-white'
+                                    }`}
+                                  >
+                                    {spd}x
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {!isDone && (
+                            <div className="flex items-center justify-between text-[11px] font-mono text-[#8B95A7] px-1">
+                              <span>Modo de Corrida:</span>
+                              <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
+                                <input
+                                  type="checkbox"
+                                  checked={autoSimulateWithoutPause}
+                                  onChange={(e) => setAutoSimulateWithoutPause(e.target.checked)}
+                                  className="rounded border-[#1F2733] text-[#E10600] focus:ring-0"
+                                />
+                                <span>Simulação Rápida (sem pausar em incidentes)</span>
+                              </label>
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <Button
                           size="lg"
@@ -1875,21 +2454,128 @@ export default function RacePage() {
                 </Card>
               </div>
 
-              {/* Simulation Animation Banner */}
+              {/* Simulation Animation Banner & Live Status */}
               {isSimulatingSession && (
-                <Card className="bg-[#11161F] border border-[#00A6FB]/60 p-6 text-center space-y-4">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#00A6FB]/20 text-[#00A6FB] animate-spin mx-auto">
-                    <Gauge className="w-6 h-6" />
+                <Card className="bg-[#11161F] border border-[#00A6FB]/60 p-5 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-[#1F2733] pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#00A6FB]/20 text-[#00A6FB] animate-spin">
+                        <Gauge className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-[#F5F7FA]">{simText}</h3>
+                        <p className="text-xs text-[#8B95A7] font-mono">
+                          Simulação e telemetria ativas em tempo real
+                        </p>
+                      </div>
+                    </div>
+
+                    {isRaceSession && liveRaceState && (
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 text-xs font-mono">
+                          Volta {liveRaceState.currentLap} / {liveRaceState.totalLaps}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={`font-mono text-xs ${
+                            liveRaceState.weather === 'chuva'
+                              ? 'border-sky-400 text-sky-400 bg-sky-400/10'
+                              : 'border-amber-400 text-amber-400 bg-amber-400/10'
+                          }`}
+                        >
+                          {liveRaceState.weather === 'chuva' ? 'Molhado' : 'Seco'}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-[#F5F7FA]">{simText}</h3>
-                    <Progress
-                      value={simProgress}
-                      className="h-2 max-w-md mx-auto mt-3 bg-[#0B0E14]"
-                    />
-                  </div>
+
+                  <Progress value={simProgress} className="h-2 w-full bg-[#0B0E14]" />
                 </Card>
               )}
+
+              {/* CORRIDA AO VIVO: FEED DE EVENTOS EM TEMPO REAL E TELEMETRIA NARRADA */}
+              {isRaceSession &&
+                (liveEvents.length > 0 || (liveRaceState && liveRaceState.inProgress)) && (
+                  <div className="space-y-4">
+                    <Card className="bg-[#11161F] border border-[#1F2733] shadow-lg overflow-hidden">
+                      <CardHeader className="py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <CardTitle className="text-sm font-bold text-[#F5F7FA] tracking-wide font-mono flex items-center gap-2">
+                            <Radio className="w-4 h-4 text-emerald-400" />
+                            FEED DE TRANSMISSÃO AO VIVO // PIT WALL & RÁDIO
+                          </CardTitle>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono border-slate-700 text-slate-300"
+                        >
+                          {liveEvents.length} eventos registrados
+                        </Badge>
+                      </CardHeader>
+
+                      <CardContent className="p-0">
+                        <div className="max-h-[340px] overflow-y-auto divide-y divide-[#1F2733]/60 scrollbar-thin">
+                          {liveEvents.map((ev) => {
+                            let badgeBg = 'bg-slate-800 text-slate-300 border-slate-700'
+                            let icon = <Flag className="w-3.5 h-3.5" />
+
+                            if (ev.type === 'overtake') {
+                              badgeBg = 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                              icon = <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                            } else if (ev.type === 'fastest_lap') {
+                              badgeBg = 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                              icon = <Flame className="w-3.5 h-3.5 text-purple-400" />
+                            } else if (ev.type === 'tire_warning') {
+                              badgeBg = 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              icon = <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                            } else if (ev.type === 'incident') {
+                              badgeBg = 'bg-red-500/20 text-red-300 border-red-500/40'
+                              icon = <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                            } else if (ev.type === 'safety_car') {
+                              badgeBg = 'bg-amber-400 text-black border-amber-500'
+                              icon = <ShieldAlert className="w-3.5 h-3.5" />
+                            } else if (ev.type === 'weather') {
+                              badgeBg = 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                              icon = <CloudRain className="w-3.5 h-3.5 text-sky-400" />
+                            } else if (ev.type === 'pit_stop') {
+                              badgeBg = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              icon = <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+                            }
+
+                            return (
+                              <div
+                                key={ev.id}
+                                className={`p-3 text-xs font-mono flex items-start gap-3 transition-colors ${
+                                  ev.isPlayer
+                                    ? 'bg-[#E10600]/10 border-l-2 border-l-[#E10600]'
+                                    : 'hover:bg-[#161D29]/40'
+                                }`}
+                              >
+                                <div className="flex flex-col items-center shrink-0 w-12 text-[10px] text-[#8B95A7]">
+                                  <span className="font-bold text-white">V{ev.lap}</span>
+                                  <span>{ev.timestamp}</span>
+                                </div>
+
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] px-1.5 py-0.5 shrink-0 flex items-center gap-1 ${badgeBg}`}
+                                >
+                                  {icon}
+                                  <span className="capitalize">{ev.type.replace('_', ' ')}</span>
+                                </Badge>
+
+                                <div className="flex-1 text-[#F5F7FA] leading-relaxed">
+                                  {ev.message}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
               {/* Session Results Timesheet (TP1, TP2, Q1, Q2, Q3) */}
               {!isRaceSession && resultsForThis && resultsForThis.length > 0 && (
@@ -2125,7 +2811,7 @@ export default function RacePage() {
         })}
       </Tabs>
 
-      {/* DIÁLOGO / MODAL DE DECISÃO ESTRATÉGICA DE CHUVA */}
+      {/* 1. DIÁLOGO / MODAL DE DECISÃO ESTRATÉGICA DE CHUVA */}
       <Dialog open={rainDecisionOpen} onOpenChange={setRainDecisionOpen}>
         <DialogContent className="bg-[#11161F] border-2 border-sky-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
           <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
@@ -2314,6 +3000,275 @@ export default function RacePage() {
                   className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs h-9 px-4 shrink-0 sm:self-center"
                 >
                   Aguardar {rainDecisionWaitLaps} volta(s)
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. DIÁLOGO DE DECISÃO: TOQUE COM DANO / ASA QUEBRADA */}
+      <Dialog open={wingDamageModalOpen} onOpenChange={setWingDamageModalOpen}>
+        <DialogContent className="bg-[#11161F] border-2 border-red-500/80 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
+          <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
+            <div className="flex items-center gap-2 text-red-400 font-mono text-xs uppercase tracking-wider font-bold">
+              <AlertTriangle className="w-5 h-5 animate-pulse text-red-500" />
+              Incidente na Pista • Danos no Monoposto
+            </div>
+            <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
+              <span>💥 Toque com Dano — Asa Quebrada!</span>
+              <Badge className="bg-red-500/20 text-red-300 border border-red-400/40 text-xs font-mono">
+                Volta {liveRaceState?.currentLap || 1} de {gpInfo.laps}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
+              O piloto <strong>{wingDamageDriver?.driverName}</strong> sofreu contato direto com um
+              adversário e quebrou a placa terminal da asa dianteira. A simulação foi pausada pela
+              telemetria do pit wall!
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Context box */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-xs font-mono">
+            <div>
+              <span className="text-[#8B95A7] block text-[11px]">Piloto Afetado:</span>
+              <strong className="text-white block mt-0.5">{wingDamageDriver?.driverName}</strong>
+            </div>
+            <div>
+              <span className="text-[#8B95A7] block text-[11px]">Pneu Atual:</span>
+              <strong className="text-amber-400 block mt-0.5">
+                {formatTireName(wingDamageDriver?.tireCompound)} ({wingDamageDriver?.tireWear}%
+                desgaste)
+              </strong>
+            </div>
+            <div>
+              <span className="text-[#8B95A7] block text-[11px]">Diagnóstico FIA:</span>
+              <strong className="text-red-400 block mt-0.5">
+                Perda de ~40% de downforce dianteiro
+              </strong>
+            </div>
+          </div>
+
+          {/* Choice 1: Pit stop for nose cone replacement */}
+          <div className="space-y-3 pt-1">
+            <div className="p-4 rounded-xl border border-emerald-500/40 bg-[#161D29]/60 hover:bg-[#161D29] transition-all space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-emerald-400" />
+                    <h4 className="font-bold text-sm text-[#F5F7FA]">
+                      Opção 1: BOX IMEDIATO — Trocar Bico e Asa Dianteira
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono border-emerald-500/40 text-emerald-400"
+                    >
+                      Recomendado
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8B95A7]">
+                    Chamar o piloto para os boxes imediatamente. Os mecânicos trocam todo o bico
+                    dianteiro em ~13.8 segundos e colocam um novo jogo de pneus. O carro volta com
+                    100% de sustentação aerodinâmica e ritmo total.
+                  </p>
+                </div>
+              </div>
+
+              {/* Select compound for the pit stop */}
+              <div className="pt-2 border-t border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs font-mono">
+                  <span className="text-[#8B95A7]">Novo jogo de pneus:</span>
+                  <select
+                    value={wingDamageTireChoice}
+                    onChange={(e) => setWingDamageTireChoice(e.target.value as TireCompound)}
+                    className="bg-[#0B0E14] border border-[#1F2733] rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono"
+                  >
+                    <option value="duro" disabled={tireStock.duro <= 0}>
+                      Duro ({tireStock.duro} rest.)
+                    </option>
+                    <option value="medio" disabled={tireStock.medio <= 0}>
+                      Médio ({tireStock.medio} rest.)
+                    </option>
+                    <option value="macio" disabled={tireStock.macio <= 0}>
+                      Macio ({tireStock.macio} rest.)
+                    </option>
+                    <option value="intermediario" disabled={tireStock.intermediario <= 0}>
+                      Intermediário ({tireStock.intermediario} rest.)
+                    </option>
+                    <option value="chuva_extrema" disabled={tireStock.chuva_extrema <= 0}>
+                      Chuva Extrema ({tireStock.chuva_extrema} rest.)
+                    </option>
+                  </select>
+                </div>
+
+                <Button
+                  onClick={() => handleConfirmWingDamageDecision('pit_trocar')}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 px-4 shrink-0"
+                >
+                  Confirmar Pit Stop e Troca de Asa
+                </Button>
+              </div>
+            </div>
+
+            {/* Choice 2: Stay on track with broken wing */}
+            <div className="p-4 rounded-xl border border-red-500/40 bg-[#161D29]/60 hover:bg-[#161D29] transition-all">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Flag className="w-4 h-4 text-red-400" />
+                    <h4 className="font-bold text-sm text-[#F5F7FA]">
+                      Opção 2: CONTINUAR NA PISTA — Não parar agora
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono border-red-500/40 text-red-400"
+                    >
+                      Extremo Perigo
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8B95A7]">
+                    Manter o piloto na pista sem trocar a asa. Não perde tempo nos boxes, mas o
+                    ritmo despencará em até 2.5s por volta e há ~28% de risco de quebra total da asa
+                    ou colisão com abandono (DNF).
+                  </p>
+                </div>
+                <Button
+                  onClick={() => handleConfirmWingDamageDecision('continuar')}
+                  variant="outline"
+                  className="border-red-500/60 text-red-300 hover:bg-red-500/20 font-bold text-xs h-9 px-4 shrink-0"
+                >
+                  Assumir Risco e Ficar na Pista
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. DIÁLOGO DE DECISÃO: SAFETY CAR NA PISTA */}
+      <Dialog open={safetyCarModalOpen} onOpenChange={setSafetyCarModalOpen}>
+        <DialogContent className="bg-[#11161F] border-2 border-amber-500/80 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
+          <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
+            <div className="flex items-center gap-2 text-amber-400 font-mono text-xs uppercase tracking-wider font-bold">
+              <ShieldAlert className="w-5 h-5 text-amber-400 animate-pulse" />
+              Direção de Prova da FIA • Intervenção do Safety Car
+            </div>
+            <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
+              <span>🟡 SAFETY CAR NA PISTA!</span>
+              <Badge className="bg-amber-500/20 text-amber-300 border border-amber-400/40 text-xs font-mono">
+                Volta {liveRaceState?.currentLap || 1} de {gpInfo.laps}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
+              Motivo do SC: <strong>{safetyCarReason || 'Acidente e detritos na pista'}</strong>. Os
+              carros estão em fila indiana a velocidade controlada (delta limitado).
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Context box */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-xs font-mono">
+            <div>
+              <span className="text-[#8B95A7] block text-[11px]">Vantagem da Parada sob SC:</span>
+              <strong className="text-emerald-400 block mt-0.5">
+                Perde apenas ~11s de tempo de volta em vez de ~24s!
+              </strong>
+            </div>
+            <div>
+              <span className="text-[#8B95A7] block text-[11px]">Comportamento dos Rivais:</span>
+              <strong className="text-amber-400 block mt-0.5">
+                Maioria das equipes IA entrando nos boxes para pneus novos
+              </strong>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-1">
+            {/* Option 1: Pit under SC */}
+            <div className="p-4 rounded-xl border border-emerald-500/40 bg-[#161D29]/60 hover:bg-[#161D29] transition-all space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ArrowDownCircle className="w-4 h-4 text-emerald-400" />
+                    <h4 className="font-bold text-sm text-[#F5F7FA]">
+                      Opção 1: ENTRAR NOS BOXES (Parada Barata sob SC)
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono border-emerald-500/40 text-emerald-400"
+                    >
+                      Tática Clássica de F1
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8B95A7]">
+                    Aproveitar a bandeira amarela para colocar borracha nova sem perder muitas
+                    posições. Você relargará com pneus novos contra rivais com desgaste alto.
+                  </p>
+                </div>
+              </div>
+
+              {/* Select compound */}
+              <div className="pt-2 border-t border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs font-mono">
+                  <span className="text-[#8B95A7]">Composto de pneu:</span>
+                  <select
+                    value={safetyCarTireChoice}
+                    onChange={(e) => setSafetyCarTireChoice(e.target.value as TireCompound)}
+                    className="bg-[#0B0E14] border border-[#1F2733] rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono"
+                  >
+                    <option value="duro" disabled={tireStock.duro <= 0}>
+                      Duro ({tireStock.duro} rest.)
+                    </option>
+                    <option value="medio" disabled={tireStock.medio <= 0}>
+                      Médio ({tireStock.medio} rest.)
+                    </option>
+                    <option value="macio" disabled={tireStock.macio <= 0}>
+                      Macio ({tireStock.macio} rest.)
+                    </option>
+                    <option value="intermediario" disabled={tireStock.intermediario <= 0}>
+                      Intermediário ({tireStock.intermediario} rest.)
+                    </option>
+                    <option value="chuva_extrema" disabled={tireStock.chuva_extrema <= 0}>
+                      Chuva Extrema ({tireStock.chuva_extrema} rest.)
+                    </option>
+                  </select>
+                </div>
+
+                <Button
+                  onClick={() => handleConfirmSafetyCarDecision('pit_sc')}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 px-4 shrink-0"
+                >
+                  Fazer Pit Stop sob SC
+                </Button>
+              </div>
+            </div>
+
+            {/* Option 2: Stay out to gain track position */}
+            <div className="p-4 rounded-xl border border-cyan-500/40 bg-[#161D29]/60 hover:bg-[#161D29] transition-all">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Flag className="w-4 h-4 text-cyan-400" />
+                    <h4 className="font-bold text-sm text-[#F5F7FA]">
+                      Opção 2: FICAR NA PISTA (Priorizar Posição de Pista)
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono border-cyan-500/40 text-cyan-400"
+                    >
+                      Defesa de Posição
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8B95A7]">
+                    Não parar agora. Se os rivais à frente entrarem nos boxes, você ganha posições
+                    imediatamente na pista para a relargada. Seus pneus, no entanto, continuarão
+                    desgastados.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => handleConfirmSafetyCarDecision('stay_out')}
+                  variant="outline"
+                  className="border-cyan-500/60 text-cyan-300 hover:bg-cyan-500/20 font-bold text-xs h-9 px-4 shrink-0"
+                >
+                  Ficar na Pista (Track Position)
                 </Button>
               </div>
             </div>
