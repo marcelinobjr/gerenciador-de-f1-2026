@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T18:12:42.155Z",
+  "generatedAt": "2026-09-08T18:31:13.230Z",
   "collections": [
     {
       "name": "users",
@@ -551,6 +551,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "condition",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_parts_team ON parts (team_id)"]

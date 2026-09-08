@@ -109,6 +109,7 @@ export interface PartModel {
   id: string
   name: string
   level: number // 0-10
+  condition?: number // 0-100 (% de integridade mecânica/estrutural)
   team_id: string
   created?: string
   updated?: string

@@ -177,6 +177,22 @@ export const f1Service = {
     return await pb.collection('parts').update<PartModel>(id, data)
   },
 
+  // Calculate repair cost based on part level (~R$ 800k - R$ 2.5M)
+  getPartRepairCost(part: PartModel): number {
+    const condition = part.condition ?? 100
+    if (condition >= 100) return 0
+    const wear = (100 - condition) / 100 // 0 to 1
+    // Base cost for level 0 is 800k, scale up to ~2.5M at level 10
+    const fullRestorationCost = 800000 + (part.level || 1) * 170000
+    return Math.round(fullRestorationCost * wear)
+  },
+
+  async repairPart(partId: string): Promise<PartModel> {
+    return await pb.collection('parts').update<PartModel>(partId, {
+      condition: 100,
+    })
+  },
+
   // Events
   async getTeamEvents(teamId: string, limit = 20): Promise<EventModel[]> {
     try {
@@ -426,6 +442,7 @@ export const f1Service = {
       await pb.collection('parts').create({
         name: pName,
         level: initialPartLevel,
+        condition: 100,
         team_id: newTeam.id,
       })
     }
@@ -570,6 +587,7 @@ export const f1Service = {
       await pb.collection('parts').create({
         name: pName,
         level: 4,
+        condition: 100,
         team_id: newTeam.id,
       })
     }

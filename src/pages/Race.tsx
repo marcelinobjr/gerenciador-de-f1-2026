@@ -339,13 +339,23 @@ export default function RacePage() {
     return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
   }, [team?.engine_supplier])
 
-  // Player Car Overall Level
-  const playerCarLevel = useMemo(() => {
-    if (parts.length === 0) return 75
+  // Player Car Overall Level & Condition Penalty
+  const { playerCarLevel, avgPartCondition } = useMemo(() => {
+    if (parts.length === 0) return { playerCarLevel: 75, avgPartCondition: 100 }
     const sum = parts.reduce((acc, p) => acc + p.level, 0)
+    const sumCond = parts.reduce((acc, p) => acc + (p.condition ?? 100), 0)
     const avg = (sum / parts.length) * 10
-    const base = Math.round(avg * 0.6 + currentEngine.power * 0.4)
-    return team?.reserve_setup_bonus ? Math.min(100, base + 2) : base
+    const avgCond = Math.round(sumCond / parts.length)
+
+    let base = Math.round(avg * 0.6 + currentEngine.power * 0.4)
+    // If average condition < 60%, apply real-time pace penalty
+    if (avgCond < 60) {
+      const pacePenalty = Math.round((60 - avgCond) * 0.25)
+      base = Math.max(20, base - pacePenalty)
+    }
+
+    const finalScore = team?.reserve_setup_bonus ? Math.min(100, base + 2) : base
+    return { playerCarLevel: finalScore, avgPartCondition: avgCond }
   }, [parts, currentEngine, team?.reserve_setup_bonus])
 
   // Aerodynamic parts rating
@@ -1088,13 +1098,28 @@ export default function RacePage() {
 
         carLevel = playerCarLevel * 0.7 + playerTeamStrength * 0.3 - setupPenalty
 
-        // Mechanical failure check
+        // Mechanical failure check: Engine reliability + parts condition risk
+        const criticalPart = parts.find((p) => (p.condition ?? 100) < 30)
+        const lowConditionPenaltyRisk = criticalPart
+          ? Math.round((30 - (criticalPart.condition ?? 100)) * 1.5)
+          : 0
         const mechRisk =
-          100 - currentEngine.reliability + (setups.race.pu_electric_ratio > 65 ? 8 : 0)
+          100 -
+          currentEngine.reliability +
+          (setups.race.pu_electric_ratio > 65 ? 8 : 0) +
+          lowConditionPenaltyRisk
+
         if (Math.random() * 100 < mechRisk) {
           entry.dnf = true
-          entry.dnfReason = 'Falha no inversor de 350kW do MGU-K'
-          incidents.push(`⚠️ ABANDONO: ${entry.driverName} sofreu pane elétrica no MGU-K!`)
+          if (criticalPart && Math.random() < 0.6) {
+            entry.dnfReason = `Quebra mecânica estrutural em ${criticalPart.name}`
+            incidents.push(
+              `⚠️ ABANDONO: ${entry.driverName} abandonou por quebra mecânica estrutural em ${criticalPart.name}!`,
+            )
+          } else {
+            entry.dnfReason = 'Falha no inversor de 350kW do MGU-K'
+            incidents.push(`⚠️ ABANDONO: ${entry.driverName} sofreu pane elétrica no MGU-K!`)
+          }
         }
       } else {
         // AI rival driver
@@ -1284,6 +1309,27 @@ export default function RacePage() {
               'resultado',
             )
           }
+        }
+      }
+
+      // 4.1 Apply wear to parts (8% to 18% wear per race, more if aggressive setup)
+      const aggressiveAero = (setups.race.wing_level || 5) > 7
+      const aggressiveSuspension = (setups.race.suspension_stiffness || 5) > 7
+      const aggressiveMGU = (setups.race.pu_electric_ratio || 50) > 65
+
+      for (const p of parts) {
+        let wearPercent = Math.floor(8 + Math.random() * 11) // 8 to 18
+        if (p.name.toLowerCase().includes('asa') && aggressiveAero) wearPercent += 3
+        if (p.name.toLowerCase().includes('suspens') && aggressiveSuspension) wearPercent += 4
+        if (p.name.toLowerCase().includes('aerodin') && aggressiveAero) wearPercent += 3
+        if (p.name.toLowerCase().includes('chassi') && aggressiveMGU) wearPercent += 2
+
+        const currentPartCond = p.condition ?? 100
+        const newCondition = Math.max(0, currentPartCond - wearPercent)
+        try {
+          await f1Service.updatePart(p.id, { condition: newCondition })
+        } catch (pErr) {
+          console.warn('Erro ao atualizar desgaste de peça:', p.name, pErr)
         }
       }
 
