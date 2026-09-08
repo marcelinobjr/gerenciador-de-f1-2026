@@ -31,7 +31,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Slider } from '@/components/ui/slider'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+
 import {
   Dialog,
   DialogContent,
@@ -64,7 +64,12 @@ export default function TeamPage() {
   const [selectedFpRounds, setSelectedFpRounds] = useState<number[]>([7, 13])
 
   const [isProcessing, setIsProcessing] = useState(false)
-  const [marketTab, setMarketTab] = useState<'todos' | 'f2' | 'mercado'>('todos')
+  const [marketCategoryFilter, setMarketCategoryFilter] = useState<string>('todos')
+  const [marketSortBy, setMarketSortBy] = useState<
+    'speed' | 'consistency' | 'rain' | 'defense' | 'salary' | 'age'
+  >('speed')
+  const [marketSortOrder, setMarketSortOrder] = useState<'desc' | 'asc'>('desc')
+  const [marketSearchTerm, setMarketSearchTerm] = useState<string>('')
 
   // Team strength calculation / display
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
@@ -117,13 +122,110 @@ export default function TeamPage() {
     [titularDrivers],
   )
 
-  // Filtered market drivers based on tab
+  // Metadados das categorias disponíveis no mercado de pilotos
+  const CATEGORY_META: Record<
+    string,
+    { label: string; shortBadge: string; badgeClass: string; desc: string }
+  > = {
+    f1: {
+      label: 'Fórmula 1',
+      shortBadge: 'F1',
+      badgeClass: 'bg-red-500/20 text-red-400 border-red-500/40',
+      desc: 'Pilotos com experiência de grid e reservas oficiais da F1',
+    },
+    f2: {
+      label: 'Fórmula 2',
+      shortBadge: 'F2',
+      badgeClass: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
+      desc: 'Jovens promessas do grid de acesso da F1 — talentosos e acessíveis',
+    },
+    indycar: {
+      label: 'IndyCar',
+      shortBadge: 'INDYCAR',
+      badgeClass: 'bg-rose-500/20 text-rose-400 border-rose-500/40',
+      desc: 'Pilotos de ponta da fórmula americana — altíssima velocidade e agressividade',
+    },
+    indynxt: {
+      label: 'Indy NXT',
+      shortBadge: 'INDY NXT',
+      badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+      desc: 'Categoria de acesso da IndyCar — jovens talentos de baixo custo salarial',
+    },
+    formula_e: {
+      label: 'Fórmula E',
+      shortBadge: 'FÓRMULA E',
+      badgeClass: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
+      desc: 'Especialistas em circuitos de rua, consistência tática e defesa sólida',
+    },
+    nascar: {
+      label: 'NASCAR Cup',
+      shortBadge: 'NASCAR',
+      badgeClass: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+      desc: 'Estrelas da NASCAR — ritmo intenso e corpo a corpo agressivo',
+    },
+    prototipos: {
+      label: 'Protótipos (WEC)',
+      shortBadge: 'PROTÓTIPOS',
+      badgeClass: 'bg-purple-500/20 text-purple-400 border-purple-500/40',
+      desc: 'Campeões de Le Mans e Hypercars — consistência implacável e domínio na chuva',
+    },
+    mercado: {
+      label: 'Mercado F1',
+      shortBadge: 'MERCADO',
+      badgeClass: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
+      desc: 'Veteranos e pilotos livres sem assento ativo em 2026',
+    },
+  }
+
+  // Filtered and sorted market drivers based on tab/search/sort
   const filteredMarket = useMemo(() => {
-    if (marketTab === 'f2') return marketDrivers.filter((d) => d.category === 'f2')
-    if (marketTab === 'mercado')
-      return marketDrivers.filter((d) => d.category === 'mercado' || !d.category)
-    return marketDrivers
-  }, [marketDrivers, marketTab])
+    let result = marketDrivers.slice()
+
+    // 1. Filtrar por categoria
+    if (marketCategoryFilter !== 'todos') {
+      if (marketCategoryFilter === 'mercado') {
+        result = result.filter((d) => d.category === 'mercado' || !d.category)
+      } else {
+        result = result.filter((d) => d.category === marketCategoryFilter)
+      }
+    }
+
+    // 2. Filtrar por busca (nome ou nacionalidade)
+    if (marketSearchTerm.trim()) {
+      const term = marketSearchTerm.toLowerCase().trim()
+      result = result.filter(
+        (d) => d.name.toLowerCase().includes(term) || d.nationality.toLowerCase().includes(term),
+      )
+    }
+
+    // 3. Ordenação
+    result.sort((a, b) => {
+      let valA = a[marketSortBy] ?? 0
+      let valB = b[marketSortBy] ?? 0
+      if (typeof valA === 'string') valA = Number(valA) || 0
+      if (typeof valB === 'string') valB = Number(valB) || 0
+
+      if (marketSortOrder === 'asc') {
+        return valA - valB
+      } else {
+        return valB - valA
+      }
+    })
+
+    return result
+  }, [marketDrivers, marketCategoryFilter, marketSearchTerm, marketSortBy, marketSortOrder])
+
+  const getCategoryBadge = (cat?: string | null) => {
+    const meta = CATEGORY_META[cat || 'mercado'] || CATEGORY_META.mercado
+    return (
+      <Badge
+        variant="outline"
+        className={`${meta.badgeClass} font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 whitespace-nowrap`}
+      >
+        {meta.shortBadge}
+      </Badge>
+    )
+  }
 
   // Flag emoji helper
   const getFlag = (nat: string) => {
@@ -194,6 +296,24 @@ export default function TeamPage() {
         return '🇨🇿'
       case 'bélgica':
         return '🇧🇪'
+      case 'nova zelândia':
+      case 'nzl':
+        return '🇳🇿'
+      case 'portugal':
+      case 'por':
+        return '🇵🇹'
+      case 'suíça':
+      case 'sui':
+        return '🇨🇭'
+      case 'canadá':
+      case 'can':
+        return '🇨🇦'
+      case 'tailândia':
+      case 'tha':
+        return '🇹🇭'
+      case 'bulgária':
+      case 'bul':
+        return '🇧🇬'
       default:
         return '🏁'
     }
@@ -827,36 +947,162 @@ export default function TeamPage() {
               </CardDescription>
             </div>
 
-            {/* Filter Tabs */}
-            <Tabs
-              value={marketTab}
-              onValueChange={(v) => setMarketTab(v as any)}
-              className="w-full sm:w-auto"
+            {/* Controles de Busca e Ordenação */}
+            <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+              <input
+                type="text"
+                placeholder="Buscar piloto ou país..."
+                value={marketSearchTerm}
+                onChange={(e) => setMarketSearchTerm(e.target.value)}
+                className="bg-[#0B0E14] border border-[#1F2733] text-foreground rounded-md px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400 placeholder:text-zinc-500 w-44"
+              />
+
+              <div className="flex items-center gap-1.5 bg-[#0B0E14] border border-[#1F2733] rounded-md px-2 py-1 text-xs text-[#8B95A7]">
+                <span>Ordenar:</span>
+                <select
+                  value={marketSortBy}
+                  onChange={(e) => setMarketSortBy(e.target.value as any)}
+                  className="bg-transparent text-foreground focus:outline-none cursor-pointer font-bold"
+                >
+                  <option value="speed" className="bg-[#11161F]">
+                    Velocidade
+                  </option>
+                  <option value="consistency" className="bg-[#11161F]">
+                    Consistência
+                  </option>
+                  <option value="rain" className="bg-[#11161F]">
+                    Chuva
+                  </option>
+                  <option value="defense" className="bg-[#11161F]">
+                    Defesa
+                  </option>
+                  <option value="salary" className="bg-[#11161F]">
+                    Salário
+                  </option>
+                  <option value="age" className="bg-[#11161F]">
+                    Idade
+                  </option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => setMarketSortOrder(marketSortOrder === 'desc' ? 'asc' : 'desc')}
+                  title={marketSortOrder === 'desc' ? 'Maior para menor' : 'Menor para maior'}
+                  className="ml-1 text-amber-400 hover:text-amber-300 font-bold px-1"
+                >
+                  {marketSortOrder === 'desc' ? '↓ Maior' : '↑ Menor'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Categorias - Filtro em formato de botões textuais / tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#1F2733]/60">
+            <span className="text-[11px] font-mono text-[#8B95A7] mr-1">Filtrar:</span>
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('todos')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'todos'
+                  ? 'bg-white text-black font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
             >
-              <TabsList className="bg-[#0B0E14] border border-[#1F2733] h-8 p-0.5">
-                <TabsTrigger
-                  value="todos"
-                  className="text-xs px-2.5 py-1 data-[state=active]:bg-[#1F2733] data-[state=active]:text-white"
-                >
-                  Todos ({marketDrivers.length})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="f2"
-                  className="text-xs px-2.5 py-1 data-[state=active]:bg-[#00A6FB] data-[state=active]:text-white font-semibold"
-                >
-                  Grid F2 ({marketDrivers.filter((d) => d.category === 'f2').length})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="mercado"
-                  className="text-xs px-2.5 py-1 data-[state=active]:bg-amber-500 data-[state=active]:text-black font-semibold"
-                >
-                  Mercado F1 (
-                  {marketDrivers.filter((d) => d.category === 'mercado' || !d.category).length})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+              Todos ({marketDrivers.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('f2')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'f2'
+                  ? 'bg-blue-500 text-white font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
+            >
+              Fórmula 2 ({marketDrivers.filter((d) => d.category === 'f2').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('indycar')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'indycar'
+                  ? 'bg-rose-500 text-white font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
+            >
+              IndyCar ({marketDrivers.filter((d) => d.category === 'indycar').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('indynxt')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'indynxt'
+                  ? 'bg-emerald-500 text-white font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
+            >
+              Indy NXT ({marketDrivers.filter((d) => d.category === 'indynxt').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('formula_e')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'formula_e'
+                  ? 'bg-cyan-500 text-black font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
+            >
+              Fórmula E ({marketDrivers.filter((d) => d.category === 'formula_e').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('nascar')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'nascar'
+                  ? 'bg-yellow-500 text-black font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
+            >
+              NASCAR ({marketDrivers.filter((d) => d.category === 'nascar').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('prototipos')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'prototipos'
+                  ? 'bg-purple-500 text-white font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
+            >
+              Protótipos ({marketDrivers.filter((d) => d.category === 'prototipos').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMarketCategoryFilter('mercado')}
+              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
+                marketCategoryFilter === 'mercado'
+                  ? 'bg-amber-500 text-black font-bold shadow'
+                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
+              }`}
+            >
+              Mercado F1 (
+              {
+                marketDrivers.filter(
+                  (d) => d.category === 'mercado' || !d.category || d.category === 'f1',
+                ).length
+              }
+              )
+            </button>
           </div>
         </CardHeader>
+
         <CardContent>
           {loading ? (
             <div className="space-y-3">
@@ -865,9 +1111,19 @@ export default function TeamPage() {
               <Skeleton className="h-16 w-full bg-[#1F2733]" />
             </div>
           ) : filteredMarket.length === 0 ? (
-            <p className="text-center py-6 text-xs text-[#8B95A7]">
-              Nenhum piloto nesta categoria no momento.
-            </p>
+            <div className="text-center py-8 text-xs text-[#8B95A7] space-y-2">
+              <p>Nenhum piloto encontrado para os filtros selecionados.</p>
+              {marketSearchTerm && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMarketSearchTerm('')}
+                  className="text-xs h-7 border-[#1F2733]"
+                >
+                  Limpar busca "{marketSearchTerm}"
+                </Button>
+              )}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
@@ -886,23 +1142,12 @@ export default function TeamPage() {
                 </thead>
                 <tbody className="divide-y divide-[#1F2733]/60">
                   {filteredMarket.map((driver) => {
-                    const isF2 = driver.category === 'f2'
                     return (
                       <tr key={driver.id} className="hover:bg-[#161D29]/40 transition-colors">
-                        <td className="py-3 px-3">
-                          {isF2 ? (
-                            <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/30 font-bold text-[10px]">
-                              F2
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 font-bold text-[10px]">
-                              MERCADO
-                            </Badge>
-                          )}
-                        </td>
+                        <td className="py-3 px-3">{getCategoryBadge(driver.category)}</td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
-                            <span>{getFlag(driver.nationality)}</span>
+                            <span className="text-base">{getFlag(driver.nationality)}</span>
                             <span className="font-semibold text-sm text-[#F5F7FA]">
                               {driver.name}
                             </span>

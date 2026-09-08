@@ -39,7 +39,16 @@ export interface DriverModel {
   contract_end: number
   team_id?: string | null
   role?: 'titular' | 'reserva' | null
-  category?: 'f1' | 'f2' | 'mercado' | null
+  category?:
+    | 'f1'
+    | 'f2'
+    | 'indycar'
+    | 'indynxt'
+    | 'formula_e'
+    | 'nascar'
+    | 'prototipos'
+    | 'mercado'
+    | null
   reserve_team_id?: string | null
   fp_sessions_completed?: number // 0, 1 ou 2
   fp_scheduled_rounds?: number[] // rounds em que está escalado para treinar, ex: [3, 8]
