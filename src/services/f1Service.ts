@@ -592,10 +592,10 @@ export const f1Service = {
       })
     }
 
-    // 4. Initial modest sponsor
+    // 4. Initial modest sponsor (rebalanceado: R$ 2,5M por GP para aperto orçamentário)
     await pb.collection('sponsors').create({
       name: 'Venture Capital Motorsport',
-      value_per_round: 18000000,
+      value_per_round: 2500000,
       requirement: 'Sem exigência',
       status: 'ativo',
       rounds_remaining: 24,
@@ -645,6 +645,95 @@ export const f1Service = {
     } catch (e) {
       console.error('Erro ao salvar setup de sessão:', e)
       return data
+    }
+  },
+
+  // Cost cap & engine pool constants
+  COST_CAP_LIMIT: 135000000, // R$ 135.000.000 teto de gastos anual FIA
+  MAX_ALLOWED_ENGINES: 4, // 4 motores por temporada sem penalidade de grid
+
+  // Registra gasto no teto de custos (cost cap)
+  async registerCostCapSpend(
+    teamId: string,
+    amount: number,
+    currentSpent: number = 0,
+  ): Promise<number> {
+    const updatedSpent = Math.max(0, currentSpent + amount)
+    try {
+      await pb.collection('teams').update(teamId, {
+        cost_cap_spent: updatedSpent,
+      })
+    } catch (e) {
+      console.warn('Erro ao atualizar cost_cap_spent:', e)
+    }
+    return updatedSpent
+  },
+
+  // Introduz uma nova unidade de potência no pool da equipe
+  async introduceNewEngine(
+    team: TeamModel,
+    cost: number = 18000000,
+  ): Promise<{
+    team: TeamModel
+    penaltyPositions: number
+    engineNumber: number
+    costCapSpent: number
+  }> {
+    const currentPool = team.engine_pool_used || 1
+    const newPoolNumber = currentPool + 1
+    const spentCostCap = (team.cost_cap_spent || 0) + cost
+    const newBudget = team.budget - cost
+
+    // Regra FIA: Até 4 motores = 0 posições.
+    // 5º motor = 10 posições de grid
+    // 6º motor em diante = 5 posições de grid
+    let penaltyPositions = 0
+    if (newPoolNumber === 5) {
+      penaltyPositions = 10
+    } else if (newPoolNumber > 5) {
+      penaltyPositions = 5
+    }
+
+    const currentHistory = Array.isArray(team.engine_history) ? [...team.engine_history] : []
+    // Atualizar motor antigo para reserva
+    const updatedHistory = currentHistory.map((eng) =>
+      eng.status === 'instalado' ? { ...eng, status: 'reserva' as const } : eng,
+    )
+
+    // Adicionar nova PU instalada com 0% desgaste
+    updatedHistory.push({
+      id: newPoolNumber,
+      wear: 0,
+      status: 'instalado' as const,
+      supplier: team.engine_supplier || 'Mercedes',
+      introducedRound: 1, // atualizado dinamicamente pelo chamador se disponível
+    })
+
+    const updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
+      budget: newBudget,
+      cost_cap_spent: spentCostCap,
+      engine_pool_used: newPoolNumber,
+      active_engine_wear: 0,
+      engine_history: updatedHistory,
+    })
+
+    // Adiciona evento oficial
+    const penaltyMsg =
+      penaltyPositions > 0
+        ? ` Penalidade FIA aplicada: PERDA DE ${penaltyPositions} POSIÇÕES NO GRID por exceder a cota anual.`
+        : ' Dentro da cota regulamentar (limite: 4 unidades).'
+
+    await pb.collection('events').create({
+      message: `NOVA UNIDADE DE POTÊNCIA: Motor #${newPoolNumber} (${team.engine_supplier}) ativado com 0% de desgaste.${penaltyMsg} Custo: ${cost / 1000000}M contabilizado no teto de gastos.`,
+      type: 'desenvolvimento',
+      team_id: team.id,
+    })
+
+    return {
+      team: updatedTeam,
+      penaltyPositions,
+      engineNumber: newPoolNumber,
+      costCapSpent: spentCostCap,
     }
   },
 

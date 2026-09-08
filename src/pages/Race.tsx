@@ -13,6 +13,8 @@ import {
   WeatherForecast,
 } from '@/types/f1'
 import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
+import { CircuitBlueprint } from '@/components/CircuitBlueprint'
+import { analyzeSetupEngineering } from '@/lib/setup-advisor'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
 import {
@@ -379,6 +381,12 @@ export default function RacePage() {
     return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
   }, [team?.engine_supplier])
 
+  // Setup Engineering Feedback for active session
+  const setupFeedback = useMemo(() => {
+    const currentSetup = setups[activeSession]
+    return analyzeSetupEngineering(currentSetup, gpInfo)
+  }, [setups, activeSession, gpInfo])
+
   // Player Car Overall Level & Condition Penalty
   const { playerCarLevel, avgPartCondition } = useMemo(() => {
     if (parts.length === 0) return { playerCarLevel: 75, avgPartCondition: 100 }
@@ -540,7 +548,15 @@ export default function RacePage() {
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const aiRivals = getAICompetitors(team?.team_key, isCustomTeam)
     const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
-    const penalty = calculateSetupDelta(sessionToRun)
+    let penalty = calculateSetupDelta(sessionToRun)
+
+    // Penalidade por motor excedente (ex: 5º motor = 10 posições, 6º motor = 5 posições)
+    const enginePoolUsed = team?.engine_pool_used ?? 1
+    const isGridPenalized = enginePoolUsed > 4
+    if (sessionToRun === 'race' && isGridPenalized) {
+      // Aplica penalidade no score de largada
+      penalty += enginePoolUsed === 5 ? 12 : 7
+    }
 
     // Simulation steps text
     const sessionNames: Record<WeekendSession, string> = {
@@ -592,7 +608,16 @@ export default function RacePage() {
           if (weather === 'chuva') {
             skill = d.speed * 0.3 + d.rain * 0.5 + d.consistency * 0.2 + moraleFactor
           }
-          const carScore = playerCarLevel * 0.65 + playerTeamStrength * 0.35 - penalty
+          // Considerar desgaste acumulado do motor e penalidade de excedente no grid
+          const engineWearDeduction = Math.round(((team?.active_engine_wear ?? 15) / 100) * 5)
+          const enginePoolUsed = team?.engine_pool_used ?? 1
+          const poolPenalty = enginePoolUsed > 4 ? (enginePoolUsed === 5 ? 12 : 7) : 0
+          const carScore =
+            playerCarLevel * 0.65 +
+            playerTeamStrength * 0.35 -
+            penalty -
+            engineWearDeduction -
+            poolPenalty
           const luck = (Math.random() - 0.5) * 6
           fullGrid.push({
             driverId: d.id,
@@ -841,6 +866,10 @@ export default function RacePage() {
     const initialGrid: SimDriverEntry[] = []
 
     // 1. Player drivers
+    const engineWearDeduction = Math.round(((team?.active_engine_wear ?? 15) / 100) * 5)
+    const enginePoolUsedNum = team?.engine_pool_used ?? 1
+    const poolPenaltyNum = enginePoolUsedNum > 4 ? (enginePoolUsedNum === 5 ? 12 : 7) : 0
+
     titulars.forEach((d) => {
       const isIncapacitated = !!d.is_incapacitated
       const activeDriver = isIncapacitated && reserve ? reserve : d
@@ -862,7 +891,7 @@ export default function RacePage() {
         teamColor: team?.color || '#FF3B30',
         isPlayer: true,
         flag: activeDriver.nationality === 'Brasil' ? '🇧🇷' : '🏁',
-        score: 0,
+        score: 0 - engineWearDeduction - poolPenaltyNum,
         position: 0,
         points: 0,
         fastestLap: false,
@@ -932,20 +961,42 @@ export default function RacePage() {
       })
     })
 
-    // Initial live race event
+    // Initial live race event + engine grid penalty notice if any
+    const enginePoolUsed = team?.engine_pool_used ?? 1
+    const isPenalized = enginePoolUsed > 4
+    const penaltyPlaces = enginePoolUsed === 5 ? 10 : enginePoolUsed > 5 ? 5 : 0
+
+    const initialEvents: LiveRaceEvent[] = []
+
+    if (isPenalized) {
+      initialEvents.push({
+        id: `ev_pen_${Date.now()}`,
+        lap: 1,
+        type: 'incident',
+        message: `⚠️ PENALIDADE FIA DE GRID: Pilotos da equipe ${team?.name} largam com punição de ${penaltyPlaces} posições devido ao uso de Motor excedente (#${enginePoolUsed} no pool anual).`,
+        isPlayer: true,
+        timestamp: new Date().toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+      })
+    }
+
     const startEvent: LiveRaceEvent = {
       id: `ev_start_${Date.now()}`,
       lap: 1,
       type: 'info',
-      message: `🟢 LUZES APAGADAS! Largada autorizada para o ${gpInfo.name} com 24 monopostos na pista!`,
+      message: `🟢 LUZES APAGADAS! Largada autorizada para o ${gpInfo.name} (${gpInfo.laps} voltas) com 24 monopostos na pista!`,
       timestamp: new Date().toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
       }),
     }
+    initialEvents.push(startEvent)
 
-    setLiveEvents([startEvent])
+    setLiveEvents(initialEvents)
 
     // Save live race state and begin simulation loop
     setLiveRaceState({
@@ -1871,8 +1922,16 @@ export default function RacePage() {
         }
       }
 
+      // 4.2 Desgaste da Unidade de Potência (Motor)
+      // Cada GP gasta entre 18% a 25% da vida útil do motor, subindo se MGU-K for agressivo (>65% elétrico)
+      const currentEngWear = team.active_engine_wear ?? 15
+      let engineWearIncrement = Math.floor(18 + Math.random() * 8)
+      if (aggressiveMGU) engineWearIncrement += 6
+      const newEngWear = Math.min(100, currentEngWear + engineWearIncrement)
+
       await f1Service.updateTeam(team.id, {
         budget: updatedBudget,
+        active_engine_wear: newEngWear,
       })
 
       // 5. Register Event
@@ -1944,6 +2003,97 @@ export default function RacePage() {
           <Badge variant="outline" className="border-[#1F2733] text-[#8B95A7] font-mono text-xs">
             Abrasividade: {gpInfo.tireAbrasiveness || 6}/10
           </Badge>
+        </div>
+      </div>
+
+      {/* PAINEL TÉCNICO DO CIRCUITO: TRAÇADO VETORIAL BLUEPRINT + VOLTAS TOTAIS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <CircuitBlueprint
+            round={currentRound}
+            circuitName={gpInfo.circuit}
+            laps={gpInfo.laps}
+            lengthKm={gpInfo.circuitLengthKm}
+          />
+        </div>
+
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="bg-[#11161F] border-[#1F2733] p-4 h-full flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between border-b border-[#1F2733]/70 pb-2 mb-3">
+                <span className="text-xs font-mono font-bold text-[#E10600] uppercase tracking-wider flex items-center gap-1.5">
+                  <Flag className="w-4 h-4" /> Parâmetros de Prova & Extensão Oficial
+                </span>
+                <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 font-mono text-xs">
+                  {gpInfo.laps} Voltas Programadas
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                  <span className="text-[10px] text-[#8B95A7] block uppercase">
+                    Total de Voltas
+                  </span>
+                  <strong className="text-base text-white font-bold">{gpInfo.laps} voltas</strong>
+                  <span className="text-[10px] text-emerald-400 block mt-0.5">
+                    Distância ~305 km
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                  <span className="text-[10px] text-[#8B95A7] block uppercase">
+                    Comprimento da Pista
+                  </span>
+                  <strong className="text-base text-cyan-400 font-bold">
+                    {gpInfo.circuitLengthKm} km
+                  </strong>
+                  <span className="text-[10px] text-[#8B95A7] block mt-0.5">Por volta</span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                  <span className="text-[10px] text-[#8B95A7] block uppercase">
+                    Carga Aerodinâmica
+                  </span>
+                  <strong className="text-base text-amber-400 font-bold">
+                    {gpInfo.downforceIdeal}/10
+                  </strong>
+                  <span className="text-[10px] text-[#8B95A7] block mt-0.5">Ideal recomendada</span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                  <span className="text-[10px] text-[#8B95A7] block uppercase">
+                    Rigidez Suspensão
+                  </span>
+                  <strong className="text-base text-emerald-400 font-bold">
+                    {gpInfo.suspensionIdeal}/10
+                  </strong>
+                  <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+                    Trabalho de zebras
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 p-3 rounded-lg bg-[#0B0E14]/70 border border-[#1F2733] text-xs">
+                <span className="text-[#8B95A7] font-mono block text-[11px]">
+                  Característica Central:
+                </span>
+                <p className="text-white font-medium mt-0.5 leading-relaxed">
+                  {gpInfo.characteristic}
+                </p>
+              </div>
+            </div>
+
+            {/* Alerta de penalidade de motor se houver */}
+            {(team?.engine_pool_used ?? 1) > 4 && (
+              <div className="mt-3 p-2.5 rounded-lg bg-red-950/40 border border-red-500/50 flex items-center gap-2 text-xs font-mono text-red-300">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>
+                  Penalidade FIA no Grid: Equipe excedeu a cota de 4 motores da temporada (PU #
+                  {team?.engine_pool_used}). Seus pilotos largarão com penalização de posições!
+                </span>
+              </div>
+            )}
+          </Card>
         </div>
       </div>
 
@@ -2284,9 +2434,68 @@ export default function RacePage() {
                         className="py-2"
                       />
                       <div className="flex justify-between text-[10px] font-mono text-[#8B95A7]">
-                        <span>20% (Conservador / mais confiável)</span>
+                        <span>20% (Conservador / poupa motor)</span>
                         <span>50% (Padrão Oficial FIA 2026)</span>
-                        <span>80% (Pico elétrico agressivo / risco térmico)</span>
+                        <span>80% (Pico elétrico agressivo / alto desgaste)</span>
+                      </div>
+                    </div>
+
+                    {/* RETORNO / FEEDBACK TÉCNICO DE ENGENHARIA (Setup Advisor) */}
+                    <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1E293B] space-y-3 font-mono">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1E293B] pb-2">
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-4 h-4 text-cyan-400" />
+                          <span className="text-xs font-bold text-white uppercase tracking-wider">
+                            Retorno da Engenharia // Telemetria de Setup
+                          </span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs font-mono ${
+                            setupFeedback.verdict === 'ideal'
+                              ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
+                              : setupFeedback.verdict === 'bom'
+                                ? 'border-cyan-500/50 text-cyan-400 bg-cyan-500/10'
+                                : setupFeedback.verdict === 'desajustado'
+                                  ? 'border-amber-500/50 text-amber-400 bg-amber-500/10'
+                                  : 'border-red-500/50 text-red-400 bg-red-500/10'
+                          }`}
+                        >
+                          Índice de Acerto: {setupFeedback.overallScore}% • {setupFeedback.title}
+                        </Badge>
+                      </div>
+
+                      <p className="text-xs text-[#8B95A7] leading-relaxed">
+                        {setupFeedback.summary}
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-[11px]">
+                        <div className="p-2.5 rounded bg-[#11161F] border border-[#1F2733] space-y-1">
+                          <span className="text-[#8B95A7] font-bold block uppercase text-[10px]">
+                            Asa & Arrasto Aerodinâmico
+                          </span>
+                          <p className="text-slate-300 leading-normal">
+                            {setupFeedback.wingFeedback.text}
+                          </p>
+                        </div>
+
+                        <div className="p-2.5 rounded bg-[#11161F] border border-[#1F2733] space-y-1">
+                          <span className="text-[#8B95A7] font-bold block uppercase text-[10px]">
+                            Suspensão & Zebras
+                          </span>
+                          <p className="text-slate-300 leading-normal">
+                            {setupFeedback.suspensionFeedback.text}
+                          </p>
+                        </div>
+
+                        <div className="p-2.5 rounded bg-[#11161F] border border-[#1F2733] space-y-1">
+                          <span className="text-[#8B95A7] font-bold block uppercase text-[10px]">
+                            Trem de Força 50/50
+                          </span>
+                          <p className="text-slate-300 leading-normal">
+                            {setupFeedback.puFeedback.text}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -2465,15 +2674,17 @@ export default function RacePage() {
                       <div>
                         <h3 className="text-base font-bold text-[#F5F7FA]">{simText}</h3>
                         <p className="text-xs text-[#8B95A7] font-mono">
-                          Simulação e telemetria ativas em tempo real
+                          {isRaceSession && liveRaceState
+                            ? `Progresso da Prova: Volta ${liveRaceState.currentLap}/${liveRaceState.totalLaps} (${Math.round((liveRaceState.currentLap / liveRaceState.totalLaps) * 100)}%)`
+                            : 'Simulação e telemetria ativas em tempo real'}
                         </p>
                       </div>
                     </div>
 
                     {isRaceSession && liveRaceState && (
                       <div className="flex items-center gap-2">
-                        <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 text-xs font-mono">
-                          Volta {liveRaceState.currentLap} / {liveRaceState.totalLaps}
+                        <Badge className="bg-cyan-500/25 text-cyan-300 border border-cyan-400/50 text-sm font-mono px-3 py-1 font-bold">
+                          🏁 Volta {liveRaceState.currentLap}/{liveRaceState.totalLaps}
                         </Badge>
                         <Badge
                           variant="outline"
@@ -2483,7 +2694,7 @@ export default function RacePage() {
                               : 'border-amber-400 text-amber-400 bg-amber-400/10'
                           }`}
                         >
-                          {liveRaceState.weather === 'chuva' ? 'Molhado' : 'Seco'}
+                          {liveRaceState.weather === 'chuva' ? 'Molhado' : 'Pista Seca'}
                         </Badge>
                       </div>
                     )}
@@ -2505,6 +2716,11 @@ export default function RacePage() {
                             <Radio className="w-4 h-4 text-emerald-400" />
                             FEED DE TRANSMISSÃO AO VIVO // PIT WALL & RÁDIO
                           </CardTitle>
+                          {liveRaceState && (
+                            <Badge className="bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 text-xs font-mono ml-2">
+                              Volta {liveRaceState.currentLap}/{liveRaceState.totalLaps}
+                            </Badge>
+                          )}
                         </div>
                         <Badge
                           variant="outline"

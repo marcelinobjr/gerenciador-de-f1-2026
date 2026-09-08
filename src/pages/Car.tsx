@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Sliders,
   Activity,
+  DollarSign,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -121,12 +122,24 @@ export default function CarPage() {
     }
   }, [parts, currentEngine])
 
+  // Cost cap limit FIA (R$ 135M)
+  const COST_CAP_LIMIT = f1Service.COST_CAP_LIMIT
+  const currentCostCapSpent = team?.cost_cap_spent ?? 0
+  const remainingCostCap = Math.max(0, COST_CAP_LIMIT - currentCostCapSpent)
+  const isCostCapBreached = currentCostCapSpent >= COST_CAP_LIMIT
+
+  // Engine pool & wear
+  const enginePoolUsed = team?.engine_pool_used ?? 1
+  const activeEngineWear = team?.active_engine_wear ?? 15
+  const remainingEnginesInQuota = Math.max(0, f1Service.MAX_ALLOWED_ENGINES - enginePoolUsed)
+  const isOverEngineQuota = enginePoolUsed >= f1Service.MAX_ALLOWED_ENGINES
+
   // Upgrade part cost calculation
   const getUpgradeCost = (currentLevel: number) => {
     return Math.round(4000000 + currentLevel * 1500000)
   }
 
-  // Handle invest / upgrade part
+  // Handle invest / upgrade part with Cost Cap check
   const handleUpgradePart = async (part: PartModel) => {
     if (!team) return
     if (part.level >= 10) {
@@ -138,6 +151,17 @@ export default function CarPage() {
     }
 
     const cost = getUpgradeCost(part.level)
+
+    // 1. Cost Cap Check: bloqueio estrito da FIA
+    if (currentCostCapSpent + cost > COST_CAP_LIMIT) {
+      toast({
+        variant: 'destructive',
+        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
+        description: `Este investimento de ${formatCurrency(cost)} ultrapassaria o limite anual de ${formatCurrency(COST_CAP_LIMIT)}. Margem restante: ${formatCurrency(remainingCostCap)}.`,
+      })
+      return
+    }
+
     if (team.budget < cost) {
       toast({
         variant: 'destructive',
@@ -151,13 +175,14 @@ export default function CarPage() {
     try {
       const newLevel = part.level + 1
       const newBudget = team.budget - cost
+      const newSpentCap = currentCostCapSpent + cost
 
       await Promise.all([
         f1Service.updatePart(part.id, { level: newLevel }),
-        f1Service.updateTeam(team.id, { budget: newBudget }),
+        f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
         f1Service.addEvent(
           team.id,
-          `P&D: ${part.name} aprimorado para o Nível ${newLevel} por ${formatCurrency(cost)}.`,
+          `P&D: ${part.name} aprimorado para o Nível ${newLevel} por ${formatCurrency(cost)} (Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
           'desenvolvimento',
         ),
       ])
@@ -180,7 +205,7 @@ export default function CarPage() {
     }
   }
 
-  // Handle repair / overhaul part
+  // Handle repair / overhaul part with Cost Cap check
   const handleRepairPart = async (part: PartModel) => {
     if (!team) return
     const currentCond = part.condition ?? 100
@@ -193,6 +218,17 @@ export default function CarPage() {
     }
 
     const cost = f1Service.getPartRepairCost(part)
+
+    // Cost Cap check
+    if (currentCostCapSpent + cost > COST_CAP_LIMIT) {
+      toast({
+        variant: 'destructive',
+        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
+        description: `O reparo de ${formatCurrency(cost)} excede a margem restante de ${formatCurrency(remainingCostCap)} do teto FIA.`,
+      })
+      return
+    }
+
     if (team.budget < cost) {
       toast({
         variant: 'destructive',
@@ -205,12 +241,14 @@ export default function CarPage() {
     setRepairingPartId(part.id)
     try {
       const newBudget = team.budget - cost
+      const newSpentCap = currentCostCapSpent + cost
+
       await Promise.all([
         f1Service.repairPart(part.id),
-        f1Service.updateTeam(team.id, { budget: newBudget }),
+        f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
         f1Service.addEvent(
           team.id,
-          `Oficina: ${part.name} passou por revisão completa e retornou a 100% de integridade (Custo: ${formatCurrency(cost)}).`,
+          `Oficina: ${part.name} restaurada a 100% (Custo: ${formatCurrency(cost)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
           'desenvolvimento',
         ),
       ])
@@ -233,10 +271,71 @@ export default function CarPage() {
     }
   }
 
-  // Switch engine supplier handler
+  // Introduce new engine into pool
+  const [introducingEngine, setIntroducingEngine] = useState(false)
+  const handleIntroduceNewEngine = async () => {
+    if (!team) return
+    const engineCost = 15000000 // R$ 15M por nova PU
+
+    if (currentCostCapSpent + engineCost > COST_CAP_LIMIT) {
+      toast({
+        variant: 'destructive',
+        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
+        description: `A introdução de nova unidade de potência de ${formatCurrency(engineCost)} viola o teto de gastos da FIA! Margem restante: ${formatCurrency(remainingCostCap)}.`,
+      })
+      return
+    }
+
+    if (team.budget < engineCost) {
+      toast({
+        variant: 'destructive',
+        title: 'Orçamento Insuficiente',
+        description: `Você precisa de ${formatCurrency(engineCost)} para encomendar uma nova unidade de potência.`,
+      })
+      return
+    }
+
+    setIntroducingEngine(true)
+    try {
+      const res = await f1Service.introduceNewEngine(team, engineCost)
+      if (res.penaltyPositions > 0) {
+        toast({
+          variant: 'destructive',
+          title: `Motor #${res.engineNumber} Ativado — Penalidade Aplicada!`,
+          description: `Limite anual de 4 motores excedido! Você largará com ${res.penaltyPositions} posições de punição no próximo GP.`,
+        })
+      } else {
+        toast({
+          title: `Nova Unidade de Potência #${res.engineNumber} Instalada!`,
+          description: `Motor zerado (0% desgaste) instalado com sucesso dentro da cota permitida (${res.engineNumber}/4).`,
+        })
+      }
+      refreshTeamAndSeason()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao introduzir motor',
+        description: err?.message || 'Falha ao ativar nova PU.',
+      })
+    } finally {
+      setIntroducingEngine(false)
+    }
+  }
+
+  // Switch engine supplier handler with Cost Cap check
   const handleSwitchSupplier = async () => {
     if (!selectedSupplier || !team) return
     const penaltyFee = 15000000 // R$ 15M troca de motor
+
+    if (currentCostCapSpent + penaltyFee > COST_CAP_LIMIT) {
+      toast({
+        variant: 'destructive',
+        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
+        description: `A taxa de rescisão e readequação de chassi de ${formatCurrency(penaltyFee)} excede o limite do teto de gastos da FIA.`,
+      })
+      return
+    }
+
     if (team.budget < penaltyFee) {
       toast({
         variant: 'destructive',
@@ -249,14 +348,17 @@ export default function CarPage() {
     setIsProcessing(true)
     try {
       const newBudget = team.budget - penaltyFee
+      const newSpentCap = currentCostCapSpent + penaltyFee
+
       await f1Service.updateTeam(team.id, {
         engine_supplier: selectedSupplier.name,
         budget: newBudget,
+        cost_cap_spent: newSpentCap,
       })
 
       await f1Service.addEvent(
         team.id,
-        `Fornecedor de unidade de potência trocado para ${selectedSupplier.name} (Custo: ${formatCurrency(penaltyFee)}).`,
+        `Fornecedor de unidade de potência trocado para ${selectedSupplier.name} (Custo: ${formatCurrency(penaltyFee)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
         'desenvolvimento',
       )
 
@@ -330,8 +432,8 @@ export default function CarPage() {
           </p>
         </div>
 
-        {/* Global Condition Alert pill */}
-        <div className="flex items-center gap-2">
+        {/* Badges: Integridade Média + Cost Cap + Motor */}
+        <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant="outline"
             className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
@@ -343,9 +445,170 @@ export default function CarPage() {
             }`}
           >
             <Activity className="w-4 h-4" />
-            <span>Integridade Média: {averageCondition}%</span>
+            <span>Integridade: {averageCondition}%</span>
+          </Badge>
+
+          <Badge
+            variant="outline"
+            className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
+              isCostCapBreached
+                ? 'border-red-500 text-red-400 bg-red-500/10 animate-pulse'
+                : currentCostCapSpent / COST_CAP_LIMIT > 0.8
+                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
+                  : 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>
+              Teto FIA: {formatCurrency(currentCostCapSpent)} / {formatCurrency(COST_CAP_LIMIT)}
+            </span>
+          </Badge>
+
+          <Badge
+            variant="outline"
+            className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
+              enginePoolUsed > f1Service.MAX_ALLOWED_ENGINES
+                ? 'border-red-500 text-red-400 bg-red-500/10 animate-pulse'
+                : enginePoolUsed === f1Service.MAX_ALLOWED_ENGINES
+                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
+                  : 'border-[#00A6FB]/40 text-[#00A6FB] bg-[#00A6FB]/10'
+            }`}
+          >
+            <Flame className="w-4 h-4" />
+            <span>
+              Motor #{enginePoolUsed}/4 ({activeEngineWear}% uso)
+            </span>
           </Badge>
         </div>
+      </div>
+
+      {/* PAINEL FIA: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Card Cost Cap */}
+        <Card className="bg-[#11161F] border-[#1F2733] p-4">
+          <div className="flex items-center justify-between pb-2">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-sm font-bold text-[#F5F7FA] font-mono">
+                TETO DE GASTOS FIA (COST CAP 2026)
+              </h3>
+            </div>
+            <span className="text-xs font-mono font-bold text-[#F5F7FA]">
+              {Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}%
+            </span>
+          </div>
+
+          <div className="space-y-2 mt-2">
+            <Progress
+              value={Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}
+              className="h-2.5 bg-[#0B0E14]"
+            />
+            <div className="flex items-center justify-between text-xs font-mono text-[#8B95A7]">
+              <span>
+                Gasto em P&D / Reparos:{' '}
+                <strong className="text-white">{formatCurrency(currentCostCapSpent)}</strong>
+              </span>
+              <span>
+                Limite: <strong className="text-white">{formatCurrency(COST_CAP_LIMIT)}</strong>
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-[#1F2733]/60">
+              <span className="text-[#8B95A7]">Margem Restante no Teto:</span>
+              <strong
+                className={remainingCostCap < 20000000 ? 'text-amber-400' : 'text-emerald-400'}
+              >
+                {formatCurrency(remainingCostCap)}
+              </strong>
+            </div>
+            <p className="text-[10px] text-[#8B95A7] italic">
+              Regulamento Financeiro FIA: Gastos acima de R$ 135M são bloqueados para evitar
+              punições fiscais severas.
+            </p>
+          </div>
+        </Card>
+
+        {/* Card Pool de Motores & Desgaste */}
+        <Card className="bg-[#11161F] border-[#1F2733] p-4">
+          <div className="flex items-center justify-between pb-2">
+            <div className="flex items-center gap-2">
+              <Flame className="w-5 h-5 text-[#E10600]" />
+              <h3 className="text-sm font-bold text-[#F5F7FA] font-mono">
+                VIDA ÚTIL DO MOTOR & POOL DA TEMPORADA
+              </h3>
+            </div>
+            <Badge
+              variant="outline"
+              className={`font-mono text-xs ${
+                enginePoolUsed > 4
+                  ? 'border-red-500 text-red-400 bg-red-500/10'
+                  : 'border-emerald-500/40 text-emerald-400'
+              }`}
+            >
+              PU #{enginePoolUsed} de 4
+            </Badge>
+          </div>
+
+          <div className="space-y-3 mt-1 text-xs font-mono">
+            <div>
+              <div className="flex justify-between items-center text-[11px] mb-1">
+                <span className="text-[#8B95A7]">Desgaste do Motor Atual:</span>
+                <strong
+                  className={`font-bold ${
+                    activeEngineWear >= 70
+                      ? 'text-red-400'
+                      : activeEngineWear >= 40
+                        ? 'text-amber-400'
+                        : 'text-emerald-400'
+                  }`}
+                >
+                  {activeEngineWear}% ACUMULADO
+                </strong>
+              </div>
+              <Progress value={activeEngineWear} className="h-2 bg-[#0B0E14]" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#1F2733]/60">
+              <div>
+                <span className="text-[#8B95A7] block text-[10px]">Cota Sem Penalidade</span>
+                <strong className="text-white">
+                  {remainingEnginesInQuota > 0
+                    ? `${remainingEnginesInQuota} unidade(s) livre(s)`
+                    : 'COTA ESGOTADA!'}
+                </strong>
+              </div>
+              <div>
+                <span className="text-[#8B95A7] block text-[10px]">Próxima Troca Excedente</span>
+                <span className={enginePoolUsed >= 4 ? 'text-red-400 font-bold' : 'text-slate-400'}>
+                  {enginePoolUsed < 4
+                    ? 'Sem punição'
+                    : enginePoolUsed === 4
+                      ? '-10 posições grid'
+                      : '-5 posições grid'}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between gap-2">
+              <span className="text-[10px] text-[#8B95A7]">
+                {activeEngineWear >= 60
+                  ? '⚠️ Alta degradação! Risco de quebra nas corridas.'
+                  : 'Unidade em faixa térmica e mecânica estável.'}
+              </span>
+              <Button
+                size="sm"
+                onClick={handleIntroduceNewEngine}
+                disabled={
+                  introducingEngine ||
+                  team?.budget! < 15000000 ||
+                  currentCostCapSpent + 15000000 > COST_CAP_LIMIT
+                }
+                className="bg-amber-600 hover:bg-amber-500 text-black font-bold text-xs h-7 px-3 shrink-0"
+              >
+                {introducingEngine ? 'Ativando...' : 'Introduzir Nova PU (R$ 15M)'}
+              </Button>
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* COMPONENTE BLUEPRINT TÉCNICO INTERATIVO */}

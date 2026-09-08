@@ -11,6 +11,16 @@ export interface TeamModel {
   is_custom?: boolean // true se criada pelo jogador (12ª equipe)
   team_key?: string // chave da equipe se for do grid oficial ('mclaren', 'ferrari', etc)
   reserve_setup_bonus?: boolean // true se o piloto reserva treinou no FP e gerou bônus de setup
+  cost_cap_spent?: number // Total gasto na temporada sujeito ao teto FIA (R$ 135M)
+  engine_pool_used?: number // Motores introduzidos no pool (limite regulamentar 4 antes de penalidades)
+  active_engine_wear?: number // Desgaste 0-100% da unidade de potência atualmente instalada no carro
+  engine_history?: Array<{
+    id: number
+    wear: number
+    status: 'instalado' | 'reserva' | 'aposentado'
+    supplier: string
+    introducedRound: number
+  }>
   user_id?: string
   created?: string
   updated?: string

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T18:46:03.271Z",
+  "generatedAt": "2026-09-08T19:24:33.491Z",
   "collections": [
     {
       "name": "users",
@@ -140,6 +140,30 @@
         {
           "name": "reserve_setup_bonus",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cost_cap_spent",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "engine_pool_used",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active_engine_wear",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "engine_history",
+          "type": "json",
           "required": false,
           "system": false
         }

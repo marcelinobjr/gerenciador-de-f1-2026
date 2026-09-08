@@ -440,10 +440,18 @@ export default function Index() {
 
             <div className="p-3 rounded-lg bg-[#161D29]/40 border border-[#1F2733] space-y-2 text-xs font-mono">
               <div className="flex items-center justify-between text-[#8B95A7]">
-                <span>Fornecedor de Motor:</span>
+                <span>Unidade de Potência (PU):</span>
                 <strong className="text-[#00A6FB] font-semibold">
-                  {team?.engine_supplier || 'Mercedes'} (50/50 Híbrido)
+                  {team?.engine_supplier || 'Mercedes'} • PU #{team?.engine_pool_used ?? 1}/4 (
+                  {team?.active_engine_wear ?? 15}% uso)
                 </strong>
+              </div>
+              <div className="flex items-center justify-between text-[#8B95A7] pt-1 border-t border-[#1F2733]/60">
+                <span>Teto de Gastos FIA (Cost Cap):</span>
+                <span className="text-emerald-400 font-bold">
+                  {formatCurrency(team?.cost_cap_spent ?? 0)} /{' '}
+                  {formatCurrency(f1Service.COST_CAP_LIMIT)}
+                </span>
               </div>
               <div className="flex items-center justify-between text-[#8B95A7] pt-1 border-t border-[#1F2733]/60">
                 <span>Força da Escuderia (Rating):</span>

@@ -1052,7 +1052,7 @@ export const AI_GRID_TEAMS: AICompetitor[] = getAICompetitors()
 export const AVAILABLE_MARKET_SPONSORS = [
   {
     name: 'Petrobras Energy',
-    valuePerRound: 28000000,
+    valuePerRound: 4500000,
     requirement: 'Top 6 construtores',
     minConstructorPos: 6,
     minTeamMorale: 0,
@@ -1062,7 +1062,7 @@ export const AVAILABLE_MARKET_SPONSORS = [
   },
   {
     name: 'Embraer Aerospace Tech',
-    valuePerRound: 24000000,
+    valuePerRound: 3800000,
     requirement: 'Top 8 construtores',
     minConstructorPos: 8,
     minTeamMorale: 0,
@@ -1071,7 +1071,7 @@ export const AVAILABLE_MARKET_SPONSORS = [
   },
   {
     name: 'Nubank Ultra',
-    valuePerRound: 22000000,
+    valuePerRound: 3200000,
     requirement: 'Moral da equipe acima de 65',
     minConstructorPos: 11,
     minTeamMorale: 65,
@@ -1080,7 +1080,7 @@ export const AVAILABLE_MARKET_SPONSORS = [
   },
   {
     name: 'Vale Verde Sustentabilidade',
-    valuePerRound: 18000000,
+    valuePerRound: 2600000,
     requirement: 'Sem exigência de posição',
     minConstructorPos: 11,
     minTeamMorale: 0,
@@ -1089,7 +1089,7 @@ export const AVAILABLE_MARKET_SPONSORS = [
   },
   {
     name: 'Itaú Private Motorsport',
-    valuePerRound: 35000000,
+    valuePerRound: 5800000,
     requirement: 'Top 3 construtores',
     minConstructorPos: 3,
     minTeamMorale: 75,
@@ -1098,7 +1098,7 @@ export const AVAILABLE_MARKET_SPONSORS = [
   },
   {
     name: 'Claro 5G Telemetria',
-    valuePerRound: 19500000,
+    valuePerRound: 3000000,
     requirement: 'Top 7 construtores',
     minConstructorPos: 7,
     minTeamMorale: 50,
