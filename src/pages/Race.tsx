@@ -85,7 +85,10 @@ export default function RacePage() {
   }, [currentRound, totalRounds])
 
   const loadData = async () => {
-    if (!team) return
+    if (!team) {
+      setLoading(false)
+      return
+    }
     try {
       const [dList, pList, spList] = await Promise.all([
         f1Service.getTeamDrivers(team.id),

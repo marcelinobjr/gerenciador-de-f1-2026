@@ -42,7 +42,10 @@ export default function StandingsPage() {
   const [loading, setLoading] = useState(true)
 
   const loadData = async () => {
-    if (!season || !team) return
+    if (!season || !team) {
+      setLoading(false)
+      return
+    }
     try {
       const [rList, dList] = await Promise.all([
         f1Service.getSeasonRaceResults(season.id),

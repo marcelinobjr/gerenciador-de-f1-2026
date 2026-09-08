@@ -57,7 +57,10 @@ export default function TeamPage() {
   const teamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
 
   const loadData = async () => {
-    if (!team) return
+    if (!team) {
+      setLoading(false)
+      return
+    }
     try {
       const [tDrivers, mDrivers] = await Promise.all([
         f1Service.getTeamDrivers(team.id),

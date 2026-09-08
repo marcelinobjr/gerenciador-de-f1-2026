@@ -42,7 +42,10 @@ export default function SponsorsPage() {
   const [isProcessing, setIsProcessing] = useState(false)
 
   const loadSponsors = async () => {
-    if (!team) return
+    if (!team) {
+      setLoading(false)
+      return
+    }
     try {
       const sp = await f1Service.getTeamSponsors(team.id)
       setSponsors(sp)

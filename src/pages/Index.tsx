@@ -36,7 +36,10 @@ export default function Index() {
   const [loading, setLoading] = useState(true)
 
   const loadDashboardData = async () => {
-    if (!team || !season) return
+    if (!team || !season) {
+      setLoading(false)
+      return
+    }
     try {
       const [dList, eList, pList, rList] = await Promise.all([
         f1Service.getTeamDrivers(team.id),

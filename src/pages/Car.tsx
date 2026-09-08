@@ -43,7 +43,10 @@ export default function CarPage() {
   const [upgradingPartId, setUpgradingPartId] = useState<string | null>(null)
 
   const loadParts = async () => {
-    if (!team) return
+    if (!team) {
+      setLoading(false)
+      return
+    }
     try {
       const pList = await f1Service.getTeamParts(team.id)
       setParts(pList)
