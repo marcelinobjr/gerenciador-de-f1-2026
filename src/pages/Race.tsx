@@ -10,6 +10,7 @@ import {
   SessionSetupModel,
   TireCompound,
   TireAllotment,
+  WeatherForecast,
 } from '@/types/f1'
 import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
@@ -46,6 +47,13 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
 export type WeekendSession = 'tp1' | 'tp2' | 'q1' | 'q2' | 'q3' | 'race'
 
@@ -605,15 +613,15 @@ export default function RacePage() {
           const q2Top10DriverIds = new Set(sessionResults.q2.slice(0, 10).map((r) => r.driverId))
           activeParticipants = fullGrid.filter((g) => q2Top10DriverIds.has(g.driverId))
           // Keep eliminated from Q2 (positions 11 to 16) and Q1 (17 to 24)
-          const eliminatedQ2 = sessionResults.q2.slice(10, 16).map((r) => ({
+          const eliminatedQ2: SessionTimeResult[] = sessionResults.q2.slice(10, 16).map((r) => ({
             ...r,
             isEliminated: true,
-            eliminatedInSession: 'q2',
+            eliminatedInSession: 'q2' as const,
           }))
-          const eliminatedQ1 = sessionResults.q2.slice(16, 24).map((r) => ({
+          const eliminatedQ1: SessionTimeResult[] = sessionResults.q2.slice(16, 24).map((r) => ({
             ...r,
             isEliminated: true,
-            eliminatedInSession: 'q1',
+            eliminatedInSession: 'q1' as const,
           }))
           eliminatedFromEarlier = [...eliminatedQ2, ...eliminatedQ1]
         }
@@ -883,11 +891,16 @@ export default function RacePage() {
       grid: initialGrid,
     })
 
-    // Check if rain starts mid-race
-    const rainWillStartMidRace =
-      weather === 'seco' && forecast.rainLapStart && forecast.probability >= 35
+    // Ensure race session tab is actively viewed
+    setActiveSession('race')
 
-    simulateRaceStage(initialGrid, 1, weather, rainWillStartMidRace ? forecast.rainLapStart : null)
+    // Check if rain starts mid-race
+    let rainLapToUse: number | null = null
+    if (weather === 'seco' && forecast.probability >= 35) {
+      rainLapToUse = forecast.rainLapStart || Math.round(gpInfo.laps * 0.4)
+    }
+
+    simulateRaceStage(initialGrid, 1, weather, rainLapToUse)
   }
 
   // Simulation execution engine
@@ -927,6 +940,7 @@ export default function RacePage() {
 
         // RAIN STARTS! PAUSE SIMULATION AND OPEN DECISION MODAL!
         setWeather('chuva')
+        setActiveSession('race')
         setLiveRaceState({
           inProgress: true,
           currentLap: targetLap,
@@ -973,25 +987,40 @@ export default function RacePage() {
     // Player choice application
     if (decision === 'aguardar') {
       const waitLaps = Math.max(1, rainDecisionWaitLaps)
-      const penaltyScore = waitLaps * 12 // Severe penalty for driving slick tires in wet
-      const accidentRisk = waitLaps * 15 // High crash risk on wet track with slicks
+      const penaltyScore = waitLaps * 15 // Severe penalty for driving slick tires in wet
+      const accidentRisk = Math.min(75, waitLaps * 18) // High crash risk on wet track with slicks
       const hadAccident = Math.random() * 100 < accidentRisk
 
       incidents.push(
-        `🌧️ ESTRATÉGIA: Você decidiu aguardar ${waitLaps} voltas com pneus de pista seca na chuva!`,
+        `🌧️ ESTRATÉGIA ARRISCADA: Você decidiu aguardar ${waitLaps} volta(s) com pneus slicks na pista molhada!`,
       )
       if (hadAccident) {
         incidents.push(
-          `💥 AQUAPLANAGEM: Carro da equipe perdeu a aderência e rodou na pista molhada!`,
+          `💥 AQUAPLANAGEM: Carro da equipe perdeu completamente a aderência no asfalto encharcado e rodou!`,
+        )
+      } else {
+        incidents.push(
+          `⏱️ PERDA DE RITMO: Sem aderência no molhado com slicks, o carro perdeu aproximadamente ${(waitLaps * 2.8).toFixed(1)}s por volta e posições no pelotão antes de colocar intermediários!`,
         )
       }
 
       currentGrid.forEach((entry) => {
         if (entry.isPlayer) {
-          entry.tireWear = Math.min(100, (entry.tireWear || 50) + waitLaps * 10)
+          entry.tireWear = Math.min(100, (entry.tireWear || 50) + waitLaps * 8)
+          entry.score -= penaltyScore
           if (hadAccident) {
             entry.dnf = true
             entry.dnfReason = 'Aquaplanagem com pneus de pista seca na chuva'
+          } else {
+            // After waiting the selected laps, driver eventually pits for intermediates
+            entry.tireCompound = 'intermediario'
+            entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+            if (tireStock.intermediario > 0) {
+              setTireStock((prev) => ({
+                ...prev,
+                intermediario: Math.max(0, prev.intermediario - 1),
+              }))
+            }
           }
         }
       })
@@ -1005,7 +1034,7 @@ export default function RacePage() {
         }))
       }
       incidents.push(
-        `PIT STOP CHUVA: Equipe realizou troca emergencial para pneus ${formatTireName(chosenTire)}.`,
+        `🌧️ PIT STOP EMERGENCIAL: Equipe chamou os carros para troca imediata para pneus ${formatTireName(chosenTire)}.`,
       )
       currentGrid.forEach((entry) => {
         if (entry.isPlayer) {
@@ -2049,6 +2078,202 @@ export default function RacePage() {
           )
         })}
       </Tabs>
+
+      {/* DIÁLOGO / MODAL DE DECISÃO ESTRATÉGICA DE CHUVA */}
+      <Dialog open={rainDecisionOpen} onOpenChange={setRainDecisionOpen}>
+        <DialogContent className="bg-[#11161F] border-2 border-sky-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
+          <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
+            <div className="flex items-center gap-2 text-sky-400 font-mono text-xs uppercase tracking-wider font-bold">
+              <CloudRain className="w-5 h-5 animate-bounce" />
+              Alerta Meteorológico • Mudança Climática na Pista
+            </div>
+            <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
+              <span>🌧️ Começou a Chover na Corrida!</span>
+              <Badge className="bg-sky-500/20 text-sky-300 border border-sky-400/30 text-xs font-mono">
+                Volta {liveRaceState?.currentLap || 1} de {gpInfo.laps}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
+              O asfalto está molhado no circuito de <strong>{gpInfo.circuit}</strong> (
+              {gpInfo.country}). A simulação foi pausada para que a equipe tome uma decisão
+              estratégica de pit stop. Escolha uma das 3 opções abaixo:
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Context Banner: Track & Rival status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-xs font-mono">
+            <div>
+              <span className="text-[#8B95A7] block text-[11px]">Condição do Tempo:</span>
+              <strong className="text-sky-400 font-semibold flex items-center gap-1.5 mt-0.5">
+                <CloudRain className="w-4 h-4" /> Chuva Ativa ({forecast.expectedCondition})
+              </strong>
+            </div>
+            <div>
+              <span className="text-[#8B95A7] block text-[11px]">Comportamento dos Rivais:</span>
+              <strong className="text-amber-400 font-semibold block mt-0.5">
+                IA entrando nos boxes para compostos de chuva
+              </strong>
+            </div>
+          </div>
+
+          {/* Options Grid */}
+          <div className="space-y-3 pt-1">
+            {/* Option 1: Intermediates */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                tireStock.intermediario > 0
+                  ? 'bg-[#161D29]/60 border-emerald-500/40 hover:border-emerald-500 hover:bg-[#161D29]'
+                  : 'bg-[#161D29]/20 border-red-900/40 opacity-70'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-emerald-600 inline-block" />
+                    <h4 className="font-bold text-sm text-[#F5F7FA]">
+                      Opção 1: Trocar para INTERMEDIÁRIOS (Verde)
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-mono ${
+                        tireStock.intermediario > 0
+                          ? 'border-emerald-500/40 text-emerald-400'
+                          : 'border-red-500/40 text-red-400'
+                      }`}
+                    >
+                      Estoque: {tireStock.intermediario} jogo(s)
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8B95A7]">
+                    Ideal para asfalto molhado moderado ou chuva contínua padrão. Garante boa tração
+                    e reduz desgaste térmico.
+                  </p>
+                  {tireStock.intermediario <= 0 && (
+                    <p className="text-[11px] text-red-400 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Composto esgotado no estoque deste fim de semana.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={() => handleConfirmRainDecision('intermediario')}
+                  disabled={tireStock.intermediario <= 0}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 px-4 shrink-0"
+                >
+                  {tireStock.intermediario > 0 ? 'Colocar Intermediários' : 'Esgotado'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Option 2: Extreme Wet */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                tireStock.chuva_extrema > 0
+                  ? 'bg-[#161D29]/60 border-blue-500/40 hover:border-blue-500 hover:bg-[#161D29]'
+                  : 'bg-[#161D29]/20 border-red-900/40 opacity-70'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-blue-500 ring-2 ring-blue-600 inline-block" />
+                    <h4 className="font-bold text-sm text-[#F5F7FA]">
+                      Opção 2: Trocar para CHUVA EXTREMA (Azul)
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-mono ${
+                        tireStock.chuva_extrema > 0
+                          ? 'border-blue-500/40 text-blue-400'
+                          : 'border-red-500/40 text-red-400'
+                      }`}
+                    >
+                      Estoque: {tireStock.chuva_extrema} jogo(s)
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8B95A7]">
+                    Máxima drenagem de água (85L/segundo). Essencial para tempestades ou poças
+                    profundas, máxima segurança contra aquaplanagem.
+                  </p>
+                  {tireStock.chuva_extrema <= 0 && (
+                    <p className="text-[11px] text-red-400 font-semibold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Composto esgotado no estoque deste fim de semana.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={() => handleConfirmRainDecision('chuva_extrema')}
+                  disabled={tireStock.chuva_extrema <= 0}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-9 px-4 shrink-0"
+                >
+                  {tireStock.chuva_extrema > 0 ? 'Colocar Chuva Extrema' : 'Esgotado'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Option 3: Wait X laps on current tire */}
+            <div className="p-4 rounded-xl border border-amber-500/40 bg-[#161D29]/60 hover:bg-[#161D29] transition-all space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <h4 className="font-bold text-sm text-[#F5F7FA]">
+                      Opção 3: AGUARDAR X voltas no pneu atual
+                    </h4>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono border-amber-500/40 text-amber-400"
+                    >
+                      Alto Risco
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8B95A7]">
+                    Manter os carros na pista com os pneus atuais (slicks) esperando a chuva passar
+                    ou torcendo por um Safety Car.
+                  </p>
+                  <p className="text-[11px] text-amber-300/90 font-mono">
+                    ⚠️ Atenção: Rodar de slick na água custa muito tempo e posições, além de alto
+                    risco de aquaplanagem e abandono!
+                  </p>
+                </div>
+              </div>
+
+              {/* Slider / Number selector for laps */}
+              <div className="pt-2 border-t border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex-1 space-y-1.5">
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="text-[#8B95A7]">Voltas a aguardar na pista:</span>
+                    <strong className="text-amber-400 text-sm">
+                      {rainDecisionWaitLaps} {rainDecisionWaitLaps === 1 ? 'volta' : 'voltas'}
+                    </strong>
+                  </div>
+                  <Slider
+                    value={[rainDecisionWaitLaps]}
+                    min={1}
+                    max={6}
+                    step={1}
+                    onValueChange={(val) => setRainDecisionWaitLaps(val[0])}
+                    className="py-1"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-[#8B95A7]">
+                    <span>1 volta (Risco moderado)</span>
+                    <span>3 voltas (Perda severa)</span>
+                    <span>6 voltas (Risco extremo)</span>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => handleConfirmRainDecision('aguardar')}
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs h-9 px-4 shrink-0 sm:self-center"
+                >
+                  Aguardar {rainDecisionWaitLaps} volta(s)
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
