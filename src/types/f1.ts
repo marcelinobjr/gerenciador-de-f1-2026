@@ -158,6 +158,14 @@ export interface TireAllotment {
   chuva_extrema: number
 }
 
+export interface TireSetItem {
+  id: string
+  compound: TireCompound
+  wear: number // 0-100% de desgaste (0% = jogo novo de fábrica)
+  lapsUsed: number
+  isFitted?: boolean
+}
+
 export interface SessionSetupModel {
   id?: string
   team_id: string
