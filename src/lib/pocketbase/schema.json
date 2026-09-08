@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T17:55:06.538Z",
+  "generatedAt": "2026-09-08T18:12:42.155Z",
   "collections": [
     {
       "name": "users",
@@ -347,6 +347,18 @@
         },
         {
           "name": "fatigue",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "morale",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "physical_condition",
           "type": "number",
           "required": false,
           "system": false

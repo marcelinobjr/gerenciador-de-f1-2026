@@ -726,6 +726,71 @@ export default function TeamPage() {
                       </div>
                     </div>
 
+                    {/* Moral & Condição Física */}
+                    <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] grid grid-cols-2 gap-3 text-xs font-mono">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[#8B95A7]">
+                          <span className="flex items-center gap-1 text-[#F5F7FA]">
+                            <Sparkles className="w-3 h-3 text-amber-400" /> Moral do Piloto
+                          </span>
+                          <span
+                            className={`font-bold ${
+                              (driver.morale ?? 80) >= 80
+                                ? 'text-emerald-400'
+                                : (driver.morale ?? 80) >= 60
+                                  ? 'text-amber-400'
+                                  : 'text-red-400'
+                            }`}
+                          >
+                            {driver.morale ?? 80}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              (driver.morale ?? 80) >= 80
+                                ? 'bg-emerald-400'
+                                : (driver.morale ?? 80) >= 60
+                                  ? 'bg-amber-400'
+                                  : 'bg-red-400'
+                            }`}
+                            style={{ width: `${driver.morale ?? 80}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[#8B95A7]">
+                          <span className="flex items-center gap-1 text-[#F5F7FA]">
+                            <HeartPulse className="w-3 h-3 text-rose-400" /> Condição Física
+                          </span>
+                          <span
+                            className={`font-bold ${
+                              (driver.physical_condition ?? 90) >= 80
+                                ? 'text-emerald-400'
+                                : (driver.physical_condition ?? 90) >= 60
+                                  ? 'text-amber-400'
+                                  : 'text-red-400'
+                            }`}
+                          >
+                            {driver.physical_condition ?? 90}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              (driver.physical_condition ?? 90) >= 80
+                                ? 'bg-emerald-400'
+                                : (driver.physical_condition ?? 90) >= 60
+                                  ? 'bg-amber-400'
+                                  : 'bg-rose-400'
+                            }`}
+                            style={{ width: `${driver.physical_condition ?? 90}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Salary & Action Buttons */}
                     <div className="pt-2 border-t border-[#1F2733] flex items-center justify-between text-xs font-mono">
                       <div>
@@ -925,6 +990,24 @@ export default function TeamPage() {
                 <div className="p-2 rounded bg-[#11161F] border border-[#1F2733] flex justify-between">
                   <span className="text-[#8B95A7]">Defesa:</span>
                   <strong className="text-amber-400">{reserveDriver.defense}</strong>
+                </div>
+              </div>
+
+              {/* Moral e Condição Física do Reserva */}
+              <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] grid grid-cols-2 gap-3 text-xs font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#8B95A7] flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" /> Moral:
+                  </span>
+                  <span className="font-bold text-emerald-400">{reserveDriver.morale ?? 85}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#8B95A7] flex items-center gap-1">
+                    <HeartPulse className="w-3 h-3 text-rose-400" /> Condição Física:
+                  </span>
+                  <span className="font-bold text-emerald-400">
+                    {reserveDriver.physical_condition ?? 95}%
+                  </span>
                 </div>
               </div>
             </div>

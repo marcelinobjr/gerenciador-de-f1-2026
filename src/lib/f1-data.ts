@@ -905,6 +905,52 @@ export const OFFICIAL_GRID_TEAMS: OfficialGridTeam[] = [
       salary: 5000000,
     },
   },
+  {
+    key: 'andretti',
+    name: 'Andretti Global',
+    color: '#002B49',
+    engine: 'Honda',
+    strength: 68,
+    carLevel: 72,
+    budget: 145000000,
+    historySummary:
+      'Tradicional equipe americana do automobilismo mundial completando o grid oficial de 12 escuderias e 24 carros em 2026.',
+    currentSituation:
+      'Operação liderada por Michael Andretti unindo juventude e experiência com Colton Herta e Felipe Drugovich.',
+    driver1: {
+      name: 'Colton Herta',
+      speed: 83,
+      consistency: 80,
+      rain: 81,
+      defense: 82,
+      nationality: 'Estados Unidos',
+      flag: '🇺🇸',
+      age: 25,
+      salary: 9000000,
+    },
+    driver2: {
+      name: 'Felipe Drugovich',
+      speed: 82,
+      consistency: 83,
+      rain: 82,
+      defense: 80,
+      nationality: 'Brasil',
+      flag: '🇧🇷',
+      age: 25,
+      salary: 8000000,
+    },
+    reserveDriver: {
+      name: 'Pietro Fittipaldi',
+      speed: 78,
+      consistency: 79,
+      rain: 78,
+      defense: 77,
+      nationality: 'Brasil',
+      flag: '🇧🇷',
+      age: 29,
+      salary: 3500000,
+    },
+  },
 ]
 
 export interface AICompetitor {
@@ -948,13 +994,22 @@ export function getAICompetitors(
   playerTeamKey?: string,
   isCustomTeam: boolean = true,
 ): AICompetitor[] {
-  return OFFICIAL_GRID_TEAMS.filter((team) => {
-    // Se o jogador assumiu uma equipe oficial existente (ex: ferrari), remove ela da IA
+  // O grid total possui 12 equipes (24 pilotos). Se o jogador criar uma equipe customizada,
+  // pegamos 11 equipes oficiais rivais (para somar 11 + 1 = 12 equipes, 24 carros).
+  // Se o jogador assumiu uma oficial (ex: ferrari), removemos a ferrari e sobram 11 oficiais (11 + 1 = 12 equipes).
+  let list = OFFICIAL_GRID_TEAMS.filter((team) => {
     if (!isCustomTeam && playerTeamKey && team.key === playerTeamKey) {
       return false
     }
     return true
-  }).map((team) => ({
+  })
+
+  // Se o jogador é custom e a lista tem 12 equipes, removemos a 12ª oficial para manter exatos 22 carros rivais (22 + 2 do jogador = 24 pilotos)
+  if (isCustomTeam && list.length > 11) {
+    list = list.slice(0, 11)
+  }
+
+  return list.map((team) => ({
     id: `ai_${team.key}`,
     name: team.name,
     color: team.color,

@@ -55,8 +55,24 @@ export interface DriverModel {
   is_incapacitated?: boolean // se está com lesão/doença
   incapacitated_rounds_left?: number // quantas corridas restantes de afastamento (1 a 3)
   incapacitated_reason?: string // motivo da incapacidade
+  fatigue?: number
+  morale?: number // 0-100 (afetada por resultados, contrato, etc.)
+  physical_condition?: number // 0-100 (condição física afetada por fadiga acumulada e corridas)
   created?: string
   updated?: string
+}
+
+export interface WeatherForecast {
+  probability: number // 0 a 100%
+  expectedCondition:
+    | 'Ensolarado'
+    | 'Parcialmente Nublado'
+    | 'Nublado com risco de chuva'
+    | 'Chuva Iminente'
+    | 'Tempestade'
+  airTemp: number // graus C
+  trackTemp: number // graus C
+  rainLapStart?: number // volta aproximada em que a chuva começa (se ocorrer)
 }
 
 export interface RaceResultModel {
