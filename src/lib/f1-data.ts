@@ -10,6 +10,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 58,
     circuitLengthKm: 5.278,
     characteristic: 'Misto rápido com frenagens fortes',
+    tireAbrasiveness: 5,
+    downforceIdeal: 6,
+    suspensionIdeal: 6,
   },
   {
     round: 2,
@@ -20,6 +23,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 56,
     circuitLengthKm: 5.451,
     characteristic: 'Reta longa e curvas fechadas',
+    tireAbrasiveness: 7,
+    downforceIdeal: 5,
+    suspensionIdeal: 5,
   },
   {
     round: 3,
@@ -30,6 +36,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 53,
     circuitLengthKm: 5.807,
     characteristic: 'Alta pressão aerodinâmica em S',
+    tireAbrasiveness: 8,
+    downforceIdeal: 8,
+    suspensionIdeal: 7,
   },
   {
     round: 4,
@@ -40,6 +49,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 57,
     circuitLengthKm: 5.412,
     characteristic: 'Exigência de tração e frenagens',
+    tireAbrasiveness: 9,
+    downforceIdeal: 6,
+    suspensionIdeal: 6,
   },
   {
     round: 5,
@@ -50,6 +62,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 50,
     circuitLengthKm: 6.174,
     characteristic: 'Circuito de rua de altíssima velocidade',
+    tireAbrasiveness: 4,
+    downforceIdeal: 4,
+    suspensionIdeal: 8,
   },
   {
     round: 6,
@@ -60,6 +75,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 57,
     circuitLengthKm: 5.412,
     characteristic: 'Misto de rua com longas retas',
+    tireAbrasiveness: 5,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
   },
   {
     round: 7,
@@ -70,6 +88,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 63,
     circuitLengthKm: 4.909,
     characteristic: 'Técnico tradicional, poucas ultrapassagens',
+    tireAbrasiveness: 6,
+    downforceIdeal: 7,
+    suspensionIdeal: 6,
   },
   {
     round: 8,
@@ -80,6 +101,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 78,
     circuitLengthKm: 3.337,
     characteristic: 'Travado, chassi ágil e qualificação vital',
+    tireAbrasiveness: 2,
+    downforceIdeal: 10,
+    suspensionIdeal: 3,
   },
   {
     round: 9,
@@ -90,6 +114,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 66,
     circuitLengthKm: 4.657,
     characteristic: 'Referência aerodinâmica global',
+    tireAbrasiveness: 8,
+    downforceIdeal: 8,
+    suspensionIdeal: 7,
   },
   {
     round: 10,
@@ -100,6 +127,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 70,
     circuitLengthKm: 4.361,
     characteristic: 'Stop-and-go com zebras altas',
+    tireAbrasiveness: 4,
+    downforceIdeal: 4,
+    suspensionIdeal: 4,
   },
   {
     round: 11,
@@ -110,6 +140,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 71,
     circuitLengthKm: 4.318,
     characteristic: 'Volta rápida em montanha com elevação',
+    tireAbrasiveness: 6,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
   },
   {
     round: 12,
@@ -120,6 +153,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 52,
     circuitLengthKm: 5.891,
     characteristic: 'Curvas lendárias de alta velocidade',
+    tireAbrasiveness: 9,
+    downforceIdeal: 8,
+    suspensionIdeal: 7,
   },
   {
     round: 13,
@@ -130,6 +166,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 44,
     circuitLengthKm: 7.004,
     characteristic: 'Eau Rouge, clima instável e potência 50/50',
+    tireAbrasiveness: 7,
+    downforceIdeal: 4,
+    suspensionIdeal: 6,
   },
   {
     round: 14,
@@ -140,6 +179,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 70,
     circuitLengthKm: 4.381,
     characteristic: 'Travado e quente, sem descanso',
+    tireAbrasiveness: 6,
+    downforceIdeal: 9,
+    suspensionIdeal: 5,
   },
   {
     round: 15,
@@ -150,6 +192,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 72,
     circuitLengthKm: 4.259,
     characteristic: 'Curvas inclinadas e vento costeiro',
+    tireAbrasiveness: 7,
+    downforceIdeal: 8,
+    suspensionIdeal: 7,
   },
   {
     round: 16,
@@ -160,6 +205,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 53,
     circuitLengthKm: 5.793,
     characteristic: 'Templo da velocidade, baixo arrasto',
+    tireAbrasiveness: 5,
+    downforceIdeal: 1,
+    suspensionIdeal: 8,
   },
   {
     round: 17,
@@ -170,6 +218,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 51,
     circuitLengthKm: 6.003,
     characteristic: 'Reta gigantesca e castelo estreito',
+    tireAbrasiveness: 4,
+    downforceIdeal: 3,
+    suspensionIdeal: 7,
   },
   {
     round: 18,
@@ -180,6 +231,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 62,
     circuitLengthKm: 4.94,
     characteristic: 'Noturna, umidade extrema e calor',
+    tireAbrasiveness: 6,
+    downforceIdeal: 10,
+    suspensionIdeal: 4,
   },
   {
     round: 19,
@@ -190,6 +244,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 56,
     circuitLengthKm: 5.513,
     characteristic: 'Subida na curva 1 e sequências velozes',
+    tireAbrasiveness: 7,
+    downforceIdeal: 7,
+    suspensionIdeal: 6,
   },
   {
     round: 20,
@@ -200,6 +257,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 71,
     circuitLengthKm: 4.304,
     characteristic: 'Ar rarefeito a 2.200m de altitude',
+    tireAbrasiveness: 5,
+    downforceIdeal: 9,
+    suspensionIdeal: 6,
   },
   {
     round: 21,
@@ -210,6 +270,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 71,
     circuitLengthKm: 4.309,
     characteristic: 'Sentido anti-horário, fãs fervorosos e clima imprevisível',
+    tireAbrasiveness: 7,
+    downforceIdeal: 7,
+    suspensionIdeal: 5,
   },
   {
     round: 22,
@@ -220,6 +283,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 50,
     circuitLengthKm: 6.201,
     characteristic: 'Frio noturno na Strip a mais de 340 km/h',
+    tireAbrasiveness: 4,
+    downforceIdeal: 2,
+    suspensionIdeal: 8,
   },
   {
     round: 23,
@@ -230,6 +296,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 57,
     circuitLengthKm: 5.419,
     characteristic: 'Sequência fluida de curvas rápidas sob holofotes',
+    tireAbrasiveness: 9,
+    downforceIdeal: 8,
+    suspensionIdeal: 7,
   },
   {
     round: 24,
@@ -240,6 +309,9 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     laps: 58,
     circuitLengthKm: 5.281,
     characteristic: 'Final do campeonato ao entardecer',
+    tireAbrasiveness: 6,
+    downforceIdeal: 6,
+    suspensionIdeal: 6,
   },
 ]
 

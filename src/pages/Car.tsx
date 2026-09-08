@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
-import { PartModel } from '@/types/f1'
+import { PartModel, SponsorModel } from '@/types/f1'
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
+import { CarLivery } from '@/components/CarLivery'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
 import {
@@ -37,6 +38,7 @@ export default function CarPage() {
   const { team, refreshTeamAndSeason } = useAuth()
 
   const [parts, setParts] = useState<PartModel[]>([])
+  const [sponsors, setSponsors] = useState<SponsorModel[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -48,8 +50,12 @@ export default function CarPage() {
       return
     }
     try {
-      const pList = await f1Service.getTeamParts(team.id)
+      const [pList, spList] = await Promise.all([
+        f1Service.getTeamParts(team.id),
+        f1Service.getTeamSponsors(team.id),
+      ])
       setParts(pList)
+      setSponsors(spList)
     } catch (err) {
       console.error('Error loading parts:', err)
     } finally {
@@ -210,6 +216,14 @@ export default function CarPage() {
           </p>
         </div>
       </div>
+
+      {/* Visual Livery do Carro 2026 com Patrocinadores */}
+      <CarLivery
+        teamColor={team?.color || '#E10600'}
+        teamName={team?.name || 'Sua Escuderia'}
+        sponsors={sponsors}
+        carLevel={overallLevel}
+      />
 
       {/* BLOCO FIXO EXPLICATIVO: REGRAS TÉCNICAS F1 2026 */}
       <div className="rounded-2xl bg-[#11161F] border border-[#00A6FB]/40 p-5 shadow-xl relative overflow-hidden">

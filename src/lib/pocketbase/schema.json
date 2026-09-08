@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T16:48:20.281Z",
+  "generatedAt": "2026-09-08T17:55:06.538Z",
   "collections": [
     {
       "name": "users",
@@ -134,6 +134,12 @@
         {
           "name": "team_key",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "reserve_setup_bonus",
+          "type": "bool",
           "required": false,
           "system": false
         }
@@ -278,6 +284,72 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "role",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["titular", "reserva"]
+        },
+        {
+          "name": "category",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "f1",
+            "f2",
+            "indycar",
+            "indynxt",
+            "formula_e",
+            "nascar",
+            "prototipos",
+            "mercado"
+          ]
+        },
+        {
+          "name": "fp_sessions_completed",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fp_scheduled_rounds",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_incapacitated",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "incapacitated_rounds_left",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "incapacitated_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "reserve_team_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "fatigue",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -518,6 +590,113 @@
         }
       ],
       "indexes": ["CREATE INDEX idx_events_team_created ON events (team_id, created DESC)"]
+    },
+    {
+      "name": "session_setups",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "season_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "seasons"
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "session",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["tp1", "tp2", "q1", "q2", "q3", "race"]
+        },
+        {
+          "name": "wing_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "suspension_stiffness",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pu_electric_ratio",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tire_compound",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["duro", "medio", "macio", "intermediario", "chuva_extrema"]
+        },
+        {
+          "name": "target_pit_lap",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "second_tire_compound",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["duro", "medio", "macio", "intermediario", "chuva_extrema"]
+        },
+        {
+          "name": "driver_wear",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_session_setups_lookup ON session_setups (team_id, season_id, round)"
+      ]
     }
   ]
 }

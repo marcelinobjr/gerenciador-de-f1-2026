@@ -116,6 +116,35 @@ export interface GrandPrixInfo {
   laps: number
   circuitLengthKm: number
   characteristic: string // "Alta velocidade", "Técnico e travado", "Misto", etc.
+  tireAbrasiveness?: number // 1 a 10 (ex: 8 = Bahrain/Barcelona, 3 = Mônaco)
+  downforceIdeal?: number // 1 a 10 asa recomendada (ex: Monza = 2, Mônaco = 10)
+  suspensionIdeal?: number // 1 a 10 rigidez ideal
+}
+
+export type TireCompound = 'duro' | 'medio' | 'macio' | 'intermediario' | 'chuva_extrema'
+
+export interface TireAllotment {
+  duro: number
+  medio: number
+  macio: number
+  intermediario: number
+  chuva_extrema: number
+}
+
+export interface SessionSetupModel {
+  id?: string
+  team_id: string
+  season_id: string
+  round: number
+  session: 'tp1' | 'tp2' | 'q1' | 'q2' | 'q3' | 'race'
+  wing_level: number // 1 a 10
+  suspension_stiffness: number // 1 a 10
+  pu_electric_ratio: number // 20 a 80 (padrão 50%)
+  tire_compound?: TireCompound
+  target_pit_lap?: number
+  second_tire_compound?: TireCompound
+  driver_wear?: number
+  notes?: string
 }
 
 export interface EngineSupplierSpec {

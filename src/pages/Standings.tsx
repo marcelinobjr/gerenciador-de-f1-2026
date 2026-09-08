@@ -189,6 +189,18 @@ export default function StandingsPage() {
         dMap[res.driver_id].points += res.points || 0
         if (res.position === 1) dMap[res.driver_id].wins += 1
         if (res.position <= 3) dMap[res.driver_id].podiums += 1
+      } else {
+        // Also match by driver expand or find in dMap by name if available
+        const matched = Object.values(dMap).find(
+          (d) =>
+            d.id === res.driver_id ||
+            (res.expand?.driver_id && d.name === res.expand.driver_id.name),
+        )
+        if (matched) {
+          matched.points += res.points || 0
+          if (res.position === 1) matched.wins += 1
+          if (res.position <= 3) matched.podiums += 1
+        }
       }
     })
 

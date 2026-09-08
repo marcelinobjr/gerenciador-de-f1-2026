@@ -7,6 +7,7 @@ import {
   SponsorModel,
   PartModel,
   EventModel,
+  SessionSetupModel,
 } from '@/types/f1'
 
 export const f1Service = {
@@ -220,6 +221,129 @@ export const f1Service = {
     data: Omit<RaceResultModel, 'id' | 'created' | 'updated'>,
   ): Promise<RaceResultModel> {
     return await pb.collection('race_results').create<RaceResultModel>(data)
+  },
+
+  // Helper to ensure canonical driver & team exist before inserting race result
+  async ensureDriverAndTeam(
+    driverName: string,
+    driverIdCandidate?: string,
+    teamIdCandidate?: string,
+    teamData?: { name?: string; color?: string; engine?: string },
+    driverData?: {
+      nationality?: string
+      speed?: number
+      consistency?: number
+      rain?: number
+      defense?: number
+      role?: string
+    },
+  ): Promise<{ canonicalDriverId: string; canonicalTeamId: string }> {
+    let canonicalDriverId = ''
+    let canonicalTeamId = teamIdCandidate || ''
+
+    // 1. Resolve Driver
+    if (driverIdCandidate && driverIdCandidate.length >= 15 && !driverIdCandidate.includes('_')) {
+      try {
+        const found = await pb.collection('drivers').getOne(driverIdCandidate)
+        if (found?.id) {
+          canonicalDriverId = found.id
+        }
+      } catch (_) {
+        // Candidate id not valid in DB, search by name
+      }
+    }
+
+    if (!canonicalDriverId) {
+      try {
+        const byName = await pb
+          .collection('drivers')
+          .getFirstListItem(`name = "${driverName.replace(/"/g, '\\"')}"`)
+        if (byName?.id) {
+          canonicalDriverId = byName.id
+        }
+      } catch (_) {
+        // Driver does not exist in DB yet, create it
+        try {
+          const created = await pb.collection('drivers').create({
+            name: driverName,
+            nationality: driverData?.nationality || 'Desconhecido',
+            age: 25,
+            speed: driverData?.speed || 80,
+            consistency: driverData?.consistency || 80,
+            rain: driverData?.rain || 80,
+            defense: driverData?.defense || 80,
+            salary: 5000000,
+            contract_end: 2026,
+            role: driverData?.role || 'titular',
+            category: 'f1',
+          })
+          canonicalDriverId = created.id
+        } catch (cErr) {
+          console.error('Erro ao auto-criar piloto canônico:', cErr)
+        }
+      }
+    }
+
+    // 2. Resolve Team
+    if (canonicalTeamId && canonicalTeamId.length >= 15 && !canonicalTeamId.includes('_')) {
+      try {
+        const tFound = await pb.collection('teams').getOne(canonicalTeamId)
+        if (tFound?.id) {
+          canonicalTeamId = tFound.id
+        }
+      } catch (_) {
+        canonicalTeamId = ''
+      }
+    }
+
+    if (!canonicalTeamId) {
+      // Find team by name or team_key, or create if AI team
+      const tName = teamData?.name || 'Equipe'
+      try {
+        const byName = await pb
+          .collection('teams')
+          .getFirstListItem(`name = "${tName.replace(/"/g, '\\"')}"`)
+        canonicalTeamId = byName.id
+      } catch (_) {
+        // Create team record if needed
+        try {
+          const newTeam = await pb.collection('teams').create({
+            name: tName,
+            color: teamData?.color || '#FF1801',
+            chassis_level: 50,
+            aero_level: 50,
+            strategy_level: 50,
+            budget: 150000000,
+            engine_supplier: (teamData?.engine as any) || 'Mercedes',
+            strength: 75,
+            is_custom: false,
+          })
+          canonicalTeamId = newTeam.id
+        } catch (tErr) {
+          console.error('Erro ao auto-criar equipe canônica:', tErr)
+        }
+      }
+    }
+
+    return { canonicalDriverId, canonicalTeamId }
+  },
+
+  // Idempotent clean of round race_results for a season
+  async deleteRaceResultsForRound(seasonId: string, round: number): Promise<void> {
+    try {
+      const existing = await pb.collection('race_results').getFullList({
+        filter: `season_id = "${seasonId}" && round = ${round}`,
+      })
+      for (const item of existing) {
+        try {
+          await pb.collection('race_results').delete(item.id)
+        } catch (delErr) {
+          console.warn('Erro ao deletar resultado prévio:', delErr)
+        }
+      }
+    } catch (e) {
+      console.warn('Nenhum resultado anterior para limpar:', e)
+    }
   },
 
   // Initialize Team (Official or Custom 12th)
@@ -468,6 +592,42 @@ export const f1Service = {
     })
 
     return newTeam
+  },
+
+  // Session setups for GP Weekend
+  async getSessionSetups(
+    teamId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<SessionSetupModel[]> {
+    try {
+      const records = await pb.collection('session_setups').getFullList<SessionSetupModel>({
+        filter: `team_id = "${teamId}" && season_id = "${seasonId}" && round = ${round}`,
+      })
+      return records
+    } catch (e) {
+      console.warn('Erro ao carregar setups de sessão:', e)
+      return []
+    }
+  },
+
+  async saveSessionSetup(data: SessionSetupModel): Promise<SessionSetupModel> {
+    try {
+      // Find if already exists
+      const existing = await pb.collection('session_setups').getList<SessionSetupModel>(1, 1, {
+        filter: `team_id = "${data.team_id}" && season_id = "${data.season_id}" && round = ${data.round} && session = "${data.session}"`,
+      })
+      if (existing.items.length > 0) {
+        return await pb
+          .collection('session_setups')
+          .update<SessionSetupModel>(existing.items[0].id!, data)
+      } else {
+        return await pb.collection('session_setups').create<SessionSetupModel>(data)
+      }
+    } catch (e) {
+      console.error('Erro ao salvar setup de sessão:', e)
+      return data
+    }
   },
 
   // Reset all game progress for the given user, keeping user auth record intact.
