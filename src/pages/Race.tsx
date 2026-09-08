@@ -119,13 +119,15 @@ export default function RacePage() {
     return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
   }, [team?.engine_supplier])
 
-  // Overall player car rating
+  // Overall player car rating (with reserve FP setup bonus if active)
   const playerCarLevel = useMemo(() => {
     if (parts.length === 0) return 75
     const sum = parts.reduce((acc, p) => acc + p.level, 0)
     const avg = (sum / parts.length) * 10
-    return Math.round(avg * 0.6 + currentEngine.power * 0.4)
-  }, [parts, currentEngine])
+    const base = Math.round(avg * 0.6 + currentEngine.power * 0.4)
+    // +2 pts setup bonus if reserve participated in FP
+    return team?.reserve_setup_bonus ? Math.min(100, base + 2) : base
+  }, [parts, currentEngine, team?.reserve_setup_bonus])
 
   // Aerodynamics component level
   const aeroPart = parts.find((p) => p.name.includes('Aerodinâmica') || p.name.includes('Asa'))
@@ -139,7 +141,12 @@ export default function RacePage() {
 
   // Run Race Simulation
   const handleStartRace = () => {
-    if (drivers.length < 2) {
+    const titulars = drivers.filter((d) => d.role !== 'reserva' && d.team_id === team?.id)
+    const reserve = drivers.find(
+      (d) => d.role === 'reserva' || (d.reserve_team_id === team?.id && d.team_id !== team?.id),
+    )
+
+    if (titulars.length < 2) {
       toast({
         variant: 'destructive',
         title: 'Escalação Incompleta',
@@ -159,13 +166,26 @@ export default function RacePage() {
 
     const grid: SimDriverEntry[] = []
 
-    // 1. Add Player's 2 drivers (uses carLevel + team strength weighting)
+    // 1. Add Player's 2 drivers: if a starter is incapacitated, reserve steps in!
     const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
-    drivers.forEach((d) => {
+
+    titulars.forEach((d) => {
+      const isIncapacitated = !!d.is_incapacitated
+      // If incapacitated and reserve exists, reserve drives!
+      const activeDriver = isIncapacitated && reserve ? reserve : d
+      const isSubstituted = isIncapacitated && !!reserve
+
       // Driver score calculation
-      let driverSkill = d.speed * 0.4 + d.consistency * 0.35 + d.defense * 0.25
+      let driverSkill =
+        activeDriver.speed * 0.4 + activeDriver.consistency * 0.35 + activeDriver.defense * 0.25
       if (weather === 'chuva') {
-        driverSkill = d.speed * 0.25 + d.rain * 0.45 + d.consistency * 0.3
+        driverSkill =
+          activeDriver.speed * 0.25 + activeDriver.rain * 0.45 + activeDriver.consistency * 0.3
+      }
+
+      // If reserve is driving, slight penalty (-2 pts) for lack of race seat practice
+      if (isSubstituted) {
+        driverSkill = Math.max(50, driverSkill - 2)
       }
 
       // Total car performance combining car parts level + team strength rating
@@ -177,13 +197,15 @@ export default function RacePage() {
       const reliabilityFailure = Math.random() * 100 > currentEngine.reliability + 5
 
       grid.push({
-        driverId: d.id,
-        driverName: d.name,
+        driverId: activeDriver.id,
+        driverName: isSubstituted
+          ? `${activeDriver.name} (Substituto de ${d.name})`
+          : activeDriver.name,
         teamId: team?.id || 'player',
         teamName: team?.name || 'Sua Escuderia',
         teamColor: team?.color || '#FF3B30',
         isPlayer: true,
-        flag: d.nationality === 'Brasil' ? '🇧🇷' : '🏁',
+        flag: activeDriver.nationality === 'Brasil' ? '🇧🇷' : '🏁',
         score: driverSkill * 0.4 + effectiveCarScore * 0.5 + luck,
         position: 0,
         points: 0,
@@ -387,11 +409,85 @@ export default function RacePage() {
       const netCashflow = totalSponsorIncome - driversCost - engineCost
       const updatedBudget = Math.max(0, team.budget + netCashflow)
 
+      // 3. Update drivers: handle incapacitated countdown, reserve FP training, and chance of new injury
+      const titulars = drivers.filter((d) => d.role !== 'reserva' && d.team_id === team.id)
+      const reserve = drivers.find(
+        (d) => d.role === 'reserva' || (d.reserve_team_id === team.id && d.team_id !== team.id),
+      )
+
+      let setupBonusForNextRace = false
+
+      // Check if reserve had FP scheduled for this round
+      if (reserve && reserve.fp_scheduled_rounds?.includes(currentRound)) {
+        const completedFp = (reserve.fp_sessions_completed || 0) + 1
+        // Reserve gains XP from FP (+1 to speed, consistency or rain)
+        const updatedSpeed = Math.min(92, reserve.speed + 1)
+        const updatedConsistency = Math.min(90, reserve.consistency + 1)
+        await f1Service.updateDriver(reserve.id, {
+          fp_sessions_completed: completedFp,
+          speed: updatedSpeed,
+          consistency: updatedConsistency,
+        })
+        setupBonusForNextRace = true
+        await f1Service.addEvent(
+          team.id,
+          `Treino Livre FP1 concluído por ${reserve.name}! Dados coletados garantem bônus de acerto (+2pts) e ganho de experiência (+1 Vel, +1 Cons) para o reserva.`,
+          'desenvolvimento',
+        )
+      }
+
+      // Decrement incapacitation or roll chance for new injury (5% chance per starter)
+      for (const t of titulars) {
+        if (t.is_incapacitated) {
+          const roundsLeft = (t.incapacitated_rounds_left || 1) - 1
+          if (roundsLeft <= 0) {
+            await f1Service.updateDriver(t.id, {
+              is_incapacitated: false,
+              incapacitated_rounds_left: 0,
+              incapacitated_reason: '',
+            })
+            await f1Service.addEvent(
+              team.id,
+              `Piloto titular ${t.name} foi liberado pelos médicos e retorna ao cockpit no próximo GP!`,
+              'resultado',
+            )
+          } else {
+            await f1Service.updateDriver(t.id, {
+              incapacitated_rounds_left: roundsLeft,
+            })
+          }
+        } else {
+          // 5% chance of getting injured/sick for 1 to 2 races
+          const rollInjury = Math.random() < 0.05
+          if (rollInjury && reserve) {
+            const injuryDuration = Math.random() < 0.6 ? 1 : 2
+            const reasons = [
+              'Intoxicação alimentar severa',
+              'Entorse no pulso durante treino de simulação',
+              'Fratura na clavícula em treino de kart',
+              'Problema muscular cervical (pescoço)',
+            ]
+            const reason = reasons[Math.floor(Math.random() * reasons.length)]
+            await f1Service.updateDriver(t.id, {
+              is_incapacitated: true,
+              incapacitated_rounds_left: injuryDuration,
+              incapacitated_reason: reason,
+            })
+            await f1Service.addEvent(
+              team.id,
+              `ALERTA MÉDICO: ${t.name} sofreu "${reason}" e está incapacitado por ${injuryDuration} corrida(s). O reserva ${reserve.name} assumirá o carro!`,
+              'resultado',
+            )
+          }
+        }
+      }
+
       await f1Service.updateTeam(team.id, {
         budget: updatedBudget,
+        reserve_setup_bonus: setupBonusForNextRace,
       })
 
-      // 3. Register Event
+      // 4. Register Event
       const playerWinner = playerResults.find((p) => p.position === 1)
       const bestPos = Math.min(...playerResults.map((p) => p.position))
       const eventMsg = playerWinner
@@ -400,7 +496,7 @@ export default function RacePage() {
 
       await f1Service.addEvent(team.id, eventMsg, 'resultado')
 
-      // 4. Increment season round
+      // 5. Increment season round
       const nextRound = currentRound + 1
       await f1Service.updateSeason(season.id, {
         current_round: nextRound,
@@ -604,6 +700,17 @@ export default function RacePage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Setup Bonus Banner if reserve practiced */}
+              {team?.reserve_setup_bonus && (
+                <div className="mt-3 p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>
+                    <strong>Bônus de Setup Ativo (+2pts Carro):</strong> Telemetria coletada pelo
+                    piloto reserva no último treino livre aplicada com sucesso!
+                  </span>
                 </div>
               )}
 

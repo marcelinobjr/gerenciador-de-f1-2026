@@ -12,17 +12,57 @@ import {
   Menu,
   X,
   Gauge,
+  RotateCcw,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { useToast } from '@/hooks/use-toast'
 
 export default function Layout() {
-  const { user, team, season, logout } = useAuth()
+  const { user, team, season, logout, resetGame } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { toast } = useToast()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+
+  const handleResetGame = async () => {
+    setIsResetting(true)
+    try {
+      await resetGame()
+      setResetDialogOpen(false)
+      setMobileOpen(false)
+      toast({
+        title: 'Jogo reiniciado com sucesso',
+        description: 'Todo o progresso anterior foi zerado. Escolha ou crie sua nova equipe!',
+      })
+      navigate('/selecionar-equipe', { replace: true })
+    } catch (err: any) {
+      console.error('Erro ao reiniciar jogo:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao reiniciar o jogo',
+        description: err?.message || 'Não foi possível apagar os dados do jogo. Tente novamente.',
+      })
+    } finally {
+      setIsResetting(false)
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => {
@@ -112,6 +152,19 @@ export default function Layout() {
               </span>
             </div>
 
+            {/* Reset Game button (desktop) */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setResetDialogOpen(true)}
+              disabled={isResetting}
+              className="hidden md:flex text-[#8B95A7] hover:text-amber-400 hover:bg-amber-500/10 gap-1.5 text-xs font-medium border border-transparent hover:border-amber-500/30 transition-colors"
+              title="Reiniciar jogo (zerar progresso)"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
+              Reiniciar Jogo
+            </Button>
+
             {/* Logout button (desktop) */}
             <Button
               variant="ghost"
@@ -176,16 +229,27 @@ export default function Layout() {
                     })}
                   </div>
 
-                  <div className="mt-8 pt-6 border-t border-[#1F2733]">
-                    <div className="flex items-center justify-between mb-4 text-xs text-[#8B95A7]">
+                  <div className="mt-8 pt-6 border-t border-[#1F2733] space-y-3">
+                    <div className="flex items-center justify-between text-xs text-[#8B95A7]">
                       <span>Usuário logado:</span>
                       <span className="font-semibold text-[#F5F7FA]">
                         {user?.name || user?.email}
                       </span>
                     </div>
+
+                    <Button
+                      variant="outline"
+                      className="w-full flex items-center justify-center gap-2 border-amber-500/30 text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 text-xs font-semibold"
+                      disabled={isResetting}
+                      onClick={() => setResetDialogOpen(true)}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Reiniciar Jogo
+                    </Button>
+
                     <Button
                       variant="destructive"
-                      className="w-full flex items-center justify-center gap-2 bg-red-600/90 hover:bg-red-600 text-white"
+                      className="w-full flex items-center justify-center gap-2 bg-red-600/90 hover:bg-red-600 text-white text-xs font-semibold"
                       onClick={() => {
                         setMobileOpen(false)
                         handleLogout()
@@ -207,16 +271,88 @@ export default function Layout() {
         <Outlet />
       </main>
 
+      {/* Reset Confirmation AlertDialog */}
+      <AlertDialog
+        open={resetDialogOpen}
+        onOpenChange={(open) => !isResetting && setResetDialogOpen(open)}
+      >
+        <AlertDialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+              <span>Reiniciar Progresso do Jogo?</span>
+            </div>
+            <AlertDialogTitle className="text-lg font-bold text-[#F5F7FA]">
+              Deseja zerar sua carreira nesta temporada?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-xs text-[#8B95A7] space-y-2 mt-2 font-normal leading-relaxed">
+                <p>
+                  Esta ação é <strong className="text-[#EF4444]">irreversível</strong> e apagará
+                  todos os dados da sua escuderia atual:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-[#F5F7FA]">
+                  <li>Sua equipe atual e orçamento acumulado</li>
+                  <li>Temporada 2026 e resultados de todas as corridas</li>
+                  <li>Patrocínios ativos e peças desenvolvidas no P&D</li>
+                  <li>Contratos de pilotos (eles voltam disponíveis para o mercado)</li>
+                  <li>Histórico de comunicados e eventos</li>
+                </ul>
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] mt-2">
+                  ✓ <strong>Sua conta e login serão mantidos</strong> ({user?.email}). Você será
+                  direcionado para escolher ou criar uma nova equipe imediatamente.
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel
+              disabled={isResetting}
+              className="bg-[#0B0E14] border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#1F2733]"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleResetGame()
+              }}
+              disabled={isResetting}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold flex items-center gap-2"
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Reiniciando...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  Sim, reiniciar jogo
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Footer */}
       <footer className="w-full border-t border-[#1F2733] bg-[#0B0E14] py-6 text-center text-xs text-[#8B95A7]">
         <div className="max-w-[1100px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono">
           <p>
             F1 Manager 2026 • <span className="text-[#F5F7FA]">Temporada 2026</span>
           </p>
-          <p className="text-[11px]">
-            Jogo de gerenciamento pessoal — regras oficiais da F1 2026 (50/50 Híbrido, Aero Ativa,
-            Modo Overtake)
-          </p>
+          <div className="flex items-center gap-4 text-[11px]">
+            <span>Regras F1 2026 (50/50 Híbrido, Aero Ativa, Modo Overtake)</span>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => setResetDialogOpen(true)}
+              className="text-[#8B95A7] hover:text-amber-400 underline underline-offset-2 transition-colors cursor-pointer"
+            >
+              Reiniciar carreira
+            </button>
+          </div>
         </div>
       </footer>
     </div>

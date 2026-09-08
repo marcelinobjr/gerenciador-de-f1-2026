@@ -10,6 +10,7 @@ export interface TeamModel {
   strength?: number // 0-100 rating baseado em momento atual + história
   is_custom?: boolean // true se criada pelo jogador (12ª equipe)
   team_key?: string // chave da equipe se for do grid oficial ('mclaren', 'ferrari', etc)
+  reserve_setup_bonus?: boolean // true se o piloto reserva treinou no FP e gerou bônus de setup
   user_id?: string
   created?: string
   updated?: string
@@ -37,6 +38,14 @@ export interface DriverModel {
   salary: number
   contract_end: number
   team_id?: string | null
+  role?: 'titular' | 'reserva' | null
+  category?: 'f1' | 'f2' | 'mercado' | null
+  reserve_team_id?: string | null
+  fp_sessions_completed?: number // 0, 1 ou 2
+  fp_scheduled_rounds?: number[] // rounds em que está escalado para treinar, ex: [3, 8]
+  is_incapacitated?: boolean // se está com lesão/doença
+  incapacitated_rounds_left?: number // quantas corridas restantes de afastamento (1 a 3)
+  incapacitated_reason?: string // motivo da incapacidade
   created?: string
   updated?: string
 }

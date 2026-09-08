@@ -105,13 +105,23 @@ export default function TeamSelectionPage() {
           defense: selectedOfficialTeam.driver2.defense,
           salary: selectedOfficialTeam.driver2.salary,
         },
+        reserveDriver: {
+          name: selectedOfficialTeam.reserveDriver.name,
+          nationality: selectedOfficialTeam.reserveDriver.nationality,
+          age: selectedOfficialTeam.reserveDriver.age,
+          speed: selectedOfficialTeam.reserveDriver.speed,
+          consistency: selectedOfficialTeam.reserveDriver.consistency,
+          rain: selectedOfficialTeam.reserveDriver.rain,
+          defense: selectedOfficialTeam.reserveDriver.defense,
+          salary: selectedOfficialTeam.reserveDriver.salary,
+        },
       })
 
       await refreshTeamAndSeason()
 
       toast({
         title: `Você assumiu a ${selectedOfficialTeam.name}!`,
-        description: `Os pilotos titulares ${selectedOfficialTeam.driver1.name} e ${selectedOfficialTeam.driver2.name} estão à sua disposição.`,
+        description: `Titulares: ${selectedOfficialTeam.driver1.name} e ${selectedOfficialTeam.driver2.name} | Reserva: ${selectedOfficialTeam.reserveDriver.name}`,
       })
 
       navigate('/')
@@ -311,28 +321,39 @@ export default function TeamSelectionPage() {
                         </p>
                       </div>
 
-                      {/* Pilotos Titulares */}
-                      <div className="space-y-1">
-                        <span className="text-[10px] uppercase font-mono text-[#8B95A7] block">
-                          Dupla Titular Inclusa:
-                        </span>
+                      {/* Pilotos Titulares e Reserva */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-[10px] uppercase font-mono text-[#8B95A7]">
+                          <span>Escalação 2026 (2 Titulares + 1 Reserva):</span>
+                        </div>
                         <div className="grid grid-cols-2 gap-2 font-mono">
                           <div className="p-2 rounded bg-[#161D29]/70 border border-[#1F2733] flex items-center justify-between">
-                            <span className="text-[#F5F7FA] font-bold truncate">
+                            <span className="text-[#F5F7FA] font-bold truncate text-[11px]">
                               {team.driver1.flag} {team.driver1.name}
                             </span>
-                            <span className="text-[#00A6FB] text-[11px] ml-1">
+                            <span className="text-[#00A6FB] text-[10px] ml-1 shrink-0">
                               {team.driver1.speed} VEL
                             </span>
                           </div>
                           <div className="p-2 rounded bg-[#161D29]/70 border border-[#1F2733] flex items-center justify-between">
-                            <span className="text-[#F5F7FA] font-bold truncate">
+                            <span className="text-[#F5F7FA] font-bold truncate text-[11px]">
                               {team.driver2.flag} {team.driver2.name}
                             </span>
-                            <span className="text-[#00A6FB] text-[11px] ml-1">
+                            <span className="text-[#00A6FB] text-[10px] ml-1 shrink-0">
                               {team.driver2.speed} VEL
                             </span>
                           </div>
+                        </div>
+                        <div className="p-1.5 rounded bg-[#161D29]/40 border border-[#1F2733]/60 flex items-center justify-between font-mono text-[11px]">
+                          <span className="text-amber-400 font-bold truncate flex items-center gap-1">
+                            <span className="text-[9px] uppercase px-1 py-0.2 bg-amber-500/10 rounded border border-amber-500/20">
+                              Reserva
+                            </span>
+                            {team.reserveDriver.flag} {team.reserveDriver.name}
+                          </span>
+                          <span className="text-[#8B95A7] text-[10px] shrink-0">
+                            {team.reserveDriver.speed} VEL • 2 FPs/ano
+                          </span>
                         </div>
                       </div>
 
@@ -544,6 +565,13 @@ export default function TeamSelectionPage() {
                   <span className="text-[#8B95A7]">Pilotos Titulares:</span>
                   <span className="text-[#F5F7FA]">
                     {selectedOfficialTeam.driver1.name} & {selectedOfficialTeam.driver2.name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8B95A7]">Piloto Reserva:</span>
+                  <span className="text-amber-400 font-bold">
+                    {selectedOfficialTeam.reserveDriver.name} (
+                    {selectedOfficialTeam.reserveDriver.speed} VEL)
                   </span>
                 </div>
                 <div className="flex justify-between">

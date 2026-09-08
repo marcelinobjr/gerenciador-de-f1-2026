@@ -10,6 +10,7 @@ interface AuthContextType {
   season: SeasonModel | null
   isLoading: boolean
   refreshTeamAndSeason: () => Promise<void>
+  resetGame: () => Promise<void>
   login: (email: string, pass: string) => Promise<void>
   register: (name: string, email: string, pass: string) => Promise<void>
   logout: () => void
@@ -85,6 +86,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await login(email, pass)
   }
 
+  const resetGame = async () => {
+    if (!user?.id) {
+      throw new Error('Usuário não autenticado.')
+    }
+    await f1Service.resetPlayerProgress(user.id)
+    setTeam(null)
+    setSeason(null)
+  }
+
   const logout = () => {
     pb.authStore.clear()
     setUser(null)
@@ -100,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         season,
         isLoading,
         refreshTeamAndSeason,
+        resetGame,
         login,
         register,
         logout,

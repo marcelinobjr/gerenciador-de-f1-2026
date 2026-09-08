@@ -48,7 +48,7 @@ export const f1Service = {
   async getTeamDrivers(teamId: string): Promise<DriverModel[]> {
     try {
       const records = await pb.collection('drivers').getFullList<DriverModel>({
-        filter: `team_id = "${teamId}"`,
+        filter: `team_id = "${teamId}" || reserve_team_id = "${teamId}"`,
         sort: 'name',
       })
       return records
@@ -60,8 +60,9 @@ export const f1Service = {
 
   async getMarketDrivers(): Promise<DriverModel[]> {
     try {
+      // Drivers without active team_id and without active reserve_team_id
       const records = await pb.collection('drivers').getFullList<DriverModel>({
-        filter: `team_id = null || team_id = ""`,
+        filter: `(team_id = null || team_id = "") && (reserve_team_id = null || reserve_team_id = "")`,
         sort: '-speed',
       })
       return records
@@ -73,6 +74,64 @@ export const f1Service = {
 
   async updateDriver(id: string, data: Partial<DriverModel>): Promise<DriverModel> {
     return await pb.collection('drivers').update<DriverModel>(id, data)
+  },
+
+  // Schedule FP (Free Practice) session for reserve
+  async scheduleReserveFP(driverId: string, rounds: number[]): Promise<DriverModel> {
+    return await pb.collection('drivers').update<DriverModel>(driverId, {
+      fp_scheduled_rounds: rounds,
+    })
+  },
+
+  async hireDriver(
+    driverId: string,
+    teamId: string,
+    role: 'titular' | 'reserva' = 'titular',
+  ): Promise<DriverModel> {
+    if (role === 'reserva') {
+      return await pb.collection('drivers').update<DriverModel>(driverId, {
+        reserve_team_id: teamId,
+        team_id: null,
+        role: 'reserva',
+        fp_sessions_completed: 0,
+        fp_scheduled_rounds: [7, 13],
+      })
+    }
+    return await pb.collection('drivers').update<DriverModel>(driverId, {
+      team_id: teamId,
+      reserve_team_id: null,
+      role: 'titular',
+      is_incapacitated: false,
+      incapacitated_rounds_left: 0,
+    })
+  },
+
+  async fireDriver(driverId: string): Promise<DriverModel> {
+    return await pb.collection('drivers').update<DriverModel>(driverId, {
+      team_id: null,
+      reserve_team_id: null,
+      role: null,
+    })
+  },
+
+  async switchDriverRole(
+    driverId: string,
+    teamId: string,
+    newRole: 'titular' | 'reserva',
+  ): Promise<DriverModel> {
+    if (newRole === 'reserva') {
+      return await pb.collection('drivers').update<DriverModel>(driverId, {
+        reserve_team_id: teamId,
+        team_id: null,
+        role: 'reserva',
+      })
+    } else {
+      return await pb.collection('drivers').update<DriverModel>(driverId, {
+        team_id: teamId,
+        reserve_team_id: null,
+        role: 'titular',
+      })
+    }
   },
 
   // Sponsors
@@ -194,6 +253,16 @@ export const f1Service = {
         defense: number
         salary: number
       }
+      reserveDriver?: {
+        name: string
+        nationality: string
+        age: number
+        speed: number
+        consistency: number
+        rain: number
+        defense: number
+        salary: number
+      }
     },
   ): Promise<TeamModel> {
     // 1. Create team
@@ -255,17 +324,22 @@ export const f1Service = {
       team_id: newTeam.id,
     })
 
-    // 6. Assign official drivers to this team
+    // 6. Assign official starters (role: titular)
     for (const d of [officialData.driver1, officialData.driver2]) {
       try {
         const existing = await pb.collection('drivers').getFirstListItem(`name = "${d.name}"`)
         await pb.collection('drivers').update(existing.id, {
           team_id: newTeam.id,
+          reserve_team_id: null,
+          role: 'titular',
+          category: 'f1',
           salary: d.salary,
           speed: d.speed,
           consistency: d.consistency,
           rain: d.rain,
           defense: d.defense,
+          is_incapacitated: false,
+          incapacitated_rounds_left: 0,
         })
       } catch (_) {
         await pb.collection('drivers').create({
@@ -279,10 +353,51 @@ export const f1Service = {
           salary: d.salary,
           contract_end: 2027,
           team_id: newTeam.id,
+          role: 'titular',
+          category: 'f1',
+          is_incapacitated: false,
+          incapacitated_rounds_left: 0,
         })
       }
     }
 
+    // 7. Assign official reserve driver (role: reserva, reserve_team_id: newTeam.id)
+    if (officialData.reserveDriver) {
+      const rd = officialData.reserveDriver
+      try {
+        const existing = await pb.collection('drivers').getFirstListItem(`name = "${rd.name}"`)
+        await pb.collection('drivers').update(existing.id, {
+          reserve_team_id: newTeam.id,
+          team_id: null,
+          role: 'reserva',
+          category: 'f1',
+          salary: rd.salary,
+          speed: rd.speed,
+          consistency: rd.consistency,
+          rain: rd.rain,
+          defense: rd.defense,
+          fp_sessions_completed: 0,
+          fp_scheduled_rounds: [7, 13], // default scheduled rounds (ex: Imola & Spa)
+        })
+      } catch (_) {
+        await pb.collection('drivers').create({
+          name: rd.name,
+          nationality: rd.nationality,
+          age: rd.age,
+          speed: rd.speed,
+          consistency: rd.consistency,
+          rain: rd.rain,
+          defense: rd.defense,
+          salary: rd.salary,
+          contract_end: 2027,
+          reserve_team_id: newTeam.id,
+          role: 'reserva',
+          category: 'f1',
+          fp_sessions_completed: 0,
+          fp_scheduled_rounds: [7, 13],
+        })
+      }
+    }
     return newTeam
   },
 
@@ -353,5 +468,122 @@ export const f1Service = {
     })
 
     return newTeam
+  },
+
+  // Reset all game progress for the given user, keeping user auth record intact.
+  // Mirrors logic in 0004_reset_player_progress.js with proper dependency cascade.
+  async resetPlayerProgress(userId: string): Promise<void> {
+    if (!userId) {
+      throw new Error('ID de usuário obrigatório para reiniciar o jogo.')
+    }
+
+    // 1. Find all teams owned by this user
+    const userTeams = await pb.collection('teams').getFullList<TeamModel>({
+      filter: `user_id = "${userId}"`,
+    })
+
+    if (userTeams.length === 0) {
+      return
+    }
+
+    for (const team of userTeams) {
+      const teamId = team.id
+
+      // 1. Delete race_results linked directly to this team
+      try {
+        const raceResults = await pb.collection('race_results').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const rr of raceResults) {
+          await pb.collection('race_results').delete(rr.id)
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar race_results por team_id:', err)
+      }
+
+      // Also delete race_results linked via seasons of this team
+      let teamSeasons: SeasonModel[] = []
+      try {
+        teamSeasons = await pb.collection('seasons').getFullList<SeasonModel>({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const s of teamSeasons) {
+          try {
+            const seasonResults = await pb.collection('race_results').getFullList({
+              filter: `season_id = "${s.id}"`,
+            })
+            for (const sr of seasonResults) {
+              await pb.collection('race_results').delete(sr.id)
+            }
+          } catch (err) {
+            console.warn('Erro ao deletar race_results por season_id:', err)
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar temporadas da equipe:', err)
+      }
+
+      // 2. Delete events
+      try {
+        const events = await pb.collection('events').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const ev of events) {
+          await pb.collection('events').delete(ev.id)
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar eventos:', err)
+      }
+
+      // 3. Reset drivers: return them to free market / unassigned pool
+      try {
+        const drivers = await pb.collection('drivers').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const d of drivers) {
+          await pb.collection('drivers').update(d.id, {
+            team_id: null,
+          })
+        }
+      } catch (err) {
+        console.warn('Erro ao desvincular pilotos titulares:', err)
+      }
+
+      // 4. Delete sponsors
+      try {
+        const sponsors = await pb.collection('sponsors').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const sp of sponsors) {
+          await pb.collection('sponsors').delete(sp.id)
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar patrocínios:', err)
+      }
+
+      // 5. Delete parts
+      try {
+        const parts = await pb.collection('parts').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const pt of parts) {
+          await pb.collection('parts').delete(pt.id)
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar peças:', err)
+      }
+
+      // 6. Delete seasons
+      for (const s of teamSeasons) {
+        try {
+          await pb.collection('seasons').delete(s.id)
+        } catch (err) {
+          console.warn('Erro ao deletar temporada:', err)
+        }
+      }
+
+      // 7. Delete the team itself
+      await pb.collection('teams').delete(teamId)
+    }
   },
 }
