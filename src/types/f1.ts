@@ -26,12 +26,26 @@ export interface TeamModel {
   updated?: string
 }
 
+export interface MarketMoveEvent {
+  id: string
+  type: 'aposentadoria' | 'transferencia' | 'promocao' | 'demissao' | 'renovacao'
+  driverName: string
+  driverAge: number
+  previousTeam?: string
+  newTeam?: string
+  salary?: number
+  headline: string
+  details: string
+  impact: 'alto' | 'medio' | 'baixo'
+}
+
 export interface SeasonModel {
   id: string
   year: number
   current_round: number
   total_rounds: number
   team_id: string
+  market_moves?: MarketMoveEvent[]
   created?: string
   updated?: string
 }
@@ -166,6 +180,19 @@ export interface TireSetItem {
   isFitted?: boolean
 }
 
+export interface PitStopPlan {
+  id: string
+  lap: number // Volta alvo do pit (ex: volta 18)
+  compound: TireCompound // Composto a calçar nessa parada
+}
+
+export interface DriverRaceStrategy {
+  driverId: string
+  driverName: string
+  startCompound: TireCompound // Pneu de largada (stint 1)
+  pitStops: PitStopPlan[] // Até 4 paradas planejadas
+}
+
 export interface SessionSetupModel {
   id?: string
   team_id: string
@@ -179,6 +206,7 @@ export interface SessionSetupModel {
   target_pit_lap?: number
   second_tire_compound?: TireCompound
   driver_wear?: number
+  driver_strategies?: Record<string, DriverRaceStrategy> // Estratégia customizada por piloto (driverId -> strategy)
   notes?: string
 }
 

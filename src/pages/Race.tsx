@@ -21,7 +21,9 @@ import {
   createInitialTireInventory,
   calculatePitStopDuration,
   calculateLapPerformanceScoreDelta,
+  calculateDriverTireWearProfile,
 } from '@/lib/f1-tire-system'
+import { DriverRaceStrategy } from '@/types/f1'
 import { analyzeSetupEngineering } from '@/lib/setup-advisor'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
@@ -52,6 +54,7 @@ import {
   Radio,
   AlertTriangle,
   ArrowDownCircle,
+  Users,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -96,6 +99,12 @@ interface SimDriverEntry {
   physicalCondition?: number
   pitStopsDone?: number
   hasWingDamage?: boolean
+  lastLapTime?: string
+  gapToLeader?: string
+  gapToFront?: string
+  wearMultiplier?: number
+  wearProfileName?: string
+  strategyPlan?: { lap: number; compound: TireCompound }[]
 }
 
 export interface LiveRaceEvent {
@@ -225,6 +234,9 @@ export default function RacePage() {
     createInitialTireInventory(),
   )
 
+  // Estratégias de corrida personalizadas por piloto (até 4 paradas planejáveis)
+  const [driverStrategies, setDriverStrategies] = useState<Record<string, DriverRaceStrategy>>({})
+
   // Force Pit Stop Modal state
   const [forcePitModalOpen, setForcePitModalOpen] = useState(false)
   const [forcePitSelectedDriverId, setForcePitSelectedDriverId] = useState<string>('')
@@ -237,6 +249,12 @@ export default function RacePage() {
   const [isSimulatingSession, setIsSimulatingSession] = useState(false)
   const [simText, setSimText] = useState('')
   const [simProgress, setSimProgress] = useState(0)
+
+  // End of Season / Silly Season Modal State
+  const [sillySeasonModalOpen, setSillySeasonModalOpen] = useState(false)
+  const [marketMoves, setMarketMoves] = useState<any[]>([])
+  const [isProcessingSillySeason, setIsProcessingSillySeason] = useState(false)
+  const [isStartingNewSeason, setIsStartingNewSeason] = useState(false)
 
   // Race final results
   const [raceResults, setRaceResults] = useState<SimDriverEntry[] | null>(null)
@@ -334,8 +352,11 @@ export default function RacePage() {
 
     if (currentRound > totalRounds) {
       setSeasonCompleted(true)
+      if (season?.market_moves && season.market_moves.length > 0) {
+        setMarketMoves(season.market_moves)
+      }
     }
-  }, [currentRound, totalRounds, gpInfo.circuit, gpInfo.laps])
+  }, [currentRound, totalRounds, gpInfo.circuit, gpInfo.laps, season?.market_moves])
 
   const loadData = async () => {
     if (!team || !season) {
@@ -360,6 +381,9 @@ export default function RacePage() {
           savedSetups.forEach((s) => {
             if (s.session && next[s.session]) {
               next[s.session] = { ...next[s.session], ...s }
+            }
+            if (s.session === 'race' && s.driver_strategies) {
+              setDriverStrategies(s.driver_strategies)
             }
           })
           return next
@@ -453,6 +477,189 @@ export default function RacePage() {
     }))
   }
 
+  // Estratégias por piloto: inicializador padrão caso não exista
+  const getStrategyForDriver = (d: DriverModel): DriverRaceStrategy => {
+    if (driverStrategies[d.id]) {
+      return driverStrategies[d.id]
+    }
+    const defaultStart: TireCompound =
+      weather === 'chuva_forte'
+        ? 'chuva_extrema'
+        : weather === 'chuva_fraca'
+          ? 'intermediario'
+          : 'medio'
+    const defaultSecond: TireCompound =
+      weather === 'chuva_forte'
+        ? 'intermediario'
+        : weather === 'chuva_fraca'
+          ? 'chuva_extrema'
+          : 'duro'
+    const targetLap = Math.max(12, Math.round(gpInfo.laps * 0.42))
+
+    return {
+      driverId: d.id,
+      driverName: d.name,
+      startCompound: defaultStart,
+      pitStops: [
+        {
+          id: `pit_1_${d.id}`,
+          lap: targetLap,
+          compound: defaultSecond,
+        },
+      ],
+    }
+  }
+
+  const updateDriverStartCompound = (driverId: string, compound: TireCompound) => {
+    setDriverStrategies((prev) => {
+      const existing =
+        prev[driverId] || getStrategyForDriver(drivers.find((d) => d.id === driverId)!)
+      return {
+        ...prev,
+        [driverId]: {
+          ...existing,
+          startCompound: compound,
+        },
+      }
+    })
+  }
+
+  const addDriverPitStop = (driverId: string) => {
+    setDriverStrategies((prev) => {
+      const existing =
+        prev[driverId] || getStrategyForDriver(drivers.find((d) => d.id === driverId)!)
+      if (existing.pitStops.length >= 4) {
+        toast({
+          variant: 'destructive',
+          title: 'Limite de Paradas Atingido',
+          description: 'Você pode planejar no máximo 4 paradas por piloto.',
+        })
+        return prev
+      }
+
+      const lastLap =
+        existing.pitStops.length > 0
+          ? existing.pitStops[existing.pitStops.length - 1].lap
+          : Math.round(gpInfo.laps * 0.3)
+      const newLap = Math.min(
+        gpInfo.laps - 4,
+        lastLap + Math.max(8, Math.round(gpInfo.laps * 0.22)),
+      )
+
+      const nextCompound: TireCompound =
+        weather !== 'seco'
+          ? existing.startCompound
+          : existing.startCompound === 'duro'
+            ? 'medio'
+            : 'duro'
+
+      return {
+        ...prev,
+        [driverId]: {
+          ...existing,
+          pitStops: [
+            ...existing.pitStops,
+            {
+              id: `pit_${Date.now()}_${Math.random()}`,
+              lap: newLap,
+              compound: nextCompound,
+            },
+          ].sort((a, b) => a.lap - b.lap),
+        },
+      }
+    })
+  }
+
+  const updateDriverPitStop = (
+    driverId: string,
+    pitId: string,
+    field: 'lap' | 'compound',
+    value: any,
+  ) => {
+    setDriverStrategies((prev) => {
+      const existing =
+        prev[driverId] || getStrategyForDriver(drivers.find((d) => d.id === driverId)!)
+      return {
+        ...prev,
+        [driverId]: {
+          ...existing,
+          pitStops: existing.pitStops
+            .map((p) => {
+              if (p.id === pitId) {
+                return { ...p, [field]: value }
+              }
+              return p
+            })
+            .sort((a, b) => a.lap - b.lap),
+        },
+      }
+    })
+  }
+
+  const removeDriverPitStop = (driverId: string, pitId: string) => {
+    setDriverStrategies((prev) => {
+      const existing =
+        prev[driverId] || getStrategyForDriver(drivers.find((d) => d.id === driverId)!)
+      return {
+        ...prev,
+        [driverId]: {
+          ...existing,
+          pitStops: existing.pitStops.filter((p) => p.id !== pitId),
+        },
+      }
+    })
+  }
+
+  // Executar ou abrir Silly Season manualmente caso a temporada já tenha terminado
+  const handleOpenSillySeason = async () => {
+    if (!season || !team) return
+    if (marketMoves.length > 0) {
+      setSillySeasonModalOpen(true)
+      return
+    }
+    setIsProcessingSillySeason(true)
+    try {
+      const moves = await f1Service.processEndOfSeasonMarket(season.id, team.id)
+      setMarketMoves(moves)
+      setSillySeasonModalOpen(true)
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro no Mercado de Pilotos',
+        description: 'Não foi possível processar a movimentação de fim de temporada.',
+      })
+    } finally {
+      setIsProcessingSillySeason(false)
+    }
+  }
+
+  // Iniciar Próxima Temporada (2027) com grid atualizado
+  const handleStartNextSeason = async () => {
+    if (!season || !team) return
+    setIsStartingNewSeason(true)
+    try {
+      const nextYear = (season.year || 2026) + 1
+      await f1Service.startNextSeason(season.id, team.id, nextYear)
+      await refreshTeamAndSeason()
+      setSillySeasonModalOpen(false)
+      setSeasonCompleted(false)
+      toast({
+        title: `🏆 Temporada ${nextYear} Iniciada!`,
+        description:
+          'Os carros foram revisados, novos contratos vigentes e a rodada 1 está liberada!',
+      })
+      navigate('/')
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao iniciar temporada',
+        description: err?.message || 'Tente novamente.',
+      })
+    } finally {
+      setIsStartingNewSeason(false)
+    }
+  }
+
   // Handle saving setup to PocketBase
   const handleSaveSetup = async () => {
     if (!team || !season) return
@@ -460,6 +667,7 @@ export default function RacePage() {
     try {
       await f1Service.saveSessionSetup({
         ...setupData,
+        driver_strategies: activeSession === 'race' ? driverStrategies : undefined,
         team_id: team.id,
         season_id: season.id,
         round: currentRound,
@@ -467,17 +675,17 @@ export default function RacePage() {
       })
       toast({
         title: `Setup de ${activeSession.toUpperCase()} Salvo`,
-        description: 'As configurações de aerodinâmica, rigidez e trem de força foram registradas.',
+        description:
+          'As configurações de aerodinâmica, rigidez e estratégias de corrida foram registradas.',
       })
     } catch (e) {
       toast({
         variant: 'destructive',
         title: 'Erro ao salvar setup',
-        description: 'Não foi possível persistir a configuração da sessão.',
+        description: 'Verifique a conexão.',
       })
     }
   }
-
   // Calculate setup penalty for a session (deviations from track ideal)
   const calculateSetupDelta = (sessionKey: WeekendSession) => {
     const current = setups[sessionKey]
@@ -892,44 +1100,56 @@ export default function RacePage() {
       return
     }
 
-    // Regulation check: 2 different compounds mandatory in dry race!
-    const raceSetup = setups.race
-    const startCompound = raceSetup.tire_compound || 'medio'
-    const pitCompound = raceSetup.second_tire_compound || 'duro'
+    // Regulation check: for each player driver, verify dry race 2 distinct compounds rule if race is dry
+    for (const d of titulars) {
+      const strat = getStrategyForDriver(d)
+      if (weather === 'seco') {
+        const usedCompounds = new Set<TireCompound>([
+          strat.startCompound,
+          ...strat.pitStops.map((p) => p.compound),
+        ])
+        const slickCompounds = ['macio', 'medio', 'duro']
+        const hasTwoSlicks =
+          slickCompounds.filter((c) => usedCompounds.has(c as TireCompound)).length >= 2
 
-    if (weather === 'seco' && startCompound === pitCompound) {
-      toast({
-        variant: 'destructive',
-        title: 'Regulamento FIA 2026 Violado!',
-        description:
-          'É OBRIGATÓRIO usar pelo menos dois compostos diferentes durante a corrida em pista seca (ex: Médio + Duro).',
-      })
-      return
-    }
-
-    // Check tire availability
-    if (tireStock[startCompound] <= 0 || tireStock[pitCompound] <= 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Estoque Insuficiente de Pneus',
-        description: 'Você não possui jogos suficientes dos compostos selecionados para a corrida.',
-      })
-      return
-    }
-
-    // Deduct initial starting tires from allotment & mark first matching tire set in playerTireSets as fitted
-    setTireStock((prev) => ({
-      ...prev,
-      [startCompound]: Math.max(0, prev[startCompound] - 1),
-    }))
-    setPlayerTireSets((prev) => {
-      const idx = prev.findIndex((s) => s.compound === startCompound && !s.isFitted)
-      if (idx >= 0) {
-        const next = [...prev]
-        next[idx] = { ...next[idx], isFitted: true }
-        return next
+        if (strat.pitStops.length > 0 && !hasTwoSlicks) {
+          toast({
+            variant: 'destructive',
+            title: `Regulamento FIA 2026 — ${d.name}`,
+            description:
+              'É OBRIGATÓRIO usar pelo menos dois compostos diferentes durante a corrida em pista seca (ex: Médio + Duro). Ajuste a estratégia deste piloto.',
+          })
+          return
+        }
       }
-      return prev
+
+      // Check starting tire stock
+      if (tireStock[strat.startCompound] <= 0) {
+        toast({
+          variant: 'destructive',
+          title: `Estoque Insuficiente de Pneus — ${d.name}`,
+          description: `Você não possui jogos suficientes de pneus ${strat.startCompound.toUpperCase()} para largar.`,
+        })
+        return
+      }
+    }
+
+    // Deduct initial starting tires for all player drivers from allotment
+    titulars.forEach((d) => {
+      const strat = getStrategyForDriver(d)
+      setTireStock((prev) => ({
+        ...prev,
+        [strat.startCompound]: Math.max(0, prev[strat.startCompound] - 1),
+      }))
+      setPlayerTireSets((prev) => {
+        const idx = prev.findIndex((s) => s.compound === strat.startCompound && !s.isFitted)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = { ...next[idx], isFitted: true }
+          return next
+        }
+        return prev
+      })
     })
 
     setIsSimulatingSession(true)
@@ -965,6 +1185,9 @@ export default function RacePage() {
       tireCompound: TireCompound
       secondCompound: TireCompound
       pitLap: number
+      wearMultiplier: number
+      wearProfileName: string
+      strategyPlan: { lap: number; compound: TireCompound }[]
     }[] = []
 
     // 1. Player drivers
@@ -973,6 +1196,9 @@ export default function RacePage() {
       const activeDriver = isIncapacitated && reserve ? reserve : d
       const isSubstituted = isIncapacitated && !!reserve
 
+      const strat = getStrategyForDriver(activeDriver)
+      const wearProf = calculateDriverTireWearProfile(activeDriver)
+
       const driverFatigue = Math.min(
         100,
         (d.age > 35 ? 35 : 20) +
@@ -980,6 +1206,10 @@ export default function RacePage() {
           (sessionResults.tp2 ? 8 : 0) +
           (sessionResults.q3 ? 12 : 0),
       )
+
+      const firstPit = strat.pitStops[0]
+      const firstPitLap = firstPit ? firstPit.lap : Math.round(gpInfo.laps * 0.42)
+      const firstPitCompound = firstPit ? firstPit.compound : 'duro'
 
       rawDriverPool.push({
         driverId: activeDriver.id,
@@ -992,9 +1222,12 @@ export default function RacePage() {
         driverFatigue,
         morale: activeDriver.morale ?? 80,
         physicalCondition: activeDriver.physical_condition ?? 90,
-        tireCompound: startCompound,
-        secondCompound: pitCompound,
-        pitLap: raceSetup.target_pit_lap || Math.round(gpInfo.laps * 0.42),
+        tireCompound: strat.startCompound,
+        secondCompound: firstPitCompound,
+        pitLap: firstPitLap,
+        wearMultiplier: wearProf.multiplier,
+        wearProfileName: wearProf.profileName,
+        strategyPlan: strat.pitStops.map((p) => ({ lap: p.lap, compound: p.compound })),
       })
     })
 
@@ -1013,6 +1246,22 @@ export default function RacePage() {
             ? 'chuva_extrema'
             : 'duro'
 
+      const wearProf1 = calculateDriverTireWearProfile({
+        speed: 82,
+        consistency: 80,
+        morale: 80,
+        physical_condition: 90,
+      })
+      const wearProf2 = calculateDriverTireWearProfile({
+        speed: 80,
+        consistency: 82,
+        morale: 80,
+        physical_condition: 90,
+      })
+
+      const pitLap1 = Math.round(gpInfo.laps * 0.45)
+      const pitLap2 = Math.round(gpInfo.laps * 0.4)
+
       rawDriverPool.push({
         driverId: `${aiTeam.id}_d1`,
         driverName: aiTeam.driver1.name,
@@ -1026,7 +1275,10 @@ export default function RacePage() {
         physicalCondition: 90,
         tireCompound: defaultAiStart,
         secondCompound: defaultAiSecond,
-        pitLap: Math.round(gpInfo.laps * 0.45),
+        pitLap: pitLap1,
+        wearMultiplier: wearProf1.multiplier,
+        wearProfileName: wearProf1.profileName,
+        strategyPlan: [{ lap: pitLap1, compound: defaultAiSecond }],
       })
       rawDriverPool.push({
         driverId: `${aiTeam.id}_d2`,
@@ -1041,7 +1293,10 @@ export default function RacePage() {
         physicalCondition: 90,
         tireCompound: defaultAiStart,
         secondCompound: defaultAiSecond,
-        pitLap: Math.round(gpInfo.laps * 0.4),
+        pitLap: pitLap2,
+        wearMultiplier: wearProf2.multiplier,
+        wearProfileName: wearProf2.profileName,
+        strategyPlan: [{ lap: pitLap2, compound: defaultAiSecond }],
       })
     })
 
@@ -1085,6 +1340,12 @@ export default function RacePage() {
         morale: driver.morale,
         physicalCondition: driver.physicalCondition,
         pitStopsDone: 0,
+        wearMultiplier: driver.wearMultiplier,
+        wearProfileName: driver.wearProfileName,
+        strategyPlan: driver.strategyPlan,
+        lastLapTime: '1:18.420',
+        gapToLeader: gridPosition === 1 ? 'LÍDER' : `+${((gridPosition - 1) * 0.45).toFixed(3)}s`,
+        gapToFront: gridPosition === 1 ? '-' : '+0.450s',
       })
     })
 
@@ -1289,18 +1550,67 @@ export default function RacePage() {
         `Volta ${currentLap} de ${totalLaps} • ${gpInfo.circuit} • Velocidade ${simSpeed}x`,
       )
 
-      // Dynamic tire wear and AI pit stops
+      // Dynamic tire wear and Automatic Pit Stop execution (Player strategy + AI)
       currentGrid = currentGrid.map((entry) => {
         if (entry.dnf) return entry
         const spec = TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio
         const compoundWearRate = spec.wearFactor
-        const inc = (compoundWearRate * (abrasiveness / 5)) / 1.5
-        const currentWear = Math.min(100, Math.round((entry.tireWear || 5) + inc))
+        // Wear modulated by driver tire wear multiplier (Consistência, Velocidade, Físico, Moral)
+        const driverMultiplier = entry.wearMultiplier ?? 1.0
+        const inc = ((compoundWearRate * (abrasiveness / 5)) / 1.5) * driverMultiplier
+        let currentWear = Math.min(100, Math.round((entry.tireWear || 5) + inc))
 
-        // AI regular pit stop execution when pitLap reached or when wear > 80%
         let nextCompound = entry.tireCompound
         let pitStops = entry.pitStopsDone || 0
-        if (!entry.isPlayer && (entry.pitLap === currentLap || currentWear >= 82) && pitStops < 3) {
+        let didPitThisLap = false
+
+        // 1. Check Player Planned Pit Stops (até 4 paradas planejáveis)
+        if (entry.isPlayer && entry.strategyPlan && entry.strategyPlan.length > 0) {
+          const matchingPlan = entry.strategyPlan.find((p) => p.lap === currentLap)
+          if (matchingPlan) {
+            didPitThisLap = true
+            nextCompound = matchingPlan.compound
+            pitStops += 1
+            currentWear = 4
+
+            const pitTiming = calculatePitStopDuration(
+              team?.name || 'Sua Escuderia',
+              entry.driverName,
+              true,
+              team?.strength || 75,
+            )
+
+            // Deduct from stock if available
+            if (tireStock[matchingPlan.compound] > 0) {
+              setTireStock((prev) => ({
+                ...prev,
+                [matchingPlan.compound]: Math.max(0, prev[matchingPlan.compound] - 1),
+              }))
+            }
+
+            setLiveEvents((prev) => [
+              {
+                id: `ev_auto_player_pit_${currentLap}_${entry.driverId}`,
+                lap: currentLap,
+                type: 'pit_stop',
+                message: `🔧 PIT STOP PLANEJADO (#${pitStops})! ${entry.driverName} entra nos boxes na volta ${currentLap}. ${pitTiming.narrativeText} Composto calçado: ${formatTireName(matchingPlan.compound)}.`,
+                driverName: entry.driverName,
+                teamColor: entry.teamColor,
+                isPlayer: true,
+                timestamp: new Date().toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                }),
+              },
+              ...prev,
+            ])
+          }
+        }
+
+        // 2. AI regular pit stop execution when pitLap reached or when wear > 82%
+        if (!entry.isPlayer && (entry.pitLap === currentLap || currentWear >= 82) && pitStops < 4) {
+          didPitThisLap = true
           // If dry, switch between slick compounds; if wet, stay on right wet tire
           if (currentWeather === 'seco') {
             nextCompound =
@@ -1315,6 +1625,12 @@ export default function RacePage() {
             nextCompound = 'chuva_extrema'
           }
           pitStops += 1
+          currentWear = 5
+
+          // Schedule next AI stop if long race remaining
+          if (currentLap < totalLaps - 18 && pitStops < 3) {
+            entry.pitLap = currentLap + Math.round((totalLaps - currentLap) * 0.5)
+          }
 
           // Calculate pit stop duration for AI
           const pitResult = calculatePitStopDuration(entry.teamName, entry.driverName, false, 75)
@@ -1339,7 +1655,7 @@ export default function RacePage() {
 
         // Apply lap performance delta based on tire and weather
         const perfDelta = calculateLapPerformanceScoreDelta(
-          entry.tireCompound || 'medio',
+          nextCompound || 'medio',
           currentWear,
           currentWeather,
         )
@@ -1348,9 +1664,52 @@ export default function RacePage() {
         return {
           ...entry,
           score: updatedScore,
-          tireWear: entry.pitLap === currentLap && !entry.isPlayer ? 5 : currentWear,
+          tireWear: didPitThisLap ? (entry.isPlayer ? 4 : 5) : currentWear,
           tireCompound: nextCompound,
           pitStopsDone: pitStops,
+        }
+      })
+
+      // Sort grid dynamically based on accumulated race score
+      const sortedActiveGrid = [...currentGrid].sort((a, b) => {
+        if (a.dnf && !b.dnf) return 1
+        if (!a.dnf && b.dnf) return -1
+        return b.score - a.score
+      })
+
+      // Update positions, lap times and gaps
+      const baseLapSec = 74.2 // 1:14.200 reference lap
+      currentGrid = sortedActiveGrid.map((entry, idx) => {
+        const position = idx + 1
+        if (entry.dnf) {
+          return {
+            ...entry,
+            position,
+            lastLapTime: 'DNF',
+            gapToLeader: 'ABANDONO',
+            gapToFront: '-',
+          }
+        }
+
+        // Realistic last lap time with small noise and tire delta
+        const compoundDelta = TIRE_SPECS[entry.tireCompound || 'medio']?.deltaPerLapSec || 0
+        const wearPenalty = ((entry.tireWear || 0) / 100) * 1.8
+        const driverLapSec = baseLapSec + compoundDelta + wearPenalty + (Math.random() - 0.5) * 0.35
+        const lapMin = Math.floor(driverLapSec / 60)
+        const lapRemSec = (driverLapSec % 60).toFixed(3)
+        const formattedLap = `${lapMin}:${Number(lapRemSec) < 10 ? '0' : ''}${lapRemSec}`
+
+        // Gaps
+        const gapLeader =
+          position === 1 ? 'LÍDER' : `+${((position - 1) * 1.15 + Math.random() * 0.3).toFixed(3)}s`
+        const gapFront = position === 1 ? '-' : `+${(0.85 + Math.random() * 0.5).toFixed(3)}s`
+
+        return {
+          ...entry,
+          position,
+          lastLapTime: formattedLap,
+          gapToLeader: gapLeader,
+          gapToFront: gapFront,
         }
       })
 
@@ -1368,7 +1727,6 @@ export default function RacePage() {
         weather: currentWeather,
         grid: currentGrid,
       })
-
       // CHECK DYNAMIC WEATHER: TRACK DRYING UP (Pista secando)
       if (
         dryOutLap &&
@@ -2341,6 +2699,17 @@ export default function RacePage() {
 
       if (nextRound > totalRounds) {
         setSeasonCompleted(true)
+        // Automatically trigger Silly Season calculation at the end of round 24
+        try {
+          setIsProcessingSillySeason(true)
+          const moves = await f1Service.processEndOfSeasonMarket(season.id, team.id)
+          setMarketMoves(moves)
+          setSillySeasonModalOpen(true)
+        } catch (sillyErr) {
+          console.warn('Erro ao disparar silly season automática:', sillyErr)
+        } finally {
+          setIsProcessingSillySeason(false)
+        }
       } else {
         navigate('/')
       }
@@ -2574,16 +2943,26 @@ export default function RacePage() {
             </div>
             <div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F5F7FA]">
-                Temporada 2026 Finalizada!
+                Temporada {season?.year || 2026} Finalizada!
               </h2>
               <p className="text-sm text-[#8B95A7] max-w-lg mx-auto mt-1">
-                Todas as 24 etapas foram concluídas sob a nova era dos motores 50/50 e aerodinâmica
-                ativa.
+                Todas as 24 etapas foram concluídas! A "Silly Season" e a movimentação do mercado de
+                pilotos já estão disponíveis.
               </p>
             </div>
-            <div className="pt-2 flex justify-center gap-3">
+            <div className="pt-2 flex flex-wrap justify-center gap-3">
               <Button asChild className="bg-amber-500 hover:bg-amber-600 text-black font-bold">
-                <a href="/standings">Ver Classificação Final de Campeões</a>
+                <a href="/standings">Ver Classificação Final</a>
+              </Button>
+              <Button
+                onClick={handleOpenSillySeason}
+                disabled={isProcessingSillySeason}
+                className="bg-[#00A6FB] hover:bg-[#0092DC] text-[#0B0E14] font-bold flex items-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                {isProcessingSillySeason
+                  ? 'Processando Silly Season...'
+                  : 'Ver Mercado de Pilotos — Fim da Temporada'}
               </Button>
             </div>
           </div>
@@ -2902,14 +3281,26 @@ export default function RacePage() {
                 {/* Tire & Pit Stop Strategy Choice */}
                 <Card className="bg-[#11161F] border-[#1F2733] flex flex-col justify-between">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
-                      <Disc className="w-5 h-5 text-yellow-400" />
-                      Estratégia de Pneus & Boxes
+                    <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Disc className="w-5 h-5 text-yellow-400" />
+                        {isRaceSession
+                          ? 'Estratégia de Corrida (Até 4 Pits por Piloto)'
+                          : 'Pneu da Sessão'}
+                      </span>
+                      {isRaceSession && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono border-cyan-500/40 text-cyan-300"
+                        >
+                          FIA 2026 • Individual por Piloto
+                        </Badge>
+                      )}
                     </CardTitle>
                     <CardDescription className="text-xs text-[#8B95A7]">
                       {isRaceSession
-                        ? 'Defina os 2 compostos obrigatórios e a volta prevista do pit stop.'
-                        : 'Escolha o jogo de pneus para este stint de treino/classificação.'}
+                        ? 'Defina o pneu de largada (seco ou chuva) e até 4 paradas programadas independentes para cada piloto da sua equipe.'
+                        : 'Escolha o composto a ser utilizado durante esta sessão de testes.'}
                     </CardDescription>
                   </CardHeader>
 
@@ -2918,7 +3309,7 @@ export default function RacePage() {
                     <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-[11px] font-mono space-y-1">
                       <div className="flex items-center justify-between text-[#8B95A7]">
                         <span className="font-bold text-white flex items-center gap-1">
-                          <Disc className="w-3.5 h-3.5 text-yellow-400" /> Deltas de Velocidade (FIA
+                          <Disc className="w-3.5 h-3.5 text-yellow-400" /> Deltas Oficiais (FIA
                           2026):
                         </span>
                         <span className="text-[10px] text-cyan-400">Ref: Médio</span>
@@ -2940,92 +3331,208 @@ export default function RacePage() {
                       </div>
                     </div>
 
-                    {/* Primary Tire Choice */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-mono text-[#8B95A7] block">
-                        {isRaceSession ? 'Composto de Largada (Stint 1):' : 'Composto da Sessão:'}
-                      </label>
-                      <select
-                        value={currentSetup.tire_compound || 'medio'}
-                        onChange={(e) =>
-                          updateCurrentSetup('tire_compound', e.target.value as TireCompound)
-                        }
-                        className="w-full bg-[#0B0E14] border border-[#1F2733] rounded-lg px-3 py-2 text-xs font-mono text-[#F5F7FA] focus:outline-none focus:border-[#00A6FB]"
-                      >
-                        <option value="macio">
-                          Macio (Vermelho) [-0.75s/volta] — Estoque: {tireStock.macio}
-                        </option>
-                        <option value="medio">
-                          Médio (Amarelo) [Referência 0.0s] — Estoque: {tireStock.medio}
-                        </option>
-                        <option value="duro">
-                          Duro (Branco) [+0.60s/volta] — Estoque: {tireStock.duro}
-                        </option>
-                        <option value="intermediario">
-                          Intermediário (Verde) [Ideal em Chuva Fraca] — Estoque:{' '}
-                          {tireStock.intermediario}
-                        </option>
-                        <option value="chuva_extrema">
-                          Chuva Extrema (Azul) [Obrigatório em Chuva Forte] — Estoque:{' '}
-                          {tireStock.chuva_extrema}
-                        </option>
-                      </select>
-                    </div>
+                    {!isRaceSession ? (
+                      /* Non-race simple compound selection */
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-mono text-[#8B95A7] block">
+                          Composto da Sessão:
+                        </label>
+                        <select
+                          value={currentSetup.tire_compound || 'medio'}
+                          onChange={(e) =>
+                            updateCurrentSetup('tire_compound', e.target.value as TireCompound)
+                          }
+                          className="w-full bg-[#0B0E14] border border-[#1F2733] rounded-lg px-3 py-2 text-xs font-mono text-[#F5F7FA] focus:outline-none focus:border-[#00A6FB]"
+                        >
+                          <option value="macio">
+                            Macio (Vermelho) [-0.75s] — Estoque: {tireStock.macio}
+                          </option>
+                          <option value="medio">
+                            Médio (Amarelo) [Ref 0.0s] — Estoque: {tireStock.medio}
+                          </option>
+                          <option value="duro">
+                            Duro (Branco) [+0.60s] — Estoque: {tireStock.duro}
+                          </option>
+                          <option value="intermediario">
+                            Intermediário (Verde) — Estoque: {tireStock.intermediario}
+                          </option>
+                          <option value="chuva_extrema">
+                            Chuva Extrema (Azul) — Estoque: {tireStock.chuva_extrema}
+                          </option>
+                        </select>
+                      </div>
+                    ) : (
+                      /* RACE SESSION: Multi-Pit Individual Strategies per Driver (Up to 4 stops each) */
+                      <div className="space-y-4">
+                        {drivers
+                          .filter((d) => d.team_id === team?.id && d.role !== 'reserva')
+                          .map((driver) => {
+                            const strat = getStrategyForDriver(driver)
+                            const wearProfile = calculateDriverTireWearProfile(driver)
 
-                    {/* Secondary Tire & Pit Lap (only for Race) */}
-                    {isRaceSession && (
-                      <>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-mono text-[#8B95A7] block">
-                            Segundo Composto (Stint 2 pós-pit):
-                          </label>
-                          <select
-                            value={currentSetup.second_tire_compound || 'duro'}
-                            onChange={(e) =>
-                              updateCurrentSetup(
-                                'second_tire_compound',
-                                e.target.value as TireCompound,
-                              )
-                            }
-                            className="w-full bg-[#0B0E14] border border-[#1F2733] rounded-lg px-3 py-2 text-xs font-mono text-[#F5F7FA] focus:outline-none focus:border-[#00A6FB]"
-                          >
-                            <option value="duro">
-                              Duro (Branco) [+0.60s/volta] — Estoque: {tireStock.duro}
-                            </option>
-                            <option value="medio">
-                              Médio (Amarelo) [Referência 0.0s] — Estoque: {tireStock.medio}
-                            </option>
-                            <option value="macio">
-                              Macio (Vermelho) [-0.75s/volta] — Estoque: {tireStock.macio}
-                            </option>
-                            <option value="intermediario">
-                              Intermediário (Verde) [Chuva Fraca] — Estoque:{' '}
-                              {tireStock.intermediario}
-                            </option>
-                            <option value="chuva_extrema">
-                              Chuva Extrema (Azul) [Chuva Forte] — Estoque:{' '}
-                              {tireStock.chuva_extrema}
-                            </option>
-                          </select>
-                        </div>
+                            return (
+                              <div
+                                key={driver.id}
+                                className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-3 font-mono text-xs"
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-[#1F2733] pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-[#F5F7FA] text-sm flex items-center gap-1.5">
+                                      👤 {driver.name}
+                                    </span>
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] px-1.5 py-0 ${wearProfile.badgeColor}`}
+                                    >
+                                      Desgaste: {wearProfile.profileName} (x{wearProfile.multiplier}
+                                      )
+                                    </Badge>
+                                  </div>
+                                  <span className="text-[11px] text-[#8B95A7]">
+                                    {strat.pitStops.length} parada(s) programada(s)
+                                  </span>
+                                </div>
 
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between text-xs font-mono">
-                            <span className="text-[#8B95A7]">Volta-alvo de Pit Stop:</span>
-                            <strong className="text-[#F5F7FA]">
-                              Volta {currentSetup.target_pit_lap || 25} de {gpInfo.laps}
-                            </strong>
-                          </div>
-                          <Slider
-                            value={[currentSetup.target_pit_lap || 25]}
-                            min={10}
-                            max={Math.max(15, gpInfo.laps - 8)}
-                            step={1}
-                            onValueChange={(val) => updateCurrentSetup('target_pit_lap', val[0])}
-                            className="py-1"
-                          />
-                        </div>
-                      </>
+                                {/* Starting Tire Choice */}
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-[#8B95A7] block font-bold">
+                                    🟢 Pneu de Largada (Stint 1):
+                                  </label>
+                                  <select
+                                    value={strat.startCompound}
+                                    onChange={(e) =>
+                                      updateDriverStartCompound(
+                                        driver.id,
+                                        e.target.value as TireCompound,
+                                      )
+                                    }
+                                    className="w-full bg-[#11161F] border border-[#1F2733] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono"
+                                  >
+                                    <option value="macio">
+                                      🔴 Macio (Vermelho) — {tireStock.macio} jogos rest.
+                                    </option>
+                                    <option value="medio">
+                                      🟡 Médio (Amarelo) — {tireStock.medio} jogos rest.
+                                    </option>
+                                    <option value="duro">
+                                      ⚪ Duro (Branco) — {tireStock.duro} jogos rest.
+                                    </option>
+                                    <option value="intermediario">
+                                      🟢 Intermediário (Chuva Fraca) — {tireStock.intermediario}{' '}
+                                      rest.
+                                    </option>
+                                    <option value="chuva_extrema">
+                                      🔵 Chuva Extrema (Chuva Forte) — {tireStock.chuva_extrema}{' '}
+                                      rest.
+                                    </option>
+                                  </select>
+                                </div>
+
+                                {/* Pit stops sequence list */}
+                                <div className="space-y-2 pt-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-[#8B95A7] font-bold">
+                                      Sequência de Paradas nos Boxes:
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={strat.pitStops.length >= 4}
+                                      onClick={() => addDriverPitStop(driver.id)}
+                                      className="h-6 text-[10px] px-2 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10"
+                                    >
+                                      + Adicionar Parada (Max 4)
+                                    </Button>
+                                  </div>
+
+                                  {strat.pitStops.length === 0 ? (
+                                    <p className="text-[11px] text-amber-400/90 italic bg-amber-500/10 p-2 rounded border border-amber-500/20">
+                                      ⚠️ Nenhuma parada planejada! Em pista seca, a FIA exige trocar
+                                      de composto pelo menos uma vez.
+                                    </p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {strat.pitStops.map((pit, pIdx) => (
+                                        <div
+                                          key={pit.id}
+                                          className="p-2 rounded-lg bg-[#11161F] border border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px]">
+                                              Pit #{pIdx + 1}
+                                            </Badge>
+                                            <div className="flex items-center gap-1.5 text-xs text-white">
+                                              <span>Volta</span>
+                                              <input
+                                                type="number"
+                                                min={1}
+                                                max={gpInfo.laps - 1}
+                                                value={pit.lap}
+                                                onChange={(e) =>
+                                                  updateDriverPitStop(
+                                                    driver.id,
+                                                    pit.id,
+                                                    'lap',
+                                                    Math.max(
+                                                      1,
+                                                      Math.min(
+                                                        gpInfo.laps - 1,
+                                                        parseInt(e.target.value) || 1,
+                                                      ),
+                                                    ),
+                                                  )
+                                                }
+                                                className="w-14 bg-[#0B0E14] border border-[#1F2733] rounded px-1.5 py-0.5 text-center font-bold text-cyan-300"
+                                              />
+                                              <span className="text-[#8B95A7]">/{gpInfo.laps}</span>
+                                            </div>
+                                          </div>
+
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[11px] text-[#8B95A7]">
+                                              Calçar:
+                                            </span>
+                                            <select
+                                              value={pit.compound}
+                                              onChange={(e) =>
+                                                updateDriverPitStop(
+                                                  driver.id,
+                                                  pit.id,
+                                                  'compound',
+                                                  e.target.value as TireCompound,
+                                                )
+                                              }
+                                              className="bg-[#0B0E14] border border-[#1F2733] rounded px-2 py-1 text-xs text-white focus:outline-none font-mono"
+                                            >
+                                              <option value="duro">⚪ Duro (+0.60s)</option>
+                                              <option value="medio">🟡 Médio (0.0s)</option>
+                                              <option value="macio">🔴 Macio (-0.75s)</option>
+                                              <option value="intermediario">
+                                                🟢 Intermediário
+                                              </option>
+                                              <option value="chuva_extrema">
+                                                🔵 Chuva Extrema
+                                              </option>
+                                            </select>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => removeDriverPitStop(driver.id, pit.id)}
+                                              className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 text-xs"
+                                              title="Remover parada"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
                     )}
 
                     {/* Action button to execute session */}
@@ -3253,6 +3760,242 @@ export default function RacePage() {
                         </div>
                       </CardContent>
                     </Card>
+
+                    {/* TABELA DE TELEMETRIA COMPLETA AO VIVO (24 PILOTOS, DESTAQUE DA EQUIPE, GAPS, DESGASTE E PNEUS) */}
+                    {liveRaceState && liveRaceState.grid && liveRaceState.grid.length > 0 && (
+                      <Card className="bg-[#11161F] border border-[#1F2733] shadow-2xl overflow-hidden">
+                        <CardHeader className="py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <CardTitle className="text-sm font-bold text-[#F5F7FA] tracking-wide font-mono flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-cyan-400" />
+                              TELEMETRIA OFICIAL DA CORRIDA EM TEMPO REAL // GRID COMPLETO (24
+                              CARROS)
+                            </CardTitle>
+                            <CardDescription className="text-[11px] text-[#8B95A7] font-mono">
+                              Volta {liveRaceState.currentLap} de {liveRaceState.totalLaps} •
+                              Atualização a cada volta • Destaque para pilotos da sua escuderia
+                            </CardDescription>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[11px]">
+                              {liveRaceState.grid.filter((g) => !g.dnf).length} em pista
+                            </Badge>
+                            <Badge className="bg-red-500/15 text-red-300 border border-red-500/30 font-mono text-[11px]">
+                              {liveRaceState.grid.filter((g) => g.dnf).length} abandonos
+                            </Badge>
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="p-0">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs font-mono">
+                              <thead>
+                                <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider bg-[#0B0E14]/70 text-[10px]">
+                                  <th className="py-2.5 px-3 w-12 text-center">Pos</th>
+                                  <th className="py-2.5 px-3">Piloto / Escuderia</th>
+                                  <th className="py-2.5 px-3 text-center">Pneu Atual</th>
+                                  <th className="py-2.5 px-3 text-center">Vida / Desgaste</th>
+                                  <th className="py-2.5 px-3 text-center">Última Volta</th>
+                                  <th className="py-2.5 px-3 text-right">Diferença Frente</th>
+                                  <th className="py-2.5 px-3 text-right">Gap Líder</th>
+                                  <th className="py-2.5 px-3 text-center">Pits</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#1F2733]/60">
+                                {liveRaceState.grid.map((entry) => {
+                                  const isMyCar = entry.isPlayer
+                                  const compoundSpec =
+                                    TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio
+                                  const compoundLetter =
+                                    entry.tireCompound === 'duro'
+                                      ? 'D'
+                                      : entry.tireCompound === 'medio'
+                                        ? 'M'
+                                        : entry.tireCompound === 'macio'
+                                          ? 'S'
+                                          : entry.tireCompound === 'intermediario'
+                                            ? 'I'
+                                            : 'W'
+
+                                  const compoundColor =
+                                    entry.tireCompound === 'duro'
+                                      ? 'bg-slate-100 text-slate-900 border-slate-300'
+                                      : entry.tireCompound === 'medio'
+                                        ? 'bg-yellow-400 text-black border-yellow-500'
+                                        : entry.tireCompound === 'macio'
+                                          ? 'bg-red-600 text-white border-red-700'
+                                          : entry.tireCompound === 'intermediario'
+                                            ? 'bg-emerald-500 text-black border-emerald-600'
+                                            : 'bg-blue-600 text-white border-blue-700'
+
+                                  const wearVal = entry.tireWear || 5
+                                  const tireLifePct = Math.max(0, 100 - wearVal)
+
+                                  return (
+                                    <tr
+                                      key={entry.driverId}
+                                      className={`transition-colors ${
+                                        isMyCar
+                                          ? 'bg-[#E10600]/15 font-semibold border-l-4 border-l-[#E10600] shadow-[inset_0_0_12px_rgba(225,6,0,0.15)] ring-1 ring-[#E10600]/40'
+                                          : entry.dnf
+                                            ? 'opacity-40 bg-red-950/20'
+                                            : 'hover:bg-[#161D29]/50'
+                                      }`}
+                                    >
+                                      {/* Pos */}
+                                      <td className="py-2.5 px-3 text-center">
+                                        <span
+                                          className={`inline-flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${
+                                            entry.dnf
+                                              ? 'bg-red-900/60 text-red-200'
+                                              : entry.position === 1
+                                                ? 'bg-amber-400 text-black'
+                                                : entry.position === 2
+                                                  ? 'bg-slate-300 text-black'
+                                                  : entry.position === 3
+                                                    ? 'bg-amber-700 text-white'
+                                                    : 'text-[#8B95A7]'
+                                          }`}
+                                        >
+                                          {entry.dnf ? 'DNF' : entry.position}
+                                        </span>
+                                      </td>
+
+                                      {/* Driver & Team */}
+                                      <td className="py-2.5 px-3">
+                                        <div className="flex items-center gap-2">
+                                          <span>{entry.flag}</span>
+                                          <div>
+                                            <div className="flex items-center gap-1.5">
+                                              <span
+                                                className={`text-xs ${isMyCar ? 'text-white font-extrabold' : 'text-[#F5F7FA]'}`}
+                                              >
+                                                {entry.driverName}
+                                              </span>
+                                              {isMyCar && (
+                                                <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-3.5 font-bold animate-pulse">
+                                                  MEU CARRO
+                                                </Badge>
+                                              )}
+                                              {entry.hasWingDamage && (
+                                                <Badge
+                                                  variant="destructive"
+                                                  className="text-[9px] px-1 py-0 h-3.5"
+                                                >
+                                                  ASA QUEBRADA
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            <span
+                                              className="text-[10px] block"
+                                              style={{ color: entry.teamColor }}
+                                            >
+                                              {entry.teamName}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </td>
+
+                                      {/* Tire Compound Icon/Letter */}
+                                      <td className="py-2.5 px-3 text-center">
+                                        <div className="inline-flex items-center gap-1">
+                                          <span
+                                            className={`w-5 h-5 rounded-full inline-flex items-center justify-center font-bold text-[10px] border shadow-sm ${compoundColor}`}
+                                            title={compoundSpec.name}
+                                          >
+                                            {compoundLetter}
+                                          </span>
+                                          <span className="text-[10px] text-[#8B95A7] capitalize">
+                                            {entry.tireCompound?.slice(0, 3)}
+                                          </span>
+                                        </div>
+                                      </td>
+
+                                      {/* Life / Wear % with visual progress bar */}
+                                      <td className="py-2.5 px-3 text-center">
+                                        <div className="w-24 mx-auto space-y-1">
+                                          <div className="flex justify-between items-center text-[10px]">
+                                            <span className="text-[#8B95A7]">
+                                              {tireLifePct}% vida
+                                            </span>
+                                            <span
+                                              className={`font-bold ${
+                                                wearVal > 80
+                                                  ? 'text-red-400'
+                                                  : wearVal > 55
+                                                    ? 'text-amber-400'
+                                                    : 'text-emerald-400'
+                                              }`}
+                                            >
+                                              {wearVal}% desg.
+                                            </span>
+                                          </div>
+                                          <div className="w-full bg-[#0B0E14] rounded-full h-1.5 overflow-hidden border border-[#1F2733]">
+                                            <div
+                                              className={`h-full transition-all ${
+                                                tireLifePct < 25
+                                                  ? 'bg-red-500'
+                                                  : tireLifePct < 50
+                                                    ? 'bg-amber-400'
+                                                    : 'bg-emerald-400'
+                                              }`}
+                                              style={{ width: `${tireLifePct}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </td>
+
+                                      {/* Last Lap Time */}
+                                      <td className="py-2.5 px-3 text-center">
+                                        <span
+                                          className={`text-xs ${isMyCar ? 'text-cyan-300 font-bold' : 'text-[#8B95A7]'}`}
+                                        >
+                                          {entry.lastLapTime || '1:18.420'}
+                                        </span>
+                                      </td>
+
+                                      {/* Gap to Front */}
+                                      <td className="py-2.5 px-3 text-right">
+                                        <span className="text-xs text-[#8B95A7]">
+                                          {entry.gapToFront || '-'}
+                                        </span>
+                                      </td>
+
+                                      {/* Gap to Leader */}
+                                      <td className="py-2.5 px-3 text-right">
+                                        <span
+                                          className={`text-xs ${
+                                            entry.position === 1
+                                              ? 'text-amber-400 font-bold'
+                                              : 'text-[#F5F7FA]'
+                                          }`}
+                                        >
+                                          {entry.gapToLeader || 'LÍDER'}
+                                        </span>
+                                      </td>
+
+                                      {/* Pits Done */}
+                                      <td className="py-2.5 px-3 text-center">
+                                        <Badge
+                                          variant="outline"
+                                          className={`text-[10px] px-1.5 py-0 ${
+                                            (entry.pitStopsDone || 0) > 0
+                                              ? 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10'
+                                              : 'border-slate-800 text-slate-400'
+                                          }`}
+                                        >
+                                          {entry.pitStopsDone || 0}
+                                        </Badge>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
                 )}
 
@@ -4174,6 +4917,131 @@ export default function RacePage() {
             >
               Confirmar Parada Imediata
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 5. MODAL DE SILLY SEASON — MERCADO DE PILOTOS NO FIM DA TEMPORADA */}
+      <Dialog open={sillySeasonModalOpen} onOpenChange={setSillySeasonModalOpen}>
+        <DialogContent className="bg-[#11161F] border-2 border-[#00A6FB]/80 text-[#F5F7FA] max-w-2xl sm:max-w-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
+            <div className="flex items-center gap-2 text-[#00A6FB] font-mono text-xs uppercase tracking-wider font-bold">
+              <Users className="w-5 h-5 text-[#00A6FB]" />
+              Fim de Temporada • Silly Season Oficial FIA
+            </div>
+            <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
+              <span>MERCADO DE PILOTOS — FIM DA TEMPORADA</span>
+              <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 text-xs font-mono">
+                Ano {season?.year || 2026} → {(season?.year || 2026) + 1}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
+              As 24 rodadas do ano se encerraram! O mercado pegou fogo com aposentadorias de
+              veteranos, trocas de equipes de ponta, promoções de jovens talentos da F2 e contratos
+              vencidos.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Moves Feed */}
+          <div className="space-y-3 py-2">
+            <div className="flex items-center justify-between text-xs font-mono text-[#8B95A7]">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-400" /> Movimentações Confirmadas no
+                Paddock:
+              </span>
+              <span>{marketMoves.length} anúncios oficiais</span>
+            </div>
+
+            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {marketMoves.map((move, mIdx) => {
+                const isRetirement = move.type === 'aposentadoria'
+                const isTransfer = move.type === 'transferencia'
+                const isPromotion = move.type === 'promocao'
+                const isRenewalAlert = move.type === 'renovacao'
+
+                const typeColor = isRetirement
+                  ? 'border-purple-500/40 bg-purple-500/10 text-purple-300'
+                  : isTransfer
+                    ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                    : isPromotion
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                      : 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+
+                return (
+                  <div
+                    key={move.id || mIdx}
+                    className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1.5 font-mono text-xs hover:border-slate-600 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] uppercase font-bold px-1.5 py-0.5 ${typeColor}`}
+                        >
+                          {move.type}
+                        </Badge>
+                        <span className="font-bold text-white text-xs">
+                          {move.driverName} ({move.driverAge} anos)
+                        </span>
+                      </div>
+                      {move.newTeam && (
+                        <Badge className="bg-slate-800 text-cyan-300 border border-slate-700 text-[10px]">
+                          Destino: {move.newTeam}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <h4 className="font-bold text-slate-100 text-[13px] leading-tight">
+                      {move.headline}
+                    </h4>
+                    <p className="text-[11px] text-[#8B95A7] leading-relaxed">{move.details}</p>
+
+                    {isRenewalAlert && (
+                      <div className="pt-1 flex items-center justify-between">
+                        <span className="text-[10px] text-amber-400">
+                          ⚠️ Contrato deste piloto vence este ano. Renegocie na tela Equipe se
+                          quiser mantê-lo!
+                        </span>
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+                        >
+                          <a href="/team">Ir para Equipe</a>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="border-t border-[#1F2733] pt-4 flex flex-col sm:flex-row gap-2 justify-between sm:items-center">
+            <span className="text-[11px] text-[#8B95A7] font-mono">
+              Iniciar o novo ano renova a preparação de chassis, redefine o calendário e libera a 1ª
+              rodada.
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSillySeasonModalOpen(false)}
+                className="border-slate-700 text-slate-300 text-xs"
+              >
+                Fechar e Revisar Equipe
+              </Button>
+              <Button
+                onClick={handleStartNextSeason}
+                disabled={isStartingNewSeason}
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-black font-extrabold text-xs shadow-lg flex items-center gap-2"
+              >
+                <ArrowRight className="w-4 h-4" />
+                {isStartingNewSeason
+                  ? 'Iniciando temporada...'
+                  : `Iniciar Temporada ${(season?.year || 2026) + 1}`}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

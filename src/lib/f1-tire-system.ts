@@ -114,6 +114,75 @@ export interface PitStopTimingResult {
   narrativeText: string
 }
 
+/**
+ * Calcula o multiplicador de desgaste de pneus individual do piloto baseado em seus atributos.
+ * - Alta consistência poupa pneu (desgasta menos).
+ * - Alta velocidade / estilo agressivo desgasta mais.
+ * - Condição física baixa desgasta mais (pilotagem errática com cansaço).
+ * - Moral alta ajuda no foco e gerenciamento.
+ * Retorna um multiplicador (ex: 0.82 a 1.25) e o perfil legível em PT-BR.
+ */
+export interface DriverTireWearProfile {
+  multiplier: number // ex: 0.95 = gasta 5% menos; 1.15 = gasta 15% mais
+  profileName: 'Muito Conservador' | 'Conservador' | 'Moderado' | 'Agressivo' | 'Muito Agressivo'
+  badgeColor: string
+  description: string
+}
+
+export function calculateDriverTireWearProfile(driver: {
+  speed?: number
+  consistency?: number
+  physical_condition?: number
+  morale?: number
+  defense?: number
+}): DriverTireWearProfile {
+  const speed = driver.speed ?? 80
+  const consistency = driver.consistency ?? 80
+  const physical = driver.physical_condition ?? 90
+  const morale = driver.morale ?? 80
+
+  // Consistência reduz desgaste: cada 10 pts acima de 80 poupa ~4%
+  const consistencyDelta = (consistency - 80) * -0.005
+  // Velocidade/agressividade aumenta desgaste: cada 10 pts acima de 80 consome ~3.5%
+  const speedDelta = (speed - 80) * 0.004
+  // Cansaço físico prejudica a preservação da borracha
+  const fitnessDelta = (85 - physical) * 0.003
+  // Moral melhora o cuidado dos pneus
+  const moraleDelta = (80 - morale) * 0.002
+
+  let multiplier = 1.0 + consistencyDelta + speedDelta + fitnessDelta + moraleDelta
+  // Clamp entre 0.78 e 1.28
+  multiplier = Math.max(0.78, Math.min(1.28, Number(multiplier.toFixed(2))))
+
+  let profileName: DriverTireWearProfile['profileName'] = 'Moderado'
+  let badgeColor = 'text-amber-400 border-amber-500/40 bg-amber-500/10'
+  let description = 'Equilíbrio padrão entre agressividade em volta rápida e conservação de pneus.'
+
+  if (multiplier <= 0.86) {
+    profileName = 'Muito Conservador'
+    badgeColor = 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
+    description = 'Mestre na gestão de borracha (estilo Perez/Button). Poupa até 20% do desgaste!'
+  } else if (multiplier <= 0.95) {
+    profileName = 'Conservador'
+    badgeColor = 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10'
+    description = 'Alta consistência, desgasta menos os pneus que a média do grid.'
+  } else if (multiplier <= 1.06) {
+    profileName = 'Moderado'
+    badgeColor = 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10'
+    description = 'Gestão equilibrada de desgaste em condições normais de corrida.'
+  } else if (multiplier <= 1.16) {
+    profileName = 'Agressivo'
+    badgeColor = 'text-orange-400 border-orange-500/40 bg-orange-500/10'
+    description = 'Ritmo forte e frenagens no limite. Consome mais borracha por volta.'
+  } else {
+    profileName = 'Muito Agressivo'
+    badgeColor = 'text-rose-400 border-rose-500/40 bg-rose-500/10'
+    description = 'Ataque extremo e derrapagens controladas. Alta degradação dos pneus!'
+  }
+
+  return { multiplier, profileName, badgeColor, description }
+}
+
 export function calculatePitStopDuration(
   teamName: string,
   driverName: string,

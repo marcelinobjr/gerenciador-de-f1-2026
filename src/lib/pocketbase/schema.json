@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T20:25:32.360Z",
+  "generatedAt": "2026-09-08T21:48:48.797Z",
   "collections": [
     {
       "name": "users",
@@ -219,6 +219,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "market_moves",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_seasons_team ON seasons (team_id)"]
@@ -734,6 +740,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "driver_strategies",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

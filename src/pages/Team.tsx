@@ -4,6 +4,7 @@ import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
+import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { toast } from '@/hooks/use-toast'
 import {
@@ -26,6 +27,7 @@ import {
   Award,
   Activity,
   HeartPulse,
+  Disc,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -725,6 +727,29 @@ export default function TeamPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Perfil de Desgaste de Pneus (Estilo & Consistência) */}
+                    {(() => {
+                      const wearProfile = calculateDriverTireWearProfile(driver)
+                      return (
+                        <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-1 font-mono text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#8B95A7] text-[11px] flex items-center gap-1">
+                              <Disc className="w-3.5 h-3.5 text-amber-400" /> Desgaste de Pneus:
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-2 py-0.5 font-bold ${wearProfile.badgeColor}`}
+                            >
+                              {wearProfile.profileName} (x{wearProfile.multiplier})
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-[#8B95A7] leading-tight">
+                            {wearProfile.description}
+                          </p>
+                        </div>
+                      )
+                    })()}
 
                     {/* Moral & Condição Física */}
                     <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] grid grid-cols-2 gap-3 text-xs font-mono">

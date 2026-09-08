@@ -8,6 +8,7 @@ import {
   PartModel,
   EventModel,
   SessionSetupModel,
+  MarketMoveEvent,
 } from '@/types/f1'
 
 export const f1Service = {
@@ -734,6 +735,239 @@ export const f1Service = {
       penaltyPositions,
       engineNumber: newPoolNumber,
       costCapSpent: spentCostCap,
+    }
+  },
+
+  // Process End of Season (Round 24) Silly Season & Driver Market Moves
+  async processEndOfSeasonMarket(seasonId: string, teamId: string): Promise<MarketMoveEvent[]> {
+    try {
+      const allDrivers = await pb.collection('drivers').getFullList<DriverModel>({
+        sort: '-speed',
+      })
+      const allTeams = await pb.collection('teams').getFullList<TeamModel>({
+        sort: '-strength',
+      })
+
+      const moves: MarketMoveEvent[] = []
+      const currentYear = 2026
+
+      // 1. Aposentadorias: pilotos veteranos (idade >= 37) têm chance crescente de aposentadoria
+      for (const d of allDrivers) {
+        if (d.age >= 37) {
+          const retirementChance = d.age >= 42 ? 0.85 : d.age >= 40 ? 0.65 : 0.4
+          if (Math.random() < retirementChance) {
+            moves.push({
+              id: `ret_${d.id}_${Date.now()}`,
+              type: 'aposentadoria',
+              driverName: d.name,
+              driverAge: d.age,
+              previousTeam: d.team_id
+                ? allTeams.find((t) => t.id === d.team_id)?.name || 'Grid F1'
+                : 'Mercado',
+              headline: `🏁 Aposentadoria de lenda: ${d.name} anuncia fim da carreira aos ${d.age} anos!`,
+              details: `Após anos brilhando no automobilismo mundial, ${d.name} encerra sua trajetória profissional nas pistas.`,
+              impact: 'alto',
+            })
+            // Liberar piloto do time e colocar idade +1 ou status
+            await pb.collection('drivers').update(d.id, {
+              team_id: null,
+              reserve_team_id: null,
+              role: null,
+              category: 'mercado',
+              age: d.age + 1,
+            })
+          }
+        }
+      }
+
+      // 2. Vencimento de contratos no fim do ano (contract_end <= 2026)
+      const expiringDrivers = allDrivers.filter(
+        (d) =>
+          (d.contract_end || 2026) <= currentYear && !moves.some((m) => m.driverName === d.name),
+      )
+
+      // Identificar os melhores pilotos livres e equipes de topo (McLaren, Ferrari, Red Bull, Mercedes)
+      const topTeams = allTeams.filter((t) => (t.strength || 70) >= 80)
+      const midTeams = allTeams.filter((t) => (t.strength || 70) < 80)
+
+      // Algumas transferências de impacto entre rivais
+      for (const d of expiringDrivers) {
+        // Se pertencer ao time do jogador, não demitir forçadamente, apenas sinalizar que o contrato expirou e precisa ser renegociado
+        if (d.team_id === teamId) {
+          moves.push({
+            id: `exp_player_${d.id}`,
+            type: 'renovacao',
+            driverName: d.name,
+            driverAge: d.age,
+            previousTeam: allTeams.find((t) => t.id === teamId)?.name || 'Sua Equipe',
+            headline: `📄 Contrato expirando: ${d.name} aguarda proposta de renovação!`,
+            details: `O vínculo de ${d.name} com a sua equipe encerra no final desta temporada. Renegocie na aba Equipe antes do próximo ano!`,
+            impact: 'alto',
+          })
+          continue
+        }
+
+        // Se for um astro da IA com alta velocidade (>=85), pode trocar de equipe de ponta
+        if (d.speed >= 85 && Math.random() < 0.5 && topTeams.length > 0) {
+          const destinationTeam = topTeams[Math.floor(Math.random() * topTeams.length)]
+          moves.push({
+            id: `trans_${d.id}`,
+            type: 'transferencia',
+            driverName: d.name,
+            driverAge: d.age,
+            newTeam: destinationTeam.name,
+            salary: Math.round(d.salary * 1.15),
+            headline: `🔥 BOMBA NO MERCADO: ${d.name} fecha com a ${destinationTeam.name}!`,
+            details: `Acordo multimilionário firmado para a temporada seguinte, agitando o pelotão de elite.`,
+            impact: 'alto',
+          })
+          await pb.collection('drivers').update(d.id, {
+            contract_end: currentYear + 2,
+            salary: Math.round(d.salary * 1.15),
+            age: d.age + 1,
+          })
+        } else if (d.category === 'f2' && d.speed >= 79 && Math.random() < 0.6) {
+          // Promoção da F2 para a F1
+          const targetTeam = midTeams[Math.floor(Math.random() * midTeams.length)] || allTeams[0]
+          moves.push({
+            id: `promo_${d.id}`,
+            type: 'promocao',
+            driverName: d.name,
+            driverAge: d.age,
+            previousTeam: 'Fórmula 2',
+            newTeam: targetTeam.name,
+            headline: `⭐ Revelação promovida: Jovem estrela da F2 ${d.name} sobe para a F1 na ${targetTeam.name}!`,
+            details: `Após campanha impressionante na categoria de acesso, o piloto garante assento titular na temporada seguinte.`,
+            impact: 'medio',
+          })
+          await pb.collection('drivers').update(d.id, {
+            category: 'f1',
+            contract_end: currentYear + 2,
+            age: d.age + 1,
+          })
+        }
+      }
+
+      // Se não gerou nenhum movimento, gerar pelo menos 2 movimentos narrativos para a silly season ser viva
+      if (moves.length < 2) {
+        moves.push({
+          id: `move_default_1`,
+          type: 'renovacao',
+          driverName: 'Oscar Piastri',
+          driverAge: 25,
+          newTeam: 'McLaren F1 Team',
+          headline: '✍️ Extensão contratual: McLaren e Piastri renovam por mais 3 temporadas.',
+          details:
+            'A equipe de Woking garante a estabilidade de sua dupla campeã para os próximos ciclos de desenvolvimento.',
+          impact: 'medio',
+        })
+        moves.push({
+          id: `move_default_2`,
+          type: 'promocao',
+          driverName: 'Gabriel Bortoleto',
+          driverAge: 22,
+          newTeam: 'Audi F1 Team',
+          headline: '🚀 Piloto brasileiro Bortoleto assina contrato de titularidade na F1!',
+          details:
+            'Impressionando pela consistência, o jovem talento consolida sua presença no grid principal.',
+          impact: 'alto',
+        })
+      }
+
+      // Salvar os movimentos no registro da temporada atual
+      try {
+        await pb.collection('seasons').update(seasonId, {
+          market_moves: moves,
+        })
+      } catch (err) {
+        console.warn('Erro ao salvar market_moves na temporada:', err)
+      }
+
+      return moves
+    } catch (e) {
+      console.error('Erro ao processar movimentação do mercado:', e)
+      return []
+    }
+  },
+
+  // Start Next Season (e.g. 2027) after End-of-Season Market Moves
+  async startNextSeason(
+    currentSeasonId: string,
+    teamId: string,
+    nextYear = 2027,
+  ): Promise<SeasonModel> {
+    try {
+      // 1. Reset race results for the new season or delete them
+      try {
+        const results = await pb.collection('race_results').getFullList({
+          filter: `season_id='${currentSeasonId}'`,
+        })
+        for (const r of results) {
+          await pb.collection('race_results').delete(r.id)
+        }
+      } catch (err) {
+        console.warn('Erro ao limpar resultados da temporada anterior:', err)
+      }
+
+      // 2. Reset session setups
+      try {
+        const setups = await pb.collection('session_setups').getFullList({
+          filter: `season_id='${currentSeasonId}'`,
+        })
+        for (const s of setups) {
+          await pb.collection('session_setups').delete(s.id)
+        }
+      } catch (err) {
+        console.warn('Erro ao limpar setups anteriores:', err)
+      }
+
+      // 3. Update Season record: year + 1, current_round = 1, clear market_moves
+      const updatedSeason = await pb.collection('seasons').update<SeasonModel>(currentSeasonId, {
+        year: nextYear,
+        current_round: 1,
+        total_rounds: 24,
+        market_moves: null,
+      })
+
+      // 4. Reset team active engine wear to 0 and engine pool used to 1
+      try {
+        await pb.collection('teams').update(teamId, {
+          active_engine_wear: 0,
+          engine_pool_used: 1,
+        })
+      } catch (err) {
+        console.warn('Erro ao resetar motor da equipe:', err)
+      }
+
+      // 5. Restore parts condition to 100% for the new season
+      try {
+        const teamParts = await pb.collection('parts').getFullList<PartModel>({
+          filter: `team_id='${teamId}'`,
+        })
+        for (const p of teamParts) {
+          await pb.collection('parts').update(p.id, {
+            condition: 100,
+          })
+        }
+      } catch (err) {
+        console.warn('Erro ao restaurar peças para a nova temporada:', err)
+      }
+
+      // 6. Log announcement event
+      try {
+        await this.addEvent(
+          teamId,
+          `🏁 BEM-VINDO À TEMPORADA ${nextYear}! O grid foi reformulado após a Silly Season. Novos desafios, novos motores e 24 etapas pela frente!`,
+          'resultado',
+        )
+      } catch {
+        /* intentionally ignored */
+      }
+
+      return updatedSeason
+    } catch (e) {
+      console.error('Erro ao iniciar próxima temporada:', e)
+      throw e
     }
   },
 
