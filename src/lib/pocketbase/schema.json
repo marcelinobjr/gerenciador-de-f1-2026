@@ -1,0 +1,505 @@
+{
+  "generatedAt": "2026-09-08T14:18:35.764Z",
+  "collections": [
+    {
+      "name": "users",
+      "type": "auth",
+      "apiRules": {
+        "list": "id = @request.auth.id",
+        "view": "id = @request.auth.id",
+        "create": "",
+        "update": "id = @request.auth.id",
+        "delete": "id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "avatar",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_tokenKey__pb_users_auth_` ON `users` (`tokenKey`)",
+        "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''"
+      ]
+    },
+    {
+      "name": "teams",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && user_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && user_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "color",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "chassis_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "aero_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "strategy_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "budget",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "engine_supplier",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Ferrari", "Mercedes", "Honda", "Ford"]
+        },
+        {
+          "name": "user_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_teams_user ON teams (user_id)"]
+    },
+    {
+      "name": "seasons",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && team_id.user_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && team_id.user_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "year",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "current_round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "total_rounds",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_seasons_team ON seasons (team_id)"]
+    },
+    {
+      "name": "drivers",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "nationality",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "age",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "speed",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "consistency",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "rain",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "defense",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "salary",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contract_end",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_drivers_team ON drivers (team_id)",
+        "CREATE INDEX idx_drivers_name ON drivers (name)"
+      ]
+    },
+    {
+      "name": "race_results",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "season_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "seasons"
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "driver_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "drivers"
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "position",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "points",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "fastest_lap",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_race_results_season_round ON race_results (season_id, round)"]
+    },
+    {
+      "name": "sponsors",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && team_id.user_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && team_id.user_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "value_per_round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "requirement",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["ativo", "suspenso", "encerrado"]
+        },
+        {
+          "name": "rounds_remaining",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_sponsors_team ON sponsors (team_id)"]
+    },
+    {
+      "name": "parts",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && team_id.user_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && team_id.user_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_parts_team ON parts (team_id)"]
+    },
+    {
+      "name": "events",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && team_id.user_id = @request.auth.id",
+        "delete": "@request.auth.id != '' && team_id.user_id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "message",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["resultado", "contrato", "desenvolvimento", "patrocinio"]
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_events_team_created ON events (team_id, created DESC)"]
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+/* Global styles - F1 Motorsport Dark Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 29% 6%; /* #0B0E14 */
+    --foreground: 216 33% 97%; /* #F5F7FA */
+
+    --card: 218 29% 10%; /* #11161F */
+    --card-foreground: 216 33% 97%;
+
+    --popover: 218 29% 10%;
+    --popover-foreground: 216 33% 97%;
+
+    --primary: 1 100% 44%; /* #E10600 F1 Racing Red */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 199 100% 49%; /* #00A6FB Tech Blue */
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 218 25% 16%; /* #1F2733 */
+    --muted-foreground: 219 12% 60%; /* #8B95A7 */
+
+    --accent: 218 25% 18%;
+    --accent-foreground: 216 33% 97%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 218 25% 16%; /* #1F2733 */
+    --input: 218 25% 16%;
+    --ring: 1 100% 44%; /* #E10600 focus ring */
+
+    --radius: 0.75rem;
+  }
+
+  body {
+    background-color: #0b0e14;
+    color: #f5f7fa;
+    font-family:
+      'Inter',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Telemetry font */
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0b0e14;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1f2733;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #e10600;
+  }
+
+  /* Notifications alt+T reset */
+  section[aria-label='Notifications alt+T'] {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+
+@layer utilities {
+  @keyframes gradient-flow {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%,
+    100% {
+      box-shadow:
+        0 0 15px rgba(225, 6, 0, 0.2),
+        inset 0 0 10px rgba(225, 6, 0, 0.05);
+    }
+    50% {
+      box-shadow:
+        0 0 25px rgba(225, 6, 0, 0.45),
+        inset 0 0 15px rgba(225, 6, 0, 0.15);
+    }
+  }
+
+  @keyframes telemetry-flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.85;
+    }
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-gradient-flow {
+    animation: gradient-flow 6s ease infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2.5s ease-in-out infinite;
+  }
+
+  .animate-telemetry {
+    animation: telemetry-flicker 1.5s steps(2, start) infinite;
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
