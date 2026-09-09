@@ -162,6 +162,17 @@ export interface EventModel {
   updated?: string
 }
 
+export interface CircuitModel {
+  id: string
+  round: number
+  name: string
+  circuit_name?: string
+  country?: string
+  photo?: string
+  created?: string
+  updated?: string
+}
+
 export interface GrandPrixInfo {
   round: number
   name: string
@@ -170,6 +181,7 @@ export interface GrandPrixInfo {
   flag: string
   laps: number
   circuitLengthKm: number
+  turns?: number // Número de curvas
   characteristic: string // "Alta velocidade", "Técnico e travado", "Misto", etc.
   tireAbrasiveness?: number // 1 a 10 (ex: 8 = Bahrain/Barcelona, 3 = Mônaco)
   downforceIdeal?: number // 1 a 10 asa recomendada (ex: Monza = 2, Mônaco = 10)

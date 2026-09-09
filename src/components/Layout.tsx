@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   Gauge,
+  Calendar,
   RotateCcw,
   Loader2,
   AlertTriangle,
@@ -80,6 +81,7 @@ export default function Layout() {
     { name: 'Carro', path: '/car', icon: Wrench },
     { name: 'Patrocínios', path: '/sponsors', icon: BadgePercent },
     { name: 'Corrida', path: '/race', icon: Gauge },
+    { name: 'Calendário', path: '/calendario', icon: Calendar },
     { name: 'Classificação', path: '/standings', icon: Trophy },
   ]
 

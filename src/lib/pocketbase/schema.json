@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T18:01:59.282Z",
+  "generatedAt": "2026-09-09T18:17:42.971Z",
   "collections": [
     {
       "name": "users",
@@ -763,6 +763,64 @@
       "indexes": [
         "CREATE INDEX idx_session_setups_lookup ON session_setups (team_id, season_id, round)"
       ]
+    },
+    {
+      "name": "circuits",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "circuit_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "country",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "photo",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_circuits_round ON circuits (round)"]
     }
   ]
 }

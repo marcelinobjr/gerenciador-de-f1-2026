@@ -9,6 +9,7 @@ import {
   EventModel,
   SessionSetupModel,
   MarketMoveEvent,
+  CircuitModel,
 } from '@/types/f1'
 
 export const f1Service = {
@@ -284,6 +285,45 @@ export const f1Service = {
     data: Omit<RaceResultModel, 'id' | 'created' | 'updated'>,
   ): Promise<RaceResultModel> {
     return await pb.collection('race_results').create<RaceResultModel>(data)
+  },
+
+  // Circuits
+  async getAllCircuits(): Promise<CircuitModel[]> {
+    try {
+      const records = await pb.collection('circuits').getFullList<CircuitModel>({
+        sort: 'round',
+      })
+      return records
+    } catch (e) {
+      console.error('Error fetching circuits:', e)
+      return []
+    }
+  },
+
+  async updateCircuitPhoto(
+    round: number,
+    formData: FormData,
+    circuitMeta?: { name: string; circuit_name?: string; country?: string },
+  ): Promise<CircuitModel> {
+    try {
+      const existing = await pb
+        .collection('circuits')
+        .getFirstListItem<CircuitModel>(`round = ${round}`)
+      return await pb.collection('circuits').update<CircuitModel>(existing.id, formData)
+    } catch (_) {
+      // Se ainda não existir no DB, cria o registro com a foto
+      if (circuitMeta?.name) {
+        formData.append('name', circuitMeta.name)
+      }
+      if (circuitMeta?.circuit_name) {
+        formData.append('circuit_name', circuitMeta.circuit_name)
+      }
+      if (circuitMeta?.country) {
+        formData.append('country', circuitMeta.country)
+      }
+      formData.append('round', String(round))
+      return await pb.collection('circuits').create<CircuitModel>(formData)
+    }
   },
 
   // Cache em memória para evitar buscas repetidas
