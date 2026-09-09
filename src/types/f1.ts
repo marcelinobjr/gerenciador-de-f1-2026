@@ -176,6 +176,7 @@ export interface TireAllotment {
 
 export interface TireSetItem {
   id: string
+  driverId?: string
   compound: TireCompound
   wear: number // 0-100% de desgaste (0% = jogo novo de fábrica)
   lapsUsed: number

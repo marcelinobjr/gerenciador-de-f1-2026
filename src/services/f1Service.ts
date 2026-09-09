@@ -451,7 +451,8 @@ export const f1Service = {
     // 4. Initial sponsor matching official prestige
     // Economia F1 2026: Patrocinadores cobrem ~90% dos custos nas equipes grandes (~R$ 8M/GP)
     // e ~70% nas pequenas (~R$ 4.5M/GP), complementadas pela premiação anual de construtores (R$ 175M a R$ 70M)
-    const sponsorRatio = 0.7 + ((officialData.strengthRating - 3.0) / 7.0) * 0.2 // 70% a 90%
+    const rating = (officialData as any).strengthRating ?? officialData.strength / 10
+    const sponsorRatio = 0.7 + ((rating - 3.0) / 7.0) * 0.2 // 70% a 90%
     const sponsorVal = Math.round((215000000 / 24) * sponsorRatio)
     await pb.collection('sponsors').create({
       name: `${officialData.name.split(' ')[0]} Global Partner`,

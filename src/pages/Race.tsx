@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import {
   DriverModel,
+  DriverCarSetup,
   PartModel,
   SponsorModel,
   SessionSetupModel,
@@ -227,6 +228,9 @@ export default function RacePage() {
       second_tire_compound: 'duro',
     },
   })
+
+  // Selected driver for individual car setup & telemetry view in practice/qualy/race
+  const [selectedDriverSetupId, setSelectedDriverSetupId] = useState<string>('')
 
   // Tire inventory for the GP weekend (allotment counts and individual sets per driver)
   const [tireStock, setTireStock] = useState<TireAllotment>({ ...INITIAL_ALLOTMENT })
@@ -464,9 +468,6 @@ export default function RacePage() {
     const sName = team?.engine_supplier || 'Mercedes'
     return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
   }, [team?.engine_supplier])
-
-  // Selected driver for individual car setup & telemetry view in practice/qualy/race
-  const [selectedDriverSetupId, setSelectedDriverSetupId] = useState<string>('')
 
   // Set default selected driver once drivers load
   useEffect(() => {
@@ -743,9 +744,17 @@ export default function RacePage() {
       // Determinar colocação final nos construtores do jogador
       let playerRank = 1
       try {
-        const cStandings = await f1Service.getConstructorStandings(season.id)
-        const idx = cStandings.findIndex((c) => c.team_id === team.id || c.name === team.name)
-        if (idx >= 0) playerRank = idx + 1
+        const standings = await f1Service.getSeasonRaceResults(season.id)
+        if (standings && standings.length > 0) {
+          const teamPoints: Record<string, number> = {}
+          standings.forEach((r) => {
+            const tId = r.team_id || ''
+            teamPoints[tId] = (teamPoints[tId] || 0) + (r.points || 0)
+          })
+          const sorted = Object.entries(teamPoints).sort((a, b) => b[1] - a[1])
+          const idx = sorted.findIndex(([tId]) => tId === team.id)
+          if (idx >= 0) playerRank = idx + 1
+        }
       } catch (err) {
         console.warn('Erro ao obter posição de construtores final:', err)
       }
@@ -1253,17 +1262,17 @@ export default function RacePage() {
         ...prev,
         [strat.startCompound]: Math.max(0, prev[strat.startCompound] - 1),
       }))
-      setPlayerTireSets((prev) => {
-        const idx = prev.findIndex((s) => s.compound === strat.startCompound && !s.isFitted)
+      setDriverTireInventories((prev) => {
+        const driverSets = prev[d.id] || []
+        const idx = driverSets.findIndex((s) => s.compound === strat.startCompound && !s.isFitted)
         if (idx >= 0) {
-          const next = [...prev]
-          next[idx] = { ...next[idx], isFitted: true }
-          return next
+          const nextSets = [...driverSets]
+          nextSets[idx] = { ...nextSets[idx], isFitted: true }
+          return { ...prev, [d.id]: nextSets }
         }
         return prev
       })
     })
-
     setIsSimulatingSession(true)
     setSimProgress(0)
     setRaceIncidents([])
@@ -2491,8 +2500,10 @@ export default function RacePage() {
     )
 
     // Mark previous fitted set as no longer fitted and update wear
-    setPlayerTireSets((prev) =>
-      prev.map((set) => {
+    setDriverTireInventories((prev) => {
+      const dId = targetDriver.driverId
+      const currentSets = prev[dId] || []
+      const updatedSets = currentSets.map((set) => {
         if (set.id === forcePitSelectedSetId) {
           return {
             ...set,
@@ -2508,9 +2519,9 @@ export default function RacePage() {
           }
         }
         return set
-      }),
-    )
-
+      })
+      return { ...prev, [dId]: updatedSets }
+    })
     // Deduct compound count if brand new set
     if (selectedSet.lapsUsed === 0 && tireStock[selectedSet.compound] > 0) {
       setTireStock((prev) => ({
