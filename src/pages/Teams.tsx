@@ -16,6 +16,9 @@ import { formatCurrency } from '@/lib/formatters'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import alpineImg from '@/assets/alpine-88dda.png'
+import astonMartinImg from '@/assets/astonmartin-eee41.png'
+import audiImg from '@/assets/audi-13288.png'
 import {
   Shield,
   Zap,
@@ -33,6 +36,13 @@ import {
   UploadCloud,
   Loader2,
 } from 'lucide-react'
+
+// Mapa de fotos estáticas oficiais de monopostos 2026 por team_key
+const TEAM_CAR_IMAGES: Record<string, string> = {
+  alpine: alpineImg,
+  astonmartin: astonMartinImg,
+  audi: audiImg,
+}
 
 // Informações calculadas de construtores
 interface TeamStandingSummary {
@@ -638,71 +648,102 @@ export default function TeamsPage() {
                 <div className="h-1.5 w-full" style={{ backgroundColor: t.color }} />
 
                 {/* Banner Panorâmico do Carro (~16:9) */}
-                <div className="relative w-full aspect-[16/9] max-h-56 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group">
-                  {t.teamRecord?.photo ? (
-                    <img
-                      src={pb.files.getUrl(t.teamRecord, t.teamRecord.photo, { thumb: '400x200' })}
-                      alt={`Carro F1 2026 - ${t.name}`}
-                      className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    /* Placeholder vetorial blueprint (silhueta lateral de F1 estilizada) */
-                    <div className="w-full h-full flex flex-col items-center justify-center p-4 relative bg-gradient-to-b from-[#0e131b] to-[#070a0e] select-none">
-                      {/* Grid de fundo estilo engenharia/blueprint */}
-                      <div
-                        className="absolute inset-0 opacity-15 pointer-events-none"
-                        style={{
-                          backgroundImage: `linear-gradient(to right, ${t.color}40 1px, transparent 1px), linear-gradient(to bottom, ${t.color}40 1px, transparent 1px)`,
-                          backgroundSize: '24px 24px',
-                        }}
-                      />
+                {(() => {
+                  // Resolução de imagem em 3 níveis de prioridade:
+                  // 1. Foto enviada pelo usuário salva no registro PocketBase (photo)
+                  // 2. Imagem estática pré-carregada pelo mapa team_key
+                  // 3. Fallback blueprint estilizado
+                  const uploadedUrl = t.teamRecord?.photo
+                    ? pb.files.getUrl(t.teamRecord, t.teamRecord.photo, { thumb: '400x200' })
+                    : null
+                  const teamKeyNormalized = (t.teamRecord?.team_key || t.key || '')
+                    .toLowerCase()
+                    .trim()
+                  const staticCarImg = TEAM_CAR_IMAGES[teamKeyNormalized] || null
+                  const carBannerSrc = uploadedUrl || staticCarImg
 
-                      {/* Silhueta lateral vetorial de monoposto F1 2026 */}
+                  return (
+                    <div className="relative w-full aspect-[16/9] max-h-56 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group">
+                      {carBannerSrc ? (
+                        <>
+                          <img
+                            src={carBannerSrc}
+                            alt={`Carro F1 2026 - ${t.name}`}
+                            className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                          />
+                          {/* Leve gradiente para escurecimento suave e contraste com badges/legendas */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-[#0B0E14]/40 pointer-events-none" />
 
-                      {/* Legenda Blueprint */}
-                      <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] font-mono text-[#8B95A7]">
-                        <span
-                          className="inline-block w-2 h-2 rounded-full"
-                          style={{ backgroundColor: t.color }}
-                        />
-                        <span>F1 2026 SPEC BLUEPRINT // {t.name.toUpperCase()}</span>
-                      </div>
+                          {/* Identificação sutil no rodapé da imagem */}
+                          <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] font-mono text-[#F5F7FA]/90 drop-shadow-md">
+                            <span
+                              className="inline-block w-2 h-2 rounded-full shadow-sm"
+                              style={{ backgroundColor: t.color }}
+                            />
+                            <span className="font-semibold tracking-wide">
+                              {uploadedUrl ? 'FOTO HOMOLOGADA' : 'LIVERY 2026'} //{' '}
+                              {t.name.toUpperCase()}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        /* Placeholder vetorial blueprint (silhueta lateral de F1 estilizada) */
+                        <div className="w-full h-full flex flex-col items-center justify-center p-4 relative bg-gradient-to-b from-[#0e131b] to-[#070a0e] select-none">
+                          {/* Grid de fundo estilo engenharia/blueprint */}
+                          <div
+                            className="absolute inset-0 opacity-15 pointer-events-none"
+                            style={{
+                              backgroundImage: `linear-gradient(to right, ${t.color}40 1px, transparent 1px), linear-gradient(to bottom, ${t.color}40 1px, transparent 1px)`,
+                              backgroundSize: '24px 24px',
+                            }}
+                          />
+
+                          {/* Legenda Blueprint */}
+                          <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] font-mono text-[#8B95A7]">
+                            <span
+                              className="inline-block w-2 h-2 rounded-full"
+                              style={{ backgroundColor: t.color }}
+                            />
+                            <span>F1 2026 SPEC BLUEPRINT // {t.name.toUpperCase()}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Botão de Upload exclusivo para a equipe do jogador */}
+                      {isUser && (
+                        <div className="absolute top-2.5 right-2.5 z-10">
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={handlePhotoUpload}
+                            disabled={uploadingPhoto}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploadingPhoto}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-lg backdrop-blur-md transition-all hover:border-cyan-400"
+                            title="Enviar foto lateral do carro"
+                          >
+                            {uploadingPhoto ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                                <span>Enviando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>{t.teamRecord?.photo ? 'Trocar Foto' : 'Foto do Carro'}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {/* Botão de Upload exclusivo para a equipe do jogador */}
-                  {isUser && (
-                    <div className="absolute top-2.5 right-2.5 z-10">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={handlePhotoUpload}
-                        disabled={uploadingPhoto}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadingPhoto}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-lg backdrop-blur-md transition-all hover:border-cyan-400"
-                        title="Enviar foto lateral do carro"
-                      >
-                        {uploadingPhoto ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                            <span>Enviando...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>{t.teamRecord?.photo ? 'Trocar Foto' : 'Foto do Carro'}</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  )
+                })()}
 
                 <CardHeader className="pb-3 pt-4">
                   <div className="flex items-start justify-between gap-3">
