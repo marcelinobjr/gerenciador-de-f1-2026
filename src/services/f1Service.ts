@@ -449,11 +449,14 @@ export const f1Service = {
     }
 
     // 4. Initial sponsor matching official prestige
-    const sponsorVal = Math.round(officialData.strength * 350000)
+    // Economia F1 2026: Patrocinadores cobrem ~90% dos custos nas equipes grandes (~R$ 8M/GP)
+    // e ~70% nas pequenas (~R$ 4.5M/GP), complementadas pela premiação anual de construtores (R$ 175M a R$ 70M)
+    const sponsorRatio = 0.7 + ((officialData.strengthRating - 3.0) / 7.0) * 0.2 // 70% a 90%
+    const sponsorVal = Math.round((215000000 / 24) * sponsorRatio)
     await pb.collection('sponsors').create({
       name: `${officialData.name.split(' ')[0]} Global Partner`,
       value_per_round: sponsorVal,
-      requirement: 'Sem exigência',
+      requirement: 'Top 10 no GP',
       status: 'ativo',
       rounds_remaining: 24,
       team_id: newTeam.id,
@@ -559,9 +562,9 @@ export const f1Service = {
       chassis_level: 45,
       aero_level: 45,
       strategy_level: 45,
-      budget: initialBudget,
+      budget: 135000000,
       engine_supplier: engineSupplier,
-      strength: initialStrength,
+      strength: 35,
       is_custom: true,
       team_key: 'custom_12th',
       user_id: userId,
@@ -593,10 +596,11 @@ export const f1Service = {
       })
     }
 
-    // 4. Initial modest sponsor (rebalanceado: R$ 2,5M por GP para aperto orçamentário)
+    // 4. Initial modest sponsor (~70% do custo operacional por GP: ~R$ 6,2M/GP)
+    const customSponsorPerRound = Math.round((215000000 / 24) * 0.7)
     await pb.collection('sponsors').create({
       name: 'Venture Capital Motorsport',
-      value_per_round: 2500000,
+      value_per_round: customSponsorPerRound,
       requirement: 'Sem exigência',
       status: 'ativo',
       rounds_remaining: 24,
@@ -891,13 +895,48 @@ export const f1Service = {
     }
   },
 
+  // Premiação anual oficial da FIA por posição no campeonato de Construtores (P1: R$ 175M até P12: R$ 70M)
+  CONSTRUCTOR_PRIZE_BY_RANK: {
+    1: 175000000,
+    2: 160000000,
+    3: 147000000,
+    4: 135000000,
+    5: 124000000,
+    6: 114000000,
+    7: 104000000,
+    8: 95000000,
+    9: 87000000,
+    10: 80000000,
+    11: 74000000,
+    12: 70000000,
+  } as Record<number, number>,
+
   // Start Next Season (e.g. 2027) after End-of-Season Market Moves
   async startNextSeason(
     currentSeasonId: string,
     teamId: string,
     nextYear = 2027,
+    playerFinalConstructorRank = 1,
   ): Promise<SeasonModel> {
     try {
+      // 0. Pagar premiação anual FIA baseada na colocação do jogador nos construtores
+      const prizeAmount = this.CONSTRUCTOR_PRIZE_BY_RANK[playerFinalConstructorRank] || 70000000
+      try {
+        const teamRec = await pb.collection('teams').getOne<TeamModel>(teamId)
+        const updatedBudget = (teamRec.budget || 0) + prizeAmount
+        await pb.collection('teams').update(teamId, {
+          budget: updatedBudget,
+          cost_cap_spent: 0, // Novo teto de gastos no novo ano
+        })
+        await this.addEvent(
+          teamId,
+          `🏆 PREMIAÇÃO FIA DE CONSTRUTORES: P${playerFinalConstructorRank} conquistado! Repasse anual de R$ ${(prizeAmount / 1000000).toFixed(0)}M creditado nos cofres da equipe para financiar a temporada ${nextYear}!`,
+          'patrocinio',
+        )
+      } catch (err) {
+        console.warn('Erro ao creditar premiação anual de construtores:', err)
+      }
+
       // 1. Reset race results for the new season or delete them
       try {
         const results = await pb.collection('race_results').getFullList({

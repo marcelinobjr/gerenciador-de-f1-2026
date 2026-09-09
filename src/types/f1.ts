@@ -8,6 +8,8 @@ export interface TeamModel {
   budget: number
   engine_supplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
   strength?: number // 0-100 rating baseado em momento atual + história
+  strength_rating?: number // 0-10 rating exato do usuário (ex: 10.0, 9.1, 3.7)
+  strength_verdict?: string // Parecer textual do usuário
   is_custom?: boolean // true se criada pelo jogador (12ª equipe)
   team_key?: string // chave da equipe se for do grid oficial ('mclaren', 'ferrari', etc)
   reserve_setup_bonus?: boolean // true se o piloto reserva treinou no FP e gerou bônus de setup
@@ -193,6 +195,14 @@ export interface DriverRaceStrategy {
   pitStops: PitStopPlan[] // Até 4 paradas planejadas
 }
 
+export interface DriverCarSetup {
+  driverId: string
+  wing_level: number // 1 a 10
+  suspension_stiffness: number // 1 a 10
+  pu_electric_ratio: number // 20 a 80
+  tire_compound?: TireCompound
+}
+
 export interface SessionSetupModel {
   id?: string
   team_id: string
@@ -207,6 +217,7 @@ export interface SessionSetupModel {
   second_tire_compound?: TireCompound
   driver_wear?: number
   driver_strategies?: Record<string, DriverRaceStrategy> // Estratégia customizada por piloto (driverId -> strategy)
+  driver_setups?: Record<string, DriverCarSetup> // Setup individual por piloto (asa, suspensão, balanço elétrico)
   notes?: string
 }
 

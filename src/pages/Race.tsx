@@ -230,9 +230,37 @@ export default function RacePage() {
 
   // Tire inventory for the GP weekend (allotment counts and individual sets per driver)
   const [tireStock, setTireStock] = useState<TireAllotment>({ ...INITIAL_ALLOTMENT })
-  const [playerTireSets, setPlayerTireSets] = useState<TireSetItem[]>(() =>
-    createInitialTireInventory(),
+  // Inventário de 13 jogos de pneus da FIA 100% individual por piloto (driverId -> TireSetItem[])
+  const [driverTireInventories, setDriverTireInventories] = useState<Record<string, TireSetItem[]>>(
+    {},
   )
+
+  // Backward compatibility accessor for current driver selected
+  const playerTireSets = useMemo(() => {
+    if (selectedDriverSetupId && driverTireInventories[selectedDriverSetupId]) {
+      return driverTireInventories[selectedDriverSetupId]
+    }
+    const firstKey = Object.keys(driverTireInventories)[0]
+    return firstKey ? driverTireInventories[firstKey] : createInitialTireInventory()
+  }, [driverTireInventories, selectedDriverSetupId])
+
+  // Inicializar inventário individual para cada piloto titular do jogador (13 jogos cada, sem compartilhar)
+  useEffect(() => {
+    if (drivers.length > 0 && team?.id) {
+      setDriverTireInventories((prev) => {
+        const next = { ...prev }
+        let changed = false
+        const playerDrivers = drivers.filter((d) => d.team_id === team.id && d.role !== 'reserva')
+        for (const drv of playerDrivers) {
+          if (!next[drv.id] || next[drv.id].length === 0) {
+            next[drv.id] = createInitialTireInventory(drv.id)
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+    }
+  }, [drivers, team?.id])
 
   // Estratégias de corrida personalizadas por piloto (até 4 paradas planejáveis)
   const [driverStrategies, setDriverStrategies] = useState<Record<string, DriverRaceStrategy>>({})
@@ -265,9 +293,19 @@ export default function RacePage() {
   const [raceIncidents, setRaceIncidents] = useState<string[]>([])
   const [safetyCarActive, setSafetyCarActive] = useState(false)
 
-  // Live race feed & simulation settings
+  // Live race pause & interval control
+  const [isRacePaused, setIsRacePaused] = useState<boolean>(false)
+  const isRacePausedRef = useRef<boolean>(false)
+  const liveRaceTimerRef = useRef<any>(null)
+
+  // Sincroniza ref com estado de pausa para leitura dentro do loop assíncrono da corrida
+  useEffect(() => {
+    isRacePausedRef.current = isRacePaused
+  }, [isRacePaused])
+
+  // Live race feed & simulation settings (0.5x, 1x, 2x, 4x, Rapido)
   const [liveEvents, setLiveEvents] = useState<LiveRaceEvent[]>([])
-  const [simSpeed, setSimSpeed] = useState<number>(1) // 1x, 2x, 4x, or instant
+  const [simSpeed, setSimSpeed] = useState<number>(1) // 0.5, 1, 2, 4
   const [autoSimulateWithoutPause, setAutoSimulateWithoutPause] = useState<boolean>(false)
 
   // Modals for tactical decisions during race
@@ -427,11 +465,74 @@ export default function RacePage() {
     return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
   }, [team?.engine_supplier])
 
-  // Setup Engineering Feedback for active session
+  // Selected driver for individual car setup & telemetry view in practice/qualy/race
+  const [selectedDriverSetupId, setSelectedDriverSetupId] = useState<string>('')
+
+  // Set default selected driver once drivers load
+  useEffect(() => {
+    if (!selectedDriverSetupId && drivers.length > 0) {
+      const titular = drivers.find((d) => d.role !== 'reserva' && d.team_id === team?.id)
+      if (titular) setSelectedDriverSetupId(titular.id)
+    }
+  }, [drivers, team?.id, selectedDriverSetupId])
+
+  // Get car setup specific to a driver in a session (defaults to base session setup)
+  const getDriverCarSetup = (sessionKey: WeekendSession, driverId: string): DriverCarSetup => {
+    const sess = setups[sessionKey]
+    if (sess?.driver_setups && sess.driver_setups[driverId]) {
+      return sess.driver_setups[driverId]
+    }
+    return {
+      driverId,
+      wing_level: sess?.wing_level ?? gpInfo.downforceIdeal ?? 6,
+      suspension_stiffness: sess?.suspension_stiffness ?? gpInfo.suspensionIdeal ?? 6,
+      pu_electric_ratio: sess?.pu_electric_ratio ?? 50,
+      tire_compound: sess?.tire_compound ?? 'medio',
+    }
+  }
+
+  // Update car setup for a specific driver
+  const updateDriverCarSetup = (
+    sessionKey: WeekendSession,
+    driverId: string,
+    field: keyof DriverCarSetup,
+    value: any,
+  ) => {
+    setSetups((prev) => {
+      const currentSess = prev[sessionKey]
+      const existingDriverSetup = getDriverCarSetup(sessionKey, driverId)
+      const updatedDriverSetup = {
+        ...existingDriverSetup,
+        [field]: value,
+      }
+      return {
+        ...prev,
+        [sessionKey]: {
+          ...currentSess,
+          driver_setups: {
+            ...(currentSess.driver_setups || {}),
+            [driverId]: updatedDriverSetup,
+          },
+        },
+      }
+    })
+  }
+
+  // Setup Engineering Feedback for active session and selected driver
   const setupFeedback = useMemo(() => {
     const currentSetup = setups[activeSession]
-    return analyzeSetupEngineering(currentSetup, gpInfo)
-  }, [setups, activeSession, gpInfo])
+    const effectiveSetup =
+      selectedDriverSetupId && currentSetup.driver_setups?.[selectedDriverSetupId]
+        ? {
+            ...currentSetup,
+            wing_level: currentSetup.driver_setups[selectedDriverSetupId].wing_level,
+            suspension_stiffness:
+              currentSetup.driver_setups[selectedDriverSetupId].suspension_stiffness,
+            pu_electric_ratio: currentSetup.driver_setups[selectedDriverSetupId].pu_electric_ratio,
+          }
+        : currentSetup
+    return analyzeSetupEngineering(effectiveSetup, gpInfo)
+  }, [setups, activeSession, gpInfo, selectedDriverSetupId])
 
   // Player Car Overall Level & Condition Penalty
   const { playerCarLevel, avgPartCondition } = useMemo(() => {
@@ -633,20 +734,29 @@ export default function RacePage() {
     }
   }
 
-  // Iniciar Próxima Temporada (2027) com grid atualizado
+  // Iniciar Próxima Temporada (2027) com grid atualizado e pagamento de premiação de construtores
   const handleStartNextSeason = async () => {
     if (!season || !team) return
     setIsStartingNewSeason(true)
     try {
       const nextYear = (season.year || 2026) + 1
-      await f1Service.startNextSeason(season.id, team.id, nextYear)
+      // Determinar colocação final nos construtores do jogador
+      let playerRank = 1
+      try {
+        const cStandings = await f1Service.getConstructorStandings(season.id)
+        const idx = cStandings.findIndex((c) => c.team_id === team.id || c.name === team.name)
+        if (idx >= 0) playerRank = idx + 1
+      } catch (err) {
+        console.warn('Erro ao obter posição de construtores final:', err)
+      }
+      await f1Service.startNextSeason(season.id, team.id, nextYear, playerRank)
       await refreshTeamAndSeason()
       setSillySeasonModalOpen(false)
       setSeasonCompleted(false)
+      const prize = f1Service.CONSTRUCTOR_PRIZE_BY_RANK[playerRank] || 70000000
       toast({
         title: `🏆 Temporada ${nextYear} Iniciada!`,
-        description:
-          'Os carros foram revisados, novos contratos vigentes e a rodada 1 está liberada!',
+        description: `Premiação de P${playerRank} nos Construtores paga: R$ ${(prize / 1000000).toFixed(0)}M adicionados ao saldo!`,
       })
       navigate('/')
     } catch (err: any) {
@@ -686,16 +796,18 @@ export default function RacePage() {
       })
     }
   }
-  // Calculate setup penalty for a session (deviations from track ideal)
-  const calculateSetupDelta = (sessionKey: WeekendSession) => {
+  // Calculate setup penalty for a session, optionally per driver (deviations from track ideal)
+  const calculateSetupDelta = (sessionKey: WeekendSession, driverId?: string) => {
     const current = setups[sessionKey]
+    const driverSetup =
+      driverId && current.driver_setups?.[driverId] ? current.driver_setups[driverId] : current
     const idealWing = gpInfo.downforceIdeal || 6
     const idealSuspension = gpInfo.suspensionIdeal || 6
 
-    const wingDiff = Math.abs(current.wing_level - idealWing)
-    const suspDiff = Math.abs(current.suspension_stiffness - idealSuspension)
+    const wingDiff = Math.abs(driverSetup.wing_level - idealWing)
+    const suspDiff = Math.abs(driverSetup.suspension_stiffness - idealSuspension)
     // 50/50 balance deviation from 50
-    const puDiff = Math.abs(current.pu_electric_ratio - 50) / 10
+    const puDiff = Math.abs(driverSetup.pu_electric_ratio - 50) / 10
 
     // Total penalty: 0 to 6 seconds per lap score
     const penalty = wingDiff * 0.8 + suspDiff * 0.6 + puDiff * 0.4
@@ -1540,9 +1652,24 @@ export default function RacePage() {
     const wingDamageLap =
       Math.random() < 0.4 ? Math.round(totalLaps * (0.22 + Math.random() * 0.45)) : null
 
+    // Seletor de velocidade: 0.5x, 1x, 2x, 4x, Rápido (autoSimulateWithoutPause)
+    // 0.5x: 1300ms por volta (tempo folgado para ler feed e telemetria)
+    // 1x: 650ms por volta
+    // 2x: 325ms por volta
+    // 4x: 162ms por volta
+    // Rápido: 80ms por volta
     const stepIntervalMs = autoSimulateWithoutPause ? 80 : Math.max(150, Math.round(650 / simSpeed))
 
+    if (liveRaceTimerRef.current) {
+      clearInterval(liveRaceTimerRef.current)
+    }
+
     const timer = setInterval(() => {
+      // Se a corrida estiver pausada pelo usuário, não avança a volta e aguarda retorno
+      if (isRacePausedRef.current) {
+        return
+      }
+
       currentLap += 1
       const pct = Math.min(99, Math.round((currentLap / totalLaps) * 100))
       setSimProgress(pct)
@@ -1911,9 +2038,46 @@ export default function RacePage() {
       // Check if race laps completed
       if (currentLap >= totalLaps) {
         clearInterval(timer)
+        liveRaceTimerRef.current = null
         finishRaceSimulation(currentGrid, currentWeather)
       }
     }, stepIntervalMs)
+
+    liveRaceTimerRef.current = timer
+  }
+
+  // Toggle Pausa Manual na Corrida ao Vivo
+  const toggleRacePause = () => {
+    setIsRacePaused((prev) => {
+      const next = !prev
+      isRacePausedRef.current = next
+      if (next) {
+        toast({
+          title: '⏸️ Corrida Pausada',
+          description:
+            'A simulação foi congelada. Você pode analisar a telemetria completa dos 24 carros abaixo com calma e retomar quando desejar.',
+        })
+      } else {
+        toast({
+          title: '▶️ Corrida Retomada',
+          description: `Simulação em andamento na velocidade ${simSpeed}x.`,
+        })
+      }
+      return next
+    })
+  }
+
+  // Restart loop when simSpeed changes during live race
+  const changeSimSpeed = (newSpeed: number, instant: boolean = false) => {
+    setSimSpeed(newSpeed)
+    setAutoSimulateWithoutPause(instant)
+    if (liveRaceState && isSimulatingSession && !instant) {
+      // Restart interval with new speed seamlessly
+      if (liveRaceTimerRef.current) {
+        clearInterval(liveRaceTimerRef.current)
+      }
+      runLiveRaceLoop(liveRaceState.grid, liveRaceState.currentLap, liveRaceState.weather)
+    }
   }
 
   // Handle Player Rain Decision (Intermediate, Extreme Wet, or Wait X laps)

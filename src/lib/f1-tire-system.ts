@@ -73,31 +73,72 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
 }
 
 /**
- * Cria a alocação inicial completa de jogos de pneus individuais para o fim de semana.
- * Cada piloto tem: 2 duros / 3 médios / 3 macios / 4 intermediários / 3 chuva extrema
+ * Cria a alocação oficial da FIA de 13 jogos de pneus 100% individual por piloto:
+ * 2 Duros (Branco)
+ * 3 Médios (Amarelo)
+ * 3 Macios (Vermelho)
+ * 4 Intermediários (Verde)
+ * 3 Chuva Extrema (Azul)
+ * Total: 13 jogos sem compartilhamento entre companheiros de equipe.
  */
-export function createInitialTireInventory(): TireSetItem[] {
+export function createInitialTireInventory(driverId?: string): TireSetItem[] {
   const inventory: TireSetItem[] = []
+  const pfx = driverId ? `${driverId}_` : ''
 
   // 2 Duros
   for (let i = 1; i <= 2; i++) {
-    inventory.push({ id: `duro_${i}`, compound: 'duro', wear: 0, lapsUsed: 0 })
+    inventory.push({
+      id: `${pfx}duro_${i}`,
+      driverId,
+      compound: 'duro',
+      wear: 0,
+      lapsUsed: 0,
+      isFitted: false,
+    })
   }
   // 3 Médios
   for (let i = 1; i <= 3; i++) {
-    inventory.push({ id: `medio_${i}`, compound: 'medio', wear: 0, lapsUsed: 0 })
+    inventory.push({
+      id: `${pfx}medio_${i}`,
+      driverId,
+      compound: 'medio',
+      wear: 0,
+      lapsUsed: 0,
+      isFitted: false,
+    })
   }
   // 3 Macios
   for (let i = 1; i <= 3; i++) {
-    inventory.push({ id: `macio_${i}`, compound: 'macio', wear: 0, lapsUsed: 0 })
+    inventory.push({
+      id: `${pfx}macio_${i}`,
+      driverId,
+      compound: 'macio',
+      wear: 0,
+      lapsUsed: 0,
+      isFitted: false,
+    })
   }
   // 4 Intermediários
   for (let i = 1; i <= 4; i++) {
-    inventory.push({ id: `intermediario_${i}`, compound: 'intermediario', wear: 0, lapsUsed: 0 })
+    inventory.push({
+      id: `${pfx}intermediario_${i}`,
+      driverId,
+      compound: 'intermediario',
+      wear: 0,
+      lapsUsed: 0,
+      isFitted: false,
+    })
   }
   // 3 Chuva Extrema
   for (let i = 1; i <= 3; i++) {
-    inventory.push({ id: `chuva_extrema_${i}`, compound: 'chuva_extrema', wear: 0, lapsUsed: 0 })
+    inventory.push({
+      id: `${pfx}chuva_extrema_${i}`,
+      driverId,
+      compound: 'chuva_extrema',
+      wear: 0,
+      lapsUsed: 0,
+      isFitted: false,
+    })
   }
 
   return inventory
@@ -253,13 +294,9 @@ export function calculateLapPerformanceScoreDelta(
   const compoundBasePoints = -spec.deltaPerLapSec * 18
   scoreDelta += compoundBasePoints
 
-  // 2. Penalidade por desgaste % (pneu usado perde grip linear e acelerado após 65%)
-  const wearPenalty =
-    wearPercent < 30
-      ? wearPercent * 0.15
-      : wearPercent < 65
-        ? 4.5 + (wearPercent - 30) * 0.35
-        : 16.75 + (wearPercent - 65) * 0.95
+  // 2. Penalidade por desgaste % (pneu usado perde grip proporcional ao desgaste: ~+1,8s/volta a 100% de desgaste)
+  // 1.8s/volta * 18 pts/s ≈ ~32.4 pontos de perda total a 100% de desgaste
+  const wearPenalty = (wearPercent / 100) * 32.4
   scoreDelta -= wearPenalty
 
   // 3. Adequação climática
