@@ -25,7 +25,9 @@ import {
   calculateDriverTireWearProfile,
   calculateTireCliffStatus,
   TireCliffStatus,
+  isTireInCliff,
 } from '@/lib/f1-tire-system'
+import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { DriverRaceStrategy } from '@/types/f1'
 import { analyzeSetupEngineering } from '@/lib/setup-advisor'
 import { formatCurrency } from '@/lib/formatters'
@@ -1444,6 +1446,13 @@ export default function RacePage() {
       const gridScoreAdvantage = (24 - gridPosition) * 0.8
       const penalty = isPlayerDriver ? engineWearDeduction + poolPenaltyNum : 0
 
+      const initialCliff = isTireInCliff(
+        driver.tireCompound || 'medio',
+        1,
+        driver.wearMultiplier ?? 1.0,
+        abrasiveness,
+      )
+
       initialGrid.push({
         driverId: driver.driverId,
         driverName: driver.driverName,
@@ -1463,6 +1472,14 @@ export default function RacePage() {
         secondCompound: driver.secondCompound,
         pitLap: driver.pitLap,
         tireWear: 5, // initial fresh wear
+        lapsOnCurrentTire: 1,
+        cliffStatus: calculateTireCliffStatus({
+          compound: driver.tireCompound || 'medio',
+          lapsOnTire: 1,
+          wearPercent: 5,
+          wearMultiplier: driver.wearMultiplier ?? 1.0,
+          trackAbrasiveness: abrasiveness,
+        }),
         driverFatigue: driver.driverFatigue,
         morale: driver.morale,
         physicalCondition: driver.physicalCondition,
@@ -1705,6 +1722,7 @@ export default function RacePage() {
         let nextCompound = entry.tireCompound
         let pitStops = entry.pitStopsDone || 0
         let didPitThisLap = false
+        const lapsOnCurrentTire = (entry.lapsOnCurrentTire || 1) + 1
 
         // 1. Check Player Planned Pit Stops (até 4 paradas planejáveis)
         if (entry.isPlayer && entry.strategyPlan && entry.strategyPlan.length > 0) {
@@ -1750,8 +1768,26 @@ export default function RacePage() {
           }
         }
 
-        // 2. AI regular pit stop execution when pitLap reached or when wear > 82%
-        if (!entry.isPlayer && (entry.pitLap === currentLap || currentWear >= 82) && pitStops < 4) {
+        // 2. AI regular or anticipated pit stop execution
+        // Regra de antecipação do Macio: se faltam ~2 voltas para o limiar de cliff, antecipa o pit
+        let shouldAiAnticipateSoftCliff = false
+        if (!entry.isPlayer && entry.tireCompound === 'macio' && pitStops < 4) {
+          const softDriverFactor = Math.max(0.75, Math.min(1.35, driverMultiplier))
+          const abrasivenessFactor = 1 + (abrasiveness - 5) * 0.07
+          const effectiveCliffThreshold = Math.max(
+            6,
+            Math.round(spec.cliffLapThreshold / (softDriverFactor * abrasivenessFactor)),
+          )
+          if (lapsOnCurrentTire >= effectiveCliffThreshold - 2) {
+            shouldAiAnticipateSoftCliff = true
+          }
+        }
+
+        if (
+          !entry.isPlayer &&
+          (entry.pitLap === currentLap || currentWear >= 82 || shouldAiAnticipateSoftCliff) &&
+          pitStops < 4
+        ) {
           didPitThisLap = true
           // If dry, switch between slick compounds; if wet, stay on right wet tire
           if (currentWeather === 'seco') {
@@ -1776,12 +1812,16 @@ export default function RacePage() {
 
           // Calculate pit stop duration for AI
           const pitResult = calculatePitStopDuration(entry.teamName, entry.driverName, false, 75)
+          const pitReasonMsg = shouldAiAnticipateSoftCliff
+            ? `⚡ PIT ANTECIPADO (IA): ${entry.driverName} antecipou a parada nos boxes a ~2 voltas do cliff do pneu macio! ${pitResult.narrativeText}`
+            : pitResult.narrativeText
+
           setLiveEvents((prev) => [
             {
               id: `ev_ai_pit_${currentLap}_${entry.driverId}`,
               lap: currentLap,
               type: 'pit_stop',
-              message: pitResult.narrativeText,
+              message: pitReasonMsg,
               driverName: entry.driverName,
               teamColor: entry.teamColor,
               isPlayer: false,
@@ -1795,23 +1835,30 @@ export default function RacePage() {
           ])
         }
 
-        // Apply lap performance delta based on tire and weather
+        const effectiveLapsOnTire = didPitThisLap ? 1 : lapsOnCurrentTire
+        const effectiveWear = didPitThisLap ? (entry.isPlayer ? 4 : 5) : currentWear
+
+        // Apply lap performance delta based on tire, wear, laps and weather
         const perfDelta = calculateLapPerformanceScoreDelta(
           nextCompound || 'medio',
-          currentWear,
+          effectiveWear,
           currentWeather,
+          effectiveLapsOnTire,
+          driverMultiplier,
+          abrasiveness,
         )
         const updatedScore = entry.score + perfDelta.scoreDelta * 0.1
 
         return {
           ...entry,
           score: updatedScore,
-          tireWear: didPitThisLap ? (entry.isPlayer ? 4 : 5) : currentWear,
+          tireWear: effectiveWear,
           tireCompound: nextCompound,
           pitStopsDone: pitStops,
+          lapsOnCurrentTire: effectiveLapsOnTire,
+          cliffStatus: perfDelta.cliffStatus,
         }
       })
-
       // Sort grid dynamically based on accumulated race score
       const sortedActiveGrid = [...currentGrid].sort((a, b) => {
         if (a.dnf && !b.dnf) return 1
@@ -1833,10 +1880,12 @@ export default function RacePage() {
           }
         }
 
-        // Realistic last lap time with small noise and tire delta
+        // Realistic last lap time with small noise, compound delta, wear penalty and cliff penalty
         const compoundDelta = TIRE_SPECS[entry.tireCompound || 'medio']?.deltaPerLapSec || 0
         const wearPenalty = ((entry.tireWear || 0) / 100) * 1.8
-        const driverLapSec = baseLapSec + compoundDelta + wearPenalty + (Math.random() - 0.5) * 0.35
+        const cliffPenalty = entry.cliffStatus?.extraLapTimeSec || 0
+        const driverLapSec =
+          baseLapSec + compoundDelta + wearPenalty + cliffPenalty + (Math.random() - 0.5) * 0.35
         const lapMin = Math.floor(driverLapSec / 60)
         const lapRemSec = (driverLapSec % 60).toFixed(3)
         const formattedLap = `${lapMin}:${Number(lapRemSec) < 10 ? '0' : ''}${lapRemSec}`
@@ -2119,6 +2168,14 @@ export default function RacePage() {
         entry.tireCompound = optimalAiWet
         entry.tireWear = 8
         entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+        entry.lapsOnCurrentTire = 1
+        entry.cliffStatus = calculateTireCliffStatus({
+          compound: optimalAiWet,
+          lapsOnTire: 1,
+          wearPercent: 8,
+          wearMultiplier: entry.wearMultiplier ?? 1.0,
+          trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+        })
 
         const aiPit = calculatePitStopDuration(entry.teamName, entry.driverName, false, 78)
         setLiveEvents((prev) => [
@@ -2189,6 +2246,14 @@ export default function RacePage() {
               currentWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
             entry.tireCompound = autoWet
             entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+            entry.lapsOnCurrentTire = 1
+            entry.cliffStatus = calculateTireCliffStatus({
+              compound: autoWet,
+              lapsOnTire: 1,
+              wearPercent: entry.tireWear || 5,
+              wearMultiplier: entry.wearMultiplier ?? 1.0,
+              trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+            })
             if (tireStock[autoWet] > 0) {
               setTireStock((prev) => ({
                 ...prev,
@@ -2238,6 +2303,14 @@ export default function RacePage() {
           entry.tireCompound = chosenTire
           entry.tireWear = 6
           entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+          entry.lapsOnCurrentTire = 1
+          entry.cliffStatus = calculateTireCliffStatus({
+            compound: chosenTire,
+            lapsOnTire: 1,
+            wearPercent: 6,
+            wearMultiplier: entry.wearMultiplier ?? 1.0,
+            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+          })
         }
       })
     }
@@ -2291,6 +2364,14 @@ export default function RacePage() {
           entry.tireCompound = wingDamageTireChoice
           entry.tireWear = 6 // Fresh rubber
           entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+          entry.lapsOnCurrentTire = 1
+          entry.cliffStatus = calculateTireCliffStatus({
+            compound: wingDamageTireChoice,
+            lapsOnTire: 1,
+            wearPercent: 6,
+            wearMultiplier: entry.wearMultiplier ?? 1.0,
+            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+          })
           entry.score -= 8 // Nose change delay
         }
       })
@@ -2405,6 +2486,14 @@ export default function RacePage() {
           entry.tireCompound = safetyCarTireChoice
           entry.tireWear = 5 // Fresh tires
           entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+          entry.lapsOnCurrentTire = 1
+          entry.cliffStatus = calculateTireCliffStatus({
+            compound: safetyCarTireChoice,
+            lapsOnTire: 1,
+            wearPercent: 5,
+            wearMultiplier: entry.wearMultiplier ?? 1.0,
+            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+          })
           entry.score += 6 // Tactical gain: fresh tires with cheap delta!
         }
       })
@@ -2542,6 +2631,14 @@ export default function RacePage() {
         entry.tireCompound = selectedSet.compound
         entry.tireWear = selectedSet.wear
         entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+        entry.lapsOnCurrentTire = 1
+        entry.cliffStatus = calculateTireCliffStatus({
+          compound: selectedSet.compound,
+          lapsOnTire: 1,
+          wearPercent: selectedSet.wear,
+          wearMultiplier: entry.wearMultiplier ?? 1.0,
+          trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+        })
         // Pit stop time loss in lap score
         entry.score -= pitResult.isSlowPit ? 12 : 7
       }
@@ -3955,15 +4052,33 @@ export default function RacePage() {
                                   const wearVal = entry.tireWear || 5
                                   const tireLifePct = Math.max(0, 100 - wearVal)
 
+                                  // Checagem de cliff: se o pneu atual atingiu o limiar de cliff considerando o perfil do piloto
+                                  const lapsOnCompound = entry.lapsOnCurrentTire || 1
+                                  const cliffCheck = isTireInCliff(
+                                    entry.tireCompound || 'medio',
+                                    lapsOnCompound,
+                                    entry.wearMultiplier ?? 1.0,
+                                    gpInfo.tireAbrasiveness || 6,
+                                  )
+                                  const isInCliff =
+                                    cliffCheck.inCliff ||
+                                    Boolean(
+                                      entry.cliffStatus && entry.cliffStatus.isCliffReached > 0,
+                                    )
+
                                   return (
                                     <tr
                                       key={entry.driverId}
                                       className={`transition-colors ${
                                         isMyCar
-                                          ? 'bg-[#E10600]/15 font-semibold border-l-4 border-l-[#E10600] shadow-[inset_0_0_12px_rgba(225,6,0,0.15)] ring-1 ring-[#E10600]/40'
+                                          ? isInCliff
+                                            ? 'bg-red-950/40 font-semibold border-l-4 border-l-red-500 shadow-[inset_0_0_16px_rgba(239,68,68,0.3)] ring-1 ring-red-500/60'
+                                            : 'bg-[#E10600]/15 font-semibold border-l-4 border-l-[#E10600] shadow-[inset_0_0_12px_rgba(225,6,0,0.15)] ring-1 ring-[#E10600]/40'
                                           : entry.dnf
                                             ? 'opacity-40 bg-red-950/20'
-                                            : 'hover:bg-[#161D29]/50'
+                                            : isInCliff
+                                              ? 'bg-red-950/20 hover:bg-red-950/30'
+                                              : 'hover:bg-[#161D29]/50'
                                       }`}
                                     >
                                       {/* Pos */}
@@ -4001,6 +4116,11 @@ export default function RacePage() {
                                                   MEU CARRO
                                                 </Badge>
                                               )}
+                                              {isMyCar && isInCliff && (
+                                                <Badge className="bg-red-600 text-white text-[9px] px-1.5 py-0 h-3.5 font-extrabold animate-bounce border border-red-400">
+                                                  BOX URGENTE
+                                                </Badge>
+                                              )}
                                               {entry.hasWingDamage && (
                                                 <Badge
                                                   variant="destructive"
@@ -4032,6 +4152,23 @@ export default function RacePage() {
                                           <span className="text-[10px] text-[#8B95A7] capitalize">
                                             {entry.tireCompound?.slice(0, 3)}
                                           </span>
+                                          {isInCliff && (
+                                            <Badge
+                                              variant="destructive"
+                                              className={`text-[9px] px-1 py-0 h-4 font-bold uppercase tracking-wider bg-red-600 text-white animate-pulse border-red-500 shadow-sm ${
+                                                isMyCar
+                                                  ? 'ring-1 ring-white/70 shadow-red-500/50'
+                                                  : ''
+                                              }`}
+                                              title={`Pneu em Cliff! Perda de ritmo: +${(
+                                                cliffCheck.penaltyPerLap ||
+                                                entry.cliffStatus?.extraLapTimeSec ||
+                                                compoundSpec.cliffDegradationPerLapSec
+                                              ).toFixed(2)}s/volta`}
+                                            >
+                                              CLIFF
+                                            </Badge>
+                                          )}
                                         </div>
                                       </td>
 

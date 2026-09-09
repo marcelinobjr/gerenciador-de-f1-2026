@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { OFFICIAL_GRID_TEAMS, getAICompetitors, OfficialGridTeam } from '@/lib/f1-data'
+import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import {
   simulateAiGridFiaStandings,
   normalizeEntityName,
@@ -616,6 +617,48 @@ export default function TeamsPage() {
                     <span className="text-[#8B95A7]">Parecer Oficial:</span>
                     <strong className="text-amber-300 font-bold">{t.strengthVerdict}</strong>
                   </div>
+
+                  {/* Indicador de Ritmo Combinado de Corrida (Carro 70% + Pilotos 30%) */}
+                  {(() => {
+                    const paceD1 = calculateCombinedPace({
+                      teamStrength: t.strengthRating,
+                      driver: {
+                        speed: t.driver1.speed,
+                        consistency: t.driver1.consistency,
+                      },
+                    })
+                    const paceD2 = calculateCombinedPace({
+                      teamStrength: t.strengthRating,
+                      driver: {
+                        speed: t.driver2.speed,
+                        consistency: t.driver2.consistency,
+                      },
+                    })
+                    const avgCombined = Number(
+                      ((paceD1.combinedPerformance + paceD2.combinedPerformance) / 2).toFixed(1),
+                    )
+
+                    return (
+                      <div className="mt-2 p-2.5 rounded-lg bg-[#11161F] border border-cyan-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-cyan-400 font-bold text-[11px] uppercase tracking-wider">
+                            <span>⚡ Ritmo Combinado (Carro 70% + Piloto 30%)</span>
+                          </div>
+                          <div className="text-[10px] text-[#8B95A7] mt-0.5">
+                            Índice: <strong className="text-white">{avgCombined}/100</strong> •{' '}
+                            {t.driver1.name.split(' ').pop()}: {paceD1.combinedPerformance} pts •{' '}
+                            {t.driver2.name.split(' ').pop()}: {paceD2.combinedPerformance} pts
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="border-cyan-500/40 text-cyan-300 bg-cyan-500/10 text-[10px] font-bold self-start sm:self-auto"
+                        >
+                          {paceD1.paceVerdict}
+                        </Badge>
+                      </div>
+                    )
+                  })()}
                 </CardHeader>
 
                 <CardContent className="space-y-4 pt-1">

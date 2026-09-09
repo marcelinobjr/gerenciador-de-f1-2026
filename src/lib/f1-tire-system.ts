@@ -29,7 +29,8 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     drySuitability: 1.0,
     lightRainSuitability: 0.15,
     heavyRainSuitability: 0.05,
-    description: 'Mais rápido (~0.75s/volta vs médio), alto grip inicial, janela estreita e cliff severo (+1,5 a 3s/volta).',
+    description:
+      'Mais rápido (~0.75s/volta vs médio), alto grip inicial, janela estreita e cliff severo (+1,5 a 3s/volta).',
     baseLapsLife: 16,
     cliffLapThreshold: 14,
     cliffDegradationPerLapSec: 1.85,
@@ -45,7 +46,8 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     drySuitability: 1.0,
     lightRainSuitability: 0.12,
     heavyRainSuitability: 0.04,
-    description: 'Equilíbrio ideal entre ritmo de corrida e vida útil em pista seca, cliff equilibrado.',
+    description:
+      'Equilíbrio ideal entre ritmo de corrida e vida útil em pista seca, cliff equilibrado.',
     baseLapsLife: 28,
     cliffLapThreshold: 26,
     cliffDegradationPerLapSec: 1.15,
@@ -61,7 +63,8 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     drySuitability: 1.0,
     lightRainSuitability: 0.1,
     heavyRainSuitability: 0.03,
-    description: 'Mais consistente (~0.6s/volta vs médio), durabilidade máxima, cliff tardio e suave.',
+    description:
+      'Mais consistente (~0.6s/volta vs médio), durabilidade máxima, cliff tardio e suave.',
     baseLapsLife: 40,
     cliffLapThreshold: 38,
     cliffDegradationPerLapSec: 0.65,
@@ -413,6 +416,35 @@ export function calculateTireCliffStatus(params: {
  * Calcula o delta de pontuação/desempenho por volta de acordo com o composto e o clima atual.
  * Leva em consideração o desgaste percentual e o cliff de degradação abrupta.
  */
+/**
+ * Verifica se o pneu atingiu o limiar de cliff considerando o perfil de desgaste do piloto e abrasividade da pista.
+ * Retorna se está em cliff, voltas excedentes e penalidade por volta calculada (TIRE_SPECS).
+ */
+export function isTireInCliff(
+  tireCompound: TireCompound,
+  lapsOnTire: number,
+  driverWearProfile?: number | { multiplier?: number },
+  trackAbrasiveness: number = 6,
+): { inCliff: boolean; lapsOver: number; penaltyPerLap: number } {
+  const multiplier =
+    typeof driverWearProfile === 'number'
+      ? driverWearProfile
+      : (driverWearProfile?.multiplier ?? 1.0)
+
+  const status = calculateTireCliffStatus({
+    compound: tireCompound,
+    lapsOnTire,
+    wearMultiplier: multiplier,
+    trackAbrasiveness,
+  })
+
+  return {
+    inCliff: status.isCliffReached > 0,
+    lapsOver: status.isCliffReached,
+    penaltyPerLap: status.extraLapTimeSec,
+  }
+}
+
 export function calculateLapPerformanceScoreDelta(
   compound: TireCompound,
   wearPercent: number,

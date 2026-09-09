@@ -1,4 +1,5 @@
 import { getAICompetitors, OFFICIAL_GRID_TEAMS } from './f1-data'
+import { calculateCombinedPace } from './f1-pace-model'
 
 /**
  * Tabela oficial de pontuação FIA para Fórmula 1 (Top 10):
@@ -94,35 +95,44 @@ export function simulateAiGridFiaStandings(
     }> = []
 
     aiGrid.forEach((aiTeam, teamIdx) => {
-      const carScore = aiTeam.strength * 0.55 + aiTeam.carLevel * 0.45
-
-      // Driver 1
-      const d1Skill =
-        aiTeam.driver1.speed * 0.45 +
-        aiTeam.driver1.consistency * 0.35 +
-        aiTeam.driver1.defense * 0.2
-      // Variação pseudo-determinística por GP (seno baseado na rodada e índice do piloto)
-      const pseudoLuck1 = Math.sin(r * 12.9898 + teamIdx * 78.233) * 3.5
-      const total1 = carScore * 0.6 + d1Skill * 0.4 + pseudoLuck1
+      // Driver 1 - Modelo combinado (70% Carro, 30% Piloto)
+      const pseudoLuck1 = Math.sin(r * 12.9898 + teamIdx * 78.233) * 0.35
+      const pace1 = calculateCombinedPace({
+        teamStrength: aiTeam.strengthRating,
+        carLevel: aiTeam.carLevel,
+        driver: {
+          speed: aiTeam.driver1.speed,
+          consistency: aiTeam.driver1.consistency,
+          defense: aiTeam.driver1.defense,
+          rain: aiTeam.driver1.rain,
+        },
+        noise: pseudoLuck1,
+      })
 
       roundScores.push({
         driverKey: `${aiTeam.id}_d1`,
         teamId: aiTeam.id,
-        score: total1,
+        score: pace1.lapScore,
       })
 
-      // Driver 2
-      const d2Skill =
-        aiTeam.driver2.speed * 0.45 +
-        aiTeam.driver2.consistency * 0.35 +
-        aiTeam.driver2.defense * 0.2
-      const pseudoLuck2 = Math.cos(r * 39.346 + teamIdx * 11.135) * 3.5
-      const total2 = carScore * 0.6 + d2Skill * 0.4 + pseudoLuck2
+      // Driver 2 - Modelo combinado (70% Carro, 30% Piloto)
+      const pseudoLuck2 = Math.cos(r * 39.346 + teamIdx * 11.135) * 0.35
+      const pace2 = calculateCombinedPace({
+        teamStrength: aiTeam.strengthRating,
+        carLevel: aiTeam.carLevel,
+        driver: {
+          speed: aiTeam.driver2.speed,
+          consistency: aiTeam.driver2.consistency,
+          defense: aiTeam.driver2.defense,
+          rain: aiTeam.driver2.rain,
+        },
+        noise: pseudoLuck2,
+      })
 
       roundScores.push({
         driverKey: `${aiTeam.id}_d2`,
         teamId: aiTeam.id,
-        score: total2,
+        score: pace2.lapScore,
       })
     })
 
