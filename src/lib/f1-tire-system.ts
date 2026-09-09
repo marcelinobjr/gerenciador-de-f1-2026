@@ -12,6 +12,11 @@ export interface CompoundSpeedSpec {
   lightRainSuitability: number
   heavyRainSuitability: number
   description: string
+  baseLapsLife: number // Vida útil nominal em voltas de referência
+  cliffLapThreshold: number // A partir de quantas voltas o pneu entra na zona de cliff
+  cliffDegradationPerLapSec: number // Perda abrupta por volta adicional pós-cliff (+s/volta)
+  cliffMaxPenaltySec: number // Perda máxima acumulada no cliff
+  thermalLockupRiskBase: number // Risco térmico base de travada de roda / erro na janela crítica (0-1)
 }
 
 export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
@@ -24,7 +29,12 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     drySuitability: 1.0,
     lightRainSuitability: 0.15,
     heavyRainSuitability: 0.05,
-    description: 'Mais rápido (~0.75s/volta vs médio), alto grip mecânico e degradação rápida.',
+    description: 'Mais rápido (~0.75s/volta vs médio), alto grip inicial, janela estreita e cliff severo (+1,5 a 3s/volta).',
+    baseLapsLife: 16,
+    cliffLapThreshold: 14,
+    cliffDegradationPerLapSec: 1.85,
+    cliffMaxPenaltySec: 4.8,
+    thermalLockupRiskBase: 0.38,
   },
   medio: {
     name: 'Médio (C3)',
@@ -35,7 +45,12 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     drySuitability: 1.0,
     lightRainSuitability: 0.12,
     heavyRainSuitability: 0.04,
-    description: 'Equilíbrio ideal entre ritmo de corrida e vida útil em pista seca.',
+    description: 'Equilíbrio ideal entre ritmo de corrida e vida útil em pista seca, cliff equilibrado.',
+    baseLapsLife: 28,
+    cliffLapThreshold: 26,
+    cliffDegradationPerLapSec: 1.15,
+    cliffMaxPenaltySec: 3.2,
+    thermalLockupRiskBase: 0.18,
   },
   duro: {
     name: 'Duro (C1/C2)',
@@ -46,7 +61,12 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     drySuitability: 1.0,
     lightRainSuitability: 0.1,
     heavyRainSuitability: 0.03,
-    description: 'Mais lento (~0.6s/volta vs médio), máxima durabilidade e consistência.',
+    description: 'Mais consistente (~0.6s/volta vs médio), durabilidade máxima, cliff tardio e suave.',
+    baseLapsLife: 40,
+    cliffLapThreshold: 38,
+    cliffDegradationPerLapSec: 0.65,
+    cliffMaxPenaltySec: 2.1,
+    thermalLockupRiskBase: 0.08,
   },
   intermediario: {
     name: 'Intermediário (Inters)',
@@ -58,6 +78,11 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     lightRainSuitability: 1.0, // Perfeito em chuva fraca
     heavyRainSuitability: 0.45, // Risco em chuva forte / aquaplanagem
     description: 'Pneu com sulcos para chuva fraca e pista secando. Sobreaquece no seco.',
+    baseLapsLife: 26,
+    cliffLapThreshold: 24,
+    cliffDegradationPerLapSec: 1.0,
+    cliffMaxPenaltySec: 2.8,
+    thermalLockupRiskBase: 0.15,
   },
   chuva_extrema: {
     name: 'Chuva Extrema (Wets)',
@@ -69,6 +94,11 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     lightRainSuitability: 0.65, // Mais lento que intermediário em pouca água
     heavyRainSuitability: 1.0, // Indispensável em tempestade (drena 85L/s)
     description: 'Drena 85L/s de água. Obrigatório em chuva forte e poças profundas.',
+    baseLapsLife: 22,
+    cliffLapThreshold: 20,
+    cliffDegradationPerLapSec: 1.1,
+    cliffMaxPenaltySec: 3.0,
+    thermalLockupRiskBase: 0.12,
   },
 }
 
@@ -275,14 +305,127 @@ export function calculatePitStopDuration(
 }
 
 /**
+ * Resultado do cálculo de cliff de degradação térmica e mecânica do pneu.
+ */
+export interface TireCliffStatus {
+  isCliffReached: number // 0 = dentro da janela, > 0 = voltas além do cliff
+  isCriticalWindow: boolean // Pneu perto ou após o cliff
+  extraLapTimeSec: number // Perda abrupta em segundos adicionais por volta (1.5s - 3s+)
+  cliffWearEquivalent: number // Desgaste efetivo ajustado
+  thermalLockupRisk: number // Risco térmico de travada de roda / erro na volta
+  cliffWarning?: string // Aviso claro para rádio/UI
+  cliffBadgeText?: string // Badge resumido para telemetria (ex: "CLIFF — pneu fora da janela, perda ~2.2s/volta")
+}
+
+/**
+ * Calcula o cliff de degradação de acordo com composto, voltas no pneu, abrasividade e perfil do piloto.
+ * - Ultrapassar a vida útil (especialmente macio) causa perda abrupta (1,5 a 3s/volta crescente).
+ * - Macio: janela estreita (~14-16 voltas), cliff agressivo (+1.85s a +3.5s/volta).
+ * - Médio: equilibrado (~26-28 voltas), cliff intermediário (+1.15s/volta).
+ * - Duro: tardio e suave (~38-40 voltas), cliff moderado (+0.65s/volta).
+ * - Multiplicado pelo perfil do piloto (agressivo desgasta mais e antecipa o cliff).
+ */
+export function calculateTireCliffStatus(params: {
+  compound: TireCompound
+  lapsOnTire: number
+  wearPercent?: number
+  wearMultiplier?: number
+  trackAbrasiveness?: number // 1-10 (padrão 6)
+}): TireCliffStatus {
+  const {
+    compound,
+    lapsOnTire,
+    wearPercent = 0,
+    wearMultiplier = 1.0,
+    trackAbrasiveness = 6,
+  } = params
+
+  const spec = TIRE_SPECS[compound] || TIRE_SPECS.medio
+
+  // Abrasividade da pista ajusta o limiar de voltas para o cliff:
+  // Pista mais abrasiva (> 6) encurta a vida útil; pista lisa (< 5) estende
+  const abrasivenessFactor = 1 + (trackAbrasiveness - 5) * 0.07
+
+  // O perfil do piloto acelera ou retarda o alcance do cliff:
+  // Piloto muito agressivo (ex: 1.25) atinge o cliff bem antes (limiar cai em 1 / 1.25)
+  const driverFactor = Math.max(0.75, Math.min(1.35, wearMultiplier))
+
+  // Limiar efetivo de voltas antes de despencar no cliff
+  const effectiveCliffLap = Math.max(
+    6,
+    Math.round(spec.cliffLapThreshold / (driverFactor * abrasivenessFactor)),
+  )
+
+  const effectiveLifeLap = Math.max(
+    8,
+    Math.round(spec.baseLapsLife / (driverFactor * abrasivenessFactor)),
+  )
+
+  const lapsBeyondCliff = Math.max(0, lapsOnTire - effectiveCliffLap)
+  const isCliffReached = lapsBeyondCliff
+  const isCriticalWindow = lapsOnTire >= effectiveCliffLap - 2 || wearPercent >= 75
+
+  let extraLapTimeSec = 0
+  let cliffWarning: string | undefined
+  let cliffBadgeText: string | undefined
+
+  if (lapsBeyondCliff > 0) {
+    // Crescimento abrupto e não linear:
+    // Primeira volta além: base (~1.5s a 2s no macio)
+    // Voltas subsequentes acumulam com expoente sutil (1.2) para punir stints longos
+    const nonLinearFactor = Math.pow(lapsBeyondCliff, 1.2)
+    const rawPenalty = spec.cliffDegradationPerLapSec * nonLinearFactor
+    extraLapTimeSec = Number(Math.min(spec.cliffMaxPenaltySec, rawPenalty).toFixed(2))
+
+    cliffBadgeText = `CLIFF — pneu fora da janela, perda ~${extraLapTimeSec.toFixed(1)}s/volta`
+
+    if (compound === 'macio') {
+      cliffWarning = `🚨 CLIFF CRÍTICO NO MACIO! Pneu C4/C5 ultrapassou ${effectiveCliffLap} voltas e despencou de rendimento (+${extraLapTimeSec.toFixed(1)}s/volta)! Faça o box imediatamente!`
+    } else if (compound === 'medio') {
+      cliffWarning = `⚠️ CLIFF DO MÉDIO: Pneu C3 fora da janela de rendimento ótimo (+${extraLapTimeSec.toFixed(1)}s/volta). Planeje a troca.`
+    } else {
+      cliffWarning = `⚠️ DEG. ELEVADA: Pneu duro além de ${effectiveCliffLap} voltas perdendo ritmo (+${extraLapTimeSec.toFixed(1)}s/volta).`
+    }
+  } else if (isCriticalWindow) {
+    cliffBadgeText = `JANELA CRÍTICA — limite de vida (${lapsOnTire}/${effectiveCliffLap}v)`
+  }
+
+  // Risco térmico: macio sofre muito mais com travadas de roda e rajadas na janela crítica
+  let thermalLockupRisk = spec.thermalLockupRiskBase
+  if (isCliffReached > 0) {
+    thermalLockupRisk = Math.min(0.85, thermalLockupRisk + lapsBeyondCliff * 0.12)
+  } else if (isCriticalWindow) {
+    thermalLockupRisk = Math.min(0.5, thermalLockupRisk + 0.15)
+  }
+
+  return {
+    isCliffReached,
+    isCriticalWindow,
+    extraLapTimeSec,
+    cliffWearEquivalent: Math.min(100, wearPercent + lapsBeyondCliff * 5),
+    thermalLockupRisk,
+    cliffWarning,
+    cliffBadgeText,
+  }
+}
+
+/**
  * Calcula o delta de pontuação/desempenho por volta de acordo com o composto e o clima atual.
- * Leva em consideração o desgaste percentual (pneu novo = 100% aderência; x% desgaste = perda de aderência).
+ * Leva em consideração o desgaste percentual e o cliff de degradação abrupta.
  */
 export function calculateLapPerformanceScoreDelta(
   compound: TireCompound,
   wearPercent: number,
   weather: TrackWeatherState,
-): { scoreDelta: number; warning?: string; aquaplaningRisk: boolean } {
+  lapsOnTire: number = 0,
+  wearMultiplier: number = 1.0,
+  trackAbrasiveness: number = 6,
+): {
+  scoreDelta: number
+  warning?: string
+  aquaplaningRisk: boolean
+  cliffStatus: TireCliffStatus
+} {
   const spec = TIRE_SPECS[compound] || TIRE_SPECS.medio
   let scoreDelta = 0
   let aquaplaningRisk = false
@@ -294,12 +437,29 @@ export function calculateLapPerformanceScoreDelta(
   const compoundBasePoints = -spec.deltaPerLapSec * 18
   scoreDelta += compoundBasePoints
 
-  // 2. Penalidade por desgaste % (pneu usado perde grip proporcional ao desgaste: ~+1,8s/volta a 100% de desgaste)
-  // 1.8s/volta * 18 pts/s ≈ ~32.4 pontos de perda total a 100% de desgaste
+  // 2. Penalidade padrão por desgaste %
   const wearPenalty = (wearPercent / 100) * 32.4
   scoreDelta -= wearPenalty
 
-  // 3. Adequação climática
+  // 3. Cliff de degradação abrupto pós-vida útil
+  const cliffStatus = calculateTireCliffStatus({
+    compound,
+    lapsOnTire,
+    wearPercent,
+    wearMultiplier,
+    trackAbrasiveness,
+  })
+
+  if (cliffStatus.extraLapTimeSec > 0) {
+    // Cada 1.0s de perda por volta equivale a ~18 pontos a menos por volta
+    const cliffScorePenalty = cliffStatus.extraLapTimeSec * 18
+    scoreDelta -= cliffScorePenalty
+    if (cliffStatus.cliffWarning) {
+      warning = cliffStatus.cliffWarning
+    }
+  }
+
+  // 4. Adequação climática
   if (weather === 'seco') {
     if (compound === 'intermediario') {
       scoreDelta -= 45 // Pneu de chuva no seco perde muito ritmo e superaquece
@@ -333,5 +493,5 @@ export function calculateLapPerformanceScoreDelta(
     }
   }
 
-  return { scoreDelta, warning, aquaplaningRisk }
+  return { scoreDelta, warning, aquaplaningRisk, cliffStatus }
 }

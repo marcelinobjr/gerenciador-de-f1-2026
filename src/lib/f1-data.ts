@@ -1,4 +1,4 @@
-import { GrandPrixInfo, EngineSupplierSpec } from '@/types/f1'
+import { GrandPrixInfo, EngineSupplierSpec, EngineSupplierName } from '@/types/f1'
 
 export const F1_2026_CALENDAR: GrandPrixInfo[] = [
   {

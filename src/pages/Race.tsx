@@ -23,6 +23,8 @@ import {
   calculatePitStopDuration,
   calculateLapPerformanceScoreDelta,
   calculateDriverTireWearProfile,
+  calculateTireCliffStatus,
+  TireCliffStatus,
 } from '@/lib/f1-tire-system'
 import { DriverRaceStrategy } from '@/types/f1'
 import { analyzeSetupEngineering } from '@/lib/setup-advisor'
@@ -108,6 +110,8 @@ interface SimDriverEntry {
   wearMultiplier?: number
   wearProfileName?: string
   strategyPlan?: { lap: number; compound: TireCompound }[]
+  lapsOnCurrentTire?: number
+  cliffStatus?: TireCliffStatus
 }
 
 export interface LiveRaceEvent {
