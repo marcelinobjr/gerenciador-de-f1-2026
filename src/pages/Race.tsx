@@ -2650,32 +2650,49 @@ export default function RacePage() {
       await f1Service.deleteRaceResultsForRound(season.id, currentRound)
 
       // 2. Persist race_results with canonical ID resolution
-      // Grava todos os pilotos para histórico completo, pódios e desempates
+      // Grava TODOS os 24 pilotos (jogador + rivais) para histórico completo, pontuação FIA, pódios e desempates
       const resultsToSave = raceResults
 
       let savedCount = 0
       for (const res of resultsToSave) {
         try {
           // Canonical resolution of driver and team
+          const driverCandidate = res.isPlayer ? res.driverId : undefined
+          const teamCandidate = res.isPlayer ? res.teamId : undefined
+
           const { canonicalDriverId, canonicalTeamId } = await f1Service.ensureDriverAndTeam(
             res.driverName,
-            res.driverId,
-            res.teamId,
+            driverCandidate,
+            teamCandidate,
             { name: res.teamName, color: res.teamColor },
-            { role: 'titular' },
+            { role: 'titular', nationality: res.flag ? undefined : undefined },
           )
 
           if (canonicalDriverId && canonicalTeamId) {
+            const calculatedPoints =
+              typeof res.points === 'number'
+                ? res.points
+                : (res.position <= 10 && !res.dnf
+                    ? [25, 18, 15, 12, 10, 8, 6, 4, 2, 1][res.position - 1]
+                    : 0) + (res.fastestLap && res.position <= 10 && !res.dnf ? 1 : 0)
+
             await f1Service.createRaceResult({
               season_id: season.id,
               round: currentRound,
               driver_id: canonicalDriverId,
               team_id: canonicalTeamId,
               position: res.position,
-              points: res.points ?? 0,
+              points: calculatedPoints,
               fastest_lap: !!res.fastestLap,
             })
             savedCount++
+          } else {
+            console.warn(
+              'Não foi possível resolver ID canônico para:',
+              res.driverName,
+              res.teamName,
+              { canonicalDriverId, canonicalTeamId },
+            )
           }
         } catch (resErr) {
           console.warn('Erro tolerado ao gravar resultado de um piloto:', res.driverName, resErr)

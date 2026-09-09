@@ -207,8 +207,16 @@ export default function StandingsPage() {
 
     // Prepara índices de busca rápida por ID e por nome normalizado
     const driverLookupByName: Record<string, DriverStanding> = {}
+    const driverLookupByNormalizedSimple: Record<string, DriverStanding> = {}
+
     Object.values(dMap).forEach((d) => {
-      driverLookupByName[normalizeEntityName(d.name)] = d
+      const norm1 = normalizeEntityName(d.name)
+      const norm2 = d.name
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]/g, '')
+      driverLookupByName[norm1] = d
+      driverLookupByNormalizedSimple[norm2] = d
     })
 
     // 2. Processa race_results reais persistidos no banco
@@ -218,17 +226,37 @@ export default function StandingsPage() {
 
       // Se não achou, tenta pelo expand do PocketBase
       if (!targetDriver && res.expand?.driver_id?.name) {
-        const norm = normalizeEntityName(res.expand.driver_id.name)
-        targetDriver = driverLookupByName[norm]
+        const normExp = normalizeEntityName(res.expand.driver_id.name)
+        const normExpSimple = res.expand.driver_id.name
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]/g, '')
+        targetDriver = driverLookupByName[normExp] || driverLookupByNormalizedSimple[normExpSimple]
       }
 
-      // Se ainda não achou, busca no dMap por equivalência de nome
+      // Se ainda não achou, tenta cruzar com banco local / nome direto de res se houver
+      if (!targetDriver && (res as any).driverName) {
+        const dName = (res as any).driverName
+        const normDirect = normalizeEntityName(dName)
+        const normDirectSimple = dName
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]/g, '')
+        targetDriver =
+          driverLookupByName[normDirect] || driverLookupByNormalizedSimple[normDirectSimple]
+      }
+
+      // Se ainda não achou, faz busca difusa nos nomes conhecidos do grid
       if (!targetDriver) {
         const allDrivers = Object.values(dMap)
-        targetDriver = allDrivers.find((d) => {
-          if (d.id === res.driver_id) return true
-          return false
-        })
+        // Busca se algum nome de piloto contém ou é contido pelo expand
+        const expName = res.expand?.driver_id?.name?.toLowerCase().trim()
+        if (expName) {
+          targetDriver = allDrivers.find((d) => {
+            const dn = d.name.toLowerCase().trim()
+            return dn === expName || dn.includes(expName) || expName.includes(dn)
+          })
+        }
       }
 
       if (targetDriver) {

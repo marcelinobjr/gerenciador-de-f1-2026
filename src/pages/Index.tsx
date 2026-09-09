@@ -5,7 +5,11 @@ import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, EventModel, PartModel, RaceResultModel } from '@/types/f1'
 import { F1_2026_CALENDAR, getAICompetitors } from '@/lib/f1-data'
-import { simulateAiGridFiaStandings, getFiaPointsForPosition } from '@/lib/f1-standings-calculator'
+import {
+  simulateAiGridFiaStandings,
+  getFiaPointsForPosition,
+  normalizeEntityName,
+} from '@/lib/f1-standings-calculator'
 import { formatCurrency, formatDateTimeBR } from '@/lib/formatters'
 import {
   Trophy,
@@ -108,12 +112,34 @@ export default function Index() {
       pastRoundsToSimulate,
     )
 
+    // Se temos resultados gravados no banco, somamos os pontos reais das equipes rivais
+    const competitorPointsFromDB: Record<string, number> = {}
+    if (hasRecordedResults) {
+      raceResults.forEach((res) => {
+        // Se a equipe não for a do jogador
+        if (res.team_id !== team?.id) {
+          const expTeam = (res.expand as any)?.team_id
+          const teamNameNorm = expTeam?.name ? normalizeEntityName(expTeam.name) : ''
+          const matchedAiTeam = aiTeams.find(
+            (t) =>
+              t.id === res.team_id ||
+              (teamNameNorm && normalizeEntityName(t.name) === teamNameNorm),
+          )
+          const matchedId = matchedAiTeam ? matchedAiTeam.id : res.team_id
+          competitorPointsFromDB[matchedId] =
+            (competitorPointsFromDB[matchedId] || 0) + (res.points || 0)
+        }
+      })
+    }
+
     const competitorsWithPoints = aiTeams.map((aiTeam) => {
-      const stat = aiTeamStats[aiTeam.id] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
+      const realPoints = competitorPointsFromDB[aiTeam.id]
+      const simulatedPoints = (aiTeamStats[aiTeam.id] || { points: 0 }).points
+      const points = hasRecordedResults && realPoints !== undefined ? realPoints : simulatedPoints
       return {
         id: aiTeam.id,
         name: aiTeam.name,
-        points: stat.points,
+        points,
       }
     })
 

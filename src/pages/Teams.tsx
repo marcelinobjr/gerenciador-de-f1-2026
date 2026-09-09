@@ -106,6 +106,42 @@ export default function TeamsPage() {
       }
     })
 
+    // Se temos resultados gravados na collection race_results, somar os pontos reais das equipes rivais!
+    if (hasRecordedResults) {
+      raceResults.forEach((r) => {
+        const isPlayerResult =
+          r.team_id === team?.id || (r.expand?.team_id && r.expand.team_id.name === team?.name)
+        if (!isPlayerResult && r.team_id) {
+          const expTeam = (r.expand as any)?.team_id
+          const teamNameNorm = expTeam?.name ? normalizeEntityName(expTeam.name) : ''
+          const matchedAiTeam = aiGrid.find(
+            (t) =>
+              t.id === r.team_id || (teamNameNorm && normalizeEntityName(t.name) === teamNameNorm),
+          )
+          const targetKey = matchedAiTeam ? matchedAiTeam.id : r.team_id
+          const pts =
+            typeof r.points === 'number' && r.points > 0
+              ? r.points
+              : getFiaPointsForPosition(r.position) + (r.fastest_lap && r.position <= 10 ? 1 : 0)
+
+          if (!standings[targetKey]) {
+            standings[targetKey] = {
+              name: expTeam?.name || 'Equipe Rival',
+              points: 0,
+              wins: 0,
+              bestPosition: 99,
+              isPlayer: false,
+            }
+          }
+          standings[targetKey].points += pts
+          if (r.position === 1) standings[targetKey].wins += 1
+          if (r.position < standings[targetKey].bestPosition) {
+            standings[targetKey].bestPosition = r.position
+          }
+        }
+      })
+    }
+
     // Equipe do jogador
     let playerPoints = 0
     let playerWins = 0

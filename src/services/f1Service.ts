@@ -241,6 +241,10 @@ export const f1Service = {
     return await pb.collection('race_results').create<RaceResultModel>(data)
   },
 
+  // Cache em memória para evitar buscas repetidas
+  _driverCache: new Map<string, string>(),
+  _teamCache: new Map<string, string>(),
+
   // Helper to ensure canonical driver & team exist before inserting race result
   async ensureDriverAndTeam(
     driverName: string,
@@ -257,90 +261,153 @@ export const f1Service = {
     },
   ): Promise<{ canonicalDriverId: string; canonicalTeamId: string }> {
     let canonicalDriverId = ''
-    let canonicalTeamId = teamIdCandidate || ''
+    let canonicalTeamId = ''
+
+    const cleanDriverName = (driverName || '').trim()
+    const normDriverName = cleanDriverName.toLowerCase()
+    const rawTeamName = (teamData?.name || '').trim()
+    const normTeamName = rawTeamName.toLowerCase()
 
     // 1. Resolve Driver
-    if (driverIdCandidate && driverIdCandidate.length >= 15 && !driverIdCandidate.includes('_')) {
+    if (this._driverCache.has(normDriverName)) {
+      canonicalDriverId = this._driverCache.get(normDriverName)!
+    } else if (
+      driverIdCandidate &&
+      driverIdCandidate.length >= 15 &&
+      !driverIdCandidate.includes('_')
+    ) {
       try {
         const found = await pb.collection('drivers').getOne(driverIdCandidate)
         if (found?.id) {
           canonicalDriverId = found.id
+          this._driverCache.set(normDriverName, canonicalDriverId)
         }
       } catch (_) {
         // Candidate id not valid in DB, search by name
       }
     }
 
-    if (!canonicalDriverId) {
+    if (!canonicalDriverId && cleanDriverName) {
       try {
-        const byName = await pb
-          .collection('drivers')
-          .getFirstListItem(`name = "${driverName.replace(/"/g, '\\"')}"`)
+        const safeName = cleanDriverName.replace(/"/g, '\\"')
+        const byName = await pb.collection('drivers').getFirstListItem(`name = "${safeName}"`)
         if (byName?.id) {
           canonicalDriverId = byName.id
+          this._driverCache.set(normDriverName, canonicalDriverId)
         }
       } catch (_) {
-        // Driver does not exist in DB yet, create it
+        // Busca flexível sem acentos ou parcial
         try {
-          const created = await pb.collection('drivers').create({
-            name: driverName,
-            nationality: driverData?.nationality || 'Desconhecido',
-            age: 25,
-            speed: driverData?.speed || 80,
-            consistency: driverData?.consistency || 80,
-            rain: driverData?.rain || 80,
-            defense: driverData?.defense || 80,
-            salary: 5000000,
-            contract_end: 2026,
-            role: driverData?.role || 'titular',
-            category: 'f1',
-          })
-          canonicalDriverId = created.id
-        } catch (cErr) {
-          console.error('Erro ao auto-criar piloto canônico:', cErr)
+          const simplified = cleanDriverName.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          const byPartial = await pb
+            .collection('drivers')
+            .getFirstListItem(`name ~ "${simplified.replace(/"/g, '\\"')}"`)
+          if (byPartial?.id) {
+            canonicalDriverId = byPartial.id
+            this._driverCache.set(normDriverName, canonicalDriverId)
+          }
+        } catch (__) {
+          // Driver não existe no DB, cria registro novo
+          try {
+            const created = await pb.collection('drivers').create({
+              name: cleanDriverName,
+              nationality: driverData?.nationality || 'Internacional',
+              age: 25,
+              speed: driverData?.speed || 80,
+              consistency: driverData?.consistency || 80,
+              rain: driverData?.rain || 80,
+              defense: driverData?.defense || 80,
+              salary: 5000000,
+              contract_end: 2026,
+              role: driverData?.role || 'titular',
+              category: 'f1',
+            })
+            canonicalDriverId = created.id
+            this._driverCache.set(normDriverName, canonicalDriverId)
+          } catch (cErr) {
+            console.error('Erro ao auto-criar piloto canônico:', cleanDriverName, cErr)
+          }
         }
       }
     }
 
     // 2. Resolve Team
-    if (canonicalTeamId && canonicalTeamId.length >= 15 && !canonicalTeamId.includes('_')) {
+    if (this._teamCache.has(normTeamName)) {
+      canonicalTeamId = this._teamCache.get(normTeamName)!
+    } else if (teamIdCandidate && teamIdCandidate.length >= 15 && !teamIdCandidate.includes('_')) {
       try {
-        const tFound = await pb.collection('teams').getOne(canonicalTeamId)
+        const tFound = await pb.collection('teams').getOne(teamIdCandidate)
         if (tFound?.id) {
           canonicalTeamId = tFound.id
+          this._teamCache.set(normTeamName, canonicalTeamId)
         }
       } catch (_) {
         canonicalTeamId = ''
       }
     }
 
-    if (!canonicalTeamId) {
-      // Find team by name or team_key, or create if AI team
-      const tName = teamData?.name || 'Equipe'
+    if (!canonicalTeamId && rawTeamName) {
+      // Busca exata pelo nome
       try {
-        const byName = await pb
-          .collection('teams')
-          .getFirstListItem(`name = "${tName.replace(/"/g, '\\"')}"`)
-        canonicalTeamId = byName.id
+        const safeTName = rawTeamName.replace(/"/g, '\\"')
+        const byName = await pb.collection('teams').getFirstListItem(`name = "${safeTName}"`)
+        if (byName?.id) {
+          canonicalTeamId = byName.id
+          this._teamCache.set(normTeamName, canonicalTeamId)
+        }
       } catch (_) {
-        // Create team record if needed
-        try {
-          const newTeam = await pb.collection('teams').create({
-            name: tName,
-            color: teamData?.color || '#FF1801',
-            chassis_level: 50,
-            aero_level: 50,
-            strategy_level: 50,
-            budget: 150000000,
-            engine_supplier: (teamData?.engine as any) || 'Mercedes',
-            strength: 75,
-            is_custom: false,
-          })
-          canonicalTeamId = newTeam.id
-        } catch (tErr) {
-          console.error('Erro ao auto-criar equipe canônica:', tErr)
+        // Tenta buscar por team_key se o teamIdCandidate for tipo "ai_williams"
+        let fallbackKey = ''
+        if (teamIdCandidate && teamIdCandidate.startsWith('ai_')) {
+          fallbackKey = teamIdCandidate.replace(/^ai_/, '')
+        }
+        if (fallbackKey) {
+          try {
+            const byKey = await pb
+              .collection('teams')
+              .getFirstListItem(`team_key = "${fallbackKey}"`)
+            if (byKey?.id) {
+              canonicalTeamId = byKey.id
+              this._teamCache.set(normTeamName, canonicalTeamId)
+            }
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+
+        if (!canonicalTeamId) {
+          // Cria registro de equipe se não encontrado
+          try {
+            const validSupplier = ['Ferrari', 'Mercedes', 'Honda', 'Ford'].includes(
+              teamData?.engine || '',
+            )
+              ? (teamData?.engine as any)
+              : 'Mercedes'
+
+            const newTeam = await pb.collection('teams').create({
+              name: rawTeamName,
+              color: teamData?.color || '#FF1801',
+              chassis_level: 50,
+              aero_level: 50,
+              strategy_level: 50,
+              budget: 150000000,
+              engine_supplier: validSupplier,
+              strength: 75,
+              is_custom: false,
+              team_key: fallbackKey || undefined,
+            })
+            canonicalTeamId = newTeam.id
+            this._teamCache.set(normTeamName, canonicalTeamId)
+          } catch (tErr) {
+            console.error('Erro ao auto-criar equipe canônica:', rawTeamName, tErr)
+          }
         }
       }
+    }
+
+    // Se a equipe não tem id canônico resolvido, tentar ao menos o teamIdCandidate
+    if (!canonicalTeamId && teamIdCandidate && teamIdCandidate.length >= 15) {
+      canonicalTeamId = teamIdCandidate
     }
 
     return { canonicalDriverId, canonicalTeamId }
