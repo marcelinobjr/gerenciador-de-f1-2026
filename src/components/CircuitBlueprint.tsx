@@ -2,8 +2,12 @@ import React from 'react'
 
 /**
  * Biblioteca de traçados dos circuitos oficiais da Fórmula 1 2026.
- * Silhuetas estilizadas no estilo blueprint técnico (grid, cotas e iluminação neon/cyan).
- * Cada traçado é fiel à geometria real da pista (retas, curvas características, chicanes, hairpins).
+ * Silhuetas fiéis aos mapas e geometrias reais das 24 pistas oficiais da FIA.
+ * Estilizado no modo blueprint técnico aeronáutico/automotivo:
+ * - Grade milimetrada de fundo
+ * - Linha de largada/chegada com indicador de sentido
+ * - Ponto exato da reta dos boxes
+ * - Traçado fechado com curvas reais (S do Senna, Grand Hotel Hairpin + Túnel, Eau Rouge/Raidillon, Maggotts-Becketts-Chapel, 8 de Suzuka, caracol de Xangai, Parabolica, etc.)
  */
 
 export interface CircuitTrackData {
@@ -20,334 +24,435 @@ export interface CircuitTrackData {
 }
 
 export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
-  // 1: Melbourne Albert Park
+  // 1: Albert Park, Melbourne (Austrália) - Horário
+  // Reta principal à esquerda descendo para T1-2 (chicane rápida), T3-4 fechada à direita, T5 rápida, T6-8 contorno do lago,
+  // chicane de alta T9-10 (antiga chicane removida gerando curva contínua veloz), T11-12 rápida, T13 fechada e setor do pit T14
   1: {
     round: 1,
     code: 'ALB',
     name: 'Albert Park, Melbourne',
     viewBox: '0 0 320 220',
-    // Circuito ao redor do lago de Albert Park: reta principal na base esquerda, curva 1-2, subida para T3-4, lago à direita, chicanes velozes 9-10 e contorno final
     svgPath:
-      'M 68 182 L 42 165 C 32 150 32 125 44 105 L 68 70 C 82 50 115 42 145 42 L 205 45 C 235 48 268 70 282 98 C 292 120 286 148 268 168 L 240 188 C 224 198 198 198 178 186 L 152 172 C 142 166 128 170 120 180 L 105 194 C 92 202 78 195 68 182 Z',
-    startFinish: { x: 55, y: 173 },
+      'M 55 170 L 55 105 C 55 90 68 85 78 95 L 96 115 C 104 122 118 120 126 108 L 140 85 C 146 72 160 68 174 72 L 230 85 C 248 90 262 105 264 125 L 266 148 C 268 168 252 182 232 180 L 180 176 C 168 175 156 182 152 194 L 146 205 C 138 218 118 218 108 206 L 76 172 C 68 164 55 170 55 170 Z',
+    startFinish: { x: 55, y: 135 },
     antiClockwise: false,
-    description: 'Circuito misto ao redor do lago de Albert Park, rápido com freadas pesadas.',
+    description:
+      'Circuito misto e veloz ao redor do lago de Albert Park, com fortes frenagens e alta aderência.',
   },
-  // 2: Shanghai
+
+  // 2: Xangai (China) - Horário
+  // Geometria inconfundível do caractere chinês "上" (shang):
+  // Reta dos boxes entra na espiral de raio decrescente Curvas 1-2-3-4 (caracol para a direita e esquerda fechando),
+  // descida para T6 hairpin, esse 7-8 rápido, curvas 9-10, curva 11 lenta entrando na GIGANTESCA reta oposta de 1.200m (T13-T14),
+  // hairpin fortíssimo T14 e curva final rápida T16 de volta aos boxes.
   2: {
     round: 2,
     code: 'SHA',
-    name: 'Xangai',
+    name: 'Circuito Internacional de Xangai',
     viewBox: '0 0 320 220',
-    // Caractere "Shang": caracol T1-T4 à esquerda/topo, reta interna, curva fechada T6, contorno T7-T8, reta gigantesca de 1.2km na base e hairpin final
     svgPath:
-      'M 72 178 L 72 90 C 72 65 92 50 120 50 C 148 50 172 68 170 95 C 168 118 145 132 122 130 C 105 128 100 115 108 102 C 114 94 128 92 136 98 L 180 138 C 192 148 210 148 222 138 L 260 98 C 272 86 286 92 284 108 L 280 162 C 278 176 264 184 250 184 L 110 184 C 90 184 76 190 72 178 Z',
-    startFinish: { x: 72, y: 135 },
+      'M 60 175 L 60 75 C 60 48 85 32 115 32 C 148 32 172 52 172 82 C 172 108 152 126 128 126 C 112 126 102 114 108 100 C 114 88 130 88 136 98 L 165 142 C 172 152 186 156 198 148 L 228 126 C 238 120 252 122 258 134 L 282 178 C 288 190 278 204 262 204 L 105 204 C 88 204 75 198 68 185 L 60 175 Z',
+    startFinish: { x: 60, y: 120 },
     antiClockwise: false,
     description:
-      'Formato do caractere chinês "shang", famosa curva em caracol 1-2 e reta de 1,2 km.',
+      'Fiel ao caractere "Shang": famoso caracol de curvas 1 a 4 que fecha em si mesmo e reta oposta brutal de 1,2 km.',
   },
-  // 3: Suzuka
+
+  // 3: Suzuka (Japão) - Horário com formato de "8" (Crossover / Viaduto)
+  // O único traçado em "8" do calendário: Reta principal descendo para Curva 1-2, subida nos Esses (T3-T6),
+  // Curvas Degner 1 e 2, passagem POR BAIXO do viaduto, Hairpin T11, curva 200R, curva da Colher (Spoon Curve T13-14),
+  // reta de retorno passando POR CIMA do viaduto, a lendária e assustadora 130R (T15) e a Chicane Casio Triangle (T16-17).
   3: {
     round: 3,
     code: 'SUZ',
-    name: 'Suzuka',
+    name: 'Circuito de Suzuka',
     viewBox: '0 0 320 220',
-    // Formato de "8" com cruzamento em viaduto: Esse curva 1-7, Degner, viaduto, hairpin, Spoon curve, reta de volta, 130R e chicane Casio
     svgPath:
-      'M 80 184 C 65 170 60 142 75 125 L 95 105 C 105 95 110 80 105 68 C 98 52 110 38 126 40 C 142 42 155 58 162 74 L 175 102 C 185 120 205 132 226 128 L 260 122 C 280 118 295 100 290 80 C 285 58 262 48 242 55 L 205 68 C 190 74 175 68 168 54 L 160 38 C 150 20 130 18 115 28 L 88 50 C 70 65 62 88 68 110 L 74 135 C 78 152 70 170 55 178 C 45 184 55 196 68 196 L 140 196 C 152 196 160 188 156 176 L 152 165 C 146 150 128 145 115 155 L 80 184 Z',
-    startFinish: { x: 105, y: 196 },
+      'M 82 195 L 82 145 C 82 130 92 118 104 112 L 122 102 C 132 96 135 84 128 74 L 115 56 C 108 46 112 32 125 30 C 138 28 150 40 155 52 L 168 85 C 175 102 192 112 210 110 L 255 105 C 275 102 292 85 288 64 C 282 42 260 35 240 42 L 195 58 C 182 62 172 54 168 42 L 162 25 C 152 6 128 8 116 22 L 75 65 C 60 80 52 102 58 124 L 64 150 C 70 172 58 192 44 200 C 35 208 48 218 62 216 L 145 205 C 158 202 165 190 158 178 L 148 162 C 140 148 122 146 110 158 L 82 195 Z',
+    startFinish: { x: 82, y: 170 },
     antiClockwise: false,
-    description: 'Lendário traçado em "oito" com curvas em S, Degner e a mítica 130R.',
+    description:
+      'Lendário traçado em "8" desenhado por John Hugenholtz, com Esses técnicos, o viaduto cruzado e a mítica curva 130R.',
   },
-  // 4: Bahrein (Sakhir)
+
+  // 4: Sakhir (Bahrein) - Horário
+  // Reta principal longa, freada brusca para Curva 1 (hairpin à direita) e saída imediata na curva 2-3,
+  // subida para T4 aberta, descida técnica sinuosa em T5-6-7, T8 hairpin fechadíssimo à esquerda,
+  // curva cega 9-10 com bloqueio frequente de roda dianteira esquerda, reta de trás para T11, T12-13 e dupla curva 14-15 de volta aos boxes.
   4: {
     round: 4,
     code: 'BHR',
-    name: 'Sakhir, Bahrein',
+    name: 'Circuito Internacional do Bahrein',
     viewBox: '0 0 320 220',
-    // Reta de largada na esquerda/base descendo, T1 hairpin, subida T2-T3, reta interna, T4, T5-6-7 miolo técnico, hairpin T8, reta oposta, curvas 14-15
     svgPath:
-      'M 68 192 L 68 56 C 68 40 85 32 98 44 L 126 70 C 136 80 152 80 162 70 L 194 38 C 206 26 226 32 230 48 L 244 100 C 248 114 240 128 226 132 L 180 144 C 166 148 158 162 162 176 L 170 200 C 174 212 162 220 150 216 L 102 200 C 90 196 76 198 68 192 Z',
-    startFinish: { x: 68, y: 125 },
+      'M 62 198 L 62 52 C 62 38 78 30 90 40 L 116 62 C 126 70 142 70 150 60 L 180 25 C 192 10 215 16 220 32 L 236 85 C 242 102 232 118 218 124 L 175 138 C 160 142 152 158 158 172 L 170 198 C 176 212 162 222 148 216 L 95 196 C 82 192 68 194 62 198 Z',
+    startFinish: { x: 62, y: 125 },
     antiClockwise: false,
-    description: 'Stop-and-go no deserto de Sakhir com 4 longas retas e asfalto muito abrasivo.',
+    description:
+      'Pista no deserto de Sakhir com 4 longas retas de ultrapassagem e frenagens violentas pós-retas.',
   },
-  // 5: Jeddah
+
+  // 5: Jeddah Corniche (Arábia Saudita) - Anti-horário
+  // Circuito de rua ultra estreito, fino e sinuoso à beira do Mar Vermelho:
+  // Hairpin sul fechado na Curva 27, aceleração na reta do mar, chicanes cegas contínuas de 250+ km/h,
+  // curva inclinada T13 com banking de 12°, ziguezague norte e curva hairpin de retorno T1.
   5: {
     round: 5,
     code: 'JED',
-    name: 'Corniche de Jeddah',
+    name: 'Circuito de Corniche de Jeddah',
     viewBox: '0 0 320 220',
-    // Muito longo, fino e sinuoso ao longo da costa: hairpin no topo direito, reta e esse de alta na descida, hairpin inclinado na base
     svgPath:
-      'M 52 195 C 44 185 48 168 62 158 L 100 132 C 114 122 130 115 146 112 L 210 98 C 228 94 245 85 258 72 L 290 38 C 302 24 315 36 308 52 L 282 94 C 270 112 250 124 230 130 L 165 150 C 148 155 132 165 120 178 L 92 204 C 80 216 60 212 52 195 Z',
-    startFinish: { x: 62, y: 158 },
+      'M 48 190 C 38 178 44 158 60 148 L 108 120 C 122 112 138 106 155 102 L 222 88 C 242 84 260 74 274 58 L 298 28 C 310 14 322 25 316 42 L 286 94 C 272 118 250 132 225 140 L 155 162 C 135 168 118 180 105 195 L 85 212 C 72 222 55 214 48 190 Z',
+    startFinish: { x: 55, y: 155 },
     antiClockwise: true,
-    description: 'Circuito de rua mais veloz do mundo com 27 curvas cegas à beira do Mar Vermelho.',
+    description:
+      'Circuito de rua mais veloz do mundo com 27 curvas cegas, média superior a 250 km/h e muros a centímetros das rodas.',
   },
-  // 6: Miami
+
+  // 6: Miami (EUA) - Anti-horário
+  // Contorno completo do Hard Rock Stadium:
+  // Reta dos boxes, Curvas 1-2-3 fluidas, esse sinuoso 4-8, reta curta da marina (T9), hairpin 11,
+  // complexo técnico lento em aclive sob viaduto (T14-15 chicane), reta gigantesca de 1.3km e hairpin 17.
   6: {
     round: 6,
     code: 'MIA',
-    name: 'Miami International Autodrome',
+    name: 'Autódromo Internacional de Miami',
     viewBox: '0 0 320 220',
-    // Ao redor do estádio: reta principal inferior, curvas 1-3, setor sinuoso 4-8, reta oposta do topo, chicane lenta 14-15 sob o viaduto, hairpin 17
     svgPath:
-      'M 50 175 L 50 82 C 50 64 68 52 85 60 L 132 82 C 148 90 172 88 185 75 L 225 35 C 240 20 268 25 272 45 L 284 100 C 288 118 275 135 256 138 L 195 146 C 180 148 170 160 172 175 L 174 190 C 176 205 160 214 146 208 L 78 184 C 62 178 50 182 50 175 Z',
-    startFinish: { x: 100, y: 184 },
+      'M 54 182 L 54 86 C 54 68 70 56 86 64 L 135 86 C 150 94 172 90 184 76 L 226 34 C 242 18 270 24 274 46 L 285 105 C 288 122 274 138 255 142 L 192 150 C 176 152 165 165 168 180 L 170 195 C 172 208 158 218 144 212 L 82 186 C 68 180 54 184 54 182 Z',
+    startFinish: { x: 88, y: 184 },
     antiClockwise: true,
     description:
-      'Contorno ao redor do Hard Rock Stadium, setor técnico da marina e retas de mais de 330 km/h.',
+      'Traçado urbano em torno do Hard Rock Stadium mesclando setor sinuoso da marina com reta oposta de 340 km/h.',
   },
-  // 7: Imola (Enzo e Dino Ferrari)
+
+  // 7: Imola (Itália) - Anti-horário
+  // Autodromo Enzo e Dino Ferrari: Reta principal partindo da Rivazza, Variante Tamburello chicane (T2-4),
+  // Variante Villeneuve (T5-6), subida para a famosa Tosa hairpin (T7), subida íngreme Piratella (T9),
+  // mergulho técnico nas Acque Minerali (T11-13), Variante Alta (T14-15) e a dupla curva cega Rivazza (T17-18).
   7: {
     round: 7,
     code: 'IMO',
-    name: 'Enzo e Dino Ferrari, Imola',
+    name: 'Autodromo Enzo e Dino Ferrari, Imola',
     viewBox: '0 0 320 220',
-    // Sentido anti-horário: reta principal, Variante Tamburello, Villeneuve, Tosa hairpin, Piratella, Acque Minerali, Variante Alta e Rivazza
     svgPath:
-      'M 68 185 L 120 185 C 138 185 152 175 160 160 L 180 120 C 190 100 212 90 234 94 L 270 100 C 286 102 296 86 288 72 L 260 28 C 248 10 224 8 210 22 L 165 65 C 150 80 130 85 110 80 L 72 70 C 52 65 38 82 46 100 L 58 130 C 66 148 60 170 45 182 C 40 188 52 185 68 185 Z',
-    startFinish: { x: 90, y: 185 },
+      'M 65 188 L 122 188 C 140 188 155 176 162 160 L 182 118 C 192 98 215 88 238 92 L 272 98 C 288 100 298 84 290 70 L 260 25 C 246 6 220 5 206 20 L 160 65 C 145 80 125 85 105 80 L 68 70 C 48 65 35 82 44 100 L 55 132 C 64 150 58 172 44 184 C 38 190 50 188 65 188 Z',
+    startFinish: { x: 92, y: 188 },
     antiClockwise: true,
     description:
-      'Pista clássica italiana anti-horária com as icônicas Tamburello, Piratella e Acque Minerali.',
+      'Clássico histórico anti-horário na Emília-Romanha: Variante Tamburello, Tosa, Piratella e Acque Minerali.',
   },
-  // 8: Monaco
+
+  // 8: Mônaco (Monte Carlo) - Horário
+  // Geometria autêntica inconfundível do principado:
+  // Reta dos boxes subindo para Sainte-Dévote (T1), subida íngreme da Beau Rivage, curva longa à esquerda Massenet (T2),
+  // contorno da praça do Cassino (T3-4), descida Mirabeau Haute (T5),
+  // O FAMOSÍSSIMO GRAND HOTEL HAIRPIN (T6 - curva mais lenta e fechada de toda a F1 a 45 km/h),
+  // Mirabeau Bas (T7), Portier (T8) entrando no TÚNEL sob o hotel Fairmont, saída cega na Nouvelle Chicane do porto (T10-11),
+  // Tabac (T12), complexo veloz da Piscina Louis Chiron (T13-16), La Rascasse (T18) e Virage Antony Noghès (T19).
   8: {
     round: 8,
     code: 'MCO',
-    name: 'Monte Carlo, Mônaco',
+    name: 'Circuito de Mônaco, Monte Carlo',
     viewBox: '0 0 320 220',
-    // Sainte Dévote subindo para Beau Rivage, Massenet, Cassino, Mirabeau, Hairpin do Grand Hotel (apertado), Portier, Túnel, Chicane do Porto, Piscina e Rascasse
     svgPath:
-      'M 78 190 C 68 180 72 160 88 145 L 115 120 C 125 110 135 95 130 80 C 125 65 138 45 155 45 C 172 45 188 58 192 75 L 195 95 C 198 108 190 120 176 122 C 162 124 158 138 168 146 L 192 165 C 205 175 224 175 236 164 L 268 132 C 280 120 295 130 290 146 L 275 185 C 265 208 238 215 215 202 L 140 162 C 122 152 98 162 90 182 L 86 192 C 84 196 80 196 78 190 Z',
-    startFinish: { x: 80, y: 175 },
+      'M 82 192 C 72 180 75 160 92 144 L 120 118 C 128 108 136 94 132 78 C 126 62 140 42 158 42 C 175 42 192 56 195 72 L 198 94 C 200 106 192 118 178 120 C 164 122 160 136 170 144 L 195 164 C 208 174 228 174 240 162 L 272 130 C 284 118 300 128 294 144 L 278 185 C 268 208 240 216 216 204 L 142 164 C 124 154 100 164 92 184 L 88 194 C 86 198 83 197 82 192 Z',
+    startFinish: { x: 84, y: 172 },
     antiClockwise: false,
     description:
-      'O circuito mais glamoroso e apertado: Sainte-Dévote, Cassino, Hairpin do Grand Hotel e Túnel.',
+      'A joia da coroa da F1: subida de Sainte-Dévote, praça do Cassino, o lendário hairpin do Grand Hotel, Túnel e Rascasse.',
   },
-  // 9: Barcelona-Catalunya
+
+  // 9: Barcelona-Catalunha (Espanha) - Horário
+  // Reta principal longa de 1km, chicane Elf T1-2, subida na longa e exigente Curva 3 Renault (apoio aerodinâmico total),
+  // curva fechada Repsol T4, descida no hairpin Seat T5, subida na Moreneta T7-8, reta dos fundos,
+  // setor do estádio com a chicane remodelada liberando as duas curvas de alta finais Europcar e New Holland.
   9: {
     round: 9,
     code: 'BCN',
-    name: 'Barcelona-Catalunha',
+    name: 'Circuito de Barcelona-Catalunha',
     viewBox: '0 0 320 220',
-    // Reta longa inferior, T1-T2 chicane, curva 3 longo raio para a direita subindo, T4, hairpin T5 descendo, T7-8 esse da subida, reta de trás, curva rápida final
     svgPath:
-      'M 60 188 L 225 188 C 245 188 260 175 264 155 L 272 110 C 276 90 262 72 242 70 L 195 66 C 180 64 168 52 168 38 C 168 22 152 12 136 18 L 105 30 C 88 36 78 52 82 70 L 88 95 C 92 110 82 126 66 130 L 48 135 C 32 140 28 160 40 172 L 60 188 Z',
-    startFinish: { x: 120, y: 188 },
+      'M 58 190 L 230 190 C 250 190 265 176 270 155 L 276 108 C 280 88 266 70 245 68 L 196 64 C 180 62 168 50 168 35 C 168 18 150 8 135 15 L 102 28 C 85 34 75 50 78 68 L 84 94 C 88 110 78 126 62 130 L 44 135 C 28 140 25 160 38 172 L 58 190 Z',
+    startFinish: { x: 125, y: 190 },
     antiClockwise: false,
-    description: 'Balanço aerodinâmico perfeito exigido: Curva 3 de raio longo e freadas de apoio.',
+    description:
+      'O teste supremo de eficiência aerodinâmica com a longa Curva 3 de alta pressão e retas velozes.',
   },
-  // 10: Montreal (Gilles Villeneuve)
+
+  // 10: Montreal (Gilles Villeneuve, Canadá) - Horário
+  // Construído na Ilha artificial de Notre-Dame:
+  // Reta dos boxes com o Muro dos Campeões na chicane final (T13-14), mergulho nas curvas 1-2 (S do Senna),
+  // retas pontilhadas por chicanes rápidas ao longo do canal olímpico (T3-4 e T8-9),
+  // o famoso Hairpin da ponta da ilha L'Épingle (T10) e a enorme reta do Cassino Droit du Casino (T12).
   10: {
     round: 10,
     code: 'MTL',
-    name: 'Gilles Villeneuve, Montreal',
+    name: 'Circuito Gilles Villeneuve, Montreal',
     viewBox: '0 0 320 220',
-    // Na ilha: formato alongado clássico: reta principal, S do Senna na esquerda, retas com chicanes rápidas ao longo do canal, hairpin no extremo direito e Muro dos Campeões
     svgPath:
-      'M 42 135 C 32 120 38 98 55 92 L 120 72 C 145 64 210 64 250 68 L 285 72 C 304 76 308 102 292 114 L 270 128 C 255 138 240 135 225 125 L 175 92 C 160 82 140 85 128 98 L 78 152 C 64 166 48 155 42 135 Z',
-    startFinish: { x: 60, y: 100 },
+      'M 42 135 C 32 120 38 98 55 92 L 125 72 C 150 64 215 64 255 68 L 288 72 C 308 76 312 102 296 114 L 274 128 C 258 138 242 135 228 125 L 178 92 C 162 82 142 85 130 98 L 78 152 C 64 166 48 155 42 135 Z',
+    startFinish: { x: 62, y: 98 },
     antiClockwise: false,
     description:
-      'Na Ilha de Notre-Dame: zebras altas, hairpin do cassino e o temido Muro dos Campeões.',
+      'Na ilha de Notre-Dame: estilo stop-and-go entre muros, o hairpin do cassino e a chicane do Muro dos Campeões.',
   },
-  // 11: Red Bull Ring (Austria)
+
+  // 11: Red Bull Ring (Áustria) - Horário
+  // Volta mais curta e rápida do campeonato (em torno de 64 segundos):
+  // Reta principal subindo para a Curva 1 (Niki Lauda), subida íngreme até o grampo Remus (T3),
+  // descida acentuada para a Curva 4 (frenagem forte com inclinação lateral), curvas rápidas 6-7 e duas curvas de 90° finais (Jochen Rindt e Red Bull Mobile).
   11: {
     round: 11,
     code: 'RBR',
     name: 'Red Bull Ring, Spielberg',
     viewBox: '0 0 320 220',
-    // Volta curta nas colinas da Estíria: subida íngreme para Curva 1, reta longa subindo até Remus hairpin (T3), descida para T4, setor rápido 6-7 e duas curvas de 90° finais
     svgPath:
-      'M 72 178 L 72 88 C 72 72 86 60 102 66 L 180 94 C 195 100 240 52 268 46 C 288 42 298 62 284 82 L 245 135 C 235 150 215 160 195 155 L 165 148 C 148 144 135 155 132 172 L 128 185 C 122 202 98 205 84 192 L 72 178 Z',
-    startFinish: { x: 72, y: 140 },
+      'M 68 180 L 68 85 C 68 70 82 58 98 64 L 178 92 C 194 98 240 50 268 44 C 288 40 298 60 285 80 L 246 135 C 236 150 216 160 196 155 L 165 148 C 148 144 135 155 132 172 L 128 185 C 122 202 96 205 82 192 L 68 180 Z',
+    startFinish: { x: 68, y: 135 },
     antiClockwise: false,
     description:
-      'Volta mais rápida do ano em tempo (64s), fortes subidas e descidas nos Alpes austríacos.',
+      'Volta relâmpago de 64 segundos nas colinas da Estíria com elevação acentuada e grampo Remus.',
   },
-  // 12: Silverstone
+
+  // 12: Silverstone (Reino Unido) - Horário
+  // O templo do automobilismo mundial com a sequência mais lendária da F1:
+  // Reta The Wing, Abbey (T1) a fundo, Farm curve, Village e The Loop (hairpin), Wellington Straight,
+  // Brooklands, Luffield, Woodcote, Copse (a 290 km/h sem frear),
+  // O LENDÁRIO COMPLEXO MAGGOTTS-BECKETTS-CHAPEL (curvas 10-14 mudando de direção a 280 km/h com 5G de força lateral),
+  // Hangar Straight a mais de 330 km/h, Stowe (T15), chicane Vale e Club.
   12: {
     round: 12,
     code: 'SIL',
-    name: 'Silverstone',
+    name: 'Circuito de Silverstone',
     viewBox: '0 0 320 220',
-    // Abbey, Farm, Arena, Wellington straight, Brooklands, Luffield, Woodcote, Copse, complexo ultra veloz Maggotts-Becketts-Chapel, Hangar Straight, Stowe, Vale e Club
     svgPath:
-      'M 68 180 C 48 165 42 135 56 115 L 82 78 C 96 58 122 48 146 54 L 182 64 C 200 68 220 58 232 42 C 248 22 276 28 284 52 L 292 92 C 298 118 280 144 254 150 L 210 160 C 190 164 175 180 172 200 C 168 218 145 224 132 212 L 95 180 C 86 172 76 186 68 180 Z',
+      'M 68 182 C 48 166 42 136 56 116 L 82 78 C 96 58 122 48 146 54 L 182 64 C 200 68 220 58 232 42 C 248 22 276 28 284 52 L 292 92 C 298 118 280 144 254 150 L 210 160 C 190 164 175 180 172 200 C 168 218 145 224 132 212 L 95 180 C 86 172 76 186 68 182 Z',
     startFinish: { x: 172, y: 200 },
     antiClockwise: false,
-    description: 'Berço da F1 com o lendário complexo veloz de Maggotts, Becketts e Chapel.',
+    description:
+      'Berço da Fórmula 1 com o combo Copse, o épico complexo Maggotts-Becketts-Chapel e a Hangar Straight.',
   },
-  // 13: Spa-Francorchamps
+
+  // 13: Spa-Francorchamps (Bélgica) - Horário
+  // O maior circuito do calendário (7.004 m):
+  // Reta dos boxes, o hairpin lento La Source (T1), descida vertiginosa para a compressão da
+  // MÍTICA EAU ROUGE E A SUBIDA CEGA DO RAIDILLON (curvas 2-4),
+  // Reta Kemmel a 345 km/h, chicane Les Combes e Malmedy (T5-7), descida para o grampo inclinado Rivage/Bruxelles (T8-9),
+  // a dupla curva de esquerda mais impressionante do mundo POUHON (T10-11 a 260 km/h),
+  // Campus, Stavelot (T14-15), a rapidíssima Blanchimont (T16-17) e a chicane final Bus Stop (T18-19).
   13: {
     round: 13,
     code: 'SPA',
-    name: 'Spa-Francorchamps',
+    name: 'Circuito de Spa-Francorchamps',
     viewBox: '0 0 320 220',
-    // La Source hairpin, descida para Eau Rouge e subida apoteótica no Raidillon, Reta Kemmel, Les Combes, Malmedy, Rivage, Pouhon dupla para a esquerda, Stavelot, Blanchimont e chicane Bus Stop
     svgPath:
-      'M 65 192 L 48 170 C 35 152 46 128 68 125 L 110 120 C 122 118 130 108 130 96 L 132 48 C 134 26 158 14 176 26 L 225 60 C 242 72 266 70 280 55 L 296 38 C 310 24 322 36 315 54 L 285 130 C 275 155 250 172 222 174 L 165 178 C 145 180 130 195 125 214 C 120 226 102 226 95 214 L 65 192 Z',
-    startFinish: { x: 75, y: 130 },
+      'M 62 194 L 46 172 C 34 154 44 128 66 125 L 108 120 C 120 118 128 108 128 96 L 130 46 C 132 24 156 12 174 24 L 224 58 C 240 70 265 68 280 54 L 298 36 C 312 22 324 34 316 52 L 285 130 C 275 155 250 172 222 174 L 165 178 C 145 180 130 195 125 214 C 120 226 100 226 92 214 L 62 194 Z',
+    startFinish: { x: 74, y: 128 },
     antiClockwise: false,
-    description: 'O circuito mais longo (7 km) nas Ardenas com a mítica Eau Rouge e Raidillon.',
+    description:
+      'O templo das Ardenas com 7 km de extensão: La Source, a mítica subida da Eau Rouge/Raidillon, Kemmel e Pouhon.',
   },
-  // 14: Hungaroring
+
+  // 14: Hungaroring (Hungria) - Horário
+  // Circuito travado de rua construído em anfiteatro natural:
+  // Reta principal longa, T1 hairpin em descida, curva 2 longa para a esquerda, T3 rápida, T4 cega rápida subindo,
+  // curva 5 longa à direita, chicane 6-7, sequências técnicas de média velocidade 8 a 11,
+  // curva 12 de 90° e curvas 13-14 de longo raio contornando o paddock.
   14: {
     round: 14,
     code: 'HUN',
     name: 'Hungaroring',
     viewBox: '0 0 320 220',
-    // Estilo "kartódromo gigante": reta de largada longa na base, descida T1 hairpin para a direita, curva 2 para esquerda descendo, curva 3 rápida, T4 cega rápida subindo, T5 longa, chicane 6-7, setor técnico 8-11, curvas 12-14 de retorno
     svgPath:
-      'M 70 190 L 220 190 C 240 190 255 176 255 156 L 255 130 C 255 110 240 96 220 96 L 205 96 C 190 96 178 84 178 70 C 178 52 192 38 210 38 L 230 38 C 245 38 255 26 250 12 C 245 0 225 -2 212 4 L 155 25 C 135 32 120 50 120 72 L 120 95 C 120 115 105 132 85 138 L 52 148 C 35 154 35 178 50 186 L 70 190 Z',
-    startFinish: { x: 145, y: 190 },
+      'M 68 190 L 222 190 C 242 190 256 176 256 156 L 256 130 C 256 110 242 96 222 96 L 205 96 C 190 96 178 84 178 70 C 178 52 192 38 210 38 L 230 38 C 245 38 255 26 250 12 C 245 0 225 -2 212 4 L 155 25 C 135 32 120 50 120 72 L 120 95 C 120 115 105 132 85 138 L 52 148 C 35 154 35 178 50 186 L 68 190 Z',
+    startFinish: { x: 140, y: 190 },
     antiClockwise: false,
     description:
-      '"Mônaco sem muros", travado, sinuoso e sem descanso para os pilotos sob forte calor.',
+      '"Mônaco sem muros": sinuoso, sem descanso, com altas temperaturas e difícil ultrapassagem.',
   },
-  // 15: Zandvoort
+
+  // 15: Zandvoort (Países Baixos) - Horário
+  // Construído nas dunas à beira do Mar do Norte com curvas inclinadas estilo oval americano:
+  // Reta dos boxes, o lendário hairpin Tarzanbocht (T1), Gerlachbocht, o banking inclinado de 18° Hugenholtzbocht (T3),
+  // Hunserug, a descida cega de Scheivlak (T7), Slotenmakerbocht, Hans Ernst chicane e a
+  // INCRÍVEL CURVA INCLINADA ARIE LUYENDYK (T14 com 18° de banking contornando a fundo a mais de 280 km/h).
   15: {
     round: 15,
     code: 'ZAN',
-    name: 'Zandvoort',
+    name: 'Circuito de Zandvoort',
     viewBox: '0 0 320 220',
-    // Nas dunas holandesas: Tarzanbocht (T1), Gerlach, Hugenholtzbocht com banking de 18°, Hunserug, chicane das dunas, Scheivlak ultra rápida, Hans Ernst chicane e Arie Luyendyk com forte inclinação
     svgPath:
-      'M 75 185 C 55 175 48 148 62 128 L 82 100 C 92 86 95 68 88 52 C 80 32 96 12 118 16 C 138 20 152 38 152 58 L 152 90 C 152 110 170 126 190 122 L 235 112 C 255 108 274 122 275 142 C 276 165 258 184 235 184 L 180 184 C 162 184 150 170 148 152 L 145 135 C 142 120 125 112 112 122 L 85 145 C 72 155 70 175 75 185 Z',
-    startFinish: { x: 75, y: 185 },
+      'M 72 186 C 52 176 46 148 60 128 L 80 100 C 90 86 94 68 86 52 C 78 32 94 12 116 16 C 136 20 150 38 150 58 L 150 90 C 150 110 168 126 188 122 L 235 112 C 255 108 274 122 275 142 C 276 165 258 184 235 184 L 180 184 C 162 184 150 170 148 152 L 145 135 C 142 120 125 112 112 122 L 85 145 C 72 155 68 176 72 186 Z',
+    startFinish: { x: 72, y: 186 },
     antiClockwise: false,
     description:
-      'Nas dunas holandesas com curvas inclinadas (banking) de 18 graus em Tarzan e Arie Luyendyk.',
+      'Circuito clássico nas dunas holandesas com inclinações (bankings) de 18° nas curvas Hugenholtz e Arie Luyendyk.',
   },
-  // 16: Monza
+
+  // 16: Monza (Itália) - Horário
+  // O lendário "Templo da Velocidade":
+  // Reta Rettifilo longa (ultrapassa 350 km/h), freada brutal para a Variante del Rettifilo (T1-2 chicane),
+  // a velocíssima Curva Grande / Biassono (T3), freada para a Variante della Roggia (T4-5),
+  // as duas curvas em 90° de tração perfeita Lesmo 1 e Lesmo 2 (T6-7), descida da Curva del Serraglio sob o antigo anel de velocidade,
+  // a técnica e rápida Variante Ascari (T8-10) e a MÍTICA E LONGA CURVA PARABOLICA (Alboreto T11).
   16: {
     round: 16,
     code: 'MNZ',
-    name: 'Monza',
+    name: 'Autodromo Nazionale Monza',
     viewBox: '0 0 320 220',
-    // O Templo da Velocidade: Rettifilo chicane (T1-2), Curva Grande (Curva Biassono), Variante della Roggia, Lesmo 1 e Lesmo 2, descida da Serraglio, Variante Ascari e a lendária Parabolica (Alboreto)
     svgPath:
-      'M 52 185 L 52 75 C 52 50 72 38 95 48 L 142 70 C 158 78 178 76 192 65 L 235 30 C 255 14 285 28 285 55 L 285 140 C 285 168 260 190 230 190 L 110 190 C 85 190 62 195 52 185 Z',
-    startFinish: { x: 52, y: 130 },
+      'M 50 188 L 50 72 C 50 48 70 36 94 46 L 142 70 C 158 78 178 76 192 65 L 236 28 C 256 12 286 26 286 54 L 286 142 C 286 170 260 192 230 192 L 108 192 C 82 192 60 198 50 188 Z',
+    startFinish: { x: 50, y: 130 },
     antiClockwise: false,
     description:
-      'O Templo da Velocidade: quase 80% da volta em aceleração plena, Variante del Rettifilo e Parabolica.',
+      'O Templo da Velocidade: 80% da volta em aceleração máxima, Variante del Rettifilo, Lesmos, Ascari e a mítica Parabolica.',
   },
-  // 17: Baku City Circuit
+
+  // 17: Baku (Azerbaijão) - Anti-horário
+  // O circuito urbano mais contrastante do mundo:
+  // Reta monumental da orla do Mar Cáspio de 2.200 m (maior reta da F1 a 360 km/h),
+  // quatro curvas retangulares de 90° no setor moderno (T1-4),
+  // A FAMOSA SUBIDA DO CASTELO MEDIEVAL (Curvas 8 a 11 com apenas 7,6 m de largura entre as pedras do castelo),
+  // descida ziguezagueante e curvas cegas rápidas 13 a 15 até abrir na reta infinita.
   17: {
     round: 17,
     code: 'BAK',
-    name: 'Baku City Circuit',
+    name: 'Circuito de Rua de Baku',
     viewBox: '0 0 320 220',
-    // Cidade velha e reta infinita da orla: 4 curvas de 90° no setor moderno (T1-T4), subida do castelo medieval estreitíssimo (T8-T11), descida rápida T13-T15 e reta reta plana de 2.2km na avenida Neftchilar
     svgPath:
-      'M 48 190 L 48 70 C 48 52 64 42 82 50 L 150 82 C 165 90 185 85 195 72 L 230 25 C 242 10 265 14 270 32 L 285 85 C 290 102 280 120 262 125 L 210 140 C 195 145 185 160 188 176 L 192 190 L 48 190 Z',
-    startFinish: { x: 120, y: 190 },
+      'M 46 192 L 46 68 C 46 50 62 40 80 48 L 148 80 C 164 88 184 84 194 70 L 228 24 C 240 8 264 12 268 30 L 284 84 C 288 102 278 120 260 125 L 208 140 C 194 144 184 160 186 176 L 190 192 L 46 192 Z',
+    startFinish: { x: 118, y: 192 },
     antiClockwise: true,
     description:
-      'Reta gigantesca de 2,2 km junto ao Mar Cáspio e a seção medieval do castelo com apenas 7,6 m de largura.',
+      'Reta de 2,2 km junto ao Mar Cáspio atingindo 360 km/h e a estreitíssima passagem medieval da torre do castelo.',
   },
-  // 18: Marina Bay (Singapura)
+
+  // 18: Marina Bay (Singapura) - Anti-horário
+  // GP noturno na baía de Marina Bay:
+  // Reta dos boxes, complexo de curvas Sheares T1-3, Republic Boulevard, chicane T7, Padang,
+  // passagem pela ponte histórica Anderson Bridge, hairpin da Fullerton,
+  // novo setor fluido do cais (retas unificadas) e as curvas do estádio sob a arquibancada.
   18: {
     round: 18,
     code: 'SIN',
-    name: 'Marina Bay, Singapura',
+    name: 'Circuito de Marina Bay, Singapura',
     viewBox: '0 0 320 220',
-    // Noturna nas ruas de Singapura: Sheares (T1-3), Republic Boulevard, T7 chicane, Padang, Anderson Bridge, hairpin da Fullerton, novo setor rápido da reta do cais e curva 16-19 sob a arquibancada
     svgPath:
-      'M 62 185 C 48 165 52 135 70 118 L 105 85 C 118 72 138 68 155 75 L 195 90 C 215 98 238 90 250 72 L 272 42 C 285 25 310 32 312 55 L 315 110 C 318 135 300 158 275 165 L 225 178 C 205 184 190 200 185 220 C 175 225 155 210 145 195 L 115 160 C 102 148 85 152 75 168 L 62 185 Z',
-    startFinish: { x: 80, y: 105 },
+      'M 60 186 C 46 166 50 136 68 118 L 104 85 C 118 72 138 68 155 75 L 195 90 C 215 98 238 90 250 72 L 272 42 C 285 25 310 32 312 55 L 315 110 C 318 135 300 158 275 165 L 225 178 C 205 184 190 200 185 220 C 175 225 155 210 145 195 L 115 160 C 102 148 85 152 75 168 L 60 186 Z',
+    startFinish: { x: 78, y: 104 },
     antiClockwise: true,
     description:
-      'GP noturno tropical mais desgastante do ano: calor de 32°C, 80% de umidade e mais de 60 voltas.',
+      'Espetáculo noturno sob holofotes entre arranha-céus, calor sufocante e alta exigência de tração.',
   },
-  // 19: Circuit of the Americas (Austin)
+
+  // 19: COTA - Circuit of the Americas (Austin, EUA) - Anti-horário
+  // Pista moderna de Herman Tilke com homenagens aos melhores trechos do mundo:
+  // Reta principal com subida brutal de 40 metros até a CURVA 1 HAIRPIN CEGA, descida alucinante no
+  // ESSE VELOZ DE ALTA (inspirado em Maggotts/Becketts curvas 2-6), curva cega 9-10, hairpin 11,
+  // reta de 1 km, complexo do estádio e a FERRADURA QUÁDRUPLA (curvas 16-18 inspiradas na curva 8 de Istambul).
   19: {
     round: 19,
     code: 'COT',
-    name: 'Circuit of the Americas, Austin',
+    name: 'Circuito das Américas, Austin',
     viewBox: '0 0 320 220',
-    // Subida cega de 40m para a curva 1 hairpin, descida para o Esse de alta velocidade (inspirado em Maggotts/Becketts), curva cega 10, hairpin 11, longa reta de trás, complexo do estádio e a ferradura quádrupla (T16-18)
     svgPath:
-      'M 55 185 L 55 80 C 55 52 82 38 106 54 L 140 78 C 155 90 178 88 192 74 L 235 30 C 252 12 280 22 282 46 L 285 95 C 288 120 270 142 245 148 L 195 160 C 175 165 160 182 160 204 C 158 218 140 224 128 214 L 88 180 C 75 170 60 175 55 185 Z',
-    startFinish: { x: 55, y: 125 },
+      'M 52 188 L 52 78 C 52 50 80 35 105 52 L 140 76 C 155 88 178 86 192 72 L 235 28 C 252 10 280 20 282 44 L 285 94 C 288 120 270 142 245 148 L 195 160 C 175 165 160 182 160 204 C 158 218 140 224 128 214 L 86 180 C 74 170 58 176 52 188 Z',
+    startFinish: { x: 52, y: 122 },
     antiClockwise: true,
     description:
-      'Subida íngreme para a Curva 1, esse veloz inspirado em Silverstone e ferradura quádrupla.',
+      'Subida cega de 40 metros para a Curva 1, sequência em S veloz inspirada em Silverstone e ferradura quádrupla.',
   },
-  // 20: Hermanos Rodríguez (México)
+
+  // 20: Autódromo Hermanos Rodríguez (México) - Horário
+  // A mais de 2.200 metros acima do nível do mar (ar rarefeito):
+  // Longuíssima reta de largada (1.300 m a mais de 350 km/h), chicane 1-2-3 Moisés Solana, reta intermediária,
+  // complexo 4-5-6, Esse veloz nas curvas 7 a 11, reta dos fundos e a
+  // INCRÍVEL PASSAGEM POR DENTRO DO ESTÁDIO DE BEISEBOL FORO SOL (curvas 12 a 16 cercadas por 40 mil torcedores) e retorno na antiga curva Peraltada.
   20: {
     round: 20,
     code: 'MEX',
-    name: 'Hermanos Rodríguez, México',
+    name: 'Autódromo Hermanos Rodríguez, México',
     viewBox: '0 0 320 220',
-    // Longuíssima reta principal (1.3km), curvas 1-2-3 em chicane, reta curta, T4-5-6, o Esse de média/alta velocidade (T7-11), reta dos fundos e a lendária passagem pelo Estádio Foro Sol (curvas 12-16)
     svgPath:
-      'M 52 188 L 220 188 C 242 188 260 172 264 150 L 275 90 C 280 62 260 38 232 38 L 180 38 C 160 38 145 50 140 70 L 132 102 C 128 120 112 134 92 134 L 52 134 L 52 188 Z',
-    startFinish: { x: 130, y: 188 },
+      'M 50 190 L 225 190 C 245 190 262 174 266 152 L 278 90 C 282 62 262 36 234 36 L 180 36 C 160 36 145 48 140 68 L 132 102 C 128 120 112 134 92 134 L 50 134 L 50 190 Z',
+    startFinish: { x: 135, y: 190 },
     antiClockwise: false,
     description:
-      'Altitude extrema de 2.200 m com ar rarefeito e passagem apoteótica pelo Estádio Foro Sol.',
+      'Altitude de 2.200m com ar rarefeito, reta inicial de 1,3 km e a apoteose do estádio de beisebol Foro Sol.',
   },
-  // 21: Interlagos (Brasil)
+
+  // 21: Interlagos - Autódromo de São Paulo (Brasil) - Anti-horário
+  // TRAÇADO OBRIGATÓRIO FIEL AO ÍCONE BRASILEIRO (Sentido anti-horário):
+  // Reta dos boxes descendo no icônico e mergulhante S DO SENNA (Curva 1 para a esquerda em descida íngreme e Curva 2 contornando para a direita),
+  // Curva do Sol (T3) acelerando na Reta Oposta, freada em descida para a Curva da Ferradura (T6-7),
+  // subida para a Curva do Laranjinha (T8), Pinheirinho (T9), o fechadíssimo Bico de Pato (T10),
+  // Curva do Mergulho (T11), a decisiva Junção (T12), subida na Subida dos Boxes a fundo e Curva do Café até a linha de chegada.
   21: {
     round: 21,
     code: 'INT',
-    name: 'Interlagos, São Paulo',
+    name: 'Autódromo de Interlagos, São Paulo',
     viewBox: '0 0 320 220',
-    // Autêntico clássico brasileiro anti-horário: Reta dos Boxes descendo em mergulho no S do Senna (T1-T2), Curva do Sol (T3), Reta Oposta, Ferradura descendo (T6-T7), Laranjinha, Pinheirinho, Bico de Pato, Junção e subida da Subida dos Boxes
     svgPath:
-      'M 82 188 C 62 172 65 140 85 118 L 115 88 C 128 75 145 70 162 76 L 205 92 C 228 100 255 90 268 68 L 285 40 C 298 18 325 28 322 54 L 312 110 C 304 145 272 172 235 174 L 175 176 C 152 178 132 192 125 214 C 118 226 98 224 88 208 L 82 188 Z',
-    startFinish: { x: 105, y: 188 },
+      'M 82 192 C 60 174 62 142 84 120 L 118 88 C 130 76 148 70 165 76 L 208 92 C 230 100 258 90 270 68 L 288 40 C 300 18 326 28 322 54 L 312 110 C 304 145 272 172 235 174 L 175 176 C 152 178 132 192 125 214 C 118 226 98 224 88 208 L 82 192 Z',
+    startFinish: { x: 104, y: 190 },
     antiClockwise: true,
     description:
-      'Anti-horário autêntico com o "S do Senna", Curva do Sol, Reta Oposta, Ferradura e Junção.',
+      'Anti-horário autêntico com o lendário "S do Senna", Curva do Sol, Reta Oposta, Ferradura, Bico de Pato e Subida dos Boxes.',
   },
-  // 22: Las Vegas Strip
+
+  // 22: Las Vegas Strip (EUA) - Anti-horário
+  // Circuito de rua pelas avenidas mais famosas de Nevada:
+  // Paddock fechado no miolo leste (T1-4), Koval Lane em alta velocidade, curva contornando a gigantesca ESFERA (MSG Sphere curvas 5-9),
+  // Sands Avenue e a ENORME RETA DA STRIP DE 1.900 METROS passando em frente ao Bellagio, Caesars Palace e Paris a 350 km/h,
+  // freada na Harmon Avenue e curva final de volta ao paddock.
   22: {
     round: 22,
     code: 'LVG',
-    name: 'Las Vegas Strip Circuit',
+    name: 'Circuito da Las Vegas Strip',
     viewBox: '0 0 320 220',
-    // Paddock e T1-T4 no miolo leste, Koval Lane, curva 5 contornando a Esfera MSG Sphere (curvas 6-7-8), Sands Avenue, virada fechada na Strip com reta plana de 1.9km passando pelo Bellagio e Caesars, chicane final Harmon Ave
     svgPath:
-      'M 58 175 L 58 80 C 58 58 80 44 102 54 L 185 92 C 200 98 215 95 228 84 L 260 55 C 275 42 298 52 298 72 L 298 140 C 298 165 278 185 252 185 L 140 185 C 120 185 105 198 90 205 C 75 212 58 198 58 175 Z',
-    startFinish: { x: 58, y: 130 },
+      'M 56 178 L 56 78 C 56 56 78 42 100 52 L 186 92 C 200 98 216 95 230 84 L 262 55 C 276 42 300 52 300 72 L 300 142 C 300 166 280 186 254 186 L 142 186 C 122 186 106 198 92 206 C 76 214 56 200 56 178 Z',
+    startFinish: { x: 56, y: 128 },
     antiClockwise: true,
     description:
-      'Frio noturno no coração de Las Vegas, reta de 1,9 km na Strip a mais de 345 km/h.',
+      'Espetáculo noturno no coração de Las Vegas: contorno da Esfera e reta monumental de 1,9 km na Strip a mais de 345 km/h.',
   },
-  // 23: Lusail (Catar)
+
+  // 23: Lusail (Catar) - Horário
+  // Circuito de motovelocidade adaptado para F1:
+  // Reta de chegada de mais de 1 km, Curva 1 de raio médio, curva 2-3 fluida,
+  // sequência ininterrupta de curvas rápidas no deserto (T4 a T10 gerando 4G laterais contínuos),
+  // reta intermediária curta e o impressionante ápice triplo das curvas 12-14.
   23: {
     round: 23,
     code: 'QAT',
-    name: 'Lusail International Circuit',
+    name: 'Circuito Internacional de Lusail',
     viewBox: '0 0 320 220',
-    // Pista veloz com 16 curvas fluidas: reta principal de 1km, curva 1 de raio médio, curva 2-3 fluida, sequência contínua de curvas rápidas 4 a 10 no deserto, reta curta e o triplo apex das curvas 12-14
     svgPath:
-      'M 68 185 L 230 185 C 255 185 275 168 280 144 L 290 92 C 295 65 275 40 248 40 L 205 40 C 185 40 170 52 165 72 L 158 98 C 152 120 132 136 110 136 L 82 136 C 60 136 48 155 58 175 L 68 185 Z',
-    startFinish: { x: 135, y: 185 },
+      'M 65 188 L 232 188 C 258 188 278 170 282 145 L 292 92 C 296 64 276 38 248 38 L 205 38 C 185 38 170 50 165 70 L 158 96 C 152 118 132 134 110 134 L 80 134 C 58 134 46 154 56 175 L 65 188 Z',
+    startFinish: { x: 135, y: 188 },
     antiClockwise: false,
     description:
-      'Circuito ultramoderno e ultraveloz sob holofotes com altíssimas forças G laterais.',
+      'Pista ultramoderna com curvas fluidas e velozes sob holofotes, exigindo máxima resistência física aos pilotos.',
   },
-  // 24: Yas Marina (Abu Dhabi)
+
+  // 24: Yas Marina (Abu Dhabi) - Anti-horário
+  // A grande decisão do campeonato ao entardecer no Golfo Pérsico:
+  // Reta dos boxes, Curva 1 para a esquerda, rápida subida nas curvas 2-3, hairpin remodelado T5 na ponta norte,
+  // Reta de 1.200 m, chicane rápida T6-7, segunda reta oposta com a curva inclinada com banking T9,
+  // passagem cinematográfica por baixo do hotel W Abu Dhabi iluminado por LEDs coloridos e contorno da marina.
   24: {
     round: 24,
     code: 'ABU',
-    name: 'Yas Marina, Abu Dhabi',
+    name: 'Circuito de Yas Marina, Abu Dhabi',
     viewBox: '0 0 320 220',
-    // Traçado reformado e veloz: T1 para a esquerda, curvas 2-3 rápidas para a direita, hairpin T5 na ponta norte, reta de 1.2km, chicane e hairpin T9 com banking, contorno sob o hotel W Abu Dhabi iluminado e setor da marina
     svgPath:
-      'M 65 180 C 48 160 52 128 72 110 L 102 82 C 115 70 125 52 125 35 C 125 15 145 2 164 12 L 215 38 C 235 48 260 45 275 30 L 290 15 C 305 0 325 12 322 32 L 312 95 C 305 130 275 158 240 162 L 180 168 C 158 170 142 185 135 205 C 128 225 102 230 88 214 L 65 180 Z',
-    startFinish: { x: 90, y: 95 },
+      'M 65 182 C 48 162 52 128 72 110 L 102 82 C 115 70 125 52 125 35 C 125 15 145 2 164 12 L 215 38 C 235 48 260 45 275 30 L 290 15 C 305 0 325 12 322 32 L 312 95 C 305 130 275 158 240 162 L 180 168 C 158 170 142 185 135 205 C 128 225 102 230 88 214 L 65 182 Z',
+    startFinish: { x: 88, y: 96 },
     antiClockwise: true,
     description:
-      'A grande final sob o pôr do sol no Golfo: marina, hotel iluminado por LEDs e setor técnico final.',
+      'O crepúsculo da grande final: marina de iates de luxo, hotel W Abu Dhabi iluminado e traçado fluido e veloz.',
   },
 }
 
@@ -390,7 +495,9 @@ export const CircuitBlueprint: React.FC<CircuitBlueprintProps> = ({
           </span>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-slate-400">
-          <span>{track.antiClockwise ? '↺ Anti-horário' : '↻ Horário'}</span>
+          <span className="px-1.5 py-0.5 rounded bg-[#11161F] border border-[#1F2733] text-cyan-300 font-bold">
+            {track.antiClockwise ? '↺ Anti-horário' : '↻ Horário'}
+          </span>
           {laps && <span className="text-white font-bold">• {laps} voltas</span>}
         </div>
       </div>
@@ -469,7 +576,9 @@ export const CircuitBlueprint: React.FC<CircuitBlueprintProps> = ({
         </svg>
 
         {/* Compass direction badge */}
-        <div className="absolute bottom-1 left-2 text-[9px] text-slate-500 font-mono">NORTE ▲</div>
+        <div className="absolute bottom-1 left-2 text-[9px] text-slate-500 font-mono">
+          {track.antiClockwise ? '↺ SENTIDO ANTI-HORÁRIO' : '↻ SENTIDO HORÁRIO'}
+        </div>
       </div>
 
       {/* Circuit Specs Footer */}
@@ -490,7 +599,7 @@ export const CircuitBlueprint: React.FC<CircuitBlueprintProps> = ({
         </div>
       </div>
 
-      <p className="text-[10px] text-[#8B95A7] mt-2 line-clamp-1 italic">{track.description}</p>
+      <p className="text-[10px] text-[#8B95A7] mt-2 line-clamp-2 italic">{track.description}</p>
     </div>
   )
 }

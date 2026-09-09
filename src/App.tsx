@@ -10,6 +10,7 @@ import Layout from './components/Layout'
 import Index from './pages/Index'
 import AuthPage from './pages/Auth'
 import TeamPage from './pages/Team'
+import TeamsPage from './pages/Teams'
 import CarPage from './pages/Car'
 import SponsorsPage from './pages/Sponsors'
 import RacePage from './pages/Race'
@@ -35,6 +36,7 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/team" element={<TeamPage />} />
+              <Route path="/teams" element={<TeamsPage />} />
               <Route path="/car" element={<CarPage />} />
               <Route path="/sponsors" element={<SponsorsPage />} />
               <Route path="/race" element={<RacePage />} />

@@ -5,7 +5,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
-import { F1_2026_CALENDAR } from '@/lib/f1-data'
+import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
+import { EngineSupplierSpec } from '@/types/f1'
 import { toast } from '@/hooks/use-toast'
 import {
   Users,
@@ -18,6 +19,7 @@ import {
   CloudRain,
   Flame,
   CheckCircle2,
+  CheckCircle,
   Wrench,
   XCircle,
   Calendar,
@@ -28,6 +30,8 @@ import {
   Activity,
   HeartPulse,
   Disc,
+  Cpu,
+  Zap,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -61,6 +65,10 @@ export default function TeamPage() {
   const [hireRole, setHireRole] = useState<'titular' | 'reserva'>('titular')
   const [driverToReplaceId, setDriverToReplaceId] = useState<string>('')
 
+  // Engine switch state
+  const [selectedSupplier, setSelectedSupplier] = useState<EngineSupplierSpec | null>(null)
+  const [isSwitchingEngine, setIsSwitchingEngine] = useState(false)
+
   // FP practice modal
   const [fpModalOpen, setFpModalOpen] = useState(false)
   const [selectedFpRounds, setSelectedFpRounds] = useState<number[]>([7, 13])
@@ -76,6 +84,75 @@ export default function TeamPage() {
   // Team strength calculation / display
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
   const teamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
+
+  // Engine supplier current info
+  const currentEngine = useMemo(() => {
+    const sName = team?.engine_supplier || 'Mercedes'
+    return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
+  }, [team?.engine_supplier])
+
+  const COST_CAP_LIMIT = f1Service.COST_CAP_LIMIT
+  const currentCostCapSpent = team?.cost_cap_spent ?? 0
+  const remainingCostCap = Math.max(0, COST_CAP_LIMIT - currentCostCapSpent)
+  const ENGINE_SWITCH_FEE = 15000000 // R$ 15M taxa de readequação de chassi
+
+  // Handle engine supplier switch in TeamPage
+  const handleSwitchSupplier = async () => {
+    if (!selectedSupplier || !team) return
+
+    if (currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT) {
+      toast({
+        variant: 'destructive',
+        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
+        description: `A taxa de rescisão e readequação de chassi de ${formatCurrency(ENGINE_SWITCH_FEE)} excede o limite do teto de gastos da FIA (${formatCurrency(COST_CAP_LIMIT)}). Margem restante: ${formatCurrency(remainingCostCap)}.`,
+      })
+      return
+    }
+
+    if (team.budget < ENGINE_SWITCH_FEE) {
+      toast({
+        variant: 'destructive',
+        title: 'Orçamento Insuficiente',
+        description: `A rescisão e adaptação de chassi exige ${formatCurrency(ENGINE_SWITCH_FEE)}. Seu saldo: ${formatCurrency(team.budget)}.`,
+      })
+      return
+    }
+
+    setIsSwitchingEngine(true)
+    try {
+      const newBudget = team.budget - ENGINE_SWITCH_FEE
+      const newSpentCap = currentCostCapSpent + ENGINE_SWITCH_FEE
+
+      await f1Service.updateTeam(team.id, {
+        engine_supplier: selectedSupplier.name,
+        budget: newBudget,
+        cost_cap_spent: newSpentCap,
+      })
+
+      await f1Service.addEvent(
+        team.id,
+        `Fornecedor de unidade de potência trocado para ${selectedSupplier.name} (Custo: ${formatCurrency(ENGINE_SWITCH_FEE)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
+        'desenvolvimento',
+      )
+
+      toast({
+        title: 'Fornecedor de Motor Atualizado!',
+        description: `A equipe agora é impulsionada pela unidade ${selectedSupplier.name} 50/50 Híbrida. Válido para toda a temporada!`,
+      })
+
+      setSelectedSupplier(null)
+      await refreshTeamAndSeason()
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro na troca de motor',
+        description: err?.message || 'Falha ao alterar fornecedor de motor.',
+      })
+    } finally {
+      setIsSwitchingEngine(false)
+    }
+  }
 
   const loadData = async () => {
     if (!team) {
@@ -586,6 +663,145 @@ export default function TeamPage() {
           </div>
         </div>
       )}
+
+      {/* Frente 1: Card Unidade de Potência 2026 (Fornecedores Homologados) */}
+      <Card className="bg-[#11161F] border-[#1F2733] shadow-lg overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-cyan-500/10 via-transparent to-transparent pointer-events-none" />
+
+        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-cyan-400">
+                  Regulamento FIA 2026 // Trem de Força 50/50
+                </span>
+                <Badge className="bg-cyan-500/10 border-cyan-500/30 text-cyan-300 font-mono text-[10px]">
+                  Turbo V6 + 350 kW MGU-K
+                </Badge>
+              </div>
+              <CardTitle className="text-xl font-extrabold text-[#F5F7FA] flex items-center gap-2.5 mt-1">
+                <Cpu className="w-5 h-5 text-cyan-400" />
+                Unidade de Potência Atual: {currentEngine.name}
+              </CardTitle>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="text-[#8B95A7]">Custo de Readequação / Troca:</span>
+              <strong className="text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
+                {formatCurrency(ENGINE_SWITCH_FEE)}
+              </strong>
+            </div>
+          </div>
+          <CardDescription className="text-xs text-[#8B95A7]">
+            O motor fornece aceleração em reta e afeta a probabilidade de falha mecânica nas
+            corridas. Alterne entre os 4 fabricantes homologados para a temporada 2026 com validação
+            orçamentária e teto de gastos.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="pt-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {ENGINE_SUPPLIERS.map((sup) => {
+              const isCurrent = (team?.engine_supplier || 'Mercedes') === sup.name
+              return (
+                <div
+                  key={sup.name}
+                  className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
+                    isCurrent
+                      ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
+                      : 'bg-[#0B0E14] border-[#1F2733] hover:border-[#1F2733]/90'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-1">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-bold text-base text-[#F5F7FA]">{sup.name}</h3>
+                          {isCurrent && (
+                            <Badge className="bg-cyan-500 text-slate-950 text-[10px] font-mono font-bold">
+                              Equipado
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-[10px] font-mono text-cyan-400 mt-0.5">
+                          {sup.techBadge}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-[#8B95A7] leading-relaxed line-clamp-2">
+                      {sup.description}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#1F2733] text-xs font-mono">
+                      <div className="p-1.5 rounded bg-[#11161F]">
+                        <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-cyan-400" /> Potência
+                        </span>
+                        <strong className="text-[#F5F7FA] text-sm">{sup.power}/100</strong>
+                      </div>
+                      <div className="p-1.5 rounded bg-[#11161F]">
+                        <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
+                          <Shield className="w-3 h-3 text-emerald-400" /> Confiab.
+                        </span>
+                        <strong className="text-emerald-400 text-sm">{sup.reliability}%</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-[#1F2733]/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-[#8B95A7] block font-mono">
+                        Custo anual
+                      </span>
+                      <strong className="text-xs font-mono text-[#F5F7FA]">
+                        {formatCurrency(sup.costAnnual)}
+                      </strong>
+                    </div>
+
+                    {isCurrent ? (
+                      <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> Ativo
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedSupplier(sup)}
+                        className="border-[#1F2733] text-xs h-7 px-2.5 text-cyan-400 hover:text-white hover:bg-cyan-600/20"
+                      >
+                        Trocar Motor
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-[#8B95A7]">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>
+                Motor em operação: <strong className="text-[#F5F7FA]">{currentEngine.name}</strong>{' '}
+                • Potência {currentEngine.power} • Confiabilidade {currentEngine.reliability}%
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-[11px]">
+              <span>
+                Orçamento:{' '}
+                <strong className="text-emerald-400">{formatCurrency(team?.budget ?? 0)}</strong>
+              </span>
+              <span>•</span>
+              <span>
+                Teto FIA:{' '}
+                <strong className="text-white">{formatCurrency(currentCostCapSpent)}</strong> /{' '}
+                {formatCurrency(COST_CAP_LIMIT)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Seção 1: Pilotos Titulares (2 titulares) */}
       <Card className="bg-[#11161F] border-[#1F2733]">
@@ -1298,6 +1514,113 @@ export default function TeamPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal Frente 1: Confirmar Troca de Fornecedor de Unidade de Potência */}
+      <Dialog
+        open={!!selectedSupplier}
+        onOpenChange={(open) => !isSwitchingEngine && !open && setSelectedSupplier(null)}
+      >
+        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-cyan-400" />
+              Trocar Fornecedor de Unidade de Potência
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#8B95A7]">
+              A rescisão e readequação dos pontos de fixação do chassi possuem custo de integração
+              sob regras da FIA.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSupplier && (
+            <div className="space-y-4 py-2 text-xs font-mono">
+              <div className="p-3.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[#8B95A7]">Novo Fornecedor:</span>
+                  <div className="text-right">
+                    <strong className="text-[#F5F7FA] text-sm block">
+                      {selectedSupplier.name}
+                    </strong>
+                    <span className="text-[10px] text-cyan-400">{selectedSupplier.techBadge}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-[#8B95A7]">Potência / Confiabilidade:</span>
+                  <span className="text-cyan-400 font-bold">
+                    {selectedSupplier.power} pts / {selectedSupplier.reliability}%
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-[#8B95A7]">Custo de Rescisão & Integração:</span>
+                  <strong className="text-amber-400 text-sm">
+                    {formatCurrency(ENGINE_SWITCH_FEE)}
+                  </strong>
+                </div>
+
+                <div className="flex justify-between pt-1 border-t border-[#1F2733]/60">
+                  <span className="text-[#8B95A7]">Saldo Atual da Equipe:</span>
+                  <span className="text-[#F5F7FA] font-bold">
+                    {formatCurrency(team?.budget ?? 0)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-[#8B95A7]">Impacto no Teto FIA:</span>
+                  <span
+                    className={
+                      currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT
+                        ? 'text-red-400 font-bold'
+                        : 'text-emerald-400'
+                    }
+                  >
+                    {formatCurrency(currentCostCapSpent + ENGINE_SWITCH_FEE)} /{' '}
+                    {formatCurrency(COST_CAP_LIMIT)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Validações de erro */}
+              {(team?.budget ?? 0) < ENGINE_SWITCH_FEE && (
+                <div className="p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-red-200 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>Saldo insuficiente para arcar com a taxa de R$ 15,00 M.</span>
+                </div>
+              )}
+
+              {currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT && (
+                <div className="p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-red-200 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>A taxa ultrapassará o teto de gastos anual da FIA de R$ 135,00 M.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              disabled={isSwitchingEngine}
+              onClick={() => setSelectedSupplier(null)}
+              className="border-[#1F2733] text-[#8B95A7]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSwitchSupplier}
+              disabled={
+                isSwitchingEngine ||
+                (team?.budget ?? 0) < ENGINE_SWITCH_FEE ||
+                currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT
+              }
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
+            >
+              {isSwitchingEngine ? 'Adaptando chassi...' : 'Confirmar Troca de Motor'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal: Agendar Treinos Livres do Reserva */}
       <Dialog open={fpModalOpen} onOpenChange={setFpModalOpen}>

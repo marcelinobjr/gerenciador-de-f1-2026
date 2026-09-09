@@ -5,6 +5,7 @@ import {
   Flag,
   LayoutDashboard,
   Users,
+  Shield,
   Wrench,
   BadgePercent,
   Trophy,
@@ -75,6 +76,7 @@ export default function Layout() {
   const navItems = [
     { name: 'Painel', path: '/', icon: LayoutDashboard },
     { name: 'Equipe', path: '/team', icon: Users },
+    { name: 'Equipes', path: '/teams', icon: Shield },
     { name: 'Carro', path: '/car', icon: Wrench },
     { name: 'Patrocínios', path: '/sponsors', icon: BadgePercent },
     { name: 'Corrida', path: '/race', icon: Gauge },
