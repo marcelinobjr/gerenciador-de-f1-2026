@@ -650,7 +650,8 @@ export const f1Service = {
   },
 
   // Cost cap & engine pool constants
-  COST_CAP_LIMIT: 135000000, // R$ 135.000.000 teto de gastos anual FIA
+  COST_CAP_LIMIT: 215000000, // R$ 215.000.000 teto de gastos anual FIA (equipe + chassi)
+  ENGINE_COST_REFERENCE: 190000000, // R$ 190.000.000 custo de motor (unidade de potência)
   MAX_ALLOWED_ENGINES: 4, // 4 motores por temporada sem penalidade de grid
 
   // Registra gasto no teto de custos (cost cap)

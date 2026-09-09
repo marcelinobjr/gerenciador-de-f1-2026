@@ -428,7 +428,8 @@ export default function StandingsPage() {
                 Mundial de Construtores — Temporada 2026
               </CardTitle>
               <CardDescription className="text-xs text-[#8B95A7]">
-                A pontuação acumulada define o prêmio de final de temporada e a moral da escuderia.
+                A pontuação acumulada define a premiação anual de construtores (R$ 175M no P1 até R$
+                70M no P12) e a moral da escuderia.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -447,12 +448,28 @@ export default function StandingsPage() {
                         <th className="py-2.5 px-3">Equipe</th>
                         <th className="py-2.5 px-3">Motor 50/50</th>
                         <th className="py-2.5 px-3 text-center">Vitórias</th>
+                        <th className="py-2.5 px-3 text-right">Premiação FIA (Final)</th>
                         <th className="py-2.5 px-4 text-right">Pontos Totais</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#1F2733]/60">
                       {constructorStandings.map((cTeam, index) => {
                         const pos = index + 1
+                        const prizeByRank: Record<number, number> = {
+                          1: 175000000,
+                          2: 160000000,
+                          3: 147000000,
+                          4: 135000000,
+                          5: 124000000,
+                          6: 114000000,
+                          7: 104000000,
+                          8: 95000000,
+                          9: 87000000,
+                          10: 80000000,
+                          11: 74000000,
+                          12: 70000000,
+                        }
+                        const estimatedPrize = prizeByRank[pos] || 70000000
                         return (
                           <tr
                             key={cTeam.id}
@@ -506,6 +523,11 @@ export default function StandingsPage() {
                               ) : (
                                 <span className="text-[#8B95A7]">0</span>
                               )}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="text-xs font-bold text-emerald-400">
+                                {formatCurrency(estimatedPrize)}
+                              </span>
                             </td>
                             <td className="py-3 px-4 text-right">
                               <strong
