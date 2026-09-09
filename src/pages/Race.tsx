@@ -90,6 +90,8 @@ interface SimDriverEntry {
   usedOvertake: boolean
   dnf: boolean
   dnfReason?: string
+  dnfLap?: number
+  accumulatedTimeSec?: number
   totalTime: string
   tireCompound?: TireCompound
   secondCompound?: TireCompound
@@ -2570,115 +2572,38 @@ export default function RacePage() {
   }
 
   // Calculate final positions, points, tire degradation & race results
-  const finishRaceSimulation = (grid: SimDriverEntry[], finalWeather: TrackWeatherState) => {
-    const abrasiveness = gpInfo.tireAbrasiveness || 6
-    const setupPenalty = calculateSetupDelta('race')
-    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
-    const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
-    const titulars = drivers.filter((d) => d.role !== 'reserva' && d.team_id === team?.id)
-    const reserve = drivers.find(
-      (d) => d.role === 'reserva' || (d.reserve_team_id === team?.id && d.team_id !== team?.id),
-    )
-
+  const finishRaceSimulation = (grid: SimDriverEntry[], _finalWeather: TrackWeatherState) => {
     const incidents = [...raceIncidents]
 
-    grid.forEach((entry) => {
-      if (entry.dnf) return // already DNF
+    // 1. Manter e consolidar a ordem de chegada baseada na ordem corrente do grid ao cruzar a linha:
+    // Pilotos ativos ordenados por sua posição/ordem já computada volta a volta na simulação,
+    // seguidos pelos DNFs ordenados por volta de abandono (quem abandonou mais tarde fica na frente).
+    const activeDrivers = grid
+      .filter((e) => !e.dnf)
+      .sort((a, b) => (a.position || 0) - (b.position || 0))
 
-      let driverSkill = 80
-      let carLevel = 75
-
-      if (entry.isPlayer) {
-        const dObj = titulars.find((d) => d.id === entry.driverId) || titulars[0]
-        const active = dObj?.is_incapacitated && reserve ? reserve : dObj
-        driverSkill =
-          finalWeather === 'chuva_forte'
-            ? active.speed * 0.2 + active.rain * 0.65 + active.consistency * 0.15
-            : finalWeather === 'chuva_fraca'
-              ? active.speed * 0.25 + active.rain * 0.45 + active.consistency * 0.3
-              : active.speed * 0.4 + active.consistency * 0.35 + active.defense * 0.25
-
-        // Factor in driver moral and physical condition
-        const moraleBonus = ((active.morale ?? 80) - 70) * 0.12
-        const physicalBonus = ((active.physical_condition ?? 90) - 80) * 0.1
-        driverSkill += moraleBonus + physicalBonus
-
-        carLevel = playerCarLevel * 0.7 + playerTeamStrength * 0.3 - setupPenalty
-
-        // Mechanical failure check: Engine reliability + parts condition risk
-        const criticalPart = parts.find((p) => (p.condition ?? 100) < 30)
-        const lowConditionPenaltyRisk = criticalPart
-          ? Math.round((30 - (criticalPart.condition ?? 100)) * 1.5)
-          : 0
-        const mechRisk =
-          100 -
-          currentEngine.reliability +
-          (setups.race.pu_electric_ratio > 65 ? 8 : 0) +
-          lowConditionPenaltyRisk
-
-        if (Math.random() * 100 < mechRisk) {
-          entry.dnf = true
-          if (criticalPart && Math.random() < 0.6) {
-            entry.dnfReason = `Quebra mecânica estrutural em ${criticalPart.name}`
-            incidents.push(
-              `⚠️ ABANDONO: ${entry.driverName} abandonou por quebra mecânica estrutural em ${criticalPart.name}!`,
-            )
-          } else {
-            entry.dnfReason = 'Falha no inversor de 350kW do MGU-K'
-            incidents.push(`⚠️ ABANDONO: ${entry.driverName} sofreu pane elétrica no MGU-K!`)
-          }
+    const dnfDrivers = grid
+      .filter((e) => e.dnf)
+      .sort((a, b) => {
+        const lapA = a.dnfLap ?? 0
+        const lapB = b.dnfLap ?? 0
+        if (lapB !== lapA) {
+          return lapB - lapA // quem abandonou mais tarde fica na frente
         }
-      } else {
-        // AI rival driver
-        driverSkill = 81 + Math.random() * 6
-        carLevel = 76 + Math.random() * 6
-        if (Math.random() < 0.05) {
-          entry.dnf = true
-          entry.dnfReason = 'Problema de pressão hidráulica'
-          incidents.push(`⚠️ ABANDONO: ${entry.driverName} abandonou por quebra mecânica.`)
-        }
-      }
+        return (a.position || 0) - (b.position || 0)
+      })
 
-      // Tire wear impacts score and risk
-      const finalWear = Math.min(
-        100,
-        Math.max(30, (entry.tireWear || 60) + Math.round(Math.random() * 20)),
-      )
-      entry.tireWear = finalWear
+    const finalOrderedGrid = [...activeDrivers, ...dnfDrivers]
 
-      // Tire puncture / sudden drop risk if wear > 88%
-      if (finalWear > 88) {
-        entry.score -= 15
-        if (Math.random() < 0.25 && !entry.dnf) {
-          entry.dnf = true
-          entry.dnfReason = 'Delaminação e estouro de pneu por desgaste excessivo'
-          incidents.push(
-            `💥 ESTOURO DE PNEU: ${entry.driverName} perdeu a banda de rodagem e bateu!`,
-          )
-        }
-      }
-
-      const luck = (Math.random() - 0.5) * 12
-      entry.score = driverSkill * 0.4 + carLevel * 0.5 + luck - (finalWear > 80 ? 5 : 0)
-    })
-
-    // Sort: non-DNF by score, then DNF
-    grid.sort((a, b) => {
-      if (a.dnf && !b.dnf) return 1
-      if (!a.dnf && b.dnf) return -1
-      return b.score - a.score
-    })
-
-    // Points attribution for Top 10 (FIA regulation)
+    // 2. Atribuição de posições, tempos e pontuação oficial da FIA (posições 1–10: 25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
     const pointsTable = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
     const baseMinutes = 78
     const baseSeconds = 14
 
-    grid.forEach((entry, idx) => {
+    finalOrderedGrid.forEach((entry, idx) => {
       entry.position = idx + 1
-      if (!entry.dnf && idx < pointsTable.length) {
-        entry.points = pointsTable[idx]
-      }
+      entry.points = !entry.dnf && idx < pointsTable.length ? pointsTable[idx] : 0
+
       if (idx > 0 && !entry.dnf && Math.random() < 0.65) {
         entry.usedOvertake = true
       }
@@ -2692,8 +2617,8 @@ export default function RacePage() {
       }
     })
 
-    // Fastest Lap
-    const top10 = grid.filter((g) => !g.dnf && g.position <= 10)
+    // 3. Volta mais rápida (+1 ponto no Top 10)
+    const top10 = finalOrderedGrid.filter((g) => !g.dnf && g.position <= 10)
     if (top10.length > 0) {
       const flIndex = Math.floor(Math.random() * top10.length)
       top10[flIndex].fastestLap = true
@@ -2706,10 +2631,12 @@ export default function RacePage() {
     setRaceIncidents(incidents)
 
     setIsSimulatingSession(false)
-    setRaceResults(grid)
+    setRaceResults(finalOrderedGrid)
     setCompletedSessions((prev) => [...new Set<WeekendSession>([...prev, 'race'])])
     if (liveRaceState) {
-      setLiveRaceState((prev) => (prev ? { ...prev, inProgress: false, grid } : null))
+      setLiveRaceState((prev) =>
+        prev ? { ...prev, inProgress: false, grid: finalOrderedGrid } : null,
+      )
     }
   }
 
@@ -4146,7 +4073,11 @@ export default function RacePage() {
                                               : 'text-[#F5F7FA]'
                                           }`}
                                         >
-                                          {entry.gapToLeader || 'LÍDER'}
+                                          {entry.position === 1
+                                            ? 'LÍDER'
+                                            : entry.gapToLeader && entry.gapToLeader !== 'LÍDER'
+                                              ? entry.gapToLeader
+                                              : '—'}
                                         </span>
                                       </td>
 
