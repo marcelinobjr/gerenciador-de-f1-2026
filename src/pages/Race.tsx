@@ -281,6 +281,7 @@ export default function RacePage() {
   const [forcePitModalOpen, setForcePitModalOpen] = useState(false)
   const [forcePitSelectedDriverId, setForcePitSelectedDriverId] = useState<string>('')
   const [forcePitSelectedSetId, setForcePitSelectedSetId] = useState<string>('')
+  const wasPausedBeforeForcePitRef = useRef<boolean>(false)
 
   // Session results records
   const [sessionResults, setSessionResults] = useState<Record<string, SessionTimeResult[]>>({})
@@ -326,10 +327,13 @@ export default function RacePage() {
   const [wingDamageDriver, setWingDamageDriver] = useState<SimDriverEntry | null>(null)
   const [wingDamageTireChoice, setWingDamageTireChoice] = useState<TireCompound>('duro')
 
-  // 2. Safety car decision modal
+  // 2. Safety car decision modal & queue
   const [safetyCarModalOpen, setSafetyCarModalOpen] = useState(false)
   const [safetyCarReason, setSafetyCarReason] = useState<string>('')
   const [safetyCarTireChoice, setSafetyCarTireChoice] = useState<TireCompound>('medio')
+  const [safetyCarQueue, setSafetyCarQueue] = useState<string[]>([])
+  const [safetyCarQueueTotal, setSafetyCarQueueTotal] = useState<number>(0)
+  const [safetyCarActiveDriverId, setSafetyCarActiveDriverId] = useState<string>('')
 
   // Weather and forecast state with 3 intensity states: seco | chuva_fraca | chuva_forte
   const [weather, setWeather] = useState<TrackWeatherState>('seco')
@@ -350,9 +354,12 @@ export default function RacePage() {
     safetyCarLapRemaining?: number
   } | null>(null)
 
-  // Rain Decision Modal state
+  // Rain Decision Modal & Queue state
   const [rainDecisionOpen, setRainDecisionOpen] = useState(false)
   const [rainDecisionWaitLaps, setRainDecisionWaitLaps] = useState(2)
+  const [rainQueue, setRainQueue] = useState<string[]>([])
+  const [rainQueueTotal, setRainQueueTotal] = useState<number>(0)
+  const [rainActiveDriverId, setRainActiveDriverId] = useState<string>('')
 
   const currentRound = season?.current_round || 1
   const totalRounds = season?.total_rounds || 24
@@ -2002,6 +2009,10 @@ export default function RacePage() {
         currentWeather === 'seco'
       ) {
         clearInterval(timer)
+        liveRaceTimerRef.current = null
+        setIsRacePaused(true)
+        isRacePausedRef.current = true
+
         const isStorm = forecast.expectedCondition === 'Tempestade' || forecast.probability >= 75
         currentWeather = isStorm ? 'chuva_forte' : 'chuva_fraca'
         setWeather(currentWeather)
@@ -2030,14 +2041,22 @@ export default function RacePage() {
           grid: currentGrid,
         })
         setIsSimulatingSession(false)
-        setRainDecisionOpen(true)
-        toast({
-          title:
-            currentWeather === 'chuva_forte'
-              ? '⛈️ TEMPESTADE NA PISTA!'
-              : '🌧️ COMEÇOU A CHOVER NA PISTA!',
-          description: `Volta ${currentLap}/${totalLaps}: Condição: ${currentWeather === 'chuva_forte' ? 'Chuva Forte' : 'Chuva Fraca'}. Decida a estratégia de pneus imediatamente.`,
-        })
+
+        const activePlayerCars = currentGrid.filter((g) => g.isPlayer && !g.dnf)
+        if (activePlayerCars.length > 0) {
+          const ids = activePlayerCars.map((c) => c.driverId)
+          setRainActiveDriverId(ids[0])
+          setRainQueue(ids.slice(1))
+          setRainQueueTotal(ids.length)
+          setRainDecisionOpen(true)
+          toast({
+            title:
+              currentWeather === 'chuva_forte'
+                ? '⛈️ TEMPESTADE NA PISTA! [CORRIDA CONGELADA]'
+                : '🌧️ COMEÇOU A CHOVER NA PISTA! [CORRIDA CONGELADA]',
+            description: `Volta ${currentLap}/${totalLaps}: Decisão 1 de ${ids.length} (${activePlayerCars[0].driverName}). Escolha a estratégia de pneus.`,
+          })
+        }
         return
       }
 
@@ -2092,6 +2111,9 @@ export default function RacePage() {
         !safetyCarModalOpen
       ) {
         clearInterval(timer)
+        liveRaceTimerRef.current = null
+        setIsRacePaused(true)
+        isRacePausedRef.current = true
         setSafetyCarActive(true)
 
         // Find a rival who caused the incident or spun
@@ -2124,18 +2146,21 @@ export default function RacePage() {
           }
         })
 
-        // Default player tire choice to secondary compound or available
-        const p1 = currentGrid.find((g) => g.isPlayer && !g.dnf)
-        if (p1) {
-          setSafetyCarTireChoice(p1.secondCompound || 'duro')
+        const activePlayerCars = currentGrid.filter((g) => g.isPlayer && !g.dnf)
+        if (activePlayerCars.length > 0) {
+          const ids = activePlayerCars.map((c) => c.driverId)
+          const firstDriver = activePlayerCars[0]
+          setSafetyCarActiveDriverId(ids[0])
+          setSafetyCarQueue(ids.slice(1))
+          setSafetyCarQueueTotal(ids.length)
+          setSafetyCarTireChoice(firstDriver.secondCompound || 'duro')
+          setIsSimulatingSession(false)
+          setSafetyCarModalOpen(true)
+          toast({
+            title: '🟡 SAFETY CAR NA PISTA! [CORRIDA CONGELADA]',
+            description: `Volta ${currentLap}/${totalLaps}: Decisão 1 de ${ids.length} (${firstDriver.driverName}). Entrar nos boxes ou ficar na pista?`,
+          })
         }
-
-        setIsSimulatingSession(false)
-        setSafetyCarModalOpen(true)
-        toast({
-          title: '🟡 SAFETY CAR NA PISTA!',
-          description: `Volta ${currentLap}/${totalLaps}: Janela barata de pit stop aberta! Entrar nos boxes ou ficar na pista?`,
-        })
         return
       }
 
@@ -2184,11 +2209,92 @@ export default function RacePage() {
     }
   }
 
+  // Helper central: Aplica troca definitiva de pneus para um piloto do jogador,
+  // limpando paradas futuras do strategyPlan, fixando driverStrategies e atualizando driverTireInventories.
+  const applyTireSwitchToPlayerDriver = (
+    grid: SimDriverEntry[],
+    driverId: string,
+    newCompound: TireCompound,
+    currentLap: number,
+    options?: {
+      newWear?: number
+      newCliffWear?: number
+      customSetId?: string
+      preserveFuturePlan?: boolean
+    },
+  ) => {
+    const target = grid.find((g) => g.driverId === driverId)
+    if (!target) return
+
+    const effectiveWear = options?.newWear ?? 5
+
+    // 1. Limpar paradas programadas a partir de currentLap para não reverter o pneu no loop
+    if (!options?.preserveFuturePlan) {
+      target.strategyPlan = (target.strategyPlan || []).filter((s) => s.lap < currentLap)
+    }
+
+    // 2. Atualizar estado do carro na prova
+    target.tireCompound = newCompound
+    target.secondCompound = newCompound
+    target.tireWear = effectiveWear
+    target.lapsOnCurrentTire = 1
+    target.cliffStatus = calculateTireCliffStatus({
+      compound: newCompound,
+      lapsOnTire: 1,
+      wearPercent: options?.newCliffWear ?? effectiveWear,
+      wearMultiplier: target.wearMultiplier ?? 1.0,
+      trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+    })
+
+    // 3. Atualizar driverStrategies para refletir a nova estratégia até o final
+    setDriverStrategies((prev) => {
+      const existing = prev[driverId]
+      if (!existing) return prev
+      return {
+        ...prev,
+        [driverId]: {
+          ...existing,
+          startCompound: existing.startCompound,
+          pitStops: options?.preserveFuturePlan
+            ? existing.pitStops
+            : (existing.pitStops || []).filter((p) => p.lap < currentLap),
+        },
+      }
+    })
+
+    // 4. Atualizar driverTireInventories do piloto
+    setDriverTireInventories((prev) => {
+      const currentSets = prev[driverId] || []
+      let fittedNew = false
+      const updatedSets = currentSets.map((set) => {
+        // Se um setId específico foi fornecido (ex: BOX manual)
+        if (options?.customSetId) {
+          if (set.id === options.customSetId) {
+            fittedNew = true
+            return { ...set, isFitted: true, lapsUsed: set.lapsUsed + 1 }
+          }
+          if (set.isFitted) {
+            return { ...set, isFitted: false, wear: Math.max(set.wear, target.tireWear || 50) }
+          }
+          return set
+        }
+
+        // Caso geral (chuva, Safety Car): desmonta o jogo atual e monta o primeiro do composto escolhido
+        if (set.isFitted) {
+          return { ...set, isFitted: false, wear: Math.max(set.wear, target.tireWear || 50) }
+        }
+        if (!fittedNew && !set.isFitted && set.compound === newCompound) {
+          fittedNew = true
+          return { ...set, isFitted: true, lapsUsed: set.lapsUsed + 1 }
+        }
+        return set
+      })
+      return { ...prev, [driverId]: updatedSets }
+    })
+  }
+
   // Handle Player Rain Decision (Intermediate, Extreme Wet, or Wait X laps)
   const handleConfirmRainDecision = (decision: 'intermediario' | 'chuva_extrema' | 'aguardar') => {
-    setRainDecisionOpen(false)
-    setIsSimulatingSession(true)
-
     if (!liveRaceState) return
     const currentGrid = [...liveRaceState.grid]
     const currentLap = liveRaceState.currentLap
@@ -2200,168 +2306,174 @@ export default function RacePage() {
       second: '2-digit',
     })
 
-    // AI rivals rationally pit for appropriate wet tire
-    currentGrid.forEach((entry) => {
-      if (!entry.isPlayer) {
-        const optimalAiWet: TireCompound =
-          currentWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
-        entry.tireCompound = optimalAiWet
-        entry.tireWear = 8
-        entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
-        entry.lapsOnCurrentTire = 1
-        entry.cliffStatus = calculateTireCliffStatus({
-          compound: optimalAiWet,
-          lapsOnTire: 1,
-          wearPercent: 8,
-          wearMultiplier: entry.wearMultiplier ?? 1.0,
-          trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
-        })
-
-        const aiPit = calculatePitStopDuration(entry.teamName, entry.driverName, false, 78)
-        setLiveEvents((prev) => [
-          {
-            id: `ev_ai_wetpit_${Date.now()}_${entry.driverId}`,
-            lap: currentLap,
-            type: 'pit_stop',
-            message: `🌧️ BOX RIVAL: ${entry.driverName} montou pneus ${formatTireName(optimalAiWet)} (${aiPit.durationSec.toFixed(2)}s).`,
-            driverName: entry.driverName,
-            teamColor: entry.teamColor,
-            isPlayer: false,
-            timestamp: nowStr,
-          },
-          ...prev,
-        ])
-      }
-    })
-
-    // Player choice application
-    if (decision === 'aguardar') {
-      const waitLaps = Math.max(1, rainDecisionWaitLaps)
-      const penaltyScore = waitLaps * (currentWeather === 'chuva_forte' ? 24 : 15)
-      // Severe accident / aquaplaning risk: +32% higher in heavy rain
-      const accidentRisk = Math.min(88, waitLaps * (currentWeather === 'chuva_forte' ? 32 : 18))
-      const hadAccident = Math.random() * 100 < accidentRisk
-
-      const waitMsg = `🌧️ ESTRATÉGIA ARRISCADA: Você decidiu aguardar ${waitLaps} volta(s) com slicks sob ${currentWeather === 'chuva_forte' ? 'chuva torrencial' : 'asfalto molhado'}!`
-      incidents.push(waitMsg)
-      setLiveEvents((prev) => [
-        {
-          id: `ev_wait_${Date.now()}`,
-          lap: currentLap,
-          type: 'weather',
-          message: waitMsg,
-          timestamp: nowStr,
-        },
-        ...prev,
-      ])
-
-      if (hadAccident) {
-        const crashMsg = `💥 AQUAPLANAGEM VIOLENTA: Carro perdeu totalmente a linha em poça d'água com slicks e bateu no muro!`
-        incidents.push(crashMsg)
-        setLiveEvents((prev) => [
-          {
-            id: `ev_crash_${Date.now()}`,
-            lap: currentLap,
-            type: 'incident',
-            message: crashMsg,
-            timestamp: nowStr,
-          },
-          ...prev,
-        ])
-      } else {
-        incidents.push(
-          `⏱️ PERDA BRUTAL DE RITMO: Sem aderência no molhado com slicks, perdeu ~${(waitLaps * 3.4).toFixed(1)}s por volta antes de calçar pneus de chuva!`,
-        )
-      }
-
+    // Se é a primeira decisão da fila (total == fila restante + 1), processa IA
+    const isFirstDecision = rainQueue.length + 1 === rainQueueTotal
+    if (isFirstDecision) {
       currentGrid.forEach((entry) => {
-        if (entry.isPlayer) {
-          entry.tireWear = Math.min(100, (entry.tireWear || 50) + waitLaps * 8)
-          entry.score -= penaltyScore
-          if (hadAccident) {
-            entry.dnf = true
-            entry.dnfReason = 'Aquaplanagem com pneus de pista seca na chuva'
-          } else {
-            const autoWet: TireCompound =
-              currentWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
-            entry.tireCompound = autoWet
-            entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
-            entry.lapsOnCurrentTire = 1
-            entry.cliffStatus = calculateTireCliffStatus({
-              compound: autoWet,
-              lapsOnTire: 1,
-              wearPercent: entry.tireWear || 5,
-              wearMultiplier: entry.wearMultiplier ?? 1.0,
-              trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
-            })
-            if (tireStock[autoWet] > 0) {
-              setTireStock((prev) => ({
-                ...prev,
-                [autoWet]: Math.max(0, prev[autoWet] - 1),
-              }))
-            }
-          }
+        if (!entry.isPlayer) {
+          const optimalAiWet: TireCompound =
+            currentWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+          entry.tireCompound = optimalAiWet
+          entry.tireWear = 8
+          entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+          entry.lapsOnCurrentTire = 1
+          entry.cliffStatus = calculateTireCliffStatus({
+            compound: optimalAiWet,
+            lapsOnTire: 1,
+            wearPercent: 8,
+            wearMultiplier: entry.wearMultiplier ?? 1.0,
+            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+          })
+
+          const aiPit = calculatePitStopDuration(entry.teamName, entry.driverName, false, 78)
+          setLiveEvents((prev) => [
+            {
+              id: `ev_ai_wetpit_${Date.now()}_${entry.driverId}`,
+              lap: currentLap,
+              type: 'pit_stop',
+              message: `🌧️ BOX RIVAL: ${entry.driverName} montou pneus ${formatTireName(optimalAiWet)} (${aiPit.durationSec.toFixed(2)}s).`,
+              driverName: entry.driverName,
+              teamColor: entry.teamColor,
+              isPlayer: false,
+              timestamp: nowStr,
+            },
+            ...prev,
+          ])
         }
       })
-    } else {
-      // Player pits for selected wet tire
-      const chosenTire = decision
-      if (tireStock[chosenTire] > 0) {
-        setTireStock((prev) => ({
-          ...prev,
-          [chosenTire]: Math.max(0, prev[chosenTire] - 1),
-        }))
-      }
+    }
 
-      const pDrivers = currentGrid.filter((g) => g.isPlayer && !g.dnf)
-      pDrivers.forEach((p) => {
+    // Piloto ativo nesta decisão
+    const currentDriver = currentGrid.find((g) => g.driverId === rainActiveDriverId)
+
+    if (currentDriver) {
+      if (decision === 'aguardar') {
+        const waitLaps = Math.max(1, rainDecisionWaitLaps)
+        const penaltyScore = waitLaps * (currentWeather === 'chuva_forte' ? 24 : 15)
+        const accidentRisk = Math.min(88, waitLaps * (currentWeather === 'chuva_forte' ? 32 : 18))
+        const hadAccident = Math.random() * 100 < accidentRisk
+
+        const waitMsg = `🌧️ ESTRATÉGIA ARRISCADA (${currentDriver.driverName}): Você decidiu aguardar ${waitLaps} volta(s) com slicks sob ${currentWeather === 'chuva_forte' ? 'chuva torrencial' : 'asfalto molhado'}!`
+        incidents.push(waitMsg)
+        setLiveEvents((prev) => [
+          {
+            id: `ev_wait_${Date.now()}_${currentDriver.driverId}`,
+            lap: currentLap,
+            type: 'weather',
+            message: waitMsg,
+            timestamp: nowStr,
+          },
+          ...prev,
+        ])
+
+        if (hadAccident) {
+          const crashMsg = `💥 AQUAPLANAGEM VIOLENTA: ${currentDriver.driverName} perdeu totalmente a linha em poça d'água com slicks e bateu no muro!`
+          incidents.push(crashMsg)
+          setLiveEvents((prev) => [
+            {
+              id: `ev_crash_${Date.now()}_${currentDriver.driverId}`,
+              lap: currentLap,
+              type: 'incident',
+              message: crashMsg,
+              timestamp: nowStr,
+            },
+            ...prev,
+          ])
+          currentDriver.dnf = true
+          currentDriver.dnfReason = 'Aquaplanagem com pneus de pista seca na chuva'
+        } else {
+          incidents.push(
+            `⏱️ PERDA DE RITMO (${currentDriver.driverName}): Sem aderência no molhado com slicks, perdeu ~${(waitLaps * 3.4).toFixed(1)}s por volta!`,
+          )
+          const autoWet: TireCompound =
+            currentWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+          currentDriver.tireWear = Math.min(100, (currentDriver.tireWear || 50) + waitLaps * 8)
+          currentDriver.score -= penaltyScore
+          currentDriver.pitStopsDone = (currentDriver.pitStopsDone || 0) + 1
+
+          applyTireSwitchToPlayerDriver(currentGrid, currentDriver.driverId, autoWet, currentLap, {
+            newWear: currentDriver.tireWear,
+            newCliffWear: currentDriver.tireWear,
+          })
+
+          if (tireStock[autoWet] > 0) {
+            setTireStock((prev) => ({
+              ...prev,
+              [autoWet]: Math.max(0, prev[autoWet] - 1),
+            }))
+          }
+        }
+      } else {
+        // Troca imediata para o composto de chuva escolhido
+        const chosenTire = decision
+        if (tireStock[chosenTire] > 0) {
+          setTireStock((prev) => ({
+            ...prev,
+            [chosenTire]: Math.max(0, prev[chosenTire] - 1),
+          }))
+        }
+
         const pitResult = calculatePitStopDuration(
           team?.name || 'Sua Escuderia',
-          p.driverName,
+          currentDriver.driverName,
           true,
           team?.chassis_level || 75,
         )
-        const pitMsg = `🌧️ ${pitResult.narrativeText} (Troca para ${formatTireName(chosenTire)})`
+        const pitMsg = `🌧️ ${currentDriver.driverName}: ${pitResult.narrativeText} (Troca para ${formatTireName(chosenTire)})`
         incidents.push(pitMsg)
         setLiveEvents((prev) => [
           {
-            id: `ev_wetpit_${Date.now()}_${p.driverId}`,
+            id: `ev_wetpit_${Date.now()}_${currentDriver.driverId}`,
             lap: currentLap,
             type: 'pit_stop',
             message: pitMsg,
-            driverName: p.driverName,
-            teamColor: p.teamColor,
+            driverName: currentDriver.driverName,
+            teamColor: currentDriver.teamColor,
             isPlayer: true,
             timestamp: nowStr,
           },
           ...prev,
         ])
-      })
 
-      currentGrid.forEach((entry) => {
-        if (entry.isPlayer) {
-          entry.tireCompound = chosenTire
-          entry.tireWear = 6
-          entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
-          entry.lapsOnCurrentTire = 1
-          entry.cliffStatus = calculateTireCliffStatus({
-            compound: chosenTire,
-            lapsOnTire: 1,
-            wearPercent: 6,
-            wearMultiplier: entry.wearMultiplier ?? 1.0,
-            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
-          })
-        }
-      })
+        currentDriver.pitStopsDone = (currentDriver.pitStopsDone || 0) + 1
+        applyTireSwitchToPlayerDriver(currentGrid, currentDriver.driverId, chosenTire, currentLap, {
+          newWear: 5,
+          newCliffWear: 5,
+        })
+      }
     }
 
     setRaceIncidents(incidents)
-    setSimText(
-      `Retomando corrida sob ${currentWeather === 'chuva_forte' ? 'chuva forte' : 'chuva fraca'}...`,
-    )
+    setLiveRaceState({
+      ...liveRaceState,
+      grid: currentGrid,
+    })
 
-    // Resume narrated race loop until finish
-    runLiveRaceLoop(currentGrid, currentLap, currentWeather)
+    // Avançar fila sequencial ou finalizar janela de decisões de chuva
+    if (rainQueue.length > 0) {
+      const nextDriverId = rainQueue[0]
+      const nextQueue = rainQueue.slice(1)
+      const nextDriver = currentGrid.find((g) => g.driverId === nextDriverId)
+      setRainActiveDriverId(nextDriverId)
+      setRainQueue(nextQueue)
+      const currentStep = rainQueueTotal - nextQueue.length
+      toast({
+        title: `🌧️ Decisão ${currentStep} de ${rainQueueTotal}: ${nextDriver?.driverName || 'Piloto'}`,
+        description: `Escolha a estratégia independente para este carro.`,
+      })
+    } else {
+      // Fila concluída! Descongelar simulação e retomar corrida
+      setRainDecisionOpen(false)
+      setRainActiveDriverId('')
+      setRainQueueTotal(0)
+      setIsRacePaused(false)
+      isRacePausedRef.current = false
+      setIsSimulatingSession(true)
+      setSimText(
+        `Retomando corrida sob ${currentWeather === 'chuva_forte' ? 'chuva forte' : 'chuva fraca'}...`,
+      )
+      runLiveRaceLoop(currentGrid, currentLap, currentWeather)
+    }
   }
 
   // Handle Player Decision for Broken Wing / Touch Damage
@@ -2473,11 +2585,8 @@ export default function RacePage() {
     runLiveRaceLoop(currentGrid, currentLap, liveRaceState.weather)
   }
 
-  // Handle Player Decision for Safety Car (Cheap Pit Stop or Stay Out)
+  // Handle Player Decision for Safety Car (Cheap Pit Stop or Stay Out) — individual por piloto
   const handleConfirmSafetyCarDecision = (decision: 'pit_sc' | 'stay_out') => {
-    setSafetyCarModalOpen(false)
-    setIsSimulatingSession(true)
-
     if (!liveRaceState) return
     const currentGrid = [...liveRaceState.grid]
     const currentLap = liveRaceState.currentLap
@@ -2487,100 +2596,123 @@ export default function RacePage() {
       second: '2-digit',
     })
 
-    if (decision === 'pit_sc') {
-      // Pit stop under Safety Car is cheap!
-      if (tireStock[safetyCarTireChoice] > 0) {
-        setTireStock((prev) => ({
-          ...prev,
-          [safetyCarTireChoice]: Math.max(0, prev[safetyCarTireChoice] - 1),
-        }))
-      }
+    const targetDriver = currentGrid.find((g) => g.driverId === safetyCarActiveDriverId)
 
-      const pDrivers = currentGrid.filter((g) => g.isPlayer && !g.dnf)
-      pDrivers.forEach((p) => {
+    if (targetDriver) {
+      if (decision === 'pit_sc') {
+        // Pit stop under Safety Car is cheap!
+        if (tireStock[safetyCarTireChoice] > 0) {
+          setTireStock((prev) => ({
+            ...prev,
+            [safetyCarTireChoice]: Math.max(0, prev[safetyCarTireChoice] - 1),
+          }))
+        }
+
         const pitResult = calculatePitStopDuration(
           team?.name || 'Sua Escuderia',
-          p.driverName,
+          targetDriver.driverName,
           true,
           team?.chassis_level || 75,
         )
-        const msg = `🟡 PIT STOP SOB SAFETY CAR: ${p.driverName} calçou pneus ${formatTireName(safetyCarTireChoice)} em ${pitResult.durationSec.toFixed(2)}s (${pitResult.narrativeText}). Janela perfeita!`
+        const msg = `🟡 PIT STOP SOB SAFETY CAR: ${targetDriver.driverName} calçou pneus ${formatTireName(safetyCarTireChoice)} em ${pitResult.durationSec.toFixed(2)}s (${pitResult.narrativeText}). Janela perfeita!`
         setRaceIncidents((prev) => [...prev, msg])
         setLiveEvents((prev) => [
           {
-            id: `ev_sc_pit_${Date.now()}_${p.driverId}`,
+            id: `ev_sc_pit_${Date.now()}_${targetDriver.driverId}`,
             lap: currentLap,
             type: 'pit_stop',
             message: msg,
-            driverName: p.driverName,
-            teamColor: p.teamColor,
+            driverName: targetDriver.driverName,
+            teamColor: targetDriver.teamColor,
             isPlayer: true,
             timestamp: nowStr,
           },
           ...prev,
         ])
-      })
 
-      currentGrid.forEach((entry) => {
-        if (entry.isPlayer && !entry.dnf) {
-          entry.tireCompound = safetyCarTireChoice
-          entry.tireWear = 5 // Fresh tires
-          entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
-          entry.lapsOnCurrentTire = 1
-          entry.cliffStatus = calculateTireCliffStatus({
-            compound: safetyCarTireChoice,
-            lapsOnTire: 1,
-            wearPercent: 5,
-            wearMultiplier: entry.wearMultiplier ?? 1.0,
-            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
-          })
-          entry.score += 6 // Tactical gain: fresh tires with cheap delta!
-        }
-      })
+        targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
+        targetDriver.score += 6 // Tactical gain: fresh tires with cheap delta!
 
+        applyTireSwitchToPlayerDriver(
+          currentGrid,
+          targetDriver.driverId,
+          safetyCarTireChoice,
+          currentLap,
+          {
+            newWear: 5,
+            newCliffWear: 5,
+          },
+        )
+
+        toast({
+          title: `Pit Stop Sob Safety Car: ${targetDriver.driverName}`,
+          description: `Pneus novos (${formatTireName(safetyCarTireChoice)}) montados sem perda pesada de tempo.`,
+        })
+      } else {
+        targetDriver.score += 3 // Kept track position on the restart
+        const msg = `🟡 ESTRATÉGIA DE PISTA: ${targetDriver.driverName} permaneceu na pista sob Safety Car para defender posição.`
+        setRaceIncidents((prev) => [...prev, msg])
+        setLiveEvents((prev) => [
+          {
+            id: `ev_sc_stay_${Date.now()}_${targetDriver.driverId}`,
+            lap: currentLap,
+            type: 'info',
+            message: msg,
+            driverName: targetDriver.driverName,
+            teamColor: targetDriver.teamColor,
+            isPlayer: true,
+            timestamp: nowStr,
+          },
+          ...prev,
+        ])
+      }
+    }
+
+    setLiveRaceState({
+      ...liveRaceState,
+      grid: currentGrid,
+    })
+
+    // Avançar fila sequencial ou finalizar janela do Safety Car
+    if (safetyCarQueue.length > 0) {
+      const nextDriverId = safetyCarQueue[0]
+      const nextQueue = safetyCarQueue.slice(1)
+      const nextDriver = currentGrid.find((g) => g.driverId === nextDriverId)
+      setSafetyCarActiveDriverId(nextDriverId)
+      setSafetyCarQueue(nextQueue)
+      if (nextDriver) {
+        setSafetyCarTireChoice(nextDriver.secondCompound || 'duro')
+      }
+      const currentStep = safetyCarQueueTotal - nextQueue.length
       toast({
-        title: 'Pit Stop Sob Safety Car Executado!',
-        description: `Pneus novos (${formatTireName(safetyCarTireChoice)}) montados perdendo pouquíssimo tempo de pelotão.`,
+        title: `🟡 Decisão ${currentStep} de ${safetyCarQueueTotal}: ${nextDriver?.driverName || 'Piloto'}`,
+        description: `Escolha a estratégia sob Safety Car para este carro.`,
       })
     } else {
-      // Stay on track: retain track position, but tire wear will continue without fresh rubber
-      currentGrid.forEach((entry) => {
-        if (entry.isPlayer && !entry.dnf) {
-          entry.score += 3 // Kept track position on the restart
-        }
-      })
+      // Fila concluída! Agendar relargada, descongelar simulação e retomar corrida
+      setSafetyCarModalOpen(false)
+      setSafetyCarActiveDriverId('')
+      setSafetyCarQueueTotal(0)
 
-      const msg = `🟡 ESTRATÉGIA DE PISTA: A equipe optou por não parar nos boxes sob Safety Car para manter a posição na relargada.`
-      setRaceIncidents((prev) => [...prev, msg])
+      // Safety Car leaves after 3 laps
+      const scRestartLap = Math.min(gpInfo.laps, currentLap + 3)
+      const restartMsg = `🟢 SAFETY CAR NA BOX NESTA VOLTA! Bernd Mayländer apaga as luzes no teto do SC. Corrida relargada!`
       setLiveEvents((prev) => [
         {
-          id: `ev_sc_stay_${Date.now()}`,
-          lap: currentLap,
+          id: `ev_sc_restart_${Date.now()}`,
+          lap: scRestartLap,
           type: 'info',
-          message: msg,
-          isPlayer: true,
+          message: restartMsg,
           timestamp: nowStr,
         },
         ...prev,
       ])
+
+      setIsRacePaused(false)
+      isRacePausedRef.current = false
+      setIsSimulatingSession(true)
+      runLiveRaceLoop(currentGrid, currentLap, liveRaceState.weather)
     }
-
-    // Safety Car leaves after 3 laps
-    const scRestartLap = Math.min(gpInfo.laps, currentLap + 3)
-    const restartMsg = `🟢 SAFETY CAR NA BOX NESTA VOLTA! Bernd Mayländer apaga as luzes no teto do SC. Corrida relargada!`
-    setLiveEvents((prev) => [
-      {
-        id: `ev_sc_restart_${Date.now()}`,
-        lap: scRestartLap,
-        type: 'info',
-        message: restartMsg,
-        timestamp: nowStr,
-      },
-      ...prev,
-    ])
-
-    // Resume loop
-    runLiveRaceLoop(currentGrid, currentLap, liveRaceState.weather)
   }
 
   // Handle Forced Pit Stop Action by Player (Multiple pit stops allowed anytime during live race!)
@@ -2595,22 +2727,40 @@ export default function RacePage() {
       })
       return
     }
-    setForcePitSelectedDriverId(activePlayerDrivers[0].driverId)
-    // Find best available tire set
-    const availableSet = playerTireSets.find((s) => !s.isFitted && s.wear < 90)
-    setForcePitSelectedSetId(availableSet ? availableSet.id : playerTireSets[0]?.id || '')
+
+    // Congelar corrida ao abrir BOX manual
+    wasPausedBeforeForcePitRef.current = isRacePausedRef.current
+    setIsRacePaused(true)
+    isRacePausedRef.current = true
+
+    const defaultDriverId = activePlayerDrivers[0].driverId
+    setForcePitSelectedDriverId(defaultDriverId)
+    // Find best available tire set for this driver
+    const driverInventory = driverTireInventories[defaultDriverId] || playerTireSets
+    const availableSet = driverInventory.find((s) => !s.isFitted && s.wear < 90)
+    setForcePitSelectedSetId(availableSet ? availableSet.id : driverInventory[0]?.id || '')
     setForcePitModalOpen(true)
+  }
+
+  const handleCloseForcePitModal = () => {
+    setForcePitModalOpen(false)
+    // Restaura o estado anterior de pausa
+    if (!wasPausedBeforeForcePitRef.current) {
+      setIsRacePaused(false)
+      isRacePausedRef.current = false
+    }
   }
 
   const handleExecuteForcedPitStop = () => {
     if (!liveRaceState || !forcePitSelectedDriverId || !forcePitSelectedSetId) return
 
-    const selectedSet = playerTireSets.find((s) => s.id === forcePitSelectedSetId)
+    const driverInventory = driverTireInventories[forcePitSelectedDriverId] || playerTireSets
+    const selectedSet = driverInventory.find((s) => s.id === forcePitSelectedSetId)
     if (!selectedSet) {
       toast({
         variant: 'destructive',
         title: 'Jogo de pneus inválido',
-        description: 'Selecione um jogo de pneus válido do estoque.',
+        description: 'Selecione um jogo de pneus válido do estoque do piloto.',
       })
       return
     }
@@ -2634,29 +2784,6 @@ export default function RacePage() {
       team?.chassis_level || 75,
     )
 
-    // Mark previous fitted set as no longer fitted and update wear
-    setDriverTireInventories((prev) => {
-      const dId = targetDriver.driverId
-      const currentSets = prev[dId] || []
-      const updatedSets = currentSets.map((set) => {
-        if (set.id === forcePitSelectedSetId) {
-          return {
-            ...set,
-            isFitted: true,
-            lapsUsed: set.lapsUsed + 1,
-          }
-        }
-        if (set.isFitted && set.compound === targetDriver.tireCompound) {
-          return {
-            ...set,
-            isFitted: false,
-            wear: Math.max(set.wear, targetDriver.tireWear || 50),
-          }
-        }
-        return set
-      })
-      return { ...prev, [dId]: updatedSets }
-    })
     // Deduct compound count if brand new set
     if (selectedSet.lapsUsed === 0 && tireStock[selectedSet.compound] > 0) {
       setTireStock((prev) => ({
@@ -2665,24 +2792,21 @@ export default function RacePage() {
       }))
     }
 
-    // Apply change to driver in currentGrid
-    currentGrid.forEach((entry) => {
-      if (entry.driverId === targetDriver.driverId) {
-        entry.tireCompound = selectedSet.compound
-        entry.tireWear = selectedSet.wear
-        entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
-        entry.lapsOnCurrentTire = 1
-        entry.cliffStatus = calculateTireCliffStatus({
-          compound: selectedSet.compound,
-          lapsOnTire: 1,
-          wearPercent: selectedSet.wear,
-          wearMultiplier: entry.wearMultiplier ?? 1.0,
-          trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
-        })
-        // Pit stop time loss in lap score
-        entry.score -= pitResult.isSlowPit ? 12 : 7
-      }
-    })
+    // Apply change to driver in currentGrid and apply tire switch helper
+    targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
+    targetDriver.score -= pitResult.isSlowPit ? 12 : 7
+
+    applyTireSwitchToPlayerDriver(
+      currentGrid,
+      targetDriver.driverId,
+      selectedSet.compound,
+      currentLap,
+      {
+        newWear: selectedSet.wear,
+        newCliffWear: selectedSet.wear,
+        customSetId: selectedSet.id,
+      },
+    )
 
     const eventMsg = `🔧 BOX FORÇADO: ${pitResult.narrativeText} [Pneus: ${formatTireName(selectedSet.compound)} - ${selectedSet.wear === 0 ? 'NOVO 100%' : `Usado (${selectedSet.wear}% desgaste)`}]`
     setRaceIncidents((prev) => [...prev, eventMsg])
@@ -2706,9 +2830,15 @@ export default function RacePage() {
     })
 
     setForcePitModalOpen(false)
+    // Descongelar simulação e retomar corrida se não estava pausada antes
+    if (!wasPausedBeforeForcePitRef.current) {
+      setIsRacePaused(false)
+      isRacePausedRef.current = false
+    }
+
     toast({
       title: pitResult.isSlowPit ? '⚠️ PIT STOP LENTO!' : '✅ PIT STOP CONCLUÍDO!',
-      description: `${targetDriver.driverName} calçou pneus ${formatTireName(selectedSet.compound)} (${pitResult.durationSec.toFixed(2)}s).`,
+      description: `${targetDriver.driverName} calçou pneus ${formatTireName(selectedSet.compound)} (${pitResult.durationSec.toFixed(2)}s). Corrida retomada.`,
     })
   }
 
@@ -4559,12 +4689,17 @@ export default function RacePage() {
       </Tabs>
 
       {/* 1. DIÁLOGO / MODAL DE DECISÃO ESTRATÉGICA DE CHUVA */}
-      <Dialog open={rainDecisionOpen} onOpenChange={setRainDecisionOpen}>
+      <Dialog open={rainDecisionOpen} onOpenChange={() => {}}>
         <DialogContent className="bg-[#11161F] border-2 border-sky-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
           <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
-            <div className="flex items-center gap-2 text-sky-400 font-mono text-xs uppercase tracking-wider font-bold">
-              <CloudRain className="w-5 h-5 animate-bounce" />
-              Alerta Meteorológico FIA • Mudança Climática na Pista
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sky-400 font-mono text-xs uppercase tracking-wider font-bold">
+                <CloudRain className="w-5 h-5 animate-bounce" />
+                Alerta Meteorológico FIA • Decisão de Chuva
+              </div>
+              <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono text-xs animate-pulse">
+                ⏸️ CORRIDA CONGELADA
+              </Badge>
             </div>
             <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
               <span>
@@ -4577,7 +4712,7 @@ export default function RacePage() {
               </Badge>
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
-              Condição atual avaliada pelos fiscais em <strong>{gpInfo.circuit}</strong>:{' '}
+              Condição avaliada em <strong>{gpInfo.circuit}</strong>:{' '}
               {liveRaceState?.weather === 'chuva_forte' ? (
                 <span className="text-blue-400 font-bold">
                   CHUVA FORTE (Lâmina d'água espessa — pneus de Chuva Extrema obrigatórios para
@@ -4591,6 +4726,46 @@ export default function RacePage() {
               )}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Destaque do Carro / Piloto Ativo na Fila */}
+          {(() => {
+            const activeDriver = liveRaceState?.grid.find((g) => g.driverId === rainActiveDriverId)
+            const currentStep = rainQueueTotal - rainQueue.length
+            return (
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/40 via-[#0B0E14] to-[#161D29] border border-sky-500/40 space-y-2 font-mono">
+                <div className="flex items-center justify-between">
+                  <Badge className="bg-sky-500/20 text-sky-300 border border-sky-400/40 text-[11px] font-bold">
+                    DECISÃO {currentStep} DE {rainQueueTotal}
+                  </Badge>
+                  <span className="text-xs text-[#8B95A7]">
+                    Decisão 100% individual para este carro
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Piloto:</span>
+                    <strong className="text-white text-sm">
+                      {activeDriver?.driverName || 'Piloto'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Posição Atual:</span>
+                    <strong className="text-amber-400">P{activeDriver?.position || '-'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Pneu Atual:</span>
+                    <strong className="text-cyan-300 capitalize">
+                      {formatTireName(activeDriver?.tireCompound)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Desgaste:</span>
+                    <strong className="text-amber-300">{activeDriver?.tireWear || 0}%</strong>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Context Banner: Track & Rival status */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-xs font-mono">
@@ -4911,12 +5086,17 @@ export default function RacePage() {
       </Dialog>
 
       {/* 3. DIÁLOGO DE DECISÃO: SAFETY CAR NA PISTA */}
-      <Dialog open={safetyCarModalOpen} onOpenChange={setSafetyCarModalOpen}>
+      <Dialog open={safetyCarModalOpen} onOpenChange={() => {}}>
         <DialogContent className="bg-[#11161F] border-2 border-amber-500/80 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
           <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
-            <div className="flex items-center gap-2 text-amber-400 font-mono text-xs uppercase tracking-wider font-bold">
-              <ShieldAlert className="w-5 h-5 text-amber-400 animate-pulse" />
-              Direção de Prova da FIA • Intervenção do Safety Car
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-400 font-mono text-xs uppercase tracking-wider font-bold">
+                <ShieldAlert className="w-5 h-5 text-amber-400 animate-pulse" />
+                Direção de Prova da FIA • Intervenção do Safety Car
+              </div>
+              <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono text-xs animate-pulse">
+                ⏸️ CORRIDA CONGELADA
+              </Badge>
             </div>
             <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
               <span>🟡 SAFETY CAR NA PISTA!</span>
@@ -4929,6 +5109,48 @@ export default function RacePage() {
               carros estão em fila indiana a velocidade controlada (delta limitado).
             </DialogDescription>
           </DialogHeader>
+
+          {/* Destaque do Carro / Piloto Ativo na Fila do Safety Car */}
+          {(() => {
+            const activeDriver = liveRaceState?.grid.find(
+              (g) => g.driverId === safetyCarActiveDriverId,
+            )
+            const currentStep = safetyCarQueueTotal - safetyCarQueue.length
+            return (
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-[#0B0E14] to-[#161D29] border border-amber-500/40 space-y-2 font-mono">
+                <div className="flex items-center justify-between">
+                  <Badge className="bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[11px] font-bold">
+                    DECISÃO {currentStep} DE {safetyCarQueueTotal}
+                  </Badge>
+                  <span className="text-xs text-[#8B95A7]">
+                    Decisão 100% individual para este carro
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Piloto:</span>
+                    <strong className="text-white text-sm">
+                      {activeDriver?.driverName || 'Piloto'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Posição Atual:</span>
+                    <strong className="text-amber-400">P{activeDriver?.position || '-'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Pneu Atual:</span>
+                    <strong className="text-cyan-300 capitalize">
+                      {formatTireName(activeDriver?.tireCompound)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Desgaste:</span>
+                    <strong className="text-amber-300">{activeDriver?.tireWear || 0}%</strong>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Context box */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-xs font-mono">
@@ -5042,12 +5264,22 @@ export default function RacePage() {
       </Dialog>
 
       {/* 4. MODAL DE FORÇAR PIT STOP (PARAR NOS BOXES) - COM ESCOLHA DE JOGOS NOVOS OU USADOS */}
-      <Dialog open={forcePitModalOpen} onOpenChange={setForcePitModalOpen}>
+      <Dialog
+        open={forcePitModalOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseForcePitModal()
+        }}
+      >
         <DialogContent className="bg-[#11161F] border-2 border-amber-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
           <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
-            <div className="flex items-center gap-2 text-amber-400 font-mono text-xs uppercase tracking-wider font-bold">
-              <Wrench className="w-5 h-5 text-amber-400" />
-              Comando Imediato do Pit Wall • Parada Forçada
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-400 font-mono text-xs uppercase tracking-wider font-bold">
+                <Wrench className="w-5 h-5 text-amber-400" />
+                Comando Imediato do Pit Wall • Parada Manual (BOX)
+              </div>
+              <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono text-xs animate-pulse">
+                ⏸️ CORRIDA CONGELADA
+              </Badge>
             </div>
             <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
               <span>🔧 CHAMAR CARRO PARA OS BOXES</span>
@@ -5056,8 +5288,8 @@ export default function RacePage() {
               </Badge>
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
-              Ordene a entrada imediata nos boxes nesta volta. Escolha o piloto e o jogo de pneus
-              disponível no seu estoque (incluindo jogos usados com percentual de desgaste).
+              Ordene a entrada imediata nos boxes nesta volta. O tempo da corrida está congelado
+              durante a sua tomada de decisão. Escolha o piloto e o jogo de pneus individual.
             </DialogDescription>
           </DialogHeader>
 
@@ -5117,80 +5349,90 @@ export default function RacePage() {
 
             {/* Tire Set Selector (New & Used Sets with % wear) */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-[#8B95A7] font-bold">
-                  Escolha o Jogo de Pneus (Estoque Oficial):
-                </span>
-                <span className="text-[11px] text-cyan-400">
-                  {playerTireSets.filter((s) => !s.isFitted).length} jogos disponíveis
-                </span>
-              </div>
+              {(() => {
+                const driverInventory =
+                  (forcePitSelectedDriverId && driverTireInventories[forcePitSelectedDriverId]) ||
+                  playerTireSets
+                const availableSets = driverInventory.filter((s) => !s.isFitted)
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-[#8B95A7] font-bold">
+                        Escolha o Jogo de Pneus (Estoque do Piloto):
+                      </span>
+                      <span className="text-[11px] text-cyan-400">
+                        {availableSets.length} jogos disponíveis
+                      </span>
+                    </div>
 
-              <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1 border border-[#1F2733] rounded-lg p-2 bg-[#0B0E14] scrollbar-thin">
-                {playerTireSets
-                  .filter((s) => !s.isFitted)
-                  .map((set) => {
-                    const isSelected = forcePitSelectedSetId === set.id
-                    const spec = TIRE_SPECS[set.compound]
-                    const isUsed = set.wear > 0
-                    const compoundColorMap: Record<TireCompound, string> = {
-                      macio: '#E10600',
-                      medio: '#FACC15',
-                      duro: '#FFFFFF',
-                      intermediario: '#10B981',
-                      chuva_extrema: '#3B82F6',
-                    }
+                    <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1 border border-[#1F2733] rounded-lg p-2 bg-[#0B0E14] scrollbar-thin">
+                      {availableSets.map((set) => {
+                        const isSelected = forcePitSelectedSetId === set.id
+                        const spec = TIRE_SPECS[set.compound]
+                        const isUsed = set.wear > 0
+                        const compoundColorMap: Record<TireCompound, string> = {
+                          macio: '#E10600',
+                          medio: '#FACC15',
+                          duro: '#FFFFFF',
+                          intermediario: '#10B981',
+                          chuva_extrema: '#3B82F6',
+                        }
 
-                    return (
-                      <button
-                        key={set.id}
-                        type="button"
-                        onClick={() => setForcePitSelectedSetId(set.id)}
-                        className={`w-full p-2.5 rounded-md border text-left font-mono text-xs transition-all flex items-center justify-between ${
-                          isSelected
-                            ? 'border-amber-400 bg-amber-500/20'
-                            : 'border-[#1F2733] bg-[#11161F] hover:border-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: compoundColorMap[set.compound] || '#FFFFFF' }}
-                          />
-                          <div>
-                            <span className="font-bold text-white capitalize">
-                              {spec.name} ({set.id.toUpperCase()})
-                            </span>
-                            <span className="text-[10px] text-[#8B95A7] block">
-                              Delta estimado:{' '}
-                              {spec.deltaPerLapSec > 0
-                                ? `+${spec.deltaPerLapSec}s`
-                                : `${spec.deltaPerLapSec}s`}{' '}
-                              vs Médio
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <Badge
-                            className={`text-[10px] font-mono ${
-                              !isUsed
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                : set.wear > 50
-                                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        return (
+                          <button
+                            key={set.id}
+                            type="button"
+                            onClick={() => setForcePitSelectedSetId(set.id)}
+                            className={`w-full p-2.5 rounded-md border text-left font-mono text-xs transition-all flex items-center justify-between ${
+                              isSelected
+                                ? 'border-amber-400 bg-amber-500/20'
+                                : 'border-[#1F2733] bg-[#11161F] hover:border-slate-600'
                             }`}
                           >
-                            {!isUsed ? 'NOVO 0%' : `USADO (${set.wear}% desg.)`}
-                          </Badge>
-                          <span className="text-[10px] text-slate-400 block mt-0.5">
-                            {set.lapsUsed} voltas rodadas
-                          </span>
-                        </div>
-                      </button>
-                    )
-                  })}
-              </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-3 h-3 rounded-full"
+                                style={{
+                                  backgroundColor: compoundColorMap[set.compound] || '#FFFFFF',
+                                }}
+                              />
+                              <div>
+                                <span className="font-bold text-white capitalize">
+                                  {spec.name} ({set.id.toUpperCase()})
+                                </span>
+                                <span className="text-[10px] text-[#8B95A7] block">
+                                  Delta estimado:{' '}
+                                  {spec.deltaPerLapSec > 0
+                                    ? `+${spec.deltaPerLapSec}s`
+                                    : `${spec.deltaPerLapSec}s`}{' '}
+                                  vs Médio
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <Badge
+                                className={`text-[10px] font-mono ${
+                                  !isUsed
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                    : set.wear > 50
+                                      ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                }`}
+                              >
+                                {!isUsed ? 'NOVO 0%' : `USADO (${set.wear}% desg.)`}
+                              </Badge>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {set.lapsUsed} voltas rodadas
+                              </span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )
+              })()}
             </div>
 
             {/* Mechanics & Crew notes */}
@@ -5211,7 +5453,7 @@ export default function RacePage() {
           <DialogFooter className="border-t border-[#1F2733] pt-3 flex flex-col sm:flex-row gap-2 justify-end">
             <Button
               variant="outline"
-              onClick={() => setForcePitModalOpen(false)}
+              onClick={handleCloseForcePitModal}
               className="border-slate-700 text-slate-300 text-xs"
             >
               Cancelar
