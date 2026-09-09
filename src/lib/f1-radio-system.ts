@@ -1,5 +1,5 @@
-import { TireCompound, TrackWeatherState } from '@/types/f1'
-import { TireCliffStatus } from '@/lib/f1-tire-system'
+import { TireCompound } from '@/types/f1'
+import { TireCliffStatus, TrackWeatherState } from '@/lib/f1-tire-system'
 
 export type RadioCategory =
   | 'cliff'
