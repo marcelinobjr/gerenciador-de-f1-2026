@@ -288,7 +288,7 @@ export default function TeamsPage() {
       key: string
       name: string
       color: string
-      engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+      engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
       strengthRating: number
       strengthVerdict: string
       budget: number
@@ -490,8 +490,8 @@ export default function TeamsPage() {
 
         <div className="flex items-center gap-2">
           <span className="text-[#8B95A7] shrink-0">Motor:</span>
-          <div className="flex items-center gap-1">
-            {['todos', 'Mercedes', 'Ferrari', 'Honda', 'Ford'].map((eng) => (
+          <div className="flex items-center gap-1 flex-wrap">
+            {['todos', 'Mercedes', 'Ferrari', 'Honda', 'Ford', 'Audi'].map((eng) => (
               <button
                 key={eng}
                 type="button"

@@ -352,13 +352,22 @@ export const ENGINE_SUPPLIERS: EngineSupplierSpec[] = [
       'Red Bull Ford Powertrains. Monstro de aceleração com software preditivo de deploy elétrico, porém maior taxa de desgaste.',
     techBadge: 'Ford Red Bull EcoBoost F1',
   },
+  {
+    name: 'Audi',
+    power: 91,
+    reliability: 85,
+    costAnnual: 31000000,
+    description:
+      'Audi Formula Racing Powertrain (Neuburg an der Donau). Projeto 100% de fábrica da Audi para o regulamento 2026, com foco em alta eficiência térmica do MGU-K e integração direta com o chassi.',
+    techBadge: 'Audi F1 Hybrid V6 2026',
+  },
 ]
 
 export interface OfficialGridTeam {
   key: string
   name: string
   color: string
-  engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+  engine: EngineSupplierName
   strengthRating: number // Nota exata de 0.0 a 10.0 definida pelo usuário
   strengthVerdict: string // Parecer textual exato da hierarquia
   strength: number // 0-100 rating (strengthRating * 10)
@@ -696,7 +705,7 @@ export const OFFICIAL_GRID_TEAMS: OfficialGridTeam[] = [
     key: 'audi',
     name: 'Audi F1 Team',
     color: '#FF2A00',
-    engine: 'Ferrari',
+    engine: 'Audi',
     strengthRating: 5.2,
     strengthVerdict: 'Claramente evoluindo',
     strength: 52,
@@ -986,7 +995,7 @@ export interface AICompetitor {
   id: string
   name: string
   color: string
-  engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+  engine: EngineSupplierName
   strengthRating: number
   strengthVerdict: string
   carLevel: number
@@ -1085,61 +1094,68 @@ export const AI_GRID_TEAMS: AICompetitor[] = getAICompetitors()
 export const AVAILABLE_MARKET_SPONSORS = [
   {
     name: 'Itaú Private Motorsport',
-    valuePerRound: 8100000, // Equipes de ponta: cobre ~90% do teto por GP (R$ 215M / 24 ≈ R$ 8.95M)
+    slot: 'laterais' as const,
+    slotLabel: 'Laterais / Sidepods (Master)',
+    valuePerRound: 8100000,
     requirement: 'Top 3 construtores',
     minConstructorPos: 3,
     minTeamMorale: 75,
     rounds: 16,
-    description:
-      'Patrocínio master de elite esportiva cobrindo ~90% dos custos operacionais por GP.',
+    description: 'Cota Master nas laterais do carro cobrindo grande fatia das operações da equipe.',
   },
   {
     name: 'Petrobras Energy',
+    slot: 'asa_traseira' as const,
+    slotLabel: 'Asa Traseira',
     valuePerRound: 7700000,
     requirement: 'Top 4 construtores',
     minConstructorPos: 4,
     minTeamMorale: 0,
     rounds: 12,
-    description:
-      'Investimento de grande porte focado em combustíveis sintéticos 100% sustentáveis e alta cobertura de custos.',
+    description: 'Investimento de alto impacto visual na asa traseira e combustíveis sintéticos.',
   },
   {
     name: 'Embraer Aerospace Tech',
+    slot: 'bico' as const,
+    slotLabel: 'Bico Dianteiro',
     valuePerRound: 7100000,
     requirement: 'Top 6 construtores',
     minConstructorPos: 6,
     minTeamMorale: 0,
     rounds: 10,
-    description:
-      'Parceria aeroespacial de ponta cobrindo grande parte das despesas de desenvolvimento.',
+    description: 'Exposição aerodinâmica frontal no bico e cooperação tecnológica de CFD.',
   },
   {
     name: 'Claro 5G Telemetria',
+    slot: 'halo' as const,
+    slotLabel: 'Halo / Cockpit',
     valuePerRound: 6700000,
     requirement: 'Top 8 construtores',
     minConstructorPos: 8,
     minTeamMorale: 50,
     rounds: 12,
-    description:
-      'Conectividade de borda em tempo real entre a garagem e a fábrica para o meio do pelotão.',
+    description: 'Posição nobre no Halo da cabine com visibilidade constante em câmeras on-board.',
   },
   {
     name: 'Nubank Ultra',
+    slot: 'macacao' as const,
+    slotLabel: 'Macacão dos Pilotos',
     valuePerRound: 6400000,
     requirement: 'Moral da equipe acima de 65',
     minConstructorPos: 12,
     minTeamMorale: 65,
     rounds: 14,
-    description: 'Patrocinador jovem focado na presença digital e solidez financeira contínua.',
+    description: 'Destaque no peito e braços do macacão de corrida e entrevistas no paddock.',
   },
   {
     name: 'Vale Verde Sustentabilidade',
-    valuePerRound: 6250000, // Equipes menores: cobre ~70% do custo por GP
+    slot: 'retrovisores' as const,
+    slotLabel: 'Retrovisores / Endplates',
+    valuePerRound: 6250000,
     requirement: 'Sem exigência de posição',
     minConstructorPos: 12,
     minTeamMorale: 0,
     rounds: 8,
-    description:
-      'Compensação de carbono das viagens garantindo piso de 70% dos custos cobertos para o fundo do grid.',
+    description: 'Compensação de carbono das viagens e presença lateral nos retrovisores e aletas.',
   },
 ]

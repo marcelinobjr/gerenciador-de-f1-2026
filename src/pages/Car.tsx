@@ -999,7 +999,7 @@ export default function CarPage() {
             <Cpu className="w-5 h-5 text-[#00A6FB]" />
             Fornecedores de Unidade de Potência 2026
           </h2>
-          <span className="text-xs font-mono text-[#8B95A7]">4 fabricantes homologados</span>
+          <span className="text-xs font-mono text-[#8B95A7]">5 fabricantes homologados</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

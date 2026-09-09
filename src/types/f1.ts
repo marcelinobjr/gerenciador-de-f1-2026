@@ -1,3 +1,5 @@
+export type EngineSupplierName = 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
+
 export interface TeamModel {
   id: string
   name: string
@@ -6,7 +8,7 @@ export interface TeamModel {
   aero_level: number // 0-100
   strategy_level: number // 0-100
   budget: number
-  engine_supplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+  engine_supplier: EngineSupplierName
   strength?: number // 0-100 rating baseado em momento atual + história
   strength_rating?: number // 0-10 rating exato do usuário (ex: 10.0, 9.1, 3.7)
   strength_verdict?: string // Parecer textual do usuário
@@ -119,6 +121,14 @@ export interface RaceResultModel {
   }
 }
 
+export type SponsorQuotaSlot =
+  | 'bico'
+  | 'laterais'
+  | 'asa_traseira'
+  | 'halo'
+  | 'macacao'
+  | 'retrovisores'
+
 export interface SponsorModel {
   id: string
   name: string
@@ -126,6 +136,7 @@ export interface SponsorModel {
   requirement: string
   status: 'ativo' | 'suspenso' | 'encerrado'
   rounds_remaining?: number
+  slot?: SponsorQuotaSlot | string
   team_id: string
   created?: string
   updated?: string
@@ -223,7 +234,7 @@ export interface SessionSetupModel {
 }
 
 export interface EngineSupplierSpec {
-  name: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+  name: EngineSupplierName
   power: number
   reliability: number
   costAnnual: number

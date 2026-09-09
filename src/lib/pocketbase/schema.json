@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T13:36:32.335Z",
+  "generatedAt": "2026-09-09T14:05:16.158Z",
   "collections": [
     {
       "name": "users",
@@ -96,7 +96,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["Ferrari", "Mercedes", "Honda", "Ford"]
+          "selectValues": ["Ferrari", "Mercedes", "Honda", "Ford", "Audi"]
         },
         {
           "name": "user_id",
@@ -534,6 +534,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "slot",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_sponsors_team ON sponsors (team_id)"]

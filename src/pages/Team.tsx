@@ -694,7 +694,7 @@ export default function TeamPage() {
           </div>
           <CardDescription className="text-xs text-[#8B95A7]">
             O motor fornece aceleração em reta e afeta a probabilidade de falha mecânica nas
-            corridas. Alterne entre os 4 fabricantes homologados para a temporada 2026 com validação
+            corridas. Alterne entre os 5 fabricantes homologados para a temporada 2026 com validação
             orçamentária e teto de gastos.
           </CardDescription>
         </CardHeader>

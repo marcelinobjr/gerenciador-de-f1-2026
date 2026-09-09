@@ -3,20 +3,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { SponsorModel } from '@/types/f1'
-import { AVAILABLE_MARKET_SPONSORS } from '@/lib/f1-data'
+import { AVAILABLE_MARKET_SPONSORS, getAICompetitors } from '@/lib/f1-data'
+import {
+  simulateAiGridFiaStandings,
+  getFiaPointsForPosition,
+  normalizeEntityName,
+} from '@/lib/f1-standings-calculator'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
-import {
-  BadgePercent,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  TrendingUp,
-  XCircle,
-  Handshake,
-  DollarSign,
-  AlertTriangle,
-} from 'lucide-react'
+import { BadgePercent, TrendingUp, Handshake, DollarSign, AlertTriangle } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +29,7 @@ export default function SponsorsPage() {
   const { team, season, refreshTeamAndSeason } = useAuth()
 
   const [sponsors, setSponsors] = useState<SponsorModel[]>([])
+  const [raceResults, setRaceResults] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   // Dialog states
@@ -49,6 +45,10 @@ export default function SponsorsPage() {
     try {
       const sp = await f1Service.getTeamSponsors(team.id)
       setSponsors(sp)
+      if (season?.id) {
+        const rr = await f1Service.getSeasonRaceResults(season.id)
+        setRaceResults(rr)
+      }
     } catch (err) {
       console.error('Error loading sponsors:', err)
     } finally {
@@ -58,11 +58,96 @@ export default function SponsorsPage() {
 
   useEffect(() => {
     loadSponsors()
-  }, [team?.id])
+  }, [team?.id, season?.id])
 
   useRealtime('sponsors', () => {
     loadSponsors()
   })
+
+  // Determina a posição de construtores, vitórias e pódios da equipe para o multiplicador
+  const performanceStats = useMemo(() => {
+    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
+    const currentRound = season?.current_round || 1
+    const pastRoundsToSimulate = raceResults.length > 0 ? 0 : Math.max(0, currentRound - 1)
+    const { driverStandingsMap: aiDriverStats } = simulateAiGridFiaStandings(
+      team?.team_key,
+      isCustomTeam,
+      pastRoundsToSimulate,
+    )
+    const aiGrid = getAICompetitors(team?.team_key, isCustomTeam)
+
+    const tMap: Record<
+      string,
+      { points: number; wins: number; podiums: number; isPlayer: boolean }
+    > = {}
+    aiGrid.forEach((aiTeam) => {
+      const d1 = aiDriverStats[`${aiTeam.id}_d1`] || { points: 0, wins: 0, podiums: 0 }
+      const d2 = aiDriverStats[`${aiTeam.id}_d2`] || { points: 0, wins: 0, podiums: 0 }
+      tMap[aiTeam.id] = {
+        points: d1.points + d2.points,
+        wins: d1.wins + d2.wins,
+        podiums: d1.podiums + d2.podiums,
+        isPlayer: false,
+      }
+    })
+
+    const playerTeamId = team?.id || 'player'
+    let playerPoints = 0
+    let playerWins = 0
+    let playerPodiums = 0
+
+    raceResults.forEach((res) => {
+      const isPlayerResult =
+        res.team_id === team?.id ||
+        res.expand?.team_id?.name === team?.name ||
+        (team?.name && res.teamName === team.name)
+
+      if (isPlayerResult) {
+        const pts =
+          typeof res.points === 'number' && res.points > 0
+            ? res.points
+            : getFiaPointsForPosition(res.position) +
+              (res.fastest_lap && res.position <= 10 ? 1 : 0)
+        playerPoints += pts
+        if (res.position === 1) {
+          playerWins += 1
+          playerPodiums += 1
+        } else if (res.position <= 3) {
+          playerPodiums += 1
+        }
+      }
+    })
+
+    tMap[playerTeamId] = {
+      points: playerPoints,
+      wins: playerWins,
+      podiums: playerPodiums,
+      isPlayer: true,
+    }
+
+    const sortedTeams = Object.entries(tMap).sort((a, b) => {
+      if (b[1].points !== a[1].points) return b[1].points - a[1].points
+      if (b[1].wins !== a[1].wins) return b[1].wins - a[1].wins
+      return b[1].podiums - a[1].podiums
+    })
+
+    const playerRankIdx = sortedTeams.findIndex((item) => item[1].isPlayer)
+    const constructorPos = playerRankIdx !== -1 ? playerRankIdx + 1 : 6
+
+    const scale = f1Service.calculateSponsorMultiplier({
+      constructorPos,
+      wins: playerWins,
+      podiums: playerPodiums,
+    })
+
+    return {
+      constructorPos,
+      wins: playerWins,
+      podiums: playerPodiums,
+      multiplier: scale.multiplier,
+      explanation: scale.explanation,
+    }
+  }, [team, season, raceResults])
 
   // Total active revenue per round calculation
   const totalRevenuePerRound = useMemo(() => {
@@ -71,14 +156,19 @@ export default function SponsorsPage() {
       .reduce((acc, curr) => acc + (curr.value_per_round || 0), 0)
   }, [sponsors])
 
-  // Sign sponsor contract
+  // Sign sponsor contract (com multiplicador de desempenho e exclusividade de cota)
   const handleSignContract = async () => {
     if (!signingSponsor || !team) return
     setIsProcessing(true)
     try {
+      const finalValuePerRound = Math.round(
+        signingSponsor.valuePerRound * performanceStats.multiplier,
+      )
+
       await f1Service.createSponsor({
         name: signingSponsor.name,
-        value_per_round: signingSponsor.valuePerRound,
+        slot: signingSponsor.slot,
+        value_per_round: finalValuePerRound,
         requirement: signingSponsor.requirement,
         status: 'ativo',
         rounds_remaining: signingSponsor.rounds,
@@ -87,13 +177,13 @@ export default function SponsorsPage() {
 
       await f1Service.addEvent(
         team.id,
-        `Contrato firmado com ${signingSponsor.name}: receita de ${formatCurrency(signingSponsor.valuePerRound)}/rodada por ${signingSponsor.rounds} etapas!`,
+        `Contrato exclusivo de cota [${signingSponsor.slotLabel || signingSponsor.slot}] firmado com ${signingSponsor.name}: receita de ${formatCurrency(finalValuePerRound)}/rodada (multiplicador x${performanceStats.multiplier.toFixed(2)}) por ${signingSponsor.rounds} etapas!`,
         'patrocinio',
       )
 
       toast({
         title: 'Patrocínio Fechado!',
-        description: `Contrato assinado com ${signingSponsor.name}. Receita adicionada às rodadas.`,
+        description: `Contrato exclusivo assinado com ${signingSponsor.name} para a cota ${signingSponsor.slotLabel || signingSponsor.slot}.`,
       })
 
       setSigningSponsor(null)
@@ -146,10 +236,53 @@ export default function SponsorsPage() {
   const activeSponsors = sponsors.filter((s) => s.status === 'ativo' || s.status === 'suspenso')
   const endedSponsors = sponsors.filter((s) => s.status === 'encerrado')
 
-  // Available sponsors in market not already signed
-  const availableMarket = AVAILABLE_MARKET_SPONSORS.filter(
-    (m) => !sponsors.some((s) => s.name === m.name && s.status !== 'encerrado'),
-  )
+  // Mapeamento de cotas atualmente ocupadas por contratos ativos
+  const occupiedSlots = useMemo(() => {
+    const slots = new Set<string>()
+    activeSponsors.forEach((s) => {
+      if (s.slot) {
+        slots.add(s.slot)
+      } else {
+        // Fallback para patrocinadores antigos: mapeia pelo nome conhecido ou default
+        const match = AVAILABLE_MARKET_SPONSORS.find((m) => m.name === s.name)
+        if (match?.slot) {
+          slots.add(match.slot)
+        }
+      }
+    })
+    return slots
+  }, [activeSponsors])
+
+  const signedSponsorNames = useMemo(() => {
+    return new Set(activeSponsors.map((s) => s.name))
+  }, [activeSponsors])
+
+  // Sponsors no mercado: excludentes por cota e por patrocinador
+  // Um patrocinador que já assinou cota não pode assinar outra.
+  // Uma cota já ocupada torna indisponíveis outras propostas para aquela cota.
+  const marketCatalogWithStatus = useMemo(() => {
+    return AVAILABLE_MARKET_SPONSORS.map((m) => {
+      const isAlreadySigned = signedSponsorNames.has(m.name)
+      const isSlotOccupied = occupiedSlots.has(m.slot)
+      const occupant = activeSponsors.find((s) => {
+        if (s.slot === m.slot) return true
+        const match = AVAILABLE_MARKET_SPONSORS.find((cat) => cat.name === s.name)
+        return match?.slot === m.slot
+      })
+
+      // Multiplicador do valor pelo desempenho esportivo atual
+      const scaledValue = Math.round(m.valuePerRound * performanceStats.multiplier)
+
+      return {
+        ...m,
+        scaledValue,
+        isAlreadySigned,
+        isSlotOccupied,
+        occupantName: occupant?.name,
+        isUnavailable: isAlreadySigned || isSlotOccupied,
+      }
+    })
+  }, [signedSponsorNames, occupiedSlots, activeSponsors, performanceStats.multiplier])
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -166,6 +299,44 @@ export default function SponsorsPage() {
             Negocie cotas de patrocínio comercial. Atenda aos requisitos de desempenho esportivo
             para manter os repasses ativos em cada GP.
           </p>
+        </div>
+      </div>
+
+      {/* Indicador de Desempenho e Multiplicador de Contratos */}
+      <div className="p-4 rounded-xl bg-gradient-to-r from-[#11161F] via-[#161D29] to-[#11161F] border border-[#1F2733] flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-[#00A6FB]" />
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#00A6FB]">
+              Índice de Atratividade Comercial F1 2026
+            </span>
+          </div>
+          <p className="text-sm font-semibold text-[#F5F7FA]">
+            Multiplicador de Contrato Atual:{' '}
+            <span
+              className={`font-mono text-base ${
+                performanceStats.multiplier >= 1 ? 'text-emerald-400' : 'text-amber-400'
+              }`}
+            >
+              x{performanceStats.multiplier.toFixed(2)}
+            </span>{' '}
+            <span className="text-xs font-normal text-[#8B95A7]">
+              ({performanceStats.explanation})
+            </span>
+          </p>
+          <p className="text-xs text-[#8B95A7]">
+            O valor oferecido pelos patrocinadores escala diretamente com a posição nos Construtores
+            (P1 paga ~x1,40; lanterna ~x0,70) e conquistas de vitórias e pódios.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge
+            variant="outline"
+            className="border-[#1F2733] bg-[#0B0E14] text-xs font-mono text-[#F5F7FA] px-3 py-1.5"
+          >
+            Cotas Ocupadas:{' '}
+            <strong className="text-emerald-400 ml-1">{occupiedSlots.size}/6</strong>
+          </Badge>
         </div>
       </div>
 
@@ -250,7 +421,17 @@ export default function SponsorsPage() {
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="font-bold text-base text-[#F5F7FA]">{sp.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-base text-[#F5F7FA]">{sp.name}</h3>
+                          {sp.slot && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] font-mono border-[#00A6FB]/40 text-[#00A6FB] bg-[#00A6FB]/10 uppercase"
+                            >
+                              Cota: {sp.slot}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs font-mono text-[#8B95A7] mt-0.5">
                           Exigência:{' '}
                           <strong className="text-[#F5F7FA]">
@@ -308,50 +489,72 @@ export default function SponsorsPage() {
         </CardContent>
       </Card>
 
-      {/* Seção Patrocinadores Disponíveis */}
+      {/* Seção Patrocinadores Disponíveis com Cotas Exclusivas */}
       <Card className="bg-[#11161F] border-[#1F2733]">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
             <BadgePercent className="w-5 h-5 text-amber-400" />
-            Patrocinadores Disponíveis no Mercado F1 2026
+            Cotas de Patrocínio Comercial F1 2026 (Exclusividade por Posição)
           </CardTitle>
           <CardDescription className="text-xs text-[#8B95A7]">
-            Empresas globais prontas para investir na sua escuderia. Verifique as exigências antes
-            de firmar compromisso.
+            Cada local do carro (bico, laterais, asa traseira, halo, macacão, retrovisores) possui
+            uma cota EXCLUSIVA. Fechar um contrato reserva a posição e encerra as outras ofertas
+            para aquela cota.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {availableMarket.length === 0 ? (
-            <p className="text-center py-6 text-xs text-[#8B95A7]">
-              Todos os contratos do catálogo já foram assinados ou estão em andamento.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {availableMarket.map((m) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {marketCatalogWithStatus.map((m) => {
+              return (
                 <div
                   key={m.name}
-                  className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-3 flex flex-col justify-between hover:border-[#1F2733]/80 transition-all"
+                  className={`p-4 rounded-xl border space-y-3 flex flex-col justify-between transition-all ${
+                    m.isAlreadySigned
+                      ? 'bg-[#0B0E14]/60 border-emerald-900/40 opacity-70'
+                      : m.isSlotOccupied
+                        ? 'bg-[#0B0E14]/40 border-dashed border-[#1F2733] opacity-60'
+                        : 'bg-[#0B0E14] border-[#1F2733] hover:border-[#1F2733]/80'
+                  }`}
                 >
                   <div>
-                    <div className="flex items-start justify-between">
-                      <h3 className="font-bold text-sm text-[#F5F7FA]">{m.name}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-bold text-sm text-[#F5F7FA]">{m.name}</h3>
+                        <Badge
+                          variant="secondary"
+                          className="mt-1 text-[10px] font-mono bg-[#161D29] text-[#00A6FB] border border-[#00A6FB]/30"
+                        >
+                          Cota: {m.slotLabel}
+                        </Badge>
+                      </div>
                       <Badge
                         variant="outline"
-                        className="text-[10px] border-[#00A6FB]/40 text-[#00A6FB]"
+                        className="text-[10px] border-[#00A6FB]/40 text-[#00A6FB] shrink-0"
                       >
                         {m.rounds} GPs
                       </Badge>
                     </div>
 
-                    <p className="text-[11px] text-[#8B95A7] mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-[#8B95A7] mt-2 leading-relaxed">
                       {m.description}
                     </p>
 
                     <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] mt-3 space-y-1 text-xs font-mono">
-                      <div className="flex justify-between">
-                        <span className="text-[#8B95A7]">Valor por GP:</span>
-                        <strong className="text-emerald-400 font-bold">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[#8B95A7]">Valor base:</span>
+                        <span className="text-[#8B95A7] line-through text-[11px]">
                           {formatCurrency(m.valuePerRound)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[#8B95A7] flex items-center gap-1">
+                          Valor com bônus:
+                          <span className="text-[10px] text-emerald-400">
+                            (x{performanceStats.multiplier.toFixed(2)})
+                          </span>
+                        </span>
+                        <strong className="text-emerald-400 font-bold text-sm">
+                          {formatCurrency(m.scaledValue)}
                         </strong>
                       </div>
                       <div className="flex justify-between">
@@ -361,17 +564,29 @@ export default function SponsorsPage() {
                     </div>
                   </div>
 
-                  <Button
-                    size="sm"
-                    onClick={() => setSigningSponsor(m)}
-                    className="w-full mt-2 bg-[#E10600] hover:bg-[#FF2E25] text-white text-xs font-semibold h-8 shadow"
-                  >
-                    Fechar Contrato
-                  </Button>
+                  <div className="mt-2">
+                    {m.isAlreadySigned ? (
+                      <div className="p-2 text-center rounded-lg bg-emerald-950/30 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+                        ✓ Contrato em Vigor
+                      </div>
+                    ) : m.isSlotOccupied ? (
+                      <div className="p-2 text-center rounded-lg bg-[#161D29] border border-[#1F2733] text-[#8B95A7] text-[11px] font-mono">
+                        🔒 Cota ocupada ({m.occupantName || 'por outro patrocinador'})
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => setSigningSponsor(m)}
+                        className="w-full bg-[#E10600] hover:bg-[#FF2E25] text-white text-xs font-semibold h-8 shadow"
+                      >
+                        Fechar Contrato Exclusivo
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              )
+            })}
+          </div>
         </CardContent>
       </Card>
 
@@ -396,10 +611,21 @@ export default function SponsorsPage() {
                   <strong className="text-[#F5F7FA]">{signingSponsor.name}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Repasse por GP:</span>
-                  <strong className="text-emerald-400 text-sm">
-                    {formatCurrency(signingSponsor.valuePerRound)}
+                  <span className="text-[#8B95A7]">Cota Alocada:</span>
+                  <strong className="text-[#00A6FB]">
+                    {signingSponsor.slotLabel || signingSponsor.slot}
                   </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8B95A7]">Repasse por GP:</span>
+                  <div className="text-right">
+                    <strong className="text-emerald-400 text-sm block">
+                      {formatCurrency(signingSponsor.scaledValue || signingSponsor.valuePerRound)}
+                    </strong>
+                    <span className="text-[10px] text-[#8B95A7]">
+                      Multiplicador de resultados: x{performanceStats.multiplier.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#8B95A7]">Duração Contratual:</span>

@@ -150,6 +150,40 @@ export const f1Service = {
     }
   },
 
+  // Sponsors & Performance Scaling
+  // Multiplicador baseado na posição atual de construtores, vitórias e pódios:
+  // Líder (P1): ~x1.40 | Lanterna (P12): ~x0.70
+  calculateSponsorMultiplier(params: {
+    constructorPos?: number
+    wins?: number
+    podiums?: number
+  }): { multiplier: number; explanation: string } {
+    const pos = Math.max(1, Math.min(12, params.constructorPos ?? 6))
+    const wins = Math.max(0, params.wins ?? 0)
+    const podiums = Math.max(0, params.podiums ?? 0)
+
+    // Base por posição de 1º a 12º (escala linear de 1.30 a 0.70)
+    // P1: 1.30, P2: 1.245, ..., P12: 0.70
+    const baseByPos = 1.3 - ((pos - 1) / 11) * 0.6
+
+    // Bônus por vitórias (+2.5% por vitória, até +10%)
+    const winBonus = Math.min(0.1, wins * 0.025)
+
+    // Bônus por pódios (+1% por pódio adicional fora vitórias, até +5%)
+    const nonWinPodiums = Math.max(0, podiums - wins)
+    const podiumBonus = Math.min(0.05, nonWinPodiums * 0.01)
+
+    const rawMultiplier = baseByPos + winBonus + podiumBonus
+    // Teto de 1.45 e piso de 0.65
+    const multiplier = Math.round(Math.max(0.65, Math.min(1.45, rawMultiplier)) * 100) / 100
+
+    let explanation = `P${pos} nos construtores`
+    if (wins > 0) explanation += ` + ${wins} vitórias`
+    if (nonWinPodiums > 0) explanation += ` + ${nonWinPodiums} pódios`
+
+    return { multiplier, explanation }
+  },
+
   async createSponsor(
     data: Omit<SponsorModel, 'id' | 'created' | 'updated'>,
   ): Promise<SponsorModel> {
@@ -378,7 +412,7 @@ export const f1Service = {
         if (!canonicalTeamId) {
           // Cria registro de equipe se não encontrado
           try {
-            const validSupplier = ['Ferrari', 'Mercedes', 'Honda', 'Ford'].includes(
+            const validSupplier = ['Ferrari', 'Mercedes', 'Honda', 'Ford', 'Audi'].includes(
               teamData?.engine || '',
             )
               ? (teamData?.engine as any)
@@ -438,7 +472,7 @@ export const f1Service = {
     officialData: {
       name: string
       color: string
-      engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'
+      engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
       strength: number
       carLevel: number
       budget: number
@@ -524,6 +558,7 @@ export const f1Service = {
     const sponsorVal = Math.round((215000000 / 24) * sponsorRatio)
     await pb.collection('sponsors').create({
       name: `${officialData.name.split(' ')[0]} Global Partner`,
+      slot: 'laterais',
       value_per_round: sponsorVal,
       requirement: 'Top 10 no GP',
       status: 'ativo',
@@ -618,7 +653,7 @@ export const f1Service = {
   async initializeCustomTeam(
     userId: string,
     teamName: string,
-    engineSupplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford',
+    engineSupplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi',
     teamColor: string = '#E10600',
   ): Promise<TeamModel> {
     // 12th Team: Start with rookie strength ~55, humble budget ~130M, NO drivers hired yet
@@ -669,6 +704,7 @@ export const f1Service = {
     const customSponsorPerRound = Math.round((215000000 / 24) * 0.7)
     await pb.collection('sponsors').create({
       name: 'Venture Capital Motorsport',
+      slot: 'laterais',
       value_per_round: customSponsorPerRound,
       requirement: 'Sem exigência',
       status: 'ativo',
@@ -1037,6 +1073,32 @@ export const f1Service = {
         total_rounds: 24,
         market_moves: null,
       })
+
+      // 3b. Renegociar contratos de patrocínio para a nova temporada conforme resultado do mundial
+      try {
+        const teamSponsors = await pb.collection('sponsors').getFullList<SponsorModel>({
+          filter: `team_id='${teamId}'`,
+        })
+        const { multiplier, explanation } = this.calculateSponsorMultiplier({
+          constructorPos: playerFinalConstructorRank,
+        })
+        for (const sp of teamSponsors) {
+          // Reajustar valor por corrida conforme desempenho
+          const recalculatedValue = Math.round(sp.value_per_round * multiplier)
+          await pb.collection('sponsors').update(sp.id, {
+            value_per_round: recalculatedValue,
+            rounds_remaining: 24,
+            status: 'ativo',
+          })
+        }
+        await this.addEvent(
+          teamId,
+          `📈 RENEGOCIAÇÃO DE PATROCÍNIOS: Contratos ajustados em ${multiplier >= 1 ? `+${Math.round((multiplier - 1) * 100)}%` : `-${Math.round((1 - multiplier) * 100)}%`} devido ao desempenho de construtores (${explanation}).`,
+          'patrocinio',
+        )
+      } catch (spErr) {
+        console.warn('Erro ao renegociar patrocínios na nova temporada:', spErr)
+      }
 
       // 4. Reset team active engine wear to 0 and engine pool used to 1
       try {

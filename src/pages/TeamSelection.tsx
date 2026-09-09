@@ -67,9 +67,9 @@ export default function TeamSelectionPage() {
 
   // Custom team form state
   const [customName, setCustomName] = useState('')
-  const [customEngine, setCustomEngine] = useState<'Ferrari' | 'Mercedes' | 'Honda' | 'Ford'>(
-    'Mercedes',
-  )
+  const [customEngine, setCustomEngine] = useState<
+    'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
+  >('Mercedes')
   const [customColor, setCustomColor] = useState('#E10600')
   const [customNameError, setCustomNameError] = useState('')
 
