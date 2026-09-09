@@ -4,14 +4,19 @@ import pb from '@/lib/pocketbase/client'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
-import { OFFICIAL_GRID_TEAMS, getAICompetitors, OfficialGridTeam } from '@/lib/f1-data'
+import {
+  OFFICIAL_GRID_TEAMS,
+  getAICompetitors,
+  OfficialGridTeam,
+  ENGINE_SUPPLIERS,
+} from '@/lib/f1-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import {
   simulateAiGridFiaStandings,
   normalizeEntityName,
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
-import { DriverModel, RaceResultModel, TeamModel } from '@/types/f1'
+import { DriverModel, PartModel, RaceResultModel, TeamModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -57,6 +62,7 @@ export default function TeamsPage() {
   const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
   const [playerDrivers, setPlayerDrivers] = useState<DriverModel[]>([])
   const [allDbTeams, setAllDbTeams] = useState<TeamModel[]>([])
+  const [playerParts, setPlayerParts] = useState<PartModel[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [engineFilter, setEngineFilter] = useState<string>('todos')
@@ -77,14 +83,16 @@ export default function TeamsPage() {
       return
     }
     try {
-      const [rList, dList, teamsList] = await Promise.all([
+      const [rList, dList, teamsList, partsList] = await Promise.all([
         f1Service.getSeasonRaceResults(season.id),
         f1Service.getTeamDrivers(team.id),
         f1Service.getAllTeams(),
+        f1Service.getTeamParts(team.id),
       ])
       setRaceResults(rList)
       setPlayerDrivers(dList)
       setAllDbTeams(teamsList)
+      setPlayerParts(partsList)
     } catch (err) {
       console.error('Erro ao carregar dados do paddock:', err)
     } finally {
@@ -100,6 +108,9 @@ export default function TeamsPage() {
     loadData()
   })
   useRealtime('race_results', () => {
+    loadData()
+  })
+  useRealtime('parts', () => {
     loadData()
   })
 
@@ -405,6 +416,28 @@ export default function TeamsPage() {
     }
   }
 
+  // Nível do carro do jogador (mesmo cálculo da simulação de corrida / Race.tsx)
+  const currentEngine = useMemo(() => {
+    const sName = team?.engine_supplier || 'Mercedes'
+    return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
+  }, [team?.engine_supplier])
+
+  const playerCarLevel = useMemo(() => {
+    if (playerParts.length === 0) return 75
+    const sum = playerParts.reduce((acc, p) => acc + p.level, 0)
+    const sumCond = playerParts.reduce((acc, p) => acc + (p.condition ?? 100), 0)
+    const avg = (sum / playerParts.length) * 10
+    const avgCond = Math.round(sumCond / playerParts.length)
+
+    let base = Math.round(avg * 0.6 + currentEngine.power * 0.4)
+    if (avgCond < 60) {
+      const pacePenalty = Math.round((60 - avgCond) * 0.25)
+      base = Math.max(20, base - pacePenalty)
+    }
+
+    return team?.reserve_setup_bonus ? Math.min(100, base + 2) : base
+  }, [playerParts, currentEngine, team?.reserve_setup_bonus])
+
   // Lista de equipes oficiais (11 oficiais ou as 12 da F1 2026)
   // Se o usuário assumiu uma oficial (ex: Ferrari), seu card é o destaque
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
@@ -419,6 +452,7 @@ export default function TeamsPage() {
       color: string
       engine: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
       strengthRating: number
+      carLevel: number
       strengthVerdict: string
       budget: number
       historySummary: string
@@ -459,6 +493,7 @@ export default function TeamsPage() {
         color: team.color || '#E10600',
         engine: (team.engine_supplier as any) || 'Mercedes',
         strengthRating: Number(((team.strength || 58) / 10).toFixed(1)),
+        carLevel: playerCarLevel,
         strengthVerdict: 'Sua Escuderia Própria // 12ª Equipe do Grid',
         budget: team.budget,
         historySummary: 'Equipe estreante sob seu comando direto na Fórmula 1 2026.',
@@ -517,7 +552,11 @@ export default function TeamsPage() {
         engine: isThisUserTeam
           ? (team?.engine_supplier as any) || official.engine
           : official.engine,
-        strengthRating: official.strengthRating,
+        strengthRating:
+          isThisUserTeam && team?.strength
+            ? Number((team.strength / 10).toFixed(1))
+            : official.strengthRating,
+        carLevel: isThisUserTeam ? playerCarLevel : official.carLevel,
         strengthVerdict: official.strengthVerdict,
         budget: isThisUserTeam ? (team?.budget ?? official.budget) : official.budget,
         historySummary: official.historySummary,
@@ -561,7 +600,15 @@ export default function TeamsPage() {
     })
 
     return list
-  }, [team, isCustomTeam, allDbTeams, playerTitular1, playerTitular2, playerReserve])
+  }, [
+    team,
+    isCustomTeam,
+    allDbTeams,
+    playerTitular1,
+    playerTitular2,
+    playerReserve,
+    playerCarLevel,
+  ])
 
   // Filtragem por busca e por fornecedor de motor
   const filteredTeams = useMemo(() => {
@@ -875,14 +922,16 @@ export default function TeamsPage() {
                   {/* Indicador de Ritmo Combinado de Corrida (Carro 70% + Pilotos 30%) */}
                   {(() => {
                     const paceD1 = calculateCombinedPace({
-                      teamStrength: t.strengthRating,
+                      teamStrength: t.strengthRating * 10,
+                      carLevel: t.carLevel,
                       driver: {
                         speed: t.driver1.speed,
                         consistency: t.driver1.consistency,
                       },
                     })
                     const paceD2 = calculateCombinedPace({
-                      teamStrength: t.strengthRating,
+                      teamStrength: t.strengthRating * 10,
+                      carLevel: t.carLevel,
                       driver: {
                         speed: t.driver2.speed,
                         consistency: t.driver2.consistency,
