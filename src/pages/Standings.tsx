@@ -4,7 +4,12 @@ import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, RaceResultModel } from '@/types/f1'
 import { getAICompetitors } from '@/lib/f1-data'
-import { Trophy, Award, Users, Flag, TrendingUp, ShieldCheck } from 'lucide-react'
+import {
+  simulateAiGridFiaStandings,
+  normalizeEntityName,
+  getFiaPointsForPosition,
+} from '@/lib/f1-standings-calculator'
+import { Trophy, Award, Users, Flag, Medal } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +26,7 @@ interface DriverStanding {
   points: number
   wins: number
   podiums: number
+  bestPosition: number
   isPlayer: boolean
 }
 
@@ -31,6 +37,8 @@ interface TeamStanding {
   engine: string
   points: number
   wins: number
+  podiums: number
+  bestPosition: number
   isPlayer: boolean
 }
 
@@ -119,11 +127,27 @@ export default function StandingsPage() {
   // Calculate aggregated standings
   const { driverStandings, constructorStandings } = useMemo(() => {
     const currentRound = season?.current_round || 1
-    const pastRounds = Math.max(0, currentRound - 1)
+
+    // Determina se a rodada atual já possui resultados gravados
+    const recordedRounds = new Set<number>()
+    raceResults.forEach((r) => {
+      if (typeof r.round === 'number') {
+        recordedRounds.add(r.round)
+      }
+    })
+    const hasRecordedResults = recordedRounds.size > 0
+
+    // Se o banco tem resultados gravados para as rodadas, calculamos diretamente deles.
+    // Caso a rodada atual esteja avançada sem corridas gravadas (fallback), simulamos pelas rodadas passadas
+    // com a tabela oficial FIA.
+    const pastRoundsToSimulate = hasRecordedResults ? 0 : Math.max(0, currentRound - 1)
 
     // Determine if player has custom 12th team or operates an official one
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const aiGrid = getAICompetitors(team?.team_key, isCustomTeam)
+
+    const { driverStandingsMap: aiDriverStats, teamStandingsMap: aiTeamStats } =
+      simulateAiGridFiaStandings(team?.team_key, isCustomTeam, pastRoundsToSimulate)
 
     // 1. Drivers map
     const dMap: Record<string, DriverStanding> = {}
@@ -140,93 +164,126 @@ export default function StandingsPage() {
         points: 0,
         wins: 0,
         podiums: 0,
+        bestPosition: 99,
         isPlayer: true,
       }
     })
 
     // Init AI Drivers from dynamic grid
     aiGrid.forEach((aiTeam) => {
-      // Estimated points factoring both driver speed and team strength
-      const teamMultiplier = aiTeam.strength / 80
-      const d1BasePts = Math.max(
-        0,
-        Math.round((aiTeam.driver1.speed - 75) * 0.4 * pastRounds * teamMultiplier),
-      )
-      const d2BasePts = Math.max(
-        0,
-        Math.round((aiTeam.driver2.speed - 75) * 0.3 * pastRounds * teamMultiplier),
-      )
+      const d1Key = `${aiTeam.id}_d1`
+      const d2Key = `${aiTeam.id}_d2`
+      const d1Stat = aiDriverStats[d1Key] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
+      const d2Stat = aiDriverStats[d2Key] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
 
-      dMap[`${aiTeam.id}_d1`] = {
-        id: `${aiTeam.id}_d1`,
+      dMap[d1Key] = {
+        id: d1Key,
         name: aiTeam.driver1.name,
         nationality: aiTeam.driver1.nationality,
         flag: aiTeam.driver1.flag,
         teamName: aiTeam.name,
         teamColor: aiTeam.color,
-        points: d1BasePts,
-        wins: d1BasePts > 50 ? Math.floor(d1BasePts / 40) : 0,
-        podiums: d1BasePts > 30 ? Math.floor(d1BasePts / 25) : 0,
+        points: d1Stat.points,
+        wins: d1Stat.wins,
+        podiums: d1Stat.podiums,
+        bestPosition: d1Stat.bestPos,
         isPlayer: false,
       }
 
-      dMap[`${aiTeam.id}_d2`] = {
-        id: `${aiTeam.id}_d2`,
+      dMap[d2Key] = {
+        id: d2Key,
         name: aiTeam.driver2.name,
         nationality: aiTeam.driver2.nationality,
         flag: aiTeam.driver2.flag,
         teamName: aiTeam.name,
         teamColor: aiTeam.color,
-        points: d2BasePts,
-        wins: d2BasePts > 60 ? 1 : 0,
-        podiums: d2BasePts > 30 ? Math.floor(d2BasePts / 30) : 0,
+        points: d2Stat.points,
+        wins: d2Stat.wins,
+        podiums: d2Stat.podiums,
+        bestPosition: d2Stat.bestPos,
         isPlayer: false,
       }
     })
 
-    // Aggregate real race_results from DB for player drivers
+    // Prepara índices de busca rápida por ID e por nome normalizado
+    const driverLookupByName: Record<string, DriverStanding> = {}
+    Object.values(dMap).forEach((d) => {
+      driverLookupByName[normalizeEntityName(d.name)] = d
+    })
+
+    // 2. Processa race_results reais persistidos no banco
     raceResults.forEach((res) => {
-      if (dMap[res.driver_id]) {
-        dMap[res.driver_id].points += res.points || 0
-        if (res.position === 1) dMap[res.driver_id].wins += 1
-        if (res.position <= 3) dMap[res.driver_id].podiums += 1
-      } else {
-        // Also match by driver expand or find in dMap by name if available
-        const matched = Object.values(dMap).find(
-          (d) =>
-            d.id === res.driver_id ||
-            (res.expand?.driver_id && d.name === res.expand.driver_id.name),
-        )
-        if (matched) {
-          matched.points += res.points || 0
-          if (res.position === 1) matched.wins += 1
-          if (res.position <= 3) matched.podiums += 1
+      // Tenta achar piloto por id direto
+      let targetDriver = dMap[res.driver_id]
+
+      // Se não achou, tenta pelo expand do PocketBase
+      if (!targetDriver && res.expand?.driver_id?.name) {
+        const norm = normalizeEntityName(res.expand.driver_id.name)
+        targetDriver = driverLookupByName[norm]
+      }
+
+      // Se ainda não achou, busca no dMap por equivalência de nome
+      if (!targetDriver) {
+        const allDrivers = Object.values(dMap)
+        targetDriver = allDrivers.find((d) => {
+          if (d.id === res.driver_id) return true
+          return false
+        })
+      }
+
+      if (targetDriver) {
+        // Pontuação oficial FIA: usa res.points ou calcula da posição oficial caso salvo com 0
+        const pts =
+          typeof res.points === 'number' && res.points > 0
+            ? res.points
+            : getFiaPointsForPosition(res.position) +
+              (res.fastest_lap && res.position <= 10 ? 1 : 0)
+
+        targetDriver.points += pts
+
+        if (res.position === 1) {
+          targetDriver.wins += 1
+          targetDriver.podiums += 1
+        } else if (res.position <= 3) {
+          targetDriver.podiums += 1
+        }
+
+        if (res.position < targetDriver.bestPosition) {
+          targetDriver.bestPosition = res.position
         }
       }
     })
 
+    // Ordenação de pilotos: Pontos DESC > Vitórias DESC > Pódios DESC > Melhor Posição ASC > Nome ASC
     const sortedDrivers = Object.values(dMap).sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points
-      return b.wins - a.wins
+      if (b.wins !== a.wins) return b.wins - a.wins
+      if (b.podiums !== a.podiums) return b.podiums - a.podiums
+      if (a.bestPosition !== b.bestPosition) return a.bestPosition - b.bestPosition
+      return a.name.localeCompare(b.name)
     })
 
-    // 2. Teams map
+    // 3. Teams map (Construtores)
     const tMap: Record<string, TeamStanding> = {}
 
     // Init AI Teams from dynamic grid
     aiGrid.forEach((aiTeam) => {
-      const p1 = dMap[`${aiTeam.id}_d1`]?.points || 0
-      const p2 = dMap[`${aiTeam.id}_d2`]?.points || 0
-      const w1 = dMap[`${aiTeam.id}_d1`]?.wins || 0
-      const w2 = dMap[`${aiTeam.id}_d2`]?.wins || 0
+      const d1 = dMap[`${aiTeam.id}_d1`]
+      const d2 = dMap[`${aiTeam.id}_d2`]
+      const pts = (d1?.points || 0) + (d2?.points || 0)
+      const w = (d1?.wins || 0) + (d2?.wins || 0)
+      const pod = (d1?.podiums || 0) + (d2?.podiums || 0)
+      const best = Math.min(d1?.bestPosition ?? 99, d2?.bestPosition ?? 99)
 
       tMap[aiTeam.id] = {
         id: aiTeam.id,
         name: aiTeam.name,
         color: aiTeam.color,
         engine: aiTeam.engine,
-        points: p1 + p2,
-        wins: w1 + w2,
+        points: pts,
+        wins: w,
+        podiums: pod,
+        bestPosition: best,
         isPlayer: false,
       }
     })
@@ -234,26 +291,41 @@ export default function StandingsPage() {
     // Player team
     let playerTeamPts = 0
     let playerTeamWins = 0
+    let playerTeamPodiums = 0
+    let playerTeamBestPos = 99
+
     playerDrivers.forEach((d) => {
-      if (dMap[d.id]) {
-        playerTeamPts += dMap[d.id].points
-        playerTeamWins += dMap[d.id].wins
+      const standing = dMap[d.id]
+      if (standing) {
+        playerTeamPts += standing.points
+        playerTeamWins += standing.wins
+        playerTeamPodiums += standing.podiums
+        if (standing.bestPosition < playerTeamBestPos) {
+          playerTeamBestPos = standing.bestPosition
+        }
       }
     })
 
-    tMap[team?.id || 'player'] = {
-      id: team?.id || 'player',
+    const playerTeamId = team?.id || 'player'
+    tMap[playerTeamId] = {
+      id: playerTeamId,
       name: team?.name || 'Escuderia Brasil',
       color: team?.color || '#FF3B30',
       engine: team?.engine_supplier || 'Mercedes',
       points: playerTeamPts,
       wins: playerTeamWins,
+      podiums: playerTeamPodiums,
+      bestPosition: playerTeamBestPos,
       isPlayer: true,
     }
 
+    // Ordenação de equipes: Pontos DESC > Vitórias DESC > Pódios DESC > Melhor Posição ASC > Nome ASC
     const sortedTeams = Object.values(tMap).sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points
-      return b.wins - a.wins
+      if (b.wins !== a.wins) return b.wins - a.wins
+      if (b.podiums !== a.podiums) return b.podiums - a.podiums
+      if (a.bestPosition !== b.bestPosition) return a.bestPosition - b.bestPosition
+      return a.name.localeCompare(b.name)
     })
 
     return {
@@ -276,7 +348,7 @@ export default function StandingsPage() {
           <p className="text-sm text-[#8B95A7] mt-0.5">
             Grid oficial com{' '}
             {team?.is_custom ? '12 equipes (11 oficiais + 12ª sua escuderia)' : '11 equipes'} •
-            Pontuação, vitórias e pódios ao longo das 24 etapas.
+            Pontuação FIA (25-18-15-12-10-8-6-4-2-1), vitórias e pódios ao longo das 24 etapas.
           </p>
         </div>
       </div>
@@ -315,7 +387,8 @@ export default function StandingsPage() {
                 Mundial de Pilotos — Temporada 2026
               </CardTitle>
               <CardDescription className="text-xs text-[#8B95A7]">
-                Seus pilotos destacados em negrito na cor da sua escuderia.
+                Seus pilotos destacados em negrito na cor da sua escuderia. Escala oficial FIA (25,
+                18, 15, 12, 10, 8, 6, 4, 2, 1).
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -391,13 +464,19 @@ export default function StandingsPage() {
                             </td>
                             <td className="py-3 px-3 text-center text-[#F5F7FA]">
                               {driver.wins > 0 ? (
-                                <strong className="text-amber-400">{driver.wins}</strong>
+                                <strong className="text-amber-400 font-bold">{driver.wins}</strong>
                               ) : (
                                 <span className="text-[#8B95A7]">0</span>
                               )}
                             </td>
                             <td className="py-3 px-3 text-center text-[#F5F7FA]">
-                              {driver.podiums}
+                              {driver.podiums > 0 ? (
+                                <strong className="text-emerald-400 font-bold">
+                                  {driver.podiums}
+                                </strong>
+                              ) : (
+                                <span className="text-[#8B95A7]">0</span>
+                              )}
                             </td>
                             <td className="py-3 px-4 text-right">
                               <strong
@@ -449,6 +528,7 @@ export default function StandingsPage() {
                         <th className="py-2.5 px-3">Equipe</th>
                         <th className="py-2.5 px-3">Motor 50/50</th>
                         <th className="py-2.5 px-3 text-center">Vitórias</th>
+                        <th className="py-2.5 px-3 text-center">Pódios</th>
                         <th className="py-2.5 px-3 text-right">Premiação FIA (Final)</th>
                         <th className="py-2.5 px-4 text-right">Pontos Totais</th>
                       </tr>
@@ -520,7 +600,16 @@ export default function StandingsPage() {
                             <td className="py-3 px-3 text-[#8B95A7]">{cTeam.engine}</td>
                             <td className="py-3 px-3 text-center text-[#F5F7FA]">
                               {cTeam.wins > 0 ? (
-                                <strong className="text-amber-400">{cTeam.wins}</strong>
+                                <strong className="text-amber-400 font-bold">{cTeam.wins}</strong>
+                              ) : (
+                                <span className="text-[#8B95A7]">0</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center text-[#F5F7FA]">
+                              {cTeam.podiums > 0 ? (
+                                <strong className="text-emerald-400 font-bold">
+                                  {cTeam.podiums}
+                                </strong>
                               ) : (
                                 <span className="text-[#8B95A7]">0</span>
                               )}

@@ -5,6 +5,7 @@ import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, EventModel, PartModel, RaceResultModel } from '@/types/f1'
 import { F1_2026_CALENDAR, getAICompetitors } from '@/lib/f1-data'
+import { simulateAiGridFiaStandings, getFiaPointsForPosition } from '@/lib/f1-standings-calculator'
 import { formatCurrency, formatDateTimeBR } from '@/lib/formatters'
 import {
   Trophy,
@@ -89,22 +90,30 @@ export default function Index() {
       dMap[d.id] = dResults.reduce((acc, curr) => acc + (curr.points || 0), 0)
     })
 
-    // Simulated competitor points based on past rounds
+    // Simulated competitor points based on past rounds using official FIA scale
     const currentRound = season?.current_round || 1
-    const completedRounds = Math.max(0, currentRound - 1)
-
-    // Rough competitor totals - use getAICompetitors to filter out player's team if official
     const isCustom = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const aiTeams = getAICompetitors(team?.team_key, isCustom)
 
+    const recordedRounds = new Set<number>()
+    raceResults.forEach((r) => {
+      if (typeof r.round === 'number') recordedRounds.add(r.round)
+    })
+    const hasRecordedResults = recordedRounds.size > 0
+    const pastRoundsToSimulate = hasRecordedResults ? 0 : Math.max(0, currentRound - 1)
+
+    const { teamStandingsMap: aiTeamStats } = simulateAiGridFiaStandings(
+      team?.team_key,
+      isCustom,
+      pastRoundsToSimulate,
+    )
+
     const competitorsWithPoints = aiTeams.map((aiTeam) => {
-      // Base points per completed round according to team strength & car level
-      const baseRating = (aiTeam.strength + aiTeam.carLevel) / 2
-      const estimatedPts = Math.max(0, Math.round((baseRating - 65) * 0.45 * completedRounds))
+      const stat = aiTeamStats[aiTeam.id] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
       return {
         id: aiTeam.id,
         name: aiTeam.name,
-        points: estimatedPts,
+        points: stat.points,
       }
     })
 

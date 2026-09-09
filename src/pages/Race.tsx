@@ -2723,7 +2723,8 @@ export default function RacePage() {
       await f1Service.deleteRaceResultsForRound(season.id, currentRound)
 
       // 2. Persist race_results with canonical ID resolution
-      const resultsToSave = raceResults.filter((r) => r.isPlayer || r.position <= 10)
+      // Grava todos os pilotos para histórico completo, pódios e desempates
+      const resultsToSave = raceResults
 
       let savedCount = 0
       for (const res of resultsToSave) {

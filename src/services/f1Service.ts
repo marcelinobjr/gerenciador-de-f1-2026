@@ -226,6 +226,7 @@ export const f1Service = {
       const records = await pb.collection('race_results').getFullList<RaceResultModel>({
         filter: `season_id = "${seasonId}"`,
         sort: 'round,position',
+        expand: 'driver_id,team_id',
       })
       return records
     } catch (e) {

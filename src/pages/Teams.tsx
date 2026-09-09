@@ -3,6 +3,11 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { OFFICIAL_GRID_TEAMS, getAICompetitors, OfficialGridTeam } from '@/lib/f1-data'
+import {
+  simulateAiGridFiaStandings,
+  normalizeEntityName,
+  getFiaPointsForPosition,
+} from '@/lib/f1-standings-calculator'
 import { DriverModel, RaceResultModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -68,33 +73,35 @@ export default function TeamsPage() {
   // Calcula a tabela de construtores da temporada atual para sabermos posição e pontos de cada equipe
   const constructorStandingsMap = useMemo(() => {
     const currentRound = season?.current_round || 1
-    const pastRounds = Math.max(0, currentRound - 1)
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const aiGrid = getAICompetitors(team?.team_key, isCustomTeam)
 
+    const recordedRounds = new Set<number>()
+    raceResults.forEach((r) => {
+      if (typeof r.round === 'number') recordedRounds.add(r.round)
+    })
+    const hasRecordedResults = recordedRounds.size > 0
+    const pastRoundsToSimulate = hasRecordedResults ? 0 : Math.max(0, currentRound - 1)
+
+    const { teamStandingsMap: aiTeamStats } = simulateAiGridFiaStandings(
+      team?.team_key,
+      isCustomTeam,
+      pastRoundsToSimulate,
+    )
+
     const standings: Record<
       string,
-      { name: string; points: number; wins: number; isPlayer: boolean }
+      { name: string; points: number; wins: number; isPlayer: boolean; bestPosition: number }
     > = {}
 
     // Equipes rivais da IA
     aiGrid.forEach((aiTeam) => {
-      const teamMultiplier = aiTeam.strength / 80
-      const d1Pts = Math.max(
-        0,
-        Math.round((aiTeam.driver1.speed - 75) * 0.4 * pastRounds * teamMultiplier),
-      )
-      const d2Pts = Math.max(
-        0,
-        Math.round((aiTeam.driver2.speed - 75) * 0.3 * pastRounds * teamMultiplier),
-      )
-      const w1 = d1Pts > 50 ? Math.floor(d1Pts / 40) : 0
-      const w2 = d2Pts > 60 ? 1 : 0
-
+      const stat = aiTeamStats[aiTeam.id] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
       standings[aiTeam.id] = {
         name: aiTeam.name,
-        points: d1Pts + d2Pts,
-        wins: w1 + w2,
+        points: stat.points,
+        wins: stat.wins,
+        bestPosition: stat.bestPos,
         isPlayer: false,
       }
     })
@@ -102,9 +109,19 @@ export default function TeamsPage() {
     // Equipe do jogador
     let playerPoints = 0
     let playerWins = 0
+    let playerBestPos = 99
     raceResults.forEach((r) => {
-      playerPoints += r.points || 0
-      if (r.position === 1) playerWins += 1
+      const isPlayerResult =
+        r.team_id === team?.id || (r.expand?.team_id && r.expand.team_id.name === team?.name)
+      if (isPlayerResult || !r.team_id) {
+        const pts =
+          typeof r.points === 'number' && r.points > 0
+            ? r.points
+            : getFiaPointsForPosition(r.position) + (r.fastest_lap && r.position <= 10 ? 1 : 0)
+        playerPoints += pts
+        if (r.position === 1) playerWins += 1
+        if (r.position < playerBestPos) playerBestPos = r.position
+      }
     })
 
     const playerTeamId = team?.id || 'player'
@@ -112,13 +129,16 @@ export default function TeamsPage() {
       name: team?.name || 'Escuderia Brasil',
       points: playerPoints,
       wins: playerWins,
+      bestPosition: playerBestPos,
       isPlayer: true,
     }
 
-    // Ordenar para extrair a posição oficial
+    // Ordenar para extrair a posição oficial segundo regulamento FIA
     const sorted = Object.entries(standings).sort(([, a], [, b]) => {
       if (b.points !== a.points) return b.points - a.points
-      return b.wins - a.wins
+      if (b.wins !== a.wins) return b.wins - a.wins
+      if (a.bestPosition !== b.bestPosition) return a.bestPosition - b.bestPosition
+      return a.name.localeCompare(b.name)
     })
 
     const resultMap: Record<string, TeamStandingSummary> = {}
@@ -128,8 +148,13 @@ export default function TeamsPage() {
         points: data.points,
         wins: data.wins,
       }
-      // Também mapear por nome para correspondência com OFFICIAL_GRID_TEAMS
+      // Também mapear por nome e nome normalizado para correspondência com OFFICIAL_GRID_TEAMS
       resultMap[data.name.toLowerCase()] = {
+        position: index + 1,
+        points: data.points,
+        wins: data.wins,
+      }
+      resultMap[normalizeEntityName(data.name)] = {
         position: index + 1,
         points: data.points,
         wins: data.wins,
