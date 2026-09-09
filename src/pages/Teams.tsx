@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import pb from '@/lib/pocketbase/client'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
 import { OFFICIAL_GRID_TEAMS, getAICompetitors, OfficialGridTeam } from '@/lib/f1-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import {
@@ -9,7 +11,7 @@ import {
   normalizeEntityName,
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
-import { DriverModel, RaceResultModel } from '@/types/f1'
+import { DriverModel, RaceResultModel, TeamModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +29,9 @@ import {
   Search,
   Layers,
   Sparkles,
+  Camera,
+  UploadCloud,
+  Loader2,
 } from 'lucide-react'
 
 // Informações calculadas de construtores
@@ -37,12 +42,16 @@ interface TeamStandingSummary {
 }
 
 export default function TeamsPage() {
-  const { team, season } = useAuth()
+  const { team, season, refreshTeamAndSeason } = useAuth()
+  const { toast } = useToast()
   const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
   const [playerDrivers, setPlayerDrivers] = useState<DriverModel[]>([])
+  const [allDbTeams, setAllDbTeams] = useState<TeamModel[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [engineFilter, setEngineFilter] = useState<string>('todos')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadData = async () => {
     if (!season || !team) {
@@ -50,12 +59,14 @@ export default function TeamsPage() {
       return
     }
     try {
-      const [rList, dList] = await Promise.all([
+      const [rList, dList, teamsList] = await Promise.all([
         f1Service.getSeasonRaceResults(season.id),
         f1Service.getTeamDrivers(team.id),
+        f1Service.getAllTeams(),
       ])
       setRaceResults(rList)
       setPlayerDrivers(dList)
+      setAllDbTeams(teamsList)
     } catch (err) {
       console.error('Erro ao carregar dados do paddock:', err)
     } finally {
@@ -67,9 +78,64 @@ export default function TeamsPage() {
     loadData()
   }, [season?.id, team?.id])
 
+  useRealtime('teams', () => {
+    loadData()
+  })
   useRealtime('race_results', () => {
     loadData()
   })
+
+  // Upload handler para foto lateral do carro da equipe do jogador
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !team?.id) return
+
+    // Validar tipo e tamanho (máx 2MB)
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast({
+        variant: 'destructive',
+        title: 'Formato inválido',
+        description: 'Por favor selecione uma imagem em formato JPEG, PNG ou WEBP.',
+      })
+      return
+    }
+
+    if (file.size > 2097152) {
+      toast({
+        variant: 'destructive',
+        title: 'Arquivo muito grande',
+        description: 'O tamanho máximo da foto é de 2MB.',
+      })
+      return
+    }
+
+    try {
+      setUploadingPhoto(true)
+      const formData = new FormData()
+      formData.append('photo', file)
+
+      const updated = await f1Service.updateTeam(team.id, formData)
+      await refreshTeamAndSeason()
+      setAllDbTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+
+      toast({
+        title: 'Foto do carro atualizada!',
+        description: 'A foto lateral do monoposto 2026 foi salva com sucesso.',
+      })
+    } catch (err: any) {
+      console.error('Erro no upload da foto do carro:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao enviar foto',
+        description: err?.message || 'Falha ao processar o upload da imagem.',
+      })
+    } finally {
+      setUploadingPhoto(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
 
   // Calcula a tabela de construtores da temporada atual para sabermos posição e pontos de cada equipe
   const constructorStandingsMap = useMemo(() => {
@@ -296,6 +362,7 @@ export default function TeamsPage() {
       historySummary: string
       currentSituation: string
       isUserTeam: boolean
+      teamRecord?: TeamModel
       driver1: {
         name: string
         speed: number
@@ -336,6 +403,7 @@ export default function TeamsPage() {
         currentSituation:
           'Desenvolvendo infraestrutura, pacote aerodinâmico e gestão de motores para alcançar os líderes.',
         isUserTeam: true,
+        teamRecord: team,
         driver1: {
           name: playerTitular1?.name || 'Piloto 1',
           speed: playerTitular1?.speed || 80,
@@ -372,6 +440,14 @@ export default function TeamsPage() {
         ((team?.team_key && team.team_key === official.key) ||
           (team?.name && team.name.toLowerCase() === official.name.toLowerCase()))
 
+      const matchedDbTeam = isThisUserTeam
+        ? team
+        : allDbTeams.find(
+            (dbT) =>
+              (dbT.team_key && dbT.team_key === official.key) ||
+              dbT.name.toLowerCase() === official.name.toLowerCase(),
+          )
+
       list.push({
         key: official.key,
         name: isThisUserTeam ? team?.name || official.name : official.name,
@@ -385,6 +461,7 @@ export default function TeamsPage() {
         historySummary: official.historySummary,
         currentSituation: official.currentSituation,
         isUserTeam: isThisUserTeam,
+        teamRecord: matchedDbTeam || (isThisUserTeam ? team : undefined),
         driver1:
           isThisUserTeam && playerTitular1
             ? {
@@ -422,7 +499,7 @@ export default function TeamsPage() {
     })
 
     return list
-  }, [team, isCustomTeam, playerTitular1, playerTitular2, playerReserve])
+  }, [team, isCustomTeam, allDbTeams, playerTitular1, playerTitular2, playerReserve])
 
   // Filtragem por busca e por fornecedor de motor
   const filteredTeams = useMemo(() => {
@@ -559,6 +636,214 @@ export default function TeamsPage() {
               >
                 {/* Linha superior colorida da equipe */}
                 <div className="h-1.5 w-full" style={{ backgroundColor: t.color }} />
+
+                {/* Banner Panorâmico do Carro (~16:9) */}
+                <div className="relative w-full aspect-[16/9] max-h-56 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group">
+                  {t.teamRecord?.photo ? (
+                    <img
+                      src={pb.files.getUrl(t.teamRecord, t.teamRecord.photo, { thumb: '400x200' })}
+                      alt={`Carro F1 2026 - ${t.name}`}
+                      className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    /* Placeholder vetorial blueprint (silhueta lateral de F1 estilizada) */
+                    <div className="w-full h-full flex flex-col items-center justify-center p-4 relative bg-gradient-to-b from-[#0e131b] to-[#070a0e] select-none">
+                      {/* Grid de fundo estilo engenharia/blueprint */}
+                      <div
+                        className="absolute inset-0 opacity-15 pointer-events-none"
+                        style={{
+                          backgroundImage: `linear-gradient(to right, ${t.color}40 1px, transparent 1px), linear-gradient(to bottom, ${t.color}40 1px, transparent 1px)`,
+                          backgroundSize: '24px 24px',
+                        }}
+                      />
+
+                      {/* Silhueta lateral vetorial de monoposto F1 2026 */}
+                      <svg
+                        viewBox="0 0 640 200"
+                        className="w-4/5 h-auto max-h-36 drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        {/* Linhas de cota técnicas */}
+                        <line
+                          x1="40"
+                          y1="180"
+                          x2="600"
+                          y2="180"
+                          stroke="#1F2733"
+                          strokeDasharray="4 4"
+                          strokeWidth="1"
+                        />
+                        <line
+                          x1="40"
+                          y1="30"
+                          x2="40"
+                          y2="180"
+                          stroke="#1F2733"
+                          strokeDasharray="2 2"
+                          strokeWidth="1"
+                        />
+                        <line
+                          x1="600"
+                          y1="30"
+                          x2="600"
+                          y2="180"
+                          stroke="#1F2733"
+                          strokeDasharray="2 2"
+                          strokeWidth="1"
+                        />
+
+                        {/* Monoposto 2026 (Chassi lateral) */}
+                        <path
+                          d="M60 148 L110 148 L135 125 L210 120 L270 102 L340 78 L375 78 L410 92 L470 100 L545 106 L575 126 L585 148 L560 148 Z"
+                          fill={`${t.color}22`}
+                          stroke={t.color}
+                          strokeWidth="2.5"
+                          strokeLinejoin="round"
+                        />
+
+                        {/* Asa Dianteira */}
+                        <path
+                          d="M560 148 L620 148 L630 138 L580 138 Z"
+                          fill="#1F2733"
+                          stroke={t.color}
+                          strokeWidth="1.5"
+                        />
+                        <line
+                          x1="590"
+                          y1="130"
+                          x2="625"
+                          y2="130"
+                          stroke={t.color}
+                          strokeWidth="2"
+                        />
+
+                        {/* Bico F1 e Cockpit Halo */}
+                        <path d="M490 102 L590 135 L580 142 L480 114 Z" fill={`${t.color}55`} />
+                        {/* Halo e Capacete */}
+                        <path
+                          d="M345 78 Q360 62 385 62 Q400 62 405 78 Z"
+                          stroke="#F5F7FA"
+                          strokeWidth="2.5"
+                          fill="none"
+                        />
+                        <circle cx="370" cy="74" r="7" fill="#F5F7FA" opacity="0.85" />
+
+                        {/* Airbox e Tampa do Motor */}
+                        <path
+                          d="M320 86 L345 60 L370 60 L365 78 L320 86 Z"
+                          fill="#1F2733"
+                          stroke={t.color}
+                          strokeWidth="1.5"
+                        />
+                        <path
+                          d="M230 108 L345 60 L330 92 Z"
+                          fill={`${t.color}33`}
+                          stroke={t.color}
+                          strokeWidth="1"
+                        />
+
+                        {/* Sidepod e Assoalho Venturi 2026 */}
+                        <path
+                          d="M210 150 L460 150 L470 125 L340 115 L230 125 Z"
+                          fill="#0F141C"
+                          stroke="#374151"
+                          strokeWidth="1.5"
+                        />
+
+                        {/* Asa Traseira e DRS */}
+                        <path
+                          d="M65 148 L75 80 L125 80 L115 148 Z"
+                          fill="#151B24"
+                          stroke={t.color}
+                          strokeWidth="1.5"
+                        />
+                        <line x1="50" y1="80" x2="135" y2="80" stroke={t.color} strokeWidth="3" />
+                        <line x1="55" y1="90" x2="130" y2="90" stroke={t.color} strokeWidth="2" />
+
+                        {/* Roda Traseira (Aro 18) */}
+                        <circle
+                          cx="170"
+                          cy="148"
+                          r="34"
+                          fill="#0A0D12"
+                          stroke="#4B5563"
+                          strokeWidth="4"
+                        />
+                        <circle
+                          cx="170"
+                          cy="148"
+                          r="22"
+                          fill="#151B24"
+                          stroke={t.color}
+                          strokeWidth="2"
+                        />
+                        <circle cx="170" cy="148" r="8" fill="#F5F7FA" />
+
+                        {/* Roda Dianteira (Aro 18) */}
+                        <circle
+                          cx="510"
+                          cy="148"
+                          r="34"
+                          fill="#0A0D12"
+                          stroke="#4B5563"
+                          strokeWidth="4"
+                        />
+                        <circle
+                          cx="510"
+                          cy="148"
+                          r="22"
+                          fill="#151B24"
+                          stroke={t.color}
+                          strokeWidth="2"
+                        />
+                        <circle cx="510" cy="148" r="8" fill="#F5F7FA" />
+                      </svg>
+
+                      {/* Legenda Blueprint */}
+                      <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] font-mono text-[#8B95A7]">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full"
+                          style={{ backgroundColor: t.color }}
+                        />
+                        <span>F1 2026 SPEC BLUEPRINT // {t.name.toUpperCase()}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botão de Upload exclusivo para a equipe do jogador */}
+                  {isUser && (
+                    <div className="absolute top-2.5 right-2.5 z-10">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handlePhotoUpload}
+                        disabled={uploadingPhoto}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingPhoto}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-lg backdrop-blur-md transition-all hover:border-cyan-400"
+                        title="Enviar foto lateral do carro"
+                      >
+                        {uploadingPhoto ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                            <span>Enviando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>{t.teamRecord?.photo ? 'Trocar Foto' : 'Foto do Carro'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <CardHeader className="pb-3 pt-4">
                   <div className="flex items-start justify-between gap-3">

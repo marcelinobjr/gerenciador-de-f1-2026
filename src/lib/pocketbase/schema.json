@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-09T14:25:57.018Z",
+  "generatedAt": "2026-09-09T14:45:17.242Z",
   "collections": [
     {
       "name": "users",
@@ -164,6 +164,12 @@
         {
           "name": "engine_history",
           "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "photo",
+          "type": "file",
           "required": false,
           "system": false
         }

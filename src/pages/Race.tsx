@@ -987,37 +987,41 @@ export default function RacePage() {
 
         const fullGrid: RawGridEntry[] = []
 
-        // 1. Player drivers (2 drivers)
+        // 1. Player drivers (2 drivers) - Modelo combinado f1-pace-model (70% Carro / 30% Piloto)
         titulars.forEach((d) => {
-          const moraleFactor = ((d.morale ?? 80) - 75) * 0.15
-          const fitnessFactor = ((d.physical_condition ?? 90) - 80) * 0.12
-          let skill =
-            d.speed * 0.45 + d.consistency * 0.35 + d.defense * 0.2 + moraleFactor + fitnessFactor
-          if (weather === 'chuva_fraca') {
-            skill = d.speed * 0.3 + d.rain * 0.5 + d.consistency * 0.2 + moraleFactor
-          } else if (weather === 'chuva_forte') {
-            skill = d.speed * 0.2 + d.rain * 0.65 + d.consistency * 0.15 + moraleFactor
-          }
           // Considerar desgaste acumulado do motor e penalidade de excedente no grid
           const engineWearDeduction = Math.round(((team?.active_engine_wear ?? 15) / 100) * 5)
           const enginePoolUsed = team?.engine_pool_used ?? 1
           const poolPenalty = enginePoolUsed > 4 ? (enginePoolUsed === 5 ? 12 : 7) : 0
-          const carScore =
-            playerCarLevel * 0.65 +
-            playerTeamStrength * 0.35 -
-            penalty -
-            engineWearDeduction -
-            poolPenalty
 
-          // Delta de desempenho e adequação climática do composto (TIRE_SPECS)
-          const tireDelta = calculateLapPerformanceScoreDelta(chosenTire, 0, weather)
-          const luck = (Math.random() - 0.5) * 6
+          const paceResult = calculateCombinedPace({
+            teamStrength: playerTeamStrength,
+            carLevel: playerCarLevel,
+            driver: {
+              speed: d.speed,
+              consistency: d.consistency,
+              defense: d.defense,
+              rain: d.rain,
+              morale: d.morale ?? 80,
+              physicalCondition: d.physical_condition ?? 90,
+            },
+            weather,
+            tireCompound: chosenTire,
+            lapsOnTire: 0,
+            wearPercent: 0,
+            setupPenalty: penalty,
+            engineWearPenalty: engineWearDeduction,
+            poolPenalty,
+            noise: (Math.random() - 0.5) * 0.5,
+            isQualifying: true,
+          })
+
           fullGrid.push({
             driverId: d.id,
             name: d.name,
             team: team?.name || 'Sua Escuderia',
             color: team?.color || '#FF3B30',
-            lapScore: skill * 0.45 + carScore * 0.55 + tireDelta.scoreDelta + luck,
+            lapScore: paceResult.lapScore,
             isPlayer: true,
             tire: chosenTire,
             morale: d.morale ?? 80,
@@ -1025,23 +1029,8 @@ export default function RacePage() {
           })
         })
 
-        // 2. AI drivers (11 rival teams * 2 = 22 drivers -> Total 24 drivers)
+        // 2. AI drivers (11 rival teams * 2 = 22 drivers -> Total 24 drivers) - Modelo combinado f1-pace-model (70% Carro / 30% Piloto)
         aiRivals.forEach((ai) => {
-          const aiCar = ai.carLevel * 0.65 + ai.strength * 0.35
-          let d1Skill =
-            ai.driver1.speed * 0.45 + ai.driver1.consistency * 0.35 + ai.driver1.defense * 0.2
-          let d2Skill =
-            ai.driver2.speed * 0.45 + ai.driver2.consistency * 0.35 + ai.driver2.defense * 0.2
-          if (weather === 'chuva_fraca') {
-            d1Skill = ai.driver1.speed * 0.3 + ai.driver1.rain * 0.5 + ai.driver1.consistency * 0.2
-            d2Skill = ai.driver2.speed * 0.3 + ai.driver2.rain * 0.5 + ai.driver2.consistency * 0.2
-          } else if (weather === 'chuva_forte') {
-            d1Skill =
-              ai.driver1.speed * 0.2 + ai.driver1.rain * 0.65 + ai.driver1.consistency * 0.15
-            d2Skill =
-              ai.driver2.speed * 0.2 + ai.driver2.rain * 0.65 + ai.driver2.consistency * 0.15
-          }
-
           // AI chooses optimal tire for current weather
           const aiTire: TireCompound =
             weather === 'chuva_forte'
@@ -1050,15 +1039,50 @@ export default function RacePage() {
                 ? 'intermediario'
                 : 'macio'
 
-          const aiTireDelta = calculateLapPerformanceScoreDelta(aiTire, 0, weather)
+          const aiPace1 = calculateCombinedPace({
+            teamStrength: ai.strength,
+            carLevel: ai.carLevel,
+            driver: {
+              speed: ai.driver1.speed,
+              consistency: ai.driver1.consistency,
+              defense: ai.driver1.defense,
+              rain: ai.driver1.rain,
+              morale: 80,
+              physicalCondition: 90,
+            },
+            weather,
+            tireCompound: aiTire,
+            lapsOnTire: 0,
+            wearPercent: 0,
+            noise: (Math.random() - 0.5) * 0.5,
+            isQualifying: true,
+          })
+
+          const aiPace2 = calculateCombinedPace({
+            teamStrength: ai.strength,
+            carLevel: ai.carLevel,
+            driver: {
+              speed: ai.driver2.speed,
+              consistency: ai.driver2.consistency,
+              defense: ai.driver2.defense,
+              rain: ai.driver2.rain,
+              morale: 80,
+              physicalCondition: 90,
+            },
+            weather,
+            tireCompound: aiTire,
+            lapsOnTire: 0,
+            wearPercent: 0,
+            noise: (Math.random() - 0.5) * 0.5,
+            isQualifying: true,
+          })
 
           fullGrid.push({
             driverId: `${ai.id}_d1`,
             name: ai.driver1.name,
             team: ai.name,
             color: ai.color,
-            lapScore:
-              d1Skill * 0.45 + aiCar * 0.55 + aiTireDelta.scoreDelta + (Math.random() - 0.5) * 6,
+            lapScore: aiPace1.lapScore,
             isPlayer: false,
             tire: aiTire,
             morale: 80,
@@ -1069,8 +1093,7 @@ export default function RacePage() {
             name: ai.driver2.name,
             team: ai.name,
             color: ai.color,
-            lapScore:
-              d2Skill * 0.45 + aiCar * 0.55 + aiTireDelta.scoreDelta + (Math.random() - 0.5) * 6,
+            lapScore: aiPace2.lapScore,
             isPlayer: false,
             tire: aiTire,
             morale: 80,
@@ -1663,6 +1686,8 @@ export default function RacePage() {
     let currentWeather: TrackWeatherState = initialWeather
     const totalLaps = gpInfo.laps
     const abrasiveness = gpInfo.tireAbrasiveness || 6
+    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
+    const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
 
     // Pre-calculate possible dynamic milestone laps (if not already triggered)
     const rainLap =
@@ -1867,7 +1892,8 @@ export default function RacePage() {
       })
 
       // Update positions, lap times and gaps
-      const baseLapSec = 74.2 // 1:14.200 reference lap
+      // Ritmo base individual calculado pelo modelo combinado carro+piloto (70% carro, 30% piloto)
+      // Mantendo modificadores de composto, cliff, desgaste, clima e ruído
       currentGrid = sortedActiveGrid.map((entry, idx) => {
         const position = idx + 1
         if (entry.dnf) {
@@ -1880,12 +1906,26 @@ export default function RacePage() {
           }
         }
 
+        // Base de ritmo individual via f1-pace-model (70% Carro, 30% Piloto)
+        // Nota do carro (0-100) e piloto (0-100)
+        const driverSkill =
+          (entry.morale ?? 80) * 0.2 + (entry.physicalCondition ?? 90) * 0.1 + 80 * 0.7
+        const carStr = entry.isPlayer ? playerCarLevel * 0.65 + playerTeamStrength * 0.35 : 75
+        const combinedPaceFactor = carStr * 0.7 + driverSkill * 0.3
+        // Base de 74.0s com delta de ritmo (100 - combined) * 0.082s do modelo calibrado
+        const baseIndividualSec =
+          74.0 + (100 - Math.min(100, Math.max(0, combinedPaceFactor))) * 0.082
+
         // Realistic last lap time with small noise, compound delta, wear penalty and cliff penalty
         const compoundDelta = TIRE_SPECS[entry.tireCompound || 'medio']?.deltaPerLapSec || 0
         const wearPenalty = ((entry.tireWear || 0) / 100) * 1.8
         const cliffPenalty = entry.cliffStatus?.extraLapTimeSec || 0
         const driverLapSec =
-          baseLapSec + compoundDelta + wearPenalty + cliffPenalty + (Math.random() - 0.5) * 0.35
+          baseIndividualSec +
+          compoundDelta +
+          wearPenalty +
+          cliffPenalty +
+          (Math.random() - 0.5) * 0.35
         const lapMin = Math.floor(driverLapSec / 60)
         const lapRemSec = (driverLapSec % 60).toFixed(3)
         const formattedLap = `${lapMin}:${Number(lapRemSec) < 10 ? '0' : ''}${lapRemSec}`

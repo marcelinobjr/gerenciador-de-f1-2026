@@ -25,7 +25,18 @@ export const f1Service = {
     }
   },
 
-  async updateTeam(id: string, data: Partial<TeamModel>): Promise<TeamModel> {
+  async getAllTeams(): Promise<TeamModel[]> {
+    try {
+      return await pb.collection('teams').getFullList<TeamModel>({
+        sort: 'name',
+      })
+    } catch (e) {
+      console.error('Error fetching all teams:', e)
+      return []
+    }
+  },
+
+  async updateTeam(id: string, data: Partial<TeamModel> | FormData): Promise<TeamModel> {
     return await pb.collection('teams').update<TeamModel>(id, data)
   },
 
