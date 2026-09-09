@@ -24,20 +24,20 @@ export interface CircuitTrackData {
 }
 
 export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
-  // 1: Albert Park, Melbourne (Austrália) - Horário
-  // Reta principal à esquerda descendo para T1-2 (chicane rápida), T3-4 fechada à direita, T5 rápida, T6-8 contorno do lago,
-  // chicane de alta T9-10 (antiga chicane removida gerando curva contínua veloz), T11-12 rápida, T13 fechada e setor do pit T14
+  // 1: Albert Park, Melbourne (Austrália) - Sentido horário oficial FIA (START na reta inferior apontando para T1 à esquerda / sentido anti-horário na projeção 2D do mapa fornecido)
+  // Reta principal inferior (T14 -> T1), chicane T1-T2, subida técnica T3-T4-T5, curva rápida T6-T7, topo do lago T8,
+  // descida rápida pelo contorno do lago até T9-T10, setor nordeste T11-T12, fechando em T13-T14 e pit lane paralelo.
   1: {
     round: 1,
     code: 'ALB',
     name: 'Albert Park, Melbourne',
     viewBox: '0 0 320 220',
     svgPath:
-      'M 55 170 L 55 105 C 55 90 68 85 78 95 L 96 115 C 104 122 118 120 126 108 L 140 85 C 146 72 160 68 174 72 L 230 85 C 248 90 262 105 264 125 L 266 148 C 268 168 252 182 232 180 L 180 176 C 168 175 156 182 152 194 L 146 205 C 138 218 118 218 108 206 L 76 172 C 68 164 55 170 55 170 Z',
-    startFinish: { x: 55, y: 135 },
-    antiClockwise: false,
+      'M 178 175 L 142 175 C 135 175 130 171 130 163 C 130 156 126 153 118 150 L 59 133 C 54 131 52 127 54 122 L 62 105 C 64 100 62 97 56 91 L 43 78 C 39 74 39 67 43 60 L 56 36 C 58 31 63 26 69 26 L 73 26 C 79 26 83 23 88 18 L 94 13 C 103 5 116 5 126 12 L 145 28 C 153 35 158 45 160 55 L 165 77 C 167 85 173 92 181 96 L 202 104 C 211 107 222 106 230 102 L 238 98 C 242 96 247 96 251 98 L 297 122 C 304 126 307 133 304 140 L 290 164 C 286 170 280 174 272 174 L 260 173 C 255 173 250 170 246 166 L 235 152 C 230 146 222 144 214 146 L 207 148 C 201 150 197 155 197 161 L 197 167 C 197 172 193 175 188 175 Z',
+    startFinish: { x: 178, y: 175 },
+    antiClockwise: true,
     description:
-      'Circuito misto e veloz ao redor do lago de Albert Park, com fortes frenagens e alta aderência.',
+      'Circuito ao redor do lago de Albert Park com retas velozes, chicanes técnicas e a longa reta dos boxes na orla sul.',
   },
 
   // 2: Xangai (China) - Horário
@@ -551,6 +551,18 @@ export const CircuitBlueprint: React.FC<CircuitBlueprintProps> = ({
             filter={`url(#circuitGlow-${round})`}
           />
 
+          {/* Pit lane representation for Albert Park if round 1 */}
+          {round === 1 && (
+            <path
+              d="M 234 167 C 220 167 190 167 155 167"
+              fill="none"
+              stroke="#64748B"
+              strokeWidth="2"
+              strokeDasharray="4 2"
+              opacity="0.75"
+            />
+          )}
+
           {/* Start/Finish Line marker */}
           <g>
             <circle
@@ -561,16 +573,17 @@ export const CircuitBlueprint: React.FC<CircuitBlueprintProps> = ({
               className="animate-pulse"
             />
             <circle cx={track.startFinish.x} cy={track.startFinish.y} r="2.5" fill="#FFFFFF" />
-            {/* Checkerboard flag label */}
+            {/* Checkerboard flag label with directional arrow */}
             <text
-              x={track.startFinish.x + 8}
-              y={track.startFinish.y + 4}
+              x={round === 1 ? track.startFinish.x - 4 : track.startFinish.x + 8}
+              y={round === 1 ? track.startFinish.y + 14 : track.startFinish.y + 4}
+              textAnchor={round === 1 ? 'middle' : 'start'}
               fill="#F5F7FA"
-              fontSize="8"
+              fontSize="7.5"
               fontFamily="monospace"
               fontWeight="bold"
             >
-              LARGADA
+              {round === 1 ? '◀ LARGADA' : 'LARGADA'}
             </text>
           </g>
         </svg>
