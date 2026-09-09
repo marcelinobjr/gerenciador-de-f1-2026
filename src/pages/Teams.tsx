@@ -60,8 +60,16 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [engineFilter, setEngineFilter] = useState<string>('todos')
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [uploadingTeamId, setUploadingTeamId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const activeUploadTeamRef = useRef<{
+    teamRecord?: TeamModel
+    teamKey: string
+    teamName: string
+    teamColor: string
+    engineSupplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
+    strength: number
+  } | null>(null)
 
   const loadData = async () => {
     if (!season || !team) {
@@ -95,10 +103,11 @@ export default function TeamsPage() {
     loadData()
   })
 
-  // Upload handler para foto lateral do carro da equipe do jogador
+  // Upload handler para foto lateral do carro de qualquer equipe do grid
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file || !team?.id) return
+    const targetTeam = activeUploadTeamRef.current
+    if (!file || !targetTeam) return
 
     // Validar tipo e tamanho (máx 2MB)
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -119,18 +128,48 @@ export default function TeamsPage() {
       return
     }
 
+    const teamIdentifier = targetTeam.teamRecord?.id || targetTeam.teamKey
     try {
-      setUploadingPhoto(true)
+      setUploadingTeamId(teamIdentifier)
       const formData = new FormData()
       formData.append('photo', file)
 
-      const updated = await f1Service.updateTeam(team.id, formData)
-      await refreshTeamAndSeason()
-      setAllDbTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      let updated: TeamModel
+
+      if (targetTeam.teamRecord?.id) {
+        // Se o registro já existe no DB
+        updated = await f1Service.updateTeam(targetTeam.teamRecord.id, formData)
+      } else {
+        // Se for uma equipe oficial que ainda não possui linha no DB, criar primeiro com a foto
+        formData.append('name', targetTeam.teamName)
+        formData.append('color', targetTeam.teamColor)
+        formData.append('engine_supplier', targetTeam.engineSupplier)
+        formData.append('team_key', targetTeam.teamKey)
+        formData.append('strength', String(targetTeam.strength))
+        formData.append('budget', '150000000')
+        formData.append('chassis_level', '50')
+        formData.append('aero_level', '50')
+        formData.append('strategy_level', '50')
+        formData.append('is_custom', 'false')
+
+        updated = await pb.collection('teams').create<TeamModel>(formData)
+      }
+
+      if (team?.id && (team.id === updated.id || team.team_key === updated.team_key)) {
+        await refreshTeamAndSeason()
+      }
+
+      setAllDbTeams((prev) => {
+        const exists = prev.some((t) => t.id === updated.id)
+        if (exists) {
+          return prev.map((t) => (t.id === updated.id ? updated : t))
+        }
+        return [...prev, updated]
+      })
 
       toast({
         title: 'Foto do carro atualizada!',
-        description: 'A foto lateral do monoposto 2026 foi salva com sucesso.',
+        description: `A foto lateral do monoposto 2026 da ${targetTeam.teamName} foi salva com sucesso.`,
       })
     } catch (err: any) {
       console.error('Erro no upload da foto do carro:', err)
@@ -140,11 +179,24 @@ export default function TeamsPage() {
         description: err?.message || 'Falha ao processar o upload da imagem.',
       })
     } finally {
-      setUploadingPhoto(false)
+      setUploadingTeamId(null)
+      activeUploadTeamRef.current = null
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
     }
+  }
+
+  const triggerUploadForTeam = (teamInfo: {
+    teamRecord?: TeamModel
+    teamKey: string
+    teamName: string
+    teamColor: string
+    engineSupplier: 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
+    strength: number
+  }) => {
+    activeUploadTeamRef.current = teamInfo
+    fileInputRef.current?.click()
   }
 
   // Calcula a tabela de construtores da temporada atual para sabermos posição e pontos de cada equipe
@@ -529,6 +581,16 @@ export default function TeamsPage() {
 
   return (
     <div className="space-y-8 animate-fade-in-up">
+      {/* Input de arquivo global oculto para upload de foto de carro */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handlePhotoUpload}
+        disabled={uploadingTeamId !== null}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
         <div>
@@ -654,7 +716,7 @@ export default function TeamsPage() {
                   // 2. Imagem estática pré-carregada pelo mapa team_key
                   // 3. Fallback blueprint estilizado
                   const uploadedUrl = t.teamRecord?.photo
-                    ? pb.files.getUrl(t.teamRecord, t.teamRecord.photo, { thumb: '400x200' })
+                    ? pb.files.getUrl(t.teamRecord, t.teamRecord.photo)
                     : null
                   const teamKeyNormalized = (t.teamRecord?.team_key || t.key || '')
                     .toLowerCase()
@@ -709,38 +771,45 @@ export default function TeamsPage() {
                         </div>
                       )}
 
-                      {/* Botão de Upload exclusivo para a equipe do jogador */}
-                      {isUser && (
-                        <div className="absolute top-2.5 right-2.5 z-10">
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            accept="image/jpeg,image/png,image/webp"
-                            className="hidden"
-                            onChange={handlePhotoUpload}
-                            disabled={uploadingPhoto}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploadingPhoto}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-lg backdrop-blur-md transition-all hover:border-cyan-400"
-                            title="Enviar foto lateral do carro"
-                          >
-                            {uploadingPhoto ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                                <span>Enviando...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Camera className="w-3.5 h-3.5 text-cyan-400" />
-                                <span>{t.teamRecord?.photo ? 'Trocar Foto' : 'Foto do Carro'}</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
+                      {/* Botão de Upload de foto do carro para todas as equipes do grid */}
+                      {(() => {
+                        const isThisTeamUploading = uploadingTeamId === (t.teamRecord?.id || t.key)
+
+                        return (
+                          <div className="absolute top-2.5 right-2.5 z-10">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                triggerUploadForTeam({
+                                  teamRecord: t.teamRecord,
+                                  teamKey: t.key,
+                                  teamName: t.name,
+                                  teamColor: t.color,
+                                  engineSupplier: t.engine,
+                                  strength: Math.round(t.strengthRating * 10),
+                                })
+                              }
+                              disabled={uploadingTeamId !== null}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-lg backdrop-blur-md transition-all hover:border-cyan-400 disabled:opacity-60 cursor-pointer"
+                              title={`Enviar ou trocar foto lateral do carro - ${t.name}`}
+                            >
+                              {isThisTeamUploading ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                                  <span>Enviando...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Camera className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>
+                                    {t.teamRecord?.photo ? 'Trocar Foto' : 'Foto do Carro'}
+                                  </span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })()}
