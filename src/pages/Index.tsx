@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Sliders,
   Calendar,
-  Layers,
   Wrench,
   Radio,
   FileText,
@@ -461,118 +460,33 @@ export default function Index() {
   return (
     <div className="space-y-5 animate-fade-in text-[#F5F7FA]">
       {/* ============================================================== */}
-      {/* 1. TOP HEADER COCKPIT BAR (F1 2026 + NAVEGAÇÃO + PROGRESSO R{n}) */}
+      {/* 1. LINHA DE IDENTIDADE COMPACTA (LOGO F1 2026 + NOME EQUIPE + BADGE TEMPORADA) */}
       {/* ============================================================== */}
-      <header className="rounded-2xl bg-[#0D121B]/95 border border-[#1F2733]/80 p-3 sm:p-4 backdrop-blur-md shadow-2xl shadow-black/60">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Esquerda: Logo F1 2026 estilizado + Nome da Equipe */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E10600] to-[#B00400] flex items-center justify-center text-white shadow-lg shadow-[#E10600]/30 shrink-0">
-              <span className="font-black italic tracking-tighter text-sm">F1</span>
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-black tracking-wider leading-none text-white">
-                  F1 <span className="text-[#E10600]">2026</span>
-                </span>
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E10600] animate-pulse" />
-              </div>
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] font-extrabold text-[#8B95A7] mt-1">
-                {team?.name || 'AUDI F1 TEAM'}
-              </span>
-            </div>
+      <div className="flex items-center justify-between px-1 py-1">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E10600] to-[#B00400] flex items-center justify-center text-white shadow-lg shadow-[#E10600]/30 shrink-0">
+            <span className="font-black italic tracking-tighter text-sm">F1</span>
           </div>
-
-          {/* Centro: Abas de navegação (Painel em destaque com pill vermelha) */}
-          <nav className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-1 scrollbar-none text-xs font-mono font-medium">
-            <Link
-              to="/"
-              className="px-3.5 py-1.5 rounded-lg bg-[#E10600] text-white font-bold flex items-center gap-1.5 shadow-md shadow-[#E10600]/40 transition-all hover:bg-[#FF2E25]"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Painel</span>
-            </Link>
-
-            <Link
-              to="/team"
-              className="px-3 py-1.5 rounded-lg text-[#8B95A7] hover:text-white hover:bg-[#161D29] transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Equipe</span>
-            </Link>
-
-            <Link
-              to="/car"
-              className="px-3 py-1.5 rounded-lg text-[#8B95A7] hover:text-white hover:bg-[#161D29] transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <Wrench className="w-3.5 h-3.5" />
-              <span>Carro</span>
-            </Link>
-
-            <Link
-              to="/sponsors"
-              className="px-3 py-1.5 rounded-lg text-[#8B95A7] hover:text-white hover:bg-[#161D29] transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <DollarSign className="w-3.5 h-3.5" />
-              <span>Patrocínios</span>
-            </Link>
-
-            <Link
-              to="/race"
-              className="px-3 py-1.5 rounded-lg text-[#8B95A7] hover:text-white hover:bg-[#161D29] transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <Gauge className="w-3.5 h-3.5" />
-              <span>Corrida</span>
-            </Link>
-
-            <Link
-              to="/calendario"
-              className="px-3 py-1.5 rounded-lg text-[#8B95A7] hover:text-white hover:bg-[#161D29] transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Calendário</span>
-            </Link>
-
-            <Link
-              to="/standings"
-              className="px-3 py-1.5 rounded-lg text-[#8B95A7] hover:text-white hover:bg-[#161D29] transition-all flex items-center gap-1.5 shrink-0"
-            >
-              <Trophy className="w-3.5 h-3.5" />
-              <span>Classificação</span>
-            </Link>
-          </nav>
-
-          {/* Direita: Ícones rápidos + Avatar com inicial + Temporada 2026 R{n}/24 com barra */}
-          <div className="flex items-center gap-3 shrink-0 self-end lg:self-center">
-            <Link
-              to="/car"
-              title="Ajustes técnicos"
-              className="w-8 h-8 rounded-lg bg-[#11161F] border border-[#1F2733] flex items-center justify-center text-[#8B95A7] hover:text-white hover:border-[#E10600]/40 transition-colors"
-            >
-              <Sliders className="w-4 h-4" />
-            </Link>
-
-            <div className="w-8 h-8 rounded-full bg-[#1A2332] border border-[#2E3C51] flex items-center justify-center font-bold text-sm text-[#F5F7FA]">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'J'}
-            </div>
-
-            <div className="flex flex-col min-w-[130px]">
-              <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-[#8B95A7]">Temporada 2026</span>
-                <span className="text-white font-extrabold">
-                  R{currentRoundNumber}/{totalRounds}
-                </span>
-              </div>
-              <div className="w-full bg-[#11161F] h-1.5 rounded-full overflow-hidden border border-[#1F2733] mt-1">
-                <div
-                  className="h-full bg-gradient-to-r from-[#E10600] to-[#00A6FB] transition-all duration-500 rounded-full"
-                  style={{ width: `${Math.round((currentRoundNumber / totalRounds) * 100)}%` }}
-                />
-              </div>
-            </div>
+          <div className="flex items-baseline gap-2.5">
+            <span className="text-base sm:text-lg font-black tracking-wider leading-none text-white whitespace-nowrap">
+              F1 <span className="text-[#E10600]">2026</span>
+            </span>
+            <span className="text-xs sm:text-sm font-mono uppercase tracking-[0.15em] font-extrabold text-[#8B95A7] whitespace-nowrap">
+              {team?.name || 'AUDI F1 TEAM'}
+            </span>
           </div>
         </div>
-      </header>
+
+        <Badge
+          variant="outline"
+          className="border-[#1F2733] bg-[#0D121B]/80 text-[#8B95A7] font-mono text-xs px-3 py-1 font-semibold shrink-0"
+        >
+          <span className="text-[#8B95A7] mr-1.5 hidden sm:inline">Temporada 2026 ·</span>
+          <span className="text-white font-bold">
+            R{currentRoundNumber}/{totalRounds}
+          </span>
+        </Badge>
+      </div>
 
       {/* ============================================================== */}
       {/* 2. LINHA DE CARDS DE STATUS (4 METRIC CARDS + MINI HUD DE TELEMETRIA) */}
@@ -624,24 +538,25 @@ export default function Index() {
         </div>
 
         {/* Card 3: Orçamento Disponível */}
-        <div className="rounded-xl bg-[#0D121B]/90 border border-[#1F2733]/80 p-4 relative overflow-hidden backdrop-blur-sm group hover:border-[#00A6FB]/40 transition-all duration-200">
+        <div className="rounded-xl bg-[#0D121B]/90 border border-[#1F2733]/80 p-4 relative overflow-hidden backdrop-blur-sm group hover:border-[#00A6FB]/40 transition-all duration-200 min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase font-bold tracking-widest text-[#8B95A7]">
+            <span className="text-[10px] font-mono uppercase font-bold tracking-widest text-[#8B95A7] truncate">
               ORÇAMENTO DISPONÍVEL
             </span>
-            <div className="w-6 h-6 rounded-md bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-md bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
               <DollarSign className="w-3.5 h-3.5" />
             </div>
           </div>
 
-          <div className="mt-2.5 flex items-baseline gap-1">
-            <span className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-white">
-              R$ {formattedBudgetM} M
+          <div className="mt-2.5 flex items-baseline whitespace-nowrap overflow-hidden">
+            <span className="text-xl sm:text-2xl xl:text-3xl font-extrabold font-mono tracking-tight text-white whitespace-nowrap">
+              R$ {formattedBudgetM}{' '}
+              <span className="text-base sm:text-lg font-bold text-[#8B95A7]">M</span>
             </span>
           </div>
 
-          <p className="text-[11px] text-emerald-400/90 mt-2 font-mono flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+          <p className="text-[11px] text-emerald-400/90 mt-2 font-mono flex items-center gap-1 truncate">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
             Teto de gastos FIA respeitado
           </p>
         </div>
@@ -726,15 +641,15 @@ export default function Index() {
       {/* ============================================================== */}
       {/* 3 & 4. SEÇÃO HERO: CARD DO PRÓXIMO GP + HUD DE DESGASTE DO CARRO */}
       {/* ============================================================== */}
-      <div className="relative rounded-2xl border border-[#1F2733]/90 overflow-hidden shadow-2xl bg-[#0A0E17]">
-        {/* Banner de fundo: Carro de F1 na garagem noturna */}
+      <div className="relative rounded-2xl border border-[#1F2733]/90 overflow-hidden shadow-2xl bg-[#070A10]">
+        {/* Banner de fundo: Carro de F1 na garagem noturna (visível, com overlay leve) */}
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-luminosity scale-105 pointer-events-none"
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-65 pointer-events-none transition-transform duration-700"
           style={{ backgroundImage: `url(${heroGarageBg})` }}
         />
-        {/* Gradiente de overlay escuro e vermelho F1 sutil */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#070A10]/95 via-[#0A0E17]/85 to-[#070A10]/95 pointer-events-none" />
-        <div className="absolute inset-0 bg-radial-at-tl from-[#E10600]/10 via-transparent to-transparent pointer-events-none" />
+        {/* Gradiente de overlay escurecido sutil para garantir leitura dos textos e HUD */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#070A10]/90 via-[#070A10]/60 to-[#070A10]/80 pointer-events-none" />
+        <div className="absolute inset-0 bg-radial-at-tl from-[#E10600]/15 via-transparent to-black/40 pointer-events-none" />
 
         <div className="relative z-10 p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           {/* Coluna Esquerda: Badge + Nome do GP + Specs + Botões (7 cols) */}
@@ -743,25 +658,25 @@ export default function Index() {
               <Badge className="bg-[#E10600] text-white hover:bg-[#FF2E25] font-mono text-xs font-black uppercase tracking-wider px-3 py-1 shadow-md shadow-[#E10600]/30 border-none">
                 RODADA {currentRoundNumber} DE {totalRounds}
               </Badge>
-              <span className="text-xs font-mono text-[#8B95A7] flex items-center gap-1.5 bg-[#0D121B]/70 px-2.5 py-1 rounded-md border border-[#1F2733]/60">
+              <span className="text-xs font-mono text-[#E2E8F0] flex items-center gap-1.5 bg-[#0D121B]/80 px-2.5 py-1 rounded-md border border-[#1F2733]/80 backdrop-blur-sm">
                 <Calendar className="w-3.5 h-3.5 text-cyan-400" />
                 Próximo Evento Oficial
               </span>
             </div>
 
             <div>
-              <h1 className="text-2xl sm:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight">
+              <h1 className="text-2xl sm:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight drop-shadow-md">
                 {currentGP.name}
               </h1>
               <div className="flex items-center gap-2 mt-1.5 text-sm sm:text-base font-mono">
                 <span className="text-xl">{currentGP.flag}</span>
-                <span className="text-[#00A6FB] font-bold">{currentGP.circuit}</span>
+                <span className="text-[#00A6FB] font-bold drop-shadow">{currentGP.circuit}</span>
               </div>
             </div>
 
             {/* Linha de Especificações Técnicas do GP */}
-            <div className="grid grid-cols-3 gap-3 pt-2 text-xs font-mono border-t border-[#1F2733]/80">
-              <div>
+            <div className="grid grid-cols-[auto_auto_1fr] sm:grid-cols-[110px_100px_1fr] gap-4 sm:gap-6 pt-2 text-xs font-mono border-t border-[#1F2733]/80">
+              <div className="shrink-0">
                 <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
                   EXTENSÃO
                 </span>
@@ -769,18 +684,18 @@ export default function Index() {
                   {currentGP.circuitLengthKm} km
                 </strong>
               </div>
-              <div>
+              <div className="shrink-0">
                 <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
                   VOLTAS
                 </span>
                 <strong className="text-white text-sm sm:text-base">{currentGP.laps}</strong>
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
                   DESAFIO
                 </span>
                 <strong
-                  className="text-white text-xs sm:text-sm line-clamp-1"
+                  className="text-white text-xs sm:text-sm font-semibold truncate block"
                   title={currentGP.characteristic}
                 >
                   {currentGP.characteristic}
