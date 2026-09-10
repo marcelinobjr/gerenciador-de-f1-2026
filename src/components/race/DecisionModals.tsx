@@ -360,7 +360,8 @@ export function DecisionModals({
                         </Badge>
                       </div>
                       <p className="text-xs text-[#8B95A7]">
-                        Máxima aderência para ultrapassagens imediatas na pista seca recém-formada.
+                        Máxima aderência no pico inicial, mas sensível a superaquecimento no asfalto
+                        quente e cliff severo após ~11 voltas.
                       </p>
                     </div>
                     <Button

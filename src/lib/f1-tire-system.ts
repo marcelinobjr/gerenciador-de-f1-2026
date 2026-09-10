@@ -24,51 +24,51 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
     name: 'Macio (C4/C5)',
     label: 'Macio',
     color: '#EF4444',
-    deltaPerLapSec: -0.75, // ~0.75s mais rápido que o médio
-    wearFactor: 3.4,
+    deltaPerLapSec: -0.65, // ~0.65s mais rápido que o médio no auge, mas com custo alto
+    wearFactor: 4.4, // Degradação acelerada
     drySuitability: 1.0,
     lightRainSuitability: 0.15,
     heavyRainSuitability: 0.05,
     description:
-      'Mais rápido (~0.75s/volta vs médio), alto grip inicial, janela estreita e cliff severo (+1,5 a 3s/volta).',
-    baseLapsLife: 16,
-    cliffLapThreshold: 14,
-    cliffDegradationPerLapSec: 1.85,
-    cliffMaxPenaltySec: 4.8,
-    thermalLockupRiskBase: 0.38,
+      'Mais rápido no pico inicial (~0.65s vs médio), mas com janela extremamente curta (cliff em ~10-12 voltas), alta propensão a superaquecimento e perda abrupta (+2.4s a +5.5s/volta).',
+    baseLapsLife: 13,
+    cliffLapThreshold: 11, // Cliff mais cedo
+    cliffDegradationPerLapSec: 2.45, // Mais íngreme
+    cliffMaxPenaltySec: 5.6,
+    thermalLockupRiskBase: 0.45,
   },
   medio: {
     name: 'Médio (C3)',
     label: 'Médio',
     color: '#EAB308',
     deltaPerLapSec: 0.0, // Referência
-    wearFactor: 2.2,
+    wearFactor: 2.1,
     drySuitability: 1.0,
     lightRainSuitability: 0.12,
     heavyRainSuitability: 0.04,
     description:
-      'Equilíbrio ideal entre ritmo de corrida e vida útil em pista seca, cliff equilibrado.',
-    baseLapsLife: 28,
-    cliffLapThreshold: 26,
-    cliffDegradationPerLapSec: 1.15,
-    cliffMaxPenaltySec: 3.2,
+      'Equilíbrio ideal entre ritmo de corrida e vida útil em pista seca, cliff consistente (~24-27 voltas).',
+    baseLapsLife: 26,
+    cliffLapThreshold: 24,
+    cliffDegradationPerLapSec: 1.25,
+    cliffMaxPenaltySec: 3.5,
     thermalLockupRiskBase: 0.18,
   },
   duro: {
     name: 'Duro (C1/C2)',
     label: 'Duro',
     color: '#F8FAFC',
-    deltaPerLapSec: +0.6, // ~0.6s mais lento que o médio
-    wearFactor: 1.4,
+    deltaPerLapSec: +0.55, // ~0.55s mais lento que o médio
+    wearFactor: 1.3,
     drySuitability: 1.0,
     lightRainSuitability: 0.1,
     heavyRainSuitability: 0.03,
     description:
-      'Mais consistente (~0.6s/volta vs médio), durabilidade máxima, cliff tardio e suave.',
+      'Mais consistente (~0.55s/volta vs médio), durabilidade máxima para 1 parada, cliff tardio e suave (~36-40 voltas).',
     baseLapsLife: 40,
     cliffLapThreshold: 38,
-    cliffDegradationPerLapSec: 0.65,
-    cliffMaxPenaltySec: 2.1,
+    cliffDegradationPerLapSec: 0.7,
+    cliffMaxPenaltySec: 2.2,
     thermalLockupRiskBase: 0.08,
   },
   intermediario: {
@@ -310,12 +310,20 @@ export function calculatePitStopDuration(
 /**
  * Resultado do cálculo de cliff de degradação térmica e mecânica do pneu.
  */
+export interface TireOverheatStatus {
+  isOverheating: boolean
+  extraTimeSec: number
+  warning?: string
+}
+
 export interface TireCliffStatus {
   isCliffReached: number // 0 = dentro da janela, > 0 = voltas além do cliff
   isCriticalWindow: boolean // Pneu perto ou após o cliff
   extraLapTimeSec: number // Perda abrupta em segundos adicionais por volta (1.5s - 3s+)
   cliffWearEquivalent: number // Desgaste efetivo ajustado
   thermalLockupRisk: number // Risco térmico de travada de roda / erro na volta
+  isOverheating?: boolean // Superaquecimento por pista quente ou modo ataque
+  overheatPenaltySec?: number // Penalidade por superaquecimento
   cliffWarning?: string // Aviso claro para rádio/UI
   cliffBadgeText?: string // Badge resumido para telemetria (ex: "CLIFF — pneu fora da janela, perda ~2.2s/volta")
 }
@@ -328,12 +336,66 @@ export interface TireCliffStatus {
  * - Duro: tardio e suave (~38-40 voltas), cliff moderado (+0.65s/volta).
  * - Multiplicado pelo perfil do piloto (agressivo desgasta mais e antecipa o cliff).
  */
+export function calculateTireOverheat(params: {
+  compound: TireCompound
+  trackTemp?: number // Temperatura de pista em °C (ex: 35-50°C)
+  isAttacking?: boolean // Piloto no modo de ataque elétrico / ritmo forte
+  lapsOnTire?: number
+}): TireOverheatStatus {
+  const { compound, trackTemp = 35, isAttacking = false, lapsOnTire = 0 } = params
+
+  // Pneus macios são os mais sensíveis ao superaquecimento
+  if (compound === 'macio') {
+    let overheatPenalty = 0
+    let reasons: string[] = []
+
+    // Pista quente (> 38°C) provoca bolhas/blistering no Soft
+    if (trackTemp > 38) {
+      const heatFactor = Math.min(1.2, (trackTemp - 38) * 0.08)
+      overheatPenalty += heatFactor
+      reasons.push(`asfalto a ${trackTemp}°C`)
+    }
+
+    // Modo de ataque empurra o composto para fora da janela térmica de trabalho
+    if (isAttacking) {
+      overheatPenalty += 0.55
+      reasons.push('ritmo agressivo de ataque')
+    }
+
+    // A partir da 5ª volta consecutiva, o superaquecimento acumulado intensifica
+    if (lapsOnTire > 5 && (trackTemp > 36 || isAttacking)) {
+      overheatPenalty += 0.35
+      reasons.push('calor retido na carcaça')
+    }
+
+    if (overheatPenalty > 0) {
+      return {
+        isOverheating: true,
+        extraTimeSec: Number(Math.min(2.5, overheatPenalty).toFixed(2)),
+        warning: `🔥 SUPERAQUECIMENTO NO MACIO! Pneus C4/C5 superaquecendo (${reasons.join(', ')}). Perda de +${overheatPenalty.toFixed(1)}s/volta e bolhas na banda!`,
+      }
+    }
+  } else if (compound === 'intermediario' && trackTemp > 28) {
+    // Intermediários no seco com pista quente
+    return {
+      isOverheating: true,
+      extraTimeSec: 1.4,
+      warning:
+        '🔥 INTERMEDIÁRIOS SUPERAQUECENDO no asfalto quente sem água para resfriar os blocos!',
+    }
+  }
+
+  return { isOverheating: false, extraTimeSec: 0 }
+}
+
 export function calculateTireCliffStatus(params: {
   compound: TireCompound
   lapsOnTire: number
   wearPercent?: number
   wearMultiplier?: number
   trackAbrasiveness?: number // 1-10 (padrão 6)
+  trackTemp?: number
+  isAttacking?: boolean
 }): TireCliffStatus {
   const {
     compound,
@@ -341,9 +403,12 @@ export function calculateTireCliffStatus(params: {
     wearPercent = 0,
     wearMultiplier = 1.0,
     trackAbrasiveness = 6,
+    trackTemp = 35,
+    isAttacking = false,
   } = params
 
   const spec = TIRE_SPECS[compound] || TIRE_SPECS.medio
+  const overheat = calculateTireOverheat({ compound, trackTemp, isAttacking, lapsOnTire })
 
   // Abrasividade da pista ajusta o limiar de voltas para o cliff:
   // Pista mais abrasiva (> 6) encurta a vida útil; pista lisa (< 5) estende
@@ -389,24 +454,33 @@ export function calculateTireCliffStatus(params: {
     } else {
       cliffWarning = `⚠️ DEG. ELEVADA: Pneu duro além de ${effectiveCliffLap} voltas perdendo ritmo (+${extraLapTimeSec.toFixed(1)}s/volta).`
     }
+  } else if (overheat.isOverheating) {
+    extraLapTimeSec = Number((extraLapTimeSec + overheat.extraTimeSec).toFixed(2))
+    cliffBadgeText = `SUPERAQUECIDO — bolhas (+${overheat.extraTimeSec.toFixed(1)}s)`
+    cliffWarning = overheat.warning
   } else if (isCriticalWindow) {
     cliffBadgeText = `JANELA CRÍTICA — limite de vida (${lapsOnTire}/${effectiveCliffLap}v)`
   }
 
-  // Risco térmico: macio sofre muito mais com travadas de roda e rajadas na janela crítica
+  // Risco térmico: macio sofre muito mais com travadas de roda e rajadas na janela crítica ou superaquecido
   let thermalLockupRisk = spec.thermalLockupRiskBase
+  if (overheat.isOverheating) {
+    thermalLockupRisk = Math.min(0.75, thermalLockupRisk + 0.25)
+  }
   if (isCliffReached > 0) {
-    thermalLockupRisk = Math.min(0.85, thermalLockupRisk + lapsBeyondCliff * 0.12)
+    thermalLockupRisk = Math.min(0.9, thermalLockupRisk + lapsBeyondCliff * 0.14)
   } else if (isCriticalWindow) {
-    thermalLockupRisk = Math.min(0.5, thermalLockupRisk + 0.15)
+    thermalLockupRisk = Math.min(0.55, thermalLockupRisk + 0.18)
   }
 
   return {
     isCliffReached,
     isCriticalWindow,
     extraLapTimeSec,
-    cliffWearEquivalent: Math.min(100, wearPercent + lapsBeyondCliff * 5),
+    cliffWearEquivalent: Math.min(100, wearPercent + lapsBeyondCliff * 6),
     thermalLockupRisk,
+    isOverheating: overheat.isOverheating,
+    overheatPenaltySec: overheat.extraTimeSec,
     cliffWarning,
     cliffBadgeText,
   }
@@ -452,6 +526,8 @@ export function calculateLapPerformanceScoreDelta(
   lapsOnTire: number = 0,
   wearMultiplier: number = 1.0,
   trackAbrasiveness: number = 6,
+  trackTemp: number = 35,
+  isAttacking: boolean = false,
 ): {
   scoreDelta: number
   warning?: string
@@ -473,19 +549,26 @@ export function calculateLapPerformanceScoreDelta(
   const wearPenalty = (wearPercent / 100) * 32.4
   scoreDelta -= wearPenalty
 
-  // 3. Cliff de degradação abrupto pós-vida útil
+  // 3. Cliff de degradação abrupto pós-vida útil + Superaquecimento
   const cliffStatus = calculateTireCliffStatus({
     compound,
     lapsOnTire,
     wearPercent,
     wearMultiplier,
     trackAbrasiveness,
+    trackTemp,
+    isAttacking,
   })
 
   if (cliffStatus.extraLapTimeSec > 0) {
     // Cada 1.0s de perda por volta equivale a ~18 pontos a menos por volta
     const cliffScorePenalty = cliffStatus.extraLapTimeSec * 18
     scoreDelta -= cliffScorePenalty
+    if (cliffStatus.cliffWarning) {
+      warning = cliffStatus.cliffWarning
+    }
+  } else if (cliffStatus.isOverheating && cliffStatus.overheatPenaltySec) {
+    scoreDelta -= cliffStatus.overheatPenaltySec * 18
     if (cliffStatus.cliffWarning) {
       warning = cliffStatus.cliffWarning
     }

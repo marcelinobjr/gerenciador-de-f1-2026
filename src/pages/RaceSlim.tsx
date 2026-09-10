@@ -29,6 +29,7 @@ import {
 } from '@/lib/f1-tire-system'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
+import { generateAIStrategyProfile } from '@/lib/f1-ai-strategy'
 import { formatCurrency } from '@/lib/formatters'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
 import { AmbientBackground } from '@/components/AmbientBackground'
@@ -109,6 +110,13 @@ export interface SimDriverEntry extends RaceResultEntry {
   lapsOnCurrentTire?: number
   cliffStatus?: TireCliffStatus
   dnfLap?: number
+  aiStrategyProfile?: {
+    type: 'conservadora' | 'equilibrada' | 'agressiva' | 'reativa'
+    label: string
+    color: string
+    badgeBg: string
+    description: string
+  }
 }
 
 export type SessionTimeResult = SessionResultRow
@@ -1387,36 +1395,50 @@ export default function RacePage() {
       })
     })
 
-    // 2. AI rivals (22 drivers)
-    aiRivals.forEach((aiTeam) => {
-      const defaultAiStart =
-        weather === 'chuva_forte'
-          ? 'chuva_extrema'
-          : weather === 'chuva_fraca'
-            ? 'intermediario'
-            : 'medio'
-      const defaultAiSecond =
-        weather === 'chuva_forte'
-          ? 'intermediario'
-          : weather === 'chuva_fraca'
-            ? 'chuva_extrema'
-            : 'duro'
-
+    // 2. AI rivals (22 drivers) — Distribuição tática e perfis autênticos por piloto/equipe
+    aiRivals.forEach((aiTeam, teamIdx) => {
       const wearProf1 = calculateDriverTireWearProfile({
-        speed: 82,
-        consistency: 80,
+        speed: aiTeam.driver1.speed || 82,
+        consistency: aiTeam.driver1.consistency || 80,
         morale: 80,
         physical_condition: 90,
       })
       const wearProf2 = calculateDriverTireWearProfile({
-        speed: 80,
-        consistency: 82,
+        speed: aiTeam.driver2.speed || 80,
+        consistency: aiTeam.driver2.consistency || 82,
         morale: 80,
         physical_condition: 90,
       })
 
-      const pitLap1 = Math.round(gpInfo.laps * 0.45)
-      const pitLap2 = Math.round(gpInfo.laps * 0.4)
+      // Gerar perfil tático individual variado (Conservador, Equilibrado, Agressivo, Reativo)
+      const seed1 = Math.abs(Math.sin((teamIdx + 1) * 17.3 + currentRound * 7.1))
+      const seed2 = Math.abs(Math.cos((teamIdx + 2) * 23.7 + currentRound * 5.3))
+
+      const strat1 = generateAIStrategyProfile({
+        teamStrength: aiTeam.strength,
+        driverSpeed: aiTeam.driver1.speed || 82,
+        driverConsistency: aiTeam.driver1.consistency || 80,
+        totalLaps: gpInfo.laps,
+        weather,
+        gridPosition: teamIdx * 2 + 1,
+        driverSeed: seed1,
+      })
+
+      const strat2 = generateAIStrategyProfile({
+        teamStrength: aiTeam.strength,
+        driverSpeed: aiTeam.driver2.speed || 80,
+        driverConsistency: aiTeam.driver2.consistency || 82,
+        totalLaps: gpInfo.laps,
+        weather,
+        gridPosition: teamIdx * 2 + 2,
+        driverSeed: seed2,
+      })
+
+      const pitLap1 = strat1.pitStops[0]?.lap || Math.round(gpInfo.laps * 0.42)
+      const secondCompound1 = strat1.pitStops[0]?.compound || 'duro'
+
+      const pitLap2 = strat2.pitStops[0]?.lap || Math.round(gpInfo.laps * 0.45)
+      const secondCompound2 = strat2.pitStops[0]?.compound || 'duro'
 
       rawDriverPool.push({
         driverId: `${aiTeam.id}_d1`,
@@ -1429,13 +1451,21 @@ export default function RacePage() {
         driverFatigue: 25,
         morale: 80,
         physicalCondition: isDemandingTrackName(gpInfo.name, gpInfo.circuit) ? 85 : 90,
-        tireCompound: defaultAiStart,
-        secondCompound: defaultAiSecond,
+        tireCompound: strat1.startCompound,
+        secondCompound: secondCompound1,
         pitLap: pitLap1,
         wearMultiplier: wearProf1.multiplier,
         wearProfileName: wearProf1.profileName,
-        strategyPlan: [{ lap: pitLap1, compound: defaultAiSecond }],
-      })
+        strategyPlan: strat1.pitStops.map((p) => ({ lap: p.lap, compound: p.compound })),
+        aiStrategyProfile: {
+          type: strat1.type,
+          label: strat1.label,
+          color: strat1.color,
+          badgeBg: strat1.badgeBg,
+          description: strat1.description,
+        },
+      } as any)
+
       rawDriverPool.push({
         driverId: `${aiTeam.id}_d2`,
         driverName: aiTeam.driver2.name,
@@ -1447,13 +1477,20 @@ export default function RacePage() {
         driverFatigue: 28,
         morale: 80,
         physicalCondition: 90,
-        tireCompound: defaultAiStart,
-        secondCompound: defaultAiSecond,
+        tireCompound: strat2.startCompound,
+        secondCompound: secondCompound2,
         pitLap: pitLap2,
         wearMultiplier: wearProf2.multiplier,
         wearProfileName: wearProf2.profileName,
-        strategyPlan: [{ lap: pitLap2, compound: defaultAiSecond }],
-      })
+        strategyPlan: strat2.pitStops.map((p) => ({ lap: p.lap, compound: p.compound })),
+        aiStrategyProfile: {
+          type: strat2.type,
+          label: strat2.label,
+          color: strat2.color,
+          badgeBg: strat2.badgeBg,
+          description: strat2.description,
+        },
+      } as any)
     })
 
     // Order grid by Q3 result if available, or Q2, or Q1
@@ -1505,6 +1542,7 @@ export default function RacePage() {
         pitStopsDone: 0,
         wearMultiplier: driver.wearMultiplier,
         wearProfileName: driver.wearProfileName,
+        aiStrategyProfile: (driver as any).aiStrategyProfile,
         strategyPlan: driver.strategyPlan,
         lastLapTime: '1:18.420',
         gapToLeader: gridPosition === 1 ? 'LÍDER' : `+${((gridPosition - 1) * 0.45).toFixed(3)}s`,
@@ -1699,7 +1737,10 @@ export default function RacePage() {
           : null
 
     const safetyCarLap =
-      Math.random() < 0.45 ? Math.round(totalLaps * (0.28 + Math.random() * 0.4)) : null
+      Math.random() < 0.55 ? Math.round(totalLaps * (0.25 + Math.random() * 0.45)) : null
+
+    const mechanicalFailureLap =
+      Math.random() < 0.35 ? Math.round(totalLaps * (0.3 + Math.random() * 0.45)) : null
 
     const wingDamageLap =
       Math.random() < 0.4 ? Math.round(totalLaps * (0.22 + Math.random() * 0.45)) : null
@@ -1791,7 +1832,7 @@ export default function RacePage() {
           }
         }
 
-        // 2. AI regular or anticipated pit stop execution
+        // 2. AI regular or anticipated pit stop execution + Reatividade a undercut do jogador
         let shouldAiAnticipateSoftCliff = false
         if (!entry.isPlayer && entry.tireCompound === 'macio' && pitStops < 4) {
           const softDriverFactor = Math.max(0.75, Math.min(1.35, driverMultiplier))
@@ -1805,19 +1846,56 @@ export default function RacePage() {
           }
         }
 
+        // IA Reativa: verificar se jogador parou na volta anterior ou nesta volta e está disputando posição próxima (< 2.2s)
+        let isDefensiveUndercutCover = false
         if (
           !entry.isPlayer &&
-          (entry.pitLap === currentLap || currentWear >= 82 || shouldAiAnticipateSoftCliff) &&
+          currentWeather === 'seco' &&
+          pitStops < 3 &&
+          lapsOnCurrentTire >= 8
+        ) {
+          const aiProfile = entry.aiStrategyProfile
+          const isReactive = aiProfile?.type === 'reativa' || aiProfile?.type === 'agressiva'
+          if (isReactive) {
+            const playerNear = currentGrid.find(
+              (p) =>
+                p.isPlayer &&
+                !p.dnf &&
+                Math.abs((p.position || 0) - (entry.position || 0)) <= 2 &&
+                (p.lapsOnCurrentTire || 1) <= 2, // Jogador acabou de parar
+            )
+            if (playerNear && Math.random() < 0.65) {
+              isDefensiveUndercutCover = true
+            }
+          }
+        }
+
+        // Verificação se atingiu limiar do plano planejado ou condição crítica
+        const matchingPlanLap = entry.strategyPlan?.find((p) => p.lap === currentLap)
+        const isScheduledPlanPit = Boolean(matchingPlanLap)
+        const isWearCritical =
+          currentWear >= (entry.aiStrategyProfile?.type === 'conservadora' ? 86 : 80)
+
+        if (
+          !entry.isPlayer &&
+          (entry.pitLap === currentLap ||
+            isScheduledPlanPit ||
+            isWearCritical ||
+            shouldAiAnticipateSoftCliff ||
+            isDefensiveUndercutCover) &&
           pitStops < 4
         ) {
           didPitThisLap = true
           if (currentWeather === 'seco') {
-            nextCompound =
-              entry.tireCompound === 'duro'
-                ? 'medio'
-                : entry.tireCompound === 'macio'
-                  ? 'duro'
-                  : 'duro'
+            if (matchingPlanLap) {
+              nextCompound = matchingPlanLap.compound
+            } else if (entry.tireCompound === 'macio') {
+              nextCompound = 'duro'
+            } else if (entry.tireCompound === 'duro') {
+              nextCompound = 'medio'
+            } else {
+              nextCompound = 'duro'
+            }
           } else if (currentWeather === 'chuva_fraca') {
             nextCompound = 'intermediario'
           } else {
@@ -1831,9 +1909,14 @@ export default function RacePage() {
           }
 
           const pitResult = calculatePitStopDuration(entry.teamName, entry.driverName, false, 75)
-          const pitReasonMsg = shouldAiAnticipateSoftCliff
-            ? `⚡ PIT ANTECIPADO (IA): ${entry.driverName} antecipou a parada nos boxes a ~2 voltas do cliff do pneu macio! ${pitResult.narrativeText}`
-            : pitResult.narrativeText
+          let pitReasonMsg = pitResult.narrativeText
+          if (isDefensiveUndercutCover) {
+            pitReasonMsg = `🛡️ UNDERCUT DEFENSIVO (IA): ${entry.driverName} cobriu imediatamente a parada do adversário para proteger posição! ${pitResult.narrativeText} Composto: ${formatTireName(nextCompound)}.`
+          } else if (shouldAiAnticipateSoftCliff) {
+            pitReasonMsg = `⚡ PIT ANTECIPADO (IA): ${entry.driverName} antecipou a parada nos boxes a ~2 voltas do cliff do pneu macio! ${pitResult.narrativeText} Composto: ${formatTireName(nextCompound)}.`
+          } else if (isScheduledPlanPit) {
+            pitReasonMsg = `🔧 PIT STOP ESTRATÉGICO (${entry.aiStrategyProfile?.label || 'IA'}): ${entry.driverName} cumpre plano na volta ${currentLap}. ${pitResult.narrativeText} Composto: ${formatTireName(nextCompound)}.`
+          }
 
           setLiveEvents((prev) => [
             {
@@ -1857,6 +1940,9 @@ export default function RacePage() {
         const effectiveLapsOnTire = didPitThisLap ? 1 : lapsOnCurrentTire
         const effectiveWear = didPitThisLap ? (entry.isPlayer ? 4 : 5) : currentWear
 
+        const isAttackingNow = isModActive && tacticalMod.mode === 'attack'
+        const currentTrackTemp = forecast.trackTemp || 35
+
         const perfDelta = calculateLapPerformanceScoreDelta(
           nextCompound || 'medio',
           effectiveWear,
@@ -1864,7 +1950,41 @@ export default function RacePage() {
           effectiveLapsOnTire,
           driverMultiplier,
           abrasiveness,
+          currentTrackTemp,
+          isAttackingNow,
         )
+
+        // Penalidade de tráfego na volta de saída do box (out-lap em tráfego):
+        // Quem para cedo (undercut agressivo) cai atrás do pelotão que ainda não parou e perde tempo
+        let trafficPenaltyScore = 0
+        if (didPitThisLap && currentLap > 4) {
+          const carsAheadInPitWindow = currentGrid.filter(
+            (c) => !c.dnf && c.driverId !== entry.driverId && (c.pitStopsDone || 0) < pitStops,
+          ).length
+          if (carsAheadInPitWindow >= 4) {
+            // Volta presa no tráfego: perde score equivalente a 1.2s - 2.5s
+            trafficPenaltyScore = -3.2
+            if (entry.isPlayer) {
+              setLiveEvents((prev) => [
+                {
+                  id: `ev_traffic_${currentLap}_${entry.driverId}`,
+                  lap: currentLap,
+                  type: 'incident',
+                  message: `⚠️ TRÁFEGO NA VOLTA DE SAÍDA! ${entry.driverName} retornou da parada no meio de um trem de carros mais lentos e perdeu tempo precioso!`,
+                  driverName: entry.driverName,
+                  teamColor: entry.teamColor,
+                  isPlayer: true,
+                  timestamp: new Date().toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  }),
+                },
+                ...prev,
+              ])
+            }
+          }
+        }
 
         // Ajuste de ritmo no score por modificador tático ativo
         let tacticalScoreDelta = 0
@@ -1875,7 +1995,8 @@ export default function RacePage() {
             tacticalScoreDelta = -0.18 // Ritmo -1.5%
           }
         }
-        const updatedScore = entry.score + perfDelta.scoreDelta * 0.1 + tacticalScoreDelta
+        const updatedScore =
+          entry.score + perfDelta.scoreDelta * 0.1 + tacticalScoreDelta + trafficPenaltyScore
 
         return {
           ...entry,
@@ -2317,10 +2438,29 @@ export default function RacePage() {
 
         currentGrid.forEach((entry) => {
           if (!entry.isPlayer && !entry.dnf) {
-            if ((entry.tireWear || 0) > 40 && (entry.pitStopsDone || 0) < 2) {
-              entry.tireCompound = entry.secondCompound || 'duro'
-              entry.tireWear = 8
+            // Reação sob Safety Car: quem tem mais de 28% de desgaste ou calça pneu macio aproveita a janela de pit stop barato
+            const stratType = entry.aiStrategyProfile?.type || 'equilibrada'
+            const minWearForPit = stratType === 'reativa' || stratType === 'agressiva' ? 24 : 36
+            const isSoftWorn = entry.tireCompound === 'macio' && (entry.tireWear || 0) > 20
+
+            if (
+              ((entry.tireWear || 0) >= minWearForPit || isSoftWorn) &&
+              (entry.pitStopsDone || 0) < 3
+            ) {
+              const scNextCompound: TireCompound =
+                currentWeather === 'seco'
+                  ? entry.tireCompound === 'duro'
+                    ? 'medio'
+                    : 'duro'
+                  : currentWeather === 'chuva_fraca'
+                    ? 'intermediario'
+                    : 'chuva_extrema'
+
+              entry.tireCompound = scNextCompound
+              entry.tireWear = 6
+              entry.lapsOnCurrentTire = 1
               entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
+              entry.score += 4 // Bônus de pit stop barato sob SC
             }
           }
         })
@@ -2341,6 +2481,42 @@ export default function RacePage() {
           })
         }
         return
+      }
+
+      // CHECK FALHA MECÂNICA OCASIONAL EM CARRO DA IA (Probabilidade controlada de ~10% na prova)
+      if (mechanicalFailureLap && currentLap === mechanicalFailureLap && !safetyCarActive) {
+        const eligibleFailures = currentGrid.filter((g) => !g.isPlayer && !g.dnf)
+        if (eligibleFailures.length > 0 && Math.random() < 0.4) {
+          const brokenCar = eligibleFailures[Math.floor(Math.random() * eligibleFailures.length)]
+          brokenCar.dnf = true
+          brokenCar.dnfLap = currentLap
+          const failureTypes = [
+            'Falha de pressão hidráulica no câmbio',
+            'Superaquecimento catastrófico do MGU-K',
+            'Perda repentina de telemetria e potência do motor',
+            'Quebra de suspensão traseira na zebra',
+          ]
+          const chosenFailure = failureTypes[Math.floor(Math.random() * failureTypes.length)]
+          brokenCar.dnfReason = chosenFailure
+
+          setLiveEvents((prev) => [
+            {
+              id: `ev_mech_fail_${currentLap}_${brokenCar.driverId}`,
+              lap: currentLap,
+              type: 'incident',
+              message: `🚨 FALHA MECÂNICA! Fumaça no carro de ${brokenCar.driverName} (${brokenCar.teamName})! Abandono imediato por ${chosenFailure.toLowerCase()}.`,
+              driverName: brokenCar.driverName,
+              teamColor: brokenCar.teamColor,
+              isPlayer: false,
+              timestamp: new Date().toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              }),
+            },
+            ...prev,
+          ])
+        }
       }
 
       // Check if race laps completed

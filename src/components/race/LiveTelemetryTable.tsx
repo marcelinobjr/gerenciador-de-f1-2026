@@ -26,6 +26,13 @@ export interface TelemetryDriverEntry {
   wearMultiplier?: number
   lapsOnCurrentTire?: number
   cliffStatus?: TireCliffStatus
+  aiStrategyProfile?: {
+    type: 'conservadora' | 'equilibrada' | 'agressiva' | 'reativa'
+    label: string
+    color: string
+    badgeBg: string
+    description: string
+  }
 }
 
 interface LiveTelemetryTableProps {
@@ -78,6 +85,7 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
               <tr className="border-b border-[#1A2333] text-[#8B95A7] uppercase tracking-wider bg-[#080C14]/90 text-[10px]">
                 <th className="py-2.5 px-3 w-12 text-center">Pos</th>
                 <th className="py-2.5 px-3">Piloto / Escuderia</th>
+                <th className="py-2.5 px-3 text-center">Perfil Tático</th>
                 <th className="py-2.5 px-3 text-center">Pneu Atual</th>
                 <th className="py-2.5 px-3 text-center">Vida / Desgaste</th>
                 <th className="py-2.5 px-3 text-center">Última Volta</th>
@@ -192,6 +200,24 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
                           </span>
                         </div>
                       </div>
+                    </td>
+
+                    {/* Tactical Profile Badge */}
+                    <td className="py-2.5 px-3 text-center">
+                      {isMyCar ? (
+                        <Badge className="bg-red-500/15 border-red-500/30 text-red-300 text-[9px] px-1.5 py-0">
+                          Estratégia Jogador
+                        </Badge>
+                      ) : entry.aiStrategyProfile ? (
+                        <Badge
+                          className={`text-[9px] px-1.5 py-0 border ${entry.aiStrategyProfile.badgeBg}`}
+                          title={entry.aiStrategyProfile.description}
+                        >
+                          {entry.aiStrategyProfile.label}
+                        </Badge>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">—</span>
+                      )}
                     </td>
 
                     {/* Tire Compound Icon/Letter */}
