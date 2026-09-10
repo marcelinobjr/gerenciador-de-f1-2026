@@ -36,7 +36,7 @@ export interface DecisionDriverContext {
   hasWingDamage?: boolean
 }
 
-interface DecisionModalsProps {
+export interface DecisionModalsProps {
   // 1. Chuva
   rainDecisionOpen: boolean
   liveRaceWeather?: TrackWeatherState

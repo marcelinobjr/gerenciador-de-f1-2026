@@ -2,8 +2,8 @@ import React from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Activity } from 'lucide-react'
-import { TireCompound, TireCliffStatus } from '@/types/f1'
-import { TIRE_SPECS, isTireInCliff } from '@/lib/f1-tire-system'
+import { TireCompound } from '@/types/f1'
+import { TIRE_SPECS, isTireInCliff, TireCliffStatus } from '@/lib/f1-tire-system'
 
 export interface TelemetryDriverEntry {
   driverId: string
