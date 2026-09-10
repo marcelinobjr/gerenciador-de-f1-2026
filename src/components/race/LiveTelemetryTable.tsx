@@ -49,8 +49,8 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
   if (!grid || grid.length === 0) return null
 
   return (
-    <Card className="bg-[#11161F] border border-[#1F2733] shadow-2xl overflow-hidden">
-      <CardHeader className="py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333] shadow-2xl overflow-hidden">
+      <CardHeader className="py-3 px-4 bg-[#080C14]/90 border-b border-[#1A2333] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <CardTitle className="text-sm font-bold text-[#F5F7FA] tracking-wide font-mono flex items-center gap-2">
             <Activity className="w-4 h-4 text-cyan-400" />
@@ -75,7 +75,7 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
             <thead>
-              <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider bg-[#0B0E14]/70 text-[10px]">
+              <tr className="border-b border-[#1A2333] text-[#8B95A7] uppercase tracking-wider bg-[#080C14]/90 text-[10px]">
                 <th className="py-2.5 px-3 w-12 text-center">Pos</th>
                 <th className="py-2.5 px-3">Piloto / Escuderia</th>
                 <th className="py-2.5 px-3 text-center">Pneu Atual</th>
@@ -86,7 +86,7 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
                 <th className="py-2.5 px-3 text-center">Pits</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1F2733]/60">
+            <tbody className="divide-y divide-[#1A2333]">
               {grid.map((entry) => {
                 const isMyCar = entry.isPlayer
                 const compoundSpec = TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio

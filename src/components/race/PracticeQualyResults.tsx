@@ -35,8 +35,8 @@ export function PracticeQualyResults({
   const displayedCircuit = circuitName || circuit || 'Circuito'
 
   return (
-    <Card className="bg-[#11161F] border-[#1F2733]">
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+    <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333] shadow-xl">
+      <CardHeader className="pb-3 border-b border-[#1A2333] flex flex-row items-center justify-between">
         <div>
           <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
             <Clock className="w-4 h-4 text-emerald-400" />
@@ -57,7 +57,7 @@ export function PracticeQualyResults({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
             <thead>
-              <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider">
+              <tr className="border-b border-[#1A2333] text-[#8B95A7] uppercase tracking-wider bg-[#080C14]/80 text-[10px]">
                 <th className="py-2 px-3 w-12">Pos</th>
                 <th className="py-2 px-3">Piloto</th>
                 <th className="py-2 px-3">Escuderia</th>
@@ -66,7 +66,7 @@ export function PracticeQualyResults({
                 <th className="py-2 px-3 text-right">Diferença</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1F2733]/60">
+            <tbody className="divide-y divide-[#1A2333]">
               {results.map((row) => (
                 <tr
                   key={`${row.position}_${row.driverId}`}

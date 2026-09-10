@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
+import { AmbientBackground } from '@/components/AmbientBackground'
 import { CircuitModel, RaceResultModel, DriverModel, GrandPrixInfo } from '@/types/f1'
 import {
   Calendar,
@@ -222,7 +223,8 @@ export default function CalendarPage() {
   }, [search, filterStatus, resultsByRound, currentRound])
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up">
+      <AmbientBackground />
       {/* Input de arquivo global oculto para upload de imagem de circuito */}
       <input
         type="file"
@@ -234,16 +236,16 @@ export default function CalendarPage() {
       />
 
       {/* Header da Pagina */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
         <div>
-          <span className="text-xs font-mono font-bold tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-[#E10600]" />
+          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
             Temporada Oficial F1 2026 // Calendário FIA
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F5F7FA] mt-1">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
             Calendário de Corridas
           </h1>
-          <p className="text-sm text-[#8B95A7] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
             As 24 etapas do Campeonato Mundial: especificações técnicas de cada autódromo, traçados
             oficiais com suporte a upload de imagem e resultados de cada GP.
           </p>
@@ -269,7 +271,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Barra de Filtros e Busca */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl p-3.5 rounded-2xl font-mono text-xs">
+      <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl p-3.5 rounded-2xl font-mono text-xs">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8B95A7]" />
           <input
@@ -277,7 +279,7 @@ export default function CalendarPage() {
             placeholder="Buscar por GP, circuito ou país..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#0B0E14] border border-[#1F2733] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#F5F7FA] focus:outline-none focus:border-[#00A6FB] placeholder:text-[#8B95A7]"
+            className="w-full bg-[#080C14]/90 border border-[#1A2333] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#F5F7FA] focus:outline-none focus:border-cyan-400 placeholder:text-[#8B95A7]"
           />
         </div>
 
@@ -295,8 +297,8 @@ export default function CalendarPage() {
                 onClick={() => setFilterStatus(st.id as any)}
                 className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
                   filterStatus === st.id
-                    ? 'bg-[#E10600] text-white font-bold'
-                    : 'bg-[#0B0E14] text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1F2733]'
+                    ? 'bg-[#E10600] text-white font-bold shadow'
+                    : 'bg-[#080C14]/90 text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1A2333]'
                 }`}
               >
                 {st.label}
@@ -349,12 +351,12 @@ export default function CalendarPage() {
             return (
               <Card
                 key={gp.round}
-                className={`relative overflow-hidden transition-all duration-200 flex flex-col justify-between ${
+                className={`relative z-10 overflow-hidden transition-all duration-200 flex flex-col justify-between ${
                   isCurrent
-                    ? 'bg-[#090D15]/95 backdrop-blur-md border-[#00A6FB] shadow-xl ring-2 ring-[#00A6FB]/40'
+                    ? 'bg-[#090D15]/90 backdrop-blur-md border-[#00A6FB] shadow-xl ring-2 ring-[#00A6FB]/40'
                     : isCompleted
-                      ? 'bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 hover:border-[#1F2733]/90 shadow-lg'
-                      : 'bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 opacity-95 hover:border-[#1F2733]/90 shadow-lg'
+                      ? 'bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] hover:border-cyan-500/40 shadow-lg'
+                      : 'bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] opacity-95 hover:border-cyan-500/40 shadow-lg'
                 }`}
               >
                 {/* Linha de status no topo do card */}
@@ -482,7 +484,7 @@ export default function CalendarPage() {
                     </div>
 
                     {/* Especificacoes Tecnicas da Pista */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 p-3 bg-[#0B0E14] border border-[#1F2733] rounded-xl font-mono text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 p-3 bg-[#080C14]/80 border border-[#1A2333] rounded-xl font-mono text-xs">
                       <div>
                         <span className="text-[10px] text-[#8B95A7] block uppercase">Extensão</span>
                         <strong className="text-cyan-400 text-sm font-bold">

@@ -10,6 +10,7 @@ import {
   normalizeEntityName,
 } from '@/lib/f1-standings-calculator'
 import { formatCurrency } from '@/lib/formatters'
+import { AmbientBackground } from '@/components/AmbientBackground'
 import { toast } from '@/hooks/use-toast'
 import { BadgePercent, TrendingUp, Handshake, DollarSign, AlertTriangle } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
@@ -285,17 +286,19 @@ export default function SponsorsPage() {
   }, [signedSponsorNames, occupiedSlots, activeSponsors, performanceStats.multiplier])
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up">
+      <AmbientBackground />
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
         <div>
-          <span className="text-xs font-mono font-bold tracking-widest text-[#E10600] uppercase">
+          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
             Marketing & Finanças
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F5F7FA] mt-1">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
             Gestão de Patrocínios & Receitas
           </h1>
-          <p className="text-sm text-[#8B95A7] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
             Negocie cotas de patrocínio comercial. Atenda aos requisitos de desempenho esportivo
             para manter os repasses ativos em cada GP.
           </p>
@@ -303,7 +306,7 @@ export default function SponsorsPage() {
       </div>
 
       {/* Indicador de Desempenho e Multiplicador de Contratos */}
-      <div className="p-4 rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="relative z-10 p-4 rounded-2xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-[#00A6FB]" />
@@ -332,7 +335,7 @@ export default function SponsorsPage() {
         <div className="flex items-center gap-2 shrink-0">
           <Badge
             variant="outline"
-            className="border-[#1F2733] bg-[#0B0E14] text-xs font-mono text-[#F5F7FA] px-3 py-1.5"
+            className="border-[#1A2333] bg-[#080C14]/90 text-xs font-mono text-[#F5F7FA] px-3 py-1.5"
           >
             Cotas Ocupadas:{' '}
             <strong className="text-emerald-400 ml-1">{occupiedSlots.size}/6</strong>
@@ -341,15 +344,15 @@ export default function SponsorsPage() {
       </div>
 
       {/* Receita Total Estimada Card */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 sm:col-span-2 shadow-xl">
-          <CardHeader className="pb-2 border-b border-[#1F2733]/60">
-            <CardTitle className="text-xs font-mono uppercase tracking-wider text-[#8B95A7] flex items-center gap-2">
+      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] sm:col-span-2 shadow-xl">
+          <CardHeader className="pb-2 border-b border-[#1A2333]">
+            <CardTitle className="text-xs font-mono font-bold uppercase tracking-wider text-[#8B95A7] flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-emerald-400" />
               Receita Total Estimada por Rodada de GP
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <div className="flex items-baseline gap-2">
               <span className="text-3xl sm:text-4xl font-extrabold font-mono text-emerald-400">
                 {formatCurrency(totalRevenuePerRound)}
@@ -363,13 +366,13 @@ export default function SponsorsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-          <CardHeader className="pb-2 border-b border-[#1F2733]/60">
-            <CardTitle className="text-xs font-mono uppercase tracking-wider text-[#8B95A7]">
+        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+          <CardHeader className="pb-2 border-b border-[#1A2333]">
+            <CardTitle className="text-xs font-mono font-bold uppercase tracking-wider text-[#8B95A7]">
               Contratos em Vigor
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <div className="text-3xl font-extrabold font-mono text-[#F5F7FA]">
               {activeSponsors.filter((s) => s.status === 'ativo').length}
               <span className="text-xs text-[#8B95A7] font-normal font-mono ml-2">ativos</span>
@@ -382,13 +385,16 @@ export default function SponsorsPage() {
       </div>
 
       {/* Seção Contratos Ativos */}
-      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
-          <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+        <CardHeader className="pb-3 border-b border-[#1A2333]">
+          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#00A6FB] block">
+            PARCERIAS ESTABELECIDAS
+          </span>
+          <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
             <Handshake className="w-5 h-5 text-[#00A6FB]" />
             Contratos Comerciais Ativos ({activeSponsors.length})
           </CardTitle>
-          <CardDescription className="text-xs text-[#8B95A7]">
+          <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
             Avaliação automática a cada GP: se a meta de construtores ou moral não for cumprida, o
             repasse fica suspenso até a recuperação.
           </CardDescription>
@@ -490,13 +496,16 @@ export default function SponsorsPage() {
       </Card>
 
       {/* Seção Patrocinadores Disponíveis com Cotas Exclusivas */}
-      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
-          <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+        <CardHeader className="pb-3 border-b border-[#1A2333]">
+          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-amber-400 block">
+            PORTFÓLIO DE OFERTAS FIA
+          </span>
+          <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
             <BadgePercent className="w-5 h-5 text-amber-400" />
             Cotas de Patrocínio Comercial F1 2026 (Exclusividade por Posição)
           </CardTitle>
-          <CardDescription className="text-xs text-[#8B95A7]">
+          <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
             Cada local do carro (bico, laterais, asa traseira, halo, macacão, retrovisores) possui
             uma cota EXCLUSIVA. Fechar um contrato reserva a posição e encerra as outras ofertas
             para aquela cota.
@@ -539,7 +548,7 @@ export default function SponsorsPage() {
                       {m.description}
                     </p>
 
-                    <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] mt-3 space-y-1 text-xs font-mono">
+                    <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] mt-3 space-y-1 text-xs font-mono">
                       <div className="flex justify-between items-baseline">
                         <span className="text-[#8B95A7]">Valor base:</span>
                         <span className="text-[#8B95A7] line-through text-[11px]">

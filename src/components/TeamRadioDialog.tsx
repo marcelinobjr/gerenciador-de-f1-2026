@@ -93,12 +93,12 @@ export function TeamRadioDialog({
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
-        className="max-w-xl bg-[#0d121c] border-2 border-[#1f293d] text-[#F5F7FA] p-0 overflow-hidden shadow-2xl rounded-2xl"
+        className="max-w-xl bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA] p-0 overflow-hidden shadow-2xl rounded-2xl"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         {/* Header estilo Pit Wall / Rádio da Equipe */}
-        <div className="bg-gradient-to-r from-[#151c2c] via-[#0f172a] to-[#151c2c] p-4 border-b border-[#1f293d] flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#090D15] via-[#111622] to-[#090D15] p-4 border-b border-[#1A2333] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/50 flex items-center justify-center text-red-500 shadow-inner">
               <Radio className="w-5 h-5 animate-pulse" />
@@ -132,7 +132,7 @@ export function TeamRadioDialog({
 
         <div className="p-5 space-y-5">
           {/* Caixa de diálogo da mensagem do Piloto */}
-          <div className="bg-[#090d15] border border-[#1f2733] rounded-xl p-4 shadow-inner relative overflow-hidden">
+          <div className="bg-[#080C14]/90 border border-[#1A2333] rounded-xl p-4 shadow-inner relative overflow-hidden">
             <div className="flex items-start gap-3.5">
               <div className="w-11 h-11 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center font-black text-white shrink-0 text-sm shadow">
                 {message.driverName.slice(0, 2).toUpperCase()}
@@ -164,7 +164,7 @@ export function TeamRadioDialog({
                   </div>
                 </div>
 
-                <div className="text-xs sm:text-sm text-slate-100 font-mono bg-[#111723] p-3 rounded-lg border border-slate-800/80 leading-relaxed flex items-start gap-2 shadow">
+                <div className="text-xs sm:text-sm text-slate-100 font-mono bg-[#0d131f] p-3 rounded-lg border border-[#1A2333] leading-relaxed flex items-start gap-2 shadow">
                   <Volume2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span className="italic">"{message.message}"</span>
                 </div>
@@ -182,7 +182,7 @@ export function TeamRadioDialog({
           </div>
 
           {/* Seletor de pneus para caso escolha "BOX AGORA" */}
-          <div className="bg-[#111724] border border-[#1e2736] rounded-xl p-3.5 space-y-2.5">
+          <div className="bg-[#080C14]/90 border border-[#1A2333] rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold font-mono text-slate-200 flex items-center gap-1.5">
                 <Wrench className="w-3.5 h-3.5 text-amber-400" />

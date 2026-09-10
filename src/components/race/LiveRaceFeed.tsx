@@ -38,8 +38,8 @@ export function LiveRaceFeed({
   if (actualEvents.length === 0 && !currentLap) return null
 
   return (
-    <Card className="bg-[#11161F] border border-[#1F2733] shadow-lg overflow-hidden">
-      <CardHeader className="py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] flex flex-row items-center justify-between">
+    <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333] shadow-xl overflow-hidden">
+      <CardHeader className="py-3 px-4 bg-[#080C14]/90 border-b border-[#1A2333] flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
           <CardTitle className="text-sm font-bold text-[#F5F7FA] tracking-wide font-mono flex items-center gap-2">
@@ -74,7 +74,7 @@ export function LiveRaceFeed({
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="max-h-[340px] overflow-y-auto divide-y divide-[#1F2733]/60 scrollbar-thin">
+        <div className="max-h-[340px] overflow-y-auto divide-y divide-[#1A2333] scrollbar-thin">
           {actualEvents.map((ev) => {
             let badgeBg = 'bg-slate-800 text-slate-300 border-slate-700'
             let icon = <Flag className="w-3.5 h-3.5" />

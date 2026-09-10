@@ -155,7 +155,7 @@ export function DecisionModals({
       {/* 1. DIÁLOGO / MODAL DE DECISÃO ESTRATÉGICA DE CHUVA */}
       <Dialog open={rainDecisionOpen} onOpenChange={() => {}}>
         <DialogContent
-          className="bg-[#11161F] border-2 border-sky-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl"
+          className="bg-[#090D15]/95 backdrop-blur-md border border-sky-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
@@ -511,7 +511,7 @@ export function DecisionModals({
       {/* 2. DIÁLOGO DE DECISÃO: TOQUE COM DANO / ASA QUEBRADA */}
       <Dialog open={wingDamageModalOpen} onOpenChange={setWingDamageModalOpen}>
         <DialogContent
-          className="bg-[#11161F] border-2 border-red-500/80 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl"
+          className="bg-[#090D15]/95 backdrop-blur-md border border-red-500/80 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
@@ -644,7 +644,7 @@ export function DecisionModals({
       {/* 3. DIÁLOGO DE DECISÃO: SAFETY CAR NA PISTA */}
       <Dialog open={safetyCarModalOpen} onOpenChange={() => {}}>
         <DialogContent
-          className="bg-[#11161F] border-2 border-amber-500/80 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl"
+          className="bg-[#090D15]/95 backdrop-blur-md border border-amber-500/80 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
@@ -790,7 +790,7 @@ export function DecisionModals({
           if (!open) onCloseForcePitModal()
         }}
       >
-        <DialogContent className="bg-[#11161F] border-2 border-amber-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-amber-500/70 text-[#F5F7FA] max-w-xl sm:max-w-2xl p-6 shadow-2xl">
           <DialogHeader className="space-y-2 border-b border-[#1F2733] pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-amber-400 font-mono text-xs uppercase tracking-wider font-bold">

@@ -5,6 +5,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { PartModel, SponsorModel } from '@/types/f1'
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { CarBlueprint } from '@/components/CarBlueprint'
+import { AmbientBackground } from '@/components/AmbientBackground'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
 import {
@@ -415,18 +416,19 @@ export default function CarPage() {
   const isSelectedMax = selectedPart ? selectedPart.level >= 10 : false
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up">
+      <AmbientBackground />
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
         <div>
-          <span className="text-xs font-mono font-bold tracking-widest text-[#00A6FB] uppercase flex items-center gap-1.5">
-            <Sliders className="w-4 h-4 text-[#00A6FB]" />
+          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
             Engenharia & Blueprint Técnico Oficial
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F5F7FA] mt-1">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
             Monoposto 2026 // Arquitetura & Componentes
           </h1>
-          <p className="text-sm text-[#8B95A7] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
             Interaja com o blueprint milimetrado, monitore o desgaste estrutural após cada GP e
             repare ou aprimore as 6 peças homologadas.
           </p>
@@ -483,9 +485,9 @@ export default function CarPage() {
       </div>
 
       {/* PAINEL FIA: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Card Cost Cap */}
-        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 p-4 shadow-xl">
+        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
           <div className="flex items-center justify-between pb-2">
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-emerald-400" />
@@ -528,7 +530,7 @@ export default function CarPage() {
         </Card>
 
         {/* Card Pool de Motores & Desgaste */}
-        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 p-4 shadow-xl">
+        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
           <div className="flex items-center justify-between pb-2">
             <div className="flex items-center gap-2">
               <Flame className="w-5 h-5 text-[#E10600]" />
@@ -623,18 +625,18 @@ export default function CarPage() {
       />
 
       {/* PAINEL DE INSPEÇÃO DA PEÇA SELECIONADA + RESUMO DE PERFORMANCE */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Card: Painel de Inspeção da Peça Clicada */}
-        <Card className="lg:col-span-2 bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl relative overflow-hidden">
+        <Card className="lg:col-span-2 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-bl-full pointer-events-none" />
 
-          <CardHeader className="pb-3 border-b border-[#1F2733]/60">
+          <CardHeader className="pb-3 border-b border-[#1A2333]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase tracking-widest">
-                  Telemetria & Diagnóstico de Oficina
+                <span className="text-[10px] font-mono text-[#E10600] font-black uppercase tracking-widest block">
+                  TELEMETRIA & DIAGNÓSTICO DE OFICINA
                 </span>
-                <CardTitle className="text-xl font-extrabold text-[#F5F7FA] flex items-center gap-2.5 mt-0.5">
+                <CardTitle className="text-xl font-black text-white flex items-center gap-2.5 mt-0.5">
                   <Wrench className="w-5 h-5 text-cyan-400" />
                   {selectedPart ? selectedPart.name : 'Selecione uma peça'}
                 </CardTitle>
@@ -646,7 +648,7 @@ export default function CarPage() {
                 </Badge>
               )}
             </div>
-            <CardDescription className="text-xs text-[#8B95A7]">
+            <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
               Inspecione a fadiga metálica acumulada por voltas e decida entre desenvolver um novo
               nível ou revisar a peça na oficina.
             </CardDescription>
@@ -658,7 +660,7 @@ export default function CarPage() {
                 {/* Métricas: Nível + Condição */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Bloco 1: Nível & Potencial Técnico */}
-                  <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-3">
+                  <div className="p-4 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-[#8B95A7] font-mono uppercase">
                         Nível Homologado FIA
@@ -690,7 +692,7 @@ export default function CarPage() {
                   </div>
 
                   {/* Bloco 2: Condição / Desgaste Físico */}
-                  <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-3">
+                  <div className="p-4 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-[#8B95A7] font-mono uppercase">
                         Integridade Estrutural
@@ -728,7 +730,7 @@ export default function CarPage() {
                 </div>
 
                 {/* Bloco de Ações: Desenvolver Nova Peça vs Reparar/Revisar */}
-                <div className="p-4 rounded-xl bg-[#090D16] border border-cyan-500/20 space-y-4">
+                <div className="p-4 rounded-xl bg-[#080C14]/90 border border-cyan-500/20 space-y-4">
                   <div className="flex items-center justify-between text-xs font-mono">
                     <span className="text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
                       <Sparkles className="w-4 h-4" />
@@ -744,7 +746,7 @@ export default function CarPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     {/* Ação 1: Desenvolver Nova Peça (Subir Nível) */}
-                    <div className="p-3.5 rounded-lg bg-[#11161F] border border-[#1F2733] flex flex-col justify-between space-y-3">
+                    <div className="p-3.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] flex flex-col justify-between space-y-3">
                       <div>
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-sm text-[#F5F7FA]">
@@ -786,7 +788,7 @@ export default function CarPage() {
                     </div>
 
                     {/* Ação 2: Reparar / Revisar Peça (Restaurar para 100%) */}
-                    <div className="p-3.5 rounded-lg bg-[#11161F] border border-[#1F2733] flex flex-col justify-between space-y-3">
+                    <div className="p-3.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] flex flex-col justify-between space-y-3">
                       <div>
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-sm text-[#F5F7FA]">
@@ -852,19 +854,22 @@ export default function CarPage() {
         </Card>
 
         {/* Card Resumo: Nível Geral do Carro + Impacto de Desgaste */}
-        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 flex flex-col justify-between shadow-xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] flex flex-col justify-between shadow-xl">
+          <CardHeader className="pb-2 border-b border-[#1A2333]">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#00A6FB] block">
+              PERFORMANCE GERAL
+            </span>
+            <CardTitle className="text-base font-black text-white flex items-center gap-2 mt-0.5">
               <Gauge className="w-5 h-5 text-[#00A6FB]" />
               Índice de Competitividade
             </CardTitle>
-            <CardDescription className="text-xs text-[#8B95A7]">
+            <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
               Média ponderada do pacote de peças (60%) + potência da UP (40%).
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-5 pt-1">
-            <div className="text-center p-5 rounded-2xl bg-[#0B0E14] border border-[#1F2733] relative overflow-hidden">
+          <CardContent className="space-y-5 pt-4">
+            <div className="text-center p-5 rounded-2xl bg-[#080C14]/80 border border-[#1A2333] relative overflow-hidden">
               <div className="text-5xl font-extrabold font-mono text-[#F5F7FA] tracking-tight">
                 {overallLevel}
                 <span className="text-xs text-[#8B95A7] font-normal block mt-1">
@@ -932,27 +937,30 @@ export default function CarPage() {
       </div>
 
       {/* BLOCO FIXO EXPLICATIVO: REGRAS TÉCNICAS F1 2026 */}
-      <div className="rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#00A6FB]/40 p-5 shadow-xl relative overflow-hidden">
+      <div className="relative z-10 rounded-2xl bg-[#090D15]/80 backdrop-blur-md border border-[#00A6FB]/40 p-5 shadow-xl relative overflow-hidden">
         <div className="flex items-start gap-4">
           <div className="w-10 h-10 rounded-xl bg-[#00A6FB]/10 text-[#00A6FB] flex items-center justify-center shrink-0 mt-0.5">
             <Info className="w-5 h-5" />
           </div>
           <div className="space-y-3">
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#00A6FB] block">
+                DIRETRIZES TÉCNICAS HOMOLOGADAS
+              </span>
+              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 Novo Regulamento Técnico FIA — Fórmula 1 2026
                 <Badge className="bg-[#00A6FB] text-[#0B0E14] font-mono text-[10px] font-bold">
                   Oficial
                 </Badge>
               </h2>
-              <p className="text-xs text-[#8B95A7] mt-0.5">
+              <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
                 A temporada 2026 introduz a maior revolução na arquitetura veicular e no trem de
                 força da história da F1:
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
+              <div className="p-3 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-[#E10600]">
                   <Zap className="w-4 h-4" />
                   <span>Unidade de Potência 50/50</span>
@@ -964,7 +972,7 @@ export default function CarPage() {
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
+              <div className="p-3 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-[#00A6FB]">
                   <Layers className="w-4 h-4" />
                   <span>Aerodinâmica Ativa</span>
@@ -976,7 +984,7 @@ export default function CarPage() {
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
+              <div className="p-3 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-amber-400">
                   <Flame className="w-4 h-4" />
                   <span>Modo Overtake & 768 kg</span>
@@ -993,12 +1001,17 @@ export default function CarPage() {
       </div>
 
       {/* Fornecedores de Unidade de Potência 2026 */}
-      <div className="space-y-3">
+      <div className="relative z-10 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-[#00A6FB]" />
-            Fornecedores de Unidade de Potência 2026
-          </h2>
+          <div>
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+              MERCADO DE FORNECEDORES
+            </span>
+            <h2 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
+              <Cpu className="w-5 h-5 text-[#00A6FB]" />
+              Fornecedores de Unidade de Potência 2026
+            </h2>
+          </div>
           <span className="text-xs font-mono text-[#8B95A7]">5 fabricantes homologados</span>
         </div>
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-10T18:57:16.233Z",
+  "generatedAt": "2026-09-10T20:46:06.761Z",
   "collections": [
     {
       "name": "users",
@@ -402,6 +402,12 @@
         {
           "name": "physical_condition",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "helmet",
+          "type": "file",
           "required": false,
           "system": false
         }

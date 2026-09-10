@@ -13,6 +13,7 @@ import { Trophy, Award, Users, Flag, Medal } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { AmbientBackground } from '@/components/AmbientBackground'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/formatters'
 
@@ -363,17 +364,19 @@ export default function StandingsPage() {
   }, [raceResults, playerDrivers, team, season])
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up">
+      <AmbientBackground />
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
         <div>
-          <span className="text-xs font-mono font-bold tracking-widest text-[#E10600] uppercase">
+          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
             Tabela Oficial do Campeonato Mundial
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F5F7FA] mt-1">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
             Classificação Geral F1 2026
           </h1>
-          <p className="text-sm text-[#8B95A7] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
             Grid oficial com{' '}
             {team?.is_custom ? '12 equipes (11 oficiais + 12ª sua escuderia)' : '11 equipes'} •
             Pontuação FIA (25-18-15-12-10-8-6-4-2-1), vitórias e pódios ao longo das 24 etapas.
@@ -382,19 +385,23 @@ export default function StandingsPage() {
       </div>
 
       {/* Tabs Pilotos / Construtores */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as any)}
+        className="relative z-10 w-full"
+      >
         <div className="flex justify-between items-center mb-4">
-          <TabsList className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90">
+          <TabsList className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-1">
             <TabsTrigger
               value="drivers"
-              className="data-[state=active]:bg-[#E10600] data-[state=active]:text-white font-semibold text-xs sm:text-sm"
+              className="data-[state=active]:bg-[#E10600] data-[state=active]:text-white font-bold text-xs sm:text-sm shadow"
             >
               <Users className="w-4 h-4 mr-1.5" />
               Campeonato de Pilotos
             </TabsTrigger>
             <TabsTrigger
               value="constructors"
-              className="data-[state=active]:bg-[#E10600] data-[state=active]:text-white font-semibold text-xs sm:text-sm"
+              className="data-[state=active]:bg-[#E10600] data-[state=active]:text-white font-bold text-xs sm:text-sm shadow"
             >
               <Trophy className="w-4 h-4 mr-1.5" />
               Campeonato de Construtores
@@ -408,13 +415,16 @@ export default function StandingsPage() {
 
         {/* Pilotos Tab */}
         <TabsContent value="drivers">
-          <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-            <CardHeader className="pb-3 border-b border-[#1F2733]/60">
-              <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+          <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+            <CardHeader className="pb-3 border-b border-[#1A2333]">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                CLASSIFICAÇÃO DE PILOTOS
+              </span>
+              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 <Award className="w-5 h-5 text-[#E10600]" />
                 Mundial de Pilotos — Temporada 2026
               </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7]">
+              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
                 Seus pilotos destacados em negrito na cor da sua escuderia. Escala oficial FIA (25,
                 18, 15, 12, 10, 8, 6, 4, 2, 1).
               </CardDescription>
@@ -529,13 +539,16 @@ export default function StandingsPage() {
 
         {/* Construtores Tab */}
         <TabsContent value="constructors">
-          <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-            <CardHeader className="pb-3 border-b border-[#1F2733]/60">
-              <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+          <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+            <CardHeader className="pb-3 border-b border-[#1A2333]">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-amber-400 block">
+                CLASSIFICAÇÃO DE EQUIPES
+              </span>
+              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 <Trophy className="w-5 h-5 text-amber-400" />
                 Mundial de Construtores — Temporada 2026
               </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7]">
+              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
                 A pontuação acumulada define a premiação anual de construtores (R$ 175M no P1 até R$
                 70M no P12) e a moral da escuderia.
               </CardDescription>

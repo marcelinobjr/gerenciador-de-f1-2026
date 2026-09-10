@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Slider } from '@/components/ui/slider'
 import { DriverHelmet } from '@/components/DriverHelmet'
+import { AmbientBackground } from '@/components/AmbientBackground'
 
 import {
   Dialog,
@@ -606,24 +607,26 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up">
+      <AmbientBackground />
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
         <div>
-          <span className="text-xs font-mono font-bold tracking-widest text-[#E10600] uppercase">
+          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
             Gestão Esportiva & Elenco 2026
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F5F7FA] mt-1">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
             Equipe & Mercado de Pilotos
           </h1>
-          <p className="text-sm text-[#8B95A7] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
             Estrutura oficial de 2 titulares + 1 piloto reserva com 2 sessões de treino livre/ano,
             substituição por incapacidade e mercado com revelações da F2.
           </p>
         </div>
 
         {/* Indicador de Força da Equipe */}
-        <div className="bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733]/90 px-4 py-2.5 rounded-xl flex items-center gap-3 shadow-lg">
+        <div className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 px-4 py-2.5 rounded-xl flex items-center gap-3 shadow-lg">
           <div className="text-right">
             <span className="text-[10px] font-mono text-[#8B95A7] uppercase block">
               Força da Escuderia
@@ -666,21 +669,21 @@ export default function TeamPage() {
       )}
 
       {/* Frente 1: Card Unidade de Potência 2026 (Fornecedores Homologados) */}
-      <Card className="bg-[#11161F] border-[#1F2733] shadow-lg overflow-hidden relative">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl overflow-hidden group">
         <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-cyan-500/10 via-transparent to-transparent pointer-events-none" />
 
-        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
+        <CardHeader className="pb-3 border-b border-[#1A2333]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-cyan-400">
-                  Regulamento FIA 2026 // Trem de Força 50/50
+                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+                  REGULAMENTO FIA 2026 // TREM DE FORÇA 50/50
                 </span>
-                <Badge className="bg-cyan-500/10 border-cyan-500/30 text-cyan-300 font-mono text-[10px]">
+                <Badge className="bg-cyan-500/15 border-cyan-500/40 text-cyan-300 font-mono text-[10px]">
                   Turbo V6 + 350 kW MGU-K
                 </Badge>
               </div>
-              <CardTitle className="text-xl font-extrabold text-[#F5F7FA] flex items-center gap-2.5 mt-1">
+              <CardTitle className="text-xl font-black text-white flex items-center gap-2.5 mt-1">
                 <Cpu className="w-5 h-5 text-cyan-400" />
                 Unidade de Potência Atual: {currentEngine.name}
               </CardTitle>
@@ -735,13 +738,13 @@ export default function TeamPage() {
                     </p>
 
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#1F2733] text-xs font-mono">
-                      <div className="p-1.5 rounded bg-[#11161F]">
+                      <div className="p-1.5 rounded bg-[#080C14]/80 border border-[#1A2333]">
                         <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
                           <Zap className="w-3 h-3 text-cyan-400" /> Potência
                         </span>
                         <strong className="text-[#F5F7FA] text-sm">{sup.power}/100</strong>
                       </div>
-                      <div className="p-1.5 rounded bg-[#11161F]">
+                      <div className="p-1.5 rounded bg-[#080C14]/80 border border-[#1A2333]">
                         <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
                           <Shield className="w-3 h-3 text-emerald-400" /> Confiab.
                         </span>
@@ -769,7 +772,7 @@ export default function TeamPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => setSelectedSupplier(sup)}
-                        className="border-[#1F2733] text-xs h-7 px-2.5 text-cyan-400 hover:text-white hover:bg-cyan-600/20"
+                        className="border-[#1A2333] text-xs h-7 px-2.5 text-cyan-400 hover:text-white hover:bg-cyan-600/20"
                       >
                         Trocar Motor
                       </Button>
@@ -780,7 +783,7 @@ export default function TeamPage() {
             })}
           </div>
 
-          <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-[#8B95A7]">
+          <div className="p-3 rounded-lg bg-[#080C14]/90 border border-[#1A2333] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-[#8B95A7]">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-cyan-400 shrink-0" />
               <span>
@@ -805,15 +808,18 @@ export default function TeamPage() {
       </Card>
 
       {/* Seção 1: Pilotos Titulares (2 titulares) */}
-      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-        <CardHeader className="pb-4 border-b border-[#1F2733]/60">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+        <CardHeader className="pb-4 border-b border-[#1A2333]">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                GRID OFICIAL DA ESCUDERIA
+              </span>
+              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 <Users className="w-5 h-5 text-[#E10600]" />
                 Pilotos Titulares ({titularDrivers.length}/2)
               </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7]">
+              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
                 Disputam a pontuação do mundial de pilotos e construtores. Influenciam ritmo, Modo
                 Overtake e estabilidade na chuva.
               </CardDescription>
@@ -947,7 +953,7 @@ export default function TeamPage() {
                     {(() => {
                       const wearProfile = calculateDriverTireWearProfile(driver)
                       return (
-                        <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-1 font-mono text-xs">
+                        <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] space-y-1 font-mono text-xs">
                           <div className="flex items-center justify-between">
                             <span className="text-[#8B95A7] text-[11px] flex items-center gap-1">
                               <Disc className="w-3.5 h-3.5 text-amber-400" /> Desgaste de Pneus:
@@ -967,7 +973,7 @@ export default function TeamPage() {
                     })()}
 
                     {/* Moral & Condição Física */}
-                    <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] grid grid-cols-2 gap-3 text-xs font-mono">
+                    <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] grid grid-cols-2 gap-3 text-xs font-mono">
                       <div className="space-y-1">
                         <div className="flex justify-between text-[#8B95A7]">
                           <span className="flex items-center gap-1 text-[#F5F7FA]">
@@ -1074,15 +1080,18 @@ export default function TeamPage() {
       </Card>
 
       {/* Seção 2: Piloto Reserva (1 Piloto Reserva Oficial) */}
-      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-        <CardHeader className="pb-4 border-b border-[#1F2733]/60">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+        <CardHeader className="pb-4 border-b border-[#1A2333]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-amber-400 block">
+                SUPORTE TÉCNICO & DESENVOLVIMENTO
+              </span>
+              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 <UserCheck className="w-5 h-5 text-amber-400" />
                 Piloto Reserva Oficial (1 Piloto)
               </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7]">
+              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
                 Cumpre as 2 sessões obrigatórias de Treino Livre (FP1) no ano e substitui qualquer
                 titular incapacitado.
               </CardDescription>
@@ -1254,15 +1263,18 @@ export default function TeamPage() {
       </Card>
 
       {/* Seção 3: Mercado de Pilotos Disponíveis (F2 + Mercado) */}
-      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
-        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
+        <CardHeader className="pb-3 border-b border-[#1A2333]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                MERCADO GLOBAL DE TALENTOS
+              </span>
+              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 <Briefcase className="w-5 h-5 text-amber-400" />
                 Mercado de Pilotos Disponíveis ({filteredMarket.length} pilotos)
               </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7]">
+              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
                 Garimpe jovens promessas do grid atual da F2 ou veteranos livres no mercado sem
                 assento em 2026.
               </CardDescription>
@@ -1517,7 +1529,7 @@ export default function TeamPage() {
         open={!!selectedSupplier}
         onOpenChange={(open) => !isSwitchingEngine && !open && setSelectedSupplier(null)}
       >
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-md">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA] max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
               <Cpu className="w-5 h-5 text-cyan-400" />
@@ -1621,7 +1633,7 @@ export default function TeamPage() {
 
       {/* Modal: Agendar Treinos Livres do Reserva */}
       <Dialog open={fpModalOpen} onOpenChange={setFpModalOpen}>
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-xl">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA] max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
               <Calendar className="w-5 h-5 text-amber-400" />
@@ -1720,7 +1732,7 @@ export default function TeamPage() {
         open={!!renegotiateDriver}
         onOpenChange={(open) => !open && setRenegotiateDriver(null)}
       >
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA]">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
               <Sliders className="w-5 h-5 text-[#E10600]" />
@@ -1804,7 +1816,7 @@ export default function TeamPage() {
 
       {/* Modal: Dispensar Piloto */}
       <Dialog open={!!fireDriver} onOpenChange={(open) => !open && setFireDriver(null)}>
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA]">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-red-400 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
@@ -1862,7 +1874,7 @@ export default function TeamPage() {
 
       {/* Modal: Contratar Piloto (escolhendo Titular ou Reserva) */}
       <Dialog open={!!hireDriver} onOpenChange={(open) => !open && setHireDriver(null)}>
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA]">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-[#22C55E]" />

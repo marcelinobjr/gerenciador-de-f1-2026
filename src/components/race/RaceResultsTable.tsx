@@ -67,14 +67,17 @@ export function RaceResultsTable({
       )}
 
       {/* Classification Table */}
-      <Card className="bg-[#11161F] border-[#1F2733]">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 gap-3">
+      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333] shadow-xl">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#1A2333] gap-3">
           <div>
-            <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+              HOMOLOGAÇÃO DA FEDERAÇÃO INTERNACIONAL
+            </span>
+            <CardTitle className="text-base font-black text-white flex items-center gap-2 mt-0.5">
               <Award className="w-5 h-5 text-amber-400" />
               Resultado Oficial do GP — {gpName}
             </CardTitle>
-            <CardDescription className="text-xs text-[#8B95A7]">
+            <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
               Desgaste de pneus acumulado, paradas nos boxes e pontos FIA atribuídos.
             </CardDescription>
           </div>
@@ -95,7 +98,7 @@ export function RaceResultsTable({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
               <thead>
-                <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider">
+                <tr className="border-b border-[#1A2333] text-[#8B95A7] uppercase tracking-wider bg-[#080C14]/80 text-[10px]">
                   <th className="py-2.5 px-3">Pos</th>
                   <th className="py-2.5 px-3">Piloto</th>
                   <th className="py-2.5 px-3">Equipe</th>
@@ -107,7 +110,8 @@ export function RaceResultsTable({
                   <th className="py-2.5 px-3 text-right">Pts</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1F2733]/60">
+              <tbody className="divide-y divide-[#1A2333]">
+                {' '}
                 {actualResults.map((row) => {
                   const hasMorale = row.newMorale !== undefined && row.oldMorale !== undefined
                   const mDelta =

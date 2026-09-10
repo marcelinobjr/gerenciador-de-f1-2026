@@ -31,6 +31,7 @@ import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
+import { AmbientBackground } from '@/components/AmbientBackground'
 import pb from '@/lib/pocketbase/client'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
 import { CircuitModel } from '@/types/f1'
@@ -3603,17 +3604,19 @@ export default function RacePage() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up">
+      <AmbientBackground />
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
         <div>
-          <span className="text-xs font-mono font-bold tracking-widest text-[#E10600] uppercase">
+          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
             Fim de Semana de Grande Prêmio Oficial • Regulamento F1 2026
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F5F7FA] mt-1">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
             {gpInfo.name} • Rodada {currentRound}/{totalRounds}
           </h1>
-          <p className="text-sm font-mono text-[#00A6FB] mt-0.5">
+          <p className="text-xs sm:text-sm font-mono text-cyan-400 mt-0.5">
             {gpInfo.circuit} • {gpInfo.country} {gpInfo.flag}
           </p>
         </div>
@@ -3655,8 +3658,8 @@ export default function RacePage() {
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <Card className="bg-[#11161F] border-[#1F2733] overflow-hidden flex flex-col justify-between h-full">
+            <div className="relative z-10 lg:col-span-1">
+              <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] overflow-hidden flex flex-col justify-between h-full shadow-xl">
                 <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
                   {activeCircuitImage ? (
                     <div className="w-full h-full relative bg-[#F5F7FA] overflow-hidden flex items-center justify-center">
@@ -3703,7 +3706,7 @@ export default function RacePage() {
                   )}
                 </div>
 
-                <div className="p-3 bg-[#0B0E14] border-t border-[#1F2733]/60 flex items-center justify-between text-xs font-mono">
+                <div className="p-3 bg-[#080C14]/80 border-t border-[#1A2333] flex items-center justify-between text-xs font-mono">
                   <span className="text-[#8B95A7]">Extensão:</span>
                   <span className="text-cyan-400 font-bold">{gpInfo.circuitLengthKm} km</span>
                   <span className="text-[#8B95A7] ml-2">Voltas:</span>
@@ -3712,20 +3715,26 @@ export default function RacePage() {
               </Card>
             </div>
 
-            <div className="lg:col-span-2 space-y-4">
-              <Card className="bg-[#11161F] border-[#1F2733] p-4 h-full flex flex-col justify-between">
+            <div className="relative z-10 lg:col-span-2 space-y-4">
+              <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 h-full flex flex-col justify-between shadow-xl">
                 <div>
-                  <div className="flex items-center justify-between border-b border-[#1F2733]/70 pb-2 mb-3">
-                    <span className="text-xs font-mono font-bold text-[#E10600] uppercase tracking-wider flex items-center gap-1.5">
-                      <Flag className="w-4 h-4" /> Parâmetros de Prova & Extensão Oficial
-                    </span>
+                  <div className="flex items-center justify-between border-b border-[#1A2333] pb-2 mb-3">
+                    <div>
+                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                        DIRETRIZES DO AUTÓDROMO
+                      </span>
+                      <span className="text-xs font-mono font-black text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                        <Flag className="w-4 h-4 text-[#E10600]" /> Parâmetros de Prova & Extensão
+                        Oficial
+                      </span>
+                    </div>
                     <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 font-mono text-xs">
                       {gpInfo.laps} Voltas Programadas
                     </Badge>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
                       <span className="text-[10px] text-[#8B95A7] block uppercase">
                         Total de Voltas
                       </span>
@@ -3737,7 +3746,7 @@ export default function RacePage() {
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
                       <span className="text-[10px] text-[#8B95A7] block uppercase">
                         Comprimento da Pista
                       </span>
@@ -3747,7 +3756,7 @@ export default function RacePage() {
                       <span className="text-[10px] text-[#8B95A7] block mt-0.5">Por volta</span>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
                       <span className="text-[10px] text-[#8B95A7] block uppercase">
                         Carga Aerodinâmica
                       </span>
@@ -3759,7 +3768,7 @@ export default function RacePage() {
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
                       <span className="text-[10px] text-[#8B95A7] block uppercase">
                         Rigidez Suspensão
                       </span>
@@ -3772,7 +3781,7 @@ export default function RacePage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 p-3 rounded-lg bg-[#0B0E14]/70 border border-[#1F2733] text-xs">
+                  <div className="mt-4 p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-xs">
                     <span className="text-[#8B95A7] font-mono block text-[11px]">
                       Característica Central:
                     </span>
@@ -3798,7 +3807,7 @@ export default function RacePage() {
       })()}
 
       {/* PAINEL DE PREVISÃO METEOROLÓGICA OFICIAL DA FIA 2026 */}
-      <Card className="bg-[#11161F] border-[#1F2733] p-4">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div
@@ -3816,8 +3825,8 @@ export default function RacePage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#8B95A7]">
-                  Radar Meteorológico Oficial
+                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-cyan-400">
+                  RADAR METEOROLÓGICO OFICIAL
                 </span>
                 <Badge
                   variant="outline"
@@ -3832,10 +3841,10 @@ export default function RacePage() {
                   {forecast.probability}% Risco de Chuva
                 </Badge>
               </div>
-              <h3 className="text-base font-bold text-[#F5F7FA] mt-0.5">
+              <h3 className="text-base font-black text-white mt-0.5">
                 Previsão para o GP: {forecast.expectedCondition}
               </h3>
-              <p className="text-xs text-[#8B95A7]">
+              <p className="text-xs text-[#8B95A7] font-mono">
                 {forecast.probability >= 35 && forecast.rainLapStart
                   ? `Alerta de Radar: Nuvem densa se aproximando com chuva prevista por volta da volta ${forecast.rainLapStart}.`
                   : 'Condições meteorológicas estáveis previstas durante o evento.'}
@@ -3844,15 +3853,15 @@ export default function RacePage() {
           </div>
 
           <div className="grid grid-cols-3 gap-3 text-xs font-mono">
-            <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center">
+            <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
               <span className="text-[10px] text-[#8B95A7] block">Temp. Ar</span>
               <strong className="text-sm text-[#F5F7FA]">{forecast.airTemp}°C</strong>
             </div>
-            <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center">
+            <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
               <span className="text-[10px] text-[#8B95A7] block">Temp. Asfalto</span>
               <strong className="text-sm text-amber-400">{forecast.trackTemp}°C</strong>
             </div>
-            <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center">
+            <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
               <span className="text-[10px] text-[#8B95A7] block">Clima Atual</span>
               <strong
                 className={`text-sm ${
@@ -3876,7 +3885,7 @@ export default function RacePage() {
 
       {/* Season Completed Banner if R24 */}
       {seasonCompleted && (
-        <Card className="bg-gradient-to-r from-[#11161F] via-[#1E2738] to-[#11161F] border-2 border-amber-500/60 p-6 shadow-2xl">
+        <Card className="relative z-10 bg-gradient-to-r from-[#090D15]/95 via-[#131A26]/90 to-[#090D15]/95 backdrop-blur-md border-2 border-amber-500/60 p-6 shadow-2xl">
           <div className="text-center space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 mx-auto flex items-center justify-center">
               <Trophy className="w-8 h-8" />
@@ -3907,14 +3916,17 @@ export default function RacePage() {
       )}
 
       {/* TIRE ALLOTMENT STATUS BAR (FIA 2026 Regulation) */}
-      <Card className="bg-[#11161F] border-[#1F2733] p-4">
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-bold text-[#F5F7FA] flex items-center gap-2">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+              GERENCIAMENTO DE COMPOSTOS PIRELLI
+            </span>
+            <h3 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
               <Disc className="w-4 h-4 text-[#E10600]" />
               Estoque Oficial de Pneus do Piloto (Regulamento FIA 2026)
             </h3>
-            <p className="text-xs text-[#8B95A7] mt-0.5">
+            <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
               Alocação oficial: 2 Duros, 3 Médios, 3 Macios, 4 Intermediários, 3 Chuva Extrema.
               Paradas nos boxes reutilizam jogos usados com desgaste proporcional!
             </p>
@@ -3922,7 +3934,7 @@ export default function RacePage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-mono">
             {/* Hard */}
-            <div className="p-2 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center">
+            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-white ring-1 ring-slate-400" />
                 <span className="text-[#8B95A7] text-[10px]">DURO (+0.60s)</span>
@@ -3938,7 +3950,7 @@ export default function RacePage() {
             </div>
 
             {/* Medium */}
-            <div className="p-2 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center">
+            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 ring-1 ring-yellow-500" />
                 <span className="text-[#8B95A7] text-[10px]">MÉDIO (Ref 0.0s)</span>
@@ -3954,7 +3966,7 @@ export default function RacePage() {
             </div>
 
             {/* Soft */}
-            <div className="p-2 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center">
+            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 ring-1 ring-red-600" />
                 <span className="text-[#8B95A7] text-[10px]">MACIO (-0.75s)</span>
@@ -3970,7 +3982,7 @@ export default function RacePage() {
             </div>
 
             {/* Intermediate */}
-            <div className="p-2 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center">
+            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1 ring-emerald-600" />
                 <span className="text-[#8B95A7] text-[10px]">INTERMEDIÁRIO</span>
@@ -3984,7 +3996,7 @@ export default function RacePage() {
             </div>
 
             {/* Wet */}
-            <div className="p-2 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-center col-span-2 sm:col-span-1">
+            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center col-span-2 sm:col-span-1">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-1 ring-blue-600" />
                 <span className="text-[#8B95A7] text-[10px]">CHUVA EXT.</span>
@@ -4006,7 +4018,7 @@ export default function RacePage() {
         onValueChange={(v) => setActiveSession(v as WeekendSession)}
         className="w-full"
       >
-        <TabsList className="bg-[#11161F] border border-[#1F2733] grid grid-cols-3 sm:grid-cols-6 h-auto p-1 gap-1">
+        <TabsList className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] grid grid-cols-3 sm:grid-cols-6 h-auto p-1 gap-1">
           {(['tp1', 'tp2', 'q1', 'q2', 'q3', 'race'] as WeekendSession[]).map((sess) => {
             const isDone = completedSessions.includes(sess)
             const labelMap: Record<WeekendSession, string> = {
@@ -4040,9 +4052,12 @@ export default function RacePage() {
             <TabsContent key={sessKey} value={sessKey} className="space-y-6 mt-4">
               {/* Setup Configuration Panel for this session */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="bg-[#11161F] border-[#1F2733] lg:col-span-2">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center justify-between">
+                <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] lg:col-span-2 shadow-xl">
+                  <CardHeader className="pb-3 border-b border-[#1A2333]">
+                    <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                      OFICINA DE ENGENHARIA DE PISTA
+                    </span>
+                    <CardTitle className="text-base font-black text-white flex items-center justify-between mt-0.5">
                       <span className="flex items-center gap-2">
                         <Sliders className="w-5 h-5 text-[#E10600]" />
                         Configuração do Carro — {sessKey.toUpperCase()}
@@ -4051,12 +4066,12 @@ export default function RacePage() {
                         size="sm"
                         variant="outline"
                         onClick={handleSaveSetup}
-                        className="border-[#1F2733] text-xs h-8 text-[#00A6FB] hover:bg-[#1F2733]"
+                        className="border-[#1A2333] text-xs h-8 text-[#00A6FB] hover:bg-[#080C14]"
                       >
                         Salvar Setup
                       </Button>
                     </CardTitle>
-                    <CardDescription className="text-xs text-[#8B95A7]">
+                    <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
                       Ajuste fino de aerodinâmica ativa, suspensão mecânica e gestão do trem de
                       força híbrido para {gpInfo.circuit}.
                     </CardDescription>
@@ -4213,9 +4228,12 @@ export default function RacePage() {
                 </Card>
 
                 {/* Tire & Pit Stop Strategy Choice */}
-                <Card className="bg-[#11161F] border-[#1F2733] flex flex-col justify-between">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center justify-between">
+                <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] flex flex-col justify-between shadow-xl">
+                  <CardHeader className="pb-3 border-b border-[#1A2333]">
+                    <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#00A6FB] block">
+                      ESTRATÉGIA OPERACIONAL
+                    </span>
+                    <CardTitle className="text-base font-black text-white flex items-center justify-between mt-0.5">
                       <span className="flex items-center gap-2">
                         <Disc className="w-5 h-5 text-yellow-400" />
                         {isRaceSession
@@ -4238,8 +4256,8 @@ export default function RacePage() {
                     </CardDescription>
                   </CardHeader>
 
-                  <CardContent className="space-y-4">
-                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-[11px] font-mono space-y-1">
+                  <CardContent className="space-y-4 pt-4">
+                    <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-[11px] font-mono space-y-1">
                       <div className="flex items-center justify-between text-[#8B95A7]">
                         <span className="font-bold text-white flex items-center gap-1">
                           <Disc className="w-3.5 h-3.5 text-yellow-400" /> Deltas Oficiais (FIA
@@ -4541,7 +4559,7 @@ export default function RacePage() {
 
               {/* Simulation Animation Banner & Live Status */}
               {isSimulatingSession && (
-                <Card className="bg-[#11161F] border border-[#00A6FB]/60 p-5 space-y-4 shadow-xl">
+                <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#00A6FB]/60 p-5 space-y-4 shadow-xl">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-[#1F2733] pb-3">
                     <div className="flex items-center gap-3">
                       <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-[#00A6FB]/20 text-[#00A6FB] animate-spin">

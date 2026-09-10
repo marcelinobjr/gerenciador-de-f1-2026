@@ -38,7 +38,7 @@ import { DriverHelmet } from '@/components/DriverHelmet'
 import pb from '@/lib/pocketbase/client'
 import { CircuitModel } from '@/types/f1'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
-import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122301-c97f3.png'
+import { AmbientBackground } from '@/components/AmbientBackground'
 
 // Country flag emoji helper
 const getCountryFlag = (nat?: string) => {
@@ -487,16 +487,7 @@ export default function Index() {
       {/* ============================================================== */}
       {/* FUNDO GLOBAL: Garagem com carro F1 ao centro e luzes vermelhas de teto */}
       {/* ============================================================== */}
-      <div
-        className="absolute inset-0 bg-cover bg-center sm:bg-[center_top_20%] bg-no-repeat pointer-events-none z-0"
-        style={{ backgroundImage: `url(${heroGarageBg})` }}
-      />
-      {/* Camada difusa de iluminação dark de garagem e luzes vermelhas de teto */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#06080E]/75 via-[#06080E]/45 to-[#06080E]/90 pointer-events-none z-0" />
-      <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-red-600/15 to-transparent blur-2xl pointer-events-none z-0" />
-      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-red-600/15 rounded-full blur-[110px] pointer-events-none z-0" />
-      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-red-600/20 rounded-full blur-[110px] pointer-events-none z-0" />
-      <div className="absolute bottom-10 left-1/3 w-[500px] h-48 bg-red-600/10 rounded-full blur-[100px] pointer-events-none z-0" />
+      <AmbientBackground />
 
       {/* ============================================================== */}
       {/* CONTEÚDO PRINCIPAL (Z-INDEX 10) */}
