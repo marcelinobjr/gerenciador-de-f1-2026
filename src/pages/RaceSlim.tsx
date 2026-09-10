@@ -31,7 +31,7 @@ import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
-import { pb } from '@/lib/pocketbase/client'
+import pb from '@/lib/pocketbase/client'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
 import { CircuitModel } from '@/types/f1'
 import { analyzeSetupEngineering } from '@/lib/setup-advisor'
@@ -299,8 +299,16 @@ export default function RacePage() {
   const [radioQueueTotal, setRadioQueueTotal] = useState<number>(1)
   const radioCooldownsRef = useRef<Map<string, DriverRadioCooldowns>>(new Map())
   const tacticalModifiersRef = useRef<
-    Map<string, { mode: 'attack' | 'preserve'; lapsRemaining: number }>
+    Map<
+      string,
+      {
+        mode: 'attack' | 'preserve' | 'stay_out'
+        expiresAtLap: number
+        startLap?: number
+      }
+    >
   >(new Map())
+  const hasUsedPreserveModeRef = useRef<boolean>(false)
 
   // Weather and forecast state with 3 intensity states: seco | chuva_fraca | chuva_forte
   const [weather, setWeather] = useState<TrackWeatherState>('seco')
@@ -1667,7 +1675,7 @@ export default function RacePage() {
 
     const stepIntervalMs = autoSimulateWithoutPause
       ? 160
-      : Math.max(300, Math.round(1300 / simSpeed))
+      : Math.max(500, Math.round(10000 / simSpeed))
 
     if (liveRaceTimerRef.current) {
       clearInterval(liveRaceTimerRef.current)
@@ -1687,10 +1695,22 @@ export default function RacePage() {
 
       currentGrid = currentGrid.map((entry) => {
         if (entry.dnf) return entry
+
+        // Modificadores táticos do piloto
+        const tacticalMod = tacticalModifiersRef.current.get(entry.driverId)
+        const isModActive = entry.isPlayer && tacticalMod && currentLap <= tacticalMod.expiresAtLap
+        if (entry.isPlayer && tacticalMod && currentLap > tacticalMod.expiresAtLap) {
+          tacticalModifiersRef.current.delete(entry.driverId)
+        }
+
         const spec = TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio
         const compoundWearRate = spec.wearFactor
         const driverMultiplier = entry.wearMultiplier ?? 1.0
-        const inc = ((compoundWearRate * (abrasiveness / 5)) / 1.5) * driverMultiplier
+
+        // Modificador de desgaste de pneus: 0.75 no modo PRESERVE O CARRO
+        const tireWearMultiplier = isModActive && tacticalMod.mode === 'preserve' ? 0.75 : 1.0
+        const inc =
+          ((compoundWearRate * (abrasiveness / 5)) / 1.5) * driverMultiplier * tireWearMultiplier
         let currentWear = Math.min(100, Math.round((entry.tireWear || 5) + inc))
 
         let nextCompound = entry.tireCompound
@@ -1703,6 +1723,7 @@ export default function RacePage() {
           const matchingPlan = entry.strategyPlan.find((p) => p.lap === currentLap)
           if (matchingPlan) {
             didPitThisLap = true
+            tacticalModifiersRef.current.delete(entry.driverId)
             nextCompound = matchingPlan.compound
             pitStops += 1
             currentWear = 4
@@ -1815,7 +1836,17 @@ export default function RacePage() {
           driverMultiplier,
           abrasiveness,
         )
-        const updatedScore = entry.score + perfDelta.scoreDelta * 0.1
+
+        // Ajuste de ritmo no score por modificador tático ativo
+        let tacticalScoreDelta = 0
+        if (isModActive) {
+          if (tacticalMod.mode === 'attack') {
+            tacticalScoreDelta = 0.35 // Ritmo +3%
+          } else if (tacticalMod.mode === 'preserve') {
+            tacticalScoreDelta = -0.18 // Ritmo -1.5%
+          }
+        }
+        const updatedScore = entry.score + perfDelta.scoreDelta * 0.1 + tacticalScoreDelta
 
         return {
           ...entry,
@@ -1856,12 +1887,26 @@ export default function RacePage() {
         const compoundDelta = TIRE_SPECS[entry.tireCompound || 'medio']?.deltaPerLapSec || 0
         const wearPenalty = ((entry.tireWear || 0) / 100) * 1.8
         const cliffPenalty = entry.cliffStatus?.extraLapTimeSec || 0
-        const driverLapSec =
+        let driverLapSec =
           baseIndividualSec +
           compoundDelta +
           wearPenalty +
           cliffPenalty +
           (Math.random() - 0.5) * 0.35
+
+        // Modificadores táticos no ritmo da volta
+        const tacticalMod = tacticalModifiersRef.current.get(entry.driverId)
+        const isModActive = entry.isPlayer && tacticalMod && currentLap <= tacticalMod.expiresAtLap
+        if (isModActive) {
+          if (tacticalMod.mode === 'attack') {
+            // +3% de ritmo de volta por 5 voltas
+            driverLapSec *= 0.97
+          } else if (tacticalMod.mode === 'preserve') {
+            // ritmo -1,5% por 8 voltas
+            driverLapSec *= 1.015
+          }
+        }
+
         const lapMin = Math.floor(driverLapSec / 60)
         const lapRemSec = (driverLapSec % 60).toFixed(3)
         const formattedLap = `${lapMin}:${Number(lapRemSec) < 10 ? '0' : ''}${lapRemSec}`
@@ -1924,6 +1969,9 @@ export default function RacePage() {
             gpInfo.tireAbrasiveness || 6,
           )
           const tacticalMod = tacticalModifiersRef.current.get(car.driverId)
+          const isStayOutActive =
+            tacticalMod?.mode === 'stay_out' && currentLap <= tacticalMod.expiresAtLap
+          const engineWearMult = tacticalMod?.mode === 'preserve' ? 0.85 : 1.0
 
           const radioContext = {
             driverId: car.driverId,
@@ -1932,15 +1980,15 @@ export default function RacePage() {
             teamColor: car.teamColor,
             isPlayer: true,
             tireCompound: car.tireCompound || 'medio',
-            tireWear: car.tireWear || 0,
+            tireWear: isStayOutActive ? 0 : car.tireWear || 0,
             lapsOnCurrentTire: car.lapsOnCurrentTire || 1,
-            cliffStatus: car.cliffStatus,
-            isInCliff: cliffResult.inCliff,
+            cliffStatus: isStayOutActive ? undefined : car.cliffStatus,
+            isInCliff: isStayOutActive ? false : cliffResult.inCliff,
             position: car.position || i + 1,
             gapToFront: car.gapToFront,
             gapFrontSec,
             gapBehindSec,
-            engineWear,
+            engineWear: Math.round(engineWear * engineWearMult),
             wearProfileName: car.wearProfileName,
             morale: driverMorale,
             speed: tacticalMod?.mode === 'attack' ? 95 : 80,
@@ -1955,7 +2003,14 @@ export default function RacePage() {
             currentCooldowns,
           )
 
-          if (result) {
+          // Suprimir gatilho de cliff/pneus se stay_out estiver ativo (as 2 voltas)
+          const isTireOrCliffMessage =
+            result &&
+            (result.message.category === 'cliff' ||
+              result.message.category === 'tire_critical' ||
+              result.message.category === 'tire_high')
+
+          if (result && (!isStayOutActive || !isTireOrCliffMessage)) {
             radioCooldownsRef.current.set(car.driverId, result.updatedCooldowns)
             triggeredRadioMsgs.push(result.message)
           }
@@ -2151,12 +2206,20 @@ export default function RacePage() {
       }
 
       // CHECK DECISION PAUSE 2: TOQUE COM DANO / ASA QUEBRADA DO JOGADOR
-      if (
-        !autoSimulateWithoutPause &&
+      // No modo de ataque, chance dobrada de incidente / toque com dano
+      const hasAttackActive = currentGrid.some(
+        (g) =>
+          g.isPlayer &&
+          !g.dnf &&
+          tacticalModifiersRef.current.get(g.driverId)?.mode === 'attack' &&
+          currentLap <= (tacticalModifiersRef.current.get(g.driverId)?.expiresAtLap ?? 0),
+      )
+      const isWingDamageLapTriggered =
         wingDamageLap &&
-        currentLap === wingDamageLap &&
-        !wingDamageModalOpen
-      ) {
+        (currentLap === wingDamageLap ||
+          (hasAttackActive && Math.random() < 0.12 && currentLap > 3 && currentLap < totalLaps - 3))
+
+      if (!autoSimulateWithoutPause && isWingDamageLapTriggered && !wingDamageModalOpen) {
         const playerEntries = currentGrid.filter((g) => g.isPlayer && !g.dnf && !g.hasWingDamage)
         if (playerEntries.length > 0) {
           clearInterval(timer)
@@ -2277,6 +2340,9 @@ export default function RacePage() {
   ) => {
     const target = grid.find((g) => g.driverId === driverId)
     if (!target) return
+
+    // Limpar modificadores táticos ao trocar de pneu
+    tacticalModifiersRef.current.delete(driverId)
 
     const effectiveWear = options?.newWear ?? 5
 
@@ -2920,63 +2986,146 @@ export default function RacePage() {
     }
     setLiveEvents((prev) => [radioEvent, ...prev])
 
-    // Se o chefe ordenou modo de ataque ou preservação, registrar modificador tático
-    if (responseType === 'attack_mode') {
+    const activeCurrentLap = liveRaceState?.currentLap ?? driverMsg.lap
+
+    // PASSO 3 — Efeitos reais das 4 ordens do chefe
+    if (responseType === 'box_now') {
+      // 1. BOX AGORA: pit forçado na volta corrente; limpar modificadores táticos ativos
+      tacticalModifiersRef.current.delete(driverMsg.driverId)
+
+      if (liveRaceState) {
+        const currentGrid = [...liveRaceState.grid]
+        const targetDriver = currentGrid.find((g) => g.driverId === driverMsg.driverId)
+        if (targetDriver) {
+          const driverInventory = driverTireInventories[driverMsg.driverId] || playerTireSets
+          const selectedSet = options?.tireSetId
+            ? driverInventory.find((s) => s.id === options.tireSetId)
+            : driverInventory.find((s) => !s.isFitted && s.wear < 90) || driverInventory[0]
+
+          const chosenCompound: TireCompound =
+            selectedSet?.compound ||
+            options?.chosenCompound ||
+            targetDriver.secondCompound ||
+            'medio'
+
+          const pitResult = calculatePitStopDuration(
+            team?.name || 'Sua Escuderia',
+            targetDriver.driverName,
+            true,
+            team?.chassis_level || 75,
+          )
+
+          if (selectedSet && selectedSet.lapsUsed === 0 && tireStock[selectedSet.compound] > 0) {
+            setTireStock((prev) => ({
+              ...prev,
+              [selectedSet.compound]: Math.max(0, prev[selectedSet.compound] - 1),
+            }))
+          } else if (!selectedSet && tireStock[chosenCompound] > 0) {
+            setTireStock((prev) => ({
+              ...prev,
+              [chosenCompound]: Math.max(0, prev[chosenCompound] - 1),
+            }))
+          }
+
+          targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
+          targetDriver.score -= pitResult.isSlowPit ? 12 : 7
+
+          applyTireSwitchToPlayerDriver(
+            currentGrid,
+            targetDriver.driverId,
+            chosenCompound,
+            activeCurrentLap,
+            {
+              newWear: selectedSet?.wear ?? 4,
+              newCliffWear: selectedSet?.wear ?? 4,
+              customSetId: selectedSet?.id,
+            },
+          )
+
+          const pitMsg = `🔧 BOX AGORA (RÁDIO): ${pitResult.narrativeText} [Pneus: ${formatTireName(chosenCompound)} - ${!selectedSet || selectedSet.wear === 0 ? 'NOVO 100%' : `Usado (${selectedSet.wear}% desgaste)`}]`
+          setRaceIncidents((prev) => [...prev, pitMsg])
+          setLiveEvents((prev) => [
+            {
+              id: `ev_radio_pit_${Date.now()}_${targetDriver.driverId}`,
+              lap: activeCurrentLap,
+              type: 'pit_stop',
+              message: pitMsg,
+              driverName: targetDriver.driverName,
+              teamColor: targetDriver.teamColor,
+              isPlayer: true,
+              timestamp: nowStr,
+            },
+            ...prev,
+          ])
+
+          setLiveRaceState((prev) => (prev ? { ...prev, grid: currentGrid } : null))
+          toast({
+            title: pitResult.isSlowPit ? '⚠️ BOX AGORA - PIT LENTO!' : '✅ BOX AGORA CONCLUÍDO!',
+            description: `${targetDriver.driverName} calçou pneus ${formatTireName(chosenCompound)} (${pitResult.durationSec.toFixed(2)}s).`,
+          })
+        }
+      }
+    } else if (responseType === 'stay_out') {
+      // 2. AGUENTE MAIS: expiração = currentLap + 2; suspende gatilho de cliff/pneus por 2 voltas; moral -3
       tacticalModifiersRef.current.set(driverMsg.driverId, {
-        mode: 'attack',
-        lapsRemaining: 4,
+        mode: 'stay_out',
+        expiresAtLap: activeCurrentLap + 2,
+        startLap: activeCurrentLap,
       })
-    } else if (responseType === 'preserve_car') {
-      tacticalModifiersRef.current.set(driverMsg.driverId, {
-        mode: 'preserve',
-        lapsRemaining: 5,
-      })
-    } else if (responseType === 'stay_out' && driverMsg.category === 'cliff') {
+
+      if (liveRaceState) {
+        const currentGrid = [...liveRaceState.grid]
+        const targetDriver = currentGrid.find((g) => g.driverId === driverMsg.driverId)
+        if (targetDriver) {
+          targetDriver.morale = Math.max(0, (targetDriver.morale ?? 80) - 3)
+          setLiveRaceState((prev) => (prev ? { ...prev, grid: currentGrid } : null))
+        }
+      }
+      setDrivers((prev) =>
+        prev.map((d) =>
+          d.id === driverMsg.driverId ? { ...d, morale: Math.max(0, (d.morale ?? 80) - 3) } : d,
+        ),
+      )
+
       // Cooldown de acknowledgement para não repetir imediatamente
       const currentCd = radioCooldownsRef.current.get(driverMsg.driverId) || {}
       radioCooldownsRef.current.set(driverMsg.driverId, {
         ...currentCd,
-        acknowledgedStayOutCliffLap: driverMsg.lap,
+        acknowledgedStayOutCliffLap: activeCurrentLap,
+        lastLapCliff: activeCurrentLap,
+        lastLapTireCrit: activeCurrentLap,
+        lastLapTireHigh: activeCurrentLap,
       })
-    } else if (responseType === 'box_now' && liveRaceState) {
-      // Piloto chamado aos boxes
-      const currentGrid = [...liveRaceState.grid]
-      const targetDriver = currentGrid.find((g) => g.driverId === driverMsg.driverId)
-      if (targetDriver) {
-        const nextCompound = options?.chosenCompound || targetDriver.secondCompound || 'medio'
-        if (options?.tireSetId) {
-          applyTireSwitchToPlayerDriver(
-            currentGrid,
-            targetDriver.driverId,
-            nextCompound,
-            driverMsg.lap,
-            {
-              newWear: 4,
-              newCliffWear: 4,
-              customSetId: options.tireSetId,
-            },
-          )
-        } else {
-          applyTireSwitchToPlayerDriver(
-            currentGrid,
-            targetDriver.driverId,
-            nextCompound,
-            driverMsg.lap,
-            {
-              newWear: 4,
-              newCliffWear: 4,
-            },
-          )
-          if (tireStock[nextCompound] > 0) {
-            setTireStock((prev) => ({
-              ...prev,
-              [nextCompound]: Math.max(0, prev[nextCompound] - 1),
-            }))
-          }
-        }
-        targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
-        setLiveRaceState((prev) => (prev ? { ...prev, grid: currentGrid } : null))
-      }
+
+      toast({
+        title: '📻 ORDEM: AGUENTE MAIS',
+        description: `${driverMsg.driverName} fica na pista por mais 2 voltas (Moral -3). Alertas de pneus suspensos.`,
+      })
+    } else if (responseType === 'attack_mode') {
+      // 3. MODO ATAQUE: +3% de ritmo por 5 voltas, chance de incidente/dano dobrada
+      tacticalModifiersRef.current.set(driverMsg.driverId, {
+        mode: 'attack',
+        expiresAtLap: activeCurrentLap + 5,
+        startLap: activeCurrentLap,
+      })
+
+      toast({
+        title: '⚡ ORDEM: MODO ATAQUE!',
+        description: `${driverMsg.driverName} acionou ritmo de ataque (+3% de ritmo por 5 voltas. Risco de incidentes dobrado).`,
+      })
+    } else if (responseType === 'preserve_car') {
+      // 4. PRESERVE O CARRO: desgaste de pneus 0,75 e motor 0,85 por 8 voltas, ritmo -1,5%; moral estável
+      hasUsedPreserveModeRef.current = true
+      tacticalModifiersRef.current.set(driverMsg.driverId, {
+        mode: 'preserve',
+        expiresAtLap: activeCurrentLap + 8,
+        startLap: activeCurrentLap,
+      })
+
+      toast({
+        title: '🛡️ ORDEM: PRESERVE O CARRO',
+        description: `${driverMsg.driverName} está poupando equipamento (Desgaste pneus 75%, motor 85%, ritmo -1,5% por 8 voltas).`,
+      })
     }
 
     // Avançar fila ou limpar e retomar
@@ -3198,10 +3347,13 @@ export default function RacePage() {
         }
       }
 
-      // Desgaste da Unidade de Potência
+      // Desgaste da Unidade de Potência (com redutor de 0.85 se usou modo preserve_car)
       const currentEngWear = team.active_engine_wear ?? 15
       let engineWearIncrement = Math.floor(18 + Math.random() * 8)
       if (aggressiveMGU) engineWearIncrement += 6
+      if (hasUsedPreserveModeRef.current) {
+        engineWearIncrement = Math.round(engineWearIncrement * 0.85)
+      }
       const newEngWear = Math.min(100, currentEngWear + engineWearIncrement)
 
       await f1Service.updateTeam(team.id, {
