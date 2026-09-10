@@ -100,6 +100,9 @@ export function LiveRaceFeed({
             } else if (ev.type === 'pit_stop') {
               badgeBg = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
               icon = <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+            } else if (ev.type === 'team_radio') {
+              badgeBg = 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+              icon = <Radio className="w-3.5 h-3.5 text-cyan-400" />
             }
 
             return (

@@ -31,6 +31,9 @@ import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
+import { pb } from '@/lib/pocketbase/client'
+import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
+import { CircuitModel } from '@/types/f1'
 import { analyzeSetupEngineering } from '@/lib/setup-advisor'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -119,6 +122,7 @@ export default function RacePage() {
   const [drivers, setDrivers] = useState<DriverModel[]>([])
   const [parts, setParts] = useState<PartModel[]>([])
   const [sponsors, setSponsors] = useState<SponsorModel[]>([])
+  const [circuits, setCircuits] = useState<CircuitModel[]>([])
   const [loading, setLoading] = useState(true)
 
   // Current session step in GP weekend
@@ -384,15 +388,17 @@ export default function RacePage() {
       return
     }
     try {
-      const [dList, pList, spList, savedSetups] = await Promise.all([
+      const [dList, pList, spList, savedSetups, circuitsList] = await Promise.all([
         f1Service.getTeamDrivers(team.id),
         f1Service.getTeamParts(team.id),
         f1Service.getTeamSponsors(team.id),
         f1Service.getSessionSetups(team.id, season.id, currentRound),
+        f1Service.getAllCircuits(),
       ])
       setDrivers(dList)
       setParts(pList)
       setSponsors(spList)
+      setCircuits(circuitsList)
 
       // Merge saved setups if any
       if (savedSetups.length > 0) {
@@ -438,6 +444,9 @@ export default function RacePage() {
   }, [team?.id, season?.id, currentRound])
 
   useRealtime('drivers', () => {
+    loadData()
+  })
+  useRealtime('circuits', () => {
     loadData()
   })
 
@@ -1883,6 +1892,87 @@ export default function RacePage() {
         grid: currentGrid,
       })
 
+      // AVALIAÇÃO DE RÁDIO DO PILOTO (Fase 1 - Team Radio System)
+      if (!autoSimulateWithoutPause) {
+        const triggeredRadioMsgs: DriverRadioMessage[] = []
+        for (let i = 0; i < currentGrid.length; i++) {
+          const car = currentGrid[i]
+          if (!car.isPlayer || car.dnf) continue
+
+          const rawGapFront = car.gapToFront || ''
+          const gapFrontSec =
+            rawGapFront === 'LÍDER' || rawGapFront === '-' || !rawGapFront
+              ? 0
+              : parseFloat(rawGapFront.replace(/[+s]/g, '')) || 0
+
+          const nextCar = currentGrid[i + 1]
+          let gapBehindSec = 99
+          if (nextCar && !nextCar.dnf) {
+            const rawGapBehind = nextCar.gapToFront || ''
+            gapBehindSec =
+              rawGapBehind === 'LÍDER' || rawGapBehind === '-' || !rawGapBehind
+                ? 0
+                : parseFloat(rawGapBehind.replace(/[+s]/g, '')) || 99
+          }
+
+          const driverMorale = car.morale ?? 80
+          const engineWear = team?.active_engine_wear ?? 15
+          const cliffResult = isTireInCliff(
+            car.tireCompound || 'medio',
+            car.lapsOnCurrentTire || 1,
+            car.wearMultiplier ?? 1.0,
+            gpInfo.tireAbrasiveness || 6,
+          )
+          const tacticalMod = tacticalModifiersRef.current.get(car.driverId)
+
+          const radioContext = {
+            driverId: car.driverId,
+            driverName: car.driverName,
+            teamName: car.teamName,
+            teamColor: car.teamColor,
+            isPlayer: true,
+            tireCompound: car.tireCompound || 'medio',
+            tireWear: car.tireWear || 0,
+            lapsOnCurrentTire: car.lapsOnCurrentTire || 1,
+            cliffStatus: car.cliffStatus,
+            isInCliff: cliffResult.inCliff,
+            position: car.position || i + 1,
+            gapToFront: car.gapToFront,
+            gapFrontSec,
+            gapBehindSec,
+            engineWear,
+            wearProfileName: car.wearProfileName,
+            morale: driverMorale,
+            speed: tacticalMod?.mode === 'attack' ? 95 : 80,
+            defense: tacticalMod?.mode === 'preserve' ? 95 : 80,
+          }
+
+          const currentCooldowns = radioCooldownsRef.current.get(car.driverId) || {}
+          const result = evaluateDriverRadioTriggers(
+            radioContext,
+            currentLap,
+            currentWeather,
+            currentCooldowns,
+          )
+
+          if (result) {
+            radioCooldownsRef.current.set(car.driverId, result.updatedCooldowns)
+            triggeredRadioMsgs.push(result.message)
+          }
+        }
+
+        if (triggeredRadioMsgs.length > 0) {
+          clearInterval(timer)
+          liveRaceTimerRef.current = null
+          isRacePausedRef.current = true
+          setIsRacePaused(true)
+          setRadioActiveMessage(triggeredRadioMsgs[0])
+          setRadioQueue(triggeredRadioMsgs.slice(1))
+          setRadioQueueTotal(triggeredRadioMsgs.length)
+          return
+        }
+      }
+
       // CHECK DYNAMIC WEATHER: TRACK DRYING UP
       if (
         dryOutLap &&
@@ -2794,6 +2884,117 @@ export default function RacePage() {
     })
   }
 
+  // Handle Boss Response to Team Radio (EDIT 2)
+  const handleRadioResponse = (
+    responseType: BossResponseType,
+    options?: {
+      tireSetId?: string
+      chosenCompound?: TireCompound
+      driverFeedbackText?: string
+    },
+  ) => {
+    if (!radioActiveMessage) return
+
+    const driverMsg = radioActiveMessage
+    const driverFeedback =
+      options?.driverFeedbackText ||
+      DRIVER_FEEDBACKS[responseType]?.[0] ||
+      'Entendido, copiado pit wall!'
+
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+
+    // Registrar evento team_radio no feed (setLiveEvents, prev primeiro)
+    const radioEvent: LiveRaceEvent = {
+      id: `ev_radio_${Date.now()}_${driverMsg.driverId}`,
+      lap: driverMsg.lap,
+      type: 'team_radio',
+      message: `📻 RÁDIO (${driverMsg.driverName}): "${driverMsg.message}" ➔ Pit Wall: [${responseType.toUpperCase()}] ➔ Piloto: "${driverFeedback}"`,
+      driverName: driverMsg.driverName,
+      teamColor: driverMsg.teamColor,
+      isPlayer: true,
+      timestamp: nowStr,
+    }
+    setLiveEvents((prev) => [radioEvent, ...prev])
+
+    // Se o chefe ordenou modo de ataque ou preservação, registrar modificador tático
+    if (responseType === 'attack_mode') {
+      tacticalModifiersRef.current.set(driverMsg.driverId, {
+        mode: 'attack',
+        lapsRemaining: 4,
+      })
+    } else if (responseType === 'preserve_car') {
+      tacticalModifiersRef.current.set(driverMsg.driverId, {
+        mode: 'preserve',
+        lapsRemaining: 5,
+      })
+    } else if (responseType === 'stay_out' && driverMsg.category === 'cliff') {
+      // Cooldown de acknowledgement para não repetir imediatamente
+      const currentCd = radioCooldownsRef.current.get(driverMsg.driverId) || {}
+      radioCooldownsRef.current.set(driverMsg.driverId, {
+        ...currentCd,
+        acknowledgedStayOutCliffLap: driverMsg.lap,
+      })
+    } else if (responseType === 'box_now' && liveRaceState) {
+      // Piloto chamado aos boxes
+      const currentGrid = [...liveRaceState.grid]
+      const targetDriver = currentGrid.find((g) => g.driverId === driverMsg.driverId)
+      if (targetDriver) {
+        const nextCompound = options?.chosenCompound || targetDriver.secondCompound || 'medio'
+        if (options?.tireSetId) {
+          applyTireSwitchToPlayerDriver(
+            currentGrid,
+            targetDriver.driverId,
+            nextCompound,
+            driverMsg.lap,
+            {
+              newWear: 4,
+              newCliffWear: 4,
+              customSetId: options.tireSetId,
+            },
+          )
+        } else {
+          applyTireSwitchToPlayerDriver(
+            currentGrid,
+            targetDriver.driverId,
+            nextCompound,
+            driverMsg.lap,
+            {
+              newWear: 4,
+              newCliffWear: 4,
+            },
+          )
+          if (tireStock[nextCompound] > 0) {
+            setTireStock((prev) => ({
+              ...prev,
+              [nextCompound]: Math.max(0, prev[nextCompound] - 1),
+            }))
+          }
+        }
+        targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
+        setLiveRaceState((prev) => (prev ? { ...prev, grid: currentGrid } : null))
+      }
+    }
+
+    // Avançar fila ou limpar e retomar
+    if (radioQueue.length > 0) {
+      setRadioActiveMessage(radioQueue[0])
+      setRadioQueue(radioQueue.slice(1))
+    } else {
+      setRadioActiveMessage(null)
+      setRadioQueue([])
+      setRadioQueueTotal(0)
+      setIsRacePaused(false)
+      isRacePausedRef.current = false
+      if (liveRaceState && liveRaceState.inProgress) {
+        runLiveRaceLoop(liveRaceState.grid, liveRaceState.currentLap, liveRaceState.weather)
+      }
+    }
+  }
+
   // Calculate final positions, points, tire degradation & race results
   const finishRaceSimulation = (grid: SimDriverEntry[], _finalWeather: TrackWeatherState) => {
     const incidents = [...raceIncidents]
@@ -3096,95 +3297,158 @@ export default function RacePage() {
         </div>
       </div>
 
-      {/* PAINEL TÉCNICO DO CIRCUITO: TRAÇADO VETORIAL BLUEPRINT + VOLTAS TOTAIS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <CircuitBlueprint
-            round={currentRound}
-            circuitName={gpInfo.circuit}
-            laps={gpInfo.laps}
-            lengthKm={gpInfo.circuitLengthKm}
-          />
-        </div>
+      {/* PAINEL TÉCNICO DO CIRCUITO: IMAGEM HOMOLOGADA / BLUEPRINT + VOLTAS TOTAIS (EDIT 4) */}
+      {(() => {
+        const activeCircuitDb = circuits.find((c) => c.round === currentRound)
+        const uploadedPhotoUrl = activeCircuitDb?.photo
+          ? pb.files.getUrl(activeCircuitDb, activeCircuitDb.photo)
+          : null
+        const defaultAsset = currentRound === 1 ? defaultAustraliaMap : null
+        const activeCircuitImage = uploadedPhotoUrl || defaultAsset
 
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="bg-[#11161F] border-[#1F2733] p-4 h-full flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between border-b border-[#1F2733]/70 pb-2 mb-3">
-                <span className="text-xs font-mono font-bold text-[#E10600] uppercase tracking-wider flex items-center gap-1.5">
-                  <Flag className="w-4 h-4" /> Parâmetros de Prova & Extensão Oficial
-                </span>
-                <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 font-mono text-xs">
-                  {gpInfo.laps} Voltas Programadas
-                </Badge>
-              </div>
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <Card className="bg-[#11161F] border-[#1F2733] overflow-hidden flex flex-col justify-between h-full">
+                <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
+                  {activeCircuitImage ? (
+                    <div className="w-full h-full relative bg-[#F5F7FA] overflow-hidden flex items-center justify-center">
+                      <img
+                        src={activeCircuitImage}
+                        alt={`Traçado do ${gpInfo.circuit}`}
+                        className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                      />
+                      {/* Gradiente escuro para legibilidade */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-[#0B0E14]/40 to-black/30 pointer-events-none" />
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
-                  <span className="text-[10px] text-[#8B95A7] block uppercase">
-                    Total de Voltas
-                  </span>
-                  <strong className="text-base text-white font-bold">{gpInfo.laps} voltas</strong>
-                  <span className="text-[10px] text-emerald-400 block mt-0.5">
-                    Distância ~305 km
-                  </span>
+                      {/* Badge superior com Rodada e Circuito */}
+                      <div className="absolute top-2.5 left-2.5 z-10">
+                        <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
+                          R{currentRound}/24 • {gpInfo.circuit}
+                        </Badge>
+                      </div>
+
+                      {/* Nome do GP sobreposto */}
+                      <div className="absolute bottom-2.5 left-3 right-3 z-10">
+                        <span className="text-[10px] font-mono font-bold tracking-wider text-cyan-400 uppercase block drop-shadow">
+                          {uploadedPhotoUrl ? 'Traçado Homologado' : 'Mapa Oficial FIA'}
+                        </span>
+                        <h4 className="text-sm font-extrabold text-white truncate drop-shadow-md">
+                          {gpInfo.name}
+                        </h4>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full h-full relative">
+                      <CircuitBlueprint
+                        round={currentRound}
+                        circuitName={gpInfo.circuit}
+                        laps={gpInfo.laps}
+                        lengthKm={gpInfo.circuitLengthKm}
+                        className="h-full border-none rounded-none !p-3"
+                      />
+                      <div className="absolute top-2.5 left-2.5 z-10">
+                        <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
+                          R{currentRound}/24 • {gpInfo.circuit}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
-                  <span className="text-[10px] text-[#8B95A7] block uppercase">
-                    Comprimento da Pista
-                  </span>
-                  <strong className="text-base text-cyan-400 font-bold">
-                    {gpInfo.circuitLengthKm} km
-                  </strong>
-                  <span className="text-[10px] text-[#8B95A7] block mt-0.5">Por volta</span>
+                <div className="p-3 bg-[#0B0E14] border-t border-[#1F2733]/60 flex items-center justify-between text-xs font-mono">
+                  <span className="text-[#8B95A7]">Extensão:</span>
+                  <span className="text-cyan-400 font-bold">{gpInfo.circuitLengthKm} km</span>
+                  <span className="text-[#8B95A7] ml-2">Voltas:</span>
+                  <span className="text-white font-bold">{gpInfo.laps}</span>
                 </div>
-
-                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
-                  <span className="text-[10px] text-[#8B95A7] block uppercase">
-                    Carga Aerodinâmica
-                  </span>
-                  <strong className="text-base text-amber-400 font-bold">
-                    {gpInfo.downforceIdeal}/10
-                  </strong>
-                  <span className="text-[10px] text-[#8B95A7] block mt-0.5">Ideal recomendada</span>
-                </div>
-
-                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
-                  <span className="text-[10px] text-[#8B95A7] block uppercase">
-                    Rigidez Suspensão
-                  </span>
-                  <strong className="text-base text-emerald-400 font-bold">
-                    {gpInfo.suspensionIdeal}/10
-                  </strong>
-                  <span className="text-[10px] text-[#8B95A7] block mt-0.5">
-                    Trabalho de zebras
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-4 p-3 rounded-lg bg-[#0B0E14]/70 border border-[#1F2733] text-xs">
-                <span className="text-[#8B95A7] font-mono block text-[11px]">
-                  Característica Central:
-                </span>
-                <p className="text-white font-medium mt-0.5 leading-relaxed">
-                  {gpInfo.characteristic}
-                </p>
-              </div>
+              </Card>
             </div>
 
-            {(team?.engine_pool_used ?? 1) > 4 && (
-              <div className="mt-3 p-2.5 rounded-lg bg-red-950/40 border border-red-500/50 flex items-center gap-2 text-xs font-mono text-red-300">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                <span>
-                  Penalidade FIA no Grid: Equipe excedeu a cota de 4 motores da temporada (PU #
-                  {team?.engine_pool_used}). Seus pilotos largarão com penalização de posições!
-                </span>
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
+            <div className="lg:col-span-2 space-y-4">
+              <Card className="bg-[#11161F] border-[#1F2733] p-4 h-full flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between border-b border-[#1F2733]/70 pb-2 mb-3">
+                    <span className="text-xs font-mono font-bold text-[#E10600] uppercase tracking-wider flex items-center gap-1.5">
+                      <Flag className="w-4 h-4" /> Parâmetros de Prova & Extensão Oficial
+                    </span>
+                    <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 font-mono text-xs">
+                      {gpInfo.laps} Voltas Programadas
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                      <span className="text-[10px] text-[#8B95A7] block uppercase">
+                        Total de Voltas
+                      </span>
+                      <strong className="text-base text-white font-bold">
+                        {gpInfo.laps} voltas
+                      </strong>
+                      <span className="text-[10px] text-emerald-400 block mt-0.5">
+                        Distância ~305 km
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                      <span className="text-[10px] text-[#8B95A7] block uppercase">
+                        Comprimento da Pista
+                      </span>
+                      <strong className="text-base text-cyan-400 font-bold">
+                        {gpInfo.circuitLengthKm} km
+                      </strong>
+                      <span className="text-[10px] text-[#8B95A7] block mt-0.5">Por volta</span>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                      <span className="text-[10px] text-[#8B95A7] block uppercase">
+                        Carga Aerodinâmica
+                      </span>
+                      <strong className="text-base text-amber-400 font-bold">
+                        {gpInfo.downforceIdeal}/10
+                      </strong>
+                      <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+                        Ideal recomendada
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
+                      <span className="text-[10px] text-[#8B95A7] block uppercase">
+                        Rigidez Suspensão
+                      </span>
+                      <strong className="text-base text-emerald-400 font-bold">
+                        {gpInfo.suspensionIdeal}/10
+                      </strong>
+                      <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+                        Trabalho de zebras
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 rounded-lg bg-[#0B0E14]/70 border border-[#1F2733] text-xs">
+                    <span className="text-[#8B95A7] font-mono block text-[11px]">
+                      Característica Central:
+                    </span>
+                    <p className="text-white font-medium mt-0.5 leading-relaxed">
+                      {gpInfo.characteristic}
+                    </p>
+                  </div>
+                </div>
+
+                {(team?.engine_pool_used ?? 1) > 4 && (
+                  <div className="mt-3 p-2.5 rounded-lg bg-red-950/40 border border-red-500/50 flex items-center gap-2 text-xs font-mono text-red-300">
+                    <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>
+                      Penalidade FIA no Grid: Equipe excedeu a cota de 4 motores da temporada (PU #
+                      {team?.engine_pool_used}). Seus pilotos largarão com penalização de posições!
+                    </span>
+                  </div>
+                )}
+              </Card>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* PAINEL DE PREVISÃO METEOROLÓGICA OFICIAL DA FIA 2026 */}
       <Card className="bg-[#11161F] border-[#1F2733] p-4">
@@ -4084,6 +4348,15 @@ export default function RacePage() {
         marketMoves={marketMoves}
         isStartingNewSeason={isStartingNewSeason}
         onStartNextSeason={handleStartNextSeason}
+      />
+
+      {/* 7. Modal de Rádio da Equipe (Team Radio System) */}
+      <TeamRadioDialog
+        open={!!radioActiveMessage}
+        message={radioActiveMessage}
+        queueIndex={radioQueueTotal - radioQueue.length}
+        queueTotal={radioQueueTotal}
+        onRespond={handleRadioResponse}
       />
     </div>
   )

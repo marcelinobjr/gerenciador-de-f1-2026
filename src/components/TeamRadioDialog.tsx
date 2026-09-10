@@ -17,8 +17,9 @@ interface TeamRadioDialogProps {
   open: boolean
   message: DriverRadioMessage | null
   queueCount?: number
+  queueIndex?: number
   queueTotal?: number
-  availableTireSets: TireSetItem[]
+  availableTireSets?: TireSetItem[]
   currentTireCompound?: TireCompound
   currentTireWear?: number
   onRespond: (
@@ -34,9 +35,10 @@ interface TeamRadioDialogProps {
 export function TeamRadioDialog({
   open,
   message,
-  queueCount = 1,
+  queueCount,
+  queueIndex,
   queueTotal = 1,
-  availableTireSets,
+  availableTireSets = [],
   currentTireCompound = 'medio',
   currentTireWear = 50,
   onRespond,
@@ -109,7 +111,8 @@ export function TeamRadioDialog({
                 </DialogTitle>
                 {queueTotal > 1 && (
                   <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-[10px] font-mono">
-                    Conversa {queueCount} de {queueTotal}
+                    Conversa {queueIndex !== undefined ? queueIndex : (queueCount ?? 1)} de{' '}
+                    {queueTotal}
                   </Badge>
                 )}
               </div>

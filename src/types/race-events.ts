@@ -14,6 +14,7 @@ export interface LiveRaceEvent {
     | 'weather'
     | 'pit_stop'
     | 'info'
+    | 'team_radio'
   message: string
   driverName?: string
   teamColor?: string
