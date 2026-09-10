@@ -28,6 +28,13 @@ import {
   calculateLapPerformanceScoreDelta,
 } from '@/lib/f1-tire-system'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
+import {
+  getCircuitOvertakeFactor,
+  calculateFreeLapPaceSec,
+  evaluateOvertakeAttempt,
+  formatLapTime,
+  formatGap,
+} from '@/lib/f1-race-sim-engine'
 import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { generateAIStrategyProfile } from '@/lib/f1-ai-strategy'
 import { formatCurrency } from '@/lib/formatters'
@@ -85,7 +92,9 @@ export interface SimDriverEntry extends RaceResultEntry {
   points: number
   fastestLap: boolean
   usedOvertake: boolean
-  accumulatedTimeSec?: number
+  accumulatedTimeSec: number
+  lastLapTimeSec?: number
+  lapsInDirtyAir?: number
   tireCompound?: TireCompound
   secondCompound?: TireCompound
   pitLap?: number
@@ -1509,6 +1518,9 @@ export default function RacePage() {
       const gridScoreAdvantage = (24 - gridPosition) * 0.8
       const penalty = isPlayerDriver ? engineWearDeduction + poolPenaltyNum : 0
 
+      // Inicialização do modelo de tempo acumulado: (gridPosition - 1) * 0.350s
+      const startAccumulatedTime = (gridPosition - 1) * 0.35
+
       initialGrid.push({
         driverId: driver.driverId,
         driverName: driver.driverName,
@@ -1518,6 +1530,8 @@ export default function RacePage() {
         isPlayer: driver.isPlayer,
         flag: driver.flag,
         score: gridScoreAdvantage - penalty,
+        accumulatedTimeSec: Number(startAccumulatedTime.toFixed(3)),
+        lapsInDirtyAir: 0,
         position: gridPosition,
         points: 0,
         fastestLap: false,
@@ -1545,8 +1559,8 @@ export default function RacePage() {
         aiStrategyProfile: (driver as any).aiStrategyProfile,
         strategyPlan: driver.strategyPlan,
         lastLapTime: '1:18.420',
-        gapToLeader: gridPosition === 1 ? 'LÍDER' : `+${((gridPosition - 1) * 0.45).toFixed(3)}s`,
-        gapToFront: gridPosition === 1 ? '-' : '+0.450s',
+        gapToLeader: gridPosition === 1 ? 'LÍDER' : `+${startAccumulatedTime.toFixed(3)}s`,
+        gapToFront: gridPosition === 1 ? '-' : '+0.350s',
       })
     })
 
@@ -1763,8 +1777,19 @@ export default function RacePage() {
         `Volta ${currentLap} de ${totalLaps} • ${gpInfo.circuit} • Velocidade ${simSpeed}x`,
       )
 
-      currentGrid = currentGrid.map((entry) => {
-        if (entry.dnf) return entry
+      // Fator de facilidade de ultrapassagem do circuito atual
+      const circuitOvertakeFactor = getCircuitOvertakeFactor(gpInfo.name, gpInfo.circuit)
+      const currentTrackTemp = forecast.trackTemp || 35
+      const overtakeEventsThisLap: LiveRaceEvent[] = []
+
+      // Ordenação anterior (ordem na pista antes da volta ser completada)
+      const previousTrackOrder = [...currentGrid]
+        .filter((c) => !c.dnf)
+        .sort((a, b) => (a.position || 99) - (b.position || 99))
+
+      // PASSO 1: Atualização de pneus, paradas planejadas/estratégicas e cálculo de ritmo livre
+      const intermediateStates = currentGrid.map((entry) => {
+        if (entry.dnf) return { entry, freeLapSec: 0, pitLossSec: 0, didPitThisLap: false }
 
         // Modificadores táticos do piloto
         const tacticalMod = tacticalModifiersRef.current.get(entry.driverId)
@@ -1777,15 +1802,20 @@ export default function RacePage() {
         const compoundWearRate = spec.wearFactor
         const driverMultiplier = entry.wearMultiplier ?? 1.0
 
+        // Dirty air extra wear: +0.35% a +0.65%/volta a partir da 3ª volta seguida em dirty air
+        const dirtyAirExtraWear = (entry.lapsInDirtyAir || 0) >= 3 ? 0.35 + Math.random() * 0.3 : 0
+
         // Modificador de desgaste de pneus: 0.75 no modo PRESERVE O CARRO
         const tireWearMultiplier = isModActive && tacticalMod.mode === 'preserve' ? 0.75 : 1.0
         const inc =
-          ((compoundWearRate * (abrasiveness / 5)) / 1.5) * driverMultiplier * tireWearMultiplier
+          ((compoundWearRate * (abrasiveness / 5)) / 1.5) * driverMultiplier * tireWearMultiplier +
+          dirtyAirExtraWear
         let currentWear = Math.min(100, Math.round((entry.tireWear || 5) + inc))
 
         let nextCompound = entry.tireCompound
         let pitStops = entry.pitStopsDone || 0
         let didPitThisLap = false
+        let pitLossSec = 0
         const lapsOnCurrentTire = (entry.lapsOnCurrentTire || 1) + 1
 
         // 1. Check Player Planned Pit Stops
@@ -1804,6 +1834,10 @@ export default function RacePage() {
               true,
               team?.strength || 75,
             )
+            // Sob Safety Car a perda de tempo no pit lane é menor (~14s vs 22-25s em bandeira verde)
+            pitLossSec = safetyCarActive
+              ? pitTiming.durationSec + 11.0
+              : pitTiming.durationSec + 19.5
 
             if (tireStock[matchingPlan.compound] > 0) {
               setTireStock((prev) => ({
@@ -1846,7 +1880,6 @@ export default function RacePage() {
           }
         }
 
-        // IA Reativa: verificar se jogador parou na volta anterior ou nesta volta e está disputando posição próxima (< 2.2s)
         let isDefensiveUndercutCover = false
         if (
           !entry.isPlayer &&
@@ -1862,7 +1895,7 @@ export default function RacePage() {
                 p.isPlayer &&
                 !p.dnf &&
                 Math.abs((p.position || 0) - (entry.position || 0)) <= 2 &&
-                (p.lapsOnCurrentTire || 1) <= 2, // Jogador acabou de parar
+                (p.lapsOnCurrentTire || 1) <= 2,
             )
             if (playerNear && Math.random() < 0.65) {
               isDefensiveUndercutCover = true
@@ -1870,7 +1903,6 @@ export default function RacePage() {
           }
         }
 
-        // Verificação se atingiu limiar do plano planejado ou condição crítica
         const matchingPlanLap = entry.strategyPlan?.find((p) => p.lap === currentLap)
         const isScheduledPlanPit = Boolean(matchingPlanLap)
         const isWearCritical =
@@ -1909,6 +1941,8 @@ export default function RacePage() {
           }
 
           const pitResult = calculatePitStopDuration(entry.teamName, entry.driverName, false, 75)
+          pitLossSec = safetyCarActive ? pitResult.durationSec + 11.0 : pitResult.durationSec + 19.5
+
           let pitReasonMsg = pitResult.narrativeText
           if (isDefensiveUndercutCover) {
             pitReasonMsg = `🛡️ UNDERCUT DEFENSIVO (IA): ${entry.driverName} cobriu imediatamente a parada do adversário para proteger posição! ${pitResult.narrativeText} Composto: ${formatTireName(nextCompound)}.`
@@ -1939,81 +1973,251 @@ export default function RacePage() {
 
         const effectiveLapsOnTire = didPitThisLap ? 1 : lapsOnCurrentTire
         const effectiveWear = didPitThisLap ? (entry.isPlayer ? 4 : 5) : currentWear
-
         const isAttackingNow = isModActive && tacticalMod.mode === 'attack'
-        const currentTrackTemp = forecast.trackTemp || 35
+        const isPreservingNow = isModActive && tacticalMod.mode === 'preserve'
+        const tacticalMode = isAttackingNow ? 'attack' : isPreservingNow ? 'preserve' : undefined
 
-        const perfDelta = calculateLapPerformanceScoreDelta(
-          nextCompound || 'medio',
-          effectiveWear,
-          currentWeather,
-          effectiveLapsOnTire,
-          driverMultiplier,
-          abrasiveness,
-          currentTrackTemp,
-          isAttackingNow,
-        )
+        // Cálculo de força do carro e piloto
+        const driverSkillVal =
+          (entry.morale ?? 80) * 0.2 + (entry.physicalCondition ?? 90) * 0.1 + 80 * 0.7
+        const carStrengthVal = entry.isPlayer
+          ? playerCarLevel * 0.65 + playerTeamStrength * 0.35
+          : 75
 
-        // Penalidade de tráfego na volta de saída do box (out-lap em tráfego):
-        // Quem para cedo (undercut agressivo) cai atrás do pelotão que ainda não parou e perde tempo
-        let trafficPenaltyScore = 0
-        if (didPitThisLap && currentLap > 4) {
-          const carsAheadInPitWindow = currentGrid.filter(
-            (c) => !c.dnf && c.driverId !== entry.driverId && (c.pitStopsDone || 0) < pitStops,
-          ).length
-          if (carsAheadInPitWindow >= 4) {
-            // Volta presa no tráfego: perde score equivalente a 1.2s - 2.5s
-            trafficPenaltyScore = -3.2
-            if (entry.isPlayer) {
-              setLiveEvents((prev) => [
-                {
-                  id: `ev_traffic_${currentLap}_${entry.driverId}`,
-                  lap: currentLap,
-                  type: 'incident',
-                  message: `⚠️ TRÁFEGO NA VOLTA DE SAÍDA! ${entry.driverName} retornou da parada no meio de um trem de carros mais lentos e perdeu tempo precioso!`,
-                  driverName: entry.driverName,
-                  teamColor: entry.teamColor,
-                  isPlayer: true,
-                  timestamp: new Date().toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  }),
-                },
-                ...prev,
-              ])
-            }
-          }
-        }
+        // Penalidade de dirty air: +0.12s a partir da 3ª volta seguida colado
+        const dirtyAirPacePenalty = (entry.lapsInDirtyAir || 0) >= 3 ? 0.12 : 0
 
-        // Ajuste de ritmo no score por modificador tático ativo
-        let tacticalScoreDelta = 0
-        if (isModActive) {
-          if (tacticalMod.mode === 'attack') {
-            tacticalScoreDelta = 0.35 // Ritmo +3%
-          } else if (tacticalMod.mode === 'preserve') {
-            tacticalScoreDelta = -0.18 // Ritmo -1.5%
-          }
-        }
-        const updatedScore =
-          entry.score + perfDelta.scoreDelta * 0.1 + tacticalScoreDelta + trafficPenaltyScore
+        // Cálculo do ritmo livre (sem tráfego) individual
+        const { freeLapSec, cliffStatus } = calculateFreeLapPaceSec({
+          teamStrength: entry.isPlayer ? playerTeamStrength : 75,
+          carLevel: entry.isPlayer ? playerCarLevel : 75,
+          driver: {
+            speed: driverSkillVal,
+            consistency: driverSkillVal,
+            defense: driverSkillVal,
+            rain: 80,
+            morale: entry.morale,
+            physicalCondition: entry.physicalCondition,
+          },
+          weather: currentWeather,
+          tireCompound: nextCompound || 'medio',
+          lapsOnTire: effectiveLapsOnTire,
+          wearPercent: effectiveWear,
+          wearMultiplier: driverMultiplier,
+          trackAbrasiveness: abrasiveness,
+          hasWingDamage: entry.hasWingDamage,
+          tacticalMode,
+          trackTemp: currentTrackTemp,
+          noise: (Math.random() - 0.5) * 0.3,
+        })
 
-        return {
+        const totalFreePace = freeLapSec + dirtyAirPacePenalty
+
+        const updatedEntry: SimDriverEntry = {
           ...entry,
-          score: updatedScore,
           tireWear: effectiveWear,
           tireCompound: nextCompound,
           pitStopsDone: pitStops,
           lapsOnCurrentTire: effectiveLapsOnTire,
-          cliffStatus: perfDelta.cliffStatus,
+          cliffStatus,
+        }
+
+        return {
+          entry: updatedEntry,
+          freeLapSec: totalFreePace,
+          pitLossSec,
+          didPitThisLap,
         }
       })
 
-      const sortedActiveGrid = [...currentGrid].sort((a, b) => {
+      // PASSO 2: Modelagem de Tráfego, Vácuo, Ultrapassagem como evento e Dirty Air
+      // Avaliamos carro a carro de acordo com a ordem da pista
+      const processedLaps = new Map<
+        string,
+        { lapTimeSec: number; extraWear: number; dirtyAirCount: number; passedFront: boolean }
+      >()
+
+      for (let i = 0; i < previousTrackOrder.length; i++) {
+        const currentCar = previousTrackOrder[i]
+        const stateObj = intermediateStates.find((s) => s.entry.driverId === currentCar.driverId)
+        if (!stateObj) continue
+
+        const carFreePace = stateObj.freeLapSec
+
+        // Carro líder da fila ou se parou nos boxes nesta volta (livre ou entra na pista atrás)
+        if (i === 0 || stateObj.didPitThisLap) {
+          const finalLapSec = carFreePace + stateObj.pitLossSec
+          processedLaps.set(currentCar.driverId, {
+            lapTimeSec: finalLapSec,
+            extraWear: 0,
+            dirtyAirCount: 0,
+            passedFront: false,
+          })
+          continue
+        }
+
+        const carAhead = previousTrackOrder[i - 1]
+        const stateAhead = intermediateStates.find((s) => s.entry.driverId === carAhead.driverId)
+        const aheadFreePace = stateAhead?.freeLapSec || carFreePace
+
+        // Gap anterior para o carro da frente em tempo acumulado
+        const prevGapToFrontSec = Math.max(
+          0,
+          currentCar.accumulatedTimeSec - carAhead.accumulatedTimeSec,
+        )
+
+        let finalLapSec = carFreePace
+        let extraWear = 0
+        let dirtyAirCount = currentCar.lapsInDirtyAir || 0
+        let passedFront = false
+
+        // Dirty air tracking (gap <= 1.2s)
+        if (prevGapToFrontSec <= 1.2) {
+          dirtyAirCount += 1
+        } else if (prevGapToFrontSec > 1.5) {
+          dirtyAirCount = 0
+        }
+
+        // B) Tráfego e fila: se gapToFront <= 1.0s, o perseguidor não usa o próprio ritmo livre
+        if (prevGapToFrontSec <= 1.0) {
+          // Anda colado: ritmo limitado pelo carro da frente, mas beneficiado pelo vácuo (-0.15s)
+          // lapTime = max(ritmoDaFrente, ritmoLivre - 0.15s)
+          const stuckPace = Math.max(aheadFreePace, carFreePace - 0.15)
+          finalLapSec = stuckPace
+
+          // C) Função de ultrapassagem discreta: se ritmo livre do perseguidor é melhor
+          if (carFreePace < aheadFreePace - 0.05) {
+            const hasOvertakeEnergy = Boolean(
+              currentCar.isPlayer &&
+              tacticalModifiersRef.current.get(currentCar.driverId)?.mode === 'attack',
+            )
+            const overtakeResult = evaluateOvertakeAttempt({
+              attacker: currentCar as any,
+              target: carAhead as any,
+              attackerFreePaceSec: carFreePace,
+              targetFreePaceSec: aheadFreePace,
+              circuitOvertakeFactor,
+              currentLap,
+              hasOvertakeEnergy,
+            })
+
+            if (overtakeResult.attempted) {
+              if (overtakeResult.success) {
+                // Sucesso: atacante conclui ultrapassagem, assume posição à frente (-0.250s do alvo)
+                passedFront = true
+                dirtyAirCount = 0 // Zera dirty air ao ultrapassar
+                if (overtakeResult.narrativeMessage) {
+                  overtakeEventsThisLap.push({
+                    id: `ev_ot_${currentLap}_${currentCar.driverId}`,
+                    lap: currentLap,
+                    type: 'overtake',
+                    message: overtakeResult.narrativeMessage,
+                    driverName: currentCar.driverName,
+                    teamColor: currentCar.teamColor,
+                    isPlayer: currentCar.isPlayer,
+                    timestamp: new Date().toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    }),
+                  })
+                }
+              } else {
+                // Falha: atacante perde tempo (+0.4s a +0.7s) e gasta pneu (+1.5%)
+                finalLapSec += overtakeResult.attackerTimePenaltySec || 0.5
+                extraWear += overtakeResult.attackerExtraWearPct || 1.5
+                if (overtakeResult.narrativeMessage && Math.random() < 0.6) {
+                  overtakeEventsThisLap.push({
+                    id: `ev_def_${currentLap}_${carAhead.driverId}`,
+                    lap: currentLap,
+                    type: 'overtake',
+                    message: overtakeResult.narrativeMessage,
+                    driverName: carAhead.driverName,
+                    teamColor: carAhead.teamColor,
+                    isPlayer: carAhead.isPlayer,
+                    timestamp: new Date().toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    }),
+                  })
+                }
+              }
+            }
+          }
+        }
+
+        // Se fez pit stop, soma perda de pit stop
+        finalLapSec += stateObj.pitLossSec
+
+        processedLaps.set(currentCar.driverId, {
+          lapTimeSec: finalLapSec,
+          extraWear,
+          dirtyAirCount,
+          passedFront,
+        })
+      }
+
+      // PASSO 3: Atualizar accumulatedTimeSec e ordenar estritamente por tempo acumulado
+      const updatedGridIntermediate: SimDriverEntry[] = intermediateStates.map(({ entry }) => {
+        if (entry.dnf) return entry
+
+        const lapData = processedLaps.get(entry.driverId)
+        const lapSec = lapData?.lapTimeSec || 78.42
+        const extraWear = lapData?.extraWear || 0
+        const dirtyAirCount = lapData?.dirtyAirCount || 0
+        const didPass = lapData?.passedFront || false
+
+        let newAccumulated = entry.accumulatedTimeSec + lapSec
+        const finalWear = Math.min(100, (entry.tireWear || 5) + extraWear)
+
+        return {
+          ...entry,
+          accumulatedTimeSec: Number(newAccumulated.toFixed(3)),
+          lastLapTimeSec: Number(lapSec.toFixed(3)),
+          tireWear: finalWear,
+          lapsInDirtyAir: dirtyAirCount,
+          usedOvertake: didPass || entry.usedOvertake,
+        }
+      })
+
+      // Ordenação estrita por tempo acumulado para pilotos ativos
+      const sortedActiveGrid = [...updatedGridIntermediate].sort((a, b) => {
         if (a.dnf && !b.dnf) return 1
         if (!a.dnf && b.dnf) return -1
-        return b.score - a.score
+        if (a.dnf && b.dnf) {
+          const lapA = a.dnfLap ?? 0
+          const lapB = b.dnfLap ?? 0
+          return lapB - lapA
+        }
+        return a.accumulatedTimeSec - b.accumulatedTimeSec
       })
+
+      // Ajuste fino pós-ultrapassagem se marcado como passedFront: garante que fique à frente por -0.250s
+      for (let i = 0; i < sortedActiveGrid.length; i++) {
+        const car = sortedActiveGrid[i]
+        if (car.dnf) continue
+        const lapData = processedLaps.get(car.driverId)
+        if (lapData?.passedFront && i > 0) {
+          const carAhead = sortedActiveGrid[i - 1]
+          if (car.accumulatedTimeSec >= carAhead.accumulatedTimeSec) {
+            car.accumulatedTimeSec = Number((carAhead.accumulatedTimeSec - 0.25).toFixed(3))
+          }
+        }
+      }
+
+      // Re-ordenar estritamente após eventual ajuste de ultrapassagem
+      sortedActiveGrid.sort((a, b) => {
+        if (a.dnf && !b.dnf) return 1
+        if (!a.dnf && b.dnf) return -1
+        if (a.dnf && b.dnf) {
+          return (b.dnfLap ?? 0) - (a.dnfLap ?? 0)
+        }
+        return a.accumulatedTimeSec - b.accumulatedTimeSec
+      })
+
+      // PASSO 4: Formatar gaps reais a partir do tempo acumulado exato
+      const leaderAccumulated = sortedActiveGrid.find((g) => !g.dnf)?.accumulatedTimeSec || 0
 
       currentGrid = sortedActiveGrid.map((entry, idx) => {
         const position = idx + 1
@@ -2027,56 +2231,29 @@ export default function RacePage() {
           }
         }
 
-        const driverSkill =
-          (entry.morale ?? 80) * 0.2 + (entry.physicalCondition ?? 90) * 0.1 + 80 * 0.7
-        const carStr = entry.isPlayer ? playerCarLevel * 0.65 + playerTeamStrength * 0.35 : 75
-        const combinedPaceFactor = carStr * 0.7 + driverSkill * 0.3
-        const baseIndividualSec =
-          74.0 + (100 - Math.min(100, Math.max(0, combinedPaceFactor))) * 0.082
+        const gapLeaderSec = Math.max(0, entry.accumulatedTimeSec - leaderAccumulated)
+        const gapFrontSec =
+          idx === 0
+            ? 0
+            : Math.max(0, entry.accumulatedTimeSec - sortedActiveGrid[idx - 1].accumulatedTimeSec)
 
-        const compoundDelta = TIRE_SPECS[entry.tireCompound || 'medio']?.deltaPerLapSec || 0
-        const wearPenalty = ((entry.tireWear || 0) / 100) * 1.8
-        const cliffPenalty = entry.cliffStatus?.extraLapTimeSec || 0
-        let driverLapSec =
-          baseIndividualSec +
-          compoundDelta +
-          wearPenalty +
-          cliffPenalty +
-          (Math.random() - 0.5) * 0.35
-
-        // Modificadores táticos no ritmo da volta
-        const tacticalMod = tacticalModifiersRef.current.get(entry.driverId)
-        const isModActive = entry.isPlayer && tacticalMod && currentLap <= tacticalMod.expiresAtLap
-        if (isModActive) {
-          if (tacticalMod.mode === 'attack') {
-            // +3% de ritmo de volta por 5 voltas
-            driverLapSec *= 0.97
-          } else if (tacticalMod.mode === 'preserve') {
-            // ritmo -1,5% por 8 voltas
-            driverLapSec *= 1.015
-          }
-        }
-
-        const lapMin = Math.floor(driverLapSec / 60)
-        const lapRemSec = (driverLapSec % 60).toFixed(3)
-        const formattedLap = `${lapMin}:${Number(lapRemSec) < 10 ? '0' : ''}${lapRemSec}`
-
-        const gapLeader =
-          position === 1 ? 'LÍDER' : `+${((position - 1) * 1.15 + Math.random() * 0.3).toFixed(3)}s`
-        const gapFront = position === 1 ? '-' : `+${(0.85 + Math.random() * 0.5).toFixed(3)}s`
+        const formattedLap = formatLapTime(entry.lastLapTimeSec || 78.42)
+        const gapLeaderStr = position === 1 ? 'LÍDER' : formatGap(gapLeaderSec)
+        const gapFrontStr = position === 1 ? '-' : formatGap(gapFrontSec)
 
         return {
           ...entry,
           position,
           lastLapTime: formattedLap,
-          gapToLeader: gapLeader,
-          gapToFront: gapFront,
+          gapToLeader: gapLeaderStr,
+          gapToFront: gapFrontStr,
         }
       })
 
-      const newEvents = generateLapNarratedEvents(currentLap, currentGrid, currentWeather)
-      if (newEvents.length > 0) {
-        setLiveEvents((prev) => [...newEvents, ...prev].slice(0, 40))
+      const narratedEvents = generateLapNarratedEvents(currentLap, currentGrid, currentWeather)
+      const combinedLapEvents = [...overtakeEventsThisLap, ...narratedEvents]
+      if (combinedLapEvents.length > 0) {
+        setLiveEvents((prev) => [...combinedLapEvents, ...prev].slice(0, 40))
       }
 
       setLiveRaceState({
@@ -2763,6 +2940,10 @@ export default function RacePage() {
         ])
 
         currentDriver.pitStopsDone = (currentDriver.pitStopsDone || 0) + 1
+        // Duração do pit somada ao tempo acumulado (perda de pit lane ~21.5s sob chuva)
+        currentDriver.accumulatedTimeSec = Number(
+          ((currentDriver.accumulatedTimeSec || 0) + pitResult.durationSec + 19.5).toFixed(3),
+        )
         applyTireSwitchToPlayerDriver(currentGrid, currentDriver.driverId, chosenTire, currentLap, {
           newWear: 5,
           newCliffWear: 5,
@@ -2843,6 +3024,9 @@ export default function RacePage() {
           entry.tireWear = 6
           entry.pitStopsDone = (entry.pitStopsDone || 0) + 1
           entry.lapsOnCurrentTire = 1
+          entry.accumulatedTimeSec = Number(
+            ((entry.accumulatedTimeSec || 0) + pitResult.durationSec + 10.5 + 19.5).toFixed(3),
+          )
           entry.cliffStatus = calculateTireCliffStatus({
             compound: wingDamageTireChoice,
             lapsOnTire: 1,
@@ -2955,6 +3139,10 @@ export default function RacePage() {
 
         targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
         targetDriver.score += 6
+        // Pit sob Safety Car tem perda reduzida de tempo no pit lane (~11s delta vs 19.5s)
+        targetDriver.accumulatedTimeSec = Number(
+          ((targetDriver.accumulatedTimeSec || 0) + pitResult.durationSec + 11.0).toFixed(3),
+        )
 
         applyTireSwitchToPlayerDriver(
           currentGrid,
@@ -3109,6 +3297,10 @@ export default function RacePage() {
 
     targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
     targetDriver.score -= pitResult.isSlowPit ? 12 : 7
+    // Duração real do pit somada ao tempo acumulado (pit stop + perda de tráfego/pit lane)
+    targetDriver.accumulatedTimeSec = Number(
+      ((targetDriver.accumulatedTimeSec || 0) + pitResult.durationSec + 19.5).toFixed(3),
+    )
 
     applyTireSwitchToPlayerDriver(
       currentGrid,
@@ -3234,6 +3426,10 @@ export default function RacePage() {
 
           targetDriver.pitStopsDone = (targetDriver.pitStopsDone || 0) + 1
           targetDriver.score -= pitResult.isSlowPit ? 12 : 7
+          // Duração real do pit somada ao tempo acumulado
+          targetDriver.accumulatedTimeSec = Number(
+            ((targetDriver.accumulatedTimeSec || 0) + pitResult.durationSec + 19.5).toFixed(3),
+          )
 
           applyTireSwitchToPlayerDriver(
             currentGrid,
@@ -3384,23 +3580,21 @@ export default function RacePage() {
     const finalOrderedGrid = [...activeDrivers, ...dnfDrivers]
 
     const pointsTable = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-    const baseMinutes = 78
-    const baseSeconds = 14
+    const winnerAccTime = finalOrderedGrid[0]?.accumulatedTimeSec || 0
+    const winnerMinutes = Math.floor(winnerAccTime / 60)
+    const winnerRemainingSec = (winnerAccTime % 60).toFixed(3)
 
     finalOrderedGrid.forEach((entry, idx) => {
       entry.position = idx + 1
       entry.points = !entry.dnf && idx < pointsTable.length ? pointsTable[idx] : 0
 
-      if (idx > 0 && !entry.dnf && Math.random() < 0.65) {
-        entry.usedOvertake = true
-      }
       if (entry.dnf) {
         entry.totalTime = 'ABANDONO (DNF)'
       } else if (idx === 0) {
-        entry.totalTime = `1h ${baseMinutes}m ${baseSeconds.toFixed(3)}s`
+        entry.totalTime = `${winnerMinutes}m ${winnerRemainingSec}s`
       } else {
-        const gap = (idx * 1.65 + Math.random() * 0.7).toFixed(3)
-        entry.totalTime = `+${gap}s`
+        const exactGap = Math.max(0, (entry.accumulatedTimeSec || 0) - winnerAccTime).toFixed(3)
+        entry.totalTime = `+${exactGap}s`
       }
     })
 

@@ -26,6 +26,8 @@ export interface TelemetryDriverEntry {
   wearMultiplier?: number
   lapsOnCurrentTire?: number
   cliffStatus?: TireCliffStatus
+  accumulatedTimeSec?: number
+  lapsInDirtyAir?: number
   aiStrategyProfile?: {
     type: 'conservadora' | 'equilibrada' | 'agressiva' | 'reativa'
     label: string
@@ -192,6 +194,15 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
                             {entry.hasWingDamage && (
                               <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
                                 ASA QUEBRADA
+                              </Badge>
+                            )}
+                            {(entry.lapsInDirtyAir || 0) >= 3 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 h-3.5 border-orange-500/50 text-orange-400 bg-orange-500/10"
+                                title={`Ar turbulento (Dirty Air) por ${entry.lapsInDirtyAir} voltas: +0.12s no ritmo e desgaste extra`}
+                              >
+                                DIRTY AIR
                               </Badge>
                             )}
                           </div>
