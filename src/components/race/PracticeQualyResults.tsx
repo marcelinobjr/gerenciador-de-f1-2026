@@ -20,16 +20,19 @@ export interface SessionResultRow {
 
 interface PracticeQualyResultsProps {
   sessionKey: string
-  circuitName: string
+  circuitName?: string
+  circuit?: string
   results: SessionResultRow[]
 }
 
 export function PracticeQualyResults({
   sessionKey,
   circuitName,
+  circuit,
   results,
 }: PracticeQualyResultsProps) {
   if (!results || results.length === 0) return null
+  const displayedCircuit = circuitName || circuit || 'Circuito'
 
   return (
     <Card className="bg-[#11161F] border-[#1F2733]">
@@ -40,7 +43,7 @@ export function PracticeQualyResults({
             Tabela de Tempos Oficiais — {sessionKey.toUpperCase()}
           </CardTitle>
           <CardDescription className="text-xs text-[#8B95A7]">
-            Classificação após voltas rápidas completadas no {circuitName}
+            Classificação após voltas rápidas completadas no {displayedCircuit}
           </CardDescription>
         </div>
         <Badge

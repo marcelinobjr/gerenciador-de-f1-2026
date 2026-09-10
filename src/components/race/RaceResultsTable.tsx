@@ -26,7 +26,8 @@ export interface RaceResultEntry {
 
 interface RaceResultsTableProps {
   gpName: string
-  results: RaceResultEntry[]
+  results?: RaceResultEntry[]
+  raceResults?: RaceResultEntry[]
   incidents: string[]
   isFinishing: boolean
   onAdvanceRound: () => void
@@ -35,11 +36,13 @@ interface RaceResultsTableProps {
 export function RaceResultsTable({
   gpName,
   results,
+  raceResults,
   incidents,
   isFinishing,
   onAdvanceRound,
 }: RaceResultsTableProps) {
-  if (!results || results.length === 0) return null
+  const actualResults = results || raceResults || []
+  if (actualResults.length === 0) return null
 
   return (
     <div className="space-y-6">
@@ -97,7 +100,7 @@ export function RaceResultsTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1F2733]/60">
-                {results.map((row) => (
+                {actualResults.map((row) => (
                   <tr
                     key={row.driverId}
                     className={`transition-colors ${

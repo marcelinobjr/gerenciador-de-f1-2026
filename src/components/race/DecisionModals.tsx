@@ -40,12 +40,14 @@ export interface DecisionModalsProps {
   // 1. Chuva
   rainDecisionOpen: boolean
   liveRaceWeather?: TrackWeatherState
+  weather?: TrackWeatherState
   currentLap?: number
   totalLaps?: number
   circuitName?: string
   rainActiveDriver?: DecisionDriverContext | null
-  rainQueueLength: number
-  rainQueueTotal: number
+  rainQueueLength?: number
+  rainQueueTotal?: number
+  rainQueue?: any[]
   rainDecisionWaitLaps: number
   setRainDecisionWaitLaps: (laps: number) => void
   tireStock: TireAllotment
@@ -66,8 +68,9 @@ export interface DecisionModalsProps {
   safetyCarModalOpen: boolean
   safetyCarReason: string
   safetyCarActiveDriver?: DecisionDriverContext | null
-  safetyCarQueueLength: number
-  safetyCarQueueTotal: number
+  safetyCarQueueLength?: number
+  safetyCarQueueTotal?: number
+  safetyCarQueue?: any[]
   safetyCarTireChoice: TireCompound
   setSafetyCarTireChoice: (c: TireCompound) => void
   onConfirmSafetyCarDecision: (decision: 'pit_sc' | 'stay_out') => void
@@ -88,12 +91,14 @@ export interface DecisionModalsProps {
 export function DecisionModals({
   rainDecisionOpen,
   liveRaceWeather,
+  weather,
   currentLap = 1,
   totalLaps = 50,
   circuitName = 'Circuito',
   rainActiveDriver,
   rainQueueLength,
   rainQueueTotal,
+  rainQueue,
   rainDecisionWaitLaps,
   setRainDecisionWaitLaps,
   tireStock,
@@ -112,6 +117,7 @@ export function DecisionModals({
   safetyCarActiveDriver,
   safetyCarQueueLength,
   safetyCarQueueTotal,
+  safetyCarQueue,
   safetyCarTireChoice,
   setSafetyCarTireChoice,
   onConfirmSafetyCarDecision,
@@ -127,8 +133,14 @@ export function DecisionModals({
   teamChassisLevel = 75,
   onExecuteForcedPitStop,
 }: DecisionModalsProps) {
-  const rainStep = rainQueueTotal - rainQueueLength
-  const scStep = safetyCarQueueTotal - safetyCarQueueLength
+  const effectiveWeather = liveRaceWeather || weather || 'seco'
+  const effectiveRainTotal = rainQueueTotal ?? (rainQueue ? rainQueue.length : 1)
+  const effectiveRainLength = rainQueueLength ?? (rainQueue ? rainQueue.length : 1)
+  const rainStep = Math.max(1, effectiveRainTotal - effectiveRainLength + 1)
+
+  const effectiveScTotal = safetyCarQueueTotal ?? (safetyCarQueue ? safetyCarQueue.length : 1)
+  const effectiveScLength = safetyCarQueueLength ?? (safetyCarQueue ? safetyCarQueue.length : 1)
+  const scStep = Math.max(1, effectiveScTotal - effectiveScLength + 1)
 
   const compoundColorMap: Record<TireCompound, string> = {
     macio: '#E10600',
@@ -159,9 +171,9 @@ export function DecisionModals({
             </div>
             <DialogTitle className="text-xl sm:text-2xl font-extrabold text-[#F5F7FA] flex items-center justify-between">
               <span>
-                {liveRaceWeather === 'chuva_forte'
+                {effectiveWeather === 'chuva_forte'
                   ? '⛈️ Tempestade / Chuva Forte na Corrida!'
-                  : liveRaceWeather === 'chuva_fraca'
+                  : effectiveWeather === 'chuva_fraca'
                     ? '🌧️ Chuva Fraca / Moderada na Pista!'
                     : '☀️ Pista Secando / Sol na Pista!'}
               </span>
@@ -171,12 +183,12 @@ export function DecisionModals({
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
               Condição avaliada em <strong>{circuitName}</strong>:{' '}
-              {liveRaceWeather === 'chuva_forte' ? (
+              {effectiveWeather === 'chuva_forte' ? (
                 <span className="text-blue-400 font-bold">
                   CHUVA FORTE (Lâmina d'água espessa — pneus de Chuva Extrema obrigatórios para
                   evitar aquaplanagem).
                 </span>
-              ) : liveRaceWeather === 'chuva_fraca' ? (
+              ) : effectiveWeather === 'chuva_fraca' ? (
                 <span className="text-emerald-400 font-bold">
                   CHUVA FRACA / INTERMEDIÁRIA (Asfalto úmido — pneu Intermediário é a escolha
                   ideal).
@@ -194,7 +206,7 @@ export function DecisionModals({
             <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/40 via-[#0B0E14] to-[#161D29] border border-sky-500/40 space-y-2 font-mono">
               <div className="flex items-center justify-between">
                 <Badge className="bg-sky-500/20 text-sky-300 border border-sky-400/40 text-[11px] font-bold">
-                  DECISÃO {rainStep} DE {rainQueueTotal}
+                  DECISÃO {rainStep} DE {effectiveRainTotal}
                 </Badge>
                 <span className="text-xs text-[#8B95A7]">
                   Decisão 100% individual para este carro
@@ -229,24 +241,28 @@ export function DecisionModals({
               <span className="text-[#8B95A7] block text-[11px]">Intensidade Climática:</span>
               <strong className="text-sky-400 font-semibold flex items-center gap-1.5 mt-0.5">
                 <CloudRain className="w-4 h-4" />{' '}
-                {liveRaceWeather === 'chuva_forte'
+                {effectiveWeather === 'chuva_forte'
                   ? 'Tempestade / Chuva Forte'
-                  : 'Chuva Fraca / Moderada'}
+                  : effectiveWeather === 'chuva_fraca'
+                    ? 'Chuva Fraca / Moderada'
+                    : 'Pista Seca'}
               </strong>
             </div>
             <div>
               <span className="text-[#8B95A7] block text-[11px]">Recomendação da Engenharia:</span>
               <strong className="text-amber-400 font-semibold block mt-0.5">
-                {liveRaceWeather === 'chuva_forte'
+                {effectiveWeather === 'chuva_forte'
                   ? 'Colocar Chuva Extrema (Intermediário aquaplana +32% risco)'
-                  : 'Colocar Intermediários (Extrema sobreaquece e perde 2.7s)'}
+                  : effectiveWeather === 'chuva_fraca'
+                    ? 'Colocar Intermediários (Extrema sobreaquece e perde 2.7s)'
+                    : 'Colocar Pneus Slicks (Médio / Duro)'}
               </strong>
             </div>
           </div>
 
           {/* Options Grid */}
           <div className="space-y-3 pt-1">
-            {liveRaceWeather === 'seco' ? (
+            {effectiveWeather === 'seco' ? (
               <>
                 {/* Médio */}
                 <div
@@ -657,7 +673,7 @@ export function DecisionModals({
             <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-[#0B0E14] to-[#161D29] border border-amber-500/40 space-y-2 font-mono">
               <div className="flex items-center justify-between">
                 <Badge className="bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[11px] font-bold">
-                  DECISÃO {scStep} DE {safetyCarQueueTotal}
+                  DECISÃO {scStep} DE {effectiveScTotal}
                 </Badge>
                 <span className="text-xs text-[#8B95A7]">
                   Decisão 100% individual para este carro

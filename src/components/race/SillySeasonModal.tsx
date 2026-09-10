@@ -16,6 +16,8 @@ interface SillySeasonModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   season?: SeasonModel | null
+  seasonYear?: number
+  year?: number
   marketMoves: MarketMoveEvent[]
   isStartingNewSeason: boolean
   onStartNextSeason: () => void
@@ -25,11 +27,13 @@ export function SillySeasonModal({
   open,
   onOpenChange,
   season,
+  seasonYear,
+  year,
   marketMoves,
   isStartingNewSeason,
   onStartNextSeason,
 }: SillySeasonModalProps) {
-  const currentYear = season?.year || 2026
+  const currentYear = seasonYear || year || season?.year || 2026
   const nextYear = currentYear + 1
 
   return (

@@ -16,7 +16,8 @@ import {
 import { LiveRaceEvent } from '@/types/race-events'
 
 interface LiveRaceFeedProps {
-  events: LiveRaceEvent[]
+  events?: LiveRaceEvent[]
+  liveEvents?: LiveRaceEvent[]
   currentLap?: number
   totalLaps?: number
   isRaceSession?: boolean
@@ -26,13 +27,15 @@ interface LiveRaceFeedProps {
 
 export function LiveRaceFeed({
   events,
+  liveEvents,
   currentLap,
   totalLaps,
   isRaceSession = true,
   canForcePit = false,
   onOpenForcePit,
 }: LiveRaceFeedProps) {
-  if (events.length === 0 && !currentLap) return null
+  const actualEvents = events || liveEvents || []
+  if (actualEvents.length === 0 && !currentLap) return null
 
   return (
     <Card className="bg-[#11161F] border border-[#1F2733] shadow-lg overflow-hidden">
@@ -65,14 +68,14 @@ export function LiveRaceFeed({
             variant="outline"
             className="text-[10px] font-mono border-slate-700 text-slate-300"
           >
-            {events.length} eventos
+            {actualEvents.length} eventos
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="p-0">
         <div className="max-h-[340px] overflow-y-auto divide-y divide-[#1F2733]/60 scrollbar-thin">
-          {events.map((ev) => {
+          {actualEvents.map((ev) => {
             let badgeBg = 'bg-slate-800 text-slate-300 border-slate-700'
             let icon = <Flag className="w-3.5 h-3.5" />
 

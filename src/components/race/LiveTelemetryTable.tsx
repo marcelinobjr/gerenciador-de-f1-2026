@@ -29,18 +29,23 @@ export interface TelemetryDriverEntry {
 }
 
 interface LiveTelemetryTableProps {
-  grid: TelemetryDriverEntry[]
-  currentLap: number
-  totalLaps: number
+  grid?: TelemetryDriverEntry[]
+  currentLap?: number
+  totalLaps?: number
+  liveRaceState?: {
+    grid?: TelemetryDriverEntry[]
+    currentLap?: number
+    totalLaps?: number
+    [key: string]: any
+  }
   trackAbrasiveness?: number
 }
 
-export function LiveTelemetryTable({
-  grid,
-  currentLap,
-  totalLaps,
-  trackAbrasiveness = 6,
-}: LiveTelemetryTableProps) {
+export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
+  const grid = props.grid || props.liveRaceState?.grid || []
+  const currentLap = props.currentLap ?? props.liveRaceState?.currentLap ?? 1
+  const totalLaps = props.totalLaps ?? props.liveRaceState?.totalLaps ?? 50
+  const trackAbrasiveness = props.trackAbrasiveness ?? 6
   if (!grid || grid.length === 0) return null
 
   return (
