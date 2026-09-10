@@ -63,6 +63,14 @@ import { PracticeQualyResults, SessionResultRow } from '@/components/race/Practi
 import { RaceResultsTable, RaceResultEntry } from '@/components/race/RaceResultsTable'
 import { DecisionModals } from '@/components/race/DecisionModals'
 import { SillySeasonModal } from '@/components/race/SillySeasonModal'
+import { TeamRadioDialog } from '@/components/TeamRadioDialog'
+import {
+  evaluateDriverRadioTriggers,
+  DriverRadioMessage,
+  DriverRadioCooldowns,
+  BossResponseType,
+  DRIVER_FEEDBACKS,
+} from '@/lib/f1-radio-system'
 
 export type { WeekendSession, LiveRaceEvent }
 
@@ -280,6 +288,15 @@ export default function RacePage() {
   const [safetyCarQueue, setSafetyCarQueue] = useState<string[]>([])
   const [safetyCarQueueTotal, setSafetyCarQueueTotal] = useState<number>(0)
   const [safetyCarActiveDriverId, setSafetyCarActiveDriverId] = useState<string>('')
+
+  // Team Radio System (Fase 1 do Chefe de Equipe Real)
+  const [radioQueue, setRadioQueue] = useState<DriverRadioMessage[]>([])
+  const [radioActiveMessage, setRadioActiveMessage] = useState<DriverRadioMessage | null>(null)
+  const [radioQueueTotal, setRadioQueueTotal] = useState<number>(1)
+  const radioCooldownsRef = useRef<Map<string, DriverRadioCooldowns>>(new Map())
+  const tacticalModifiersRef = useRef<
+    Map<string, { mode: 'attack' | 'preserve'; lapsRemaining: number }>
+  >(new Map())
 
   // Weather and forecast state with 3 intensity states: seco | chuva_fraca | chuva_forte
   const [weather, setWeather] = useState<TrackWeatherState>('seco')
