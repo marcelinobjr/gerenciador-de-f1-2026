@@ -1,0 +1,305 @@
+import React from 'react'
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Activity } from 'lucide-react'
+import { TireCompound, TireCliffStatus } from '@/types/f1'
+import { TIRE_SPECS, isTireInCliff } from '@/lib/f1-tire-system'
+
+export interface TelemetryDriverEntry {
+  driverId: string
+  driverName: string
+  teamId: string
+  teamName: string
+  teamColor: string
+  isPlayer: boolean
+  flag: string
+  position: number
+  dnf: boolean
+  dnfReason?: string
+  tireCompound?: TireCompound
+  tireWear?: number
+  pitStopsDone?: number
+  hasWingDamage?: boolean
+  lastLapTime?: string
+  gapToLeader?: string
+  gapToFront?: string
+  wearMultiplier?: number
+  lapsOnCurrentTire?: number
+  cliffStatus?: TireCliffStatus
+}
+
+interface LiveTelemetryTableProps {
+  grid: TelemetryDriverEntry[]
+  currentLap: number
+  totalLaps: number
+  trackAbrasiveness?: number
+}
+
+export function LiveTelemetryTable({
+  grid,
+  currentLap,
+  totalLaps,
+  trackAbrasiveness = 6,
+}: LiveTelemetryTableProps) {
+  if (!grid || grid.length === 0) return null
+
+  return (
+    <Card className="bg-[#11161F] border border-[#1F2733] shadow-2xl overflow-hidden">
+      <CardHeader className="py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <CardTitle className="text-sm font-bold text-[#F5F7FA] tracking-wide font-mono flex items-center gap-2">
+            <Activity className="w-4 h-4 text-cyan-400" />
+            TELEMETRIA OFICIAL DA CORRIDA EM TEMPO REAL // GRID COMPLETO (24 CARROS)
+          </CardTitle>
+          <CardDescription className="text-[11px] text-[#8B95A7] font-mono">
+            Volta {currentLap} de {totalLaps} • Atualização a cada volta • Destaque para pilotos da
+            sua escuderia
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[11px]">
+            {grid.filter((g) => !g.dnf).length} em pista
+          </Badge>
+          <Badge className="bg-red-500/15 text-red-300 border border-red-500/30 font-mono text-[11px]">
+            {grid.filter((g) => g.dnf).length} abandonos
+          </Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs font-mono">
+            <thead>
+              <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider bg-[#0B0E14]/70 text-[10px]">
+                <th className="py-2.5 px-3 w-12 text-center">Pos</th>
+                <th className="py-2.5 px-3">Piloto / Escuderia</th>
+                <th className="py-2.5 px-3 text-center">Pneu Atual</th>
+                <th className="py-2.5 px-3 text-center">Vida / Desgaste</th>
+                <th className="py-2.5 px-3 text-center">Última Volta</th>
+                <th className="py-2.5 px-3 text-right">Diferença Frente</th>
+                <th className="py-2.5 px-3 text-right">Gap Líder</th>
+                <th className="py-2.5 px-3 text-center">Pits</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1F2733]/60">
+              {grid.map((entry) => {
+                const isMyCar = entry.isPlayer
+                const compoundSpec = TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio
+                const compoundLetter =
+                  entry.tireCompound === 'duro'
+                    ? 'D'
+                    : entry.tireCompound === 'medio'
+                      ? 'M'
+                      : entry.tireCompound === 'macio'
+                        ? 'S'
+                        : entry.tireCompound === 'intermediario'
+                          ? 'I'
+                          : 'W'
+
+                const compoundColor =
+                  entry.tireCompound === 'duro'
+                    ? 'bg-slate-100 text-slate-900 border-slate-300'
+                    : entry.tireCompound === 'medio'
+                      ? 'bg-yellow-400 text-black border-yellow-500'
+                      : entry.tireCompound === 'macio'
+                        ? 'bg-red-600 text-white border-red-700'
+                        : entry.tireCompound === 'intermediario'
+                          ? 'bg-emerald-500 text-black border-emerald-600'
+                          : 'bg-blue-600 text-white border-blue-700'
+
+                const wearVal = entry.tireWear || 5
+                const tireLifePct = Math.max(0, 100 - wearVal)
+
+                const lapsOnCompound = entry.lapsOnCurrentTire || 1
+                const cliffCheck = isTireInCliff(
+                  entry.tireCompound || 'medio',
+                  lapsOnCompound,
+                  entry.wearMultiplier ?? 1.0,
+                  trackAbrasiveness,
+                )
+                const isInCliff =
+                  cliffCheck.inCliff ||
+                  Boolean(entry.cliffStatus && entry.cliffStatus.isCliffReached > 0)
+
+                return (
+                  <tr
+                    key={entry.driverId}
+                    className={`transition-colors ${
+                      isMyCar
+                        ? isInCliff
+                          ? 'bg-red-950/40 font-semibold border-l-4 border-l-red-500 shadow-[inset_0_0_16px_rgba(239,68,68,0.3)] ring-1 ring-red-500/60'
+                          : 'bg-[#E10600]/15 font-semibold border-l-4 border-l-[#E10600] shadow-[inset_0_0_12px_rgba(225,6,0,0.15)] ring-1 ring-[#E10600]/40'
+                        : entry.dnf
+                          ? 'opacity-40 bg-red-950/20'
+                          : isInCliff
+                            ? 'bg-red-950/20 hover:bg-red-950/30'
+                            : 'hover:bg-[#161D29]/50'
+                    }`}
+                  >
+                    {/* Pos */}
+                    <td className="py-2.5 px-3 text-center">
+                      <span
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${
+                          entry.dnf
+                            ? 'bg-red-900/60 text-red-200'
+                            : entry.position === 1
+                              ? 'bg-amber-400 text-black'
+                              : entry.position === 2
+                                ? 'bg-slate-300 text-black'
+                                : entry.position === 3
+                                  ? 'bg-amber-700 text-white'
+                                  : 'text-[#8B95A7]'
+                        }`}
+                      >
+                        {entry.dnf ? 'DNF' : entry.position}
+                      </span>
+                    </td>
+
+                    {/* Driver & Team */}
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-2">
+                        <span>{entry.flag}</span>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`text-xs ${isMyCar ? 'text-white font-extrabold' : 'text-[#F5F7FA]'}`}
+                            >
+                              {entry.driverName}
+                            </span>
+                            {isMyCar && (
+                              <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-3.5 font-bold animate-pulse">
+                                MEU CARRO
+                              </Badge>
+                            )}
+                            {isMyCar && isInCliff && (
+                              <Badge className="bg-red-600 text-white text-[9px] px-1.5 py-0 h-3.5 font-extrabold animate-bounce border border-red-400">
+                                BOX URGENTE
+                              </Badge>
+                            )}
+                            {entry.hasWingDamage && (
+                              <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
+                                ASA QUEBRADA
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-[10px] block" style={{ color: entry.teamColor }}>
+                            {entry.teamName}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Tire Compound Icon/Letter */}
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="inline-flex items-center gap-1">
+                        <span
+                          className={`w-5 h-5 rounded-full inline-flex items-center justify-center font-bold text-[10px] border shadow-sm ${compoundColor}`}
+                          title={compoundSpec.name}
+                        >
+                          {compoundLetter}
+                        </span>
+                        <span className="text-[10px] text-[#8B95A7] capitalize">
+                          {entry.tireCompound?.slice(0, 3)}
+                        </span>
+                        {isInCliff && (
+                          <Badge
+                            variant="destructive"
+                            className={`text-[9px] px-1 py-0 h-4 font-bold uppercase tracking-wider bg-red-600 text-white animate-pulse border-red-500 shadow-sm ${
+                              isMyCar ? 'ring-1 ring-white/70 shadow-red-500/50' : ''
+                            }`}
+                            title={`Pneu em Cliff! Perda de ritmo: +${(
+                              cliffCheck.penaltyPerLap ||
+                              entry.cliffStatus?.extraLapTimeSec ||
+                              compoundSpec.cliffDegradationPerLapSec
+                            ).toFixed(2)}s/volta`}
+                          >
+                            CLIFF
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Life / Wear % with visual progress bar */}
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="w-24 mx-auto space-y-1">
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-[#8B95A7]">{tireLifePct}% vida</span>
+                          <span
+                            className={`font-bold ${
+                              wearVal > 80
+                                ? 'text-red-400'
+                                : wearVal > 55
+                                  ? 'text-amber-400'
+                                  : 'text-emerald-400'
+                            }`}
+                          >
+                            {wearVal}% desg.
+                          </span>
+                        </div>
+                        <div className="w-full bg-[#0B0E14] rounded-full h-1.5 overflow-hidden border border-[#1F2733]">
+                          <div
+                            className={`h-full transition-all ${
+                              tireLifePct < 25
+                                ? 'bg-red-500'
+                                : tireLifePct < 50
+                                  ? 'bg-amber-400'
+                                  : 'bg-emerald-400'
+                            }`}
+                            style={{ width: `${tireLifePct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Last Lap Time */}
+                    <td className="py-2.5 px-3 text-center">
+                      <span
+                        className={`text-xs ${isMyCar ? 'text-cyan-300 font-bold' : 'text-[#8B95A7]'}`}
+                      >
+                        {entry.lastLapTime || '1:18.420'}
+                      </span>
+                    </td>
+
+                    {/* Gap to Front */}
+                    <td className="py-2.5 px-3 text-right">
+                      <span className="text-xs text-[#8B95A7]">{entry.gapToFront || '-'}</span>
+                    </td>
+
+                    {/* Gap to Leader */}
+                    <td className="py-2.5 px-3 text-right">
+                      <span
+                        className={`text-xs ${
+                          entry.position === 1 ? 'text-amber-400 font-bold' : 'text-[#F5F7FA]'
+                        }`}
+                      >
+                        {entry.position === 1
+                          ? 'LÍDER'
+                          : entry.gapToLeader && entry.gapToLeader !== 'LÍDER'
+                            ? entry.gapToLeader
+                            : '—'}
+                      </span>
+                    </td>
+
+                    {/* Pits Done */}
+                    <td className="py-2.5 px-3 text-center">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] px-1.5 py-0 ${
+                          (entry.pitStopsDone || 0) > 0
+                            ? 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10'
+                            : 'border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {entry.pitStopsDone || 0}
+                      </Badge>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
