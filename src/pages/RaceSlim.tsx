@@ -1673,9 +1673,7 @@ export default function RacePage() {
     const wingDamageLap =
       Math.random() < 0.4 ? Math.round(totalLaps * (0.22 + Math.random() * 0.45)) : null
 
-    const stepIntervalMs = autoSimulateWithoutPause
-      ? 160
-      : Math.max(500, Math.round(10000 / simSpeed))
+    const stepIntervalMs = autoSimulateWithoutPause ? 160 : Math.round(10000 / simSpeed)
 
     if (liveRaceTimerRef.current) {
       clearInterval(liveRaceTimerRef.current)
@@ -4503,13 +4501,28 @@ export default function RacePage() {
       />
 
       {/* 7. Modal de Rádio da Equipe (Team Radio System) */}
-      <TeamRadioDialog
-        open={!!radioActiveMessage}
-        message={radioActiveMessage}
-        queueIndex={radioQueueTotal - radioQueue.length}
-        queueTotal={radioQueueTotal}
-        onRespond={handleRadioResponse}
-      />
+      {(() => {
+        const activeRadioDriver = radioActiveMessage
+          ? liveRaceState?.grid?.find((g) => g.driverId === radioActiveMessage.driverId)
+          : null
+        const activeDriverTireSets = radioActiveMessage
+          ? (driverTireInventories[radioActiveMessage.driverId] || playerTireSets).filter(
+              (s) => !s.isFitted && s.wear < 90,
+            )
+          : []
+        return (
+          <TeamRadioDialog
+            open={!!radioActiveMessage}
+            message={radioActiveMessage}
+            queueIndex={radioQueueTotal - radioQueue.length}
+            queueTotal={radioQueueTotal}
+            availableTireSets={activeDriverTireSets}
+            currentTireCompound={activeRadioDriver?.tireCompound || 'medio'}
+            currentTireWear={activeRadioDriver?.tireWear ?? 50}
+            onRespond={handleRadioResponse}
+          />
+        )
+      })()}
     </div>
   )
 }
