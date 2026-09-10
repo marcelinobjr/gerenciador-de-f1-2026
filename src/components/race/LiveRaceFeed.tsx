@@ -13,7 +13,7 @@ import {
   ShieldAlert,
   CloudRain,
 } from 'lucide-react'
-import { LiveRaceEvent } from '@/pages/Race'
+import { LiveRaceEvent } from '@/types/race-events'
 
 interface LiveRaceFeedProps {
   events: LiveRaceEvent[]
