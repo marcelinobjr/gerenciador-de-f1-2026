@@ -69,6 +69,7 @@ export const RADIO_PHRASES: Record<
     aggressive: string[]
     conservative: string[]
     standard: string[]
+    dramatic?: string[]
   }
 > = {
   cliff: {
@@ -87,6 +88,11 @@ export const RADIO_PHRASES: Record<
       'Alô equipe, o pneu acabou totalmente! Estou perdendo tempo demais por volta, box!',
       'Sem aderência! O carro está deslizando em quatro rodas, parada urgente necessária!',
     ],
+    dramatic: [
+      'DESASTRE TOTAL! O carro tá incontrolável no cliff, vocês estão me destruindo na pista! BOX IMEDIATO!',
+      'É IMPOSSÍVEL CONTINUAR! Não tenho direção nem freio, esses pneus evaporaram! Vocês querem que eu bata?!',
+      'Acabou tudo! Cliff absurdo, estou sendo humilhado por volta! ME CHAMEM PRO BOX AGORA!',
+    ],
   },
   tire_critical: {
     aggressive: [
@@ -103,6 +109,11 @@ export const RADIO_PHRASES: Record<
       'Estou sem aderência nenhuma! Pneus em estado crítico, preciso parar.',
       'Os pneus acabaram, a traseira quer sair em toda frenagem. Chamem o box!',
       'Muita derrapagem e vibração severa. Hora de pneus novos, equipe.',
+    ],
+    dramatic: [
+      'Borracha em frangalhos! Não aguento mais segurar esse carro, perigo real de acidente! Box já!',
+      'O carro tá parecendo sabão na pista molhada! Desgaste insuportável, tragam os pneus novos logo!',
+      'Situação crítica e desesperadora! Toda curva é um milagre não rodar! Box, pelo amor de Deus!',
     ],
   },
   tire_high: {
@@ -249,15 +260,23 @@ export function evaluateDriverRadioTriggers(
     second: '2-digit',
   })
 
+  const isLowMorale = (ctx.morale ?? 80) < 55
+
   // 1. GATILHO CLIFF (Urgente - Congela simulação!)
-  // Dispara se o pneu atingiu cliff e ainda não foi avisado neste patamar ou se faz mais de 4 voltas
-  const cliffCooldownOver = !cooldowns.lastLapCliff || currentLap - cooldowns.lastLapCliff >= 4
+  // Dispara se o pneu atingiu cliff e ainda não foi avisado neste patamar ou se faz mais de 4 voltas (3 para moral baixa)
+  const cliffCooldownMin = isLowMorale ? 3 : 4
+  const cliffCooldownOver =
+    !cooldowns.lastLapCliff || currentLap - cooldowns.lastLapCliff >= cliffCooldownMin
   const notAcknowledgedSameCliff =
     cooldowns.acknowledgedStayOutCliffLap === undefined ||
     currentLap - cooldowns.acknowledgedStayOutCliffLap >= 3
 
   if (ctx.isInCliff && cliffCooldownOver && notAcknowledgedSameCliff) {
-    const text = pickRandom(RADIO_PHRASES.cliff[tone])
+    const cliffVariants =
+      isLowMorale && RADIO_PHRASES.cliff.dramatic
+        ? [...RADIO_PHRASES.cliff[tone], ...RADIO_PHRASES.cliff.dramatic]
+        : RADIO_PHRASES.cliff[tone]
+    const text = pickRandom(cliffVariants)
     return {
       message: {
         id: `radio_cliff_${ctx.driverId}_${currentLap}`,
@@ -270,7 +289,9 @@ export function evaluateDriverRadioTriggers(
         isUrgent: true,
         category: 'cliff',
         message: text,
-        personalityTag: ctx.wearProfileName || 'Piloto',
+        personalityTag: isLowMorale
+          ? `${ctx.wearProfileName || 'Piloto'} (Abatido)`
+          : ctx.wearProfileName || 'Piloto',
         timestamp: nowStr,
       },
       updatedCooldowns: {
@@ -280,12 +301,19 @@ export function evaluateDriverRadioTriggers(
     }
   }
 
-  // 2. GATILHO PNEUS CRÍTICOS (>70% ou >65% para agressivo) (Urgente - Congela simulação!)
-  const critThreshold = isAggressive ? 66 : isConservative ? 75 : 70
-  const critCooldownOver = !cooldowns.lastLapTireCrit || currentLap - cooldowns.lastLapTireCrit >= 5
+  // 2. GATILHO PNEUS CRÍTICOS (>70% ou >65% para agressivo; -5% mais cedo se moral < 55) (Urgente - Congela simulação!)
+  const critBaseThreshold = isAggressive ? 66 : isConservative ? 75 : 70
+  const critThreshold = isLowMorale ? critBaseThreshold - 5 : critBaseThreshold
+  const critCooldownMin = isLowMorale ? 4 : 5
+  const critCooldownOver =
+    !cooldowns.lastLapTireCrit || currentLap - cooldowns.lastLapTireCrit >= critCooldownMin
 
   if (ctx.tireWear >= critThreshold && critCooldownOver && !ctx.isInCliff) {
-    const text = pickRandom(RADIO_PHRASES.tire_critical[tone])
+    const critVariants =
+      isLowMorale && RADIO_PHRASES.tire_critical.dramatic
+        ? [...RADIO_PHRASES.tire_critical[tone], ...RADIO_PHRASES.tire_critical.dramatic]
+        : RADIO_PHRASES.tire_critical[tone]
+    const text = pickRandom(critVariants)
     return {
       message: {
         id: `radio_tirecrit_${ctx.driverId}_${currentLap}`,
@@ -298,7 +326,9 @@ export function evaluateDriverRadioTriggers(
         isUrgent: true,
         category: 'tire_critical',
         message: text,
-        personalityTag: ctx.wearProfileName || 'Piloto',
+        personalityTag: isLowMorale
+          ? `${ctx.wearProfileName || 'Piloto'} (Abatido)`
+          : ctx.wearProfileName || 'Piloto',
         timestamp: nowStr,
       },
       updatedCooldowns: {
@@ -308,8 +338,8 @@ export function evaluateDriverRadioTriggers(
     }
   }
 
-  // 3. GATILHO MOTOR CRÍTICO (>85% desgaste) (Urgente - Congela)
-  const engineThreshold = 85
+  // 3. GATILHO MOTOR CRÍTICO (>85% desgaste; >80% se moral < 55) (Urgente - Congela)
+  const engineThreshold = isLowMorale ? 80 : 85
   const engineCooldownOver = !cooldowns.lastLapEngine || currentLap - cooldowns.lastLapEngine >= 8
 
   if (ctx.engineWear && ctx.engineWear >= engineThreshold && engineCooldownOver) {
@@ -336,8 +366,9 @@ export function evaluateDriverRadioTriggers(
     }
   }
 
-  // 4. GATILHO PNEUS EM DESGASTE MÉDIO (>50% ou >45% para agressivo) (Informativo leve - Não congela)
-  const highThreshold = isAggressive ? 46 : isConservative ? 56 : 50
+  // 4. GATILHO PNEUS EM DESGASTE MÉDIO (>50% ou >45% para agressivo; -5% se moral < 55) (Informativo leve - Não congela)
+  const highBaseThreshold = isAggressive ? 46 : isConservative ? 56 : 50
+  const highThreshold = isLowMorale ? highBaseThreshold - 5 : highBaseThreshold
   const highCooldownOver = !cooldowns.lastLapTireHigh || currentLap - cooldowns.lastLapTireHigh >= 6
 
   if (ctx.tireWear >= highThreshold && ctx.tireWear < critThreshold && highCooldownOver) {

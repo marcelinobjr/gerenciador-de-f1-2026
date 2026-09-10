@@ -90,6 +90,12 @@ export interface SimDriverEntry extends RaceResultEntry {
   driverFatigue?: number
   morale?: number
   physicalCondition?: number
+  oldMorale?: number
+  newMorale?: number
+  moraleDelta?: number
+  oldPhysical?: number
+  newPhysical?: number
+  physicalDelta?: number
   pitStopsDone?: number
   hasWingDamage?: boolean
   lastLapTime?: string
@@ -112,6 +118,26 @@ const INITIAL_ALLOTMENT: TireAllotment = {
   macio: 3,
   intermediario: 4,
   chuva_extrema: 3,
+}
+
+// Helper para identificar circuitos fisicamente exigentes
+export function isDemandingTrackName(name: string, circuit: string): boolean {
+  const demandingTrackKeywords = [
+    'Singapura',
+    'Marina Bay',
+    'Interlagos',
+    'São Paulo',
+    'Brasil',
+    'Malásia',
+    'Sepang',
+    'Catar',
+    'Lusail',
+  ]
+  return demandingTrackKeywords.some(
+    (kw) =>
+      name.toLowerCase().includes(kw.toLowerCase()) ||
+      circuit.toLowerCase().includes(kw.toLowerCase()),
+  )
 }
 
 export default function RacePage() {
@@ -308,6 +334,8 @@ export default function RacePage() {
       }
     >
   >(new Map())
+  // Rastreia se piloto respondeu 'stay_out' ("AGUENTE MAIS") durante a prova
+  const driversRespondedStayOutRef = useRef<Set<string>>(new Set())
   const hasUsedPreserveModeRef = useRef<boolean>(false)
 
   // Weather and forecast state with 3 intensity states: seco | chuva_fraca | chuva_forte
@@ -1286,6 +1314,7 @@ export default function RacePage() {
     setSimProgress(0)
     setRaceIncidents([])
     setSafetyCarActive(false)
+    driversRespondedStayOutRef.current.clear()
 
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const aiRivals = getAICompetitors(team?.team_key, isCustomTeam)
@@ -1397,7 +1426,7 @@ export default function RacePage() {
         flag: aiTeam.driver1.flag,
         driverFatigue: 25,
         morale: 80,
-        physicalCondition: 90,
+        physicalCondition: isDemandingTrackName(gpInfo.name, gpInfo.circuit) ? 85 : 90,
         tireCompound: defaultAiStart,
         secondCompound: defaultAiSecond,
         pitLap: pitLap1,
@@ -3064,24 +3093,34 @@ export default function RacePage() {
         }
       }
     } else if (responseType === 'stay_out') {
-      // 2. AGUENTE MAIS: expiração = currentLap + 2; suspende gatilho de cliff/pneus por 2 voltas; moral -3
+      // 2. AGUENTE MAIS: expiração = currentLap + 2; suspende gatilho de cliff/pneus por 2 voltas
+      // Piloto com moral alta (85+) aceita com queda de moral reduzida (-1 em vez de -3)
+      driversRespondedStayOutRef.current.add(driverMsg.driverId)
       tacticalModifiersRef.current.set(driverMsg.driverId, {
         mode: 'stay_out',
         expiresAtLap: activeCurrentLap + 2,
         startLap: activeCurrentLap,
       })
 
+      const currentMorale =
+        liveRaceState?.grid.find((g) => g.driverId === driverMsg.driverId)?.morale ??
+        drivers.find((d) => d.id === driverMsg.driverId)?.morale ??
+        80
+      const moraleLoss = currentMorale >= 85 ? 1 : 3
+
       if (liveRaceState) {
         const currentGrid = [...liveRaceState.grid]
         const targetDriver = currentGrid.find((g) => g.driverId === driverMsg.driverId)
         if (targetDriver) {
-          targetDriver.morale = Math.max(0, (targetDriver.morale ?? 80) - 3)
+          targetDriver.morale = Math.max(5, (targetDriver.morale ?? 80) - moraleLoss)
           setLiveRaceState((prev) => (prev ? { ...prev, grid: currentGrid } : null))
         }
       }
       setDrivers((prev) =>
         prev.map((d) =>
-          d.id === driverMsg.driverId ? { ...d, morale: Math.max(0, (d.morale ?? 80) - 3) } : d,
+          d.id === driverMsg.driverId
+            ? { ...d, morale: Math.max(5, (d.morale ?? 80) - moraleLoss) }
+            : d,
         ),
       )
 
@@ -3097,7 +3136,10 @@ export default function RacePage() {
 
       toast({
         title: '📻 ORDEM: AGUENTE MAIS',
-        description: `${driverMsg.driverName} fica na pista por mais 2 voltas (Moral -3). Alertas de pneus suspensos.`,
+        description:
+          moraleLoss === 1
+            ? `${driverMsg.driverName} (Moral Alta) compreende a estratégia e fica na pista por mais 2 voltas (Moral -1). Alertas de pneus suspensos.`
+            : `${driverMsg.driverName} fica na pista contrariado por mais 2 voltas (Moral -3). Alertas de pneus suspensos.`,
       })
     } else if (responseType === 'attack_mode') {
       // 3. MODO ATAQUE: +3% de ritmo por 5 voltas, chance de incidente/dano dobrada
@@ -3191,6 +3233,63 @@ export default function RacePage() {
       top10[flIndex].points += 1
     }
 
+    // ==========================================
+    // CICLO PÓS-CORRIDA DE MORAL E CONDIÇÃO FÍSICA
+    // ==========================================
+    // Circuitos fisicamente exigentes (Singapura, Malásia/Sepang, Interlagos ou calor/umidade proxy)
+    const isDemandingCircuit = isDemandingTrackName(gpInfo.name, gpInfo.circuit)
+
+    finalOrderedGrid.forEach((entry) => {
+      const currentDriverMorale = entry.morale ?? 80
+      const currentDriverPhysical = entry.physicalCondition ?? 90
+
+      // 1. Moral por resultado
+      let moraleDelta = 0
+      if (entry.dnf) {
+        moraleDelta = -6
+      } else if (entry.position === 1) {
+        moraleDelta = 8
+      } else if (entry.position >= 2 && entry.position <= 3) {
+        moraleDelta = 5
+      } else if (entry.position >= 4 && entry.position <= 10) {
+        moraleDelta = 2
+      } else {
+        moraleDelta = -3
+      }
+
+      // Penalidade adicional: respondeu "AGUENTE MAIS" e o carro caiu para fora da zona de pontos com pneu no cliff
+      const respondedStayOut = driversRespondedStayOutRef.current.has(entry.driverId)
+      const isOutsidePoints = entry.position > 10 || entry.dnf
+      const isEndedInCliff =
+        (entry.cliffStatus?.isCliffReached ?? 0) > 0 || (entry.tireWear ?? 0) >= 80
+      if (entry.isPlayer && respondedStayOut && isOutsidePoints && isEndedInCliff) {
+        moraleDelta -= 3
+      }
+
+      // Clampar moral entre 5 e 100
+      const updatedMorale = Math.max(5, Math.min(100, currentDriverMorale + moraleDelta))
+
+      // 2. Condição física dinâmica
+      // Cada corrida custa forma física: -4 a -8, com custo extra (-3 adicional) em circuitos fisicamente exigentes
+      const baseCost = Math.floor(Math.random() * 5) + 4 // 4 a 8
+      const physicalCost = baseCost + (isDemandingCircuit ? 3 : 0)
+      const physicalDelta = -physicalCost
+
+      // Clampar entre 5 e 100
+      const updatedPhysical = Math.max(5, Math.min(100, currentDriverPhysical + physicalDelta))
+
+      // Atribuir para visualização e persistência
+      entry.oldMorale = currentDriverMorale
+      entry.newMorale = updatedMorale
+      entry.moraleDelta = updatedMorale - currentDriverMorale
+      entry.morale = updatedMorale
+
+      entry.oldPhysical = currentDriverPhysical
+      entry.newPhysical = updatedPhysical
+      entry.physicalDelta = updatedPhysical - currentDriverPhysical
+      entry.physicalCondition = updatedPhysical
+    })
+
     if (incidents.length > 0) {
       setSafetyCarActive(true)
     }
@@ -3278,49 +3377,108 @@ export default function RacePage() {
       const netCashflow = totalSponsorIncome - driversCost - engineCost
       const updatedBudget = Math.max(0, team.budget + netCashflow)
 
-      // Update Driver fatigue, injuries & reserves
+      // -------------------------------------------------------------
+      // Atualização de Moral, Condição Física, Lesões e Recuperação
+      // Garantir idempotência: verificar se a rodada já foi processada
+      // -------------------------------------------------------------
+      const alreadyProcessed = season.last_processed_round === currentRound
       const titulars = drivers.filter((d) => d.role !== 'reserva' && d.team_id === team.id)
       const reserve = drivers.find(
         (d) => d.role === 'reserva' || (d.reserve_team_id === team.id && d.team_id !== team.id),
       )
 
-      for (const t of titulars) {
-        if (t.is_incapacitated) {
-          const roundsLeft = (t.incapacitated_rounds_left || 1) - 1
-          if (roundsLeft <= 0) {
-            await f1Service.updateDriver(t.id, {
-              is_incapacitated: false,
-              incapacitated_rounds_left: 0,
-              incapacitated_reason: '',
-            })
-            await f1Service.addEvent(
-              team.id,
-              `Piloto ${t.name} foi liberado pelo departamento médico e retorna ao cockpit!`,
-              'resultado',
-            )
+      if (!alreadyProcessed) {
+        for (const t of titulars) {
+          const resEntry = raceResults.find((r) => r.isPlayer && r.driverId === t.id)
+          const baseMorale = resEntry?.newMorale ?? t.morale ?? 80
+          const basePhysical = resEntry?.newPhysical ?? t.physical_condition ?? 90
+
+          if (t.is_incapacitated) {
+            const roundsLeft = (t.incapacitated_rounds_left || 1) - 1
+            // Lesionado em recuperação: recupera física +8 por rodada enquanto está fora
+            const recoveredPhysical = Math.max(5, Math.min(100, basePhysical + 8))
+
+            if (roundsLeft <= 0) {
+              await f1Service.updateDriver(t.id, {
+                is_incapacitated: false,
+                incapacitated_rounds_left: 0,
+                incapacitated_reason: '',
+                morale: baseMorale,
+                physical_condition: recoveredPhysical,
+              })
+              await f1Service.addEvent(
+                team.id,
+                `Piloto ${t.name} foi liberado pelo departamento médico e retorna ao cockpit! (Física: ${recoveredPhysical}%)`,
+                'resultado',
+              )
+            } else {
+              await f1Service.updateDriver(t.id, {
+                incapacitated_rounds_left: roundsLeft,
+                morale: baseMorale,
+                physical_condition: recoveredPhysical,
+              })
+            }
           } else {
-            await f1Service.updateDriver(t.id, { incapacitated_rounds_left: roundsLeft })
+            // Titular que correu: recupera +2 entre rodadas antes da próxima corrida
+            const recoveredPhysical = Math.max(5, Math.min(100, basePhysical + 2))
+
+            const injuryRoll = Math.random() < 0.04
+            if (injuryRoll && reserve) {
+              const reasons = [
+                'Lesão cervical por fadiga em alta velocidade',
+                'Contratura muscular nas costas',
+                'Intoxicação alimentar',
+              ]
+              const reason = reasons[Math.floor(Math.random() * reasons.length)]
+              await f1Service.updateDriver(t.id, {
+                is_incapacitated: true,
+                incapacitated_rounds_left: 1,
+                incapacitated_reason: reason,
+                morale: baseMorale,
+                physical_condition: recoveredPhysical,
+              })
+              await f1Service.addEvent(
+                team.id,
+                `ALERTA MÉDICO: ${t.name} sofreu "${reason}" e ficará fora da próxima etapa. O reserva ${reserve.name} assumirá o carro!`,
+                'resultado',
+              )
+            } else {
+              await f1Service.updateDriver(t.id, {
+                morale: baseMorale,
+                physical_condition: recoveredPhysical,
+              })
+            }
           }
-        } else {
-          const injuryRoll = Math.random() < 0.04
-          if (injuryRoll && reserve) {
-            const reasons = [
-              'Lesão cervical por fadiga em alta velocidade',
-              'Contratura muscular nas costas',
-              'Intoxicação alimentar',
-            ]
-            const reason = reasons[Math.floor(Math.random() * reasons.length)]
-            await f1Service.updateDriver(t.id, {
-              is_incapacitated: true,
-              incapacitated_rounds_left: 1,
-              incapacitated_reason: reason,
-            })
+
+          // Registrar no feed de eventos a evolução de moral do piloto da equipe
+          if (resEntry && resEntry.oldMorale !== undefined) {
+            const mDiff = (resEntry.newMorale ?? baseMorale) - resEntry.oldMorale
+            const mSign = mDiff > 0 ? `+${mDiff}` : `${mDiff}`
+            const reasonText = resEntry.dnf
+              ? 'abandono'
+              : resEntry.position === 1
+                ? 'vitória'
+                : resEntry.position <= 3
+                  ? 'pódio'
+                  : resEntry.position <= 10
+                    ? `P${resEntry.position} na zona de pontos`
+                    : `P${resEntry.position} fora dos pontos`
+
             await f1Service.addEvent(
               team.id,
-              `ALERTA MÉDICO: ${t.name} sofreu "${reason}" e ficará fora da próxima etapa. O reserva ${reserve.name} assumirá o carro!`,
+              `📈 Moral de ${t.name}: ${resEntry.oldMorale} → ${resEntry.newMorale} (${mSign}) — ${reasonText} em ${gpInfo.name}.`,
               'resultado',
             )
           }
+        }
+
+        // Recuperação de pilotos sem corrida no fim de semana (reservas recuperam +6)
+        if (reserve) {
+          const currentResPhysical = reserve.physical_condition ?? 95
+          const recoveredResPhysical = Math.max(5, Math.min(100, currentResPhysical + 6))
+          await f1Service.updateDriver(reserve.id, {
+            physical_condition: recoveredResPhysical,
+          })
         }
       }
 
@@ -3368,9 +3526,12 @@ export default function RacePage() {
 
       await f1Service.addEvent(team.id, eventMsg, 'resultado')
 
-      // Advance season round
+      // Advance season round & mark last_processed_round to prevent duplicate processing
       const nextRound = currentRound + 1
-      await f1Service.updateSeason(season.id, { current_round: nextRound })
+      await f1Service.updateSeason(season.id, {
+        current_round: nextRound,
+        last_processed_round: currentRound,
+      })
 
       toast({
         title: `Rodada ${currentRound} Concluída com Sucesso!`,

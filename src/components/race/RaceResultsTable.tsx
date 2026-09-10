@@ -22,6 +22,12 @@ export interface RaceResultEntry {
   tireCompound?: TireCompound
   secondCompound?: TireCompound
   tireWear?: number
+  oldMorale?: number
+  newMorale?: number
+  moraleDelta?: number
+  oldPhysical?: number
+  newPhysical?: number
+  physicalDelta?: number
 }
 
 interface RaceResultsTableProps {
@@ -96,85 +102,142 @@ export function RaceResultsTable({
                   <th className="py-2.5 px-2 text-center">Pneus (1º/2º)</th>
                   <th className="py-2.5 px-2 text-center">Desgaste</th>
                   <th className="py-2.5 px-3">Tempo / Gap</th>
+                  <th className="py-2.5 px-2 text-center">Moral</th>
+                  <th className="py-2.5 px-2 text-center">Física</th>
                   <th className="py-2.5 px-3 text-right">Pts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1F2733]/60">
-                {actualResults.map((row) => (
-                  <tr
-                    key={row.driverId}
-                    className={`transition-colors ${
-                      row.isPlayer
-                        ? 'bg-[#E10600]/10 font-bold border-l-4 border-l-[#E10600]'
-                        : 'hover:bg-[#161D29]/40'
-                    }`}
-                  >
-                    <td className="py-3 px-3">
-                      <span
-                        className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-bold ${
-                          row.position === 1
-                            ? 'bg-amber-400 text-black'
-                            : row.position === 2
-                              ? 'bg-slate-300 text-black'
-                              : row.position === 3
-                                ? 'bg-amber-700 text-white'
-                                : 'text-[#8B95A7]'
-                        }`}
-                      >
-                        {row.dnf ? 'DNF' : row.position}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        <span>{row.flag}</span>
+                {actualResults.map((row) => {
+                  const hasMorale = row.newMorale !== undefined && row.oldMorale !== undefined
+                  const mDelta =
+                    row.moraleDelta ?? (hasMorale ? row.newMorale! - row.oldMorale! : 0)
+                  const hasPhysical = row.newPhysical !== undefined && row.oldPhysical !== undefined
+                  const pDelta =
+                    row.physicalDelta ?? (hasPhysical ? row.newPhysical! - row.oldPhysical! : 0)
+
+                  return (
+                    <tr
+                      key={row.driverId}
+                      className={`transition-colors ${
+                        row.isPlayer
+                          ? 'bg-[#E10600]/10 font-bold border-l-4 border-l-[#E10600]'
+                          : 'hover:bg-[#161D29]/40'
+                      }`}
+                    >
+                      <td className="py-3 px-3">
                         <span
-                          className={row.isPlayer ? 'text-[#F5F7FA] font-bold' : 'text-[#F5F7FA]'}
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-bold ${
+                            row.position === 1
+                              ? 'bg-amber-400 text-black'
+                              : row.position === 2
+                                ? 'bg-slate-300 text-black'
+                                : row.position === 3
+                                  ? 'bg-amber-700 text-white'
+                                  : 'text-[#8B95A7]'
+                          }`}
                         >
-                          {row.driverName}
+                          {row.dnf ? 'DNF' : row.position}
                         </span>
-                        {row.fastestLap && (
-                          <Badge className="bg-purple-600 text-white text-[9px] px-1 py-0 h-4">
-                            FL +1
-                          </Badge>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <span>{row.flag}</span>
+                          <span
+                            className={row.isPlayer ? 'text-[#F5F7FA] font-bold' : 'text-[#F5F7FA]'}
+                          >
+                            {row.driverName}
+                          </span>
+                          {row.fastestLap && (
+                            <Badge className="bg-purple-600 text-white text-[9px] px-1 py-0 h-4">
+                              FL +1
+                            </Badge>
+                          )}
+                        </div>
+                        {row.dnfReason && (
+                          <span className="text-[10px] text-red-400 block mt-0.5 font-normal">
+                            {row.dnfReason}
+                          </span>
                         )}
-                      </div>
-                      {row.dnfReason && (
-                        <span className="text-[10px] text-red-400 block mt-0.5 font-normal">
-                          {row.dnfReason}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span style={{ color: row.teamColor }}>{row.teamName}</span>
+                      </td>
+                      <td className="py-3 px-2 text-center text-[#8B95A7]">
+                        {row.tireCompound?.slice(0, 3)} / {row.secondCompound?.slice(0, 3)}
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        <span
+                          className={`font-bold ${
+                            (row.tireWear || 0) > 85
+                              ? 'text-red-400'
+                              : (row.tireWear || 0) > 65
+                                ? 'text-amber-400'
+                                : 'text-emerald-400'
+                          }`}
+                        >
+                          {row.tireWear || 70}%
                         </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span style={{ color: row.teamColor }}>{row.teamName}</span>
-                    </td>
-                    <td className="py-3 px-2 text-center text-[#8B95A7]">
-                      {row.tireCompound?.slice(0, 3)} / {row.secondCompound?.slice(0, 3)}
-                    </td>
-                    <td className="py-3 px-2 text-center">
-                      <span
-                        className={`font-bold ${
-                          (row.tireWear || 0) > 85
-                            ? 'text-red-400'
-                            : (row.tireWear || 0) > 65
-                              ? 'text-amber-400'
-                              : 'text-emerald-400'
-                        }`}
-                      >
-                        {row.tireWear || 70}%
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-[#8B95A7]">{row.totalTime}</td>
-                    <td className="py-3 px-3 text-right">
-                      {row.points > 0 ? (
-                        <strong className="text-emerald-400 font-bold text-sm">
-                          +{row.points}
-                        </strong>
-                      ) : (
-                        <span className="text-[#8B95A7]">0</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 px-3 text-[#8B95A7]">{row.totalTime}</td>
+                      <td className="py-3 px-2 text-center">
+                        {hasMorale ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="text-white font-semibold">{row.newMorale}</span>
+                            <span
+                              className={`text-[10px] font-bold ${
+                                mDelta > 0
+                                  ? 'text-emerald-400'
+                                  : mDelta < 0
+                                    ? 'text-red-400'
+                                    : 'text-zinc-400'
+                              }`}
+                            >
+                              ({mDelta > 0 ? `+${mDelta}` : mDelta})
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[#8B95A7]">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        {hasPhysical ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <span
+                              className={`font-semibold ${
+                                (row.newPhysical ?? 100) < 40 ? 'text-amber-400' : 'text-white'
+                              }`}
+                            >
+                              {row.newPhysical}%
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold ${
+                                pDelta > 0
+                                  ? 'text-emerald-400'
+                                  : pDelta < 0
+                                    ? 'text-red-400'
+                                    : 'text-zinc-400'
+                              }`}
+                            >
+                              ({pDelta > 0 ? `+${pDelta}` : pDelta})
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[#8B95A7]">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {row.points > 0 ? (
+                          <strong className="text-emerald-400 font-bold text-sm">
+                            +{row.points}
+                          </strong>
+                        ) : (
+                          <span className="text-[#8B95A7]">0</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

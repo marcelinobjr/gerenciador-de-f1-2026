@@ -50,11 +50,11 @@ export interface SeasonModel {
   current_round: number
   total_rounds: number
   team_id: string
-  market_moves?: MarketMoveEvent[]
+  last_processed_round?: number
   created?: string
   updated?: string
+  market_moves?: MarketMoveEvent[]
 }
-
 export interface DriverModel {
   id: string
   name: string
