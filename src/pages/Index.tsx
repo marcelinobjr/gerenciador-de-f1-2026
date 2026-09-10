@@ -33,6 +33,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CircuitBlueprint, TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
+import pb from '@/lib/pocketbase/client'
+import { CircuitModel } from '@/types/f1'
+import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
 import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122312-e3312.png'
 
 // Flag emoji helper
@@ -141,6 +144,7 @@ export default function Index() {
   const [events, setEvents] = useState<EventModel[]>([])
   const [parts, setParts] = useState<PartModel[]>([])
   const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
+  const [circuits, setCircuits] = useState<CircuitModel[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadDashboardData = async () => {
@@ -149,11 +153,12 @@ export default function Index() {
       return
     }
     try {
-      const [dList, eList, pList, rList] = await Promise.all([
+      const [dList, eList, pList, rList, cList] = await Promise.all([
         f1Service.getTeamDrivers(team.id),
         f1Service.getTeamEvents(team.id, 20),
         f1Service.getTeamParts(team.id),
         f1Service.getSeasonRaceResults(season.id),
+        f1Service.getAllCircuits().catch(() => [] as CircuitModel[]),
       ])
 
       // Se não houver piloto reserva diretamente em team_id, buscar quem tem reserve_team_id
@@ -177,6 +182,7 @@ export default function Index() {
       setEvents(eList)
       setParts(pList)
       setRaceResults(rList)
+      setCircuits(cList)
     } catch (err) {
       console.error('Error loading dashboard data:', err)
     } finally {
@@ -209,6 +215,12 @@ export default function Index() {
   })
   useRealtime('seasons', () => {
     refreshTeamAndSeason()
+  })
+  useRealtime('circuits', () => {
+    f1Service
+      .getAllCircuits()
+      .then(setCircuits)
+      .catch(() => {})
   })
 
   // Standings calculation
@@ -447,6 +459,18 @@ export default function Index() {
   // Traçado vetorial mini para o card de setores
   const currentTrack = TRACK_LAYOUTS[currentRoundNumber] || TRACK_LAYOUTS[1]
 
+  // Imagem do circuito do calendário (upload do PocketBase ou default)
+  const currentCircuitPhotoUrl = useMemo(() => {
+    const dbCircuit = circuits.find((c) => c.round === currentRoundNumber)
+    if (dbCircuit?.photo) {
+      return pb.files.getUrl(dbCircuit, dbCircuit.photo)
+    }
+    if (currentRoundNumber === 1) {
+      return defaultAustraliaMap
+    }
+    return null
+  }, [circuits, currentRoundNumber])
+
   // Formatter de orçamento simplificado em M
   const formattedBudgetM = useMemo(() => {
     const b = team?.budget ?? 150000000
@@ -458,38 +482,9 @@ export default function Index() {
   }, [team?.budget])
 
   return (
-    <div className="space-y-5 animate-fade-in text-[#F5F7FA]">
+    <div className="space-y-6 animate-fade-in text-[#F5F7FA]">
       {/* ============================================================== */}
-      {/* 1. LINHA DE IDENTIDADE COMPACTA (LOGO F1 2026 + NOME EQUIPE + BADGE TEMPORADA) */}
-      {/* ============================================================== */}
-      <div className="flex items-center justify-between px-1 py-1">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E10600] to-[#B00400] flex items-center justify-center text-white shadow-lg shadow-[#E10600]/30 shrink-0">
-            <span className="font-black italic tracking-tighter text-sm">F1</span>
-          </div>
-          <div className="flex items-baseline gap-2.5">
-            <span className="text-base sm:text-lg font-black tracking-wider leading-none text-white whitespace-nowrap">
-              F1 <span className="text-[#E10600]">2026</span>
-            </span>
-            <span className="text-xs sm:text-sm font-mono uppercase tracking-[0.15em] font-extrabold text-[#8B95A7] whitespace-nowrap">
-              {team?.name || 'AUDI F1 TEAM'}
-            </span>
-          </div>
-        </div>
-
-        <Badge
-          variant="outline"
-          className="border-[#1F2733] bg-[#0D121B]/80 text-[#8B95A7] font-mono text-xs px-3 py-1 font-semibold shrink-0"
-        >
-          <span className="text-[#8B95A7] mr-1.5 hidden sm:inline">Temporada 2026 ·</span>
-          <span className="text-white font-bold">
-            R{currentRoundNumber}/{totalRounds}
-          </span>
-        </Badge>
-      </div>
-
-      {/* ============================================================== */}
-      {/* 2. LINHA DE CARDS DE STATUS (4 METRIC CARDS + MINI HUD DE TELEMETRIA) */}
+      {/* 1. LINHA DE CARDS DE STATUS (4 METRIC CARDS + MINI HUD DE TELEMETRIA) */}
       {/* ============================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Construtores */}
@@ -578,35 +573,43 @@ export default function Index() {
             </div>
           </div>
 
-          {/* Mini Track SVG Blueprint */}
-          <div className="w-24 h-20 flex items-center justify-center relative">
-            <svg
-              viewBox={currentTrack.viewBox}
-              className="w-full h-full drop-shadow-[0_0_8px_rgba(0,166,251,0.35)]"
-            >
-              <path
-                d={currentTrack.svgPath}
-                fill="none"
-                stroke="#1F2A3D"
-                strokeWidth="10"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+          {/* Mini Track Imagem do Calendário com fallback Blueprint */}
+          <div className="w-24 h-20 flex items-center justify-center relative rounded-md overflow-hidden bg-black/40 border border-cyan-500/10">
+            {currentCircuitPhotoUrl ? (
+              <img
+                src={currentCircuitPhotoUrl}
+                alt={`Traçado ${currentGP.name}`}
+                className="w-full h-full object-contain p-1 drop-shadow-[0_0_8px_rgba(0,166,251,0.4)]"
               />
-              <path
-                d={currentTrack.svgPath}
-                fill="none"
-                stroke="#00A6FB"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle
-                cx={currentTrack.startFinish.x}
-                cy={currentTrack.startFinish.y}
-                r="3.5"
-                fill="#E10600"
-              />
-            </svg>
+            ) : (
+              <svg
+                viewBox={currentTrack.viewBox}
+                className="w-full h-full drop-shadow-[0_0_8px_rgba(0,166,251,0.35)]"
+              >
+                <path
+                  d={currentTrack.svgPath}
+                  fill="none"
+                  stroke="#1F2A3D"
+                  strokeWidth="10"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d={currentTrack.svgPath}
+                  fill="none"
+                  stroke="#00A6FB"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle
+                  cx={currentTrack.startFinish.x}
+                  cy={currentTrack.startFinish.y}
+                  r="3.5"
+                  fill="#E10600"
+                />
+              </svg>
+            )}
           </div>
         </div>
 
@@ -639,199 +642,277 @@ export default function Index() {
       </div>
 
       {/* ============================================================== */}
-      {/* 3 & 4. SEÇÃO HERO: CARD DO PRÓXIMO GP + HUD DE DESGASTE DO CARRO */}
+      {/* 2. SEÇÃO HERO: CARRO EM DESTAQUE MÁXIMO + CARDS FLUTUANTES COM GLOW VERMELHO */}
       {/* ============================================================== */}
-      <div className="relative rounded-2xl border border-[#1F2733]/90 overflow-hidden shadow-2xl bg-[#070A10]">
-        {/* Banner de fundo: Carro de F1 na garagem noturna (visível, com overlay leve) */}
+      <div className="relative rounded-2xl border border-red-950/40 overflow-hidden shadow-2xl bg-[#05070B] min-h-[560px] lg:min-h-[580px] flex flex-col justify-between">
+        {/* Foto do Carro na garagem: Fundo de largura total centrado no carro */}
         <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-65 pointer-events-none transition-transform duration-700"
+          className="absolute inset-0 bg-cover bg-center lg:bg-[center_top_35%] bg-no-repeat pointer-events-none scale-100 transition-transform duration-1000"
           style={{ backgroundImage: `url(${heroGarageBg})` }}
         />
-        {/* Gradiente de overlay escurecido sutil para garantir leitura dos textos e HUD */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#070A10]/90 via-[#070A10]/60 to-[#070A10]/80 pointer-events-none" />
-        <div className="absolute inset-0 bg-radial-at-tl from-[#E10600]/15 via-transparent to-black/40 pointer-events-none" />
 
-        <div className="relative z-10 p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-          {/* Coluna Esquerda: Badge + Nome do GP + Specs + Botões (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="bg-[#E10600] text-white hover:bg-[#FF2E25] font-mono text-xs font-black uppercase tracking-wider px-3 py-1 shadow-md shadow-[#E10600]/30 border-none">
-                RODADA {currentRoundNumber} DE {totalRounds}
-              </Badge>
-              <span className="text-xs font-mono text-[#E2E8F0] flex items-center gap-1.5 bg-[#0D121B]/80 px-2.5 py-1 rounded-md border border-[#1F2733]/80 backdrop-blur-sm">
-                <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                Próximo Evento Oficial
-              </span>
-            </div>
+        {/* Efeitos de Iluminação Ambiente Vermelha F1 e Reflexos de Asfalto Noturno */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#05070B] via-transparent to-[#05070B]/50 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#05070B]/85 via-black/20 to-[#05070B]/80 pointer-events-none" />
+        {/* Glows vermelhos difusores nas laterais e no chão */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#E10600]/25 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[#E10600]/25 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-red-600/10 rounded-full blur-[120px] pointer-events-none" />
 
-            <div>
-              <h1 className="text-2xl sm:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight drop-shadow-md">
-                {currentGP.name}
-              </h1>
-              <div className="flex items-center gap-2 mt-1.5 text-sm sm:text-base font-mono">
-                <span className="text-xl">{currentGP.flag}</span>
-                <span className="text-[#00A6FB] font-bold drop-shadow">{currentGP.circuit}</span>
-              </div>
-            </div>
+        {/* Conteúdo flutuante sobre a imagem do carro */}
+        <div className="relative z-10 p-5 sm:p-7 flex flex-col justify-between h-full gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Card do GP: Estilo da referência com borda/glow vermelho e traçado do calendário */}
+            <div className="lg:col-span-7 rounded-2xl bg-[#090D15]/80 backdrop-blur-md border border-[#E10600]/40 p-5 sm:p-6 shadow-[0_0_35px_rgba(225,6,0,0.18)] hover:border-[#E10600]/70 transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                {/* Lado Esquerdo do Card: Badges, Título e Circuito */}
+                <div className="space-y-3 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="bg-[#E10600] text-white hover:bg-[#FF2E25] font-mono text-xs font-black uppercase tracking-wider px-3 py-1 shadow-md shadow-[#E10600]/40 border-none">
+                      RODADA {currentRoundNumber} DE {totalRounds}
+                    </Badge>
+                    <span className="text-xs font-mono text-[#E2E8F0] flex items-center gap-1.5 bg-[#0D121B]/90 px-2.5 py-1 rounded-md border border-[#1F2733]/90 backdrop-blur-sm">
+                      <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                      Próximo Evento Oficial
+                    </span>
+                  </div>
 
-            {/* Linha de Especificações Técnicas do GP */}
-            <div className="grid grid-cols-[auto_auto_1fr] sm:grid-cols-[110px_100px_1fr] gap-4 sm:gap-6 pt-2 text-xs font-mono border-t border-[#1F2733]/80">
-              <div className="shrink-0">
-                <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
-                  EXTENSÃO
-                </span>
-                <strong className="text-white text-sm sm:text-base">
-                  {currentGP.circuitLengthKm} km
-                </strong>
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl lg:text-[38px] font-black text-white tracking-tight leading-tight drop-shadow-md">
+                      {currentGP.name}
+                    </h1>
+                    <div className="flex items-center gap-2 mt-2 text-sm sm:text-base font-mono">
+                      <span className="text-xl shrink-0">{currentGP.flag}</span>
+                      <span className="text-[#00A6FB] font-bold drop-shadow truncate">
+                        {currentGP.circuit}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lado Direito do Card: Mini Traçado (Imagem do Calendário com pontos vermelhos ou blueprint) */}
+                <div className="shrink-0 flex items-center justify-center w-36 h-28 sm:w-44 sm:h-32 rounded-xl bg-black/40 border border-white/10 p-2 relative overflow-hidden group">
+                  {currentCircuitPhotoUrl ? (
+                    <img
+                      src={currentCircuitPhotoUrl}
+                      alt={`Traçado ${currentGP.circuit}`}
+                      className="w-full h-full object-contain filter drop-shadow-[0_0_10px_rgba(255,255,255,0.45)] group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <svg
+                      viewBox={currentTrack.viewBox}
+                      className="w-full h-full drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+                    >
+                      <path
+                        d={currentTrack.svgPath}
+                        fill="none"
+                        stroke="rgba(255,255,255,0.2)"
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d={currentTrack.svgPath}
+                        fill="none"
+                        stroke="#FFFFFF"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <circle
+                        cx={currentTrack.startFinish.x}
+                        cy={currentTrack.startFinish.y}
+                        r="4.5"
+                        fill="#E10600"
+                        className="animate-pulse"
+                      />
+                    </svg>
+                  )}
+                  {/* Ponto indicador neon vermelho */}
+                  <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#E10600] animate-pulse shadow-[0_0_8px_#E10600]" />
+                </div>
               </div>
-              <div className="shrink-0">
-                <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
-                  VOLTAS
-                </span>
-                <strong className="text-white text-sm sm:text-base">{currentGP.laps}</strong>
+
+              {/* Linha de Especificações Técnicas do GP */}
+              <div className="grid grid-cols-[auto_auto_1fr] sm:grid-cols-[120px_100px_1fr] gap-4 sm:gap-6 pt-4 mt-4 text-xs font-mono border-t border-white/10">
+                <div className="shrink-0">
+                  <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
+                    EXTENSÃO
+                  </span>
+                  <strong className="text-white text-sm sm:text-base">
+                    {currentGP.circuitLengthKm.toFixed(3)} km
+                  </strong>
+                </div>
+                <div className="shrink-0">
+                  <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
+                    VOLTAS
+                  </span>
+                  <strong className="text-white text-sm sm:text-base">{currentGP.laps}</strong>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
+                    DESAFIO
+                  </span>
+                  <strong
+                    className="text-white text-xs sm:text-sm font-semibold truncate block"
+                    title={currentGP.characteristic}
+                  >
+                    {currentGP.characteristic}
+                  </strong>
+                </div>
               </div>
-              <div className="min-w-0">
-                <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
-                  DESAFIO
-                </span>
-                <strong
-                  className="text-white text-xs sm:text-sm font-semibold truncate block"
-                  title={currentGP.characteristic}
+
+              {/* Botões de Ação com o estilo exato da referência */}
+              <div className="flex flex-wrap items-center gap-3 pt-4">
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-black px-6 shadow-xl shadow-[#E10600]/40 transition-all hover:scale-[1.02] text-sm font-mono tracking-wide"
                 >
-                  {currentGP.characteristic}
-                </strong>
-              </div>
-            </div>
+                  <Link to="/race" className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 fill-current" />
+                    Ver Detalhes do GP
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </Button>
 
-            {/* Botões de Ação */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button
-                asChild
-                size="lg"
-                className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-black px-6 shadow-xl shadow-[#E10600]/30 transition-all hover:scale-[1.02] text-sm font-mono tracking-wide"
-              >
-                <Link to="/race" className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 fill-current" />
-                  Ver Detalhes do GP
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
-              </Button>
-
-              <Button
-                asChild
-                variant="outline"
-                size="lg"
-                className="border-[#1F2733] bg-[#0D121B]/80 text-[#F5F7FA] hover:bg-[#161D29] hover:border-[#00A6FB]/40 text-sm font-mono tracking-wide"
-              >
-                <Link to="/car" className="flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-cyan-400" />
-                  Ajustar Aerodinâmica Ativa
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          {/* Coluna Direita: Traçado do Circuito + HUD Holográfico de Desgaste (5 cols) */}
-          <div className="lg:col-span-5 flex flex-col gap-4">
-            {/* Traçado Blueprint em neon ciano com grid */}
-            <div className="relative rounded-xl bg-[#08101E]/80 border border-cyan-500/20 p-3.5 backdrop-blur-md">
-              <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]/60 text-[10px] font-mono">
-                <span className="text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  LAYOUT OFICIAL FIA // {currentTrack.code}
-                </span>
-                <span className="text-[#8B95A7]">
-                  {currentTrack.antiClockwise ? '↺ Anti-horário' : '↻ Horário'}
-                </span>
-              </div>
-
-              <div className="h-32 flex items-center justify-center py-1">
-                <svg
-                  viewBox={currentTrack.viewBox}
-                  className="w-full h-full max-h-28 drop-shadow-[0_0_12px_rgba(0,166,251,0.45)]"
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="border-white/15 bg-black/40 backdrop-blur-md text-[#F5F7FA] hover:bg-white/10 hover:border-cyan-400/50 text-sm font-mono tracking-wide"
                 >
-                  <path
-                    d={currentTrack.svgPath}
-                    fill="none"
-                    stroke="#111B2B"
-                    strokeWidth="12"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d={currentTrack.svgPath}
-                    fill="none"
-                    stroke="#00A6FB"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <circle
-                    cx={currentTrack.startFinish.x}
-                    cy={currentTrack.startFinish.y}
-                    r="4.5"
-                    fill="#E10600"
-                    className="animate-pulse"
-                  />
-                </svg>
+                  <Link to="/car" className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-cyan-400" />
+                    Ajustar Aerodinâmica Ativa
+                  </Link>
+                </Button>
               </div>
             </div>
 
-            {/* HUD Holográfico: Desgaste de Pneus / Combustível / ERS / Motor */}
-            <div className="rounded-xl bg-[#08101E]/90 border border-cyan-500/25 p-3.5 backdrop-blur-md space-y-2 font-mono text-xs shadow-lg">
-              <div className="flex items-center justify-between text-[10px] text-cyan-400 uppercase font-bold tracking-widest pb-1 border-b border-[#1F2733]/50">
-                <span>TELEMETRIA AO VIVO // STATUS DO CARRO</span>
-                <span className="text-[#8B95A7]">{team?.engine_supplier || 'Audi'} PU</span>
+            {/* Coluna Direita: Cards Translúcidos sobre a foto do carro (Estratégia + Telemetria) */}
+            <div className="lg:col-span-5 flex flex-col gap-3.5">
+              {/* Card Translúcido 1: Estratégia de Corrida (Soft / Medium / Hard com gráfico de degradação) */}
+              <div className="rounded-xl bg-[#090D15]/80 border border-white/10 p-3.5 backdrop-blur-md font-mono text-xs shadow-xl">
+                <div className="flex items-center justify-between text-[10px] text-cyan-400 uppercase font-bold tracking-wider pb-2 border-b border-white/10">
+                  <span>ESTRATÉGIA DE CORRIDA</span>
+                  <span className="text-[#8B95A7]">VOLTA 0 → {currentGP.laps}</span>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between gap-3">
+                  {/* Legenda de Compostos */}
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#E10600] shadow-[0_0_6px_#E10600]" />
+                      <span className="text-white font-semibold">Soft</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_#F59E0B]" />
+                      <span className="text-[#CBD5E1]">Medium</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
+                      <span className="text-[#8B95A7]">Hard</span>
+                    </div>
+                  </div>
+
+                  {/* Gráfico Simplificado de Degradação (estilo curva da referência) */}
+                  <div className="flex-1 max-w-[170px] h-14 relative flex items-end">
+                    <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
+                      {/* Grid sutil */}
+                      <line
+                        x1="0"
+                        y1="10"
+                        x2="100"
+                        y2="10"
+                        stroke="rgba(255,255,255,0.06)"
+                        strokeDasharray="2 2"
+                      />
+                      <line
+                        x1="0"
+                        y1="25"
+                        x2="100"
+                        y2="25"
+                        stroke="rgba(255,255,255,0.06)"
+                        strokeDasharray="2 2"
+                      />
+                      <line x1="0" y1="38" x2="100" y2="38" stroke="rgba(255,255,255,0.15)" />
+                      {/* Curva de degradação: Soft -> Medium -> Hard */}
+                      <path
+                        d="M 5,8 L 38,20 L 72,28 L 95,35"
+                        fill="none"
+                        stroke="#E10600"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                      {/* Pontos nos stints */}
+                      <circle cx="5" cy="8" r="3" fill="#E10600" />
+                      <circle cx="38" cy="20" r="3" fill="#F59E0B" />
+                      <circle cx="72" cy="28" r="3" fill="#CBD5E1" />
+                      <circle cx="95" cy="35" r="3" fill="#FFFFFF" />
+                    </svg>
+                  </div>
+                </div>
               </div>
 
-              {/* Barra 1: Pneus */}
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] w-28 uppercase">DESGASTE PNEUS</span>
-                <div className="flex-1 bg-[#11161F] h-2 rounded-full overflow-hidden border border-[#1F2733]">
-                  <div
-                    className="h-full bg-cyan-400 transition-all duration-500 rounded-full"
-                    style={{ width: `${tireWearPct}%` }}
-                  />
+              {/* Card Translúcido 2: Telemetria ao Vivo // Status do Carro */}
+              <div className="rounded-xl bg-[#090D15]/80 border border-cyan-500/30 p-3.5 backdrop-blur-md space-y-2 font-mono text-xs shadow-xl">
+                <div className="flex items-center justify-between text-[10px] text-cyan-400 uppercase font-bold tracking-widest pb-1 border-b border-white/10">
+                  <span>TELEMETRIA AO VIVO // STATUS DO CARRO</span>
+                  <span className="text-[#8B95A7]">{team?.engine_supplier || 'Audi'} PU</span>
                 </div>
-                <span className="text-white font-bold w-10 text-right">{tireWearPct}%</span>
-              </div>
 
-              {/* Barra 2: Combustível */}
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] w-28 uppercase">COMBUSTÍVEL</span>
-                <div className="flex-1 bg-[#11161F] h-2 rounded-full overflow-hidden border border-[#1F2733]">
-                  <div
-                    className="h-full bg-cyan-400 transition-all duration-500 rounded-full"
-                    style={{ width: `${fuelPct}%` }}
-                  />
+                {/* Barra 1: Pneus */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">DESGASTE PNEUS</span>
+                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
+                    <div
+                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
+                      style={{ width: `${tireWearPct}%` }}
+                    />
+                  </div>
+                  <span className="text-white font-bold w-10 text-right">{tireWearPct}%</span>
                 </div>
-                <span className="text-white font-bold w-10 text-right">{fuelPct}%</span>
-              </div>
 
-              {/* Barra 3: ERS */}
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] w-28 uppercase">
-                  ERS (HÍBRIDO 50/50)
-                </span>
-                <div className="flex-1 bg-[#11161F] h-2 rounded-full overflow-hidden border border-[#1F2733]">
-                  <div
-                    className="h-full bg-cyan-400 transition-all duration-500 rounded-full"
-                    style={{ width: `${ersPct}%` }}
-                  />
+                {/* Barra 2: Combustível */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">COMBUSTÍVEL</span>
+                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
+                    <div
+                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
+                      style={{ width: `${fuelPct}%` }}
+                    />
+                  </div>
+                  <span className="text-white font-bold w-10 text-right">{fuelPct}%</span>
                 </div>
-                <span className="text-white font-bold w-10 text-right">{ersPct}%</span>
-              </div>
 
-              {/* Barra 4: Motor (Integridade restante da PU) */}
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] w-28 uppercase">MOTOR (SAÚDE PU)</span>
-                <div className="flex-1 bg-[#11161F] h-2 rounded-full overflow-hidden border border-[#1F2733]">
-                  <div
-                    className="h-full bg-cyan-400 transition-all duration-500 rounded-full"
-                    style={{ width: `${engineHealthPct}%` }}
-                  />
+                {/* Barra 3: ERS */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">
+                    ERS (HÍBRIDO 50/50)
+                  </span>
+                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
+                    <div
+                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
+                      style={{ width: `${ersPct}%` }}
+                    />
+                  </div>
+                  <span className="text-white font-bold w-10 text-right">{ersPct}%</span>
                 </div>
-                <span className="text-white font-bold w-10 text-right">{engineHealthPct}%</span>
+
+                {/* Barra 4: Motor (Integridade restante da PU) */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">
+                    MOTOR (SAÚDE PU)
+                  </span>
+                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
+                    <div
+                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
+                      style={{ width: `${engineHealthPct}%` }}
+                    />
+                  </div>
+                  <span className="text-white font-bold w-10 text-right">{engineHealthPct}%</span>
+                </div>
               </div>
             </div>
           </div>
