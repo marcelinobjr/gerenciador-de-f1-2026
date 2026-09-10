@@ -303,7 +303,7 @@ export default function SponsorsPage() {
       </div>
 
       {/* Indicador de Desempenho e Multiplicador de Contratos */}
-      <div className="p-4 rounded-xl bg-gradient-to-r from-[#11161F] via-[#161D29] to-[#11161F] border border-[#1F2733] flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-[#00A6FB]" />
@@ -592,10 +592,10 @@ export default function SponsorsPage() {
 
       {/* Modal: Fechar Contrato */}
       <Dialog open={!!signingSponsor} onOpenChange={(open) => !open && setSigningSponsor(null)}>
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA]">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333]/90 text-[#F5F7FA]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
-              <Handshake className="w-5 h-5 text-[#22C55E]" />
+              <Handshake className="w-5 h-5 text-[#E10600]" />
               Assinar Acordo Comercial — {signingSponsor?.name}
             </DialogTitle>
             <DialogDescription className="text-xs text-[#8B95A7]">
@@ -654,7 +654,7 @@ export default function SponsorsPage() {
             <Button
               onClick={handleSignContract}
               disabled={isProcessing}
-              className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold"
+              className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-semibold shadow-md"
             >
               {isProcessing ? 'Firmando contrato...' : 'Confirmar Parceria'}
             </Button>
@@ -667,7 +667,7 @@ export default function SponsorsPage() {
         open={!!terminatingSponsor}
         onOpenChange={(open) => !open && setTerminatingSponsor(null)}
       >
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA]">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333]/90 text-[#F5F7FA]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-red-400 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />

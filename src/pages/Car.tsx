@@ -1010,8 +1010,8 @@ export default function CarPage() {
                 key={sup.name}
                 className={`p-4 rounded-xl border transition-all ${
                   isCurrent
-                    ? 'bg-[#161D29] border-[#00A6FB] shadow-md shadow-[#00A6FB]/10 ring-1 ring-[#00A6FB]'
-                    : 'bg-[#11161F] border-[#1F2733] hover:border-[#1F2733]/80'
+                    ? 'bg-[#090D15]/95 border-[#00A6FB] shadow-lg shadow-[#00A6FB]/10 ring-1 ring-[#00A6FB]'
+                    : 'bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 hover:border-[#00A6FB]/40'
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -1072,7 +1072,7 @@ export default function CarPage() {
 
       {/* Modal: Confirmar Troca de Fornecedor de Motor */}
       <Dialog open={!!selectedSupplier} onOpenChange={(open) => !open && setSelectedSupplier(null)}>
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA]">
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333]/90 text-[#F5F7FA]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
               <Cpu className="w-5 h-5 text-[#00A6FB]" />

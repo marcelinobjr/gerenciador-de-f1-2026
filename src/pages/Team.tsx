@@ -37,6 +37,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Slider } from '@/components/ui/slider'
+import { DriverHelmet } from '@/components/DriverHelmet'
 
 import {
   Dialog,
@@ -848,9 +849,7 @@ export default function TeamPage() {
                     {/* Driver Header */}
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#1F2733] border border-[#1F2733] flex items-center justify-center font-mono font-bold text-sm text-[#F5F7FA]">
-                          #{index + 1}
-                        </div>
+                        <DriverHelmet driver={driver} teamColor={team?.color} size="md" />
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-bold text-base text-[#F5F7FA]">{driver.name}</h3>
@@ -1119,9 +1118,7 @@ export default function TeamPage() {
             <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center font-mono font-bold text-sm text-amber-400">
-                    FP
-                  </div>
+                  <DriverHelmet driver={reserveDriver} teamColor={team?.color} size="md" />
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-base text-[#F5F7FA]">{reserveDriver.name}</h3>

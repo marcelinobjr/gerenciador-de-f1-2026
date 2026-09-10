@@ -269,7 +269,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Barra de Filtros e Busca */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#11161F] border border-[#1F2733] p-3 rounded-xl font-mono text-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl p-3.5 rounded-2xl font-mono text-xs">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8B95A7]" />
           <input
@@ -351,10 +351,10 @@ export default function CalendarPage() {
                 key={gp.round}
                 className={`relative overflow-hidden transition-all duration-200 flex flex-col justify-between ${
                   isCurrent
-                    ? 'bg-[#141A24] border-[#00A6FB] shadow-xl ring-2 ring-[#00A6FB]/40'
+                    ? 'bg-[#090D15]/95 backdrop-blur-md border-[#00A6FB] shadow-xl ring-2 ring-[#00A6FB]/40'
                     : isCompleted
-                      ? 'bg-[#11161F] border-[#1F2733] hover:border-[#1F2733]/90'
-                      : 'bg-[#11161F] border-[#1F2733] opacity-95 hover:border-[#1F2733]/90'
+                      ? 'bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 hover:border-[#1F2733]/90 shadow-lg'
+                      : 'bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 opacity-95 hover:border-[#1F2733]/90 shadow-lg'
                 }`}
               >
                 {/* Linha de status no topo do card */}

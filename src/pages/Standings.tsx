@@ -384,7 +384,7 @@ export default function StandingsPage() {
       {/* Tabs Pilotos / Construtores */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
         <div className="flex justify-between items-center mb-4">
-          <TabsList className="bg-[#11161F] border border-[#1F2733]">
+          <TabsList className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90">
             <TabsTrigger
               value="drivers"
               className="data-[state=active]:bg-[#E10600] data-[state=active]:text-white font-semibold text-xs sm:text-sm"

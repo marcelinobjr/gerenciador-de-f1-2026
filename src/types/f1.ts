@@ -87,6 +87,7 @@ export interface DriverModel {
   fatigue?: number
   morale?: number // 0-100 (afetada por resultados, contrato, etc.)
   physical_condition?: number // 0-100 (condição física afetada por fadiga acumulada e corridas)
+  helmet?: string | null
   created?: string
   updated?: string
 }
