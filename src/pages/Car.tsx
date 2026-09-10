@@ -485,7 +485,7 @@ export default function CarPage() {
       {/* PAINEL FIA: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Card Cost Cap */}
-        <Card className="bg-[#11161F] border-[#1F2733] p-4">
+        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 p-4 shadow-xl">
           <div className="flex items-center justify-between pb-2">
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-emerald-400" />
@@ -528,7 +528,7 @@ export default function CarPage() {
         </Card>
 
         {/* Card Pool de Motores & Desgaste */}
-        <Card className="bg-[#11161F] border-[#1F2733] p-4">
+        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 p-4 shadow-xl">
           <div className="flex items-center justify-between pb-2">
             <div className="flex items-center gap-2">
               <Flame className="w-5 h-5 text-[#E10600]" />
@@ -625,7 +625,7 @@ export default function CarPage() {
       {/* PAINEL DE INSPEÇÃO DA PEÇA SELECIONADA + RESUMO DE PERFORMANCE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Card: Painel de Inspeção da Peça Clicada */}
-        <Card className="lg:col-span-2 bg-[#11161F] border-[#1F2733] shadow-xl relative overflow-hidden">
+        <Card className="lg:col-span-2 bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-bl-full pointer-events-none" />
 
           <CardHeader className="pb-3 border-b border-[#1F2733]/60">
@@ -852,7 +852,7 @@ export default function CarPage() {
         </Card>
 
         {/* Card Resumo: Nível Geral do Carro + Impacto de Desgaste */}
-        <Card className="bg-[#11161F] border-[#1F2733] flex flex-col justify-between">
+        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 flex flex-col justify-between shadow-xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
               <Gauge className="w-5 h-5 text-[#00A6FB]" />
@@ -932,7 +932,7 @@ export default function CarPage() {
       </div>
 
       {/* BLOCO FIXO EXPLICATIVO: REGRAS TÉCNICAS F1 2026 */}
-      <div className="rounded-2xl bg-[#11161F] border border-[#00A6FB]/40 p-5 shadow-xl relative overflow-hidden">
+      <div className="rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#00A6FB]/40 p-5 shadow-xl relative overflow-hidden">
         <div className="flex items-start gap-4">
           <div className="w-10 h-10 rounded-xl bg-[#00A6FB]/10 text-[#00A6FB] flex items-center justify-center shrink-0 mt-0.5">
             <Info className="w-5 h-5" />

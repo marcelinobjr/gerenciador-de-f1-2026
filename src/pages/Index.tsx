@@ -969,10 +969,7 @@ export default function Index() {
                         >
                           {/* Avatar / Helmet */}
                           <div className="flex items-center gap-3 min-w-0">
-                            {/* Helmet icon com visor escuro e linha vermelha */}
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E293B] to-[#0A0E17] border border-[#334155] flex items-center justify-center shrink-0 relative overflow-hidden">
-                              <CircleDot className="w-5 h-5 text-[#E10600]" />
-                            </div>
+                            <DriverHelmet driver={driver} teamColor={team?.color} size="md" />
 
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="text-base shrink-0" title={driver.nationality}>
@@ -1005,9 +1002,7 @@ export default function Index() {
                     {reserveDriver && (
                       <div className="p-3 rounded-xl bg-[#080C14]/70 border border-[#1F2733]/80 hover:border-cyan-500/30 transition-all flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E293B] to-[#0A0E17] border border-[#334155] flex items-center justify-center shrink-0 relative overflow-hidden">
-                            <CircleDot className="w-5 h-5 text-amber-400" />
-                          </div>
+                          <DriverHelmet driver={reserveDriver} teamColor={team?.color} size="md" />
 
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="text-base shrink-0" title={reserveDriver.nationality}>

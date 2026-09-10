@@ -58,6 +58,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
+import { DriverHelmet } from '@/components/DriverHelmet'
 
 // Sub-componentes modulares da corrida
 import { LiveRaceFeed } from '@/components/race/LiveRaceFeed'
@@ -4307,8 +4308,13 @@ export default function RacePage() {
                               >
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-[#1F2733] pb-2">
                                   <div className="flex items-center gap-2">
+                                    <DriverHelmet
+                                      driver={driver}
+                                      teamColor={team?.color}
+                                      size="sm"
+                                    />
                                     <span className="font-bold text-[#F5F7FA] text-sm flex items-center gap-1.5">
-                                      👤 {driver.name}
+                                      {driver.name}
                                     </span>
                                     <Badge
                                       variant="outline"

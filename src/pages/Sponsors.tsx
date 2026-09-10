@@ -342,8 +342,8 @@ export default function SponsorsPage() {
 
       {/* Receita Total Estimada Card */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-[#11161F] border-[#1F2733] sm:col-span-2">
-          <CardHeader className="pb-2">
+        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 sm:col-span-2 shadow-xl">
+          <CardHeader className="pb-2 border-b border-[#1F2733]/60">
             <CardTitle className="text-xs font-mono uppercase tracking-wider text-[#8B95A7] flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-emerald-400" />
               Receita Total Estimada por Rodada de GP
@@ -363,8 +363,8 @@ export default function SponsorsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#11161F] border-[#1F2733]">
-          <CardHeader className="pb-2">
+        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+          <CardHeader className="pb-2 border-b border-[#1F2733]/60">
             <CardTitle className="text-xs font-mono uppercase tracking-wider text-[#8B95A7]">
               Contratos em Vigor
             </CardTitle>
@@ -382,8 +382,8 @@ export default function SponsorsPage() {
       </div>
 
       {/* Seção Contratos Ativos */}
-      <Card className="bg-[#11161F] border-[#1F2733]">
-        <CardHeader className="pb-3">
+      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
           <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
             <Handshake className="w-5 h-5 text-[#00A6FB]" />
             Contratos Comerciais Ativos ({activeSponsors.length})
@@ -490,8 +490,8 @@ export default function SponsorsPage() {
       </Card>
 
       {/* Seção Patrocinadores Disponíveis com Cotas Exclusivas */}
-      <Card className="bg-[#11161F] border-[#1F2733]">
-        <CardHeader className="pb-3">
+      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
           <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
             <BadgePercent className="w-5 h-5 text-amber-400" />
             Cotas de Patrocínio Comercial F1 2026 (Exclusividade por Posição)

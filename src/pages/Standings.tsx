@@ -408,8 +408,8 @@ export default function StandingsPage() {
 
         {/* Pilotos Tab */}
         <TabsContent value="drivers">
-          <Card className="bg-[#11161F] border-[#1F2733]">
-            <CardHeader className="pb-3">
+          <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+            <CardHeader className="pb-3 border-b border-[#1F2733]/60">
               <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
                 <Award className="w-5 h-5 text-[#E10600]" />
                 Mundial de Pilotos — Temporada 2026
@@ -529,8 +529,8 @@ export default function StandingsPage() {
 
         {/* Construtores Tab */}
         <TabsContent value="constructors">
-          <Card className="bg-[#11161F] border-[#1F2733]">
-            <CardHeader className="pb-3">
+          <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+            <CardHeader className="pb-3 border-b border-[#1F2733]/60">
               <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-amber-400" />
                 Mundial de Construtores — Temporada 2026

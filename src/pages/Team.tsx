@@ -622,7 +622,7 @@ export default function TeamPage() {
         </div>
 
         {/* Indicador de Força da Equipe */}
-        <div className="bg-[#11161F] border border-[#1F2733] px-4 py-2.5 rounded-xl flex items-center gap-3">
+        <div className="bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733]/90 px-4 py-2.5 rounded-xl flex items-center gap-3 shadow-lg">
           <div className="text-right">
             <span className="text-[10px] font-mono text-[#8B95A7] uppercase block">
               Força da Escuderia
@@ -804,8 +804,8 @@ export default function TeamPage() {
       </Card>
 
       {/* Seção 1: Pilotos Titulares (2 titulares) */}
-      <Card className="bg-[#11161F] border-[#1F2733]">
-        <CardHeader className="pb-4">
+      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+        <CardHeader className="pb-4 border-b border-[#1F2733]/60">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
@@ -1075,8 +1075,8 @@ export default function TeamPage() {
       </Card>
 
       {/* Seção 2: Piloto Reserva (1 Piloto Reserva Oficial) */}
-      <Card className="bg-[#11161F] border-[#1F2733]">
-        <CardHeader className="pb-4">
+      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+        <CardHeader className="pb-4 border-b border-[#1F2733]/60">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
@@ -1257,8 +1257,8 @@ export default function TeamPage() {
       </Card>
 
       {/* Seção 3: Mercado de Pilotos Disponíveis (F2 + Mercado) */}
-      <Card className="bg-[#11161F] border-[#1F2733]">
-        <CardHeader className="pb-3">
+      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 shadow-xl">
+        <CardHeader className="pb-3 border-b border-[#1F2733]/60">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
