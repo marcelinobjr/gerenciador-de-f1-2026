@@ -270,8 +270,14 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* Main Content Area: centered max-width 1100px */}
-      <main className="flex-1 w-full max-w-[1100px] mx-auto px-4 sm:px-6 py-6 md:py-8">
+      {/* Main Content Area: full width on dashboard ("/") to match the cockpit mockup, max-width 1100px on inner pages */}
+      <main
+        className={`flex-1 w-full ${
+          location.pathname === '/'
+            ? 'max-w-[1500px] mx-auto px-3 sm:px-5 lg:px-8 py-4 md:py-6'
+            : 'max-w-[1100px] mx-auto px-4 sm:px-6 py-6 md:py-8'
+        }`}
+      >
         <Outlet />
       </main>
 

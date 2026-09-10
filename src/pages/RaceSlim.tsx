@@ -3185,7 +3185,7 @@ export default function RacePage() {
   }
 
   // Calculate final positions, points, tire degradation & race results
-  const finishRaceSimulation = (grid: SimDriverEntry[], _finalWeather: TrackWeatherState) => {
+  const finishRaceSimulation = async (grid: SimDriverEntry[], _finalWeather: TrackWeatherState) => {
     const incidents = [...raceIncidents]
 
     const activeDrivers = grid
@@ -3290,6 +3290,62 @@ export default function RacePage() {
       entry.physicalCondition = updatedPhysical
     })
 
+    // Persistência imediata de moral e física dos pilotos no banco (antes de avançar a rodada)
+    // Garantir idempotência por rodada com season.last_processed_round
+    if (season && team && season.last_processed_round !== currentRound) {
+      const playerGridEntries = finalOrderedGrid.filter((g) => g.isPlayer)
+      for (const entry of playerGridEntries) {
+        try {
+          const targetDriver = drivers.find((d) => d.id === entry.driverId)
+          if (targetDriver) {
+            await f1Service.updateDriver(targetDriver.id, {
+              morale: entry.newMorale,
+              physical_condition: entry.newPhysical,
+            })
+
+            const mDiff = (entry.newMorale ?? 80) - (entry.oldMorale ?? 80)
+            const mSign = mDiff > 0 ? `+${mDiff}` : `${mDiff}`
+            const reasonText = entry.dnf
+              ? 'abandono'
+              : entry.position === 1
+                ? 'vitória'
+                : entry.position <= 3
+                  ? 'pódio'
+                  : entry.position <= 10
+                    ? `P${entry.position} na zona de pontos`
+                    : `P${entry.position} fora dos pontos`
+
+            await f1Service.addEvent(
+              team.id,
+              `📈 Moral de ${targetDriver.name}: ${entry.oldMorale} → ${entry.newMorale} (${mSign}) — ${reasonText} em ${gpInfo.name}.`,
+              'resultado',
+            )
+          }
+        } catch (postRaceErr) {
+          console.warn(
+            'Erro ao persistir moral/física pós-corrida do piloto:',
+            entry.driverName,
+            postRaceErr,
+          )
+        }
+      }
+
+      // Atualizar o estado local de drivers para refletir imediatamente a nova moral e condição física
+      setDrivers((prev) =>
+        prev.map((d) => {
+          const matched = playerGridEntries.find((g) => g.driverId === d.id)
+          if (matched && matched.newMorale !== undefined && matched.newPhysical !== undefined) {
+            return {
+              ...d,
+              morale: matched.newMorale,
+              physical_condition: matched.newPhysical,
+            }
+          }
+          return d
+        }),
+      )
+    }
+
     if (incidents.length > 0) {
       setSafetyCarActive(true)
     }
@@ -3378,7 +3434,7 @@ export default function RacePage() {
       const updatedBudget = Math.max(0, team.budget + netCashflow)
 
       // -------------------------------------------------------------
-      // Atualização de Moral, Condição Física, Lesões e Recuperação
+      // Atualização de Moral, Condição Física, Lesões e Recuperação ao Avançar Rodada
       // Garantir idempotência: verificar se a rodada já foi processada
       // -------------------------------------------------------------
       const alreadyProcessed = season.last_processed_round === currentRound
@@ -3395,7 +3451,7 @@ export default function RacePage() {
 
           if (t.is_incapacitated) {
             const roundsLeft = (t.incapacitated_rounds_left || 1) - 1
-            // Lesionado em recuperação: recupera física +8 por rodada enquanto está fora
+            // Lesionados: recuperam física +8 por rodada afastado
             const recoveredPhysical = Math.max(5, Math.min(100, basePhysical + 8))
 
             if (roundsLeft <= 0) {
@@ -3419,7 +3475,7 @@ export default function RacePage() {
               })
             }
           } else {
-            // Titular que correu: recupera +2 entre rodadas antes da próxima corrida
+            // Titulares que correram: recuperação de +2 entre rodadas
             const recoveredPhysical = Math.max(5, Math.min(100, basePhysical + 2))
 
             const injuryRoll = Math.random() < 0.04
@@ -3449,30 +3505,9 @@ export default function RacePage() {
               })
             }
           }
-
-          // Registrar no feed de eventos a evolução de moral do piloto da equipe
-          if (resEntry && resEntry.oldMorale !== undefined) {
-            const mDiff = (resEntry.newMorale ?? baseMorale) - resEntry.oldMorale
-            const mSign = mDiff > 0 ? `+${mDiff}` : `${mDiff}`
-            const reasonText = resEntry.dnf
-              ? 'abandono'
-              : resEntry.position === 1
-                ? 'vitória'
-                : resEntry.position <= 3
-                  ? 'pódio'
-                  : resEntry.position <= 10
-                    ? `P${resEntry.position} na zona de pontos`
-                    : `P${resEntry.position} fora dos pontos`
-
-            await f1Service.addEvent(
-              team.id,
-              `📈 Moral de ${t.name}: ${resEntry.oldMorale} → ${resEntry.newMorale} (${mSign}) — ${reasonText} em ${gpInfo.name}.`,
-              'resultado',
-            )
-          }
         }
 
-        // Recuperação de pilotos sem corrida no fim de semana (reservas recuperam +6)
+        // Recuperação de pilotos sem corrida no fim de semana (reservas sem corrida recuperam +6)
         if (reserve) {
           const currentResPhysical = reserve.physical_condition ?? 95
           const recoveredResPhysical = Math.max(5, Math.min(100, currentResPhysical + 6))
