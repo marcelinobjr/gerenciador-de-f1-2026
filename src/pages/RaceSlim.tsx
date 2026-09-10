@@ -89,6 +89,7 @@ export interface SimDriverEntry extends RaceResultEntry {
   strategyPlan?: { lap: number; compound: TireCompound }[]
   lapsOnCurrentTire?: number
   cliffStatus?: TireCliffStatus
+  dnfLap?: number
 }
 
 export type SessionTimeResult = SessionResultRow
@@ -3963,10 +3964,12 @@ export default function RacePage() {
               {/* 1. Feed da corrida (Sub-componente desacoplado) */}
               {isRaceSession && (
                 <LiveRaceFeed
-                  liveEvents={liveEvents}
+                  events={liveEvents}
+                  currentLap={liveRaceState?.currentLap}
+                  totalLaps={liveRaceState?.totalLaps || gpInfo.laps}
                   isRaceSession={isRaceSession}
-                  hasRaceResults={!!raceResults}
-                  onOpenForcePitModal={handleOpenForcePitModal}
+                  canForcePit={!raceResults && !!liveRaceState?.inProgress}
+                  onOpenForcePit={handleOpenForcePitModal}
                 />
               )}
 
@@ -3976,8 +3979,10 @@ export default function RacePage() {
                 liveRaceState.grid &&
                 liveRaceState.grid.length > 0 && (
                   <LiveTelemetryTable
-                    liveRaceState={liveRaceState}
-                    abrasiveness={gpInfo.tireAbrasiveness || 6}
+                    grid={liveRaceState.grid}
+                    currentLap={liveRaceState.currentLap}
+                    totalLaps={liveRaceState.totalLaps}
+                    trackAbrasiveness={gpInfo.tireAbrasiveness || 6}
                   />
                 )}
 
@@ -3985,19 +3990,19 @@ export default function RacePage() {
               {!isRaceSession && (
                 <PracticeQualyResults
                   sessionKey={sessKey}
+                  circuitName={gpInfo.circuit}
                   results={sessionResults[sessKey]}
-                  circuit={gpInfo.circuit}
                 />
               )}
 
               {/* 4. Tabela de resultados oficiais do GP (Sub-componente desacoplado) */}
               {isRaceSession && raceResults && (
                 <RaceResultsTable
-                  raceResults={raceResults}
-                  raceIncidents={raceIncidents}
-                  onAdvanceRound={handleAdvanceRound}
-                  isFinishing={isFinishing}
                   gpName={gpInfo.name}
+                  results={raceResults}
+                  incidents={raceIncidents}
+                  isFinishing={isFinishing}
+                  onAdvanceRound={handleAdvanceRound}
                 />
               )}
             </TabsContent>
@@ -4008,11 +4013,19 @@ export default function RacePage() {
       {/* 5. Modais de decisão tática de corrida (Sub-componente desacoplado) */}
       <DecisionModals
         rainDecisionOpen={rainDecisionOpen}
+        liveRaceWeather={liveRaceState?.weather || weather}
+        currentLap={liveRaceState?.currentLap || 1}
+        totalLaps={liveRaceState?.totalLaps || gpInfo.laps}
+        circuitName={gpInfo.circuit}
+        rainActiveDriver={
+          liveRaceState?.grid?.find((g) => g.driverId === rainActiveDriverId) || null
+        }
+        rainQueueLength={rainQueue.length}
+        rainQueueTotal={rainQueueTotal}
         rainDecisionWaitLaps={rainDecisionWaitLaps}
         setRainDecisionWaitLaps={setRainDecisionWaitLaps}
-        rainQueue={rainQueue}
-        rainQueueTotal={rainQueueTotal}
-        rainActiveDriverId={rainActiveDriverId}
+        tireStock={tireStock}
+        formatTireName={formatTireName}
         onConfirmRainDecision={handleConfirmRainDecision}
         wingDamageModalOpen={wingDamageModalOpen}
         setWingDamageModalOpen={setWingDamageModalOpen}
@@ -4022,36 +4035,38 @@ export default function RacePage() {
         onConfirmWingDamageDecision={handleConfirmWingDamageDecision}
         safetyCarModalOpen={safetyCarModalOpen}
         safetyCarReason={safetyCarReason}
+        safetyCarActiveDriver={
+          liveRaceState?.grid?.find((g) => g.driverId === safetyCarActiveDriverId) || null
+        }
+        safetyCarQueueLength={safetyCarQueue.length}
+        safetyCarQueueTotal={safetyCarQueueTotal}
         safetyCarTireChoice={safetyCarTireChoice}
         setSafetyCarTireChoice={setSafetyCarTireChoice}
-        safetyCarQueue={safetyCarQueue}
-        safetyCarQueueTotal={safetyCarQueueTotal}
-        safetyCarActiveDriverId={safetyCarActiveDriverId}
         onConfirmSafetyCarDecision={handleConfirmSafetyCarDecision}
         forcePitModalOpen={forcePitModalOpen}
         onCloseForcePitModal={handleCloseForcePitModal}
+        activePlayerDrivers={
+          liveRaceState?.grid ? liveRaceState.grid.filter((g) => g.isPlayer && !g.dnf) : []
+        }
         forcePitSelectedDriverId={forcePitSelectedDriverId}
         setForcePitSelectedDriverId={setForcePitSelectedDriverId}
+        availableForcePitSets={(
+          driverTireInventories[forcePitSelectedDriverId] || playerTireSets
+        ).filter((s) => !s.isFitted && s.wear < 90)}
         forcePitSelectedSetId={forcePitSelectedSetId}
         setForcePitSelectedSetId={setForcePitSelectedSetId}
+        teamChassisLevel={team?.chassis_level || 75}
         onExecuteForcedPitStop={handleExecuteForcedPitStop}
-        liveRaceState={liveRaceState}
-        gpInfo={gpInfo}
-        tireStock={tireStock}
-        team={team}
-        driverTireInventories={driverTireInventories}
-        playerTireSets={playerTireSets}
-        formatTireName={formatTireName}
       />
 
       {/* 6. Modal de Silly Season (Sub-componente desacoplado) */}
       <SillySeasonModal
         open={sillySeasonModalOpen}
         onOpenChange={setSillySeasonModalOpen}
-        seasonYear={season?.year || 2026}
+        season={season}
         marketMoves={marketMoves}
-        onStartNextSeason={handleStartNextSeason}
         isStartingNewSeason={isStartingNewSeason}
+        onStartNextSeason={handleStartNextSeason}
       />
     </div>
   )
