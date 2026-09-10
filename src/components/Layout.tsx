@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import {
-  Flag,
   LayoutDashboard,
   Users,
   Shield,
@@ -17,6 +16,8 @@ import {
   RotateCcw,
   Loader2,
   AlertTriangle,
+  Bell,
+  Settings,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -77,14 +78,13 @@ export default function Layout() {
   const navItems = [
     { name: 'Painel', path: '/', icon: LayoutDashboard },
     { name: 'Equipe', path: '/team', icon: Users },
-    { name: 'Equipes', path: '/teams', icon: Shield },
     { name: 'Carro', path: '/car', icon: Wrench },
     { name: 'Patrocínios', path: '/sponsors', icon: BadgePercent },
     { name: 'Corrida', path: '/race', icon: Gauge },
     { name: 'Calendário', path: '/calendario', icon: Calendar },
     { name: 'Classificação', path: '/standings', icon: Trophy },
+    { name: 'Equipes', path: '/teams', icon: Shield },
   ]
-
   const handleLogout = () => {
     logout()
     navigate('/auth', { replace: true })
@@ -99,30 +99,55 @@ export default function Layout() {
       <header
         className={`sticky top-0 z-40 w-full transition-all duration-200 ${
           scrolled
-            ? 'bg-[#0B0E14]/90 backdrop-blur-md border-b border-[#1F2733] shadow-md shadow-black/40'
-            : 'bg-[#0B0E14] border-b border-[#1F2733]/60'
+            ? 'bg-[#06080D]/95 backdrop-blur-md border-b border-[#1A2230] shadow-xl shadow-black/50'
+            : 'bg-[#06080D]/90 backdrop-blur-sm border-b border-[#1A2230]/70'
         }`}
       >
-        <div className="max-w-[1100px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
-            <NavLink to="/" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#E10600] to-[#FF6B35] flex items-center justify-center text-white shadow-md shadow-[#E10600]/30 group-hover:scale-105 transition-transform">
-                <Flag className="w-4 h-4" />
+        <div className="max-w-[1500px] mx-auto px-3 sm:px-5 lg:px-8 h-16 flex items-center justify-between gap-4">
+          {/* Logo & Brand: F1 vermelho + 2026 e nome da equipe embaixo em caixa alta */}
+          <div className="flex items-center gap-3 shrink-0">
+            <NavLink to="/" className="flex items-center gap-2.5 group">
+              {/* F1 Icon / Logo Red Ribbon */}
+              <div className="relative flex items-center">
+                <svg
+                  viewBox="0 0 140 40"
+                  className="h-7 w-auto drop-shadow-[0_0_12px_rgba(225,6,0,0.6)]"
+                  fill="none"
+                >
+                  {/* F1 emblem shape */}
+                  <path
+                    d="M 10 32 L 28 8 L 48 8 L 40 18 L 32 18 L 30 21 L 44 21 L 36 32 L 26 32 L 28 29 L 20 29 L 18 32 Z"
+                    fill="#E10600"
+                  />
+                  <path d="M 52 8 L 62 8 L 44 32 L 34 32 Z" fill="#E10600" />
+                  {/* Speed streak */}
+                  <path d="M 64 12 L 72 12 L 68 18 L 60 18 Z" fill="#E10600" opacity="0.9" />
+                  <path d="M 58 22 L 66 22 L 62 28 L 54 28 Z" fill="#E10600" opacity="0.8" />
+                  {/* 2026 text */}
+                  <text
+                    x="76"
+                    y="27"
+                    fill="#FFFFFF"
+                    fontFamily="ui-monospace, SFMono-Regular, monospace"
+                    fontWeight="900"
+                    fontSize="22"
+                    letterSpacing="1"
+                  >
+                    2026
+                  </text>
+                </svg>
               </div>
+
               <div className="flex flex-col">
-                <span className="font-extrabold text-base tracking-wider leading-none text-[#F5F7FA] flex items-center gap-1.5">
-                  F1 <span className="text-[#E10600]">2026</span>
-                </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-[#8B95A7]">
-                  {team?.name || 'Escuderia Brasil'}
+                <span className="text-[10px] sm:text-[11px] font-mono uppercase font-black tracking-[0.2em] text-[#8B95A7] group-hover:text-white transition-colors leading-none">
+                  {team?.name || 'AUDI F1 TEAM'}
                 </span>
               </div>
             </NavLink>
           </div>
 
-          {/* Desktop Nav Items */}
-          <nav className="hidden md:flex items-center gap-1">
+          {/* Desktop Nav Items: Pills discretas com aba ativa em borda vermelha */}
+          <nav className="hidden lg:flex items-center gap-1.5 overflow-x-auto py-1">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
@@ -130,59 +155,68 @@ export default function Layout() {
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 shrink-0 ${
                     isActive
-                      ? 'text-[#F5F7FA] font-semibold bg-[#11161F]'
-                      : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#11161F]/60'
+                      ? 'bg-transparent text-white border border-[#E10600] shadow-[0_0_12px_rgba(225,6,0,0.35)]'
+                      : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#111622]/80 border border-transparent'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#E10600]' : 'text-[#8B95A7]'}`} />
-                  {item.name}
-                  {isActive && (
-                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#E10600] rounded-full animate-fade-in" />
-                  )}
+                  <Icon
+                    className={`w-3.5 h-3.5 ${isActive ? 'text-[#E10600]' : 'text-[#8B95A7]'}`}
+                  />
+                  <span>{item.name}</span>
                 </NavLink>
               )
             })}
           </nav>
 
-          {/* Right Status Indicator & Actions */}
-          <div className="flex items-center gap-3">
-            {/* Round indicator badge */}
-            <div className="flex items-center gap-1.5 bg-[#11161F] border border-[#1F2733] px-2.5 py-1 rounded-lg">
-              <span className="w-2 h-2 rounded-full bg-[#00A6FB] animate-pulse" />
-              <span className="font-mono text-xs font-bold text-[#F5F7FA]">
-                R{currentRound}/{totalRounds}
-              </span>
+          {/* Right Section: Sino + Engrenagem + Avatar + Temporada 2026 · R{n}/24 e barra de progresso */}
+          <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
+            {/* Sino de Notificações */}
+            <button
+              type="button"
+              onClick={() => navigate('/race')}
+              className="relative w-8 h-8 rounded-lg bg-[#0F141F] border border-[#1F2733] text-[#8B95A7] hover:text-white hover:border-[#E10600]/40 flex items-center justify-center transition-colors"
+              title="Notificações e Avisos"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#E10600] ring-2 ring-[#0F141F]" />
+            </button>
+
+            {/* Engrenagem / Configurações / Reset */}
+            <button
+              type="button"
+              onClick={() => setResetDialogOpen(true)}
+              className="w-8 h-8 rounded-lg bg-[#0F141F] border border-[#1F2733] text-[#8B95A7] hover:text-white hover:border-amber-500/40 flex items-center justify-center transition-colors"
+              title="Configurações e Carreira"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Avatar circular */}
+            <div className="w-8 h-8 rounded-full bg-[#131A26] border border-[#2A3548] flex items-center justify-center font-bold text-xs text-white uppercase shrink-0">
+              {user?.name?.[0] || user?.email?.[0] || 'J'}
             </div>
 
-            {/* Reset Game button (desktop) */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setResetDialogOpen(true)}
-              disabled={isResetting}
-              className="hidden md:flex text-[#8B95A7] hover:text-amber-400 hover:bg-amber-500/10 gap-1.5 text-xs font-medium border border-transparent hover:border-amber-500/30 transition-colors"
-              title="Reiniciar jogo (zerar progresso)"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
-              Reiniciar Jogo
-            </Button>
-
-            {/* Logout button (desktop) */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="hidden md:flex text-[#8B95A7] hover:text-[#EF4444] hover:bg-red-950/20 gap-1.5 text-xs font-medium"
-              title="Encerrar sessão"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Sair
-            </Button>
+            {/* Status Temporada + Barra de Progresso */}
+            <div className="hidden sm:flex flex-col gap-1 min-w-[130px]">
+              <div className="flex items-center justify-between text-[11px] font-mono leading-none">
+                <span className="text-[#8B95A7] text-[10px]">Temporada 2026</span>
+                <span className="text-white font-bold text-xs">
+                  R{currentRound}/{totalRounds}
+                </span>
+              </div>
+              {/* Barra de progresso da temporada com linha vermelha ativa */}
+              <div className="w-full bg-[#1A2230] h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-[#E10600] h-full rounded-full transition-all duration-300 shadow-[0_0_6px_#E10600]"
+                  style={{ width: `${Math.min(100, (currentRound / totalRounds) * 100)}%` }}
+                />
+              </div>
+            </div>
 
             {/* Mobile Hamburger Drawer */}
-            <div className="md:hidden">
+            <div className="lg:hidden">
               <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
                 <SheetTrigger asChild>
                   <Button
@@ -199,8 +233,8 @@ export default function Layout() {
                 >
                   <SheetHeader className="text-left mb-6">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-md bg-[#E10600] flex items-center justify-center text-white">
-                        <Flag className="w-3.5 h-3.5" />
+                      <div className="w-7 h-7 rounded-md bg-[#E10600] flex items-center justify-center text-white font-black text-xs">
+                        F1
                       </div>
                       <SheetTitle className="text-base font-bold text-[#F5F7FA]">
                         F1 2026 Manager
@@ -222,7 +256,7 @@ export default function Layout() {
                           onClick={() => setMobileOpen(false)}
                           className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                             isActive
-                              ? 'bg-[#E10600] text-white shadow-md'
+                              ? 'bg-transparent border border-[#E10600] text-white shadow-md'
                               : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#1F2733]'
                           }`}
                         >

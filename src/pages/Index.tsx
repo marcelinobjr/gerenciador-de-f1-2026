@@ -28,6 +28,7 @@ import {
   Gauge,
   Info,
   CircleDot,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,9 +37,9 @@ import { CircuitBlueprint, TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import pb from '@/lib/pocketbase/client'
 import { CircuitModel } from '@/types/f1'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
-import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122312-e3312.png'
+import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122301-c97f3.png'
 
-// Flag emoji helper
+// Country flag emoji helper
 const getCountryFlag = (nat?: string) => {
   switch (nat?.toLowerCase()) {
     case 'brasil':
@@ -325,7 +326,6 @@ export default function Index() {
       })
       const count =
         distinctRounds.size > 0 ? distinctRounds.size : Math.max(1, currentRoundNumber - 1)
-      // Se metade de algo ou número inteiro
       const numResults = raceResults.length / 2
       return `${numResults % 1 === 0 ? numResults : numResults.toFixed(1)} GPs disputados`
     }
@@ -424,7 +424,7 @@ export default function Index() {
         },
       ]
     }
-    return events.slice(0, 5).map((ev) => {
+    return events.slice(0, 3).map((ev) => {
       let title = ''
       let desc = ''
       const msg = ev.message || ''
@@ -459,7 +459,7 @@ export default function Index() {
   // Traçado vetorial mini para o card de setores
   const currentTrack = TRACK_LAYOUTS[currentRoundNumber] || TRACK_LAYOUTS[1]
 
-  // Imagem do circuito do calendário (upload do PocketBase ou default)
+  // Imagem do circuito do calendário (upload do PocketBase ou default da Austrália)
   const currentCircuitPhotoUrl = useMemo(() => {
     const dbCircuit = circuits.find((c) => c.round === currentRoundNumber)
     if (dbCircuit?.photo) {
@@ -482,666 +482,662 @@ export default function Index() {
   }, [team?.budget])
 
   return (
-    <div className="space-y-6 animate-fade-in text-[#F5F7FA]">
+    <div className="relative min-h-[calc(100vh-5rem)] -mx-3 sm:-mx-5 lg:-mx-8 -my-4 md:-my-6 px-3 sm:px-5 lg:px-8 py-5 md:py-6 overflow-hidden flex flex-col justify-between space-y-6 text-[#F5F7FA]">
       {/* ============================================================== */}
-      {/* 1. LINHA DE CARDS DE STATUS (4 METRIC CARDS + MINI HUD DE TELEMETRIA) */}
+      {/* FUNDO GLOBAL: Garagem com carro F1 ao centro e luzes vermelhas de teto */}
       {/* ============================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: Construtores */}
-        <div className="rounded-xl bg-[#0D121B]/90 border border-[#1F2733]/80 p-4 relative overflow-hidden backdrop-blur-sm group hover:border-[#E10600]/40 transition-all duration-200">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase font-bold tracking-widest text-[#8B95A7]">
-              CONSTRUTORES
-            </span>
-            <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-400 flex items-center justify-center">
-              <Trophy className="w-3.5 h-3.5" />
+      <div
+        className="absolute inset-0 bg-cover bg-center sm:bg-[center_top_20%] bg-no-repeat pointer-events-none z-0"
+        style={{ backgroundImage: `url(${heroGarageBg})` }}
+      />
+      {/* Camada difusa de iluminação dark de garagem e luzes vermelhas de teto */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#06080E]/75 via-[#06080E]/45 to-[#06080E]/90 pointer-events-none z-0" />
+      <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-red-600/15 to-transparent blur-2xl pointer-events-none z-0" />
+      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-red-600/15 rounded-full blur-[110px] pointer-events-none z-0" />
+      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-red-600/20 rounded-full blur-[110px] pointer-events-none z-0" />
+      <div className="absolute bottom-10 left-1/3 w-[500px] h-48 bg-red-600/10 rounded-full blur-[100px] pointer-events-none z-0" />
+
+      {/* ============================================================== */}
+      {/* CONTEÚDO PRINCIPAL (Z-INDEX 10) */}
+      {/* ============================================================== */}
+      <div className="relative z-10 space-y-5 sm:space-y-6">
+        {/* ============================================================== */}
+        {/* 1. LINHA DE CARDS DE STATUS (5 CARDS TRANSLÚCIDOS COM BLUR) */}
+        {/* ============================================================== */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5">
+          {/* Card 1: CONSTRUTORES (col-span-2) */}
+          <div className="lg:col-span-2 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3.5 relative overflow-hidden group hover:border-[#E10600]/40 transition-all shadow-lg flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono uppercase font-bold tracking-wider text-[#8B95A7]">
+                CONSTRUTORES
+              </span>
+              <div className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                <Trophy className="w-3.5 h-3.5" />
+              </div>
             </div>
-          </div>
 
-          <div className="mt-2.5 flex items-baseline gap-1.5">
-            <span className="text-3xl font-extrabold font-mono tracking-tight text-white">
-              {constructorPosition}º
-            </span>
-            <span className="text-xs text-[#8B95A7] font-mono">/ {totalGridTeams} equipes</span>
-          </div>
-
-          <p className="text-[11px] text-[#8B95A7] mt-2 flex items-center gap-1 font-mono">
-            <TrendingUp className="w-3 h-3 text-[#00A6FB]" />
-            Grid Oficial da F1 2026
-          </p>
-        </div>
-
-        {/* Card 2: Pontos Totais */}
-        <div className="rounded-xl bg-[#0D121B]/90 border border-[#1F2733]/80 p-4 relative overflow-hidden backdrop-blur-sm group hover:border-[#E10600]/40 transition-all duration-200">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase font-bold tracking-widest text-[#8B95A7]">
-              PONTOS TOTAIS
-            </span>
-            <div className="w-6 h-6 rounded-md bg-[#E10600]/10 text-[#E10600] flex items-center justify-center">
-              <Award className="w-3.5 h-3.5" />
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-3xl font-black font-mono tracking-tight text-white">
+                {constructorPosition}º
+              </span>
+              <span className="text-xs text-[#8B95A7] font-mono">/ {totalGridTeams} equipes</span>
             </div>
+
+            <p className="text-[11px] text-[#00A6FB] mt-2 flex items-center gap-1 font-mono">
+              <TrendingUp className="w-3 h-3 text-[#00A6FB]" />
+              Grid Oficial da F1 2026
+            </p>
           </div>
 
-          <div className="mt-2.5 flex items-baseline gap-1.5">
-            <span className="text-3xl font-extrabold font-mono tracking-tight text-white">
-              {teamPoints}
-            </span>
-            <span className="text-xs text-[#8B95A7] font-mono">pts</span>
-          </div>
-
-          <p className="text-[11px] text-[#8B95A7] mt-2 font-mono">{gpsDisputadosText}</p>
-        </div>
-
-        {/* Card 3: Orçamento Disponível */}
-        <div className="rounded-xl bg-[#0D121B]/90 border border-[#1F2733]/80 p-4 relative overflow-hidden backdrop-blur-sm group hover:border-[#00A6FB]/40 transition-all duration-200 min-w-0">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase font-bold tracking-widest text-[#8B95A7] truncate">
-              ORÇAMENTO DISPONÍVEL
-            </span>
-            <div className="w-6 h-6 rounded-md bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-              <DollarSign className="w-3.5 h-3.5" />
+          {/* Card 2: PONTOS TOTAIS (col-span-2) */}
+          <div className="lg:col-span-2 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3.5 relative overflow-hidden group hover:border-[#E10600]/40 transition-all shadow-lg flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono uppercase font-bold tracking-wider text-[#8B95A7]">
+                PONTOS TOTAIS
+              </span>
+              <div className="w-5 h-5 rounded-full bg-[#E10600]/15 text-[#E10600] flex items-center justify-center">
+                <UserCheck className="w-3.5 h-3.5" />
+              </div>
             </div>
+
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-3xl font-black font-mono tracking-tight text-white">
+                {teamPoints}
+              </span>
+              <span className="text-xs text-[#8B95A7] font-mono">pts</span>
+            </div>
+
+            <p className="text-[11px] text-[#8B95A7] mt-2 font-mono truncate">
+              {gpsDisputadosText}
+            </p>
           </div>
 
-          <div className="mt-2.5 flex items-baseline whitespace-nowrap overflow-hidden">
-            <span className="text-xl sm:text-2xl xl:text-3xl font-extrabold font-mono tracking-tight text-white whitespace-nowrap">
-              R$ {formattedBudgetM}{' '}
-              <span className="text-base sm:text-lg font-bold text-[#8B95A7]">M</span>
-            </span>
+          {/* Card 3: ORÇAMENTO DISPONÍVEL (col-span-3) */}
+          <div className="lg:col-span-3 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3.5 relative overflow-hidden group hover:border-[#00A6FB]/40 transition-all shadow-lg flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono uppercase font-bold tracking-wider text-[#8B95A7] truncate">
+                ORÇAMENTO DISPONÍVEL
+              </span>
+              <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                <DollarSign className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-baseline whitespace-nowrap overflow-hidden">
+              <span className="text-2xl lg:text-3xl font-black font-mono tracking-tight text-white whitespace-nowrap">
+                R$ {formattedBudgetM} <span className="text-base font-bold text-[#8B95A7]">M</span>
+              </span>
+            </div>
+
+            <p className="text-[11px] text-[#8B95A7] mt-2 font-mono truncate">
+              Teto de gastos FIA respeitado
+            </p>
           </div>
 
-          <p className="text-[11px] text-emerald-400/90 mt-2 font-mono flex items-center gap-1 truncate">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-            Teto de gastos FIA respeitado
-          </p>
-        </div>
+          {/* Card 4: SETORES S1/S2/S3 COM TEMPOS EM VERMELHO E TRAÇADO REAL DO CALENDÁRIO (col-span-2) */}
+          <div className="lg:col-span-2 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3 relative overflow-hidden shadow-lg flex items-center justify-between gap-2">
+            {/* Tempos em vermelho */}
+            <div className="space-y-1 font-mono">
+              <div>
+                <span className="text-[10px] text-cyan-400 font-bold block leading-none">S1</span>
+                <span className="text-[#E10600] font-black text-xs leading-none">22.431</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-cyan-400 font-bold block leading-none">S2</span>
+                <span className="text-[#E10600] font-black text-xs leading-none">31.208</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-cyan-400 font-bold block leading-none">S3</span>
+                <span className="text-[#E10600] font-black text-xs leading-none">26.917</span>
+              </div>
+            </div>
 
-        {/* Card 4: Mini Traçado & Setores (S1, S2, S3) */}
-        <div className="rounded-xl bg-[#0D121B]/90 border border-[#1F2733]/80 p-3.5 relative overflow-hidden backdrop-blur-sm flex items-center justify-between gap-2">
-          <div className="space-y-1.5 font-mono text-xs">
-            <div>
-              <span className="text-[10px] text-cyan-400 font-bold block">S1</span>
-              <strong className="text-white text-xs">22.431</strong>
-            </div>
-            <div>
-              <span className="text-[10px] text-cyan-400 font-bold block">S2</span>
-              <strong className="text-white text-xs">31.208</strong>
-            </div>
-            <div>
-              <span className="text-[10px] text-cyan-400 font-bold block">S3</span>
-              <strong className="text-white text-xs">26.917</strong>
-            </div>
-          </div>
-
-          {/* Mini Track Imagem do Calendário com fallback Blueprint */}
-          <div className="w-24 h-20 flex items-center justify-center relative rounded-md overflow-hidden bg-black/40 border border-cyan-500/10">
-            {currentCircuitPhotoUrl ? (
-              <img
-                src={currentCircuitPhotoUrl}
-                alt={`Traçado ${currentGP.name}`}
-                className="w-full h-full object-contain p-1 drop-shadow-[0_0_8px_rgba(0,166,251,0.4)]"
-              />
-            ) : (
-              <svg
-                viewBox={currentTrack.viewBox}
-                className="w-full h-full drop-shadow-[0_0_8px_rgba(0,166,251,0.35)]"
-              >
-                <path
-                  d={currentTrack.svgPath}
-                  fill="none"
-                  stroke="#1F2A3D"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            {/* Traçado real do circuito (Imagem do Calendário) ao lado com pontos vermelhos */}
+            <div className="w-20 h-16 sm:w-24 sm:h-18 flex items-center justify-center relative rounded-lg bg-black/40 border border-white/10 overflow-hidden p-1">
+              {currentCircuitPhotoUrl ? (
+                <img
+                  src={currentCircuitPhotoUrl}
+                  alt={`Traçado ${currentGP.name}`}
+                  className="w-full h-full object-contain filter drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]"
                 />
-                <path
-                  d={currentTrack.svgPath}
-                  fill="none"
-                  stroke="#00A6FB"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle
-                  cx={currentTrack.startFinish.x}
-                  cy={currentTrack.startFinish.y}
-                  r="3.5"
-                  fill="#E10600"
-                />
-              </svg>
-            )}
-          </div>
-        </div>
-
-        {/* Card 5: Volta Atual & Estratégia de Corrida */}
-        <div className="rounded-xl bg-[#0D121B]/90 border border-[#1F2733]/80 p-3.5 relative overflow-hidden backdrop-blur-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-[#8B95A7] uppercase font-bold tracking-wider">
-              VOLTA ATUAL
-            </span>
-            <span className="text-[10px] font-mono text-cyan-400">
-              LAP {Math.min(42, currentGP.laps)} / {currentGP.laps}
-            </span>
-          </div>
-
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl font-black font-mono text-white tracking-tight">1:13.542</span>
-            <span className="text-xs font-mono font-bold text-[#E10600]">+0.217</span>
-          </div>
-
-          {/* Mini Degradação / Estratégia */}
-          <div className="mt-2 pt-1.5 border-t border-[#1F2733]/60 flex items-center justify-between text-[10px] font-mono">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#E10600]" title="Soft" />
-              <span className="w-2 h-2 rounded-full bg-[#F59E0B]" title="Medium" />
-              <span className="w-2 h-2 rounded-full bg-slate-300" title="Hard" />
+              ) : (
+                <svg
+                  viewBox={currentTrack.viewBox}
+                  className="w-full h-full drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+                >
+                  <path
+                    d={currentTrack.svgPath}
+                    fill="none"
+                    stroke="#1E293B"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d={currentTrack.svgPath}
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <circle
+                    cx={currentTrack.startFinish.x}
+                    cy={currentTrack.startFinish.y}
+                    r="3.5"
+                    fill="#E10600"
+                    className="animate-pulse"
+                  />
+                </svg>
+              )}
+              {/* Pontos vermelhos luminosos sutis nos setores */}
+              <div className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-[#E10600] shadow-[0_0_6px_#E10600]" />
+              <div className="absolute bottom-2 left-3 w-1.5 h-1.5 rounded-full bg-[#E10600] shadow-[0_0_6px_#E10600]" />
             </div>
-            <span className="text-[#8B95A7]">Degradação -0.4s/v</span>
+          </div>
+
+          {/* Card 5: VOLTA ATUAL COM DELTA EM VERMELHO + ESTRATÉGIA DE CORRIDA COM GRÁFICO (col-span-3) */}
+          <div className="lg:col-span-3 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3.5 relative overflow-hidden shadow-lg grid grid-cols-2 gap-2">
+            {/* Lado Esquerdo: VOLTA ATUAL com delta em vermelho */}
+            <div className="flex flex-col justify-between border-r border-[#1F2733]/70 pr-2">
+              <span className="text-[10px] font-mono text-[#8B95A7] uppercase font-bold tracking-wider">
+                VOLTA ATUAL
+              </span>
+              <div className="my-1">
+                <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight block">
+                  1:13.542
+                </span>
+                <span className="text-xs sm:text-sm font-mono font-black text-[#E10600]">
+                  +0.217
+                </span>
+              </div>
+              <span className="text-[9px] font-mono text-[#8B95A7] uppercase">VOLTA</span>
+            </div>
+
+            {/* Lado Direito: ESTRATÉGIA DE CORRIDA com gráfico de linha Soft/Medium/Hard */}
+            <div className="flex flex-col justify-between pl-1 font-mono">
+              <span className="text-[9px] text-[#8B95A7] uppercase font-bold tracking-wider truncate">
+                ESTRATÉGIA DE CORRIDA
+              </span>
+
+              {/* Compostos com anéis de cor */}
+              <div className="space-y-0.5 text-[9px] my-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full ring-2 ring-[#E10600] bg-transparent" />
+                  <span className="text-white font-semibold">Soft</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full ring-2 ring-[#F59E0B] bg-transparent" />
+                  <span className="text-[#CBD5E1]">Medium</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full ring-2 ring-slate-400 bg-transparent" />
+                  <span className="text-[#8B95A7]">Hard</span>
+                </div>
+              </div>
+
+              {/* Gráfico de linha dos compostos */}
+              <div className="h-6 w-full relative">
+                <svg viewBox="0 0 100 24" className="w-full h-full overflow-visible">
+                  {/* Linhas de base */}
+                  <line
+                    x1="0"
+                    y1="20"
+                    x2="100"
+                    y2="20"
+                    stroke="rgba(255,255,255,0.1)"
+                    strokeWidth="1"
+                  />
+                  {/* Linha de degradação vermelha conectando os stints */}
+                  <path
+                    d="M 10 4 L 45 10 L 95 18"
+                    fill="none"
+                    stroke="#E10600"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                  {/* Pontos nos compostos */}
+                  <circle cx="10" cy="4" r="2.5" fill="#E10600" />
+                  <circle cx="45" cy="10" r="2.5" fill="#F59E0B" />
+                  <circle cx="95" cy="18" r="2.5" fill="#FFFFFF" />
+                </svg>
+                <div className="flex justify-between text-[7px] text-[#8B95A7] mt-0.5">
+                  <span>0</span>
+                  <span>20</span>
+                  <span>40</span>
+                  <span>60</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ============================================================== */}
-      {/* 2. SEÇÃO HERO: CARRO EM DESTAQUE MÁXIMO + CARDS FLUTUANTES COM GLOW VERMELHO */}
-      {/* ============================================================== */}
-      <div className="relative rounded-2xl border border-red-950/40 overflow-hidden shadow-2xl bg-[#05070B] min-h-[560px] lg:min-h-[580px] flex flex-col justify-between">
-        {/* Foto do Carro na garagem: Fundo de largura total centrado no carro */}
-        <div
-          className="absolute inset-0 bg-cover bg-center lg:bg-[center_top_35%] bg-no-repeat pointer-events-none scale-100 transition-transform duration-1000"
-          style={{ backgroundImage: `url(${heroGarageBg})` }}
-        />
+        {/* ============================================================== */}
+        {/* 2. HERO DO GP (CARD TRANSLÚCIDO COM GLOW VERMELHO) + BARRAS CIANO FLUTUANDO À DIREITA */}
+        {/* ============================================================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center min-h-[300px]">
+          {/* Lado Esquerdo: Hero Card do GP com badge, título gigante, bandeira+circuito em azul-claro, colunas, botões e traçado */}
+          <div className="lg:col-span-7 rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#E10600]/40 p-5 sm:p-6 shadow-[0_0_35px_rgba(225,6,0,0.22)] hover:border-[#E10600]/70 transition-all">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              {/* Lado Esquerdo do Card GP */}
+              <div className="space-y-3 flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="bg-[#E10600] text-white hover:bg-[#FF2E25] font-mono text-[11px] font-black uppercase tracking-wider px-3 py-1 shadow-md shadow-[#E10600]/40 border-none">
+                    RODADA {currentRoundNumber} DE {totalRounds}
+                  </Badge>
+                  <span className="text-xs font-mono text-[#E2E8F0] flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-[#8B95A7]" />
+                    Próximo Evento Oficial
+                  </span>
+                </div>
 
-        {/* Efeitos de Iluminação Ambiente Vermelha F1 e Reflexos de Asfalto Noturno */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#05070B] via-transparent to-[#05070B]/50 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#05070B]/85 via-black/20 to-[#05070B]/80 pointer-events-none" />
-        {/* Glows vermelhos difusores nas laterais e no chão */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#E10600]/25 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[#E10600]/25 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-red-600/10 rounded-full blur-[120px] pointer-events-none" />
-
-        {/* Conteúdo flutuante sobre a imagem do carro */}
-        <div className="relative z-10 p-5 sm:p-7 flex flex-col justify-between h-full gap-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Card do GP: Estilo da referência com borda/glow vermelho e traçado do calendário */}
-            <div className="lg:col-span-7 rounded-2xl bg-[#090D15]/80 backdrop-blur-md border border-[#E10600]/40 p-5 sm:p-6 shadow-[0_0_35px_rgba(225,6,0,0.18)] hover:border-[#E10600]/70 transition-all duration-300">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                {/* Lado Esquerdo do Card: Badges, Título e Circuito */}
-                <div className="space-y-3 flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="bg-[#E10600] text-white hover:bg-[#FF2E25] font-mono text-xs font-black uppercase tracking-wider px-3 py-1 shadow-md shadow-[#E10600]/40 border-none">
-                      RODADA {currentRoundNumber} DE {totalRounds}
-                    </Badge>
-                    <span className="text-xs font-mono text-[#E2E8F0] flex items-center gap-1.5 bg-[#0D121B]/90 px-2.5 py-1 rounded-md border border-[#1F2733]/90 backdrop-blur-sm">
-                      <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                      Próximo Evento Oficial
+                <div>
+                  <h1 className="text-2xl sm:text-3xl lg:text-[36px] font-black text-white tracking-tight leading-tight drop-shadow-md">
+                    {currentGP.name}
+                  </h1>
+                  <div className="flex items-center gap-2 mt-2 text-sm sm:text-base font-mono">
+                    <span className="text-xl shrink-0">{currentGP.flag}</span>
+                    <span className="text-[#00A6FB] font-bold drop-shadow truncate">
+                      {currentGP.circuit}
                     </span>
                   </div>
-
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl lg:text-[38px] font-black text-white tracking-tight leading-tight drop-shadow-md">
-                      {currentGP.name}
-                    </h1>
-                    <div className="flex items-center gap-2 mt-2 text-sm sm:text-base font-mono">
-                      <span className="text-xl shrink-0">{currentGP.flag}</span>
-                      <span className="text-[#00A6FB] font-bold drop-shadow truncate">
-                        {currentGP.circuit}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Lado Direito do Card: Mini Traçado (Imagem do Calendário com pontos vermelhos ou blueprint) */}
-                <div className="shrink-0 flex items-center justify-center w-36 h-28 sm:w-44 sm:h-32 rounded-xl bg-black/40 border border-white/10 p-2 relative overflow-hidden group">
-                  {currentCircuitPhotoUrl ? (
-                    <img
-                      src={currentCircuitPhotoUrl}
-                      alt={`Traçado ${currentGP.circuit}`}
-                      className="w-full h-full object-contain filter drop-shadow-[0_0_10px_rgba(255,255,255,0.45)] group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <svg
-                      viewBox={currentTrack.viewBox}
-                      className="w-full h-full drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-                    >
-                      <path
-                        d={currentTrack.svgPath}
-                        fill="none"
-                        stroke="rgba(255,255,255,0.2)"
-                        strokeWidth="10"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d={currentTrack.svgPath}
-                        fill="none"
-                        stroke="#FFFFFF"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <circle
-                        cx={currentTrack.startFinish.x}
-                        cy={currentTrack.startFinish.y}
-                        r="4.5"
-                        fill="#E10600"
-                        className="animate-pulse"
-                      />
-                    </svg>
-                  )}
-                  {/* Ponto indicador neon vermelho */}
-                  <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#E10600] animate-pulse shadow-[0_0_8px_#E10600]" />
                 </div>
               </div>
 
-              {/* Linha de Especificações Técnicas do GP */}
-              <div className="grid grid-cols-[auto_auto_1fr] sm:grid-cols-[120px_100px_1fr] gap-4 sm:gap-6 pt-4 mt-4 text-xs font-mono border-t border-white/10">
-                <div className="shrink-0">
-                  <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
-                    EXTENSÃO
-                  </span>
-                  <strong className="text-white text-sm sm:text-base">
-                    {currentGP.circuitLengthKm.toFixed(3)} km
-                  </strong>
-                </div>
-                <div className="shrink-0">
-                  <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
-                    VOLTAS
-                  </span>
-                  <strong className="text-white text-sm sm:text-base">{currentGP.laps}</strong>
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
-                    DESAFIO
-                  </span>
-                  <strong
-                    className="text-white text-xs sm:text-sm font-semibold truncate block"
-                    title={currentGP.characteristic}
+              {/* Lado Direito do Card GP: Traçado real com pontos vermelhos */}
+              <div className="shrink-0 flex items-center justify-center w-36 h-28 sm:w-44 sm:h-32 rounded-xl bg-black/40 border border-white/10 p-2 relative overflow-hidden group">
+                {currentCircuitPhotoUrl ? (
+                  <img
+                    src={currentCircuitPhotoUrl}
+                    alt={`Traçado ${currentGP.circuit}`}
+                    className="w-full h-full object-contain filter drop-shadow-[0_0_12px_rgba(255,255,255,0.45)] group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <svg
+                    viewBox={currentTrack.viewBox}
+                    className="w-full h-full drop-shadow-[0_0_12px_rgba(255,255,255,0.5)]"
                   >
-                    {currentGP.characteristic}
-                  </strong>
-                </div>
-              </div>
-
-              {/* Botões de Ação com o estilo exato da referência */}
-              <div className="flex flex-wrap items-center gap-3 pt-4">
-                <Button
-                  asChild
-                  size="lg"
-                  className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-black px-6 shadow-xl shadow-[#E10600]/40 transition-all hover:scale-[1.02] text-sm font-mono tracking-wide"
-                >
-                  <Link to="/race" className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 fill-current" />
-                    Ver Detalhes do GP
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
-                </Button>
-
-                <Button
-                  asChild
-                  variant="outline"
-                  size="lg"
-                  className="border-white/15 bg-black/40 backdrop-blur-md text-[#F5F7FA] hover:bg-white/10 hover:border-cyan-400/50 text-sm font-mono tracking-wide"
-                >
-                  <Link to="/car" className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-cyan-400" />
-                    Ajustar Aerodinâmica Ativa
-                  </Link>
-                </Button>
+                    <path
+                      d={currentTrack.svgPath}
+                      fill="none"
+                      stroke="rgba(255,255,255,0.2)"
+                      strokeWidth="9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d={currentTrack.svgPath}
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle
+                      cx={currentTrack.startFinish.x}
+                      cy={currentTrack.startFinish.y}
+                      r="4"
+                      fill="#E10600"
+                      className="animate-pulse"
+                    />
+                  </svg>
+                )}
+                {/* Pontos vermelhos indicadores nos setores */}
+                <div className="absolute top-2.5 right-3 w-2 h-2 rounded-full bg-[#E10600] animate-pulse shadow-[0_0_8px_#E10600]" />
+                <div className="absolute bottom-3 left-3 w-2 h-2 rounded-full bg-[#E10600] animate-pulse shadow-[0_0_8px_#E10600]" />
+                <div className="absolute top-1/2 left-2 w-1.5 h-1.5 rounded-full bg-[#E10600] shadow-[0_0_6px_#E10600]" />
               </div>
             </div>
 
-            {/* Coluna Direita: Cards Translúcidos sobre a foto do carro (Estratégia + Telemetria) */}
-            <div className="lg:col-span-5 flex flex-col gap-3.5">
-              {/* Card Translúcido 1: Estratégia de Corrida (Soft / Medium / Hard com gráfico de degradação) */}
-              <div className="rounded-xl bg-[#090D15]/80 border border-white/10 p-3.5 backdrop-blur-md font-mono text-xs shadow-xl">
-                <div className="flex items-center justify-between text-[10px] text-cyan-400 uppercase font-bold tracking-wider pb-2 border-b border-white/10">
-                  <span>ESTRATÉGIA DE CORRIDA</span>
-                  <span className="text-[#8B95A7]">VOLTA 0 → {currentGP.laps}</span>
-                </div>
+            {/* Colunas: EXTENSÃO, VOLTAS, DESAFIO */}
+            <div className="grid grid-cols-[auto_auto_1fr] sm:grid-cols-[110px_90px_1fr] gap-4 sm:gap-6 pt-4 mt-4 text-xs font-mono border-t border-white/10">
+              <div className="shrink-0">
+                <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
+                  EXTENSÃO
+                </span>
+                <strong className="text-white text-sm sm:text-base">
+                  {currentGP.circuitLengthKm.toFixed(3)} km
+                </strong>
+              </div>
+              <div className="shrink-0">
+                <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
+                  VOLTAS
+                </span>
+                <strong className="text-white text-sm sm:text-base">{currentGP.laps}</strong>
+              </div>
+              <div className="min-w-0">
+                <span className="text-[#8B95A7] block text-[10px] uppercase font-bold tracking-wider">
+                  DESAFIO
+                </span>
+                <strong
+                  className="text-white text-xs sm:text-sm font-semibold truncate block"
+                  title={currentGP.characteristic}
+                >
+                  {currentGP.characteristic}
+                </strong>
+              </div>
+            </div>
 
-                <div className="pt-2 flex items-center justify-between gap-3">
-                  {/* Legenda de Compostos */}
-                  <div className="space-y-1 text-[11px]">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#E10600] shadow-[0_0_6px_#E10600]" />
-                      <span className="text-white font-semibold">Soft</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_#F59E0B]" />
-                      <span className="text-[#CBD5E1]">Medium</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
-                      <span className="text-[#8B95A7]">Hard</span>
-                    </div>
-                  </div>
+            {/* Botões: "Ver Detalhes do GP" em vermelho + "Ajustar Aerodinâmica Ativa" secundário */}
+            <div className="flex flex-wrap items-center gap-3 pt-4">
+              <Button
+                asChild
+                size="lg"
+                className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-black px-6 shadow-xl shadow-[#E10600]/40 transition-all hover:scale-[1.02] text-sm font-mono tracking-wide"
+              >
+                <Link to="/race" className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 fill-current" />
+                  Ver Detalhes do GP
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </Button>
 
-                  {/* Gráfico Simplificado de Degradação (estilo curva da referência) */}
-                  <div className="flex-1 max-w-[170px] h-14 relative flex items-end">
-                    <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
-                      {/* Grid sutil */}
-                      <line
-                        x1="0"
-                        y1="10"
-                        x2="100"
-                        y2="10"
-                        stroke="rgba(255,255,255,0.06)"
-                        strokeDasharray="2 2"
-                      />
-                      <line
-                        x1="0"
-                        y1="25"
-                        x2="100"
-                        y2="25"
-                        stroke="rgba(255,255,255,0.06)"
-                        strokeDasharray="2 2"
-                      />
-                      <line x1="0" y1="38" x2="100" y2="38" stroke="rgba(255,255,255,0.15)" />
-                      {/* Curva de degradação: Soft -> Medium -> Hard */}
-                      <path
-                        d="M 5,8 L 38,20 L 72,28 L 95,35"
-                        fill="none"
-                        stroke="#E10600"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                      {/* Pontos nos stints */}
-                      <circle cx="5" cy="8" r="3" fill="#E10600" />
-                      <circle cx="38" cy="20" r="3" fill="#F59E0B" />
-                      <circle cx="72" cy="28" r="3" fill="#CBD5E1" />
-                      <circle cx="95" cy="35" r="3" fill="#FFFFFF" />
-                    </svg>
-                  </div>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="border-white/15 bg-black/40 backdrop-blur-md text-[#F5F7FA] hover:bg-white/10 hover:border-cyan-400/50 text-sm font-mono tracking-wide"
+              >
+                <Link to="/car" className="flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-cyan-400" />
+                  Ajustar Aerodinâmica Ativa
+                </Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* Lado Direito: Barras de Desgaste (Pneus/Combustível/ERS/Motor) com barras ciano flutuando à direita sobre o carro */}
+          <div className="lg:col-span-5 flex flex-col justify-center items-end">
+            <div className="w-full max-w-sm rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-white/10 p-4 font-mono text-xs shadow-2xl space-y-3">
+              {/* Barra 1: DESGASTE PNEUS */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
+                  DESGASTE PNEUS
+                </span>
+                <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
+                  <div
+                    className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
+                    style={{ width: `${tireWearPct}%` }}
+                  />
                 </div>
+                <span className="text-white font-mono font-bold w-10 text-right">
+                  {tireWearPct}%
+                </span>
               </div>
 
-              {/* Card Translúcido 2: Telemetria ao Vivo // Status do Carro */}
-              <div className="rounded-xl bg-[#090D15]/80 border border-cyan-500/30 p-3.5 backdrop-blur-md space-y-2 font-mono text-xs shadow-xl">
-                <div className="flex items-center justify-between text-[10px] text-cyan-400 uppercase font-bold tracking-widest pb-1 border-b border-white/10">
-                  <span>TELEMETRIA AO VIVO // STATUS DO CARRO</span>
-                  <span className="text-[#8B95A7]">{team?.engine_supplier || 'Audi'} PU</span>
+              {/* Barra 2: COMBUSTÍVEL */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
+                  COMBUSTÍVEL
+                </span>
+                <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
+                  <div
+                    className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
+                    style={{ width: `${fuelPct}%` }}
+                  />
                 </div>
+                <span className="text-white font-mono font-bold w-10 text-right">{fuelPct}%</span>
+              </div>
 
-                {/* Barra 1: Pneus */}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">DESGASTE PNEUS</span>
-                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
-                    <div
-                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
-                      style={{ width: `${tireWearPct}%` }}
-                    />
-                  </div>
-                  <span className="text-white font-bold w-10 text-right">{tireWearPct}%</span>
+              {/* Barra 3: ERS */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
+                  ERS
+                </span>
+                <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
+                  <div
+                    className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
+                    style={{ width: `${ersPct}%` }}
+                  />
                 </div>
+                <span className="text-white font-mono font-bold w-10 text-right">{ersPct}%</span>
+              </div>
 
-                {/* Barra 2: Combustível */}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">COMBUSTÍVEL</span>
-                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
-                    <div
-                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
-                      style={{ width: `${fuelPct}%` }}
-                    />
-                  </div>
-                  <span className="text-white font-bold w-10 text-right">{fuelPct}%</span>
+              {/* Barra 4: MOTOR */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
+                  MOTOR
+                </span>
+                <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
+                  <div
+                    className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
+                    style={{ width: `${engineHealthPct}%` }}
+                  />
                 </div>
-
-                {/* Barra 3: ERS */}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">
-                    ERS (HÍBRIDO 50/50)
-                  </span>
-                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
-                    <div
-                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
-                      style={{ width: `${ersPct}%` }}
-                    />
-                  </div>
-                  <span className="text-white font-bold w-10 text-right">{ersPct}%</span>
-                </div>
-
-                {/* Barra 4: Motor (Integridade restante da PU) */}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] text-[#8B95A7] w-28 uppercase">
-                    MOTOR (SAÚDE PU)
-                  </span>
-                  <div className="flex-1 bg-black/50 h-2 rounded-full overflow-hidden border border-white/10">
-                    <div
-                      className="h-full bg-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_8px_#22D3EE]"
-                      style={{ width: `${engineHealthPct}%` }}
-                    />
-                  </div>
-                  <span className="text-white font-bold w-10 text-right">{engineHealthPct}%</span>
-                </div>
+                <span className="text-white font-mono font-bold w-10 text-right">
+                  {engineHealthPct}%
+                </span>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ============================================================== */}
-      {/* 5. LINHA INFERIOR (2 COLUNAS: DUPLA DE PILOTOS & LINHA DO TEMPO) */}
-      {/* ============================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Coluna A: Dupla de Pilotos Titulares (+ Reserva) */}
-        <div className="rounded-2xl bg-[#0D121B]/95 border border-[#1F2733]/80 p-5 shadow-xl flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-[#1F2733]/60">
-              <div>
-                <h2 className="text-base font-extrabold text-white flex items-center gap-2">
-                  <UserCheck className="w-5 h-5 text-[#E10600]" />
-                  Dupla de Pilotos Titulares
-                </h2>
-                <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
-                  Pilares da nossa temporada • {team?.name || 'Audi F1 Team'}
-                </p>
+        {/* ============================================================== */}
+        {/* 3. LINHA INFERIOR (DUPLA DE PILOTOS TITULARES & LINHA DO TEMPO DE NOTÍCIAS) */}
+        {/* ============================================================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Coluna A: Dupla de Pilotos Titulares */}
+          <div className="rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 p-5 shadow-xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-[#1F2733]/60">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-[#E10600] shrink-0" />
+                  <div>
+                    <h2 className="text-base font-extrabold text-white">
+                      Dupla de Pilotos Titulares
+                    </h2>
+                    <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
+                      Pilares da nossa temporada
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  to="/team"
+                  className="text-xs font-mono font-bold text-[#00A6FB] hover:text-cyan-300 transition-colors flex items-center gap-1"
+                >
+                  Gerenciar
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
 
-              <Link
-                to="/team"
-                className="text-xs font-mono font-bold text-[#00A6FB] hover:text-cyan-300 transition-colors flex items-center gap-1"
-              >
-                Gerenciar
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+              {/* Lista dos Pilotos */}
+              <div className="mt-4 space-y-2.5">
+                {loading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-16 w-full bg-[#161D29]" />
+                    <Skeleton className="h-16 w-full bg-[#161D29]" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Titular 1 & Titular 2 */}
+                    {titularDrivers.map((driver, idx) => {
+                      const pts = driverPointsMap[driver.id] ?? (idx === 0 ? 52 : 18)
+                      const flag = getCountryFlag(driver.nationality)
+                      const salaryM = ((driver.salary || 10000000) / 1_000_000).toLocaleString(
+                        'pt-BR',
+                        {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1,
+                        },
+                      )
 
-            {/* Lista dos Pilotos */}
-            <div className="mt-4 space-y-2.5">
-              {loading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-16 w-full bg-[#161D29]" />
-                  <Skeleton className="h-16 w-full bg-[#161D29]" />
-                </div>
-              ) : (
-                <>
-                  {/* Titular 1 & Titular 2 */}
-                  {titularDrivers.map((driver, idx) => {
-                    const pts = driverPointsMap[driver.id] ?? (idx === 0 ? 52 : 18)
-                    const flag = getCountryFlag(driver.nationality)
-                    const salaryFormatted = formatCurrency(driver.salary || 10000000)
+                      return (
+                        <div
+                          key={driver.id}
+                          className="p-3 rounded-xl bg-[#080C14]/90 border border-[#1F2733] hover:border-[#E10600]/40 transition-all flex items-center justify-between gap-3"
+                        >
+                          {/* Avatar / Helmet */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* Helmet icon com visor escuro e linha vermelha */}
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E293B] to-[#0A0E17] border border-[#334155] flex items-center justify-center shrink-0 relative overflow-hidden">
+                              <CircleDot className="w-5 h-5 text-[#E10600]" />
+                            </div>
 
-                    return (
-                      <div
-                        key={driver.id}
-                        className="p-3 rounded-xl bg-[#080C14] border border-[#1F2733] hover:border-[#E10600]/40 transition-all flex items-center justify-between gap-3"
-                      >
-                        {/* Avatar / Helmet */}
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1E293B] to-[#0A0E17] border border-[#334155] flex items-center justify-center font-black text-xs text-white shrink-0 relative overflow-hidden">
-                            {/* Helmet icon styling */}
-                            <CircleDot className="w-5 h-5 text-[#E10600]" />
-                          </div>
-
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base" title={driver.nationality}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-base shrink-0" title={driver.nationality}>
                                 {flag}
                               </span>
-                              <h3 className="font-bold text-sm text-white truncate">
-                                {driver.name}
-                              </h3>
+                              <div className="min-w-0">
+                                <h3 className="font-bold text-sm text-white truncate">
+                                  {driver.name}
+                                </h3>
+                              </div>
                             </div>
-                            <p className="text-xs font-mono text-[#8B95A7] mt-0.5 truncate">
-                              {driver.age} anos <span className="text-[#334155]">|</span>{' '}
-                              {salaryFormatted}
-                            </p>
+                          </div>
+
+                          {/* Idade | Salário e Pontos */}
+                          <div className="flex items-center gap-4 shrink-0 font-mono">
+                            <span className="text-xs text-[#8B95A7] hidden sm:inline">
+                              {driver.age} anos <span className="text-[#334155]">|</span> R${' '}
+                              {salaryM} M
+                            </span>
+                            <div className="text-right">
+                              <span className="text-base font-black text-white">{pts}</span>
+                              <span className="text-xs text-[#8B95A7] ml-1">pts</span>
+                            </div>
                           </div>
                         </div>
+                      )
+                    })}
 
-                        {/* Pontos */}
-                        <div className="text-right font-mono shrink-0">
-                          <span className="text-lg font-black text-white">{pts}</span>
-                          <span className="text-xs text-[#8B95A7] ml-1">pts</span>
-                        </div>
-                      </div>
-                    )
-                  })}
+                    {/* Piloto Reserva */}
+                    {reserveDriver && (
+                      <div className="p-3 rounded-xl bg-[#080C14]/70 border border-[#1F2733]/80 hover:border-cyan-500/30 transition-all flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E293B] to-[#0A0E17] border border-[#334155] flex items-center justify-center shrink-0 relative overflow-hidden">
+                            <CircleDot className="w-5 h-5 text-amber-400" />
+                          </div>
 
-                  {/* Terceiro: Piloto Reserva (se existir) */}
-                  {reserveDriver && (
-                    <div className="p-3 rounded-xl bg-[#080C14]/70 border border-[#1F2733]/80 hover:border-cyan-500/30 transition-all flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1E293B] to-[#0A0E17] border border-[#334155] flex items-center justify-center font-mono font-bold text-xs text-amber-400 shrink-0">
-                          FP
-                        </div>
-
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base" title={reserveDriver.nationality}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-base shrink-0" title={reserveDriver.nationality}>
                               {getCountryFlag(reserveDriver.nationality)}
                             </span>
                             <h3 className="font-semibold text-sm text-[#E2E8F0] truncate">
                               {reserveDriver.name}
                             </h3>
-                            <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0 font-mono">
-                              Reserva
-                            </Badge>
                           </div>
-                          <p className="text-xs font-mono text-[#8B95A7] mt-0.5 truncate">
-                            {reserveDriver.age} anos <span className="text-[#334155]">|</span>{' '}
-                            {formatCurrency(reserveDriver.salary || 4000000)}
+                        </div>
+
+                        <div className="flex items-center gap-4 shrink-0 font-mono">
+                          <span className="text-xs text-[#8B95A7] hidden sm:inline">
+                            {reserveDriver.age} anos <span className="text-[#334155]">|</span> R${' '}
+                            {((reserveDriver.salary || 4000000) / 1_000_000).toLocaleString(
+                              'pt-BR',
+                              {
+                                minimumFractionDigits: 1,
+                                maximumFractionDigits: 1,
+                              },
+                            )}{' '}
+                            M
+                          </span>
+                          <div className="text-right">
+                            <span className="text-base font-bold text-[#8B95A7]">
+                              {driverPointsMap[reserveDriver.id] || 0}
+                            </span>
+                            <span className="text-xs text-[#8B95A7] ml-1">pts</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Coluna B: Linha do Tempo de Notícias */}
+          <div className="rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 p-5 shadow-xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-[#1F2733]/60">
+                <div className="flex items-center gap-2">
+                  <Radio className="w-5 h-5 text-[#00A6FB] shrink-0" />
+                  <div>
+                    <h2 className="text-base font-extrabold text-white">
+                      Linha do Tempo de Notícias
+                    </h2>
+                    <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
+                      Acontecimentos recentes e comunicados oficiais
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  to="/race"
+                  className="text-xs font-mono font-bold text-[#00A6FB] hover:text-cyan-300 transition-colors flex items-center gap-1"
+                >
+                  Ver todas
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {/* Feed de Eventos */}
+              <div className="mt-4 space-y-3">
+                {loading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-12 w-full bg-[#161D29]" />
+                    <Skeleton className="h-12 w-full bg-[#161D29]" />
+                    <Skeleton className="h-12 w-full bg-[#161D29]" />
+                  </div>
+                ) : (
+                  displayEvents.map((ev) => {
+                    const isResult = ev.type === 'resultado'
+                    const isDev = ev.type === 'desenvolvimento'
+                    const isContract = ev.type === 'patrocinio' || ev.type === 'contrato'
+
+                    return (
+                      <div
+                        key={ev.id}
+                        className="p-3 rounded-xl bg-[#080C14]/90 border border-[#1F2733] flex items-start gap-3 text-xs transition-all hover:border-[#1F2733]/90"
+                      >
+                        <div className="mt-0.5 shrink-0">
+                          {isResult && (
+                            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                              <Trophy className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                          {isDev && (
+                            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                              <Wrench className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                          {isContract && (
+                            <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+                              <FileText className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                          {!isResult && !isDev && !isContract && (
+                            <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+                              <Info className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="text-white font-bold text-xs truncate">{ev.title}</p>
+                            <span className="text-[10px] font-mono text-[#8B95A7] shrink-0">
+                              {ev.date}
+                            </span>
+                          </div>
+                          <p className="text-[#8B95A7] text-[11px] mt-0.5 line-clamp-2 leading-relaxed">
+                            {ev.desc}
                           </p>
                         </div>
                       </div>
-
-                      <div className="text-right font-mono shrink-0">
-                        <span className="text-base font-bold text-[#8B95A7]">
-                          {driverPointsMap[reserveDriver.id] || 0}
-                        </span>
-                        <span className="text-xs text-[#8B95A7] ml-1">pts</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Rodapé do card: Moral da equipe */}
-          <div className="mt-4 pt-3 border-t border-[#1F2733]/60 flex items-center justify-between text-xs font-mono">
-            <span className="text-[#8B95A7] flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              Moral da Equipe:
-            </span>
-            <span className="font-bold text-white">{morale}%</span>
-          </div>
-        </div>
-
-        {/* Coluna B: Linha do Tempo de Notícias */}
-        <div className="rounded-2xl bg-[#0D121B]/95 border border-[#1F2733]/80 p-5 shadow-xl flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-[#1F2733]/60">
-              <div>
-                <h2 className="text-base font-extrabold text-white flex items-center gap-2">
-                  <Radio className="w-5 h-5 text-cyan-400" />
-                  Linha do Tempo de Notícias
-                </h2>
-                <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
-                  Acontecimentos recentes e comunicados oficiais
-                </p>
+                    )
+                  })
+                )}
               </div>
-
-              <Link
-                to="/race"
-                className="text-xs font-mono font-bold text-[#00A6FB] hover:text-cyan-300 transition-colors flex items-center gap-1"
-              >
-                Ver todas
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
             </div>
-
-            {/* Feed de Eventos */}
-            <div className="mt-4 space-y-3">
-              {loading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-12 w-full bg-[#161D29]" />
-                  <Skeleton className="h-12 w-full bg-[#161D29]" />
-                  <Skeleton className="h-12 w-full bg-[#161D29]" />
-                </div>
-              ) : (
-                displayEvents.map((ev) => {
-                  const isResult = ev.type === 'resultado'
-                  const isDev = ev.type === 'desenvolvimento'
-                  const isContract = ev.type === 'contrato'
-
-                  return (
-                    <div
-                      key={ev.id}
-                      className="p-3 rounded-xl bg-[#080C14] border border-[#1F2733] flex items-start gap-3 text-xs transition-all hover:border-[#1F2733]/90"
-                    >
-                      <div className="mt-0.5 shrink-0">
-                        {isResult && (
-                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
-                            <Trophy className="w-4 h-4" />
-                          </div>
-                        )}
-                        {isDev && (
-                          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
-                            <Wrench className="w-4 h-4" />
-                          </div>
-                        )}
-                        {isContract && (
-                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                        )}
-                        {!isResult && !isDev && !isContract && (
-                          <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
-                            <Info className="w-4 h-4" />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-white font-bold text-xs truncate">{ev.title}</p>
-                          <span className="text-[10px] font-mono text-[#8B95A7] shrink-0">
-                            {ev.date}
-                          </span>
-                        </div>
-                        <p className="text-[#8B95A7] text-[11px] mt-0.5 line-clamp-2 leading-relaxed">
-                          {ev.desc}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-[#1F2733]/60 flex items-center justify-between text-xs font-mono text-[#8B95A7]">
-            <span>Feed sincronizado com o Paddock</span>
-            <span className="text-cyan-400 font-bold">● Ao vivo</span>
           </div>
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* 6. FOOTER: NOME DA EQUIPE | GERENCIADOR DE F1 2026 */}
+      {/* 4. FOOTER IDENTIDADE: AUDI F1 TEAM | GERENCIADOR DE F1 2026 // MAIS QUE UMA EQUIPE. UMA ESTRATÉGIA. */}
       {/* ============================================================== */}
-      <footer className="pt-4 pb-2 border-t border-[#1F2733]/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono uppercase tracking-widest text-[#8B95A7]">
+      <footer className="relative z-10 pt-4 pb-2 border-t border-[#1F2733]/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono uppercase tracking-widest text-[#8B95A7]">
         <div className="flex items-center gap-2 text-center sm:text-left">
           <span className="font-extrabold text-white">{team?.name || 'AUDI F1 TEAM'}</span>
           <span className="text-[#334155]">|</span>
@@ -1149,7 +1145,7 @@ export default function Index() {
         </div>
 
         <div className="flex items-center gap-3 text-center sm:text-right text-[11px]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />
+          <span className="w-6 h-0.5 bg-[#8B95A7]" />
           <span>MAIS QUE UMA EQUIPE. UMA ESTRATÉGIA.</span>
         </div>
       </footer>
