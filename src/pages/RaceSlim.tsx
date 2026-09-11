@@ -4877,6 +4877,15 @@ export default function RacePage() {
         last_processed_round: currentRound,
       })
 
+      // Silly Season Trigger (Rodadas 12 a 24): IA realiza movimentações e pré-contratos de mercado
+      if (currentRound >= 12 && currentRound <= 24) {
+        try {
+          await f1Service.processMidSeasonSillyMoves(season.id, team.id, currentRound)
+        } catch (sillyErr) {
+          console.warn('Erro Silly Season:', sillyErr)
+        }
+      }
+
       toast({
         title: `Rodada ${currentRound} Concluída com Sucesso!`,
         description: `${savedCount} classificações registradas no campeonato oficial.`,
@@ -6061,7 +6070,7 @@ export default function RacePage() {
             totalLaps={liveRaceState.totalLaps || gpInfo.laps}
             playerDrivers={liveRaceState.grid.filter((g) => g.isPlayer)}
             tacticalModes={playerCarTactics}
-            formatTireName={getCompoundDisplayName}
+            formatTireName={formatTireName}
             isRaceFinished={!liveRaceState.inProgress && !!raceResults}
             onChangeTacticalMode={handleChangeTacticalMode}
             teamOrderProposal={teamOrderProposal}
