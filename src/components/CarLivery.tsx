@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { SponsorModel } from '@/types/f1'
+import lateralCarPhoto from '@/assets/image-36773.png'
 
 interface CarLiveryProps {
   teamColor?: string
@@ -29,23 +30,28 @@ export const CarLivery: React.FC<CarLiveryProps> = ({
 
   return (
     <div
-      className={`relative w-full rounded-2xl bg-[#0B0E14] border border-[#1F2733] p-4 sm:p-6 overflow-hidden ${className}`}
+      className={`relative w-full rounded-2xl bg-[#070B13] border border-[#1F2733] p-4 sm:p-6 overflow-hidden shadow-2xl ${className}`}
     >
+      {/* Luz ambiente com a cor da equipe */}
+      <div
+        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-2/3 h-48 rounded-full blur-[80px] opacity-25"
+        style={{ backgroundColor: teamColor }}
+      />
       {/* Decorative background grid */}
-      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#00a6fb_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
 
       {/* Header with Team details */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-2 border-b border-[#1F2733]/60 gap-2">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-2 border-b border-[#1F2733]/60 gap-2 font-mono">
         <div className="flex items-center gap-3">
           <span
             className="w-4 h-4 rounded-full ring-2 ring-white/20 shadow-md"
-            style={{ backgroundColor: teamColor }}
+            style={{ backgroundColor: teamColor, boxShadow: `0 0 10px ${teamColor}` }}
           />
-          <span className="font-extrabold text-sm sm:text-base text-[#F5F7FA] tracking-wide uppercase font-mono">
+          <span className="font-extrabold text-sm sm:text-base text-[#F5F7FA] tracking-wide uppercase">
             {teamName} • Monoposto 2026 (768 kg)
           </span>
         </div>
-        <div className="flex items-center gap-2 text-xs font-mono text-[#8B95A7]">
+        <div className="flex items-center gap-2 text-xs text-[#8B95A7]">
           <span>
             Aero Ativa: <strong className="text-emerald-400">Z/X-Mode</strong>
           </span>
@@ -56,8 +62,118 @@ export const CarLivery: React.FC<CarLiveryProps> = ({
         </div>
       </div>
 
-      {/* SVG Car Side Profile */}
-      <div className="relative w-full flex items-center justify-center py-2 sm:py-4">
+      {/* FOTOGRAFIA LATERAL REALISTA DO MONOPOSTO COM PINTURA E DECALQUES */}
+      <div className="relative w-full aspect-[1000/320] max-h-[290px] flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_rgba(20,29,46,0.8)_0%,_rgba(6,9,16,0.95)_75%,_#030508_100%)] rounded-xl border border-[#1E293B]/70 overflow-hidden my-2">
+        {/* Sombra de pista no estúdio */}
+        <div className="absolute bottom-[3%] left-[4%] right-[4%] h-[12%] bg-black/90 blur-[8px] rounded-full pointer-events-none" />
+
+        {/* Imagem do carro branco integrada ao dark */}
+        <img
+          src={lateralCarPhoto}
+          alt={`${teamName} Carro de F1 2026`}
+          className="w-full h-full object-contain pointer-events-none select-none relative z-10 brightness-[0.98] contrast-[1.08]"
+        />
+
+        {/* Vinheta suave para dissolver bordas da imagem */}
+        <div
+          className="absolute inset-0 pointer-events-none z-10"
+          style={{
+            background:
+              'radial-gradient(ellipse 90% 75% at 50% 50%, transparent 60%, rgba(6, 10, 18, 0.7) 85%, #05070D 100%)',
+          }}
+        />
+
+        {/* Pintura na cor da equipe */}
+        <svg
+          viewBox="0 0 1000 320"
+          className="absolute inset-0 w-full h-full pointer-events-none z-20 select-none"
+          style={{ mixBlendMode: 'multiply' }}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <path
+            d="M 60 250 L 165 210 L 290 180 L 285 200 L 165 230 L 60 262 Z"
+            fill={teamColor}
+            opacity="0.85"
+          />
+          <path
+            d="M 330 185 C 365 160, 420 152, 500 152 C 570 152, 640 160, 710 185 C 730 195, 740 215, 740 230 L 330 230 Z"
+            fill={teamColor}
+            opacity="0.85"
+          />
+          <path
+            d="M 545 130 L 600 78 L 730 145 L 700 170 L 545 140 Z"
+            fill={teamColor}
+            opacity="0.88"
+          />
+          <path d="M 830 75 L 940 75 L 935 125 L 835 125 Z" fill={teamColor} opacity="0.85" />
+          <path d="M 45 255 L 140 235 L 140 252 L 45 270 Z" fill={teamColor} opacity="0.88" />
+          <path
+            d="M 380 148 Q 440 105 490 120 Q 460 135 410 152 Z"
+            fill={teamColor}
+            opacity="0.75"
+          />
+        </svg>
+
+        {/* Patrocinadores sobrepostos */}
+        <svg
+          viewBox="0 0 1000 320"
+          className="absolute inset-0 w-full h-full pointer-events-none z-30 select-none"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <text
+            x="480"
+            y="202"
+            fill="#FFFFFF"
+            fontSize="22"
+            fontWeight="900"
+            fontFamily="'Montserrat', 'Arial Black', sans-serif"
+            letterSpacing="3"
+            textAnchor="middle"
+            stroke="#000000"
+            strokeWidth="2.5"
+            paintOrder="stroke fill"
+            opacity="0.95"
+          >
+            {mainSponsor.toUpperCase()}
+          </text>
+          <g transform="translate(640, 118) rotate(4)">
+            <rect x="-70" y="-13" width="140" height="20" rx="3" fill="#000000" opacity="0.4" />
+            <text
+              x="0"
+              y="2"
+              fill="#FFFFFF"
+              fontSize="11"
+              fontWeight="800"
+              fontFamily="'Montserrat', sans-serif"
+              letterSpacing="2"
+              textAnchor="middle"
+              stroke="#000000"
+              strokeWidth="1"
+              paintOrder="stroke fill"
+            >
+              {sideSponsor1.toUpperCase()}
+            </text>
+          </g>
+          <text
+            x="885"
+            y="96"
+            fill="#FFFFFF"
+            fontSize="13"
+            fontWeight="900"
+            fontFamily="'Montserrat', sans-serif"
+            letterSpacing="2.5"
+            textAnchor="middle"
+            stroke="#000000"
+            strokeWidth="1.5"
+            paintOrder="stroke fill"
+          >
+            {wingSponsor.slice(0, 11).toUpperCase()}
+          </text>
+        </svg>
+      </div>
+
+      {/* SVG Car Side Profile (Opção Técnica Reduzida) */}
+      <div className="hidden">
         <svg
           viewBox="0 0 960 300"
           className="w-full h-auto max-h-[260px] drop-shadow-2xl select-none"

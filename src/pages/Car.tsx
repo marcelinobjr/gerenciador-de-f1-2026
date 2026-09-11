@@ -5,6 +5,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { PartModel, SponsorModel } from '@/types/f1'
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { CarBlueprint } from '@/components/CarBlueprint'
+import { RealisticCarHero } from '@/components/RealisticCarHero'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
@@ -50,6 +51,7 @@ export default function CarPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [upgradingPartId, setUpgradingPartId] = useState<string | null>(null)
   const [repairingPartId, setRepairingPartId] = useState<string | null>(null)
+  const [activeCarDisplay, setActiveCarDisplay] = useState<'realistic' | 'blueprint'>('realistic')
 
   const loadParts = async () => {
     if (!team) {
@@ -613,16 +615,70 @@ export default function CarPage() {
         </Card>
       </div>
 
-      {/* COMPONENTE BLUEPRINT TÉCNICO INTERATIVO */}
-      <CarBlueprint
-        teamColor={team?.color || '#E10600'}
-        teamName={team?.name || 'Sua Escuderia'}
-        sponsors={sponsors}
-        carLevel={overallLevel}
-        parts={parts}
-        selectedPartId={selectedPartId}
-        onSelectPart={(id) => setSelectedPartId(id)}
-      />
+      {/* SELETOR DE MODO DE APRESENTAÇÃO DO MONOPOSTO */}
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-xl bg-[#080D17]/80 border border-[#1A2333]">
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveCarDisplay('realistic')}
+            className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
+              activeCarDisplay === 'realistic'
+                ? 'bg-gradient-to-r from-[#E10600] to-rose-700 text-white font-bold shadow-[0_0_12px_rgba(225,6,0,0.4)]'
+                : 'text-slate-400 hover:text-white hover:bg-[#121B2D]'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+            <span>Monoposto 2026 (Foto Lateral Oficial)</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveCarDisplay('blueprint')}
+            className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
+              activeCarDisplay === 'blueprint'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(0,166,251,0.3)] font-bold'
+                : 'text-slate-400 hover:text-white hover:bg-[#121B2D]'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 mr-1.5" />
+            <span>Blueprint Técnico FIA (CAD 2D)</span>
+          </Button>
+        </div>
+
+        <span className="text-[11px] font-mono text-slate-500 hidden sm:inline px-2">
+          {activeCarDisplay === 'realistic'
+            ? 'Visual lateral com pintura da equipe, patrocinadores e hotspots'
+            : 'Vistas técnica, lateral e superior com cotas milimétricas'}
+        </span>
+      </div>
+
+      {/* RENDERIZAÇÃO DO CARRO: REALISTA OU BLUEPRINT */}
+      {activeCarDisplay === 'realistic' ? (
+        <RealisticCarHero
+          teamColor={team?.color || '#E10600'}
+          teamName={team?.name || 'Sua Escuderia'}
+          sponsors={sponsors}
+          carLevel={overallLevel}
+          parts={parts}
+          selectedPartId={selectedPartId}
+          onSelectPart={(id) => setSelectedPartId(id)}
+          onOpenBlueprint={() => setActiveCarDisplay('blueprint')}
+        />
+      ) : (
+        <CarBlueprint
+          teamColor={team?.color || '#E10600'}
+          teamName={team?.name || 'Sua Escuderia'}
+          sponsors={sponsors}
+          carLevel={overallLevel}
+          parts={parts}
+          selectedPartId={selectedPartId}
+          onSelectPart={(id) => setSelectedPartId(id)}
+        />
+      )}
 
       {/* PAINEL DE INSPEÇÃO DA PEÇA SELECIONADA + RESUMO DE PERFORMANCE */}
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">

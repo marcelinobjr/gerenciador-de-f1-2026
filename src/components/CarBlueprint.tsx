@@ -3,7 +3,7 @@ import { PartModel, SponsorModel } from '@/types/f1'
 import blueprintImg from '@/assets/image-36773.png'
 import { Eye, Layers, Compass, CheckCircle2, AlertTriangle } from 'lucide-react'
 
-export type BlueprintView = 'side' | 'top' | 'front-rear' | 'schematic'
+export type BlueprintView = 'realistic-side' | 'schematic' | 'side' | 'top' | 'front-rear'
 
 interface CarBlueprintProps {
   teamColor?: string
@@ -95,7 +95,19 @@ export const CarBlueprint: React.FC<CarBlueprintProps> = ({
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="flex items-center gap-1.5 bg-[#0D192D] p-1 rounded-lg border border-[#1E293B]">
+        <div className="flex flex-wrap items-center gap-1 bg-[#0D192D] p-1 rounded-lg border border-[#1E293B]">
+          <button
+            type="button"
+            onClick={() => setActiveView('realistic-side')}
+            className={`px-2.5 py-1 text-xs font-semibold rounded transition-all flex items-center gap-1.5 ${
+              activeView === 'realistic-side'
+                ? 'bg-gradient-to-r from-[#E10600] to-rose-700 text-white font-bold shadow-[0_0_10px_rgba(225,6,0,0.5)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Foto Oficial 2026</span>
+          </button>
           <button
             type="button"
             onClick={() => setActiveView('schematic')}
@@ -183,6 +195,187 @@ export const CarBlueprint: React.FC<CarBlueprintProps> = ({
         <div className="pointer-events-none absolute bottom-3 right-4 text-[10px] text-cyan-500/30 font-mono tracking-widest">
           FIA HOMOLOGATED • SPEC A
         </div>
+
+        {/* 0. REALISTIC SIDE VIEW EMBEDDED IN BLUEPRINT (Com imagem de F1 lateral tratada) */}
+        {activeView === 'realistic-side' && (
+          <div className="relative rounded-xl border border-cyan-500/30 bg-[#060B14] p-4 flex flex-col items-center overflow-hidden">
+            <div className="w-full flex items-center justify-between text-xs text-cyan-400/80 mb-2 font-mono">
+              <span>HOMOLOGAÇÃO FÍSICA // MONOPOSTO REALISTA VISTA LATERAL</span>
+              <span>CARROCERIA OFICIAL COM IDENTIDADE {teamName.toUpperCase()}</span>
+            </div>
+
+            <div className="relative w-full aspect-[1000/320] max-h-[380px] flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_rgba(20,29,46,0.85)_0%,_rgba(6,9,16,0.98)_75%,_#030508_100%)] rounded-xl border border-[#1E293B] overflow-hidden">
+              {/* Sombra de pista */}
+              <div className="absolute bottom-[4%] left-[5%] right-[5%] h-[10%] bg-black/90 blur-md rounded-full pointer-events-none" />
+
+              {/* Imagem do carro integrada ao dark */}
+              <img
+                src={blueprintImg}
+                alt={`${teamName} Monoposto`}
+                className="w-full h-full object-contain pointer-events-none select-none relative z-10 brightness-[0.98] contrast-[1.08]"
+              />
+
+              {/* Vinheta suave para dissolver bordas da imagem */}
+              <div
+                className="absolute inset-0 pointer-events-none z-10"
+                style={{
+                  background:
+                    'radial-gradient(ellipse 90% 75% at 50% 50%, transparent 60%, rgba(6, 10, 18, 0.7) 85%, #05070D 100%)',
+                }}
+              />
+
+              {/* Camada de pintura com a cor da equipe */}
+              <svg
+                viewBox="0 0 1000 320"
+                className="absolute inset-0 w-full h-full pointer-events-none z-20 select-none"
+                style={{ mixBlendMode: 'multiply' }}
+                preserveAspectRatio="xMidYMid meet"
+              >
+                <path
+                  d="M 60 250 L 165 210 L 290 180 L 285 200 L 165 230 L 60 262 Z"
+                  fill={teamColor}
+                  opacity="0.85"
+                />
+                <path
+                  d="M 330 185 C 365 160, 420 152, 500 152 C 570 152, 640 160, 710 185 C 730 195, 740 215, 740 230 L 330 230 Z"
+                  fill={teamColor}
+                  opacity="0.85"
+                />
+                <path
+                  d="M 545 130 L 600 78 L 730 145 L 700 170 L 545 140 Z"
+                  fill={teamColor}
+                  opacity="0.88"
+                />
+                <path d="M 830 75 L 940 75 L 935 125 L 835 125 Z" fill={teamColor} opacity="0.85" />
+                <path d="M 45 255 L 140 235 L 140 252 L 45 270 Z" fill={teamColor} opacity="0.88" />
+                <path
+                  d="M 380 148 Q 440 105 490 120 Q 460 135 410 152 Z"
+                  fill={teamColor}
+                  opacity="0.75"
+                />
+              </svg>
+
+              {/* Patrocinadores sobre a carroceria */}
+              <svg
+                viewBox="0 0 1000 320"
+                className="absolute inset-0 w-full h-full pointer-events-none z-30 select-none"
+                preserveAspectRatio="xMidYMid meet"
+              >
+                <text
+                  x="480"
+                  y="202"
+                  fill="#FFFFFF"
+                  fontSize="22"
+                  fontWeight="900"
+                  fontFamily="'Montserrat', 'Arial Black', sans-serif"
+                  letterSpacing="3"
+                  textAnchor="middle"
+                  stroke="#000000"
+                  strokeWidth="2.5"
+                  paintOrder="stroke fill"
+                  opacity="0.95"
+                >
+                  {mainSponsor.toUpperCase()}
+                </text>
+                <g transform="translate(640, 118) rotate(4)">
+                  <rect
+                    x="-70"
+                    y="-13"
+                    width="140"
+                    height="20"
+                    rx="3"
+                    fill="#000000"
+                    opacity="0.4"
+                  />
+                  <text
+                    x="0"
+                    y="2"
+                    fill="#FFFFFF"
+                    fontSize="11"
+                    fontWeight="800"
+                    fontFamily="'Montserrat', sans-serif"
+                    letterSpacing="2"
+                    textAnchor="middle"
+                    stroke="#000000"
+                    strokeWidth="1"
+                    paintOrder="stroke fill"
+                  >
+                    {sideSponsor.toUpperCase()}
+                  </text>
+                </g>
+                <text
+                  x="885"
+                  y="96"
+                  fill="#FFFFFF"
+                  fontSize="13"
+                  fontWeight="900"
+                  fontFamily="'Montserrat', sans-serif"
+                  letterSpacing="2.5"
+                  textAnchor="middle"
+                  stroke="#000000"
+                  strokeWidth="1.5"
+                  paintOrder="stroke fill"
+                >
+                  {wingSponsor.slice(0, 11).toUpperCase()}
+                </text>
+              </svg>
+
+              {/* Hotspots interativos clicáveis */}
+              <div className="absolute inset-0 pointer-events-auto z-40">
+                {[
+                  { part: frontWingPart, left: '10%', top: '74%', name: 'Asa Dianteira' },
+                  { part: suspensionPart, left: '26%', top: '64%', name: 'Suspensão' },
+                  { part: chassiPart, left: '46%', top: '52%', name: 'Chassi' },
+                  { part: floorPart, left: '49%', top: '84%', name: 'Assoalho' },
+                  { part: activeAeroPart, left: '64%', top: '36%', name: 'Aero Ativa' },
+                  { part: rearWingPart, left: '88%', top: '32%', name: 'Asa Traseira' },
+                ].map((hs, i) => {
+                  if (!hs.part) return null
+                  const isSel = selectedPartId === hs.part.id
+                  const cond = hs.part.condition ?? 100
+                  const color = getConditionColor(cond)
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      style={{ left: hs.left, top: hs.top }}
+                      onClick={() => onSelectPart(hs.part!.id)}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center border transition-all ${
+                        isSel
+                          ? 'bg-cyan-500/40 border-cyan-300 ring-4 ring-cyan-500/30 scale-110 shadow-[0_0_16px_rgba(0,166,251,0.8)]'
+                          : 'bg-[#08101E]/90 border-cyan-500/50 hover:scale-105 shadow-md'
+                      }`}
+                      title={`${hs.name} (${cond}%)`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="w-full flex flex-wrap items-center justify-center gap-2 mt-3 pt-2 border-t border-[#1E293B]">
+              <span className="text-[11px] text-slate-400 font-mono">Inspecione:</span>
+              {parts.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => onSelectPart(p.id)}
+                  className={`px-2.5 py-1 rounded border text-[11px] font-mono transition-all ${
+                    selectedPartId === p.id
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                      : 'bg-[#0E1626] border-[#1E293B] text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  {p.name} ({p.condition ?? 100}%)
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 1. SCHEMATIC INTERACTIVE VIEW (Side + Quick Top Highlight) */}
         {activeView === 'schematic' && (
