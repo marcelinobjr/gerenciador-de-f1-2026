@@ -4,6 +4,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -19,6 +22,43 @@
 
   <body>
     <div id="root"></div>
+    <!-- Script de desregistro defensivo de qualquer Service Worker ou CacheStorage remanescente -->
+    <script>
+      (function() {
+        if (typeof window !== 'undefined') {
+          // Desregistrar todos os Service Workers caso algum tenha sido registrado anteriormente
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              for (var i = 0; i < registrations.length; i++) {
+                registrations[i].unregister().then(function(unregistered) {
+                  if (unregistered) {
+                    console.log('[SW-Cleanup] Antigo Service Worker desregistrado com sucesso.');
+                  }
+                }).catch(function(err) {
+                  console.warn('[SW-Cleanup] Falha ao desregistrar Service Worker:', err);
+                });
+              }
+            }).catch(function(err) {
+              console.warn('[SW-Cleanup] Erro ao listar registrations de Service Worker:', err);
+            });
+          }
+          // Limpar caches do CacheStorage da origem
+          if ('caches' in window) {
+            caches.keys().then(function(cacheNames) {
+              cacheNames.forEach(function(cacheName) {
+                caches.delete(cacheName).then(function(deleted) {
+                  if (deleted) {
+                    console.log('[Cache-Cleanup] Cache antigo removido:', cacheName);
+                  }
+                });
+              });
+            }).catch(function(err) {
+              console.warn('[Cache-Cleanup] Falha ao acessar CacheStorage:', err);
+            });
+          }
+        }
+      })();
+    </script>
     <!-- @skip-protected: Do not remove. Required for app features. -->
     <script src="https://goskip.dev/skip.js"></script>
     <!-- @skip-protected: Do not remove. App entrypoint. -->
