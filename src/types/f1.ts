@@ -315,3 +315,87 @@ export interface F1NotificationModel {
   created?: string
   updated?: string
 }
+
+export interface DriverPostRaceSummary {
+  driverId: string
+  driverName: string
+  nationality?: string
+  flag?: string
+  finalPosition: number
+  points: number
+  fastestLap?: boolean
+  dnf?: boolean
+  dnfReason?: string
+  totalTime?: string
+  stints: {
+    compound: TireCompound
+    startLap: number
+    endLap: number
+    lapsDone: number
+    wearAtEnd?: number
+  }[]
+  pitStops: {
+    lap: number
+    durationSec?: number
+    toCompound: TireCompound
+  }[]
+  oldMorale?: number
+  newMorale?: number
+  oldPhysical?: number
+  newPhysical?: number
+}
+
+export interface RadioHighlight {
+  id: string
+  lap: number
+  driverName: string
+  driverMessage: string
+  bossResponse?: string
+  driverFeedback?: string
+  category?: string
+}
+
+export interface ConstructorPositionDelta {
+  rankBefore: number
+  rankAfter: number
+  pointsBefore: number
+  pointsAfter: number
+  pointsGained: number
+  positionDelta: number // >0 ganho de posições, <0 perda de posições, 0 estável
+}
+
+export interface RaceReportData {
+  round: number
+  gpName: string
+  circuitName: string
+  country?: string
+  flag?: string
+  date?: string
+  weatherSummary?: string
+  totalLaps: number
+  teamDrivers: DriverPostRaceSummary[]
+  teamPoints: number
+  constructorDelta: ConstructorPositionDelta
+  teamIncidents: string[]
+  allIncidents?: string[]
+  radioHighlights: RadioHighlight[]
+  bestMoment: {
+    title: string
+    description: string
+    badge?: string
+    driverName?: string
+  }
+}
+
+export interface RaceReportModel {
+  id: string
+  season_id: string
+  team_id: string
+  round: number
+  gp_name: string
+  circuit_name?: string
+  country?: string
+  data: RaceReportData
+  created?: string
+  updated?: string
+}

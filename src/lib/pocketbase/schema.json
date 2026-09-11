@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T21:04:23.230Z",
+  "generatedAt": "2026-09-11T21:21:35.561Z",
   "collections": [
     {
       "name": "users",
@@ -954,6 +954,81 @@
       "indexes": [
         "CREATE INDEX idx_notifications_user_created ON notifications (user_id, created DESC)",
         "CREATE INDEX idx_notifications_user_read ON notifications (user_id, read)"
+      ]
+    },
+    {
+      "name": "race_reports",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "season_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "seasons"
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "gp_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "circuit_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "country",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_race_reports_season_round ON race_reports (season_id, round)",
+        "CREATE INDEX idx_race_reports_team ON race_reports (team_id)"
       ]
     }
   ]

@@ -12,6 +12,7 @@ import {
   CircuitModel,
   F1NotificationModel,
   F1NotificationType,
+  RaceReportModel,
 } from '@/types/f1'
 
 export const f1Service = {
@@ -459,6 +460,62 @@ export const f1Service = {
     })
   },
 
+  // Race Reports
+  async getRaceReport(seasonId: string, round: number): Promise<RaceReportModel | null> {
+    try {
+      return await pb
+        .collection('race_reports')
+        .getFirstListItem<RaceReportModel>(`season_id = "${seasonId}" && round = ${round}`)
+    } catch (_) {
+      return null
+    }
+  },
+
+  async getSeasonRaceReports(seasonId: string): Promise<RaceReportModel[]> {
+    try {
+      return await pb.collection('race_reports').getFullList<RaceReportModel>({
+        filter: `season_id = "${seasonId}"`,
+        sort: 'round',
+      })
+    } catch (e) {
+      console.error('Error fetching season race reports:', e)
+      return []
+    }
+  },
+
+  async saveRaceReport(
+    seasonId: string,
+    teamId: string,
+    round: number,
+    gpName: string,
+    circuitName: string,
+    country: string,
+    data: any,
+  ): Promise<RaceReportModel> {
+    try {
+      const existing = await pb
+        .collection('race_reports')
+        .getFirstListItem<RaceReportModel>(`season_id = "${seasonId}" && round = ${round}`)
+      return await pb.collection('race_reports').update<RaceReportModel>(existing.id, {
+        team_id: teamId,
+        gp_name: gpName,
+        circuit_name: circuitName,
+        country,
+        data,
+      })
+    } catch (_) {
+      return await pb.collection('race_reports').create<RaceReportModel>({
+        season_id: seasonId,
+        team_id: teamId,
+        round,
+        gp_name: gpName,
+        circuit_name: circuitName,
+        country,
+        data,
+      })
+    }
+  },
+
   // Race Results
   async getSeasonRaceResults(seasonId: string): Promise<RaceResultModel[]> {
     try {
@@ -477,7 +534,96 @@ export const f1Service = {
   async createRaceResult(
     data: Omit<RaceResultModel, 'id' | 'created' | 'updated'>,
   ): Promise<RaceResultModel> {
-    return await pb.collection('race_results').create<RaceResultModel>(data)
+    const created = await pb.collection('race_results').create<RaceResultModel>(data)
+
+    // Hook auxiliar pós-corrida: Quando todos os resultados da rodada forem gravados (ou ao salvar resultado do jogador),
+    // disparar geração e persistência assíncrona do relatório se ainda não existir para esta rodada.
+    setTimeout(async () => {
+      try {
+        if (!data.season_id || !data.round) return
+        const existingReport = await this.getRaceReport(data.season_id, data.round)
+        if (existingReport) return
+
+        // Busca season e team
+        const sRecord = await pb.collection('seasons').getOne<SeasonModel>(data.season_id)
+        if (!sRecord?.team_id) return
+        const tRecord = await pb.collection('teams').getOne<TeamModel>(sRecord.team_id)
+        if (!tRecord) return
+
+        // Busca resultados desta temporada
+        const allSeasonResults = await this.getSeasonRaceResults(data.season_id)
+        const roundResults = allSeasonResults.filter((r) => r.round === data.round)
+        if (roundResults.length < 5) return // Espera ter o grid razoável salvo
+
+        // Busca pilotos da equipe
+        const teamDrivers = await pb.collection('drivers').getFullList<DriverModel>({
+          filter: `team_id = "${tRecord.id}"`,
+        })
+
+        // Import dinâmico do raceReportService para evitar dependência circular
+        const { raceReportService } = await import('./raceReportService')
+        const { F1_2026_CALENDAR } = await import('@/lib/f1-data')
+
+        const gpMeta = F1_2026_CALENDAR.find((c) => c.round === data.round) || {
+          round: data.round,
+          name: `GP da Rodada ${data.round}`,
+          circuit: 'Autódromo Internacional',
+          country: 'Mundial',
+          flag: '🏁',
+          laps: 55,
+        }
+
+        const prevResults = allSeasonResults.filter((r) => r.round < data.round)
+        const currResults = allSeasonResults.filter((r) => r.round <= data.round)
+
+        const reportData = raceReportService.generateReportData({
+          round: data.round,
+          gpInfo: {
+            name: gpMeta.name,
+            circuit: (gpMeta as any).circuit || 'Circuito Oficial FIA',
+            country: gpMeta.country,
+            flag: gpMeta.flag,
+            laps: (gpMeta as any).laps || 55,
+          },
+          finalGrid: roundResults.map((r) => ({
+            driverId: r.driver_id,
+            driverName: r.expand?.driver_id?.name || 'Piloto',
+            teamId: r.team_id,
+            teamName: r.expand?.team_id?.name || '',
+            teamColor: r.expand?.team_id?.color || '#E10600',
+            isPlayer: r.team_id === tRecord.id,
+            flag: (r.expand?.driver_id as any)?.flag || '🏁',
+            position: r.position,
+            points: r.points,
+            fastestLap: r.fastest_lap,
+            dnf: false,
+            totalTime: r.position === 1 ? 'Vencedor' : `+${r.position * 2.1}s`,
+          })),
+          raceIncidents: [],
+          liveEvents: [],
+          team: tRecord,
+          season: sRecord,
+          drivers: teamDrivers,
+          previousRaceResults: prevResults,
+          currentRaceResults: currResults,
+        })
+
+        await this.saveRaceReport(
+          data.season_id,
+          tRecord.id,
+          data.round,
+          gpMeta.name,
+          (gpMeta as any).circuit || 'Circuito Oficial',
+          gpMeta.country || '',
+          reportData,
+        )
+      } catch (repErr) {
+        // Tolerância a falha silenciosa para não travar avanço
+        console.warn('Geração automática de relatório pós-corrida em background:', repErr)
+      }
+    }, 1200)
+
+    return created
   },
 
   // Circuits

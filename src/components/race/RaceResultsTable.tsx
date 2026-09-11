@@ -1,33 +1,35 @@
-import React from 'react'
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
+import React, { useState, useEffect } from 'react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Award, ArrowRight, ShieldAlert } from 'lucide-react'
-import { TireCompound } from '@/types/f1'
+import { Award, ArrowRight, ShieldAlert, FileText } from 'lucide-react'
+import { TireCompound, RaceReportData } from '@/types/f1'
+import { RaceReportModal } from './RaceReportModal'
+import { raceReportService } from '@/services/raceReportService'
+import { f1Service } from '@/services/f1Service'
 
 export interface RaceResultEntry {
   driverId: string
-  driverName: string
-  teamId: string
-  teamName: string
-  teamColor: string
-  isPlayer: boolean
-  flag: string
+  driverName?: string
+  teamId?: string
+  teamName?: string
+  teamColor?: string
+  isPlayer?: boolean
+  flag?: string
   position: number
-  points: number
-  fastestLap: boolean
-  dnf: boolean
-  dnfReason?: string
-  totalTime: string
+  points?: number
   tireCompound?: TireCompound
   secondCompound?: TireCompound
   tireWear?: number
+  pitStopsDone?: number
+  fastestLap?: boolean
+  dnf?: boolean
+  dnfReason?: string
+  totalTime?: string
   oldMorale?: number
   newMorale?: number
-  moraleDelta?: number
   oldPhysical?: number
   newPhysical?: number
-  physicalDelta?: number
 }
 
 interface RaceResultsTableProps {
@@ -37,6 +39,7 @@ interface RaceResultsTableProps {
   incidents: string[]
   isFinishing: boolean
   onAdvanceRound: () => void
+  onOpenReport?: () => void
 }
 
 export function RaceResultsTable({
@@ -46,208 +49,189 @@ export function RaceResultsTable({
   incidents,
   isFinishing,
   onAdvanceRound,
+  onOpenReport,
 }: RaceResultsTableProps) {
-  const actualResults = results || raceResults || []
-  if (actualResults.length === 0) return null
+  const displayResults = results || raceResults || []
+
+  // Estado local para relatório pós-corrida
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [currentReport, setCurrentReport] = useState<RaceReportData | null>(null)
+
+  // Ao montar ou mudar de resultados, tenta gerar/obter o relatório para exibição instantânea
+  const handleOpenReportInternal = async () => {
+    if (onOpenReport) {
+      onOpenReport()
+      return
+    }
+
+    if (currentReport) {
+      setReportModalOpen(true)
+      return
+    }
+
+    try {
+      // Buscar season do usuário autenticado no backend
+      const pbUser = f1Service.getCurrentUser ? f1Service.getCurrentUser() : null
+      const team = pbUser ? await f1Service.getPlayerTeam(pbUser.id) : null
+      const season = team ? await f1Service.getSeasonByTeam(team.id) : null
+
+      if (season && team) {
+        const existing = await raceReportService.getReport(season.id, season.current_round)
+        if (existing?.data) {
+          setCurrentReport(existing.data)
+          setReportModalOpen(true)
+          return
+        }
+
+        const drivers = await f1Service.getTeamDrivers(team.id)
+        const generated = raceReportService.generateReportData({
+          round: season.current_round,
+          gpInfo: {
+            name: gpName,
+            circuit: 'Autódromo Oficial FIA',
+            laps: 55,
+          },
+          finalGrid: displayResults,
+          raceIncidents: incidents,
+          liveEvents: [],
+          team,
+          season,
+          drivers,
+          previousRaceResults: [],
+          currentRaceResults: [],
+        })
+
+        setCurrentReport(generated)
+        setReportModalOpen(true)
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar relatório no botão interno:', e)
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Safety Car / Incidents alert if occurred */}
-      {incidents.length > 0 && (
-        <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/50 space-y-2">
-          <div className="flex items-center gap-2 font-bold text-amber-400 text-xs font-mono uppercase">
-            <ShieldAlert className="w-4 h-4" /> Relatório de Incidentes & Bandeiras
-          </div>
-          <div className="space-y-1 text-xs text-[#F5F7FA] font-mono">
-            {incidents.map((inc, i) => (
-              <div key={i}>{inc}</div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Classification Table */}
-      <Card className="bg-[#11161F] border border-[#1F2733] shadow-xl overflow-hidden rounded-xl">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] gap-3">
+    <>
+      <Card className="bg-[#11161F] border-[#1F2733] shadow-xl">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#1F2733] pb-4">
           <div>
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#E10600] block">
-              HOMOLOGAÇÃO DA FEDERAÇÃO INTERNACIONAL
+            <span className="eyebrow text-[#00A6FB] text-[10px] tracking-wider uppercase block">
+              RACE OPERATIONS // CLASSIFICAÇÃO OFICIAL FIA
             </span>
-            <CardTitle className="text-sm font-bold text-[#F5F7FA] flex items-center gap-2 mt-0.5 tracking-wide uppercase">
+            <CardTitle className="text-base font-bold text-white flex items-center gap-2 mt-0.5">
               <Award className="w-4 h-4 text-amber-400" />
-              Resultado Oficial do GP — {gpName}
+              Resultado Final — {gpName}
             </CardTitle>
-            <CardDescription className="text-xs text-[#8B95A7] mt-0.5 font-num">
-              Desgaste de pneus acumulado, paradas nos boxes e pontos FIA atribuídos.
-            </CardDescription>
           </div>
 
-          {/* Advance Button */}
-          <Button
-            size="sm"
-            onClick={onAdvanceRound}
-            disabled={isFinishing}
-            className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold px-5 shadow-lg cursor-pointer"
-          >
-            {isFinishing ? 'Salvando dados...' : 'Avançar para Próxima Rodada'}
-            <ArrowRight className="w-4 h-4 ml-1.5" />
-          </Button>
+          {/* Action Buttons: Ver Relatório & Avançar */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenReportInternal}
+              className="bg-[#161D29] hover:bg-[#1f2937] text-cyan-400 border border-cyan-500/40 font-bold px-4 shadow-sm cursor-pointer flex items-center gap-1.5"
+            >
+              <FileText className="w-4 h-4 text-cyan-400" />
+              <span>Ver Relatório do GP</span>
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={onAdvanceRound}
+              disabled={isFinishing}
+              className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold px-5 shadow-lg cursor-pointer flex items-center gap-1.5"
+            >
+              <span>{isFinishing ? 'Salvando dados...' : 'Avançar para Próxima Rodada'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
         </CardHeader>
 
-        <CardContent className="p-0">
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-left text-xs font-mono">
+        <CardContent className="p-4 space-y-4">
+          {/* Tabela de Resultados */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider bg-[#0E131B] text-[10px]">
-                  <th className="py-2.5 px-3">Pos</th>
-                  <th className="py-2.5 px-3">Piloto</th>
-                  <th className="py-2.5 px-3">Equipe</th>
-                  <th className="py-2.5 px-2 text-center">Pneus (1º/2º)</th>
-                  <th className="py-2.5 px-2 text-center">Desgaste</th>
-                  <th className="py-2.5 px-3">Tempo / Gap</th>
-                  <th className="py-2.5 px-2 text-center">Moral</th>
-                  <th className="py-2.5 px-2 text-center">Física</th>
-                  <th className="py-2.5 px-3 text-right">Pts</th>
+                <tr className="text-[#8B95A7] border-b border-[#1F2733] text-left">
+                  <th className="py-2 px-2 font-mono uppercase text-[10px] w-12">Pos</th>
+                  <th className="py-2 px-2 font-mono uppercase text-[10px]">Piloto</th>
+                  <th className="py-2 px-2 font-mono uppercase text-[10px]">Equipe</th>
+                  <th className="py-2 px-2 font-mono uppercase text-[10px] text-right">
+                    Tempo / Gap
+                  </th>
+                  <th className="py-2 px-2 font-mono uppercase text-[10px] text-right w-16">
+                    Pontos
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1F2733]/60">
-                {' '}
-                {actualResults.map((row) => {
-                  const hasMorale = row.newMorale !== undefined && row.oldMorale !== undefined
-                  const mDelta =
-                    row.moraleDelta ?? (hasMorale ? row.newMorale! - row.oldMorale! : 0)
-                  const hasPhysical = row.newPhysical !== undefined && row.oldPhysical !== undefined
-                  const pDelta =
-                    row.physicalDelta ?? (hasPhysical ? row.newPhysical! - row.oldPhysical! : 0)
-
+              <tbody className="divide-y divide-[#1F2733]/50">
+                {displayResults.map((r) => {
+                  const isPodium = r.position <= 3 && !r.dnf
+                  const isPoints = r.position <= 10 && !r.dnf
                   return (
                     <tr
-                      key={row.driverId}
-                      className={`transition-colors ${
-                        row.isPlayer
-                          ? 'bg-[#161D29] font-bold border-l-[3px] border-l-[#E10600]'
-                          : 'hover:bg-[#161D29]/40 bg-[#11161F]'
+                      key={r.driverId}
+                      className={`hover:bg-[#161D29]/60 transition-colors ${
+                        r.isPlayer ? 'bg-[#00A6FB]/10 font-semibold' : ''
                       }`}
                     >
-                      <td className="py-3 px-3">
+                      <td className="py-2.5 px-2 font-num">
                         <span
-                          className={`inline-flex items-center justify-center w-6 h-6 rounded font-num font-bold text-xs ${
-                            row.position === 1
-                              ? 'bg-amber-400 text-black'
-                              : row.position === 2
-                                ? 'bg-slate-300 text-black'
-                                : row.position === 3
-                                  ? 'bg-amber-700 text-white'
-                                  : 'text-[#8B95A7] bg-[#0E131B]'
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold ${
+                            r.dnf
+                              ? 'bg-red-950/60 text-red-400 border border-red-500/30'
+                              : r.position === 1
+                                ? 'bg-amber-400 text-black'
+                                : r.position === 2
+                                  ? 'bg-slate-300 text-black'
+                                  : r.position === 3
+                                    ? 'bg-amber-700 text-white'
+                                    : isPoints
+                                      ? 'bg-[#161D29] text-[#22C55E]'
+                                      : 'text-[#8B95A7]'
                           }`}
                         >
-                          {row.dnf ? 'DNF' : row.position}
+                          {r.dnf ? 'DNF' : r.position}
                         </span>
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="py-2.5 px-2">
                         <div className="flex items-center gap-2">
-                          <span>{row.flag}</span>
-                          <span
-                            className={row.isPlayer ? 'text-[#F5F7FA] font-bold' : 'text-[#F5F7FA]'}
-                          >
-                            {row.driverName}
+                          <span>{r.flag || '🏁'}</span>
+                          <span className={r.isPlayer ? 'text-white font-bold' : 'text-[#F5F7FA]'}>
+                            {r.driverName || 'Piloto'}
                           </span>
-                          {row.fastestLap && (
-                            <Badge
-                              className="bg-purple-600 text-white text-[9px] px-1 py-0 h-4"
-                              title="Volta Mais Rápida"
-                            >
+                          {r.fastestLap && (
+                            <Badge className="bg-purple-600 text-white font-mono text-[9px] px-1 py-0 h-3.5">
                               FL
                             </Badge>
                           )}
-                          {row.isPlayer && (
-                            <Badge className="bg-[#E10600]/20 text-red-300 border border-[#E10600]/40 text-[9px] px-1 py-0 h-4 uppercase">
+                          {r.isPlayer && (
+                            <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border border-[#00A6FB]/40 text-[9px] px-1 py-0 h-3.5">
                               Sua Equipe
                             </Badge>
                           )}
                         </div>
-                        {row.dnfReason && (
-                          <span className="text-[10px] text-red-400 block mt-0.5 font-normal">
-                            {row.dnfReason}
-                          </span>
-                        )}
                       </td>
-                      <td className="py-3 px-3">
-                        <span style={{ color: row.teamColor }}>{row.teamName}</span>
-                      </td>
-                      <td className="py-3 px-2 text-center text-[#8B95A7]">
-                        {row.tireCompound?.slice(0, 3).toUpperCase()} /{' '}
-                        {row.secondCompound?.slice(0, 3).toUpperCase()}
-                      </td>
-                      <td className="py-3 px-2 text-center font-num">
-                        <span
-                          className={`font-bold ${
-                            (row.tireWear || 0) > 85
-                              ? 'text-red-400'
-                              : (row.tireWear || 0) > 65
-                                ? 'text-amber-400'
-                                : 'text-emerald-400'
-                          }`}
-                        >
-                          {row.tireWear || 70}%
+                      <td className="py-2.5 px-2">
+                        <span className="font-medium" style={{ color: r.teamColor || '#8B95A7' }}>
+                          {r.teamName || 'Equipe'}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-[#8B95A7] font-num tabular-nums">
-                        {row.totalTime}
-                      </td>
-                      <td className="py-3 px-2 text-center font-num">
-                        {hasMorale ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-white font-semibold">{row.newMorale}</span>
-                            <span
-                              className={`text-[10px] font-bold ${
-                                mDelta > 0
-                                  ? 'text-emerald-400'
-                                  : mDelta < 0
-                                    ? 'text-red-400'
-                                    : 'text-zinc-400'
-                              }`}
-                            >
-                              ({mDelta > 0 ? `+${mDelta}` : mDelta})
-                            </span>
-                          </div>
+                      <td className="py-2.5 px-2 text-right font-num text-[#8B95A7]">
+                        {r.dnf ? (
+                          <span className="text-red-400 font-mono">
+                            {r.dnfReason || 'Abandono'}
+                          </span>
                         ) : (
-                          <span className="text-[#8B95A7]">-</span>
+                          r.totalTime ||
+                          (r.position === 1 ? '1h 28m 34s' : `+${(r.position - 1) * 2.4}s`)
                         )}
                       </td>
-                      <td className="py-3 px-2 text-center font-num">
-                        {hasPhysical ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <span
-                              className={`font-semibold ${
-                                (row.newPhysical ?? 100) < 40 ? 'text-amber-400' : 'text-white'
-                              }`}
-                            >
-                              {row.newPhysical}%
-                            </span>
-                            <span
-                              className={`text-[10px] font-bold ${
-                                pDelta > 0
-                                  ? 'text-emerald-400'
-                                  : pDelta < 0
-                                    ? 'text-red-400'
-                                    : 'text-zinc-400'
-                              }`}
-                            >
-                              ({pDelta > 0 ? `+${pDelta}` : pDelta})
-                            </span>
-                          </div>
+                      <td className="py-2.5 px-2 text-right font-num">
+                        {r.points && r.points > 0 ? (
+                          <span className="font-bold text-[#22C55E]">+{r.points}</span>
                         ) : (
-                          <span className="text-[#8B95A7]">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-right font-num">
-                        {row.points > 0 ? (
-                          <strong className="text-emerald-400 font-bold text-sm">
-                            +{row.points}
-                          </strong>
-                        ) : (
-                          <span className="text-[#8B95A7]">0</span>
+                          <span className="text-[#6A768A]">0</span>
                         )}
                       </td>
                     </tr>
@@ -256,8 +240,33 @@ export function RaceResultsTable({
               </tbody>
             </table>
           </div>
+
+          {/* Incidentes Registrados */}
+          {incidents && incidents.length > 0 && (
+            <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-1.5 text-xs font-mono">
+              <div className="flex items-center gap-1.5 text-amber-400 text-[11px] font-bold">
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>Incidentes Notificados da Etapa</span>
+              </div>
+              <div className="space-y-1 text-slate-300">
+                {incidents.map((inc, i) => (
+                  <div key={i} className="flex items-start gap-1.5">
+                    <span className="text-amber-400">•</span>
+                    <span>{inc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
-    </div>
+
+      {/* Modal Embutido de Relatório Pós-Corrida */}
+      <RaceReportModal
+        open={reportModalOpen}
+        onOpenChange={setReportModalOpen}
+        report={currentReport}
+      />
+    </>
   )
 }

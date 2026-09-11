@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { StatCard } from '@/components/StatCard'
 import { DataTable, DataTableColumn } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
+import { RivalComparisonSection } from '@/components/RivalComparisonSection'
 import { DriverModel, PartModel, RaceResultModel, TeamModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
@@ -851,6 +852,11 @@ export default function TeamsPage() {
           </div>
         }
       />
+
+      {/* Comparativo com Rivais Diretos & Média do Grid */}
+      <div className="relative z-10">
+        <RivalComparisonSection allTeams={allDisplayTeams} playerTeam={team} />
+      </div>
 
       {/* KPIs do topo com StatCard baseados em dados reais */}
       <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">

@@ -9,6 +9,7 @@ import {
   Calendar,
   Trophy,
   Car,
+  BookOpen,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -44,6 +45,7 @@ export const SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
       { name: 'Fim de Semana', path: '/race', icon: Flag },
       { name: 'Calendário', path: '/calendario', icon: Calendar },
       { name: 'Classificações', path: '/standings', icon: Trophy },
+      { name: 'Histórico', path: '/historico', icon: BookOpen },
       { name: 'Grid', path: '/teams', icon: Car },
     ],
   },
@@ -57,6 +59,7 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/race': 'Fim de Semana de Corrida',
   '/calendario': 'Calendário Oficial 2026',
   '/standings': 'Classificações do Campeonato',
+  '/historico': 'Histórico da Temporada',
   '/teams': 'Grid da Temporada 2026',
 }
 
