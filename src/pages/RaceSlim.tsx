@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
 import { f1Service } from '@/services/f1Service'
+import { notificationService } from '@/services/notificationService'
 import {
   DriverModel,
   PartModel,
@@ -164,7 +165,7 @@ export function isDemandingTrackName(name: string, circuit: string): boolean {
 }
 
 export default function RacePage() {
-  const { team, season, refreshTeamAndSeason } = useAuth()
+  const { user, team, season, refreshTeamAndSeason } = useAuth()
   const navigate = useNavigate()
   const { toast } = useToast()
 
@@ -1298,6 +1299,24 @@ export default function RacePage() {
       }
     }, 450)
   }
+
+  // Sincroniza flag de corrida ao vivo para ocultar o sino e evitar colisões com HUD
+  useEffect(() => {
+    const isRunning = activeSession === 'race' && !!liveRaceState?.inProgress
+    if (isRunning) {
+      document.body.setAttribute('data-live-race-running', 'true')
+      window.sessionStorage.setItem('f1_live_race_running', 'true')
+    } else {
+      document.body.removeAttribute('data-live-race-running')
+      window.sessionStorage.removeItem('f1_live_race_running')
+    }
+    window.dispatchEvent(new Event('f1-live-race-status-change'))
+    return () => {
+      document.body.removeAttribute('data-live-race-running')
+      window.sessionStorage.removeItem('f1_live_race_running')
+      window.dispatchEvent(new Event('f1-live-race-status-change'))
+    }
+  }, [liveRaceState?.inProgress])
 
   // Calculate tire life in laps based on track abrasiveness
   const calculateCompoundLaps = (compound: TireCompound) => {
@@ -3727,7 +3746,6 @@ export default function RacePage() {
       entry.physicalCondition = updatedPhysical
     })
 
-    // Persistência imediata de moral e física dos pilotos no banco (antes de avançar a rodada)
     // Garantir idempotência por rodada com season.last_processed_round
     if (season && team && season.last_processed_round !== currentRound) {
       const playerGridEntries = finalOrderedGrid.filter((g) => g.isPlayer)
@@ -3757,6 +3775,27 @@ export default function RacePage() {
               `📈 Moral de ${targetDriver.name}: ${entry.oldMorale} → ${entry.newMorale} (${mSign}) — ${reasonText} em ${gpInfo.name}.`,
               'resultado',
             )
+
+            // Notificação de Pódio ou Abandono
+            if (user?.id && (entry.position <= 3 || entry.dnf)) {
+              if (entry.position <= 3 && !entry.dnf) {
+                await notificationService.createNotification(user.id, {
+                  type: 'corrida',
+                  title: `Pódio no GP! ${targetDriver.name} P${entry.position}`,
+                  message: `Resultado espetacular em ${gpInfo.name}: ${targetDriver.name} conquistou um lugar no pódio com P${entry.position}!`,
+                  round: currentRound,
+                  link: '/race',
+                })
+              } else if (entry.dnf) {
+                await notificationService.createNotification(user.id, {
+                  type: 'corrida',
+                  title: `Abandono em Pista: ${targetDriver.name}`,
+                  message: `${targetDriver.name} não completou a prova no GP de ${gpInfo.name} (${reasonText}).`,
+                  round: currentRound,
+                  link: '/race',
+                })
+              }
+            }
           }
         } catch (postRaceErr) {
           console.warn(
@@ -3788,6 +3827,21 @@ export default function RacePage() {
     }
     setRaceIncidents(incidents)
 
+    // Disparar notificações de incidentes importantes
+    if (user?.id && incidents.length > 0) {
+      for (const inc of incidents) {
+        notificationService
+          .createNotification(user.id, {
+            type: 'corrida',
+            title: 'Alerta de Incidente em Pista',
+            message:
+              typeof inc === 'string' ? inc : `Incidente registrado na rodada ${currentRound}.`,
+            round: currentRound,
+            link: '/race',
+          })
+          .catch((err) => console.warn('Erro ao notificar incidente:', err))
+      }
+    }
     setIsSimulatingSession(false)
     setRaceResults(finalOrderedGrid)
     setCompletedSessions((prev) => [...new Set<WeekendSession>([...prev, 'race'])])
@@ -3997,6 +4051,18 @@ export default function RacePage() {
         : `Rodada ${currentRound} (${gpInfo.name}) concluída. Melhor posição da equipe: P${bestPos}. Fluxo financeiro: ${formatCurrency(netCashflow)}.`
 
       await f1Service.addEvent(team.id, eventMsg, 'resultado')
+
+      if (user?.id) {
+        if (playerWinner) {
+          await notificationService.createNotification(user.id, {
+            type: 'corrida',
+            title: `🏆 VITÓRIA NO GP! ${playerWinner.driverName} P1`,
+            message: `A ${team.name} venceu o ${gpInfo.name}! Desempenho brilhante de ${playerWinner.driverName}.`,
+            round: currentRound,
+            link: '/race',
+          })
+        }
+      }
 
       // Advance season round & mark last_processed_round to prevent duplicate processing
       const nextRound = currentRound + 1

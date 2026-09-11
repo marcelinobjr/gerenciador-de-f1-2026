@@ -16,9 +16,9 @@ import {
   RotateCcw,
   Loader2,
   AlertTriangle,
-  Bell,
   Settings,
 } from 'lucide-react'
+import { NotificationBell } from '@/components/NotificationBell'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -172,16 +172,8 @@ export default function Layout() {
 
           {/* Right Section: Sino + Engrenagem + Avatar + Temporada 2026 · R{n}/24 e barra de progresso */}
           <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
-            {/* Sino de Notificações */}
-            <button
-              type="button"
-              onClick={() => navigate('/race')}
-              className="relative w-8 h-8 rounded-lg bg-[#0F141F] border border-[#1F2733] text-[#8B95A7] hover:text-white hover:border-[#E10600]/40 flex items-center justify-center transition-colors"
-              title="Notificações e Avisos"
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#E10600] ring-2 ring-[#0F141F]" />
-            </button>
+            {/* Sino de Notificações Central (ocultável se em corrida ao vivo, se aplicável) */}
+            <NotificationBell currentRound={currentRound} userId={user?.id} />
 
             {/* Engrenagem / Configurações / Reset */}
             <button

@@ -174,6 +174,29 @@ export interface EventModel {
   updated?: string
 }
 
+export type NotificationType =
+  | 'radio'
+  | 'patrocinio'
+  | 'motor'
+  | 'fia'
+  | 'rival'
+  | 'lesao'
+  | 'corrida'
+  | 'sistema'
+
+export interface NotificationModel {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  message: string
+  round?: number
+  read: boolean
+  link?: string
+  created?: string
+  updated?: string
+}
+
 export interface CircuitModel {
   id: string
   round: number
@@ -266,4 +289,27 @@ export interface EngineSupplierSpec {
   costAnnual: number
   description: string
   techBadge: string
+}
+
+export type F1NotificationType =
+  | 'radio'
+  | 'patrocinio'
+  | 'motor'
+  | 'fia'
+  | 'rival'
+  | 'lesao'
+  | 'corrida'
+  | 'sistema'
+
+export interface F1NotificationModel {
+  id: string
+  user_id: string
+  type: F1NotificationType
+  title: string
+  message: string
+  round?: number
+  read?: boolean
+  link?: string
+  created?: string
+  updated?: string
 }

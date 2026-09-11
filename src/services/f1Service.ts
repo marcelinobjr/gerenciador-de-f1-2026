@@ -10,9 +10,95 @@ import {
   SessionSetupModel,
   MarketMoveEvent,
   CircuitModel,
+  F1NotificationModel,
+  F1NotificationType,
 } from '@/types/f1'
 
 export const f1Service = {
+  // === NOTIFICAÇÕES (CRUD POCKETBASE) ===
+  async getNotifications(userId: string, limit = 30): Promise<F1NotificationModel[]> {
+    if (!userId) return []
+    try {
+      const records = await pb.collection('notifications').getList<F1NotificationModel>(1, limit, {
+        filter: `user_id = "${userId}"`,
+        sort: '-created',
+      })
+      return records.items
+    } catch (err) {
+      console.warn('Erro ao carregar notificações do PocketBase:', err)
+      return []
+    }
+  },
+
+  async createNotification(
+    userId: string,
+    data: {
+      type: F1NotificationType
+      title: string
+      message: string
+      round?: number
+      link?: string
+      read?: boolean
+    },
+  ): Promise<F1NotificationModel | null> {
+    if (!userId) return null
+    try {
+      const cleanTitle = data.title.replace(/"/g, '\\"')
+      const filter = `user_id = "${userId}" && title = "${cleanTitle}" && round = ${data.round || 1}`
+      const existing = await pb.collection('notifications').getList(1, 1, { filter })
+      if (existing.items.length > 0) {
+        return existing.items[0] as unknown as F1NotificationModel
+      }
+
+      return await pb.collection('notifications').create<F1NotificationModel>({
+        user_id: userId,
+        type: data.type,
+        title: data.title,
+        message: data.message,
+        round: data.round || 1,
+        read: data.read ?? false,
+        link: data.link || '',
+      })
+    } catch (err) {
+      console.warn('Erro ao criar notificação no PocketBase:', err)
+      return null
+    }
+  },
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    try {
+      await pb.collection('notifications').update(notificationId, { read: true })
+    } catch (err) {
+      console.warn('Erro ao marcar notificação como lida:', err)
+    }
+  },
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    if (!userId) return
+    try {
+      const unreadList = await pb.collection('notifications').getFullList<F1NotificationModel>({
+        filter: `user_id = "${userId}" && read = false`,
+      })
+      await Promise.all(
+        unreadList.map((item) =>
+          pb
+            .collection('notifications')
+            .update(item.id, { read: true })
+            .catch(() => null),
+        ),
+      )
+    } catch (err) {
+      console.warn('Erro ao marcar todas notificações como lidas:', err)
+    }
+  },
+
+  async deleteNotification(notificationId: string): Promise<void> {
+    try {
+      await pb.collection('notifications').delete(notificationId)
+    } catch (err) {
+      console.warn('Erro ao deletar notificação:', err)
+    }
+  },
   // Teams
   async getPlayerTeam(userId: string): Promise<TeamModel | null> {
     try {
