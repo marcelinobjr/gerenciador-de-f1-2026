@@ -13,6 +13,9 @@ interface RoundCheckContext {
   componentFailure?: string
 }
 
+// Cache em memória para evitar duplicações desnecessárias dentro da mesma sessão/rodada
+const dispatchedEventsCache = new Set<string>()
+
 export const notificationGenerator = {
   /**
    * Avalia a equipe, pilotos, motor, patrocinadores e rivais e dispara notificações adequadas (máx ~10 por rodada).
@@ -182,10 +185,14 @@ export const notificationGenerator = {
       })
     }
 
-    // Limitar a no máximo 8-10 notificações novas por rodada
-    const toDispatch = notificationsToCreate.slice(0, 8)
+    // Limitar a no máximo 8-10 notificações novas por rodada, filtrando duplicatas
+    const toDispatch = notificationsToCreate.slice(0, 10)
     for (const n of toDispatch) {
-      await notificationService.createNotification(userId, n)
+      const cacheKey = `${userId}_${currentRound}_${n.type}_${n.title}`
+      if (!dispatchedEventsCache.has(cacheKey)) {
+        dispatchedEventsCache.add(cacheKey)
+        await notificationService.createNotification(userId, n)
+      }
     }
   },
 
@@ -193,7 +200,11 @@ export const notificationGenerator = {
    * Disparo imediato para eventos pontuais (ex: rádio da corrida, novo patrocínio fechado, upgrade de motor)
    */
   async notifyImmediate(userId: string, input: CreateNotificationInput): Promise<void> {
-    await notificationService.createNotification(userId, input)
+    const cacheKey = `${userId}_${input.round || 1}_${input.type}_${input.title}`
+    if (!dispatchedEventsCache.has(cacheKey)) {
+      dispatchedEventsCache.add(cacheKey)
+      await notificationService.createNotification(userId, input)
+    }
   },
 }
 

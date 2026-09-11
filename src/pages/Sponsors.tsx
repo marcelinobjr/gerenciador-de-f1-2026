@@ -26,8 +26,10 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { notificationService } from '@/services/notificationService'
+
 export default function SponsorsPage() {
-  const { team, season, refreshTeamAndSeason } = useAuth()
+  const { user, team, season, refreshTeamAndSeason } = useAuth()
 
   const [sponsors, setSponsors] = useState<SponsorModel[]>([])
   const [raceResults, setRaceResults] = useState<any[]>([])
@@ -186,6 +188,18 @@ export default function SponsorsPage() {
         title: 'Patrocínio Fechado!',
         description: `Contrato exclusivo assinado com ${signingSponsor.name} para a cota ${signingSponsor.slotLabel || signingSponsor.slot}.`,
       })
+
+      if (user?.id) {
+        notificationService
+          .createNotification(user.id, {
+            type: 'patrocinio',
+            title: `💰 Contrato Assinado: ${signingSponsor.name}`,
+            message: `Contrato exclusivo assinado para a cota [${signingSponsor.slotLabel || signingSponsor.slot}]! Pagamento de ${formatCurrency(signingSponsor.value_per_round)} por GP.`,
+            round: season?.current_round || 1,
+            link: '/sponsors',
+          })
+          .catch(() => null)
+      }
 
       setSigningSponsor(null)
       loadSponsors()

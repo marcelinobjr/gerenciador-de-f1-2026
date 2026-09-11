@@ -58,8 +58,12 @@ export function NotificationBell({
     }
 
     checkLiveState()
-    const interval = setInterval(checkLiveState, 1000)
-    return () => clearInterval(interval)
+    const interval = setInterval(checkLiveState, 500)
+    window.addEventListener('f1-live-race-status-change', checkLiveState)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('f1-live-race-status-change', checkLiveState)
+    }
   }, [location.pathname])
 
   const loadNotifications = async () => {
@@ -158,7 +162,6 @@ export function NotificationBell({
       navigate(n.link)
     }
   }
-
   // Ocultar sino durante corrida ao vivo na aba Corrida (requisito do prompt)
   if (location.pathname === '/race' && isLiveActive) {
     return null

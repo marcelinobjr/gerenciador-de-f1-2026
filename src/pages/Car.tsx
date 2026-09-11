@@ -41,8 +41,10 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
+import { notificationService } from '@/services/notificationService'
+
 export default function CarPage() {
-  const { team, refreshTeamAndSeason } = useAuth()
+  const { user, team, season, refreshTeamAndSeason } = useAuth()
 
   const [parts, setParts] = useState<PartModel[]>([])
   const [sponsors, setSponsors] = useState<SponsorModel[]>([])
