@@ -21,6 +21,11 @@ import {
   CheckCircle2,
   Clock,
   Search,
+  Flag,
+  Flame,
+  Award,
+  Layers,
+  ChevronRight,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -87,7 +92,46 @@ export default function CalendarPage() {
     return map
   }, [circuits])
 
-  // Resultados agrupados por rodada
+  // Mapa de pilotos do DB (por id) para fallback rápido de nome caso o expand não venha
+  const [allDbDrivers, setAllDbDrivers] = useState<DriverModel[]>([])
+  const [allDbTeams, setAllDbTeams] = useState<any[]>([])
+
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      pb
+        .collection('drivers')
+        .getFullList<DriverModel>({ fields: 'id,name,nationality' })
+        .catch(() => []),
+      pb
+        .collection('teams')
+        .getFullList<any>({ fields: 'id,name,color' })
+        .catch(() => []),
+    ]).then(([drivers, teams]) => {
+      if (!active) return
+      setAllDbDrivers(drivers)
+      setAllDbTeams(teams)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const driverMap = useMemo(() => {
+    const map = new Map<string, DriverModel>()
+    allDbDrivers.forEach((d) => map.set(d.id, d))
+    playerDrivers.forEach((d) => map.set(d.id, d))
+    return map
+  }, [allDbDrivers, playerDrivers])
+
+  const teamMap = useMemo(() => {
+    const map = new Map<string, any>()
+    allDbTeams.forEach((t) => map.set(t.id, t))
+    if (team?.id) map.set(team.id, team)
+    return map
+  }, [allDbTeams, team])
+
+  // Resultados agrupados por rodada com ordenação estrita por posição
   const resultsByRound = useMemo(() => {
     const map = new Map<
       number,
@@ -114,12 +158,9 @@ export default function CalendarPage() {
       const entry = map.get(r)!
       entry.allResults.push(res)
 
-      if (res.position === 1) entry.p1 = res
-      if (res.position === 2) entry.p2 = res
-      if (res.position === 3) entry.p3 = res
       if (res.fastest_lap) entry.fastestLap = res
 
-      // Verifica se e piloto da equipe do jogador
+      // Verifica se é piloto da equipe do jogador
       const isPlayerResult =
         res.team_id === team?.id ||
         (res.expand?.team_id && res.expand.team_id.name === team?.name) ||
@@ -128,6 +169,17 @@ export default function CalendarPage() {
       if (isPlayerResult) {
         entry.playerResults.push(res)
         entry.playerTotalPoints += res.points || 0
+      }
+    })
+
+    // Ordenar allResults por posição e fixar P1, P2 e P3
+    map.forEach((entry) => {
+      entry.allResults.sort((a, b) => (a.position || 99) - (b.position || 99))
+      entry.p1 = entry.allResults.find((r) => r.position === 1)
+      entry.p2 = entry.allResults.find((r) => r.position === 2)
+      entry.p3 = entry.allResults.find((r) => r.position === 3)
+      if (!entry.fastestLap) {
+        entry.fastestLap = entry.allResults.find((r) => r.fastest_lap)
       }
     })
 
@@ -339,37 +391,70 @@ export default function CalendarPage() {
             const defaultAsset = gp.round === 1 ? defaultAustraliaMap : null
             const activeCircuitImage = uploadedPhotoUrl || defaultAsset
 
+            // Helpers de resolução de nomes e cores para os resultados
+            const resolveDriverName = (result?: RaceResultModel) => {
+              if (!result) return null
+              if (result.expand?.driver_id?.name) return result.expand.driver_id.name
+              if (result.driver_id && driverMap.has(result.driver_id)) {
+                return driverMap.get(result.driver_id)!.name
+              }
+              return 'Piloto'
+            }
+
+            const resolveTeamInfo = (result?: RaceResultModel) => {
+              if (!result) return { name: 'Equipe', color: '#8B95A7' }
+              if (result.expand?.team_id?.name) {
+                return {
+                  name: result.expand.team_id.name,
+                  color: result.expand.team_id.color || '#8B95A7',
+                }
+              }
+              if (result.team_id && teamMap.has(result.team_id)) {
+                const t = teamMap.get(result.team_id)!
+                return { name: t.name, color: t.color || '#8B95A7' }
+              }
+              return { name: 'Equipe', color: '#8B95A7' }
+            }
+
+            const p1DriverName = resolveDriverName(roundResults?.p1)
+            const p1TeamInfo = resolveTeamInfo(roundResults?.p1)
+            const p2DriverName = resolveDriverName(roundResults?.p2)
+            const p2TeamInfo = resolveTeamInfo(roundResults?.p2)
+            const p3DriverName = resolveDriverName(roundResults?.p3)
+            const p3TeamInfo = resolveTeamInfo(roundResults?.p3)
+            const fastestDriverName = resolveDriverName(roundResults?.fastestLap)
+
             return (
               <div
                 key={gp.round}
                 className={`overflow-hidden rounded-xl border transition-all duration-200 flex flex-col justify-between ${
                   isCurrent
                     ? 'bg-[#11161F] border-[#00A6FB] shadow-xl ring-1 ring-[#00A6FB]/40'
-                    : 'bg-[#11161F] border-[#1F2733] hover:border-[#1F2733]/90'
+                    : 'bg-[#11161F] border-[#1F2733] hover:border-[#2C3849]'
                 }`}
               >
-                {/* Barra 3px de status no topo */}
+                {/* Barra de status de 3px no topo */}
                 <div
                   className={`h-[3px] w-full ${
                     isCurrent ? 'bg-[#00A6FB]' : isCompleted ? 'bg-emerald-500' : 'bg-[#1F2733]'
                   }`}
                 />
 
-                {/* Banner de Exibicao do Circuito (~16:9) */}
-                <div className="relative w-full aspect-[16/9] max-h-64 bg-[#0B0E14] overflow-hidden border-b border-[#1F2733] group flex items-center justify-center">
+                {/* Banner de Exibição do Circuito (~16:9) */}
+                <div className="relative w-full aspect-[16/9] max-h-60 bg-[#080B10] overflow-hidden border-b border-[#1F2733] group flex items-center justify-center">
                   {activeCircuitImage ? (
-                    <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden flex items-center justify-center p-2">
+                    <div className="w-full h-full relative bg-[#080B10] overflow-hidden flex items-center justify-center p-3">
                       <CircuitTrackImage
                         src={activeCircuitImage}
                         alt={`Traçado do ${gp.circuit}`}
                         className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-black/20 pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-transparent to-black/30 pointer-events-none" />
 
-                      <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] text-[#F5F7FA] drop-shadow-md z-10">
-                        <span className="w-2 h-2 rounded-full bg-[#00A6FB]" />
+                      <div className="absolute bottom-2.5 left-3 flex items-center gap-2 text-[10px] text-[#F5F7FA] drop-shadow-md z-10">
+                        <span className="w-2 h-2 rounded-full bg-[#00A6FB] animate-pulse" />
                         <span className="eyebrow text-[#F5F7FA]">
-                          {uploadedPhotoUrl ? 'TRAÇADO HOMOLOGADO (UPLOAD)' : 'MAPA OFICIAL FIA'}
+                          {uploadedPhotoUrl ? 'TRAÇADO HOMOLOGADO // UPLOAD' : 'MAPA OFICIAL FIA'}
                         </span>
                       </div>
                     </div>
@@ -380,7 +465,7 @@ export default function CalendarPage() {
                         circuitName={gp.name}
                         laps={gp.laps}
                         lengthKm={gp.circuitLengthKm}
-                        className="h-full border-none rounded-none !p-3 bg-[#0B0E14]"
+                        className="h-full border-none rounded-none !p-3 bg-[#080B10]"
                       />
                     </div>
                   )}
@@ -388,11 +473,11 @@ export default function CalendarPage() {
                   {/* Badge de Rodada (canto superior esquerdo) */}
                   <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
                     <span
-                      className={`font-num text-xs font-bold px-2.5 py-1 rounded-md border shadow-md ${
+                      className={`font-num text-xs font-bold px-2.5 py-1 rounded-md border shadow-md backdrop-blur-md ${
                         isCurrent
                           ? 'bg-[#00A6FB] text-white border-[#00A6FB]'
                           : isCompleted
-                            ? 'bg-[#161D29] text-emerald-400 border-emerald-500/40'
+                            ? 'bg-[#161D29]/95 text-emerald-400 border-emerald-500/40'
                             : 'bg-[#0B0E14]/90 text-[#8B95A7] border-[#1F2733]'
                       }`}
                     >
@@ -400,7 +485,7 @@ export default function CalendarPage() {
                     </span>
                   </div>
 
-                  {/* Botao de Upload da Imagem do Circuito (canto superior direito) */}
+                  {/* Botão de Upload da Imagem do Circuito (canto superior direito) */}
                   <div className="absolute top-2.5 right-2.5 z-10">
                     <button
                       type="button"
@@ -424,181 +509,235 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* Conteudo do Card */}
+                {/* Conteúdo Informativo Completo do Card */}
                 <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
-                  {/* Cabecalho da Etapa: Nome, Pais e Bandeira */}
-                  <div>
+                  {/* Cabeçalho da Etapa: Bandeira, País, Nome do GP e Circuito */}
+                  <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-xl leading-none" role="img" aria-label={gp.country}>
                             {gp.flag}
                           </span>
                           <span className="eyebrow text-[#8B95A7]">{gp.country}</span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-bold text-[#F5F7FA] mt-1 tracking-tight">
+                        <h2 className="text-lg sm:text-xl font-bold text-[#F5F7FA] mt-1 tracking-tight truncate">
                           {gp.name}
                         </h2>
-                        <p className="text-xs text-[#00A6FB] flex items-center gap-1.5 mt-0.5">
-                          <MapPin className="w-3.5 h-3.5 shrink-0" />
-                          <span>{gp.circuit}</span>
+                        <p className="text-xs text-[#00A6FB] flex items-center gap-1.5 mt-0.5 truncate">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 text-[#00A6FB]" />
+                          <span className="truncate">{gp.circuit}</span>
                         </p>
                       </div>
 
                       <div className="text-right shrink-0">
                         {isCompleted ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                            ✓ Concluído
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Concluído
                           </span>
                         ) : isCurrent ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#00A6FB]/10 text-[#00A6FB] border border-[#00A6FB]/30">
-                            ● Próxima Etapa
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold bg-[#00A6FB]/15 text-[#00A6FB] border border-[#00A6FB]/40">
+                            <Clock className="w-3 h-3 animate-pulse" />
+                            Próxima Etapa
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#161D29] text-[#8B95A7] border border-[#1F2733]">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-semibold bg-[#161D29] text-[#8B95A7] border border-[#1F2733]">
                             A Disputar
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Especificacoes Tecnicas da Pista */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 p-3 bg-[#0B0E14] border border-[#1F2733] rounded-lg text-xs">
-                      <div>
-                        <span className="eyebrow block text-[10px]">Extensão</span>
-                        <strong className="text-[#00A6FB] text-sm font-bold font-num">
+                    {/* Ficha Técnica da Pista (densidade idêntica aos cards de Grid/Teams) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 sm:p-3 bg-[#0E131B] border border-[#1F2733] rounded-xl text-xs">
+                      <div className="space-y-0.5">
+                        <span className="eyebrow block text-[10px] text-[#8B95A7]">Extensão</span>
+                        <strong className="text-[#00A6FB] text-sm font-bold font-num block">
                           {gp.circuitLengthKm.toFixed(3)} km
                         </strong>
                       </div>
-                      <div>
-                        <span className="eyebrow block text-[10px]">Voltas</span>
-                        <strong className="text-[#F5F7FA] text-sm font-bold font-num">
+                      <div className="space-y-0.5">
+                        <span className="eyebrow block text-[10px] text-[#8B95A7]">Voltas</span>
+                        <strong className="text-[#F5F7FA] text-sm font-bold font-num block">
                           {gp.laps}
                         </strong>
                       </div>
-                      <div>
-                        <span className="eyebrow block text-[10px]">Curvas</span>
-                        <strong className="text-amber-400 text-sm font-bold font-num">
+                      <div className="space-y-0.5">
+                        <span className="eyebrow block text-[10px] text-[#8B95A7]">Curvas</span>
+                        <strong className="text-amber-400 text-sm font-bold font-num block">
                           {gp.turns || '—'}
                         </strong>
                       </div>
-                      <div>
-                        <span className="eyebrow block text-[10px]">Distância</span>
-                        <strong className="text-emerald-400 text-sm font-bold font-num">
+                      <div className="space-y-0.5">
+                        <span className="eyebrow block text-[10px] text-[#8B95A7]">
+                          Distância Total
+                        </span>
+                        <strong className="text-emerald-400 text-sm font-bold font-num block">
                           {(gp.laps * gp.circuitLengthKm).toFixed(1)} km
                         </strong>
                       </div>
                     </div>
 
-                    {/* Caracteristica da Pista */}
-                    <p className="text-xs text-[#8B95A7] italic mt-2.5 leading-relaxed">
-                      "{gp.characteristic}"
-                    </p>
+                    {/* Frase de Característica da Pista */}
+                    <div className="p-2.5 rounded-lg bg-[#0E131B]/60 border border-[#1F2733]/80">
+                      <span className="eyebrow block text-[9px] text-[#6A768A] mb-0.5">
+                        CARACTERÍSTICA TÉCNICA DO TRAÇADO
+                      </span>
+                      <p className="text-xs text-[#8B95A7] italic leading-relaxed">
+                        "{gp.characteristic}"
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Secao de Resultados da Temporada */}
+                  {/* Bloco: Resultado Oficial da Etapa (Pódio + Pontos) ou Estado Pendente */}
                   <div className="pt-3 border-t border-[#1F2733]">
                     {roundResults && roundResults.allResults.length > 0 ? (
-                      <div className="space-y-2.5">
+                      <div className="space-y-3">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-xs font-bold text-[#F5F7FA] uppercase tracking-wider flex items-center gap-1.5">
                             <Trophy className="w-3.5 h-3.5 text-amber-400" />
                             Resultado Oficial da Etapa
                           </span>
-                          <span className="font-num text-[11px] text-[#8B95A7]">
+                          <span className="font-num text-[11px] text-[#8B95A7] px-2 py-0.5 rounded bg-[#0E131B] border border-[#1F2733]">
                             {roundResults.allResults.length} classificados
                           </span>
                         </div>
 
-                        {/* Podio P1, P2, P3 */}
+                        {/* Pódio Oficial P1, P2, P3 */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                           {/* P1 - Vencedor */}
-                          <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-md bg-amber-500 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num">
+                          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 min-w-0">
+                            <span className="w-7 h-7 rounded-lg bg-amber-500 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num shadow-sm">
                               P1
                             </span>
-                            <div className="overflow-hidden">
-                              <span className="eyebrow text-amber-400 block text-[9px] leading-none">
+                            <div className="overflow-hidden min-w-0 flex-1">
+                              <span className="eyebrow text-amber-400 block text-[9px] leading-none truncate">
                                 Vencedor
                               </span>
-                              <span className="font-bold text-[#F5F7FA] truncate block mt-0.5">
-                                {roundResults.p1?.expand?.driver_id?.name || 'Vencedor P1'}
+                              <span className="font-bold text-[#F5F7FA] truncate block mt-0.5 text-xs">
+                                {p1DriverName || 'Vencedor P1'}
                               </span>
-                              <span className="text-[10px] text-[#8B95A7] truncate block font-num">
-                                {roundResults.p1?.expand?.team_id?.name || 'Equipe'} • 25 pts
+                              <span className="text-[10px] text-[#8B95A7] truncate block font-num mt-0.5">
+                                {p1TeamInfo.name} •{' '}
+                                <strong className="text-amber-400 font-bold">
+                                  {roundResults.p1?.points ?? 25} pts
+                                </strong>
                               </span>
                             </div>
                           </div>
 
-                          {/* P2 */}
-                          <div className="p-2.5 rounded-lg bg-slate-400/10 border border-slate-400/20 flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-md bg-slate-300 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num">
+                          {/* P2 - 2º Lugar */}
+                          <div className="p-2.5 rounded-xl bg-slate-400/10 border border-slate-400/25 flex items-center gap-2.5 min-w-0">
+                            <span className="w-7 h-7 rounded-lg bg-slate-300 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num shadow-sm">
                               P2
                             </span>
-                            <div className="overflow-hidden">
-                              <span className="eyebrow text-slate-300 block text-[9px] leading-none">
+                            <div className="overflow-hidden min-w-0 flex-1">
+                              <span className="eyebrow text-slate-300 block text-[9px] leading-none truncate">
                                 2º Lugar
                               </span>
-                              <span className="font-bold text-[#F5F7FA] truncate block mt-0.5">
-                                {roundResults.p2?.expand?.driver_id?.name || 'Piloto P2'}
+                              <span className="font-bold text-[#F5F7FA] truncate block mt-0.5 text-xs">
+                                {p2DriverName || 'Piloto P2'}
                               </span>
-                              <span className="text-[10px] text-[#8B95A7] truncate block font-num">
-                                {roundResults.p2?.expand?.team_id?.name || 'Equipe'} • 18 pts
+                              <span className="text-[10px] text-[#8B95A7] truncate block font-num mt-0.5">
+                                {p2TeamInfo.name} •{' '}
+                                <strong className="text-slate-300 font-bold">
+                                  {roundResults.p2?.points ?? 18} pts
+                                </strong>
                               </span>
                             </div>
                           </div>
 
-                          {/* P3 */}
-                          <div className="p-2.5 rounded-lg bg-amber-700/15 border border-amber-700/30 flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-md bg-amber-700 text-white font-extrabold flex items-center justify-center text-xs shrink-0 font-num">
+                          {/* P3 - 3º Lugar */}
+                          <div className="p-2.5 rounded-xl bg-amber-700/15 border border-amber-700/35 flex items-center gap-2.5 min-w-0">
+                            <span className="w-7 h-7 rounded-lg bg-amber-700 text-white font-extrabold flex items-center justify-center text-xs shrink-0 font-num shadow-sm">
                               P3
                             </span>
-                            <div className="overflow-hidden">
-                              <span className="eyebrow text-amber-600 block text-[9px] leading-none">
+                            <div className="overflow-hidden min-w-0 flex-1">
+                              <span className="eyebrow text-amber-600 block text-[9px] leading-none truncate">
                                 3º Lugar
                               </span>
-                              <span className="font-bold text-[#F5F7FA] truncate block mt-0.5">
-                                {roundResults.p3?.expand?.driver_id?.name || 'Piloto P3'}
+                              <span className="font-bold text-[#F5F7FA] truncate block mt-0.5 text-xs">
+                                {p3DriverName || 'Piloto P3'}
                               </span>
-                              <span className="text-[10px] text-[#8B95A7] truncate block font-num">
-                                {roundResults.p3?.expand?.team_id?.name || 'Equipe'} • 15 pts
+                              <span className="text-[10px] text-[#8B95A7] truncate block font-num mt-0.5">
+                                {p3TeamInfo.name} •{' '}
+                                <strong className="text-amber-500 font-bold">
+                                  {roundResults.p3?.points ?? 15} pts
+                                </strong>
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Volta mais rapida & Pontos da Equipe do Jogador */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-2.5 bg-[#0B0E14] border border-[#1F2733] rounded-lg text-xs">
-                          {/* Volta Mais Rapida */}
-                          <div className="flex items-center gap-2">
-                            <Zap className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                            <span className="text-[#8B95A7]">Volta Mais Rápida:</span>
-                            <strong className="text-purple-300 font-bold">
-                              {roundResults.fastestLap?.expand?.driver_id?.name || 'Piloto'}
-                            </strong>
+                        {/* Volta Mais Rápida & Desempenho da Escuderia do Jogador */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2.5 bg-[#0E131B] border border-[#1F2733] rounded-xl text-xs">
+                          {/* Volta Mais Rápida */}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 rounded-md bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                              <Zap className="w-3.5 h-3.5 text-purple-400" />
+                            </div>
+                            <div className="truncate">
+                              <span className="text-[10px] text-[#8B95A7] block leading-none">
+                                Volta Mais Rápida (+1 pt)
+                              </span>
+                              <strong className="text-purple-300 font-bold text-xs truncate block mt-0.5">
+                                {fastestDriverName || 'Piloto Homologado'}
+                              </strong>
+                            </div>
                           </div>
 
-                          {/* Desempenho da Escuderia do Jogador */}
-                          <div className="flex items-center gap-2 sm:border-l sm:border-[#1F2733] sm:pl-3">
-                            <span className="text-[#8B95A7]">{team?.name || 'Sua Escuderia'}:</span>
-                            <span className="font-num font-bold text-xs px-2 py-0.5 rounded bg-[#00A6FB]/10 text-[#00A6FB] border border-[#00A6FB]/30">
+                          {/* Desempenho da Equipe do Jogador */}
+                          <div className="flex items-center gap-2 sm:border-l sm:border-[#1F2733] sm:pl-3 shrink-0">
+                            <span className="text-[#8B95A7] text-[11px]">
+                              {team?.name || 'Sua Escuderia'}:
+                            </span>
+                            <span
+                              className={`font-num font-bold text-xs px-2.5 py-1 rounded-md border ${
+                                roundResults.playerTotalPoints > 0
+                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                                  : 'bg-[#161D29] text-[#8B95A7] border-[#1F2733]'
+                              }`}
+                            >
                               {roundResults.playerTotalPoints > 0
-                                ? `+${roundResults.playerTotalPoints} pts marcados`
+                                ? `+${roundResults.playerTotalPoints} pts na etapa`
                                 : '0 pts nesta etapa'}
                             </span>
                           </div>
                         </div>
                       </div>
+                    ) : isCompleted ? (
+                      // Etapa concluída em rodada anterior mas sem detalhes gravados no banco
+                      <div className="p-3.5 rounded-xl bg-[#0E131B] border border-[#1F2733] text-center text-xs text-[#8B95A7] flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-left">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <div>
+                            <span className="font-semibold text-[#F5F7FA] block text-xs">
+                              Etapa Concluída
+                            </span>
+                            <span className="text-[11px] text-[#8B95A7]">
+                              Resultados oficiais registrados nos arquivos do campeonato.
+                            </span>
+                          </div>
+                        </div>
+                        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px] font-num">
+                          Finalizado
+                        </Badge>
+                      </div>
                     ) : (
-                      // Etapa ainda nao disputada
-                      <div className="p-4 rounded-xl bg-[#0B0E14] border border-dashed border-[#1F2733] text-center text-xs text-[#8B95A7] flex flex-col items-center justify-center gap-1.5">
-                        <Clock className="w-4 h-4 text-[#8B95A7]" />
+                      // Etapa ainda não disputada
+                      <div className="p-4 rounded-xl bg-[#0E131B] border border-dashed border-[#1F2733] text-center text-xs text-[#8B95A7] flex flex-col items-center justify-center gap-1.5">
+                        <Clock
+                          className={`w-4 h-4 ${isCurrent ? 'text-[#00A6FB]' : 'text-[#8B95A7]'}`}
+                        />
                         <span className="font-medium text-[#F5F7FA]">
-                          Etapa a disputar na temporada 2026
+                          {isCurrent
+                            ? 'Etapa Atual — Pronta para Disputa'
+                            : 'Etapa a Disputar no Campeonato 2026'}
                         </span>
                         <span className="text-[11px] text-[#8B95A7]">
                           {isCurrent
-                            ? 'Esta é a próxima corrida agendada na aba "Corrida"!'
+                            ? 'Acesse a aba "Fim de Semana" para iniciar os treinos e a corrida!'
                             : 'Aguardando a conclusão das rodadas anteriores.'}
                         </span>
                       </div>

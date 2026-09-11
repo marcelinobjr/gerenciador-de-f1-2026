@@ -46,7 +46,7 @@ export const SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
       { name: 'Calendário', path: '/calendario', icon: Calendar },
       { name: 'Classificações', path: '/standings', icon: Trophy },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
-      { name: 'Grid', path: '/teams', icon: Car },
+      { name: 'Equipes', path: '/teams', icon: Car },
     ],
   },
 ]
