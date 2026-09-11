@@ -497,17 +497,9 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
                   >
                     {/* Anel pulsante de hotspot */}
                     <div className="relative flex items-center justify-center">
-                      <span
-                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border transition-all duration-300 ${
-                          isSel
-                            ? 'bg-cyan-500/40 border-cyan-300 shadow-[0_0_16px_rgba(0,166,251,0.8)] scale-110'
-                            : isHov
-                              ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_12px_rgba(0,166,251,0.5)] scale-105'
-                              : 'bg-[#08101E]/90 border-cyan-500/50 hover:border-cyan-300 shadow-md'
-                        }`}
-                      >
+                      <span className="opacity-[0.43] grid font-sans text-[0rem]">
                         <span
-                          className="w-2.5 h-2.5 rounded-full inline-block"
+                          className="w-2.5 h-2.5 rounded-full flex pt-[0px] not-italic"
                           style={{ backgroundColor: condColor }}
                         />
                       </span>
