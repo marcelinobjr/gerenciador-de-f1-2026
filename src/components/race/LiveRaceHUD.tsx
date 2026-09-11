@@ -31,6 +31,16 @@ interface LiveRaceHUDProps {
     mode: 'attack' | 'preserve' | 'save_fuel' | 'normal',
   ) => void
   formatTireName: (c?: TireCompound) => string
+  teamOrderProposal?: {
+    fastDriverId: string
+    fastDriverName: string
+    slowDriverId: string
+    slowDriverName: string
+    gap: number
+    lapsPushed: number
+  } | null
+  onApplyTeamOrder?: () => void
+  teamOrderActive?: boolean
 }
 
 const compoundColorMap: Record<TireCompound, string> = {
@@ -51,6 +61,9 @@ export function LiveRaceHUD({
   tacticalModes,
   onChangeTacticalMode,
   formatTireName,
+  teamOrderProposal,
+  onApplyTeamOrder,
+  teamOrderActive = false,
 }: LiveRaceHUDProps) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -120,6 +133,37 @@ export function LiveRaceHUD({
               🎉 PÓDIO! {pd.driverName} terminou em {pd.position}º no GP de {gpCountry || gpName}!
             </p>
           ))}
+        </div>
+      )}
+
+      {/* Banner / Botão de Ordem de Equipe (Pedir Passagem) */}
+      {!isRaceFinished && (teamOrderProposal || teamOrderActive) && (
+        <div className="p-2.5 bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-500/20 border-b border-amber-500/40 flex items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1 text-[11px] font-bold text-amber-300">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span>ORDEM DE EQUIPE POSSÍVEL</span>
+            </div>
+            <p className="text-[10px] text-slate-300 leading-tight">
+              {teamOrderProposal
+                ? `${teamOrderProposal.fastDriverName} colado em ${teamOrderProposal.slowDriverName} (gap ${(teamOrderProposal.gap || 0.8).toFixed(1)}s)`
+                : 'Ordem de equipe em andamento na pista'}
+            </p>
+          </div>
+          {onApplyTeamOrder && !teamOrderActive && (
+            <Button
+              size="sm"
+              onClick={onApplyTeamOrder}
+              className="h-7 text-[10px] font-bold uppercase bg-amber-500 hover:bg-amber-400 text-black px-2.5 shadow-md shadow-amber-500/20 shrink-0"
+            >
+              Pedir passagem
+            </Button>
+          )}
+          {teamOrderActive && (
+            <Badge className="bg-amber-500/30 text-amber-300 border border-amber-400/50 text-[9px] uppercase font-bold animate-pulse">
+              Em andamento
+            </Badge>
+          )}
         </div>
       )}
 

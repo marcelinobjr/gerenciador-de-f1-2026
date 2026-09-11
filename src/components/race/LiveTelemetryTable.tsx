@@ -64,6 +64,15 @@ interface LiveTelemetryTableProps {
   teamOrders?: TeamOrderState | TeamOrderState[]
   penalties?: FiaPenalty[]
   mechanicalIssues?: MechanicalIssue[]
+  teamOrderProposal?: {
+    fastDriverId: string
+    fastDriverName: string
+    slowDriverId: string
+    slowDriverName: string
+    gap: number
+    lapsPushed: number
+  } | null
+  onApplyTeamOrder?: () => void
 }
 
 export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
@@ -79,6 +88,8 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
   const teamOrders = props.teamOrders
   const penalties = props.penalties || []
   const mechanicalIssues = props.mechanicalIssues || []
+  const teamOrderProposal = props.teamOrderProposal
+  const onApplyTeamOrder = props.onApplyTeamOrder
 
   // Normaliza lista de ordens de equipe ativas
   const activeTeamOrders = useMemo(() => {
@@ -112,6 +123,17 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
           <Badge className="bg-red-500/15 text-red-300 border border-red-500/30 font-mono text-[11px]">
             {grid.filter((g) => g.dnf).length} abandonos
           </Badge>
+          {!isRaceFinished && teamOrderProposal && onApplyTeamOrder && (
+            <button
+              type="button"
+              onClick={onApplyTeamOrder}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-bold font-mono text-[11px] px-2.5 py-1 rounded transition-colors shadow-sm flex items-center gap-1 shrink-0"
+              title={`Solicitar que ${teamOrderProposal.slowDriverName} dê passagem para ${teamOrderProposal.fastDriverName}`}
+            >
+              <Users className="w-3 h-3" />
+              Pedir passagem
+            </button>
+          )}
         </div>
       </CardHeader>
 
