@@ -21,16 +21,9 @@ import {
   CheckCircle2,
   Clock,
   Search,
-  Flag,
-  Flame,
-  Award,
-  Layers,
-  ChevronRight,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-
-// Imagem padrao anexada pelo usuario no projeto como referencia/seed para Albert Park (Round 1)
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
 
 export default function CalendarPage() {
@@ -40,6 +33,8 @@ export default function CalendarPage() {
   const [circuits, setCircuits] = useState<CircuitModel[]>([])
   const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
   const [playerDrivers, setPlayerDrivers] = useState<DriverModel[]>([])
+  const [allDbDrivers, setAllDbDrivers] = useState<DriverModel[]>([])
+  const [allDbTeams, setAllDbTeams] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   // Filtros e busca
@@ -66,7 +61,7 @@ export default function CalendarPage() {
       setRaceResults(resultsList)
       setPlayerDrivers(driversList)
     } catch (err) {
-      console.error('Erro ao carregar dados do calendario:', err)
+      console.error('Erro ao carregar dados do calendário:', err)
     } finally {
       setLoading(false)
     }
@@ -76,26 +71,7 @@ export default function CalendarPage() {
     loadData()
   }, [season?.id, team?.id])
 
-  useRealtime('circuits', () => {
-    loadData()
-  })
-  useRealtime('race_results', () => {
-    loadData()
-  })
-
-  // Mapa de circuitos salvos no banco indexados por round
-  const circuitDbMap = useMemo(() => {
-    const map = new Map<number, CircuitModel>()
-    circuits.forEach((c) => {
-      map.set(c.round, c)
-    })
-    return map
-  }, [circuits])
-
-  // Mapa de pilotos do DB (por id) para fallback rápido de nome caso o expand não venha
-  const [allDbDrivers, setAllDbDrivers] = useState<DriverModel[]>([])
-  const [allDbTeams, setAllDbTeams] = useState<any[]>([])
-
+  // Carga de apoio para resolução de nomes caso o expand de driver_id ou team_id falhe
   useEffect(() => {
     let active = true
     Promise.all([
@@ -117,6 +93,23 @@ export default function CalendarPage() {
     }
   }, [])
 
+  useRealtime('circuits', () => {
+    loadData()
+  })
+  useRealtime('race_results', () => {
+    loadData()
+  })
+
+  // Mapa de circuitos salvos no banco indexados por round
+  const circuitDbMap = useMemo(() => {
+    const map = new Map<number, CircuitModel>()
+    circuits.forEach((c) => {
+      map.set(c.round, c)
+    })
+    return map
+  }, [circuits])
+
+  // Mapas de resolução rápida de nomes e escuderias
   const driverMap = useMemo(() => {
     const map = new Map<string, DriverModel>()
     allDbDrivers.forEach((d) => map.set(d.id, d))
@@ -186,13 +179,13 @@ export default function CalendarPage() {
     return map
   }, [raceResults, team, playerDrivers])
 
-  // Tratar upload de imagem do tracado
+  // Tratar upload de imagem do traçado
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     const targetGP = activeRoundRef.current
     if (!file || !targetGP) return
 
-    // Validacao de formato
+    // Validação de formato
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       toast({
         variant: 'destructive',
@@ -202,7 +195,7 @@ export default function CalendarPage() {
       return
     }
 
-    // Validacao de tamanho (maximo 2MB)
+    // Validação de tamanho (máximo 2MB)
     if (file.size > 2097152) {
       toast({
         variant: 'destructive',
@@ -277,7 +270,7 @@ export default function CalendarPage() {
   }, [search, filterStatus, resultsByRound, currentRound])
 
   return (
-    <div className="relative space-y-6 animate-fade-in-up">
+    <div className="relative space-y-6 animate-fade-in-up pb-10">
       <AmbientBackground />
 
       {/* Input de arquivo global oculto para upload de imagem de circuito */}
@@ -290,7 +283,7 @@ export default function CalendarPage() {
         disabled={uploadingRound !== null}
       />
 
-      {/* PageHeader padronizado com eyebrow RACE OPERATIONS // CALENDÁRIO 2026 */}
+      {/* PageHeader oficial Race Operations */}
       <PageHeader
         eyebrow="RACE OPERATIONS // CALENDÁRIO 2026"
         title="Calendário de Corridas"
@@ -351,7 +344,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Grid das 24 Etapas */}
+      {/* Grid das 24 Etapas (2 colunas no desktop, 1 no mobile) */}
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {[1, 2, 3, 4].map((i) => (
@@ -440,7 +433,7 @@ export default function CalendarPage() {
                   }`}
                 />
 
-                {/* Banner de Exibição do Circuito (~16:9) */}
+                {/* Banner 16:9 do Traçado */}
                 <div className="relative w-full aspect-[16/9] max-h-60 bg-[#080B10] overflow-hidden border-b border-[#1F2733] group flex items-center justify-center">
                   {activeCircuitImage ? (
                     <div className="w-full h-full relative bg-[#080B10] overflow-hidden flex items-center justify-center p-3">
@@ -470,7 +463,7 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                  {/* Badge de Rodada (canto superior esquerdo) */}
+                  {/* Badge de Rodada "Rn/24" (canto superior esquerdo) */}
                   <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
                     <span
                       className={`font-num text-xs font-bold px-2.5 py-1 rounded-md border shadow-md backdrop-blur-md ${
@@ -485,7 +478,7 @@ export default function CalendarPage() {
                     </span>
                   </div>
 
-                  {/* Botão de Upload da Imagem do Circuito (canto superior direito) */}
+                  {/* Botão "Trocar Imagem" / "Imagem do Circuito" com o mesmo fluxo de upload */}
                   <div className="absolute top-2.5 right-2.5 z-10">
                     <button
                       type="button"
@@ -511,7 +504,7 @@ export default function CalendarPage() {
 
                 {/* Conteúdo Informativo Completo do Card */}
                 <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
-                  {/* Cabeçalho da Etapa: Bandeira, País, Nome do GP e Circuito */}
+                  {/* Cabeçalho informativo: bandeira + país (eyebrow), nome do GP, circuito com ícone de localização, e badge de status */}
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -549,7 +542,7 @@ export default function CalendarPage() {
                       </div>
                     </div>
 
-                    {/* Ficha Técnica da Pista (densidade idêntica aos cards de Grid/Teams) */}
+                    {/* Ficha técnica em grid de 4: Extensão (3 casas decimais), Voltas, Curvas, Distância Total */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 sm:p-3 bg-[#0E131B] border border-[#1F2733] rounded-xl text-xs">
                       <div className="space-y-0.5">
                         <span className="eyebrow block text-[10px] text-[#8B95A7]">Extensão</span>
@@ -579,7 +572,7 @@ export default function CalendarPage() {
                       </div>
                     </div>
 
-                    {/* Frase de Característica da Pista */}
+                    {/* Característica técnica do traçado (frase do dado characteristic) */}
                     <div className="p-2.5 rounded-lg bg-[#0E131B]/60 border border-[#1F2733]/80">
                       <span className="eyebrow block text-[9px] text-[#6A768A] mb-0.5">
                         CARACTERÍSTICA TÉCNICA DO TRAÇADO
@@ -590,7 +583,7 @@ export default function CalendarPage() {
                     </div>
                   </div>
 
-                  {/* Bloco: Resultado Oficial da Etapa (Pódio + Pontos) ou Estado Pendente */}
+                  {/* Resultado Oficial da Etapa nas etapas disputadas ou estado Pendente */}
                   <div className="pt-3 border-t border-[#1F2733]">
                     {roundResults && roundResults.allResults.length > 0 ? (
                       <div className="space-y-3">
@@ -604,9 +597,9 @@ export default function CalendarPage() {
                           </span>
                         </div>
 
-                        {/* Pódio Oficial P1, P2, P3 */}
+                        {/* Pódio P1/P2/P3 (ouro/prata/bronze) com piloto, equipe e pontos */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                          {/* P1 - Vencedor */}
+                          {/* P1 - Ouro */}
                           <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 min-w-0">
                             <span className="w-7 h-7 rounded-lg bg-amber-500 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num shadow-sm">
                               P1
@@ -627,7 +620,7 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* P2 - 2º Lugar */}
+                          {/* P2 - Prata */}
                           <div className="p-2.5 rounded-xl bg-slate-400/10 border border-slate-400/25 flex items-center gap-2.5 min-w-0">
                             <span className="w-7 h-7 rounded-lg bg-slate-300 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num shadow-sm">
                               P2
@@ -648,7 +641,7 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* P3 - 3º Lugar */}
+                          {/* P3 - Bronze */}
                           <div className="p-2.5 rounded-xl bg-amber-700/15 border border-amber-700/35 flex items-center gap-2.5 min-w-0">
                             <span className="w-7 h-7 rounded-lg bg-amber-700 text-white font-extrabold flex items-center justify-center text-xs shrink-0 font-num shadow-sm">
                               P3
@@ -670,7 +663,7 @@ export default function CalendarPage() {
                           </div>
                         </div>
 
-                        {/* Volta Mais Rápida & Desempenho da Escuderia do Jogador */}
+                        {/* Volta mais rápida (+1 pt) e pontos da escuderia do jogador */}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2.5 bg-[#0E131B] border border-[#1F2733] rounded-xl text-xs">
                           {/* Volta Mais Rápida */}
                           <div className="flex items-center gap-2 min-w-0">
@@ -687,7 +680,7 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* Desempenho da Equipe do Jogador */}
+                          {/* Pontos da Escuderia do Jogador */}
                           <div className="flex items-center gap-2 sm:border-l sm:border-[#1F2733] sm:pl-3 shrink-0">
                             <span className="text-[#8B95A7] text-[11px]">
                               {team?.name || 'Sua Escuderia'}:
@@ -707,7 +700,7 @@ export default function CalendarPage() {
                         </div>
                       </div>
                     ) : isCompleted ? (
-                      // Etapa concluída em rodada anterior mas sem detalhes gravados no banco
+                      // Etapa concluída sem registro
                       <div className="p-3.5 rounded-xl bg-[#0E131B] border border-[#1F2733] text-center text-xs text-[#8B95A7] flex items-center justify-between">
                         <div className="flex items-center gap-2 text-left">
                           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -725,7 +718,7 @@ export default function CalendarPage() {
                         </Badge>
                       </div>
                     ) : (
-                      // Etapa ainda não disputada
+                      // Etapa futura -> bloco "A Disputar"
                       <div className="p-4 rounded-xl bg-[#0E131B] border border-dashed border-[#1F2733] text-center text-xs text-[#8B95A7] flex flex-col items-center justify-center gap-1.5">
                         <Clock
                           className={`w-4 h-4 ${isCurrent ? 'text-[#00A6FB]' : 'text-[#8B95A7]'}`}
