@@ -40,6 +40,7 @@ import { F1_2026_CALENDAR, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-d
 import { generateAIStrategyProfile } from '@/lib/f1-ai-strategy'
 import { formatCurrency } from '@/lib/formatters'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
+import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import pb from '@/lib/pocketbase/client'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
@@ -4311,10 +4312,10 @@ export default function RacePage() {
                   <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
                     {activeCircuitImage ? (
                       <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden flex items-center justify-center p-2">
-                        <img
+                        <CircuitTrackImage
                           src={activeCircuitImage}
                           alt={`Traçado do ${gpInfo.circuit}`}
-                          className="w-full h-full object-contain object-center [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] transition-transform duration-300 group-hover:scale-105"
+                          className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
                         />
                         {/* Gradiente escuro para legibilidade */}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-[#0B0E14]/40 to-black/20 pointer-events-none" />

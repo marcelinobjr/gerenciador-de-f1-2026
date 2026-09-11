@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
+import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { CircuitModel, RaceResultModel, DriverModel, GrandPrixInfo } from '@/types/f1'
 import {
@@ -373,12 +374,12 @@ export default function CalendarPage() {
                 {/* Banner de Exibicao do Circuito (~16:9) */}
                 <div className="relative w-full aspect-[16/9] max-h-64 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
                   {activeCircuitImage ? (
-                    // Exibicao da imagem (fundo escuro de alto contraste com mix-blend-mode: screen para traçados de circuito)
+                    // Exibição da imagem do traçado com detecção de luminância inteligente
                     <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden flex items-center justify-center p-2">
-                      <img
+                      <CircuitTrackImage
                         src={activeCircuitImage}
                         alt={`Traçado do ${gp.circuit}`}
-                        className="w-full h-full object-contain object-center [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] transition-transform duration-300 group-hover:scale-105"
+                        className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
                       />
                       {/* Leve gradiente escuro no rodape para legibilidade das tags */}
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-black/20 pointer-events-none" />

@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CircuitBlueprint, TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
+import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { DriverHelmet } from '@/components/DriverHelmet'
 import pb from '@/lib/pocketbase/client'
 import { CircuitModel } from '@/types/f1'
@@ -589,10 +590,10 @@ export default function Index() {
             {/* Traçado real do circuito (Imagem do Calendário) ao lado com pontos vermelhos */}
             <div className="w-20 h-16 sm:w-24 sm:h-18 flex items-center justify-center relative rounded-lg bg-black/40 border border-white/10 overflow-hidden p-1">
               {currentCircuitPhotoUrl ? (
-                <img
+                <CircuitTrackImage
                   src={currentCircuitPhotoUrl}
                   alt={`Traçado ${currentGP.name}`}
-                  className="w-full h-full object-contain [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]"
+                  className="w-full h-full object-contain"
                 />
               ) : (
                 <svg
@@ -741,10 +742,10 @@ export default function Index() {
               {/* Lado Direito do Card GP: Traçado real com pontos vermelhos */}
               <div className="shrink-0 flex items-center justify-center w-36 h-28 sm:w-44 sm:h-32 rounded-xl bg-black/40 border border-white/10 p-2 relative overflow-hidden group">
                 {currentCircuitPhotoUrl ? (
-                  <img
+                  <CircuitTrackImage
                     src={currentCircuitPhotoUrl}
                     alt={`Traçado ${currentGP.circuit}`}
-                    className="w-full h-full object-contain [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_12px_rgba(255,255,255,0.75)] group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
                   <svg
