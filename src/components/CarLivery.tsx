@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { SponsorModel } from '@/types/f1'
-import lateralCarPhoto from '@/assets/image-36773.png'
+import lateralCarPhoto from '@/assets/image-73c41.png'
 
 interface CarLiveryProps {
   teamColor?: string

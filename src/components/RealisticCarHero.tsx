@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import carLateralImg from '@/assets/image-36773.png'
+import carLateralImg from '@/assets/image-73c41.png'
 import { PartModel, SponsorModel } from '@/types/f1'
 import {
   Sparkles,
@@ -69,7 +69,7 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
       title: 'Asa Dianteira',
       part: frontWingPart,
       left: '10%',
-      top: '74%',
+      top: '78%',
       labelPos: 'bottom',
     },
     {
@@ -77,8 +77,8 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
       key: 'suspensao',
       title: 'Suspensão Diant.',
       part: suspensionPart,
-      left: '26%',
-      top: '64%',
+      left: '25%',
+      top: '68%',
       labelPos: 'top',
     },
     {
@@ -86,8 +86,8 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
       key: 'chassi',
       title: 'Monocoque / Sidepod',
       part: chassiPart,
-      left: '46%',
-      top: '52%',
+      left: '52%',
+      top: '62%',
       labelPos: 'top',
     },
     {
@@ -95,17 +95,17 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
       key: 'assoalho',
       title: 'Assoalho & Venturi',
       part: floorPart,
-      left: '49%',
-      top: '84%',
+      left: '50%',
+      top: '88%',
       labelPos: 'bottom',
     },
     {
       id: activeAeroPart?.id,
       key: 'aero-ativa',
-      title: 'Tampa / Aero Ativa',
+      title: 'Tampa / Shark Fin',
       part: activeAeroPart,
-      left: '64%',
-      top: '36%',
+      left: '66%',
+      top: '38%',
       labelPos: 'top',
     },
     {
@@ -114,7 +114,7 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
       title: 'Asa Traseira',
       part: rearWingPart,
       left: '88%',
-      top: '32%',
+      top: '34%',
       labelPos: 'top',
     },
   ]
@@ -212,18 +212,17 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
         <div className="absolute bottom-6 sm:bottom-10 left-1/2 -translate-x-1/2 w-[92%] h-1 bg-gradient-to-r from-transparent via-[#00A6FB]/20 to-transparent pointer-events-none" />
         <div className="absolute bottom-2 sm:bottom-5 left-1/2 -translate-x-1/2 w-[85%] h-8 bg-gradient-to-t from-black via-black/80 to-transparent blur-md pointer-events-none" />
 
-        {/* Grade de medição milimétrica sutil no estúdio */}
-        <div className="absolute inset-x-4 sm:inset-x-12 top-6 bottom-14 border-t border-b border-cyan-500/10 pointer-events-none flex flex-col justify-between opacity-40">
-          <div className="flex justify-between text-[9px] text-cyan-500/40 px-2 font-mono">
+        {/* Marcadores discretos de cota de estúdio fotográfico */}
+        <div className="absolute inset-x-4 sm:inset-x-12 top-6 bottom-14 pointer-events-none flex flex-col justify-between opacity-35">
+          <div className="flex justify-between text-[9px] text-slate-400/50 px-2 font-mono">
             <span>+0.000m [FRONT WING]</span>
-            <span>+1.700m [COCKPIT/HALO]</span>
-            <span>+3.400m [WHEELBASE]</span>
+            <span className="hidden sm:inline">+1.700m [COCKPIT/HALO]</span>
+            <span className="hidden sm:inline">+3.400m [WHEELBASE]</span>
             <span>+5.000m [REAR WING]</span>
           </div>
-          <div className="w-full border-b border-cyan-500/5" />
-          <div className="flex justify-between text-[9px] text-cyan-500/40 px-2 font-mono">
-            <span>CHASSI FIA-2026 // GROUND-EFFECT TUNNELS</span>
-            <span>768 KG REGULAMENTAR</span>
+          <div className="flex justify-between text-[9px] text-slate-400/50 px-2 font-mono">
+            <span>FIA SPEC-2026</span>
+            <span>768 KG</span>
           </div>
         </div>
 
@@ -234,23 +233,23 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
 
           {/* 1. IMAGEM DO CARRO REALISTA COM TRATAMENTO DARK (Fundo cinza neutralizado via blend mode e máscara) */}
           <div className="relative w-full h-full flex items-center justify-center">
-            {/* Imagem do carro F1 branco com mix-blend-mode luminosity / multiply para integrar perfeitamente ao dark */}
+            {/* Imagem do carro F1 branco limpo integrado ao tema dark */}
             <img
               src={carLateralImg}
               alt={`${teamName} Carro de F1 2026`}
-              className="w-full h-full object-contain pointer-events-none select-none relative z-10 brightness-[0.98] contrast-[1.08]"
+              className="w-full h-full object-contain pointer-events-none select-none relative z-10 brightness-[0.98] contrast-[1.05]"
               style={{
-                // O fundo cinza original da imagem é naturalmente mesclado e escurecido pelo estúdio dark
-                filter: 'drop-shadow(0 15px 25px rgba(0, 0, 0, 0.95))',
+                // Fundo cinza suavemente mesclado com o estúdio escuro
+                filter: 'drop-shadow(0 14px 24px rgba(0, 0, 0, 0.9))',
               }}
             />
 
-            {/* Máscara de vinheta suave nas bordas para dissolver 100% de qualquer borda residual do fundo cinza original */}
+            {/* Máscara e vinheta periférica suave para dissolver 100% as bordas da foto no fundo escuro */}
             <div
-              className="absolute inset-0 pointer-events-none z-10"
+              className="absolute inset-0 pointer-events-none z-10 rounded-xl"
               style={{
                 background:
-                  'radial-gradient(ellipse 90% 75% at 50% 50%, transparent 60%, rgba(6, 10, 18, 0.7) 85%, #05070D 100%)',
+                  'radial-gradient(ellipse 88% 70% at 50% 50%, transparent 55%, rgba(6, 10, 18, 0.5) 78%, rgba(5, 7, 13, 0.95) 95%, #05070D 100%)',
               }}
             />
 
@@ -284,47 +283,50 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
                 </linearGradient>
               </defs>
 
-              {/* Faixa / Pintura no Bico Frontal */}
+              {/* Faixa / Pintura no Bico Frontal (ajustada para a anatomia exata da foto) */}
               <path
-                d="M 60 250 L 165 210 L 290 180 L 285 200 L 165 230 L 60 262 Z"
-                fill="url(#liveryTeamGrad)"
-                opacity="0.85"
-              />
-
-              {/* Pintura Principal no Sidepod / Carenagem Lateral do Monocoque */}
-              <path
-                d="M 330 185
-                   C 365 160, 420 152, 500 152
-                   C 570 152, 640 160, 710 185
-                   C 730 195, 740 215, 740 230
-                   L 330 230
-                   C 320 210, 320 195, 330 185 Z"
+                d="M 50 265 L 175 228 L 305 196 L 300 212 L 175 244 L 50 276 Z"
                 fill="url(#liveryTeamGrad)"
                 opacity="0.82"
               />
 
-              {/* Faixa aerodinâmica no Santo-Antônio / Tampa do Motor (Shark Fin) */}
+              {/* Pintura Principal no Sidepod / Barriga do Monocoque */}
               <path
-                d="M 545 130
-                   L 600 78
-                   L 730 145
-                   L 700 170
-                   L 545 140 Z"
-                fill={teamColor}
-                opacity="0.88"
+                d="M 440 188
+                   C 480 172, 540 168, 620 170
+                   C 690 172, 730 185, 750 205
+                   C 755 220, 750 242, 730 250
+                   L 460 250
+                   C 440 235, 435 205, 440 188 Z"
+                fill="url(#liveryTeamGrad)"
+                opacity="0.8"
               />
 
-              {/* Pintura da Asa Traseira (Placa Superior e Endplate) */}
-              <path d="M 830 75 L 940 75 L 935 125 L 835 125 Z" fill={teamColor} opacity="0.85" />
-
-              {/* Asa Dianteira Flap Superior na cor da equipe */}
-              <path d="M 45 255 L 140 235 L 140 252 L 45 270 Z" fill={teamColor} opacity="0.88" />
-
-              {/* Halo arco frontal na cor da equipe */}
+              {/* Faixa aerodinâmica na Shark Fin / Tampa do Motor */}
               <path
-                d="M 380 148 Q 440 105 490 120 Q 460 135 410 152 Z"
+                d="M 570 115
+                   L 760 145
+                   L 760 172
+                   L 590 162 Z"
                 fill={teamColor}
-                opacity="0.75"
+                opacity="0.82"
+              />
+
+              {/* Pintura da Asa Traseira (Endplate e asa superior traseira) */}
+              <path
+                d="M 825 80 L 945 80 L 940 155 L 870 155 L 865 110 L 825 110 Z"
+                fill={teamColor}
+                opacity="0.8"
+              />
+
+              {/* Asa Dianteira Flap Superior */}
+              <path d="M 35 272 L 150 250 L 150 266 L 35 284 Z" fill={teamColor} opacity="0.85" />
+
+              {/* Halo arco frontal */}
+              <path
+                d="M 380 155 Q 430 118 475 128 Q 450 145 405 160 Z"
+                fill={teamColor}
+                opacity="0.7"
               />
             </svg>
 
@@ -337,9 +339,9 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
             >
               {/* Realce de reflexo de estúdio sobre a carenagem */}
               <path
-                d="M 330 185 C 420 160, 600 160, 710 185 L 700 195 C 600 170, 420 170, 335 195 Z"
+                d="M 440 188 C 500 170, 620 170, 720 185 L 710 195 C 620 178, 500 178, 445 195 Z"
                 fill="#FFFFFF"
-                opacity="0.6"
+                opacity="0.5"
               />
             </svg>
 
@@ -349,92 +351,111 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
               className="absolute inset-0 w-full h-full pointer-events-none z-30 select-none"
               preserveAspectRatio="xMidYMid meet"
             >
-              {/* DECALQUE 1: Patrocinador Principal no Sidepod (Grande, elegante com borda em relevo) */}
-              <g transform="translate(480, 202)">
+              {/* DECALQUE 1: Patrocinador Principal no Sidepod (perfeito sobre a barriga lateral do monoposto) */}
+              <g transform="translate(560, 206) skewX(-8)">
+                <rect x="-90" y="-12" width="180" height="22" rx="3" fill="#000000" opacity="0.3" />
                 <text
                   x="0"
-                  y="0"
+                  y="4"
                   fill="#FFFFFF"
-                  fontSize="22"
+                  fontSize="11"
                   fontWeight="900"
                   fontFamily="'Montserrat', 'Arial Black', sans-serif"
-                  letterSpacing="3"
+                  letterSpacing="1.5"
                   textAnchor="middle"
                   stroke="#000000"
-                  strokeWidth="2.5"
+                  strokeWidth="1.5"
                   paintOrder="stroke fill"
                   opacity="0.95"
+                  lengthAdjust="spacingAndGlyphs"
+                  textLength={mainSponsor.length > 14 ? '170' : undefined}
                 >
                   {mainSponsor.toUpperCase()}
                 </text>
               </g>
 
               {/* DECALQUE 2: Patrocinador Secundário no Shark Fin / Tampa do Motor */}
-              <g transform="translate(640, 118) rotate(4)">
-                <rect x="-75" y="-14" width="150" height="22" rx="3" fill="#000000" opacity="0.4" />
+              <g transform="translate(660, 136) rotate(-2)">
+                <rect
+                  x="-65"
+                  y="-10"
+                  width="130"
+                  height="18"
+                  rx="3"
+                  fill="#000000"
+                  opacity="0.35"
+                />
                 <text
                   x="0"
-                  y="2"
+                  y="3"
                   fill="#FFFFFF"
-                  fontSize="12"
+                  fontSize="9"
                   fontWeight="800"
                   fontFamily="'Montserrat', sans-serif"
-                  letterSpacing="2"
+                  letterSpacing="1.2"
                   textAnchor="middle"
                   stroke="#000000"
                   strokeWidth="1"
                   paintOrder="stroke fill"
+                  lengthAdjust="spacingAndGlyphs"
+                  textLength={sideSponsor1.length > 12 ? '120' : undefined}
                 >
                   {sideSponsor1.toUpperCase()}
                 </text>
               </g>
 
-              {/* DECALQUE 3: Patrocinador na Asa Traseira (Rear Wing) */}
-              <g transform="translate(885, 96)">
+              {/* DECALQUE 3: Patrocinador na Asa Traseira (Placa vertical da asa traseira / Endplate) */}
+              <g transform="translate(885, 120)">
+                <rect x="-45" y="-11" width="90" height="20" rx="2" fill="#000000" opacity="0.5" />
                 <text
                   x="0"
-                  y="0"
+                  y="3"
                   fill="#FFFFFF"
-                  fontSize="13"
+                  fontSize="9"
                   fontWeight="900"
                   fontFamily="'Montserrat', sans-serif"
-                  letterSpacing="2.5"
-                  textAnchor="middle"
-                  stroke="#000000"
-                  strokeWidth="1.5"
-                  paintOrder="stroke fill"
-                >
-                  {wingSponsor.slice(0, 11).toUpperCase()}
-                </text>
-              </g>
-
-              {/* DECALQUE 4: Patrocinador no Bico Frontal (Nosecone) */}
-              <g transform="translate(180, 222) rotate(-14)">
-                <text
-                  x="0"
-                  y="0"
-                  fill="#FFFFFF"
-                  fontSize="10"
-                  fontWeight="800"
-                  fontFamily="'Montserrat', sans-serif"
-                  letterSpacing="1.5"
+                  letterSpacing="1.2"
                   textAnchor="middle"
                   stroke="#000000"
                   strokeWidth="1"
                   paintOrder="stroke fill"
+                  lengthAdjust="spacingAndGlyphs"
+                  textLength={wingSponsor.length > 8 ? '80' : undefined}
+                >
+                  {wingSponsor.slice(0, 16).toUpperCase()}
+                </text>
+              </g>
+
+              {/* DECALQUE 4: Patrocinador no Bico Frontal (Nosecone) */}
+              <g transform="translate(200, 222) rotate(-9)">
+                <rect x="-42" y="-8" width="84" height="16" rx="2" fill="#000000" opacity="0.3" />
+                <text
+                  x="0"
+                  y="3"
+                  fill="#FFFFFF"
+                  fontSize="7.5"
+                  fontWeight="800"
+                  fontFamily="'Montserrat', sans-serif"
+                  letterSpacing="1"
+                  textAnchor="middle"
+                  stroke="#000000"
+                  strokeWidth="0.8"
+                  paintOrder="stroke fill"
+                  lengthAdjust="spacingAndGlyphs"
+                  textLength={sideSponsor2.length > 10 ? '76' : undefined}
                 >
                   {sideSponsor2.toUpperCase()}
                 </text>
               </g>
 
               {/* Logo Oficial F1 2026 discreto no chassi */}
-              <g transform="translate(305, 196)">
-                <rect x="-18" y="-9" width="36" height="15" rx="2" fill="#E10600" />
+              <g transform="translate(340, 202)">
+                <rect x="-14" y="-7" width="28" height="13" rx="2" fill="#E10600" />
                 <text
                   x="0"
-                  y="2"
+                  y="2.5"
                   fill="#FFFFFF"
-                  fontSize="9"
+                  fontSize="8"
                   fontWeight="900"
                   fontFamily="sans-serif"
                   textAnchor="middle"
@@ -444,13 +465,13 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
               </g>
 
               {/* Número do Piloto no bico */}
-              <g transform="translate(250, 198) rotate(-12)">
-                <circle cx="0" cy="0" r="10" fill="#0A0E17" stroke={teamColor} strokeWidth="1.5" />
+              <g transform="translate(270, 206) rotate(-7)">
+                <circle cx="0" cy="0" r="9" fill="#0A0E17" stroke={teamColor} strokeWidth="1.5" />
                 <text
                   x="0"
-                  y="4"
+                  y="3.5"
                   fill="#FFFFFF"
-                  fontSize="11"
+                  fontSize="9.5"
                   fontWeight="900"
                   fontFamily="'Arial Black', sans-serif"
                   textAnchor="middle"
