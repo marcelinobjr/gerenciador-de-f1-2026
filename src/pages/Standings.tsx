@@ -10,7 +10,7 @@ import {
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
 import { getCountryFlag } from '@/lib/country-flags'
-import { Trophy, Award, Users, Flag, Medal } from 'lucide-react'
+import { Trophy, Award, Users, Flag, Medal, Scale } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +30,8 @@ interface DriverStanding {
   podiums: number
   bestPosition: number
   isPlayer: boolean
+  totalPenaltiesSec?: number
+  penaltiesCount?: number
 }
 
 interface TeamStanding {
@@ -236,6 +238,17 @@ export default function StandingsPage() {
 
         if (res.position < targetDriver.bestPosition) {
           targetDriver.bestPosition = res.position
+        }
+
+        // Suporte a penalidades agregadas (se o resultado contiver campos de penalidade)
+        const penaltySec =
+          (res as any).timePenaltySec ??
+          (res as any).penalty_seconds ??
+          (res as any).time_penalty_sec ??
+          0
+        if (penaltySec > 0) {
+          targetDriver.totalPenaltiesSec = (targetDriver.totalPenaltiesSec || 0) + penaltySec
+          targetDriver.penaltiesCount = (targetDriver.penaltiesCount || 0) + 1
         }
       }
     })
@@ -457,6 +470,15 @@ export default function StandingsPage() {
                                 {driver.isPlayer && (
                                   <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-4">
                                     Sua Equipe
+                                  </Badge>
+                                )}
+                                {(driver.totalPenaltiesSec || 0) > 0 && (
+                                  <Badge
+                                    className="bg-amber-950/80 text-amber-300 border border-amber-500/60 text-[9px] px-1.5 py-0 h-4 font-mono font-bold flex items-center gap-0.5"
+                                    title={`Penalidades acumuladas nesta temporada: +${driver.totalPenaltiesSec}s (${driver.penaltiesCount || 1} infração(ões))`}
+                                  >
+                                    <Scale className="w-2.5 h-2.5" />
+                                    ⚖️ +{driver.totalPenaltiesSec}s
                                   </Badge>
                                 )}
                               </div>

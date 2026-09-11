@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Activity, Flame, Fuel } from 'lucide-react'
+import { Activity, Flame, Fuel, Wrench, Scale, Users } from 'lucide-react'
 import { TireCompound } from '@/types/f1'
 import { TIRE_SPECS, isTireInCliff, TireCliffStatus } from '@/lib/f1-tire-system'
+import type { TeamOrderState, FiaPenalty, MechanicalIssue } from '@/lib/raceDrama'
 
 export type LivePaceOrder = 'segurar' | 'normal' | 'empurrar'
 
@@ -59,6 +60,10 @@ interface LiveTelemetryTableProps {
   playerPaceOrders?: Record<string, LivePaceOrder>
   onChangePaceOrder?: (driverId: string, pace: LivePaceOrder) => void
   isRaceFinished?: boolean
+  // Suporte opcional a mecânicas da Rodada B
+  teamOrders?: TeamOrderState | TeamOrderState[]
+  penalties?: FiaPenalty[]
+  mechanicalIssues?: MechanicalIssue[]
 }
 
 export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
@@ -71,6 +76,20 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
   const playerPaceOrders = props.playerPaceOrders ?? {}
   const onChangePaceOrder = props.onChangePaceOrder
   const isRaceFinished = props.isRaceFinished ?? false
+  const teamOrders = props.teamOrders
+  const penalties = props.penalties || []
+  const mechanicalIssues = props.mechanicalIssues || []
+
+  // Normaliza lista de ordens de equipe ativas
+  const activeTeamOrders = useMemo(() => {
+    if (!teamOrders) return []
+    return Array.isArray(teamOrders)
+      ? teamOrders.filter((to) => to.active && !to.refused)
+      : teamOrders.active && !teamOrders.refused
+        ? [teamOrders]
+        : []
+  }, [teamOrders])
+
   if (!grid || grid.length === 0) return null
 
   return (
@@ -207,6 +226,60 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
                                 MEU CARRO
                               </Badge>
                             )}
+                            {/* Badge Team Order Pulsante */}
+                            {activeTeamOrders.some(
+                              (to) =>
+                                to.fastDriverId === entry.driverId ||
+                                to.slowDriverId === entry.driverId,
+                            ) && (
+                              <Badge
+                                className="bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[9px] px-1 py-0 h-3.5 font-mono font-bold animate-pulse flex items-center gap-0.5 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
+                                title="Ordem de equipe em andamento: piloto instruído a trocar de posição"
+                              >
+                                <Users className="w-2.5 h-2.5" />
+                                TEAM ORDER
+                              </Badge>
+                            )}
+                            {/* Badges de Penalidades FIA */}
+                            {penalties
+                              .filter((p) => p.driverId === entry.driverId && !p.served)
+                              .map((p) => (
+                                <Badge
+                                  key={p.id}
+                                  className={`text-[9px] px-1 py-0 h-3.5 font-mono font-bold flex items-center gap-0.5 border ${
+                                    p.kind === 'stop_and_go'
+                                      ? 'bg-purple-950/80 text-purple-300 border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.3)]'
+                                      : p.kind === '10s'
+                                        ? 'bg-red-950/80 text-red-300 border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
+                                        : 'bg-amber-950/80 text-amber-300 border-amber-500/60'
+                                  }`}
+                                  title={`Penalidade FIA: ${p.reason} (${p.kind})`}
+                                >
+                                  <Scale className="w-2.5 h-2.5" />
+                                  {p.kind === 'stop_and_go'
+                                    ? '⚖️ STOP&GO'
+                                    : p.kind === '10s'
+                                      ? '⚖️ +10s'
+                                      : '⚖️ +5s'}
+                                </Badge>
+                              ))}
+                            {/* Ícone de Falha Mecânica Leve */}
+                            {mechanicalIssues
+                              .filter(
+                                (m) =>
+                                  m.driverId === entry.driverId &&
+                                  m.severity === 'light' &&
+                                  !m.isDnf,
+                              )
+                              .map((issue, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center text-red-500 hover:text-red-400 cursor-help"
+                                  title={`🔧 Falha Mecânica (${issue.type}): ${issue.description} (+${issue.pacePenaltySec}s/volta)`}
+                                >
+                                  <Wrench className="w-3.5 h-3.5 animate-pulse text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                                </span>
+                              ))}
                             {isMyCar && isInCliff && (
                               <Badge className="bg-red-600 text-white text-[9px] px-1.5 py-0 h-3.5 font-extrabold animate-bounce border border-red-400">
                                 BOX URGENTE
