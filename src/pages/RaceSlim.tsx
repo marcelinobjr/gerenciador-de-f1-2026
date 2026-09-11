@@ -12,6 +12,11 @@ import {
   type MechanicalIssue,
   type RedFlagState,
   type IncidentEventInput,
+  avaliarTeamOrder,
+  aplicarTeamOrder,
+  DRAMA_NARRATIVES,
+  type TeamOrderProposal,
+  type TeamOrderState,
 } from '@/lib/raceDrama'
 import { notificationService } from '@/services/notificationService'
 import {
@@ -344,6 +349,13 @@ export default function RacePage() {
     usedThisRace: false,
     safetyCarLapsRemaining: 0,
   })
+  const [teamOrders, setTeamOrders] = useState<TeamOrderState[]>([])
+  const teamOrdersRef = useRef<TeamOrderState[]>([])
+  const [teamOrderProposal, setTeamOrderProposal] = useState<TeamOrderProposal | null>(null)
+  const teamOrderProposalRef = useRef<TeamOrderProposal | null>(null)
+  const teamOrderPaceModifierRef = useRef<Map<string, { deltaSec: number; expiresAtLap: number }>>(
+    new Map(),
+  )
 
   // Live race pause & interval control
   const [isRacePaused, setIsRacePaused] = useState<boolean>(false)
@@ -409,6 +421,129 @@ export default function RacePage() {
   useEffect(() => {
     playerPaceOrdersRef.current = playerPaceOrders
   }, [playerPaceOrders])
+
+  const handleApplyTeamOrder = () => {
+    const proposal = teamOrderProposalRef.current
+    if (!proposal || !liveRaceState) return
+    const slowDriverCar = liveRaceState.grid.find((g) => g.driverId === proposal.slowDriverId)
+    const slowDriverModel = drivers.find((d) => d.id === proposal.slowDriverId)
+    const currentLap = liveRaceState.currentLap
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    setLiveEvents((prev) => [
+      {
+        id: `ev_to_slow_${Date.now()}`,
+        lap: currentLap,
+        type: 'team_radio',
+        message: DRAMA_NARRATIVES.RADIO_PIT_ORDER_SLOW(
+          proposal.slowDriverName,
+          proposal.fastDriverName,
+        ),
+        driverName: proposal.slowDriverName,
+        teamColor: team?.color || '#E10600',
+        isPlayer: true,
+        timestamp: nowStr,
+      },
+      {
+        id: `ev_to_fast_${Date.now()}`,
+        lap: currentLap,
+        type: 'team_radio',
+        message: DRAMA_NARRATIVES.RADIO_FAST_DRIVER_REQUEST(proposal.fastDriverName),
+        driverName: proposal.fastDriverName,
+        teamColor: team?.color || '#E10600',
+        isPlayer: true,
+        timestamp: nowStr,
+      },
+      ...prev,
+    ])
+    const slowContext = {
+      id: proposal.slowDriverId,
+      name: proposal.slowDriverName,
+      morale: slowDriverCar?.morale ?? slowDriverModel?.morale ?? 75,
+      personality: (slowDriverModel as any)?.personality || 'equipe',
+    }
+    const baseState: TeamOrderState = {
+      fastDriverId: proposal.fastDriverId,
+      slowDriverId: proposal.slowDriverId,
+      lapsPushed: proposal.lapsPushed,
+      active: true,
+      cooldownLaps: 5,
+      refused: false,
+      resolved: false,
+    }
+    const result = aplicarTeamOrder(baseState, slowContext, proposal.fastDriverName, proposal.gap)
+    if (result.refused) {
+      setLiveEvents((prev) => [
+        {
+          id: `ev_to_ref_${Date.now()}`,
+          lap: currentLap,
+          type: 'team_radio',
+          message: result.radioMessage,
+          driverName: proposal.slowDriverName,
+          teamColor: team?.color || '#E10600',
+          isPlayer: true,
+          timestamp: nowStr,
+        },
+        ...prev,
+      ])
+      toast({
+        variant: 'destructive',
+        title: 'Ordem de Equipe Recusada!',
+        description: result.radioMessage,
+      })
+      setTeamOrders((prev) => [
+        ...prev.filter((o) => o.fastDriverId !== proposal.fastDriverId),
+        result.state,
+      ])
+      teamOrdersRef.current = [
+        ...teamOrdersRef.current.filter((o) => o.fastDriverId !== proposal.fastDriverId),
+        result.state,
+      ]
+      setTeamOrderProposal(null)
+      teamOrderProposalRef.current = null
+      return
+    }
+    if (slowDriverCar) slowDriverCar.morale = Math.max(5, (slowDriverCar.morale ?? 75) - 5)
+    setDrivers((prev) =>
+      prev.map((d) =>
+        d.id === proposal.slowDriverId ? { ...d, morale: Math.max(5, (d.morale ?? 75) - 5) } : d,
+      ),
+    )
+    teamOrderPaceModifierRef.current.set(proposal.slowDriverId, {
+      deltaSec: 0.8,
+      expiresAtLap: currentLap + 2,
+    })
+    setLiveEvents((prev) => [
+      {
+        id: `ev_to_acc_${Date.now()}`,
+        lap: currentLap,
+        type: 'team_radio',
+        message: result.radioMessage,
+        driverName: proposal.slowDriverName,
+        teamColor: team?.color || '#E10600',
+        isPlayer: true,
+        timestamp: nowStr,
+      },
+      ...prev,
+    ])
+    setTeamOrders((prev) => [
+      ...prev.filter((o) => o.fastDriverId !== proposal.fastDriverId),
+      result.state,
+    ])
+    teamOrdersRef.current = [
+      ...teamOrdersRef.current.filter((o) => o.fastDriverId !== proposal.fastDriverId),
+      result.state,
+    ]
+    setTeamOrderProposal(null)
+    teamOrderProposalRef.current = null
+    toast({
+      title: 'Ordem de Equipe Emitida',
+      description: `${proposal.slowDriverName} concordou em abrir passagem para ${proposal.fastDriverName}.`,
+    })
+  }
 
   const handleChangePaceOrder = (driverId: string, pace: LivePaceOrder) => {
     const driverName =
@@ -1601,6 +1736,11 @@ export default function RacePage() {
     setMechanicalIssues([])
     setRedFlagState(initialRedFlag)
     redFlagStateRef.current = initialRedFlag
+    setTeamOrders([])
+    teamOrdersRef.current = []
+    setTeamOrderProposal(null)
+    teamOrderProposalRef.current = null
+    teamOrderPaceModifierRef.current.clear()
 
     const initialTactics: Record<string, 'attack' | 'normal' | 'save_fuel'> = {}
     const initialPaceOrders: Record<string, LivePaceOrder> = {}
@@ -2931,6 +3071,70 @@ export default function RacePage() {
       const combinedLapEvents = [...overtakeEventsThisLap, ...narratedEvents]
       if (combinedLapEvents.length > 0) {
         setLiveEvents((prev) => [...combinedLapEvents, ...prev].slice(0, 40))
+      }
+
+      // Ordem de Equipe (Drama / Team Orders)
+      const playerActiveDrivers = currentGrid.filter((g) => g.isPlayer && !g.dnf)
+      if (playerActiveDrivers.length >= 2) {
+        const dramaPlayerContexts = playerActiveDrivers.map((p) => {
+          const drvModel = drivers.find((d) => d.id === p.driverId)
+          return {
+            id: p.driverId,
+            name: p.driverName,
+            position: p.position || 99,
+            gapToLeader: p.accumulatedTimeSec,
+            morale: p.morale ?? drvModel?.morale ?? 75,
+            personality: (drvModel as any)?.personality || 'equipe',
+            dnf: !!p.dnf,
+          }
+        })
+        const activeOrderState =
+          teamOrdersRef.current.find((to) => to.active && !to.resolved) || null
+        const proposal = avaliarTeamOrder(dramaPlayerContexts, currentLap, activeOrderState)
+        if (proposal) {
+          teamOrderProposalRef.current = proposal
+          setTeamOrderProposal(proposal)
+        } else if (!activeOrderState) {
+          teamOrderProposalRef.current = null
+          setTeamOrderProposal(null)
+        }
+        if (activeOrderState && activeOrderState.active && !activeOrderState.refused) {
+          const fastCar = currentGrid.find((g) => g.driverId === activeOrderState.fastDriverId)
+          const slowCar = currentGrid.find((g) => g.driverId === activeOrderState.slowDriverId)
+          if (fastCar && slowCar && !fastCar.dnf && !slowCar.dnf) {
+            const currentGap = Math.abs(fastCar.accumulatedTimeSec - slowCar.accumulatedTimeSec)
+            if (currentGap <= 0.4) {
+              activeOrderState.active = false
+              activeOrderState.resolved = true
+              activeOrderState.cooldownLaps = 5
+              setTeamOrders([...teamOrdersRef.current])
+              const nowStr = new Date().toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })
+              setLiveEvents((prev) => [
+                {
+                  id: `ev_to_swap_${Date.now()}`,
+                  lap: currentLap,
+                  type: 'overtake',
+                  message: DRAMA_NARRATIVES.FEED_TEAM_ORDER_SWAP(
+                    fastCar.driverName,
+                    slowCar.driverName,
+                  ),
+                  driverName: fastCar.driverName,
+                  teamColor: fastCar.teamColor,
+                  isPlayer: true,
+                  timestamp: nowStr,
+                },
+                ...prev,
+              ])
+            }
+          }
+        }
+        teamOrdersRef.current.forEach((to) => {
+          if (to.cooldownLaps > 0) to.cooldownLaps -= 1
+        })
       }
 
       setLiveRaceState({
@@ -5813,6 +6017,11 @@ export default function RacePage() {
                     playerPaceOrders={playerPaceOrders}
                     onChangePaceOrder={handleChangePaceOrder}
                     isRaceFinished={!liveRaceState.inProgress && !!raceResults}
+                    teamOrders={teamOrders}
+                    penalties={penalties}
+                    mechanicalIssues={mechanicalIssues}
+                    teamOrderProposal={teamOrderProposal}
+                    onApplyTeamOrder={handleApplyTeamOrder}
                   />
                 )}
 
@@ -5846,15 +6055,18 @@ export default function RacePage() {
         liveRaceState.grid &&
         liveRaceState.grid.length > 0 && (
           <LiveRaceHUD
+            gpName={gpInfo.name}
+            gpCountry={gpInfo.country}
             currentLap={liveRaceState.currentLap}
             totalLaps={liveRaceState.totalLaps || gpInfo.laps}
             playerDrivers={liveRaceState.grid.filter((g) => g.isPlayer)}
+            tacticalModes={playerCarTactics}
+            formatTireName={getCompoundDisplayName}
             isRaceFinished={!liveRaceState.inProgress && !!raceResults}
-            gpName={gpInfo.name}
-            gpCountry={gpInfo.country}
-            tacticalModes={hudTacticalModes}
             onChangeTacticalMode={handleChangeTacticalMode}
-            formatTireName={formatTireName}
+            teamOrderProposal={teamOrderProposal}
+            onApplyTeamOrder={handleApplyTeamOrder}
+            teamOrderActive={teamOrders.some((to) => to.active && !to.refused)}
           />
         )}
 
