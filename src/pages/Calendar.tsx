@@ -248,7 +248,8 @@ export default function CalendarPage() {
           </h1>
           <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
             As 24 etapas do Campeonato Mundial: especificações técnicas de cada autódromo, traçados
-            oficiais com suporte a upload de imagem e resultados de cada GP.
+            oficiais com suporte a upload de imagem e resultados de cada GP (pontos do 1º ao 10º
+            lugar, sem bonificação por volta mais rápida).
           </p>
         </div>
 
@@ -596,7 +597,7 @@ export default function CalendarPage() {
                             <Zap className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                             <span className="text-[#8B95A7]">Volta Mais Rápida:</span>
                             <strong className="text-purple-300 font-bold">
-                              {roundResults.fastestLap?.expand?.driver_id?.name || 'Piloto (+1 pt)'}
+                              {roundResults.fastestLap?.expand?.driver_id?.name || 'Piloto'}
                             </strong>
                           </div>
 

@@ -224,8 +224,7 @@ export default function StandingsPage() {
         const pts =
           typeof res.points === 'number' && res.points > 0
             ? res.points
-            : getFiaPointsForPosition(res.position) +
-              (res.fastest_lap && res.position <= 10 ? 1 : 0)
+            : getFiaPointsForPosition(res.position)
 
         targetDriver.points += pts
 

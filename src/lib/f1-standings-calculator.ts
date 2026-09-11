@@ -5,6 +5,7 @@ import { calculateCombinedPace } from './f1-pace-model'
  * Tabela oficial de pontuação FIA para Fórmula 1 (Top 10):
  * P1 = 25 pts, P2 = 18 pts, P3 = 15 pts, P4 = 12 pts, P5 = 10 pts,
  * P6 = 8 pts, P7 = 6 pts, P8 = 4 pts, P9 = 2 pts, P10 = 1 pt.
+ * Sistema de pontuação: pontos do 1º ao 10º lugar, sem bonificação por volta mais rápida.
  */
 export const FIA_POINTS_TABLE: readonly number[] = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1] as const
 
@@ -51,7 +52,7 @@ export interface TeamStandingItem {
  *
  * Cada rodada passada é simulada ranqueando os pilotos rivais pela combinação
  * de velocidade/consistência do piloto com a força do carro da equipe.
- * Os 10 primeiros recebem exatamente os pontos oficiais FIA.
+ * Os 10 primeiros recebem exatamente os pontos oficiais FIA (pontos do 1º ao 10º lugar, sem bonificação por volta mais rápida).
  * P1 recebe +1 vitória e +1 pódio; P2 e P3 recebem +1 pódio.
  */
 export function simulateAiGridFiaStandings(

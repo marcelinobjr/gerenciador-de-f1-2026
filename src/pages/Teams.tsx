@@ -264,7 +264,7 @@ export default function TeamsPage() {
           const pts =
             typeof r.points === 'number' && r.points > 0
               ? r.points
-              : getFiaPointsForPosition(r.position) + (r.fastest_lap && r.position <= 10 ? 1 : 0)
+              : getFiaPointsForPosition(r.position)
 
           if (!standings[targetKey]) {
             standings[targetKey] = {
@@ -295,7 +295,7 @@ export default function TeamsPage() {
         const pts =
           typeof r.points === 'number' && r.points > 0
             ? r.points
-            : getFiaPointsForPosition(r.position) + (r.fastest_lap && r.position <= 10 ? 1 : 0)
+            : getFiaPointsForPosition(r.position)
         playerPoints += pts
         if (r.position === 1) playerWins += 1
         if (r.position < playerBestPos) playerBestPos = r.position

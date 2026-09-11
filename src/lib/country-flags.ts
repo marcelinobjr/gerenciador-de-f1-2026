@@ -9,6 +9,7 @@ const COUNTRY_FLAG_MAP: Record<string, string> = {
   brasileiro: '🇧🇷',
   brasileira: '🇧🇷',
   bra: '🇧🇷',
+  br: '🇧🇷',
 
   // Reino Unido / Grã-Bretanha / Inglaterra / Escócia
   'reino unido': '🇬🇧',

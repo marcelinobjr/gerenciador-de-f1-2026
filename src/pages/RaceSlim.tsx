@@ -4492,7 +4492,6 @@ export default function RacePage() {
     if (top10.length > 0) {
       const flIndex = Math.floor(Math.random() * top10.length)
       top10[flIndex].fastestLap = true
-      top10[flIndex].points += 1
     }
 
     // ==========================================
@@ -4685,9 +4684,9 @@ export default function RacePage() {
             const calculatedPoints =
               typeof res.points === 'number'
                 ? res.points
-                : (res.position <= 10 && !res.dnf
-                    ? [25, 18, 15, 12, 10, 8, 6, 4, 2, 1][res.position - 1]
-                    : 0) + (res.fastestLap && res.position <= 10 && !res.dnf ? 1 : 0)
+                : res.position <= 10 && !res.dnf
+                  ? [25, 18, 15, 12, 10, 8, 6, 4, 2, 1][res.position - 1]
+                  : 0
 
             await f1Service.createRaceResult({
               season_id: season.id,

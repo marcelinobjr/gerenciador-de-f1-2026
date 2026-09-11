@@ -109,8 +109,7 @@ export default function SponsorsPage() {
         const pts =
           typeof res.points === 'number' && res.points > 0
             ? res.points
-            : getFiaPointsForPosition(res.position) +
-              (res.fastest_lap && res.position <= 10 ? 1 : 0)
+            : getFiaPointsForPosition(res.position)
         playerPoints += pts
         if (res.position === 1) {
           playerWins += 1

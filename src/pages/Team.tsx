@@ -357,8 +357,7 @@ export default function TeamPage() {
         const pts =
           typeof res.points === 'number' && res.points > 0
             ? res.points
-            : getFiaPointsForPosition(res.position) +
-              (res.fastest_lap && res.position <= 10 ? 1 : 0)
+            : getFiaPointsForPosition(res.position)
         stats[targetId].points += pts
         if (res.position < stats[targetId].bestPos) stats[targetId].bestPos = res.position
         if (res.position === 1) stats[targetId].wins += 1
@@ -840,8 +839,8 @@ export default function TeamPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-bold text-base text-[#F5F7FA]">{driver.name}</h3>
-                            <span className="text-sm" title={driver.nationality}>
-                              {getFlag(driver.nationality)}
+                            <span className="text-base shrink-0" title={driver.nationality}>
+                              {getCountryFlag(driver.nationality)}
                             </span>
                           </div>
                           <p className="text-xs font-mono text-[#8B95A7]">
@@ -1112,8 +1111,8 @@ export default function TeamPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-base text-[#F5F7FA]">{reserveDriver.name}</h3>
-                      <span className="text-sm" title={reserveDriver.nationality}>
-                        {getFlag(reserveDriver.nationality)}
+                      <span className="text-base shrink-0" title={reserveDriver.nationality}>
+                        {getCountryFlag(reserveDriver.nationality)}
                       </span>
                       <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-mono">
                         Reserva Oficial

@@ -126,23 +126,22 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       'Traçado urbano em torno do Hard Rock Stadium mesclando setor sinuoso da marina com reta oposta de 340 km/h.',
   },
 
-  // 7: Madri (Madring, Espanha) - Horário
-  // Circuito semi-urbano Madring (IFEMA e Valdebebas):
-  // Reta principal dos boxes em IFEMA, freada técnica para as curvas 1-2-3, passagem pelo túnel sob a M-11,
-  // setor veloz em Valdebebas com curvas sinuosas de média e alta, a impressionante curva parabólica inclinada (banking),
-  // monumental reta longa de ultrapassagem (~1,3 km com modo overtake 2026 a mais de 340 km/h)
-  // e retorno técnico com chicanes e grampos até a linha de chegada.
+  // 7: Montreal (Gilles Villeneuve, Canadá) - Horário
+  // Construído na Ilha artificial de Notre-Dame:
+  // Reta dos boxes com o Muro dos Campeões na chicane final (T13-14), mergulho nas curvas 1-2 (S do Senna),
+  // retas pontilhadas por chicanes rápidas ao longo do canal olímpico (T3-4 e T8-9),
+  // o famoso Hairpin da ponta da ilha L'Épingle (T10) e a enorme reta do Cassino Droit du Casino (T12).
   7: {
     round: 7,
-    code: 'MAD',
-    name: 'Circuito Madring, Madrid',
+    code: 'MTL',
+    name: 'Circuito Gilles Villeneuve, Montreal',
     viewBox: '0 0 320 220',
     svgPath:
-      'M 58 176 L 165 176 C 185 176 200 162 208 144 L 222 112 C 230 95 248 84 268 84 L 290 84 C 304 84 314 70 306 58 L 290 34 C 280 20 262 14 246 22 L 182 48 C 166 54 152 46 148 30 L 142 22 C 134 10 118 8 108 18 L 76 52 C 64 64 62 82 72 96 L 90 120 C 100 134 94 154 78 162 L 60 172 C 54 175 54 176 58 176 Z',
-    startFinish: { x: 108, y: 176 },
+      'M 42 135 C 32 120 38 98 55 92 L 125 72 C 150 64 215 64 255 68 L 288 72 C 308 76 312 102 296 114 L 274 128 C 258 138 242 135 228 125 L 178 92 C 162 82 142 85 130 98 L 78 152 C 64 166 48 155 42 135 Z',
+    startFinish: { x: 62, y: 98 },
     antiClockwise: false,
     description:
-      'Estreia na F1 2026: circuito semi-urbano Madring com monumental reta de ultrapassagem de 1,3 km e 22 curvas técnicas.',
+      'Na ilha de Notre-Dame: estilo stop-and-go entre muros, o hairpin do cassino e a chicane do Muro dos Campeões.',
   },
 
   // 8: Mônaco (Monte Carlo) - Horário
@@ -182,30 +181,12 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       'O teste supremo de eficiência aerodinâmica com a longa Curva 3 de alta pressão e retas velozes.',
   },
 
-  // 10: Montreal (Gilles Villeneuve, Canadá) - Horário
-  // Construído na Ilha artificial de Notre-Dame:
-  // Reta dos boxes com o Muro dos Campeões na chicane final (T13-14), mergulho nas curvas 1-2 (S do Senna),
-  // retas pontilhadas por chicanes rápidas ao longo do canal olímpico (T3-4 e T8-9),
-  // o famoso Hairpin da ponta da ilha L'Épingle (T10) e a enorme reta do Cassino Droit du Casino (T12).
-  10: {
-    round: 10,
-    code: 'MTL',
-    name: 'Circuito Gilles Villeneuve, Montreal',
-    viewBox: '0 0 320 220',
-    svgPath:
-      'M 42 135 C 32 120 38 98 55 92 L 125 72 C 150 64 215 64 255 68 L 288 72 C 308 76 312 102 296 114 L 274 128 C 258 138 242 135 228 125 L 178 92 C 162 82 142 85 130 98 L 78 152 C 64 166 48 155 42 135 Z',
-    startFinish: { x: 62, y: 98 },
-    antiClockwise: false,
-    description:
-      'Na ilha de Notre-Dame: estilo stop-and-go entre muros, o hairpin do cassino e a chicane do Muro dos Campeões.',
-  },
-
-  // 11: Red Bull Ring (Áustria) - Horário
+  // 10: Red Bull Ring (Áustria) - Horário
   // Volta mais curta e rápida do campeonato (em torno de 64 segundos):
   // Reta principal subindo para a Curva 1 (Niki Lauda), subida íngreme até o grampo Remus (T3),
   // descida acentuada para a Curva 4 (frenagem forte com inclinação lateral), curvas rápidas 6-7 e duas curvas de 90° finais (Jochen Rindt e Red Bull Mobile).
-  11: {
-    round: 11,
+  10: {
+    round: 10,
     code: 'RBR',
     name: 'Red Bull Ring, Spielberg',
     viewBox: '0 0 320 220',
@@ -217,14 +198,14 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       'Volta relâmpago de 64 segundos nas colinas da Estíria com elevação acentuada e grampo Remus.',
   },
 
-  // 12: Silverstone (Reino Unido) - Horário
+  // 11: Silverstone (Reino Unido) - Horário
   // O templo do automobilismo mundial com a sequência mais lendária da F1:
   // Reta The Wing, Abbey (T1) a fundo, Farm curve, Village e The Loop (hairpin), Wellington Straight,
   // Brooklands, Luffield, Woodcote, Copse (a 290 km/h sem frear),
   // O LENDÁRIO COMPLEXO MAGGOTTS-BECKETTS-CHAPEL (curvas 10-14 mudando de direção a 280 km/h com 5G de força lateral),
   // Hangar Straight a mais de 330 km/h, Stowe (T15), chicane Vale e Club.
-  12: {
-    round: 12,
+  11: {
+    round: 11,
     code: 'SIL',
     name: 'Circuito de Silverstone',
     viewBox: '0 0 320 220',
@@ -236,15 +217,15 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       'Berço da Fórmula 1 com o combo Copse, o épico complexo Maggotts-Becketts-Chapel e a Hangar Straight.',
   },
 
-  // 13: Spa-Francorchamps (Bélgica) - Horário
+  // 12: Spa-Francorchamps (Bélgica) - Horário
   // O maior circuito do calendário (7.004 m):
   // Reta dos boxes, o hairpin lento La Source (T1), descida vertiginosa para a compressão da
   // MÍTICA EAU ROUGE E A SUBIDA CEGA DO RAIDILLON (curvas 2-4),
   // Reta Kemmel a 345 km/h, chicane Les Combes e Malmedy (T5-7), descida para o grampo inclinado Rivage/Bruxelles (T8-9),
   // a dupla curva de esquerda mais impressionante do mundo POUHON (T10-11 a 260 km/h),
   // Campus, Stavelot (T14-15), a rapidíssima Blanchimont (T16-17) e a chicane final Bus Stop (T18-19).
-  13: {
-    round: 13,
+  12: {
+    round: 12,
     code: 'SPA',
     name: 'Circuito de Spa-Francorchamps',
     viewBox: '0 0 320 220',
@@ -256,13 +237,13 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       'O templo das Ardenas com 7 km de extensão: La Source, a mítica subida da Eau Rouge/Raidillon, Kemmel e Pouhon.',
   },
 
-  // 14: Hungaroring (Hungria) - Horário
+  // 13: Hungaroring (Hungria) - Horário
   // Circuito travado de rua construído em anfiteatro natural:
   // Reta principal longa, T1 hairpin em descida, curva 2 longa para a esquerda, T3 rápida, T4 cega rápida subindo,
   // curva 5 longa à direita, chicane 6-7, sequências técnicas de média velocidade 8 a 11,
   // curva 12 de 90° e curvas 13-14 de longo raio contornando o paddock.
-  14: {
-    round: 14,
+  13: {
+    round: 13,
     code: 'HUN',
     name: 'Hungaroring',
     viewBox: '0 0 320 220',
@@ -274,13 +255,13 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       '"Mônaco sem muros": sinuoso, sem descanso, com altas temperaturas e difícil ultrapassagem.',
   },
 
-  // 15: Zandvoort (Países Baixos) - Horário
+  // 14: Zandvoort (Países Baixos) - Horário
   // Construído nas dunas à beira do Mar do Norte com curvas inclinadas estilo oval americano:
   // Reta dos boxes, o lendário hairpin Tarzanbocht (T1), Gerlachbocht, o banking inclinado de 18° Hugenholtzbocht (T3),
   // Hunserug, a descida cega de Scheivlak (T7), Slotenmakerbocht, Hans Ernst chicane e a
   // INCRÍVEL CURVA INCLINADA ARIE LUYENDYK (T14 com 18° de banking contornando a fundo a mais de 280 km/h).
-  15: {
-    round: 15,
+  14: {
+    round: 14,
     code: 'ZAN',
     name: 'Circuito de Zandvoort',
     viewBox: '0 0 320 220',
@@ -292,14 +273,14 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       'Circuito clássico nas dunas holandesas com inclinações (bankings) de 18° nas curvas Hugenholtz e Arie Luyendyk.',
   },
 
-  // 16: Monza (Itália) - Horário
+  // 15: Monza (Itália) - Horário
   // O lendário "Templo da Velocidade":
   // Reta Rettifilo longa (ultrapassa 350 km/h), freada brutal para a Variante del Rettifilo (T1-2 chicane),
   // a velocíssima Curva Grande / Biassono (T3), freada para a Variante della Roggia (T4-5),
   // as duas curvas em 90° de tração perfeita Lesmo 1 e Lesmo 2 (T6-7), descida da Curva del Serraglio sob o antigo anel de velocidade,
   // a técnica e rápida Variante Ascari (T8-10) e a MÍTICA E LONGA CURVA PARABOLICA (Alboreto T11).
-  16: {
-    round: 16,
+  15: {
+    round: 15,
     code: 'MNZ',
     name: 'Autodromo Nazionale Monza',
     viewBox: '0 0 320 220',
@@ -309,6 +290,25 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
     antiClockwise: false,
     description:
       'O Templo da Velocidade: 80% da volta em aceleração máxima, Variante del Rettifilo, Lesmos, Ascari e a mítica Parabolica.',
+  },
+
+  // 16: Madri (Madring, Espanha) - Horário
+  // Circuito semi-urbano Madring (IFEMA e Valdebebas):
+  // Reta principal dos boxes em IFEMA, freada técnica para as curvas 1-2-3, passagem pelo túnel sob a M-11,
+  // setor veloz em Valdebebas com curvas sinuosas de média e alta, a impressionante curva parabólica inclinada (banking),
+  // monumental reta longa de ultrapassagem (~1,3 km com modo overtake 2026 a mais de 340 km/h)
+  // e retorno técnico com chicanes e grampos até a linha de chegada.
+  16: {
+    round: 16,
+    code: 'MAD',
+    name: 'Circuito Madring, Madrid',
+    viewBox: '0 0 320 220',
+    svgPath:
+      'M 58 176 L 165 176 C 185 176 200 162 208 144 L 222 112 C 230 95 248 84 268 84 L 290 84 C 304 84 314 70 306 58 L 290 34 C 280 20 262 14 246 22 L 182 48 C 166 54 152 46 148 30 L 142 22 C 134 10 118 8 108 18 L 76 52 C 64 64 62 82 72 96 L 90 120 C 100 134 94 154 78 162 L 60 172 C 54 175 54 176 58 176 Z',
+    startFinish: { x: 108, y: 176 },
+    antiClockwise: false,
+    description:
+      'Estreia na F1 2026: circuito semi-urbano Madring com monumental reta de ultrapassagem de 1,3 km e 22 curvas técnicas.',
   },
 
   // 17: Baku (Azerbaijão) - Anti-horário

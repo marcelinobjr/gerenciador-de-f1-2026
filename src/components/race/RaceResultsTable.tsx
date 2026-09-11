@@ -153,8 +153,11 @@ export function RaceResultsTable({
                             {row.driverName}
                           </span>
                           {row.fastestLap && (
-                            <Badge className="bg-purple-600 text-white text-[9px] px-1 py-0 h-4">
-                              FL +1
+                            <Badge
+                              className="bg-purple-600 text-white text-[9px] px-1 py-0 h-4"
+                              title="Volta Mais Rápida"
+                            >
+                              FL
                             </Badge>
                           )}
                         </div>
