@@ -16,22 +16,17 @@ export function AmbientBackground({ className = '', opacity = 1 }: AmbientBackgr
   return (
     <div
       aria-hidden="true"
-      className={`fixed inset-0 pointer-events-none z-0 overflow-hidden ${className}`}
+      className={`fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#0B0E14] ${className}`}
       style={{ opacity }}
     >
-      {/* Imagem de fundo: Garagem técnica oficial com carro F1 branco e HUDs holográficos */}
+      {/* Imagem de fundo: Garagem técnica oficial com overlay escuro consistente */}
       <div
-        className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_35%] md:bg-center bg-no-repeat pointer-events-none"
+        className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_35%] md:bg-center bg-no-repeat pointer-events-none opacity-40 mix-blend-luminosity"
         style={{ backgroundImage: `url(${heroGarageBg})` }}
       />
 
-      {/* Camada de overlay escuro semitransparente (70-85%) com sutis flares vermelhos para legibilidade */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#06080E]/80 via-[#06080E]/75 to-[#06080E]/88 pointer-events-none" />
-
-      {/* Sutis glows atmosféricos vermelhos valorizando a iluminação da garagem */}
-      <div className="absolute top-0 left-0 right-0 h-36 bg-gradient-to-b from-[#E10600]/20 via-transparent to-transparent blur-xl pointer-events-none" />
-      <div className="absolute top-1/4 -left-20 w-80 h-80 bg-[#E10600]/12 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute top-1/3 -right-20 w-80 h-80 bg-[#E10600]/15 rounded-full blur-[100px] pointer-events-none" />
+      {/* Camada de superfície 0 lisa - Camada #0B0E14 limpa sem glows decorativos */}
+      <div className="absolute inset-0 bg-[#0B0E14]/85 pointer-events-none" />
     </div>
   )
 }

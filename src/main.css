@@ -52,9 +52,27 @@
     overflow-x: hidden;
   }
 
-  /* Telemetry font */
+  /* Telemetry / Technical numbers font */
   .font-mono {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  /* Classe utilitária específica para dados técnicos: tempos, pontos, percentuais, gaps, valores */
+  .font-num,
+  .text-num {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-feature-settings: 'tnum' 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Eyebrow de card: 11px uppercase com tracking largo para rótulos em linha única */
+  .eyebrow {
+    font-size: 11px;
+    line-height: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: #8b95a7;
   }
 
   /* Custom scrollbar */
