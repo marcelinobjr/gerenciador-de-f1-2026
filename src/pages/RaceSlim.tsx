@@ -529,9 +529,18 @@ export default function RacePage() {
   // ITEM 5: Avaliação do Pool de Motores Comprometido
   const puPoolStatus = useMemo(() => {
     const activeWear = team?.active_engine_wear ?? 15
-    const history = Array.isArray(team?.engine_history) && team.engine_history.length > 0
-      ? team.engine_history
-      : [{ id: 1, wear: activeWear, status: 'instalado', supplier: team?.engine_supplier || 'Mercedes', introducedRound: 1 }]
+    const history =
+      Array.isArray(team?.engine_history) && team.engine_history.length > 0
+        ? team.engine_history
+        : [
+            {
+              id: 1,
+              wear: activeWear,
+              status: 'instalado',
+              supplier: team?.engine_supplier || 'Mercedes',
+              introducedRound: 1,
+            },
+          ]
 
     const allWornAbove65 = history.every((pu: any) => (pu.wear ?? 0) > 65)
     // Custo de uma nova PU = R$ 15M; verificar se tem orçamento ou margem de teto
@@ -558,7 +567,13 @@ export default function RacePage() {
       excessOver65,
       pacePenaltySec,
     }
-  }, [team?.active_engine_wear, team?.engine_history, team?.budget, team?.cost_cap_spent, team?.engine_supplier])
+  }, [
+    team?.active_engine_wear,
+    team?.engine_history,
+    team?.budget,
+    team?.cost_cap_spent,
+    team?.engine_supplier,
+  ])
 
   // Set default selected driver once drivers load
   useEffect(() => {
@@ -4076,166 +4091,176 @@ export default function RacePage() {
         const activeCircuitImage = uploadedPhotoUrl || defaultAsset
 
         return (
-          {/* ITEM 5: BANNER DE POOL DE MOTORES COMPROMETIDO */}
-          {puPoolStatus.isCompromised && (
-            <div className="p-4 rounded-xl bg-amber-950/40 border-2 border-amber-500/70 shadow-lg space-y-2 animate-pulse">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                <h4 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider">
-                  ⚠️ ALERTA FIA: POOL DE MOTORES COMPROMETIDO
-                </h4>
+          <>
+            {/* ITEM 5: BANNER DE POOL DE MOTORES COMPROMETIDO */}
+            {puPoolStatus.isCompromised && (
+              <div className="p-4 rounded-xl bg-amber-950/40 border-2 border-amber-500/70 shadow-lg space-y-2 animate-pulse">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <h4 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider">
+                    ⚠️ ALERTA FIA: POOL DE MOTORES COMPROMETIDO
+                  </h4>
+                </div>
+                <p className="text-xs text-amber-100 font-mono leading-relaxed">
+                  ⚠️ Todos os motores estão comprometidos (&gt;65% de desgaste) e sua equipe não
+                  possui margem financeira ou de teto de gastos para introduzir uma nova PU. Você
+                  larga obrigatoriamente com o motor menos desgastado (PU #
+                  {puPoolStatus.leastWornPu.id} com {puPoolStatus.leastWear}% de desgaste).
+                  Desempenho reduzido: penalidade de ritmo de +
+                  {puPoolStatus.pacePenaltySec.toFixed(2)}s/volta (+0,03s por % acima de 65%).
+                </p>
               </div>
-              <p className="text-xs text-amber-100 font-mono leading-relaxed">
-                ⚠️ Todos os motores estão comprometidos (&gt;65% de desgaste) e sua equipe não possui margem financeira ou de teto de gastos para introduzir uma nova PU. Você larga obrigatoriamente com o motor menos desgastado (PU #{puPoolStatus.leastWornPu.id} com {puPoolStatus.leastWear}% de desgaste). Desempenho reduzido: penalidade de ritmo de +{puPoolStatus.pacePenaltySec.toFixed(2)}s/volta (+0,03s por % acima de 65%).
-              </p>
-            </div>
-          )}
+            )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="relative z-10 lg:col-span-1">              <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] overflow-hidden flex flex-col justify-between h-full shadow-xl">
-                <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
-                  {activeCircuitImage ? (
-                    <div className="w-full h-full relative bg-[#F5F7FA] overflow-hidden flex items-center justify-center">
-                      <img
-                        src={activeCircuitImage}
-                        alt={`Traçado do ${gpInfo.circuit}`}
-                        className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
-                      />
-                      {/* Gradiente escuro para legibilidade */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-[#0B0E14]/40 to-black/30 pointer-events-none" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="relative z-10 lg:col-span-1">
+                {' '}
+                <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] overflow-hidden flex flex-col justify-between h-full shadow-xl">
+                  <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
+                    {activeCircuitImage ? (
+                      <div className="w-full h-full relative bg-[#F5F7FA] overflow-hidden flex items-center justify-center">
+                        <img
+                          src={activeCircuitImage}
+                          alt={`Traçado do ${gpInfo.circuit}`}
+                          className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                        />
+                        {/* Gradiente escuro para legibilidade */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-[#0B0E14]/40 to-black/30 pointer-events-none" />
 
-                      {/* Badge superior com Rodada e Circuito */}
-                      <div className="absolute top-2.5 left-2.5 z-10">
-                        <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
-                          R{currentRound}/24 • {gpInfo.circuit}
-                        </Badge>
+                        {/* Badge superior com Rodada e Circuito */}
+                        <div className="absolute top-2.5 left-2.5 z-10">
+                          <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
+                            R{currentRound}/24 • {gpInfo.circuit}
+                          </Badge>
+                        </div>
+
+                        {/* Nome do GP sobreposto */}
+                        <div className="absolute bottom-2.5 left-3 right-3 z-10">
+                          <span className="text-[10px] font-mono font-bold tracking-wider text-cyan-400 uppercase block drop-shadow">
+                            {uploadedPhotoUrl ? 'Traçado Homologado' : 'Mapa Oficial FIA'}
+                          </span>
+                          <h4 className="text-sm font-extrabold text-white truncate drop-shadow-md">
+                            {gpInfo.name}
+                          </h4>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full relative">
+                        <CircuitBlueprint
+                          round={currentRound}
+                          circuitName={gpInfo.circuit}
+                          laps={gpInfo.laps}
+                          lengthKm={gpInfo.circuitLengthKm}
+                          className="h-full border-none rounded-none !p-3"
+                        />
+                        <div className="absolute top-2.5 left-2.5 z-10">
+                          <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
+                            R{currentRound}/24 • {gpInfo.circuit}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-[#080C14]/80 border-t border-[#1A2333] flex items-center justify-between text-xs font-mono">
+                    <span className="text-[#8B95A7]">Extensão:</span>
+                    <span className="text-cyan-400 font-bold">{gpInfo.circuitLengthKm} km</span>
+                    <span className="text-[#8B95A7] ml-2">Voltas:</span>
+                    <span className="text-white font-bold">{gpInfo.laps}</span>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="relative z-10 lg:col-span-2 space-y-4">
+                <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 h-full flex flex-col justify-between shadow-xl">
+                  <div>
+                    <div className="flex items-center justify-between border-b border-[#1A2333] pb-2 mb-3">
+                      <div>
+                        <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                          DIRETRIZES DO AUTÓDROMO
+                        </span>
+                        <span className="text-xs font-mono font-black text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                          <Flag className="w-4 h-4 text-[#E10600]" /> Parâmetros de Prova & Extensão
+                          Oficial
+                        </span>
+                      </div>
+                      <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 font-mono text-xs">
+                        {gpInfo.laps} Voltas Programadas
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
+                        <span className="text-[10px] text-[#8B95A7] block uppercase">
+                          Total de Voltas
+                        </span>
+                        <strong className="text-base text-white font-bold">
+                          {gpInfo.laps} voltas
+                        </strong>
+                        <span className="text-[10px] text-emerald-400 block mt-0.5">
+                          Distância ~305 km
+                        </span>
                       </div>
 
-                      {/* Nome do GP sobreposto */}
-                      <div className="absolute bottom-2.5 left-3 right-3 z-10">
-                        <span className="text-[10px] font-mono font-bold tracking-wider text-cyan-400 uppercase block drop-shadow">
-                          {uploadedPhotoUrl ? 'Traçado Homologado' : 'Mapa Oficial FIA'}
+                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
+                        <span className="text-[10px] text-[#8B95A7] block uppercase">
+                          Comprimento da Pista
                         </span>
-                        <h4 className="text-sm font-extrabold text-white truncate drop-shadow-md">
-                          {gpInfo.name}
-                        </h4>
+                        <strong className="text-base text-cyan-400 font-bold">
+                          {gpInfo.circuitLengthKm} km
+                        </strong>
+                        <span className="text-[10px] text-[#8B95A7] block mt-0.5">Por volta</span>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
+                        <span className="text-[10px] text-[#8B95A7] block uppercase">
+                          Carga Aerodinâmica
+                        </span>
+                        <strong className="text-base text-amber-400 font-bold">
+                          {gpInfo.downforceIdeal}/10
+                        </strong>
+                        <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+                          Ideal recomendada
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
+                        <span className="text-[10px] text-[#8B95A7] block uppercase">
+                          Rigidez Suspensão
+                        </span>
+                        <strong className="text-base text-emerald-400 font-bold">
+                          {gpInfo.suspensionIdeal}/10
+                        </strong>
+                        <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+                          Trabalho de zebras
+                        </span>
                       </div>
                     </div>
-                  ) : (
-                    <div className="w-full h-full relative">
-                      <CircuitBlueprint
-                        round={currentRound}
-                        circuitName={gpInfo.circuit}
-                        laps={gpInfo.laps}
-                        lengthKm={gpInfo.circuitLengthKm}
-                        className="h-full border-none rounded-none !p-3"
-                      />
-                      <div className="absolute top-2.5 left-2.5 z-10">
-                        <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
-                          R{currentRound}/24 • {gpInfo.circuit}
-                        </Badge>
-                      </div>
+
+                    <div className="mt-4 p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-xs">
+                      <span className="text-[#8B95A7] font-mono block text-[11px]">
+                        Característica Central:
+                      </span>
+                      <p className="text-white font-medium mt-0.5 leading-relaxed">
+                        {gpInfo.characteristic}
+                      </p>
+                    </div>
+                  </div>
+
+                  {(team?.engine_pool_used ?? 1) > 4 && (
+                    <div className="mt-3 p-2.5 rounded-lg bg-red-950/40 border border-red-500/50 flex items-center gap-2 text-xs font-mono text-red-300">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                      <span>
+                        Penalidade FIA no Grid: Equipe excedeu a cota de 4 motores da temporada (PU
+                        #{team?.engine_pool_used}). Seus pilotos largarão com penalização de
+                        posições!
+                      </span>
                     </div>
                   )}
-                </div>
-
-                <div className="p-3 bg-[#080C14]/80 border-t border-[#1A2333] flex items-center justify-between text-xs font-mono">
-                  <span className="text-[#8B95A7]">Extensão:</span>
-                  <span className="text-cyan-400 font-bold">{gpInfo.circuitLengthKm} km</span>
-                  <span className="text-[#8B95A7] ml-2">Voltas:</span>
-                  <span className="text-white font-bold">{gpInfo.laps}</span>
-                </div>
-              </Card>
+                </Card>
+              </div>
             </div>
-
-            <div className="relative z-10 lg:col-span-2 space-y-4">
-              <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 h-full flex flex-col justify-between shadow-xl">
-                <div>
-                  <div className="flex items-center justify-between border-b border-[#1A2333] pb-2 mb-3">
-                    <div>
-                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-                        DIRETRIZES DO AUTÓDROMO
-                      </span>
-                      <span className="text-xs font-mono font-black text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
-                        <Flag className="w-4 h-4 text-[#E10600]" /> Parâmetros de Prova & Extensão
-                        Oficial
-                      </span>
-                    </div>
-                    <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 font-mono text-xs">
-                      {gpInfo.laps} Voltas Programadas
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                      <span className="text-[10px] text-[#8B95A7] block uppercase">
-                        Total de Voltas
-                      </span>
-                      <strong className="text-base text-white font-bold">
-                        {gpInfo.laps} voltas
-                      </strong>
-                      <span className="text-[10px] text-emerald-400 block mt-0.5">
-                        Distância ~305 km
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                      <span className="text-[10px] text-[#8B95A7] block uppercase">
-                        Comprimento da Pista
-                      </span>
-                      <strong className="text-base text-cyan-400 font-bold">
-                        {gpInfo.circuitLengthKm} km
-                      </strong>
-                      <span className="text-[10px] text-[#8B95A7] block mt-0.5">Por volta</span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                      <span className="text-[10px] text-[#8B95A7] block uppercase">
-                        Carga Aerodinâmica
-                      </span>
-                      <strong className="text-base text-amber-400 font-bold">
-                        {gpInfo.downforceIdeal}/10
-                      </strong>
-                      <span className="text-[10px] text-[#8B95A7] block mt-0.5">
-                        Ideal recomendada
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                      <span className="text-[10px] text-[#8B95A7] block uppercase">
-                        Rigidez Suspensão
-                      </span>
-                      <strong className="text-base text-emerald-400 font-bold">
-                        {gpInfo.suspensionIdeal}/10
-                      </strong>
-                      <span className="text-[10px] text-[#8B95A7] block mt-0.5">
-                        Trabalho de zebras
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-xs">
-                    <span className="text-[#8B95A7] font-mono block text-[11px]">
-                      Característica Central:
-                    </span>
-                    <p className="text-white font-medium mt-0.5 leading-relaxed">
-                      {gpInfo.characteristic}
-                    </p>
-                  </div>
-                </div>
-
-                {(team?.engine_pool_used ?? 1) > 4 && (
-                  <div className="mt-3 p-2.5 rounded-lg bg-red-950/40 border border-red-500/50 flex items-center gap-2 text-xs font-mono text-red-300">
-                    <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                    <span>
-                      Penalidade FIA no Grid: Equipe excedeu a cota de 4 motores da temporada (PU #
-                      {team?.engine_pool_used}). Seus pilotos largarão com penalização de posições!
-                    </span>
-                  </div>
-                )}
-              </Card>
-            </div>
-          </div>
+          </>
         )
       })()}
 
@@ -4604,7 +4629,8 @@ export default function RacePage() {
                       <div className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1E293B] space-y-2.5">
                         <div className="flex justify-between items-center text-xs font-mono">
                           <span className="text-white font-bold flex items-center gap-1.5">
-                            <Fuel className="w-4 h-4 text-cyan-400" /> Carga Inicial de Combustível (Briefing Pré-Corrida):
+                            <Fuel className="w-4 h-4 text-cyan-400" /> Carga Inicial de Combustível
+                            (Briefing Pré-Corrida):
                           </span>
                           <Badge
                             className={`font-mono text-xs ${
@@ -4615,7 +4641,13 @@ export default function RacePage() {
                                   : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                             }`}
                           >
-                            {raceInitialFuelPct}% Tanque ({raceInitialFuelPct < 100 ? `${((100 - raceInitialFuelPct) * -0.025).toFixed(2)}s/volta (leve)` : raceInitialFuelPct > 100 ? `+${((raceInitialFuelPct - 100) * 0.02).toFixed(2)}s/volta (pesado)` : 'Carga Ideal 100%'})
+                            {raceInitialFuelPct}% Tanque (
+                            {raceInitialFuelPct < 100
+                              ? `${((100 - raceInitialFuelPct) * -0.025).toFixed(2)}s/volta (leve)`
+                              : raceInitialFuelPct > 100
+                                ? `+${((raceInitialFuelPct - 100) * 0.02).toFixed(2)}s/volta (pesado)`
+                                : 'Carga Ideal 100%'}
+                            )
                           </Badge>
                         </div>
                         <Slider
@@ -4630,7 +4662,9 @@ export default function RacePage() {
                           className="py-1"
                         />
                         <div className="flex justify-between text-[10px] font-mono text-[#8B95A7]">
-                          <span className="text-amber-400">90% (Carro mais leve até -0.25s/v, alto risco de falta)</span>
+                          <span className="text-amber-400">
+                            90% (Carro mais leve até -0.25s/v, alto risco de falta)
+                          </span>
                           <span className="text-emerald-400">100% (Padrão seguro)</span>
                           <span className="text-blue-400">110% (Pesado, folga total)</span>
                         </div>
