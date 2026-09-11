@@ -11,6 +11,61 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Users, Sparkles, ArrowRight } from 'lucide-react'
 import { MarketMoveEvent, SeasonModel } from '@/types/f1'
+import { getCountryFlag } from '@/lib/country-flags'
+import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
+
+// Helper para obter nacionalidade de piloto conhecido da F1 caso não esteja explícito no move
+const KNOWN_DRIVER_NATIONALITIES: Record<string, string> = {
+  'Lewis Hamilton': 'Reino Unido',
+  'Charles Leclerc': 'Mônaco',
+  'George Russell': 'Reino Unido',
+  'Andrea Kimi Antonelli': 'Itália',
+  'Lando Norris': 'Reino Unido',
+  'Oscar Piastri': 'Austrália',
+  'Max Verstappen': 'Holanda',
+  'Isack Hadjar': 'França',
+  'Liam Lawson': 'Nova Zelândia',
+  'Arvid Lindblad': 'Reino Unido',
+  'Pierre Gasly': 'França',
+  'Franco Colapinto': 'Argentina',
+  'Nico Hülkenberg': 'Alemanha',
+  'Gabriel Bortoleto': 'Brasil',
+  'Esteban Ocon': 'França',
+  'Oliver Bearman': 'Reino Unido',
+  'Carlos Sainz': 'Espanha',
+  'Alexander Albon': 'Tailândia',
+  'Fernando Alonso': 'Espanha',
+  'Lance Stroll': 'Canadá',
+  'Guanyu Zhou': 'China',
+  'Valtteri Bottas': 'Finlândia',
+  'Sergio Pérez': 'México',
+  'Daniel Ricciardo': 'Austrália',
+  'Felipe Drugovich': 'Brasil',
+  'Enzo Fittipaldi': 'Brasil',
+  'Pietro Fittipaldi': 'Brasil',
+  'Antonio Giovinazzi': 'Itália',
+  'Frederik Vesti': 'Dinamarca',
+  'Ayumu Iwasa': 'Japão',
+  'Jak Crawford': 'Estados Unidos',
+  'Paul Aron': 'Estônia',
+  'Zane Maloney': 'Barbados',
+  'Ritomo Miyata': 'Japão',
+  'Luke Browning': 'Reino Unido',
+}
+
+function resolveMoveDriverNationality(driverName: string): string {
+  if (KNOWN_DRIVER_NATIONALITIES[driverName]) {
+    return KNOWN_DRIVER_NATIONALITIES[driverName]
+  }
+  for (const team of OFFICIAL_GRID_TEAMS) {
+    if (team.driver1.name === driverName) return team.driver1.nationality
+    if (team.driver2.name === driverName) return team.driver2.nationality
+    if (team.reserveDriver && team.reserveDriver.name === driverName) {
+      return team.reserveDriver.nationality
+    }
+  }
+  return 'Internacional'
+}
 
 interface SillySeasonModalProps {
   open: boolean
@@ -94,6 +149,18 @@ export function SillySeasonModal({
                       >
                         {move.type}
                       </Badge>
+                      {(() => {
+                        const nationality = resolveMoveDriverNationality(move.driverName)
+                        const flag = getCountryFlag(nationality)
+                        return (
+                          <span
+                            className="text-sm cursor-default select-none shrink-0"
+                            title={nationality}
+                          >
+                            {flag}
+                          </span>
+                        )
+                      })()}
                       <span className="font-bold text-white text-xs">
                         {move.driverName} ({move.driverAge} anos)
                       </span>

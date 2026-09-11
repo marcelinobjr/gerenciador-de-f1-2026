@@ -16,6 +16,7 @@ import {
   normalizeEntityName,
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
+import { getCountryFlag } from '@/lib/country-flags'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { DriverModel, PartModel, RaceResultModel, TeamModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
@@ -346,76 +347,8 @@ export default function TeamsPage() {
   const playerTitular2 = playerDrivers.filter((d) => d.role !== 'reserva')[1]
   const playerReserve = playerDrivers.find((d) => d.role === 'reserva')
 
-  // Flag helper
-  const getFlag = (nat?: string) => {
-    switch (nat?.toLowerCase()) {
-      case 'brasil':
-      case 'bra':
-        return '🇧🇷'
-      case 'reino unido':
-      case 'gbr':
-        return '🇬🇧'
-      case 'holanda':
-      case 'ned':
-        return '🇳🇱'
-      case 'mônaco':
-      case 'mon':
-        return '🇲🇨'
-      case 'austrália':
-      case 'aus':
-        return '🇦🇺'
-      case 'espanha':
-      case 'esp':
-        return '🇪🇸'
-      case 'argentina':
-      case 'arg':
-        return '🇦🇷'
-      case 'japão':
-      case 'jpn':
-        return '🇯🇵'
-      case 'alemanha':
-      case 'ger':
-        return '🇩🇪'
-      case 'frança':
-      case 'fra':
-        return '🇫🇷'
-      case 'tailândia':
-      case 'tha':
-        return '🇹🇭'
-      case 'canadá':
-      case 'can':
-        return '🇨🇦'
-      case 'itália':
-      case 'ita':
-        return '🇮🇹'
-      case 'dinamarca':
-      case 'dnk':
-        return '🇩🇰'
-      case 'méxico':
-      case 'mex':
-        return '🇲🇽'
-      case 'nova zelândia':
-      case 'nzl':
-        return '🇳🇿'
-      case 'estônia':
-      case 'est':
-        return '🇪🇪'
-      case 'barbados':
-      case 'brb':
-        return '🇧🇧'
-      case 'estados unidos':
-      case 'usa':
-        return '🇺🇸'
-      case 'finlândia':
-      case 'fin':
-        return '🇫🇮'
-      case 'china':
-      case 'chn':
-        return '🇨🇳'
-      default:
-        return '🏁'
-    }
-  }
+  // Flag helper usando centralizador oficial
+  const getFlag = (nat?: string) => getCountryFlag(nat)
 
   // Nível do carro do jogador (mesmo cálculo da simulação de corrida / Race.tsx)
   const currentEngine = useMemo(() => {
@@ -997,7 +930,12 @@ export default function TeamsPage() {
                       <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-emerald-400 font-bold">#1 TITULAR</span>
-                          <span className="text-sm">{t.driver1.flag}</span>
+                          <span
+                            className="text-sm cursor-default select-none"
+                            title={t.driver1.nationality || 'Nacionalidade'}
+                          >
+                            {getCountryFlag(t.driver1.nationality || t.driver1.flag)}
+                          </span>
                         </div>
                         <div
                           className="font-bold text-[#F5F7FA] truncate text-xs"
@@ -1018,7 +956,12 @@ export default function TeamsPage() {
                       <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-emerald-400 font-bold">#2 TITULAR</span>
-                          <span className="text-sm">{t.driver2.flag}</span>
+                          <span
+                            className="text-sm cursor-default select-none"
+                            title={t.driver2.nationality || 'Nacionalidade'}
+                          >
+                            {getCountryFlag(t.driver2.nationality || t.driver2.flag)}
+                          </span>
                         </div>
                         <div
                           className="font-bold text-[#F5F7FA] truncate text-xs"
@@ -1039,7 +982,12 @@ export default function TeamsPage() {
                       <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] text-amber-400 font-bold">RESERVA</span>
-                          <span className="text-sm">{t.reserveDriver?.flag || '🏁'}</span>
+                          <span
+                            className="text-sm cursor-default select-none"
+                            title={t.reserveDriver?.nationality || 'Nacionalidade'}
+                          >
+                            {getCountryFlag(t.reserveDriver?.nationality || t.reserveDriver?.flag)}
+                          </span>
                         </div>
                         <div
                           className="font-bold text-[#F5F7FA] truncate text-xs"

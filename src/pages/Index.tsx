@@ -40,77 +40,7 @@ import pb from '@/lib/pocketbase/client'
 import { CircuitModel } from '@/types/f1'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
 import { AmbientBackground } from '@/components/AmbientBackground'
-
-// Country flag emoji helper
-const getCountryFlag = (nat?: string) => {
-  switch (nat?.toLowerCase()) {
-    case 'brasil':
-    case 'bra':
-      return '🇧🇷'
-    case 'reino unido':
-    case 'gbr':
-      return '🇬🇧'
-    case 'holanda':
-    case 'ned':
-      return '🇳🇱'
-    case 'mônaco':
-    case 'mon':
-      return '🇲🇨'
-    case 'austrália':
-    case 'aus':
-      return '🇦🇺'
-    case 'espanha':
-    case 'esp':
-      return '🇪🇸'
-    case 'argentina':
-    case 'arg':
-      return '🇦🇷'
-    case 'japão':
-    case 'jpn':
-      return '🇯🇵'
-    case 'alemanha':
-    case 'ger':
-      return '🇩🇪'
-    case 'frança':
-    case 'fra':
-      return '🇫🇷'
-    case 'tailândia':
-    case 'tha':
-      return '🇹🇭'
-    case 'canadá':
-    case 'can':
-      return '🇨🇦'
-    case 'itália':
-    case 'ita':
-      return '🇮🇹'
-    case 'dinamarca':
-    case 'dnk':
-      return '🇩🇰'
-    case 'méxico':
-    case 'mex':
-      return '🇲🇽'
-    case 'nova zelândia':
-    case 'nzl':
-      return '🇳🇿'
-    case 'estônia':
-    case 'est':
-      return '🇪🇪'
-    case 'barbados':
-    case 'brb':
-      return '🇧🇧'
-    case 'estados unidos':
-    case 'usa':
-      return '🇺🇸'
-    case 'finlândia':
-    case 'fin':
-      return '🇫🇮'
-    case 'china':
-    case 'chn':
-      return '🇨🇳'
-    default:
-      return '🏁'
-  }
-}
+import { getCountryFlag } from '@/lib/country-flags'
 
 // Format relative/compact date in PT-BR (e.g. "26 mai", "19 mai")
 const formatEventDateBR = (isoString?: string) => {

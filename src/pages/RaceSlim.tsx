@@ -1633,7 +1633,6 @@ export default function RacePage() {
         teamColor: team?.color || '#FF3B30',
         isPlayer: true,
         flag: getCountryFlag(activeDriver.nationality),
-        nationality: activeDriver.nationality,
         driverFatigue,
         morale: activeDriver.morale ?? 80,
         physicalCondition: activeDriver.physical_condition ?? 90,
@@ -5462,19 +5461,22 @@ export default function RacePage() {
       </Tabs>
 
       {/* HUD da Corrida ao Vivo (Pit Wall flutuante com dados consolidados dos pilotos do jogador) */}
-      {isRaceSession && liveRaceState && liveRaceState.grid && liveRaceState.grid.length > 0 && (
-        <LiveRaceHUD
-          currentLap={liveRaceState.currentLap}
-          totalLaps={liveRaceState.totalLaps || gpInfo.laps}
-          playerDrivers={liveRaceState.grid.filter((g) => g.isPlayer)}
-          isRaceFinished={!liveRaceState.inProgress && !!raceResults}
-          gpName={gpInfo.name}
-          gpCountry={gpInfo.country}
-          tacticalModes={hudTacticalModes}
-          onChangeTacticalMode={handleChangeTacticalMode}
-          formatTireName={formatTireName}
-        />
-      )}
+      {activeTab === 'corrida' &&
+        liveRaceState &&
+        liveRaceState.grid &&
+        liveRaceState.grid.length > 0 && (
+          <LiveRaceHUD
+            currentLap={liveRaceState.currentLap}
+            totalLaps={liveRaceState.totalLaps || gpInfo.laps}
+            playerDrivers={liveRaceState.grid.filter((g) => g.isPlayer)}
+            isRaceFinished={!liveRaceState.inProgress && !!raceResults}
+            gpName={gpInfo.name}
+            gpCountry={gpInfo.country}
+            tacticalModes={hudTacticalModes}
+            onChangeTacticalMode={handleChangeTacticalMode}
+            formatTireName={formatTireName}
+          />
+        )}
 
       {/* 5. Modais de decisão tática de corrida (Sub-componente desacoplado) */}
       <DecisionModals
