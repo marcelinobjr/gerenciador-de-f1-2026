@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import type { RecordModel, RecordSubscription } from 'pocketbase'
-
-import pb from '@/lib/pocketbase/client'
+import { realtimeService } from '@/services/realtimeService'
 
 /**
  * Hook for real-time subscriptions to a PocketBase collection.
  * ALWAYS use this hook instead of subscribing inline.
- * Uses the per-listener UnsubscribeFunc so multiple components
- * can safely subscribe to the same collection without conflicts.
+ * Delegado ao realtimeService singleton para resiliência contra
+ * "Invalid realtime client" (HTTP 400/404), garantindo reconexão e re-inscrição
+ * com clientIds vigentes e sem quebra na UI da aplicação.
  *
  * Generic over the record type: pass your collection's interface as
  * `useRealtime<MyRecord>(...)` to get a typed subscription payload
@@ -24,27 +24,16 @@ export function useRealtime<TRecord extends RecordModel = RecordModel>(
   useEffect(() => {
     if (!enabled) return
 
-    let unsubscribeFn: (() => Promise<void>) | undefined
-    let cancelled = false
-
-    pb.collection<TRecord>(collectionName)
-      .subscribe('*', (e) => {
+    const unsubscribe = realtimeService.subscribe<TRecord>(
+      collectionName,
+      (e) => {
         callbackRef.current(e)
-      })
-      .then((fn) => {
-        if (cancelled) {
-          fn().catch(() => {})
-        } else {
-          unsubscribeFn = fn
-        }
-      })
-      .catch(() => {})
+      },
+      '*',
+    )
 
     return () => {
-      cancelled = true
-      if (unsubscribeFn) {
-        unsubscribeFn().catch(() => {})
-      }
+      unsubscribe()
     }
   }, [collectionName, enabled])
 }
