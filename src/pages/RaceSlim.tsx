@@ -3,6 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
 import { f1Service } from '@/services/f1Service'
+import {
+  rollMechanicalFailures,
+  shouldTriggerRedFlag,
+  evaluateFiaIncidents,
+  applyPenaltiesToResults,
+  type FiaPenalty,
+  type MechanicalIssue,
+  type RedFlagState,
+  type IncidentEventInput,
+} from '@/lib/raceDrama'
 import { notificationService } from '@/services/notificationService'
 import {
   DriverModel,
@@ -318,6 +328,22 @@ export default function RacePage() {
   // Incidents log during race
   const [raceIncidents, setRaceIncidents] = useState<string[]>([])
   const [safetyCarActive, setSafetyCarActive] = useState(false)
+
+  // FIA & Drama states (FIAÇÃO PARTE 1)
+  const [penalties, setPenalties] = useState<FiaPenalty[]>([])
+  const [mechanicalIssues, setMechanicalIssues] = useState<MechanicalIssue[]>([])
+  const [redFlagState, setRedFlagState] = useState<RedFlagState>({
+    active: false,
+    ticksFrozen: 0,
+    usedThisRace: false,
+    safetyCarLapsRemaining: 0,
+  })
+  const redFlagStateRef = useRef<RedFlagState>({
+    active: false,
+    ticksFrozen: 0,
+    usedThisRace: false,
+    safetyCarLapsRemaining: 0,
+  })
 
   // Live race pause & interval control
   const [isRacePaused, setIsRacePaused] = useState<boolean>(false)
@@ -1564,6 +1590,18 @@ export default function RacePage() {
     driversRespondedStayOutRef.current.clear()
     lowFuelRadioSentRef.current.clear()
 
+    // Resets FIA & Drama
+    const initialRedFlag: RedFlagState = {
+      active: false,
+      ticksFrozen: 0,
+      usedThisRace: false,
+      safetyCarLapsRemaining: 0,
+    }
+    setPenalties([])
+    setMechanicalIssues([])
+    setRedFlagState(initialRedFlag)
+    redFlagStateRef.current = initialRedFlag
+
     const initialTactics: Record<string, 'attack' | 'normal' | 'save_fuel'> = {}
     const initialPaceOrders: Record<string, LivePaceOrder> = {}
     titulars.forEach((t) => {
@@ -2022,6 +2060,45 @@ export default function RacePage() {
         return
       }
 
+      // FIAÇÃO PARTE 1 - a) Congelamento por Bandeira Vermelha
+      if (redFlagStateRef.current.active && redFlagStateRef.current.ticksFrozen > 0) {
+        const nextFrozen = redFlagStateRef.current.ticksFrozen - 1
+        if (nextFrozen > 0) {
+          redFlagStateRef.current = {
+            ...redFlagStateRef.current,
+            ticksFrozen: nextFrozen,
+          }
+          setRedFlagState({ ...redFlagStateRef.current })
+          return // Mantém ordem congelada (pula cálculo de ritmo)
+        } else {
+          // Ao zerar: desativar bandeira, ativar safety car por 2 voltas, evento no feed
+          redFlagStateRef.current = {
+            active: false,
+            ticksFrozen: 0,
+            usedThisRace: true,
+            safetyCarLapsRemaining: 2,
+          }
+          setRedFlagState({ ...redFlagStateRef.current })
+          setSafetyCarActive(true)
+          const nowStr = new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+          setLiveEvents((prev) => [
+            {
+              id: `ev_rf_restart_${Date.now()}`,
+              lap: currentLap,
+              type: 'safety_car',
+              message: '🟢 Retomada atrás do SAFETY CAR',
+              timestamp: nowStr,
+            },
+            ...prev,
+          ])
+          // Continua ou retorna este tick para retomar ritmo
+        }
+      }
+
       // Barreira de término síncrona: se já completou as voltas, encerra imediatamente
       if (currentLap >= totalLaps) {
         clearInterval(timer)
@@ -2042,6 +2119,123 @@ export default function RacePage() {
       const circuitOvertakeFactor = getCircuitOvertakeFactor(gpInfo.name, gpInfo.circuit)
       const currentTrackTemp = forecast.trackTemp || 35
       const overtakeEventsThisLap: LiveRaceEvent[] = []
+
+      // FIAÇÃO PARTE 1 - b) & c) Quebras Mecânicas & Gatilho de Bandeira Vermelha
+      const dramaContexts = currentGrid.map((entry) => {
+        const tacticalMod = tacticalModifiersRef.current.get(entry.driverId)
+        const isModActive = entry.isPlayer && tacticalMod && currentLap <= tacticalMod.expiresAtLap
+        const playerTacticThisLap = entry.isPlayer
+          ? currentActiveTactics[entry.driverId] || 'normal'
+          : 'normal'
+        const playerPaceOrderThisLap = entry.isPlayer
+          ? currentActivePaceOrders[entry.driverId] || 'normal'
+          : 'normal'
+        const tacticalMode = isModActive ? tacticalMod.mode : playerTacticThisLap
+
+        return {
+          id: entry.driverId,
+          name: entry.driverName,
+          teamId: entry.teamId,
+          position: entry.position || 99,
+          accumulatedTimeSec: entry.accumulatedTimeSec || 0,
+          gapToLeaderSec: 0,
+          isPlayer: !!entry.isPlayer,
+          dnf: !!entry.dnf,
+          dnfReason: entry.dnfReason,
+          carPartsHealth: entry.carPartsHealth,
+          paceOrder: playerPaceOrderThisLap,
+          tacticalMode: tacticalMode as any,
+          hasWingDamage: !!entry.hasWingDamage,
+        }
+      })
+
+      const mechRoll = rollMechanicalFailures(dramaContexts, currentLap, {
+        isWet: currentWeather !== 'seco',
+      })
+
+      const newDnfsThisLap: { driverId: string; reason: string; driverName: string }[] = []
+
+      // Processa novos DNFs de quebras graves
+      if (mechRoll.newDnfs && mechRoll.newDnfs.length > 0) {
+        mechRoll.newDnfs.forEach((nd) => {
+          const gridCar = currentGrid.find((g) => g.driverId === nd.driverId)
+          if (gridCar && !gridCar.dnf) {
+            gridCar.dnf = true
+            gridCar.dnfLap = currentLap
+            gridCar.dnfReason = nd.reason
+            newDnfsThisLap.push(nd)
+
+            const nowStr = new Date().toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })
+            setLiveEvents((prev) => [
+              {
+                id: `ev_mech_dnf_${currentLap}_${nd.driverId}`,
+                lap: currentLap,
+                type: 'incident',
+                message: `🚨 ${nd.reason} — ${nd.driverName}`,
+                driverName: nd.driverName,
+                teamColor: gridCar.teamColor,
+                isPlayer: gridCar.isPlayer,
+                timestamp: nowStr,
+              },
+              ...prev,
+            ])
+          }
+        })
+      }
+
+      // Processa falhas mecânicas leves
+      if (mechRoll.issues && mechRoll.issues.length > 0) {
+        const lightIssues = mechRoll.issues.filter((iss) => !iss.isDnf)
+        if (lightIssues.length > 0) {
+          setMechanicalIssues((prev) => [...prev, ...lightIssues])
+        }
+      }
+
+      // Mapa para consulta rápida de penalidades de ritmo por falha mecânica leve nesta volta
+      const lightPenaltyMap = new Map<string, number>()
+      mechRoll.issues.forEach((iss) => {
+        if (!iss.isDnf && iss.pacePenaltySec) {
+          lightPenaltyMap.set(
+            iss.driverId,
+            (lightPenaltyMap.get(iss.driverId) || 0) + iss.pacePenaltySec,
+          )
+        }
+      })
+
+      // c) Bandeira vermelha: em DNF grave novo, se !usedThisRace → shouldTriggerRedFlag
+      if (newDnfsThisLap.length > 0 && !redFlagStateRef.current.usedThisRace) {
+        const redFlagDecision = shouldTriggerRedFlag(newDnfsThisLap, redFlagStateRef.current)
+        if (redFlagDecision.triggered) {
+          redFlagStateRef.current = {
+            active: true,
+            ticksFrozen: 3,
+            usedThisRace: true,
+            safetyCarLapsRemaining: 0,
+          }
+          setRedFlagState({ ...redFlagStateRef.current })
+          const nowStr = new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+          setLiveEvents((prev) => [
+            {
+              id: `ev_rf_trigger_${Date.now()}`,
+              lap: currentLap,
+              type: 'safety_car',
+              message: '🟥 BANDEIRA VERMELHA — Corrida suspensa',
+              timestamp: nowStr,
+            },
+            ...prev,
+          ])
+          // Interrompe o restante do loop nesta volta e mantém corrida congelada
+          return
+        }
+      }
 
       // Ordenação anterior (ordem na pista antes da volta ser completada)
       const previousTrackOrder = [...currentGrid]
@@ -2313,7 +2507,10 @@ export default function RacePage() {
               ? -0.3
               : 0
 
-        const totalFreePace = freeLapSec + dirtyAirPacePenalty + paceOrderDeltaSec
+        // Penalidade de ritmo por falha mecânica leve (0,5–1,2s)
+        const mechPenaltySec = lightPenaltyMap.get(entry.driverId) || 0
+
+        const totalFreePace = freeLapSec + dirtyAirPacePenalty + paceOrderDeltaSec + mechPenaltySec
 
         // Consumo de combustível por volta
         const baseFuelConsumption = totalLaps > 0 ? 100 / totalLaps : 1.0
@@ -2644,6 +2841,91 @@ export default function RacePage() {
           gapToFront: gapFrontStr,
         }
       })
+
+      // FIAÇÃO PARTE 1 - d) FIA: evaluateFiaIncidents sobre eventos da volta
+      const incidentInputs: IncidentEventInput[] = []
+
+      // Toque evitável / colisão leve (ex: gap < 0,3s com ultrapassagem falhada)
+      for (let i = 1; i < previousTrackOrder.length; i++) {
+        const carBehind = previousTrackOrder[i]
+        const carAhead = previousTrackOrder[i - 1]
+        const gap = carBehind.accumulatedTimeSec - carAhead.accumulatedTimeSec
+        const lapDataBehind = processedLaps.get(carBehind.driverId)
+        // se gap < 0.3s e tentativa de ultrapassagem não passou à frente
+        if (gap < 0.3 && !lapDataBehind?.passedFront) {
+          const isPushing =
+            carBehind.isPlayer &&
+            (activePaceOrdersInLoopRef.current[carBehind.driverId] === 'empurrar' ||
+              activeCarTacticsInLoopRef.current[carBehind.driverId] === 'attack')
+          incidentInputs.push({
+            driverId: carBehind.driverId,
+            driverName: carBehind.driverName,
+            kind: 'collision_light',
+            isPushing,
+            otherDriverDnf: carAhead.dnf,
+          })
+        }
+      }
+
+      // Colisão fatal / DNF grave com outro piloto envolvido
+      if (newDnfsThisLap.length > 0) {
+        newDnfsThisLap.forEach((nd) => {
+          if (nd.reason.includes('BATEU FORTE') || nd.reason.includes('CRASH')) {
+            incidentInputs.push({
+              driverId: nd.driverId,
+              driverName: nd.driverName,
+              kind: 'collision_fatal',
+              otherDriverDnf: true,
+            })
+          }
+        })
+      }
+
+      // Corte de chicane sob 'empurrar'
+      currentGrid.forEach((g) => {
+        if (!g.dnf) {
+          const isPushing =
+            g.isPlayer &&
+            (activePaceOrdersInLoopRef.current[g.driverId] === 'empurrar' ||
+              activeCarTacticsInLoopRef.current[g.driverId] === 'attack')
+          if (isPushing && Math.random() < 0.08) {
+            incidentInputs.push({
+              driverId: g.driverId,
+              driverName: g.driverName,
+              kind: 'chicane_cut',
+              isPushing: true,
+            })
+          }
+        }
+      })
+
+      if (incidentInputs.length > 0) {
+        const fiaResult = evaluateFiaIncidents(incidentInputs, currentLap, penalties)
+        if (fiaResult.newPenalties.length > 0) {
+          setPenalties((prev) => [...prev, ...fiaResult.newPenalties])
+          const nowStr = new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+          fiaResult.newPenalties.forEach((np) => {
+            const drv = currentGrid.find((c) => c.driverId === np.driverId)
+            const drvName = drv?.driverName || 'Piloto'
+            const penDesc =
+              np.kind === 'stop_and_go' ? 'stop & go (parada obrigatória +10s)' : np.kind
+            overtakeEventsThisLap.push({
+              id: `ev_fia_${np.id}`,
+              lap: currentLap,
+              type: 'incident',
+              message: `⚖️ FIA: ${drvName} — decisão: ${penDesc}`,
+              driverName: drvName,
+              teamColor: drv?.teamColor,
+              isPlayer: drv?.isPlayer,
+              timestamp: nowStr,
+            })
+          })
+        }
+      }
 
       const narratedEvents = generateLapNarratedEvents(currentLap, currentGrid, currentWeather)
       const combinedLapEvents = [...overtakeEventsThisLap, ...narratedEvents]
@@ -3963,11 +4245,14 @@ export default function RacePage() {
   const finishRaceSimulation = async (grid: SimDriverEntry[], _finalWeather: TrackWeatherState) => {
     const incidents = [...raceIncidents]
 
-    const activeDrivers = grid
+    // FIAÇÃO PARTE 1 - Homologação de penalidades FIA antes da ordenação final
+    const resultsWithPenalties = applyPenaltiesToResults(grid, penalties)
+
+    const activeDrivers = resultsWithPenalties
       .filter((e) => !e.dnf)
       .sort((a, b) => (a.position || 0) - (b.position || 0))
 
-    const dnfDrivers = grid
+    const dnfDrivers = resultsWithPenalties
       .filter((e) => e.dnf)
       .sort((a, b) => {
         const lapA = a.dnfLap ?? 0
