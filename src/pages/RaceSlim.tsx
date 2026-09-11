@@ -500,6 +500,7 @@ export default function RacePage() {
   const [raceInitialFuelPct, setRaceInitialFuelPct] = useState<number>(100)
   // Rastreia se piloto respondeu 'stay_out' ("AGUENTE MAIS") durante a prova
   const driversRespondedStayOutRef = useRef<Set<string>>(new Set())
+  const lowFuelRadioSentRef = useRef<Set<string>>(new Set())
   const hasUsedPreserveModeRef = useRef<boolean>(false)
 
   // Weather and forecast state with 3 intensity states: seco | chuva_fraca | chuva_forte
@@ -1561,6 +1562,7 @@ export default function RacePage() {
     setSafetyCarActive(false)
     setRaceResults(null)
     driversRespondedStayOutRef.current.clear()
+    lowFuelRadioSentRef.current.clear()
 
     const initialTactics: Record<string, 'attack' | 'normal' | 'save_fuel'> = {}
     const initialPaceOrders: Record<string, LivePaceOrder> = {}
@@ -2313,6 +2315,91 @@ export default function RacePage() {
 
         const totalFreePace = freeLapSec + dirtyAirPacePenalty + paceOrderDeltaSec
 
+        // Consumo de combustível por volta
+        const baseFuelConsumption = totalLaps > 0 ? 100 / totalLaps : 1.0
+        let fuelMultiplier = 1.0
+        if (safetyCarActive) {
+          fuelMultiplier *= 0.15
+        } else if (entry.isPlayer) {
+          if (playerPaceOrderThisLap === 'segurar') {
+            fuelMultiplier *= 0.7
+          } else if (playerPaceOrderThisLap === 'empurrar') {
+            fuelMultiplier *= 1.25
+          }
+
+          if (playerTacticThisLap === 'save_fuel') {
+            fuelMultiplier *= 0.75
+          } else if (playerTacticThisLap === 'attack') {
+            fuelMultiplier *= 1.2
+          }
+        } else {
+          const aiType = entry.aiStrategyProfile?.type
+          if (aiType === 'agressiva') {
+            fuelMultiplier *= 1.15
+          } else if (aiType === 'conservadora') {
+            fuelMultiplier *= 0.85
+          }
+        }
+
+        const lapFuelBurn = baseFuelConsumption * fuelMultiplier
+        const currentFuel =
+          entry.fuelRemaining !== undefined
+            ? entry.fuelRemaining
+            : entry.isPlayer
+              ? setups.race.initial_fuel_load || 100
+              : 100
+        const nextFuelRemaining = Math.max(0, currentFuel - lapFuelBurn)
+
+        let isRanOutOfFuel = false
+        if (nextFuelRemaining <= 0 && !entry.dnf) {
+          isRanOutOfFuel = true
+          setLiveEvents((prev) => [
+            {
+              id: `ev_fuel_dnf_${currentLap}_${entry.driverId}`,
+              lap: currentLap,
+              type: 'incident',
+              message: `⛽ ${entry.driverName} FICOU SEM COMBUSTÍVEL! Monoposto parou na pista sem gasolina!`,
+              driverName: entry.driverName,
+              teamColor: entry.teamColor,
+              isPlayer: entry.isPlayer,
+              timestamp: new Date().toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              }),
+            },
+            ...prev,
+          ])
+        }
+
+        if (
+          entry.isPlayer &&
+          !entry.dnf &&
+          !isRanOutOfFuel &&
+          nextFuelRemaining < 3 &&
+          currentLap >= totalLaps * 0.75 &&
+          !lowFuelRadioSentRef.current.has(entry.driverId)
+        ) {
+          lowFuelRadioSentRef.current.add(entry.driverId)
+          setLiveEvents((prev) => [
+            {
+              id: `ev_low_fuel_${currentLap}_${entry.driverId}`,
+              lap: currentLap,
+              type: 'team_radio',
+              message: `📻 ${entry.driverName}: Estou com pouca gasolina, preciso poupar!`,
+              driverName: entry.driverName,
+              teamColor: entry.teamColor,
+              isPlayer: true,
+              timestamp: new Date().toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              }),
+            },
+            ...prev,
+          ])
+        }
+
         const updatedEntry: SimDriverEntry = {
           ...entry,
           tireWear: effectiveWear,
@@ -2320,6 +2407,14 @@ export default function RacePage() {
           pitStopsDone: pitStops,
           lapsOnCurrentTire: effectiveLapsOnTire,
           cliffStatus,
+          fuelRemaining: nextFuelRemaining,
+          ...(isRanOutOfFuel
+            ? {
+                dnf: true,
+                dnfLap: currentLap,
+                dnfReason: 'Pane seca',
+              }
+            : {}),
         }
 
         return {
