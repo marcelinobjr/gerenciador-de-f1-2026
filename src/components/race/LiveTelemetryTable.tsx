@@ -5,6 +5,8 @@ import { Activity, Flame, Fuel } from 'lucide-react'
 import { TireCompound } from '@/types/f1'
 import { TIRE_SPECS, isTireInCliff, TireCliffStatus } from '@/lib/f1-tire-system'
 
+export type LivePaceOrder = 'segurar' | 'normal' | 'empurrar'
+
 export interface TelemetryDriverEntry {
   driverId: string
   driverName: string
@@ -13,6 +15,7 @@ export interface TelemetryDriverEntry {
   teamColor: string
   isPlayer: boolean
   flag: string
+  nationality?: string
   position: number
   dnf: boolean
   dnfReason?: string
@@ -53,6 +56,8 @@ interface LiveTelemetryTableProps {
     driverId: string,
     mode: 'attack' | 'normal' | 'save_fuel' | 'preserve',
   ) => void
+  playerPaceOrders?: Record<string, LivePaceOrder>
+  onChangePaceOrder?: (driverId: string, pace: LivePaceOrder) => void
   isRaceFinished?: boolean
 }
 
@@ -63,6 +68,8 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
   const trackAbrasiveness = props.trackAbrasiveness ?? 6
   const playerCarTactics = props.playerCarTactics ?? {}
   const onChangeTacticalMode = props.onChangeTacticalMode
+  const playerPaceOrders = props.playerPaceOrders ?? {}
+  const onChangePaceOrder = props.onChangePaceOrder
   const isRaceFinished = props.isRaceFinished ?? false
   if (!grid || grid.length === 0) return null
 
@@ -182,7 +189,12 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
                     {/* Driver & Team */}
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-2">
-                        <span>{entry.flag}</span>
+                        <span
+                          title={entry.nationality || 'Nacionalidade'}
+                          className="cursor-default select-none text-base"
+                        >
+                          {entry.flag}
+                        </span>
                         <div>
                           <div className="flex items-center gap-1.5">
                             <span
@@ -225,53 +237,110 @@ export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
                     {/* Tactical Profile Badge / Selector */}
                     <td className="py-2.5 px-3 text-center">
                       {isMyCar ? (
-                        !isRaceFinished && !entry.dnf && onChangeTacticalMode ? (
-                          <div className="inline-flex items-center gap-1 bg-[#0B0F19] p-0.5 rounded border border-[#1E2638]">
-                            <button
-                              type="button"
-                              onClick={() => onChangeTacticalMode(entry.driverId, 'attack')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all flex items-center gap-0.5 border ${
-                                (playerCarTactics[entry.driverId] || 'normal') === 'attack'
-                                  ? 'bg-red-600 text-white border-red-400 shadow-[0_0_8px_#dc2626]'
-                                  : 'bg-[#111726] text-red-400 border-red-900/40 hover:bg-red-950/60'
-                              }`}
-                              title="Ataque: ritmo ×0.97, +30% pneus, +25% combustível, +30% peças"
-                            >
-                              <Flame className="w-2.5 h-2.5" /> Ataque
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onChangeTacticalMode(entry.driverId, 'normal')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
-                                (playerCarTactics[entry.driverId] || 'normal') === 'normal'
-                                  ? 'bg-slate-600 text-white border-slate-400 shadow-sm'
-                                  : 'bg-[#111726] text-slate-400 border-slate-800 hover:text-white'
-                              }`}
-                              title="Padrão: sem modificadores"
-                            >
-                              Padrão
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onChangeTacticalMode(entry.driverId, 'save_fuel')}
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all flex items-center gap-0.5 border ${
-                                (playerCarTactics[entry.driverId] || 'normal') === 'save_fuel'
-                                  ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_8px_#059669]'
-                                  : 'bg-[#111726] text-emerald-400 border-emerald-900/40 hover:bg-emerald-950/60'
-                              }`}
-                              title="Economizar: ritmo ×1.02, -25% pneus, -30% combustível, -25% peças"
-                            >
-                              <Fuel className="w-2.5 h-2.5" /> Economizar
-                            </button>
+                        !isRaceFinished && !entry.dnf ? (
+                          <div className="flex flex-col items-center gap-1">
+                            {/* Linha 1: Tática existente de consumo/ataque */}
+                            {onChangeTacticalMode && (
+                              <div className="inline-flex items-center gap-1 bg-[#0B0F19] p-0.5 rounded border border-[#1E2638]">
+                                <button
+                                  type="button"
+                                  onClick={() => onChangeTacticalMode(entry.driverId, 'attack')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all flex items-center gap-0.5 border ${
+                                    (playerCarTactics[entry.driverId] || 'normal') === 'attack'
+                                      ? 'bg-red-600 text-white border-red-400 shadow-[0_0_8px_#dc2626]'
+                                      : 'bg-[#111726] text-red-400 border-red-900/40 hover:bg-red-950/60'
+                                  }`}
+                                  title="Ataque: ritmo ×0.97, +30% pneus, +25% combustível, +30% peças"
+                                >
+                                  <Flame className="w-2.5 h-2.5" /> Ataque
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onChangeTacticalMode(entry.driverId, 'normal')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                    (playerCarTactics[entry.driverId] || 'normal') === 'normal'
+                                      ? 'bg-slate-600 text-white border-slate-400 shadow-sm'
+                                      : 'bg-[#111726] text-slate-400 border-slate-800 hover:text-white'
+                                  }`}
+                                  title="Padrão: sem modificadores"
+                                >
+                                  Padrão
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onChangeTacticalMode(entry.driverId, 'save_fuel')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all flex items-center gap-0.5 border ${
+                                    (playerCarTactics[entry.driverId] || 'normal') === 'save_fuel'
+                                      ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_8px_#059669]'
+                                      : 'bg-[#111726] text-emerald-400 border-emerald-900/40 hover:bg-emerald-950/60'
+                                  }`}
+                                  title="Economizar: ritmo ×1.02, -25% pneus, -30% combustível, -25% peças"
+                                >
+                                  <Fuel className="w-2.5 h-2.5" /> Economizar
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Linha 2: 3 Botões de Ordem de Ritmo ao Vivo (Segurar / Normal / Empurrar) */}
+                            {onChangePaceOrder && (
+                              <div className="inline-flex items-center gap-1 bg-[#080D18] p-0.5 rounded border border-cyan-900/40 shadow-inner">
+                                <span className="text-[8px] font-mono font-bold text-cyan-400 uppercase px-1">
+                                  Ritmo:
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => onChangePaceOrder(entry.driverId, 'segurar')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                    (playerPaceOrders[entry.driverId] || 'normal') === 'segurar'
+                                      ? 'bg-blue-600 text-white border-blue-300 shadow-[0_0_8px_#2563eb]'
+                                      : 'bg-[#101726] text-blue-300 border-blue-900/40 hover:bg-blue-950/70'
+                                  }`}
+                                  title="Segurar ritmo: +1,5s/volta, desgaste ×0,65 (poupa pneu e combustível). Válido a partir da volta seguinte."
+                                >
+                                  Segurar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onChangePaceOrder(entry.driverId, 'normal')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                    (playerPaceOrders[entry.driverId] || 'normal') === 'normal'
+                                      ? 'bg-slate-600 text-white border-slate-300 shadow-sm'
+                                      : 'bg-[#101726] text-slate-400 border-slate-800 hover:text-white'
+                                  }`}
+                                  title="Ritmo normal / neutro"
+                                >
+                                  Normal
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onChangePaceOrder(entry.driverId, 'empurrar')}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                    (playerPaceOrders[entry.driverId] || 'normal') === 'empurrar'
+                                      ? 'bg-orange-600 text-white border-orange-300 shadow-[0_0_8px_#ea580c]'
+                                      : 'bg-[#101726] text-orange-400 border-orange-900/40 hover:bg-orange-950/70'
+                                  }`}
+                                  title="Empurrar ritmo: -0,3s/volta, desgaste ×1,25 (busca fechar gap). Válido a partir da volta seguinte."
+                                >
+                                  Empurrar
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ) : (
-                          <Badge className="bg-red-500/15 border-red-500/30 text-red-300 text-[9px] px-1.5 py-0">
-                            {playerCarTactics[entry.driverId] === 'attack'
-                              ? 'Ataque'
-                              : playerCarTactics[entry.driverId] === 'save_fuel'
-                                ? 'Economizar'
-                                : 'Padrão'}
-                          </Badge>
+                          <div className="flex flex-col items-center gap-1">
+                            <Badge className="bg-red-500/15 border-red-500/30 text-red-300 text-[9px] px-1.5 py-0">
+                              {playerCarTactics[entry.driverId] === 'attack'
+                                ? 'Ataque'
+                                : playerCarTactics[entry.driverId] === 'save_fuel'
+                                  ? 'Economizar'
+                                  : 'Padrão'}
+                            </Badge>
+                            {playerPaceOrders[entry.driverId] && (
+                              <Badge className="bg-cyan-500/15 border-cyan-500/30 text-cyan-300 text-[9px] px-1.5 py-0 capitalize">
+                                Ritmo: {playerPaceOrders[entry.driverId]}
+                              </Badge>
+                            )}
+                          </div>
                         )
                       ) : entry.aiStrategyProfile ? (
                         <Badge

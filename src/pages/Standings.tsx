@@ -9,6 +9,7 @@ import {
   normalizeEntityName,
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
+import { getCountryFlag } from '@/lib/country-flags'
 import { Trophy, Award, Users, Flag, Medal } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -79,51 +80,7 @@ export default function StandingsPage() {
   })
 
   // Flag helper
-  const getFlag = (nat: string) => {
-    switch (nat?.toLowerCase()) {
-      case 'brasil':
-      case 'bra':
-        return '🇧🇷'
-      case 'reino unido':
-      case 'gbr':
-        return '🇬🇧'
-      case 'holanda':
-      case 'ned':
-        return '🇳🇱'
-      case 'mônaco':
-      case 'mon':
-        return '🇲🇨'
-      case 'austrália':
-      case 'aus':
-        return '🇦🇺'
-      case 'espanha':
-      case 'esp':
-        return '🇪🇸'
-      case 'argentina':
-      case 'arg':
-        return '🇦🇷'
-      case 'japão':
-      case 'jpn':
-        return '🇯🇵'
-      case 'alemanha':
-      case 'ger':
-        return '🇩🇪'
-      case 'frança':
-      case 'fra':
-        return '🇫🇷'
-      case 'tailândia':
-      case 'tha':
-        return '🇹🇭'
-      case 'canadá':
-      case 'can':
-        return '🇨🇦'
-      case 'itália':
-      case 'ita':
-        return '🇮🇹'
-      default:
-        return '🏁'
-    }
-  }
+  const getFlag = (nat: string) => getCountryFlag(nat)
 
   // Calculate aggregated standings
   const { driverStandings, constructorStandings } = useMemo(() => {
@@ -181,7 +138,7 @@ export default function StandingsPage() {
         id: d1Key,
         name: aiTeam.driver1.name,
         nationality: aiTeam.driver1.nationality,
-        flag: aiTeam.driver1.flag,
+        flag: getCountryFlag(aiTeam.driver1.nationality || aiTeam.driver1.flag),
         teamName: aiTeam.name,
         teamColor: aiTeam.color,
         points: d1Stat.points,
@@ -195,7 +152,7 @@ export default function StandingsPage() {
         id: d2Key,
         name: aiTeam.driver2.name,
         nationality: aiTeam.driver2.nationality,
-        flag: aiTeam.driver2.flag,
+        flag: getCountryFlag(aiTeam.driver2.nationality || aiTeam.driver2.flag),
         teamName: aiTeam.name,
         teamColor: aiTeam.color,
         points: d2Stat.points,
@@ -482,7 +439,12 @@ export default function StandingsPage() {
                             </td>
                             <td className="py-3 px-3">
                               <div className="flex items-center gap-2">
-                                <span>{driver.flag}</span>
+                                <span
+                                  title={driver.nationality}
+                                  className="text-base select-none cursor-default"
+                                >
+                                  {driver.flag}
+                                </span>
                                 <span
                                   className={
                                     driver.isPlayer

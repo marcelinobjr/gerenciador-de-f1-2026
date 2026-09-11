@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/formatters'
 import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
 import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { EngineSupplierSpec } from '@/types/f1'
+import { getCountryFlag } from '@/lib/country-flags'
 import { toast } from '@/hooks/use-toast'
 import {
   Users,
@@ -309,7 +310,8 @@ export default function TeamPage() {
   }
 
   // Flag emoji helper
-  const getFlag = (nat: string) => {
+  const getFlag = (nat: string) => getCountryFlag(nat)
+  const _ignoredGetFlag = (nat: string) => {
     switch (nat?.toLowerCase()) {
       case 'brasil':
       case 'bra':
@@ -1480,13 +1482,12 @@ export default function TeamPage() {
                         <td className="py-3 px-3">{getCategoryBadge(driver.category)}</td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-base">{getFlag(driver.nationality)}</span>
-                            <span className="font-semibold text-sm text-[#F5F7FA]">
+                            <span className="text-base" title={driver.nationality}>
+                              {getFlag(driver.nationality)}
+                            </span>
+                            <span className="font-extrabold text-[#F5F7FA] text-base group-hover:text-cyan-400 transition-colors">
                               {driver.name}
-                            </span>
-                            <span className="text-[10px] text-[#8B95A7]">
-                              ({driver.nationality})
-                            </span>
+                            </span>{' '}
                           </div>
                         </td>
                         <td className="py-3 px-2 text-[#8B95A7]">{driver.age}</td>

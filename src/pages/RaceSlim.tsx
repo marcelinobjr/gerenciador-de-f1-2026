@@ -81,6 +81,8 @@ import { RaceResultsTable, RaceResultEntry } from '@/components/race/RaceResults
 import { DecisionModals } from '@/components/race/DecisionModals'
 import { SillySeasonModal } from '@/components/race/SillySeasonModal'
 import { TeamRadioDialog } from '@/components/TeamRadioDialog'
+import { getCountryFlag } from '@/lib/country-flags'
+import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
 import {
   evaluateDriverRadioTriggers,
   DriverRadioMessage,
@@ -92,6 +94,7 @@ import {
 export type { WeekendSession, LiveRaceEvent }
 
 export interface SimDriverEntry extends RaceResultEntry {
+  nationality?: string
   score: number
   points: number
   fastestLap: boolean
@@ -367,10 +370,68 @@ export default function RacePage() {
   const playerCarTacticsRef = useRef<Record<string, 'attack' | 'normal' | 'save_fuel'>>({})
   const activeCarTacticsInLoopRef = useRef<Record<string, 'attack' | 'normal' | 'save_fuel'>>({})
 
-  // Sincroniza a ref da tática com o estado do jogador
+  // Ordem de ritmo ao vivo ('segurar' | 'normal' | 'empurrar')
+  const [playerPaceOrders, setPlayerPaceOrders] = useState<Record<string, LivePaceOrder>>({})
+  const playerPaceOrdersRef = useRef<Record<string, LivePaceOrder>>({})
+  const activePaceOrdersInLoopRef = useRef<Record<string, LivePaceOrder>>({})
+
+  // Sincroniza refs de táticas e ritmo com o estado do jogador
   useEffect(() => {
     playerCarTacticsRef.current = playerCarTactics
   }, [playerCarTactics])
+
+  useEffect(() => {
+    playerPaceOrdersRef.current = playerPaceOrders
+  }, [playerPaceOrders])
+
+  const handleChangePaceOrder = (driverId: string, pace: LivePaceOrder) => {
+    const driverName =
+      drivers.find((d) => d.id === driverId)?.name ||
+      liveRaceState?.grid?.find((g) => g.driverId === driverId)?.driverName ||
+      'Piloto'
+
+    setPlayerPaceOrders((prev) => ({
+      ...prev,
+      [driverId]: pace,
+    }))
+    playerPaceOrdersRef.current = {
+      ...playerPaceOrdersRef.current,
+      [driverId]: pace,
+    }
+
+    const radioNarrative =
+      pace === 'segurar'
+        ? `📻 Box: ${driverName}, segure o ritmo e traga o carro pra casa. Economizando borracha e motor.`
+        : pace === 'empurrar'
+          ? `📻 Box: ${driverName}, agora empurra! Temos que fechar o gap!`
+          : `📻 Box: ${driverName}, ritmo de cruzeiro normal restabelecido.`
+
+    const currentLap = liveRaceState?.currentLap || 1
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+
+    setLiveEvents((prev) => [
+      {
+        id: `ev_pace_${Date.now()}_${driverId}`,
+        lap: currentLap,
+        type: 'team_radio',
+        message: radioNarrative,
+        driverName,
+        teamColor: team?.color || '#E10600',
+        isPlayer: true,
+        timestamp: nowStr,
+      },
+      ...prev,
+    ])
+
+    toast({
+      title: 'Ordem de Ritmo Atualizada',
+      description: radioNarrative,
+    })
+  }
 
   const [hudTacticalModes, setHudTacticalModes] = useState<
     Record<string, 'attack' | 'preserve' | 'save_fuel' | 'normal'>
@@ -1502,12 +1563,17 @@ export default function RacePage() {
     driversRespondedStayOutRef.current.clear()
 
     const initialTactics: Record<string, 'attack' | 'normal' | 'save_fuel'> = {}
+    const initialPaceOrders: Record<string, LivePaceOrder> = {}
     titulars.forEach((t) => {
       initialTactics[t.id] = 'normal'
+      initialPaceOrders[t.id] = 'normal'
     })
     setPlayerCarTactics(initialTactics)
     playerCarTacticsRef.current = initialTactics
     activeCarTacticsInLoopRef.current = initialTactics
+    setPlayerPaceOrders(initialPaceOrders)
+    playerPaceOrdersRef.current = initialPaceOrders
+    activePaceOrdersInLoopRef.current = initialPaceOrders
     setHudTacticalModes(initialTactics)
 
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
@@ -1566,7 +1632,8 @@ export default function RacePage() {
         teamName: team?.name || 'Sua Escuderia',
         teamColor: team?.color || '#FF3B30',
         isPlayer: true,
-        flag: activeDriver.nationality === 'Brasil' ? '🇧🇷' : '🏁',
+        flag: getCountryFlag(activeDriver.nationality),
+        nationality: activeDriver.nationality,
         driverFatigue,
         morale: activeDriver.morale ?? 80,
         physicalCondition: activeDriver.physical_condition ?? 90,
@@ -1631,7 +1698,8 @@ export default function RacePage() {
         teamName: aiTeam.name,
         teamColor: aiTeam.color,
         isPlayer: false,
-        flag: aiTeam.driver1.flag,
+        flag: getCountryFlag(aiTeam.driver1.nationality || aiTeam.driver1.flag),
+        nationality: aiTeam.driver1.nationality,
         driverFatigue: 25,
         morale: 80,
         physicalCondition: isDemandingTrackName(gpInfo.name, gpInfo.circuit) ? 85 : 90,
@@ -1657,7 +1725,8 @@ export default function RacePage() {
         teamName: aiTeam.name,
         teamColor: aiTeam.color,
         isPlayer: false,
-        flag: aiTeam.driver2.flag,
+        flag: getCountryFlag(aiTeam.driver2.nationality || aiTeam.driver2.flag),
+        nationality: aiTeam.driver2.nationality,
         driverFatigue: 28,
         morale: 80,
         physicalCondition: 90,
@@ -1704,6 +1773,7 @@ export default function RacePage() {
         teamColor: driver.teamColor,
         isPlayer: driver.isPlayer,
         flag: driver.flag,
+        nationality: (driver as any).nationality,
         score: gridScoreAdvantage - penalty,
         accumulatedTimeSec: Number(startAccumulatedTime.toFixed(3)),
         lapsInDirtyAir: 0,
@@ -1977,8 +2047,9 @@ export default function RacePage() {
         .filter((c) => !c.dnf)
         .sort((a, b) => (a.position || 99) - (b.position || 99))
 
-      // Sincroniza táticas ativas no início da volta: as mudanças do jogador valem a partir da volta seguinte
+      // Sincroniza táticas e ordens de ritmo ativas no início da volta: as mudanças do jogador valem a partir da VOLTA SEGUINTE
       const currentActiveTactics = { ...activeCarTacticsInLoopRef.current }
+      const currentActivePaceOrders = { ...activePaceOrdersInLoopRef.current }
 
       // PASSO 1: Atualização de pneus, paradas planejadas/estratégicas e cálculo de ritmo livre
       const intermediateStates = currentGrid.map((entry) => {
@@ -2007,7 +2078,12 @@ export default function RacePage() {
         // - Ataque: +30% desgaste (1.30)
         // - Economizar: -25% desgaste (0.75)
         // - Ordem temporária 'preserve': 0.75
+        // - Ordem de ritmo ao vivo: 'segurar' = desgaste ×0.65; 'empurrar' = desgaste ×1.25; 'normal' = neutro
         let tireWearMultiplier = 1.0
+        const playerPaceOrderThisLap = entry.isPlayer
+          ? currentActivePaceOrders[entry.driverId] || 'normal'
+          : 'normal'
+
         if (entry.isPlayer) {
           if (isModActive && tacticalMod.mode === 'preserve') {
             tireWearMultiplier = 0.75
@@ -2015,6 +2091,12 @@ export default function RacePage() {
             tireWearMultiplier = 1.3
           } else if (playerTacticThisLap === 'save_fuel') {
             tireWearMultiplier = 0.75
+          }
+
+          if (playerPaceOrderThisLap === 'segurar') {
+            tireWearMultiplier *= 0.65
+          } else if (playerPaceOrderThisLap === 'empurrar') {
+            tireWearMultiplier *= 1.25
           }
         }
         const inc =
@@ -2221,7 +2303,16 @@ export default function RacePage() {
           noise: (Math.random() - 0.5) * 0.3,
         })
 
-        const totalFreePace = freeLapSec + dirtyAirPacePenalty
+        // Aplicação do modificador de ritmo ao vivo:
+        // 'segurar' = ritmo +1,5s (conserva pneu/combustível); 'normal' = neutro; 'empurrar' = ritmo -0,3s
+        const paceOrderDeltaSec =
+          entry.isPlayer && playerPaceOrderThisLap === 'segurar'
+            ? 1.5
+            : entry.isPlayer && playerPaceOrderThisLap === 'empurrar'
+              ? -0.3
+              : 0
+
+        const totalFreePace = freeLapSec + dirtyAirPacePenalty + paceOrderDeltaSec
 
         const updatedEntry: SimDriverEntry = {
           ...entry,
@@ -2760,6 +2851,7 @@ export default function RacePage() {
         const playerEntries = currentGrid.filter((g) => g.isPlayer && !g.dnf && !g.hasWingDamage)
         if (playerEntries.length > 0) {
           clearInterval(timer)
+          liveRaceTimerRef.current = null
           const affectedDriver = playerEntries[0]
           affectedDriver.hasWingDamage = true
 
@@ -2906,11 +2998,16 @@ export default function RacePage() {
         }
       }
 
+      // Atualiza ref das ordens ativas para entrarem em vigor na volta seguinte
+      activeCarTacticsInLoopRef.current = { ...playerCarTacticsRef.current }
+      activePaceOrdersInLoopRef.current = { ...playerPaceOrdersRef.current }
+
       // Check if race laps completed
       if (currentLap >= totalLaps) {
         clearInterval(timer)
         liveRaceTimerRef.current = null
         finishRaceSimulation(currentGrid, currentWeather)
+        return
       }
     }, stepIntervalMs)
 
@@ -5332,6 +5429,11 @@ export default function RacePage() {
                     currentLap={liveRaceState.currentLap}
                     totalLaps={liveRaceState.totalLaps}
                     trackAbrasiveness={gpInfo.tireAbrasiveness || 6}
+                    playerCarTactics={playerCarTactics}
+                    onChangeTacticalMode={handleChangeTacticalMode}
+                    playerPaceOrders={playerPaceOrders}
+                    onChangePaceOrder={handleChangePaceOrder}
+                    isRaceFinished={!liveRaceState.inProgress && !!raceResults}
                   />
                 )}
 
@@ -5358,6 +5460,21 @@ export default function RacePage() {
           )
         })}
       </Tabs>
+
+      {/* HUD da Corrida ao Vivo (Pit Wall flutuante com dados consolidados dos pilotos do jogador) */}
+      {isRaceSession && liveRaceState && liveRaceState.grid && liveRaceState.grid.length > 0 && (
+        <LiveRaceHUD
+          currentLap={liveRaceState.currentLap}
+          totalLaps={liveRaceState.totalLaps || gpInfo.laps}
+          playerDrivers={liveRaceState.grid.filter((g) => g.isPlayer)}
+          isRaceFinished={!liveRaceState.inProgress && !!raceResults}
+          gpName={gpInfo.name}
+          gpCountry={gpInfo.country}
+          tacticalModes={hudTacticalModes}
+          onChangeTacticalMode={handleChangeTacticalMode}
+          formatTireName={formatTireName}
+        />
+      )}
 
       {/* 5. Modais de decisão tática de corrida (Sub-componente desacoplado) */}
       <DecisionModals
