@@ -25,10 +25,10 @@ import { TrackWeatherState, TIRE_SPECS } from '@/lib/f1-tire-system'
 
 export interface DecisionDriverContext {
   driverId: string
-  driverName: string
-  teamName: string
-  teamColor: string
-  isPlayer: boolean
+  driverName?: string
+  teamName?: string
+  teamColor?: string
+  isPlayer?: boolean
   position: number
   tireCompound?: TireCompound
   tireWear?: number
@@ -225,7 +225,9 @@ export function DecisionModals({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
                 <div>
                   <span className="text-[#8B95A7] block text-[10px]">Piloto:</span>
-                  <strong className="text-white text-sm">{rainActiveDriver.driverName}</strong>
+                  <strong className="text-white text-sm">
+                    {rainActiveDriver.driverName || 'Piloto'}
+                  </strong>
                 </div>
                 <div>
                   <span className="text-[#8B95A7] block text-[10px]">Posição Atual:</span>
@@ -538,8 +540,8 @@ export function DecisionModals({
               </Badge>
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-[#8B95A7]">
-              O piloto <strong>{wingDamageDriver?.driverName}</strong> sofreu contato direto com um
-              adversário e quebrou a placa terminal da asa dianteira.
+              O piloto <strong>{wingDamageDriver?.driverName || 'Piloto'}</strong> sofreu contato
+              direto com um adversário e quebrou a placa terminal da asa dianteira.
             </DialogDescription>
           </DialogHeader>
 
@@ -547,7 +549,9 @@ export function DecisionModals({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-xs font-mono">
             <div>
               <span className="text-[#8B95A7] block text-[11px]">Piloto Afetado:</span>
-              <strong className="text-white block mt-0.5">{wingDamageDriver?.driverName}</strong>
+              <strong className="text-white block mt-0.5">
+                {wingDamageDriver?.driverName || 'Piloto'}
+              </strong>
             </div>
             <div>
               <span className="text-[#8B95A7] block text-[11px]">Pneu Atual:</span>
@@ -693,7 +697,9 @@ export function DecisionModals({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
                 <div>
                   <span className="text-[#8B95A7] block text-[10px]">Piloto:</span>
-                  <strong className="text-white text-sm">{safetyCarActiveDriver.driverName}</strong>
+                  <strong className="text-white text-sm">
+                    {safetyCarActiveDriver.driverName || 'Piloto'}
+                  </strong>
                 </div>
                 <div>
                   <span className="text-[#8B95A7] block text-[10px]">Posição Atual:</span>
@@ -845,7 +851,9 @@ export function DecisionModals({
                       }`}
                     >
                       <div className="flex items-center justify-between w-full">
-                        <span className="font-bold text-white text-xs">{driver.driverName}</span>
+                        <span className="font-bold text-white text-xs">
+                          {driver.driverName || 'Piloto'}
+                        </span>
                         <Badge
                           variant="outline"
                           className="text-[10px] border-slate-700 text-slate-300 capitalize"

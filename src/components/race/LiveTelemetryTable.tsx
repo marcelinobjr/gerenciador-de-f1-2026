@@ -8,11 +8,11 @@ import { TeamOrderState, FiaPenalty, MechanicalIssue, TeamOrderProposal } from '
 
 export interface TelemetryDriverEntry {
   driverId: string
-  driverName: string
-  teamName: string
-  teamColor: string
+  driverName?: string
+  teamName?: string
+  teamColor?: string
   position: number
-  isPlayer: boolean
+  isPlayer?: boolean
   nationality?: string
   flag?: string
   tireCompound?: TireCompound
@@ -238,7 +238,7 @@ export function LiveTelemetryTable({
                               isMyCar ? 'text-[#F5F7FA] font-bold' : 'text-[#F5F7FA]'
                             }`}
                           >
-                            {entry.driverName}
+                            {entry.driverName || 'Piloto'}
                           </span>
                           {isMyCar && (
                             <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-[#E10600]/20 text-red-300 border border-[#E10600]/40">

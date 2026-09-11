@@ -7,6 +7,7 @@ import { TireCompound, RaceReportData } from '@/types/f1'
 import { RaceReportModal } from './RaceReportModal'
 import { raceReportService } from '@/services/raceReportService'
 import { f1Service } from '@/services/f1Service'
+import pb from '@/lib/pocketbase/client'
 
 export interface RaceResultEntry {
   driverId: string
@@ -71,7 +72,7 @@ export function RaceResultsTable({
 
     try {
       // Buscar season do usuário autenticado no backend
-      const pbUser = f1Service.getCurrentUser ? f1Service.getCurrentUser() : null
+      const pbUser = pb.authStore.record
       const team = pbUser ? await f1Service.getPlayerTeam(pbUser.id) : null
       const season = team ? await f1Service.getSeasonByTeam(team.id) : null
 
