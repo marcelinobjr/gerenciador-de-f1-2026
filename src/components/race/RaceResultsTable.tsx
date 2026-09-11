@@ -67,17 +67,17 @@ export function RaceResultsTable({
       )}
 
       {/* Classification Table */}
-      <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333] shadow-xl">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#1A2333] gap-3">
+      <Card className="bg-[#11161F] border border-[#1F2733] shadow-xl overflow-hidden rounded-xl">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] gap-3">
           <div>
-            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#E10600] block">
               HOMOLOGAÇÃO DA FEDERAÇÃO INTERNACIONAL
             </span>
-            <CardTitle className="text-base font-black text-white flex items-center gap-2 mt-0.5">
-              <Award className="w-5 h-5 text-amber-400" />
+            <CardTitle className="text-sm font-bold text-[#F5F7FA] flex items-center gap-2 mt-0.5 tracking-wide uppercase">
+              <Award className="w-4 h-4 text-amber-400" />
               Resultado Oficial do GP — {gpName}
             </CardTitle>
-            <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
+            <CardDescription className="text-xs text-[#8B95A7] mt-0.5 font-num">
               Desgaste de pneus acumulado, paradas nos boxes e pontos FIA atribuídos.
             </CardDescription>
           </div>
@@ -87,18 +87,18 @@ export function RaceResultsTable({
             size="sm"
             onClick={onAdvanceRound}
             disabled={isFinishing}
-            className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold px-6 shadow-lg"
+            className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold px-5 shadow-lg cursor-pointer"
           >
             {isFinishing ? 'Salvando dados...' : 'Avançar para Próxima Rodada'}
-            <ArrowRight className="w-4 h-4 ml-2" />
+            <ArrowRight className="w-4 h-4 ml-1.5" />
           </Button>
         </CardHeader>
 
-        <CardContent>
-          <div className="overflow-x-auto">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left text-xs font-mono">
               <thead>
-                <tr className="border-b border-[#1A2333] text-[#8B95A7] uppercase tracking-wider bg-[#080C14]/80 text-[10px]">
+                <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider bg-[#0E131B] text-[10px]">
                   <th className="py-2.5 px-3">Pos</th>
                   <th className="py-2.5 px-3">Piloto</th>
                   <th className="py-2.5 px-3">Equipe</th>
@@ -110,7 +110,7 @@ export function RaceResultsTable({
                   <th className="py-2.5 px-3 text-right">Pts</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1A2333]">
+              <tbody className="divide-y divide-[#1F2733]/60">
                 {' '}
                 {actualResults.map((row) => {
                   const hasMorale = row.newMorale !== undefined && row.oldMorale !== undefined
@@ -125,20 +125,20 @@ export function RaceResultsTable({
                       key={row.driverId}
                       className={`transition-colors ${
                         row.isPlayer
-                          ? 'bg-[#E10600]/10 font-bold border-l-4 border-l-[#E10600]'
-                          : 'hover:bg-[#161D29]/40'
+                          ? 'bg-[#161D29] font-bold border-l-[3px] border-l-[#E10600]'
+                          : 'hover:bg-[#161D29]/40 bg-[#11161F]'
                       }`}
                     >
                       <td className="py-3 px-3">
                         <span
-                          className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-bold ${
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded font-num font-bold text-xs ${
                             row.position === 1
                               ? 'bg-amber-400 text-black'
                               : row.position === 2
                                 ? 'bg-slate-300 text-black'
                                 : row.position === 3
                                   ? 'bg-amber-700 text-white'
-                                  : 'text-[#8B95A7]'
+                                  : 'text-[#8B95A7] bg-[#0E131B]'
                           }`}
                         >
                           {row.dnf ? 'DNF' : row.position}
@@ -160,6 +160,11 @@ export function RaceResultsTable({
                               FL
                             </Badge>
                           )}
+                          {row.isPlayer && (
+                            <Badge className="bg-[#E10600]/20 text-red-300 border border-[#E10600]/40 text-[9px] px-1 py-0 h-4 uppercase">
+                              Sua Equipe
+                            </Badge>
+                          )}
                         </div>
                         {row.dnfReason && (
                           <span className="text-[10px] text-red-400 block mt-0.5 font-normal">
@@ -171,9 +176,10 @@ export function RaceResultsTable({
                         <span style={{ color: row.teamColor }}>{row.teamName}</span>
                       </td>
                       <td className="py-3 px-2 text-center text-[#8B95A7]">
-                        {row.tireCompound?.slice(0, 3)} / {row.secondCompound?.slice(0, 3)}
+                        {row.tireCompound?.slice(0, 3).toUpperCase()} /{' '}
+                        {row.secondCompound?.slice(0, 3).toUpperCase()}
                       </td>
-                      <td className="py-3 px-2 text-center">
+                      <td className="py-3 px-2 text-center font-num">
                         <span
                           className={`font-bold ${
                             (row.tireWear || 0) > 85
@@ -186,8 +192,10 @@ export function RaceResultsTable({
                           {row.tireWear || 70}%
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-[#8B95A7]">{row.totalTime}</td>
-                      <td className="py-3 px-2 text-center">
+                      <td className="py-3 px-3 text-[#8B95A7] font-num tabular-nums">
+                        {row.totalTime}
+                      </td>
+                      <td className="py-3 px-2 text-center font-num">
                         {hasMorale ? (
                           <div className="flex items-center justify-center gap-1">
                             <span className="text-white font-semibold">{row.newMorale}</span>
@@ -207,7 +215,7 @@ export function RaceResultsTable({
                           <span className="text-[#8B95A7]">-</span>
                         )}
                       </td>
-                      <td className="py-3 px-2 text-center">
+                      <td className="py-3 px-2 text-center font-num">
                         {hasPhysical ? (
                           <div className="flex items-center justify-center gap-1">
                             <span
@@ -233,7 +241,7 @@ export function RaceResultsTable({
                           <span className="text-[#8B95A7]">-</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-3 px-3 text-right font-num">
                         {row.points > 0 ? (
                           <strong className="text-emerald-400 font-bold text-sm">
                             +{row.points}

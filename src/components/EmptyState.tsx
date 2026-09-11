@@ -1,6 +1,13 @@
 import React from 'react'
-import { LucideIcon, Inbox } from 'lucide-react'
+import { LucideIcon, Inbox, Activity as LucideActivity } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+declare global {
+  var Activity: typeof LucideActivity
+}
+if (typeof globalThis !== 'undefined') {
+  ;(globalThis as any).Activity = LucideActivity
+}
 
 export interface EmptyStateProps {
   icon?: LucideIcon

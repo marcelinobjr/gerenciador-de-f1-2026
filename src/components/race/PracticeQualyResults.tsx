@@ -35,29 +35,29 @@ export function PracticeQualyResults({
   const displayedCircuit = circuitName || circuit || 'Circuito'
 
   return (
-    <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333] shadow-xl">
-      <CardHeader className="pb-3 border-b border-[#1A2333] flex flex-row items-center justify-between">
+    <Card className="bg-[#11161F] border border-[#1F2733] shadow-xl overflow-hidden rounded-xl">
+      <CardHeader className="py-3 px-4 bg-[#0B0E14] border-b border-[#1F2733] flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-base font-bold text-[#F5F7FA] flex items-center gap-2">
+          <CardTitle className="text-sm font-bold text-[#F5F7FA] flex items-center gap-2 tracking-wide uppercase">
             <Clock className="w-4 h-4 text-emerald-400" />
             Tabela de Tempos Oficiais — {sessionKey.toUpperCase()}
           </CardTitle>
-          <CardDescription className="text-xs text-[#8B95A7]">
+          <CardDescription className="text-xs text-[#8B95A7] mt-0.5 font-num">
             Classificação após voltas rápidas completadas no {displayedCircuit}
           </CardDescription>
         </div>
         <Badge
           variant="outline"
-          className="border-emerald-500/40 text-emerald-400 font-mono text-xs"
+          className="border-emerald-500/40 text-emerald-400 font-num text-xs px-2 py-0.5 bg-emerald-500/10"
         >
           Sessão Finalizada
         </Badge>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
+      <CardContent className="p-0">
+        <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-left text-xs font-mono">
             <thead>
-              <tr className="border-b border-[#1A2333] text-[#8B95A7] uppercase tracking-wider bg-[#080C14]/80 text-[10px]">
+              <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider bg-[#0E131B] text-[10px]">
                 <th className="py-2 px-3 w-12">Pos</th>
                 <th className="py-2 px-3">Piloto</th>
                 <th className="py-2 px-3">Escuderia</th>
@@ -66,7 +66,7 @@ export function PracticeQualyResults({
                 <th className="py-2 px-3 text-right">Diferença</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1A2333]">
+            <tbody className="divide-y divide-[#1F2733]/60">
               {results.map((row) => (
                 <tr
                   key={`${row.position}_${row.driverId}`}
@@ -74,20 +74,20 @@ export function PracticeQualyResults({
                     row.isEliminated
                       ? 'opacity-60 bg-red-950/20'
                       : row.isPlayer
-                        ? 'bg-[#E10600]/10 font-bold border-l-4 border-l-[#E10600]'
-                        : 'hover:bg-[#161D29]/40'
+                        ? 'bg-[#161D29] font-bold border-l-[3px] border-l-[#E10600]'
+                        : 'hover:bg-[#161D29]/40 bg-[#11161F]'
                   }`}
                 >
                   <td className="py-2.5 px-3">
                     <span
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded font-num text-[11px] font-bold ${
                         row.position === 1
                           ? 'bg-amber-400 text-black'
                           : row.position <= 3
                             ? 'bg-slate-300 text-black'
                             : row.isEliminated
                               ? 'bg-red-900/60 text-red-200'
-                              : 'text-[#8B95A7]'
+                              : 'text-[#8B95A7] bg-[#0E131B]'
                       }`}
                     >
                       {row.position}
@@ -101,14 +101,14 @@ export function PracticeQualyResults({
                         {row.driverName}
                       </span>
                       {row.isPlayer && (
-                        <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-3.5">
+                        <Badge className="bg-[#E10600]/20 text-red-300 border border-[#E10600]/40 text-[9px] px-1 py-0 h-4 uppercase">
                           Sua Equipe
                         </Badge>
                       )}
                       {row.isEliminated && (
                         <Badge
                           variant="destructive"
-                          className="text-[9px] px-1.5 py-0 h-3.5 bg-red-800 text-red-200"
+                          className="text-[9px] px-1.5 py-0 h-4 bg-red-800 text-red-200"
                         >
                           Eliminado {row.eliminatedInSession?.toUpperCase()}
                         </Badge>
@@ -119,8 +119,8 @@ export function PracticeQualyResults({
                     <span style={{ color: row.teamColor }}>{row.teamName}</span>
                   </td>
                   <td className="py-2.5 px-3 text-capitalize text-[#8B95A7]">{row.tire}</td>
-                  <td className="py-2.5 px-3 text-[#00A6FB]">{row.lapTime}</td>
-                  <td className="py-2.5 px-3 text-right text-[#8B95A7]">
+                  <td className="py-2.5 px-3 text-[#00A6FB] font-num">{row.lapTime}</td>
+                  <td className="py-2.5 px-3 text-right text-[#8B95A7] font-num tabular-nums">
                     {row.isEliminated ? (
                       <span className="text-red-400 text-[10px]">CORTE FIA</span>
                     ) : (
