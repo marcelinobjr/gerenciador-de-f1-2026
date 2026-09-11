@@ -210,6 +210,78 @@ const COUNTRY_FLAG_MAP: Record<string, string> = {
   polonia: '🇵🇱',
   poland: '🇵🇱',
   pol: '🇵🇱',
+
+  // Suécia
+  suécia: '🇸🇪',
+  suecia: '🇸🇪',
+  sweden: '🇸🇪',
+  sueco: '🇸🇪',
+  sueca: '🇸🇪',
+  swedish: '🇸🇪',
+  swe: '🇸🇪',
+
+  // Colômbia
+  colômbia: '🇨🇴',
+  colombia: '🇨🇴',
+  colombiano: '🇨🇴',
+  colombiana: '🇨🇴',
+  colombian: '🇨🇴',
+  col: '🇨🇴',
+
+  // Noruega
+  noruega: '🇳🇴',
+  norway: '🇳🇴',
+  norueguês: '🇳🇴',
+  noruegues: '🇳🇴',
+  norueguesa: '🇳🇴',
+  norwegian: '🇳🇴',
+  nor: '🇳🇴',
+
+  // Paraguai
+  paraguai: '🇵🇾',
+  paraguay: '🇵🇾',
+  paraguaio: '🇵🇾',
+  paraguaia: '🇵🇾',
+  paraguayan: '🇵🇾',
+  pry: '🇵🇾',
+
+  // Índia
+  índia: '🇮🇳',
+  india: '🇮🇳',
+  indiano: '🇮🇳',
+  indiana: '🇮🇳',
+  indian: '🇮🇳',
+  ind: '🇮🇳',
+
+  // República Tcheca / Chéquia
+  'república tcheca': '🇨🇿',
+  'republica tcheca': '🇨🇿',
+  'czech republic': '🇨🇿',
+  czechia: '🇨🇿',
+  tcheco: '🇨🇿',
+  tcheca: '🇨🇿',
+  czech: '🇨🇿',
+  cze: '🇨🇿',
+
+  // Portugal
+  portugal: '🇵🇹',
+  português: '🇵🇹',
+  portugues: '🇵🇹',
+  portuguesa: '🇵🇹',
+  portuguese: '🇵🇹',
+  prt: '🇵🇹',
+  por: '🇵🇹',
+
+  // Bulgária
+  bulgária: '🇧🇬',
+  bulgaria: '🇧🇬',
+  búlgaro: '🇧🇬',
+  bulgaro: '🇧🇬',
+  búlgara: '🇧🇬',
+  bulgara: '🇧🇬',
+  bulgarian: '🇧🇬',
+  bgr: '🇧🇬',
+  bul: '🇧🇬',
 }
 
 /**

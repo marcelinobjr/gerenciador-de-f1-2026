@@ -5461,7 +5461,7 @@ export default function RacePage() {
       </Tabs>
 
       {/* HUD da Corrida ao Vivo (Pit Wall flutuante com dados consolidados dos pilotos do jogador) */}
-      {activeTab === 'corrida' &&
+      {activeSession === 'race' &&
         liveRaceState &&
         liveRaceState.grid &&
         liveRaceState.grid.length > 0 && (
