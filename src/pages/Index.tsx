@@ -9,19 +9,19 @@ import { simulateAiGridFiaStandings, normalizeEntityName } from '@/lib/f1-standi
 import { formatCurrency } from '@/lib/formatters'
 import {
   Trophy,
+  Flag,
   DollarSign,
   TrendingUp,
-  Award,
-  Zap,
-  Activity,
   UserCheck,
   ChevronRight,
-  Sliders,
-  Calendar,
-  Wrench,
   Radio,
   FileText,
+  Wrench,
+  Sliders,
   AlertTriangle,
+  Play,
+  RotateCcw,
+  Sparkles,
   Flame,
   CheckCircle2,
   Clock,
@@ -29,10 +29,14 @@ import {
   Info,
   CircleDot,
   Check,
+  HelpCircle,
+  Calendar,
+  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CircuitBlueprint, TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { DriverHelmet } from '@/components/DriverHelmet'
@@ -79,6 +83,7 @@ export default function Index() {
   const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
   const [circuits, setCircuits] = useState<CircuitModel[]>([])
   const [loading, setLoading] = useState(true)
+  const [initialFuelLoad, setInitialFuelLoad] = useState<number | null>(null)
 
   const loadDashboardData = async () => {
     if (!team || !season) {
@@ -86,13 +91,26 @@ export default function Index() {
       return
     }
     try {
-      const [dList, eList, pList, rList, cList] = await Promise.all([
+      const currentRoundForSetups = season.current_round || 1
+      const [dList, eList, pList, rList, cList, setupsList] = await Promise.all([
         f1Service.getTeamDrivers(team.id),
         f1Service.getTeamEvents(team.id, 20),
         f1Service.getTeamParts(team.id),
         f1Service.getSeasonRaceResults(season.id),
         f1Service.getAllCircuits().catch(() => [] as CircuitModel[]),
+        f1Service.getSessionSetups(team.id, season.id, currentRoundForSetups).catch(() => []),
       ])
+
+      try {
+        const raceSetup = setupsList?.find((s) => s.session === 'race')
+        if (raceSetup && typeof raceSetup.initial_fuel_load === 'number') {
+          setInitialFuelLoad(raceSetup.initial_fuel_load)
+        } else {
+          setInitialFuelLoad(null)
+        }
+      } catch {
+        setInitialFuelLoad(null)
+      }
 
       // Se não houver piloto reserva diretamente em team_id, buscar quem tem reserve_team_id
       let fullDrivers = [...dList]
@@ -278,9 +296,15 @@ export default function Index() {
   }, [parts])
 
   // Estimativas de telemetria da sessão
-  const tireWearPct = Math.round(Math.min(95, Math.max(15, 100 - avgPartCondition + 12)))
-  const fuelPct = 58
-  const ersPct = 76
+  const tireWearPct =
+    parts.length > 0 ? Math.round(Math.min(95, Math.max(15, 100 - avgPartCondition + 12))) : 100
+
+  // Combustível: carga inicial do setup de corrida (fallback neutro 100%)
+  const fuelPct = initialFuelLoad ?? 100
+  const fuelSubtitle = 'carga inicial'
+
+  // ERS: condição da unidade de potência (50% elétrico no regulamento 2026)
+  const ersPct = team ? Math.max(0, 100 - (team.active_engine_wear ?? 0)) : 100
 
   // Pilotos organizados: titulares (1 e 2) e reserva
   const { titularDrivers, reserveDriver } = useMemo(() => {
@@ -776,60 +800,101 @@ export default function Index() {
             <div className="w-full max-w-sm rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-white/10 p-4 font-mono text-xs shadow-2xl space-y-3">
               {/* Barra 1: DESGASTE PNEUS */}
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
-                  DESGASTE PNEUS
-                </span>
+                <div className="w-36 flex flex-col min-w-0">
+                  <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider truncate">
+                    DESGASTE PNEUS
+                  </span>
+                  <span className="text-[9px] text-[#55657E] font-mono leading-tight truncate">
+                    média das peças
+                  </span>
+                </div>
                 <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
                   <div
                     className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
                     style={{ width: `${tireWearPct}%` }}
                   />
                 </div>
-                <span className="text-white font-mono font-bold w-10 text-right">
+                <span className="text-white font-mono font-bold w-12 text-right">
                   {tireWearPct}%
                 </span>
               </div>
 
               {/* Barra 2: COMBUSTÍVEL */}
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
-                  COMBUSTÍVEL
-                </span>
+                <div className="w-36 flex flex-col min-w-0">
+                  <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider truncate">
+                    COMBUSTÍVEL
+                  </span>
+                  <span className="text-[9px] text-[#55657E] font-mono leading-tight truncate">
+                    {fuelSubtitle}
+                  </span>
+                </div>
                 <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
                   <div
                     className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
-                    style={{ width: `${fuelPct}%` }}
+                    style={{ width: `${Math.min(100, fuelPct)}%` }}
                   />
                 </div>
-                <span className="text-white font-mono font-bold w-10 text-right">{fuelPct}%</span>
+                <span className="text-white font-mono font-bold w-12 text-right">{fuelPct}%</span>
               </div>
 
               {/* Barra 3: ERS */}
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
-                  ERS
-                </span>
+                <div className="w-36 flex flex-col min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider truncate">
+                      ERS
+                    </span>
+                    <TooltipProvider delayDuration={150}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center text-[#55657E] hover:text-cyan-400 transition-colors focus:outline-none"
+                            aria-label="Informações sobre o ERS"
+                          >
+                            <HelpCircle className="w-3 h-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="bg-[#0B0E14] text-cyan-300 border border-cyan-500/30 text-xs font-mono shadow-xl max-w-xs"
+                        >
+                          ≈ condição da unidade de potência (50% elétrico)
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <span className="text-[9px] text-[#55657E] font-mono leading-tight truncate">
+                    unidade de energia
+                  </span>
+                </div>
                 <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
                   <div
                     className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
                     style={{ width: `${ersPct}%` }}
                   />
                 </div>
-                <span className="text-white font-mono font-bold w-10 text-right">{ersPct}%</span>
+                <span className="text-white font-mono font-bold w-12 text-right">{ersPct}%</span>
               </div>
 
               {/* Barra 4: MOTOR */}
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider w-32">
-                  MOTOR
-                </span>
+                <div className="w-36 flex flex-col min-w-0">
+                  <span className="text-[11px] text-[#8B95A7] uppercase font-bold tracking-wider truncate">
+                    MOTOR
+                  </span>
+                  <span className="text-[9px] text-[#55657E] font-mono leading-tight truncate">
+                    desgaste do carro
+                  </span>
+                </div>
                 <div className="flex-1 bg-black/60 h-2 rounded-full overflow-hidden border border-white/10">
                   <div
                     className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_10px_#22D3EE]"
                     style={{ width: `${engineHealthPct}%` }}
                   />
                 </div>
-                <span className="text-white font-mono font-bold w-10 text-right">
+                <span className="text-white font-mono font-bold w-12 text-right">
                   {engineHealthPct}%
                 </span>
               </div>
