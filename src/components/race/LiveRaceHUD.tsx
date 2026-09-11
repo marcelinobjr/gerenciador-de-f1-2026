@@ -65,14 +65,58 @@ export function LiveRaceHUD({
   onApplyTeamOrder,
   teamOrderActive = false,
 }: LiveRaceHUDProps) {
-  const [collapsed, setCollapsed] = useState(false)
+  // Se a corrida já estiver finalizada, inicia recolhido
+  const [collapsed, setCollapsed] = useState(isRaceFinished)
+
+  // Quando isRaceFinished mudar para true, recolhe automaticamente o HUD
+  React.useEffect(() => {
+    if (isRaceFinished) {
+      setCollapsed(true)
+    }
+  }, [isRaceFinished])
 
   // Identifica pódio
   const podiumDrivers = isRaceFinished
     ? playerDrivers.filter((d) => !d.dnf && d.position <= 3).sort((a, b) => a.position - b.position)
     : []
 
+  const handleScrollToResults = () => {
+    const el = document.getElementById('race-official-results')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
   if (collapsed) {
+    if (isRaceFinished) {
+      return (
+        <aside
+          aria-label="HUD da Corrida"
+          className="fixed bottom-5 right-5 z-40 animate-fade-in flex items-center gap-2"
+        >
+          <Button
+            onClick={() => {
+              handleScrollToResults()
+            }}
+            className="h-10 px-4 rounded-full bg-[#090D15]/95 hover:bg-[#121927] border border-emerald-500/60 text-emerald-300 shadow-2xl backdrop-blur-md flex items-center gap-2 group transition-all cursor-pointer"
+            title="Ver Resultados Oficiais"
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-mono font-bold">Corrida Finalizada — Ver Resultado</span>
+          </Button>
+          <Button
+            onClick={() => setCollapsed(false)}
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-full bg-[#090D15]/80 hover:bg-[#121927] border border-cyan-500/40 text-cyan-300 backdrop-blur-md"
+            title="Reabrir HUD de Telemetria"
+          >
+            <Activity className="w-4 h-4" />
+          </Button>
+        </aside>
+      )
+    }
+
     return (
       <aside aria-label="HUD da Corrida" className="fixed bottom-5 right-5 z-40 animate-fade-in">
         <Button
@@ -90,7 +134,7 @@ export function LiveRaceHUD({
   return (
     <aside
       aria-label="Painel de telemetria ao vivo"
-      className="fixed bottom-4 right-4 z-40 max-w-sm sm:max-w-md w-[calc(100vw-2rem)] rounded-2xl bg-[#090D15]/90 border border-cyan-500/40 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.7)] text-[#F5F7FA] overflow-hidden font-mono transition-all duration-300 animate-in fade-in slide-in-from-bottom-4"
+      className="fixed bottom-4 right-4 z-40 max-w-[360px] w-[calc(100vw-2rem)] rounded-2xl bg-[#090D15]/95 border border-cyan-500/40 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.7)] text-[#F5F7FA] overflow-hidden font-mono transition-all duration-300 animate-in fade-in slide-in-from-bottom-4"
     >
       {/* Header do HUD */}
       <div className="px-3.5 py-2.5 bg-gradient-to-r from-cyan-950/40 via-[#0B0F19] to-slate-900/60 border-b border-[#1F2733] flex items-center justify-between gap-2">

@@ -112,7 +112,10 @@ export function RaceResultsTable({
 
   return (
     <>
-      <Card className="bg-[#11161F] border-[#1F2733] shadow-xl">
+      <Card
+        id="race-official-results"
+        className="bg-[#11161F] border-[#1F2733] shadow-xl scroll-mt-24"
+      >
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#1F2733] pb-4">
           <div>
             <span className="eyebrow text-[#00A6FB] text-[10px] tracking-wider uppercase block">
