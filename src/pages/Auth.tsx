@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122301-c97f3.png'
 
 export default function AuthPage() {
   const { login, register } = useAuth()
@@ -116,21 +117,13 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 bg-[#0B0E14] text-[#F5F7FA] overflow-hidden">
-      {/* Background circuit grid texture (pure CSS) */}
+      {/* Imagem de fundo: Garagem oficial F1 2026 */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-25"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, #1F2733 1px, transparent 1px),
-            linear-gradient(to bottom, #1F2733 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-        }}
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        style={{ backgroundImage: `url(${heroGarageBg})` }}
       />
-
-      {/* Ambient glowing radial effects */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#E10600]/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-72 h-72 bg-[#00A6FB]/10 rounded-full blur-2xl pointer-events-none" />
+      {/* Overlay escuro ~75-85% para garantir legibilidade dos formulários */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#06080E]/85 via-[#06080E]/75 to-[#06080E]/90 pointer-events-none" />
 
       {/* Main card */}
       <div className="relative z-10 w-full max-w-md bg-[#11161F] border border-[#1F2733] rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur-md">

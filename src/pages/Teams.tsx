@@ -16,6 +16,7 @@ import {
   normalizeEntityName,
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
+import { AmbientBackground } from '@/components/AmbientBackground'
 import { DriverModel, PartModel, RaceResultModel, TeamModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -627,7 +628,8 @@ export default function TeamsPage() {
   }, [allDisplayTeams, search, engineFilter])
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up">
+      <AmbientBackground />
       {/* Input de arquivo global oculto para upload de foto de carro */}
       <input
         type="file"

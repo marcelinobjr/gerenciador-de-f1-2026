@@ -24,15 +24,13 @@ export function AmbientBackground({ className = '', opacity = 1 }: AmbientBackgr
         style={{ backgroundImage: `url(${heroGarageBg})` }}
       />
 
-      {/* Camada difusa de iluminação dark de garagem */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#06080E]/85 via-[#06080E]/70 to-[#06080E]/95 pointer-events-none" />
+      {/* Camada de overlay escuro (degradê preto semitransparente 75-85%) para garantir legibilidade máxima */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#06080E]/85 via-[#06080E]/75 to-[#06080E]/90 pointer-events-none" />
 
-      {/* Luzes vermelhas de teto e glow atmosférico F1 2026 */}
-      <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-[#E10600]/20 via-[#E10600]/5 to-transparent blur-2xl pointer-events-none" />
-      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-[#E10600]/15 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-[#E10600]/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-10 left-1/3 w-[520px] h-48 bg-[#E10600]/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute top-2/3 left-10 w-72 h-72 bg-cyan-500/5 rounded-full blur-[120px] pointer-events-none" />
+      {/* Sutis glows atmosféricos sem poluição visual sobre a foto */}
+      <div className="absolute top-0 left-0 right-0 h-36 bg-gradient-to-b from-[#E10600]/15 via-transparent to-transparent blur-xl pointer-events-none" />
+      <div className="absolute top-1/4 -left-20 w-80 h-80 bg-[#E10600]/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute top-1/3 -right-20 w-80 h-80 bg-[#E10600]/10 rounded-full blur-[100px] pointer-events-none" />
     </div>
   )
 }
