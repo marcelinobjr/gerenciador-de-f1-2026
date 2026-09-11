@@ -373,15 +373,15 @@ export default function CalendarPage() {
                 {/* Banner de Exibicao do Circuito (~16:9) */}
                 <div className="relative w-full aspect-[16/9] max-h-64 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
                   {activeCircuitImage ? (
-                    // Exibicao da imagem (fundo adaptavel neutro para funcionar perfeitamente com imagens claras ou escuras)
-                    <div className="w-full h-full relative bg-[#F5F7FA] overflow-hidden flex items-center justify-center">
+                    // Exibicao da imagem (fundo escuro de alto contraste com mix-blend-mode: screen para traçados de circuito)
+                    <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden flex items-center justify-center p-2">
                       <img
                         src={activeCircuitImage}
                         alt={`Traçado do ${gp.circuit}`}
-                        className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                        className="w-full h-full object-contain object-center [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] transition-transform duration-300 group-hover:scale-105"
                       />
                       {/* Leve gradiente escuro no rodape para legibilidade das tags */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-black/30 pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-black/20 pointer-events-none" />
 
                       {/* Tag sutil de identificacao da imagem */}
                       <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] font-mono text-[#F5F7FA] drop-shadow-md z-10">

@@ -592,7 +592,7 @@ export default function Index() {
                 <img
                   src={currentCircuitPhotoUrl}
                   alt={`Traçado ${currentGP.name}`}
-                  className="w-full h-full object-contain filter drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]"
+                  className="w-full h-full object-contain [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]"
                 />
               ) : (
                 <svg
@@ -744,7 +744,7 @@ export default function Index() {
                   <img
                     src={currentCircuitPhotoUrl}
                     alt={`Traçado ${currentGP.circuit}`}
-                    className="w-full h-full object-contain filter drop-shadow-[0_0_12px_rgba(255,255,255,0.45)] group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-contain [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_12px_rgba(255,255,255,0.75)] group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
                   <svg

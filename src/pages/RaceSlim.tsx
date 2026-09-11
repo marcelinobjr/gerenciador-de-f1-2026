@@ -4310,14 +4310,14 @@ export default function RacePage() {
                 <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] overflow-hidden flex flex-col justify-between h-full shadow-xl">
                   <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
                     {activeCircuitImage ? (
-                      <div className="w-full h-full relative bg-[#F5F7FA] overflow-hidden flex items-center justify-center">
+                      <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden flex items-center justify-center p-2">
                         <img
                           src={activeCircuitImage}
                           alt={`Traçado do ${gpInfo.circuit}`}
-                          className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                          className="w-full h-full object-contain object-center [mix-blend-mode:screen] brightness-[1.6] filter drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] transition-transform duration-300 group-hover:scale-105"
                         />
                         {/* Gradiente escuro para legibilidade */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-[#0B0E14]/40 to-black/30 pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-[#0B0E14]/40 to-black/20 pointer-events-none" />
 
                         {/* Badge superior com Rodada e Circuito */}
                         <div className="absolute top-2.5 left-2.5 z-10">
