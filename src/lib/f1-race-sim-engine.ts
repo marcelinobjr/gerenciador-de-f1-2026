@@ -43,6 +43,9 @@ export function getCircuitOvertakeFactor(circuitName: string, circuitTrack?: str
   if (cName.includes('las vegas')) {
     return 0.82
   }
+  if (cName.includes('madri') || cName.includes('madrid') || cName.includes('madring')) {
+    return 0.8 // Circuito Madring: reta longa de 1,3 km favorável ao modo overtake 2026
+  }
   if (cName.includes('red bull ring') || cName.includes('spielberg')) {
     return 0.78
   }

@@ -689,7 +689,7 @@ export const f1Service = {
           rain: rd.rain,
           defense: rd.defense,
           fp_sessions_completed: 0,
-          fp_scheduled_rounds: [7, 13], // default scheduled rounds (ex: Imola & Spa)
+          fp_scheduled_rounds: [7, 13], // default scheduled rounds (ex: Madri & Spa)
         })
       } catch (_) {
         await pb.collection('drivers').create({

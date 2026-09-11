@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122301-c97f3.png'
+import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122312-fc092.png'
 
 export default function AuthPage() {
   const { login, register } = useAuth()
@@ -117,9 +117,9 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 bg-[#0B0E14] text-[#F5F7FA] overflow-hidden">
-      {/* Imagem de fundo: Garagem oficial F1 2026 */}
+      {/* Imagem de fundo: Garagem oficial F1 2026 com carro branco e iluminação neon */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_35%] md:bg-center bg-no-repeat pointer-events-none"
         style={{ backgroundImage: `url(${heroGarageBg})` }}
       />
       {/* Overlay escuro ~75-85% para garantir legibilidade dos formulários */}

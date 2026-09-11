@@ -126,21 +126,23 @@ export const TRACK_LAYOUTS: Record<number, CircuitTrackData> = {
       'Traçado urbano em torno do Hard Rock Stadium mesclando setor sinuoso da marina com reta oposta de 340 km/h.',
   },
 
-  // 7: Imola (Itália) - Anti-horário
-  // Autodromo Enzo e Dino Ferrari: Reta principal partindo da Rivazza, Variante Tamburello chicane (T2-4),
-  // Variante Villeneuve (T5-6), subida para a famosa Tosa hairpin (T7), subida íngreme Piratella (T9),
-  // mergulho técnico nas Acque Minerali (T11-13), Variante Alta (T14-15) e a dupla curva cega Rivazza (T17-18).
+  // 7: Madri (Madring, Espanha) - Horário
+  // Circuito semi-urbano Madring (IFEMA e Valdebebas):
+  // Reta principal dos boxes em IFEMA, freada técnica para as curvas 1-2-3, passagem pelo túnel sob a M-11,
+  // setor veloz em Valdebebas com curvas sinuosas de média e alta, a impressionante curva parabólica inclinada (banking),
+  // monumental reta longa de ultrapassagem (~1,3 km com modo overtake 2026 a mais de 340 km/h)
+  // e retorno técnico com chicanes e grampos até a linha de chegada.
   7: {
     round: 7,
-    code: 'IMO',
-    name: 'Autodromo Enzo e Dino Ferrari, Imola',
+    code: 'MAD',
+    name: 'Circuito Madring, Madrid',
     viewBox: '0 0 320 220',
     svgPath:
-      'M 65 188 L 122 188 C 140 188 155 176 162 160 L 182 118 C 192 98 215 88 238 92 L 272 98 C 288 100 298 84 290 70 L 260 25 C 246 6 220 5 206 20 L 160 65 C 145 80 125 85 105 80 L 68 70 C 48 65 35 82 44 100 L 55 132 C 64 150 58 172 44 184 C 38 190 50 188 65 188 Z',
-    startFinish: { x: 92, y: 188 },
-    antiClockwise: true,
+      'M 58 176 L 165 176 C 185 176 200 162 208 144 L 222 112 C 230 95 248 84 268 84 L 290 84 C 304 84 314 70 306 58 L 290 34 C 280 20 262 14 246 22 L 182 48 C 166 54 152 46 148 30 L 142 22 C 134 10 118 8 108 18 L 76 52 C 64 64 62 82 72 96 L 90 120 C 100 134 94 154 78 162 L 60 172 C 54 175 54 176 58 176 Z',
+    startFinish: { x: 108, y: 176 },
+    antiClockwise: false,
     description:
-      'Clássico histórico anti-horário na Emília-Romanha: Variante Tamburello, Tosa, Piratella e Acque Minerali.',
+      'Estreia na F1 2026: circuito semi-urbano Madring com monumental reta de ultrapassagem de 1,3 km e 22 curvas técnicas.',
   },
 
   // 8: Mônaco (Monte Carlo) - Horário

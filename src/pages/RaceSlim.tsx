@@ -60,6 +60,7 @@ import {
   AlertTriangle,
   Flag,
   Wrench,
+  Fuel,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
