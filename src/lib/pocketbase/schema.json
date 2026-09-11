@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T15:43:52.826Z",
+  "generatedAt": "2026-09-11T16:05:51.815Z",
   "collections": [
     {
       "name": "users",
@@ -434,6 +434,20 @@
           "type": "file",
           "required": false,
           "system": false
+        },
+        {
+          "name": "next_team_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "next_contract_role",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["titular", "reserva"]
         }
       ],
       "indexes": [

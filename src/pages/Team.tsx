@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
-import { DriverModel } from '@/types/f1'
+import { DriverModel, RaceResultModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
 import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { EngineSupplierSpec } from '@/types/f1'
 import { getCountryFlag } from '@/lib/country-flags'
 import { toast } from '@/hooks/use-toast'
+import { getFiaPointsForPosition, normalizeEntityName } from '@/lib/f1-standings-calculator'
 import {
   Users,
   Briefcase,
@@ -33,6 +34,7 @@ import {
   Disc,
   Cpu,
   Zap,
+  Lock,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -56,6 +58,7 @@ export default function TeamPage() {
 
   const [teamDrivers, setTeamDrivers] = useState<DriverModel[]>([])
   const [marketDrivers, setMarketDrivers] = useState<DriverModel[]>([])
+  const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modals state
@@ -163,12 +166,15 @@ export default function TeamPage() {
       return
     }
     try {
-      const [tDrivers, mDrivers] = await Promise.all([
+      const seasonYear = season?.year || 2026
+      const [tDrivers, mDrivers, results] = await Promise.all([
         f1Service.getTeamDrivers(team.id),
-        f1Service.getMarketDrivers(),
+        f1Service.getSillySeasonMarketDrivers(seasonYear),
+        season?.id ? f1Service.getSeasonRaceResults(season.id) : Promise.resolve([]),
       ])
       setTeamDrivers(tDrivers)
       setMarketDrivers(mDrivers)
+      setRaceResults(results)
     } catch (err) {
       console.error('Error loading team page data:', err)
     } finally {
@@ -312,6 +318,78 @@ export default function TeamPage() {
   // Flag emoji helper
   const getFlag = (nat: string) => getCountryFlag(nat)
 
+  const currentRound = season?.current_round || 1
+  const isSillySeasonOpen = currentRound >= 12
+  const nextSeasonYear = (season?.year || 2026) + 1
+
+  // Mapa de desempenho por piloto para reajuste de preço na temporada atual
+  const driverPerformanceMap = useMemo(() => {
+    const stats: Record<
+      string,
+      { points: number; bestPos: number; wins: number; podiums: number }
+    > = {}
+
+    // Prepara índices de busca
+    const nameToStatsKey: Record<string, string> = {}
+    marketDrivers.forEach((d) => {
+      stats[d.id] = { points: 0, bestPos: 99, wins: 0, podiums: 0 }
+      nameToStatsKey[normalizeEntityName(d.name)] = d.id
+      nameToStatsKey[
+        d.name
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]/g, '')
+      ] = d.id
+    })
+
+    raceResults.forEach((res) => {
+      let targetId = stats[res.driver_id] ? res.driver_id : ''
+      if (!targetId && res.expand?.driver_id?.name) {
+        const norm = normalizeEntityName(res.expand.driver_id.name)
+        targetId = nameToStatsKey[norm] || ''
+      }
+      if (!targetId && (res as any).driverName) {
+        const norm = normalizeEntityName((res as any).driverName)
+        targetId = nameToStatsKey[norm] || ''
+      }
+
+      if (targetId && stats[targetId]) {
+        const pts =
+          typeof res.points === 'number' && res.points > 0
+            ? res.points
+            : getFiaPointsForPosition(res.position) +
+              (res.fastest_lap && res.position <= 10 ? 1 : 0)
+        stats[targetId].points += pts
+        if (res.position < stats[targetId].bestPos) stats[targetId].bestPos = res.position
+        if (res.position === 1) stats[targetId].wins += 1
+        if (res.position <= 3) stats[targetId].podiums += 1
+      }
+    })
+
+    const multipliers: Record<
+      string,
+      { multiplier: number; explanation: string; adjustedSalary: number }
+    > = {}
+
+    marketDrivers.forEach((d) => {
+      const st = stats[d.id] || { points: 0, bestPos: 99, wins: 0, podiums: 0 }
+      const perf = f1Service.calculateDriverPerformancePriceMultiplier(
+        st.points,
+        st.bestPos,
+        st.wins,
+        st.podiums,
+        currentRound,
+      )
+      multipliers[d.id] = {
+        multiplier: perf.multiplier,
+        explanation: perf.explanation,
+        adjustedSalary: Math.round(d.salary * perf.multiplier),
+      }
+    })
+
+    return multipliers
+  }, [marketDrivers, raceResults, currentRound])
+
   // Renegotiate contract handler
   const handleRenegotiate = async () => {
     if (!renegotiateDriver || !team) return
@@ -399,6 +477,14 @@ export default function TeamPage() {
 
   // Open Hire dialog
   const openHireDialog = (driver: DriverModel) => {
+    if (!isSillySeasonOpen) {
+      toast({
+        variant: 'destructive',
+        title: 'Mercado Fechado',
+        description: 'O mercado abre na rodada 12 — Silly Season',
+      })
+      return
+    }
     setHireDriver(driver)
     setHireRole('titular')
     if (titularDrivers.length >= 2) {
@@ -408,48 +494,31 @@ export default function TeamPage() {
     }
   }
 
-  // Hire driver handler
+  // Hire driver handler (Silly Season para próxima temporada)
   const handleHire = async () => {
     if (!hireDriver || !team) return
+    if (!isSillySeasonOpen) {
+      toast({
+        variant: 'destructive',
+        title: 'Mercado Fechado',
+        description: 'O mercado abre na rodada 12 — Silly Season',
+      })
+      return
+    }
     setIsProcessing(true)
     try {
-      const variation = 0.95 + Math.random() * 0.1
-      const finalSalary = Math.round(hireDriver.salary * variation)
+      const perf = driverPerformanceMap[hireDriver.id]
+      const finalSalary = perf?.adjustedSalary || hireDriver.salary
 
-      if (team.budget < finalSalary) {
-        toast({
-          variant: 'destructive',
-          title: 'Orçamento Insuficiente',
-          description: `Orçamento insuficiente para bancar o salário de ${formatCurrency(finalSalary)}.`,
-        })
-        setIsProcessing(false)
-        return
-      }
+      // Assina pré-contrato para a próxima temporada: termina a atual na equipe de origem e migra na virada do ano
+      await f1Service.signNextSeasonDriver(hireDriver.id, team.id, hireRole, finalSalary)
 
-      if (hireRole === 'titular') {
-        if (titularDrivers.length >= 2 && driverToReplaceId) {
-          const replacedDriver = titularDrivers.find((d) => d.id === driverToReplaceId)
-          if (replacedDriver) {
-            await f1Service.fireDriver(replacedDriver.id)
-          }
-        }
-        await f1Service.hireDriver(hireDriver.id, team.id, 'titular')
-      } else {
-        if (reserveDriver) {
-          await f1Service.fireDriver(reserveDriver.id)
-        }
-        await f1Service.hireDriver(hireDriver.id, team.id, 'reserva')
-      }
-
-      await f1Service.addEvent(
-        team.id,
-        `${hireDriver.name} contratado como ${hireRole === 'titular' ? 'titular' : 'piloto reserva'} com salário de ${formatCurrency(finalSalary)}/ano!`,
-        'contrato',
-      )
+      const headline = `📝 PRÉ-CONTRATO ${nextSeasonYear}: ${hireDriver.name} assina com a ${team.name} para a próxima temporada!`
+      await f1Service.addEvent(team.id, headline, 'contrato')
 
       toast({
-        title: 'Contratação Realizada!',
-        description: `${hireDriver.name} é o novo ${hireRole === 'titular' ? 'titular' : 'piloto reserva'} da ${team.name}.`,
+        title: `Contrato para a temporada ${nextSeasonYear} assinado!`,
+        description: `${hireDriver.name} defenderá a ${team.name} como ${hireRole === 'titular' ? 'titular' : 'piloto reserva'} em ${nextSeasonYear}. Ele termina 2026 na equipe atual.`,
       })
 
       setHireDriver(null)
@@ -458,7 +527,7 @@ export default function TeamPage() {
       toast({
         variant: 'destructive',
         title: 'Erro na contratação',
-        description: err?.message || 'Não foi possível contratar o piloto.',
+        description: err?.message || 'Não foi possível assinar o pré-contrato.',
       })
     } finally {
       setIsProcessing(false)
@@ -1177,18 +1246,53 @@ export default function TeamPage() {
       {/* Seção 3: Mercado de Pilotos Disponíveis (F2 + Mercado) */}
       <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
         <CardHeader className="pb-3 border-b border-[#1A2333]">
+          {/* Aviso Silly Season: Rodada < 12 bloqueada vs Rodada >= 12 aberta */}
+          {!isSillySeasonOpen ? (
+            <div className="mb-4 p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/50 flex items-center gap-3">
+              <Lock className="w-5 h-5 text-amber-400 shrink-0" />
+              <div className="space-y-0.5 text-xs font-mono">
+                <strong className="text-amber-300 font-bold block text-sm">
+                  O mercado abre na rodada 12 — Silly Season
+                </strong>
+                <p className="text-amber-200/80">
+                  Rodada atual: {currentRound} de 24. As negociações de pilotos entre escuderias e
+                  pré-contratos para {nextSeasonYear} estão temporariamente bloqueadas pela FIA até
+                  a metade da temporada.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 text-xs font-mono">
+                <Flame className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div>
+                  <strong className="text-emerald-300 font-bold block">
+                    Silly Season Aberta! Negociações para a Temporada {nextSeasonYear}
+                  </strong>
+                  <span className="text-[#8B95A7]">
+                    Contratos assinados agora entram em vigor no próximo ano. Salários reajustados
+                    pelo desempenho na pista.
+                  </span>
+                </div>
+              </div>
+              <Badge className="bg-emerald-500 text-black font-bold text-xs uppercase px-2.5 py-1">
+                R{currentRound}/24 Ativa
+              </Badge>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-                MERCADO GLOBAL DE TALENTOS
+                MERCADO GLOBAL DE TALENTOS & SILLY SEASON
               </span>
               <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 <Briefcase className="w-5 h-5 text-amber-400" />
-                Mercado de Pilotos Disponíveis ({filteredMarket.length} pilotos)
+                Mercado de Pilotos ({filteredMarket.length} pilotos disponíveis)
               </CardTitle>
               <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-                Garimpe jovens promessas do grid atual da F2 ou veteranos livres no mercado sem
-                assento em 2026.
+                Garimpe estrelas da F1, jovens promessas da F2 ou veteranos com preços reajustados
+                por desempenho.
               </CardDescription>
             </div>
 
@@ -1381,12 +1485,22 @@ export default function TeamPage() {
                     <th className="py-2.5 px-2 text-center">Cons</th>
                     <th className="py-2.5 px-2 text-center">Chuva</th>
                     <th className="py-2.5 px-2 text-center">Def</th>
-                    <th className="py-2.5 px-3">Salário Pedido</th>
+                    <th className="py-2.5 px-3">Salário / Reajuste</th>
+                    <th className="py-2.5 px-3">Status Silly Season</th>
                     <th className="py-2.5 px-3 text-right">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1F2733]/60">
                   {filteredMarket.map((driver) => {
+                    const perf = driverPerformanceMap[driver.id] || {
+                      multiplier: 1,
+                      explanation: 'Estável',
+                      adjustedSalary: driver.salary,
+                    }
+                    const isAlreadySignedToPlayer = driver.next_team_id === team?.id
+                    const isSignedToRival =
+                      !!driver.next_team_id && driver.next_team_id !== team?.id
+
                     return (
                       <tr key={driver.id} className="hover:bg-[#161D29]/40 transition-colors">
                         <td className="py-3 px-3">{getCategoryBadge(driver.category)}</td>
@@ -1395,9 +1509,17 @@ export default function TeamPage() {
                             <span className="text-base" title={driver.nationality}>
                               {getFlag(driver.nationality)}
                             </span>
-                            <span className="font-extrabold text-[#F5F7FA] text-base group-hover:text-cyan-400 transition-colors">
-                              {driver.name}
-                            </span>{' '}
+                            <div>
+                              <span className="font-extrabold text-[#F5F7FA] text-base group-hover:text-cyan-400 transition-colors block">
+                                {driver.name}
+                              </span>
+                              {driver.team_id && (
+                                <span className="text-[10px] text-zinc-400 font-mono">
+                                  Equipe 2026:{' '}
+                                  {driver.team_id === team?.id ? 'Sua Equipe' : 'Grid F1'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="py-3 px-2 text-[#8B95A7]">{driver.age}</td>
@@ -1413,16 +1535,69 @@ export default function TeamPage() {
                         <td className="py-3 px-2 text-center font-bold text-amber-400">
                           {driver.defense}
                         </td>
-                        <td className="py-3 px-3 text-[#F5F7FA] font-bold">
-                          {formatCurrency(driver.salary)}
+                        <td className="py-3 px-3 text-[#F5F7FA]">
+                          <div className="font-bold">{formatCurrency(perf.adjustedSalary)}</div>
+                          {perf.multiplier !== 1 && (
+                            <div
+                              className={`text-[10px] font-mono ${
+                                perf.multiplier > 1 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                              title={perf.explanation}
+                            >
+                              {perf.multiplier > 1
+                                ? `+${Math.round((perf.multiplier - 1) * 100)}% por desempenho`
+                                : `-${Math.round((1 - perf.multiplier) * 100)}% por desempenho`}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          {isAlreadySignedToPlayer ? (
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono">
+                              ✓ Assinado p/ {nextSeasonYear}
+                            </Badge>
+                          ) : isSignedToRival ? (
+                            <Badge className="bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-mono">
+                              Assinado com rival
+                            </Badge>
+                          ) : isSillySeasonOpen ? (
+                            <Badge
+                              variant="outline"
+                              className="text-amber-400 border-amber-500/30 text-[10px] font-mono"
+                            >
+                              Livre p/ {nextSeasonYear}
+                            </Badge>
+                          ) : (
+                            <span className="text-[10px] text-zinc-500 font-mono">Abre na R12</span>
+                          )}
                         </td>
                         <td className="py-3 px-3 text-right">
                           <Button
                             size="sm"
+                            disabled={
+                              !isSillySeasonOpen || isAlreadySignedToPlayer || isSignedToRival
+                            }
                             onClick={() => openHireDialog(driver)}
-                            className="bg-[#E10600] hover:bg-[#FF2E25] text-white text-xs h-7 px-3 shadow"
+                            className={`${
+                              !isSillySeasonOpen
+                                ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                                : isAlreadySignedToPlayer
+                                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default'
+                                  : isSignedToRival
+                                    ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                                    : 'bg-[#E10600] hover:bg-[#FF2E25] text-white'
+                            } text-xs h-7 px-3 shadow`}
                           >
-                            Contratar
+                            {!isSillySeasonOpen ? (
+                              <span className="flex items-center gap-1">
+                                <Lock className="w-3 h-3" /> Bloqueado
+                              </span>
+                            ) : isAlreadySignedToPlayer ? (
+                              'Contratado'
+                            ) : isSignedToRival ? (
+                              'Indisponível'
+                            ) : (
+                              `Assinar p/ ${nextSeasonYear}`
+                            )}
                           </Button>
                         </td>
                       </tr>
@@ -1783,109 +1958,120 @@ export default function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Contratar Piloto (escolhendo Titular ou Reserva) */}
+      {/* Modal: Contratar Piloto (Pré-contrato Silly Season) */}
       <Dialog open={!!hireDriver} onOpenChange={(open) => !open && setHireDriver(null)}>
         <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-[#22C55E]" />
-              Contratar {hireDriver?.name}
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              Contrato para a temporada {nextSeasonYear}
             </DialogTitle>
             <DialogDescription className="text-xs text-[#8B95A7]">
-              Defina o papel do piloto na escuderia (Titular ou Reserva).
+              Silly Season: O piloto assina para o ano que vem ({nextSeasonYear}). Ele terminará a
+              temporada atual na equipe atual e migrará ao término da rodada 24.
             </DialogDescription>
           </DialogHeader>
 
-          {hireDriver && (
-            <div className="space-y-4 py-2 text-xs font-mono">
-              <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Salário Pedido:</span>
-                  <strong className="text-[#00A6FB]">
-                    {formatCurrency(hireDriver.salary)}/ano
-                  </strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Orçamento Disponível:</span>
-                  <span className="text-[#F5F7FA]">{formatCurrency(team?.budget ?? 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Categoria de Origem:</span>
-                  <span className="text-amber-400 font-bold uppercase">
-                    {hireDriver.category === 'f2' ? 'Fórmula 2' : 'Mercado F1'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Papel do piloto */}
-              <div className="space-y-2">
-                <label className="text-[#8B95A7] block text-xs">Papel a assumir na equipe:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setHireRole('titular')}
-                    className={`p-3 rounded-lg border text-center transition-all ${
-                      hireRole === 'titular'
-                        ? 'border-[#E10600] bg-[#E10600]/15 text-white font-bold'
-                        : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
-                    }`}
-                  >
-                    <div>Piloto Titular</div>
-                    <div className="text-[10px] text-[#8B95A7] mt-0.5">Disputa as 24 corridas</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setHireRole('reserva')}
-                    className={`p-3 rounded-lg border text-center transition-all ${
-                      hireRole === 'reserva'
-                        ? 'border-amber-500 bg-amber-500/15 text-amber-300 font-bold'
-                        : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
-                    }`}
-                  >
-                    <div>Piloto Reserva</div>
-                    <div className="text-[10px] text-[#8B95A7] mt-0.5">
-                      2 Treinos Livres + Reserva
+          {hireDriver &&
+            (() => {
+              const perf = driverPerformanceMap[hireDriver.id] || {
+                multiplier: 1,
+                explanation: 'Estável',
+                adjustedSalary: hireDriver.salary,
+              }
+              return (
+                <div className="space-y-4 py-2 text-xs font-mono">
+                  <div className="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-500/30 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#8B95A7]">Piloto Alvo:</span>
+                      <strong className="text-white text-sm">
+                        {hireDriver.name} ({hireDriver.age} anos)
+                      </strong>
                     </div>
-                  </button>
-                </div>
-              </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#8B95A7]">Vigência do Contrato:</span>
+                      <Badge className="bg-emerald-500 text-black font-bold text-[10px]">
+                        Temporada {nextSeasonYear}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#8B95A7]">Salário Base Inicial:</span>
+                      <span className="text-zinc-400 line-through">
+                        {formatCurrency(hireDriver.salary)}/ano
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#8B95A7]">Ajuste por Desempenho:</span>
+                      <span
+                        className={
+                          perf.multiplier >= 1
+                            ? 'text-emerald-400 font-bold'
+                            : 'text-rose-400 font-bold'
+                        }
+                      >
+                        {perf.multiplier >= 1
+                          ? `+${Math.round((perf.multiplier - 1) * 100)}%`
+                          : `-${Math.round((1 - perf.multiplier) * 100)}%`}{' '}
+                        ({perf.explanation})
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-emerald-500/20">
+                      <span className="text-white font-bold">
+                        Salário Acordado ({nextSeasonYear}):
+                      </span>
+                      <strong className="text-emerald-400 text-sm">
+                        {formatCurrency(perf.adjustedSalary)}/ano
+                      </strong>
+                    </div>
+                  </div>
 
-              {hireRole === 'titular' && titularDrivers.length >= 2 && (
-                <div className="space-y-2 pt-1">
-                  <label className="text-[#8B95A7] block text-xs">
-                    Sua equipe já possui 2 titulares. Quem será substituído?
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {titularDrivers.map((d) => (
+                  {/* Papel do piloto */}
+                  <div className="space-y-2">
+                    <label className="text-[#8B95A7] block text-xs">
+                      Papel a assumir na equipe em {nextSeasonYear}:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
                       <button
-                        key={d.id}
                         type="button"
-                        onClick={() => setDriverToReplaceId(d.id)}
-                        className={`p-2.5 rounded-lg border text-left transition-all ${
-                          driverToReplaceId === d.id
-                            ? 'border-[#E10600] bg-[#E10600]/10 text-white'
-                            : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7] hover:border-[#8B95A7]'
+                        onClick={() => setHireRole('titular')}
+                        className={`p-3 rounded-lg border text-center transition-all ${
+                          hireRole === 'titular'
+                            ? 'border-[#E10600] bg-[#E10600]/15 text-white font-bold'
+                            : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
                         }`}
                       >
-                        <div className="font-bold text-xs">{d.name}</div>
-                        <div className="text-[10px] text-[#8B95A7]">
-                          Salário: {formatCurrency(d.salary)}
+                        <div>Piloto Titular</div>
+                        <div className="text-[10px] text-[#8B95A7] mt-0.5">
+                          Assento titular oficial em {nextSeasonYear}
                         </div>
                       </button>
-                    ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setHireRole('reserva')}
+                        className={`p-3 rounded-lg border text-center transition-all ${
+                          hireRole === 'reserva'
+                            ? 'border-amber-500 bg-amber-500/15 text-amber-300 font-bold'
+                            : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
+                        }`}
+                      >
+                        <div>Piloto Reserva</div>
+                        <div className="text-[10px] text-[#8B95A7] mt-0.5">
+                          Treinos Livres e reserva em {nextSeasonYear}
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded bg-[#11161F] border border-[#1F2733] text-[11px] text-[#8B95A7]">
+                    ℹ️ <strong>Nota Silly Season:</strong> O piloto segue disputando as corridas
+                    restantes de 2026 pela sua equipe atual sem qualquer alteração no grid deste
+                    ano. Na virada para a temporada {nextSeasonYear}, ele será integrado
+                    automaticamente ao seu elenco.
                   </div>
                 </div>
-              )}
-
-              {hireRole === 'reserva' && reserveDriver && (
-                <div className="p-2.5 rounded bg-amber-950/20 border border-amber-500/30 text-[11px] text-amber-300">
-                  O atual piloto reserva <strong>{reserveDriver.name}</strong> será liberado para o
-                  mercado para dar vaga ao novo contratado.
-                </div>
-              )}
-            </div>
-          )}
+              )
+            })()}
 
           <DialogFooter>
             <Button
@@ -1900,7 +2086,9 @@ export default function TeamPage() {
               disabled={isProcessing}
               className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold"
             >
-              {isProcessing ? 'Assinando contrato...' : 'Concluir Contratação'}
+              {isProcessing
+                ? 'Registrando contrato...'
+                : `Assinar Contrato para a Temporada ${nextSeasonYear}`}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -173,6 +173,7 @@ export const f1Service = {
   async getMarketDrivers(): Promise<DriverModel[]> {
     try {
       // Drivers without active team_id and without active reserve_team_id
+      // (or in the market pool)
       const records = await pb.collection('drivers').getFullList<DriverModel>({
         filter: `(team_id = null || team_id = "") && (reserve_team_id = null || reserve_team_id = "")`,
         sort: '-speed',
@@ -182,6 +183,100 @@ export const f1Service = {
       console.error('Error fetching market drivers:', e)
       return []
     }
+  },
+
+  // Busca todos os pilotos elegíveis para negociação na Silly Season
+  // Inclui pilotos livres e pilotos com contrato expirando
+  async getSillySeasonMarketDrivers(currentSeasonYear = 2026): Promise<DriverModel[]> {
+    try {
+      const all = await pb.collection('drivers').getFullList<DriverModel>({
+        sort: '-speed',
+      })
+      return all.filter((d) => {
+        // Pilotos sem equipe
+        if (!d.team_id && !d.reserve_team_id) return true
+        // Pilotos com contrato expirando no ano corrente
+        if ((d.contract_end || currentSeasonYear) <= currentSeasonYear) return true
+        return false
+      })
+    } catch (e) {
+      console.error('Error fetching silly season market drivers:', e)
+      return []
+    }
+  },
+
+  // Assinar pré-contrato para a PRÓXIMA TEMPORADA (Silly Season da rodada 12+)
+  async signNextSeasonDriver(
+    driverId: string,
+    teamId: string,
+    role: 'titular' | 'reserva' = 'titular',
+    salary?: number,
+  ): Promise<DriverModel> {
+    const updateData: Partial<DriverModel> = {
+      next_team_id: teamId,
+      next_contract_role: role,
+    }
+    if (typeof salary === 'number' && salary > 0) {
+      updateData.salary = salary
+    }
+    return await pb.collection('drivers').update<DriverModel>(driverId, updateData)
+  },
+
+  // Cancelar pré-contrato para a próxima temporada
+  async cancelNextSeasonDriver(driverId: string): Promise<DriverModel> {
+    return await pb.collection('drivers').update<DriverModel>(driverId, {
+      next_team_id: null,
+      next_contract_role: null,
+    })
+  },
+
+  // Calcula o multiplicador de preço/salário de um piloto com base no desempenho da temporada atual
+  calculateDriverPerformancePriceMultiplier(
+    driverPoints = 0,
+    bestPosition = 99,
+    wins = 0,
+    podiums = 0,
+    currentRound = 1,
+  ): { multiplier: number; explanation: string } {
+    if (currentRound < 2) {
+      return { multiplier: 1, explanation: 'Início de temporada' }
+    }
+
+    // Base: pontos acumulados por corrida disputada
+    const ptsPerRound = driverPoints / Math.max(1, currentRound)
+
+    let factor = 1.0
+    const reasons: string[] = []
+
+    if (wins > 0) {
+      const winBonus = Math.min(0.4, wins * 0.12)
+      factor += winBonus
+      reasons.push(`${wins} vitória(s) (+${Math.round(winBonus * 100)}%)`)
+    }
+
+    if (podiums > wins) {
+      const podBonus = Math.min(0.25, (podiums - wins) * 0.06)
+      factor += podBonus
+      reasons.push(`${podiums - wins} pódio(s) (+${Math.round(podBonus * 100)}%)`)
+    }
+
+    if (ptsPerRound >= 12) {
+      factor += 0.35
+      reasons.push(`Ritmo de postulante ao título (+35%)`)
+    } else if (ptsPerRound >= 6) {
+      factor += 0.2
+      reasons.push(`Presença constante no Top 5 (+20%)`)
+    } else if (ptsPerRound >= 2) {
+      factor += 0.1
+      reasons.push(`Pontuador regular (+10%)`)
+    } else if (bestPosition > 16 && currentRound >= 12 && driverPoints === 0) {
+      factor -= 0.15
+      reasons.push(`Sem pontos no campeonato (-15%)`)
+    }
+
+    const clamped = Math.round(Math.max(0.75, Math.min(2.0, factor)) * 100) / 100
+    const explanation = reasons.length > 0 ? reasons.join(' • ') : 'Desempenho estável'
+    return { multiplier: clamped, explanation }
   },
 
   async updateDriver(id: string, data: Partial<DriverModel>): Promise<DriverModel> {
@@ -1059,6 +1154,177 @@ export const f1Service = {
     }
   },
 
+  // Process Silly Season moves for a specific round between 12 and 24
+  // Generates 1 to 3 moves among rival teams/drivers, taking into account player's signings
+  async processMidSeasonSillyMoves(
+    seasonId: string,
+    teamId: string,
+    round: number,
+  ): Promise<MarketMoveEvent[]> {
+    if (round < 12 || round > 24) return []
+
+    try {
+      const allDrivers = await pb.collection('drivers').getFullList<DriverModel>({
+        sort: '-speed',
+      })
+      const allTeams = await pb.collection('teams').getFullList<TeamModel>({
+        sort: '-strength',
+      })
+
+      // Equipes rivais (excluindo a do jogador)
+      const rivalTeams = allTeams.filter((t) => t.id !== teamId)
+      if (rivalTeams.length === 0) return []
+
+      const count = Math.floor(Math.random() * 3) + 1 // 1 a 3 movimentos
+      const moves: MarketMoveEvent[] = []
+      const currentYear = 2026
+
+      // Pilotos disponíveis que NÃO foram assinados pelo jogador (next_team_id !== teamId)
+      // e que ainda não têm destino para a próxima temporada
+      const candidateDrivers = allDrivers.filter(
+        (d) =>
+          d.next_team_id !== teamId &&
+          !d.next_team_id &&
+          d.team_id !== teamId &&
+          d.reserve_team_id !== teamId,
+      )
+
+      for (let i = 0; i < count; i++) {
+        const rand = Math.random()
+        const targetTeam = rivalTeams[Math.floor(Math.random() * rivalTeams.length)]
+        const targetTeamName = targetTeam?.name || 'Equipe Rival'
+
+        if (rand < 0.4) {
+          // Renovação entre pilotos da própria equipe rival
+          const teamDrivers = allDrivers.filter((d) => d.team_id === targetTeam.id && d.id)
+          const driverToRenew = teamDrivers[Math.floor(Math.random() * teamDrivers.length)]
+          if (driverToRenew && !moves.some((m) => m.driverName === driverToRenew.name)) {
+            const headline = `✍️ Renovação Silly Season (R${round}): ${targetTeamName} estende contrato de ${driverToRenew.name}!`
+            const details = `Com forte desempenho nas pistas, o piloto assina novo vínculo até ${currentYear + 2} para fechar as portas para rivais.`
+            const move: MarketMoveEvent = {
+              id: `mid_ren_${round}_${driverToRenew.id}_${Date.now()}`,
+              type: 'renovacao',
+              driverName: driverToRenew.name,
+              driverAge: driverToRenew.age,
+              previousTeam: targetTeamName,
+              newTeam: targetTeamName,
+              salary: Math.round(driverToRenew.salary * 1.1),
+              headline,
+              details,
+              impact: 'medio',
+            }
+            moves.push(move)
+            try {
+              await pb.collection('drivers').update(driverToRenew.id, {
+                next_team_id: targetTeam.id,
+                next_contract_role: 'titular',
+                contract_end: currentYear + 2,
+              })
+              await this.addEvent(teamId, headline, 'contrato')
+            } catch (err) {
+              console.warn('Erro ao atualizar renovação rival:', err)
+            }
+          }
+        } else if (rand < 0.75) {
+          // Contratação / Transferência de piloto livre ou de rival para próxima temporada
+          // Se o jogador já tiver assinado com um piloto (next_team_id === teamId), o rival busca outro!
+          const availableToSign = candidateDrivers.filter(
+            (d) =>
+              d.next_team_id !== teamId &&
+              !moves.some((m) => m.driverName === d.name) &&
+              d.team_id !== targetTeam.id,
+          )
+
+          if (availableToSign.length > 0) {
+            const picked = availableToSign[Math.floor(Math.random() * availableToSign.length)]
+            const prevTeamName = picked.team_id
+              ? allTeams.find((t) => t.id === picked.team_id)?.name || 'Grid F1'
+              : picked.category === 'f2'
+                ? 'Fórmula 2'
+                : 'Mercado Livre'
+
+            const headline = `🚨 Silly Season R${round}: ${targetTeamName} fecha pré-contrato com ${picked.name} para ${currentYear + 1}!`
+            const details = `Em movimento estratégico antecipado na rodada ${round}, a escuderia rival garante o assento do piloto para o ano seguinte.`
+            const move: MarketMoveEvent = {
+              id: `mid_sign_${round}_${picked.id}_${Date.now()}`,
+              type: picked.category === 'f2' ? 'promocao' : 'transferencia',
+              driverName: picked.name,
+              driverAge: picked.age,
+              previousTeam: prevTeamName,
+              newTeam: targetTeamName,
+              salary: Math.round(picked.salary * 1.15),
+              headline,
+              details,
+              impact: 'alto',
+            }
+            moves.push(move)
+            try {
+              await pb.collection('drivers').update(picked.id, {
+                next_team_id: targetTeam.id,
+                next_contract_role: 'titular',
+              })
+              await this.addEvent(teamId, headline, 'contrato')
+            } catch (err) {
+              console.warn('Erro ao atualizar contratação rival:', err)
+            }
+          }
+        } else {
+          // Promoção de jovem talento da F2
+          const f2Candidates = candidateDrivers.filter(
+            (d) =>
+              d.category === 'f2' &&
+              d.next_team_id !== teamId &&
+              !moves.some((m) => m.driverName === d.name),
+          )
+          if (f2Candidates.length > 0) {
+            const picked = f2Candidates[Math.floor(Math.random() * f2Candidates.length)]
+            const headline = `⭐ Revelação da F2: ${picked.name} assina com a ${targetTeamName} para ${currentYear + 1}!`
+            const details = `O destaque das categorias de base foi contratado na Silly Season e estreará na F1 na próxima temporada.`
+            const move: MarketMoveEvent = {
+              id: `mid_f2_${round}_${picked.id}_${Date.now()}`,
+              type: 'promocao',
+              driverName: picked.name,
+              driverAge: picked.age,
+              previousTeam: 'Fórmula 2',
+              newTeam: targetTeamName,
+              headline,
+              details,
+              impact: 'medio',
+            }
+            moves.push(move)
+            try {
+              await pb.collection('drivers').update(picked.id, {
+                next_team_id: targetTeam.id,
+                next_contract_role: 'titular',
+              })
+              await this.addEvent(teamId, headline, 'contrato')
+            } catch (err) {
+              console.warn('Erro ao promover piloto F2 rival:', err)
+            }
+          }
+        }
+      }
+
+      // Adiciona aos market_moves da season para histórico persistente
+      if (moves.length > 0) {
+        try {
+          const currentSeason = await pb.collection('seasons').getOne<SeasonModel>(seasonId)
+          const existingMoves = currentSeason.market_moves || []
+          await pb.collection('seasons').update(seasonId, {
+            market_moves: [...existingMoves, ...moves],
+          })
+        } catch (err) {
+          console.warn('Erro ao persistir market_moves parciais na temporada:', err)
+        }
+      }
+
+      return moves
+    } catch (e) {
+      console.error('Erro ao processar Silly Season intermediária:', e)
+      return []
+    }
+  },
+
   // Process End of Season (Round 24) Silly Season & Driver Market Moves
   async processEndOfSeasonMarket(seasonId: string, teamId: string): Promise<MarketMoveEvent[]> {
     try {
@@ -1093,6 +1359,7 @@ export const f1Service = {
             await pb.collection('drivers').update(d.id, {
               team_id: null,
               reserve_team_id: null,
+              next_team_id: null,
               role: null,
               category: 'mercado',
               age: d.age + 1,
@@ -1104,7 +1371,9 @@ export const f1Service = {
       // 2. Vencimento de contratos no fim do ano (contract_end <= 2026)
       const expiringDrivers = allDrivers.filter(
         (d) =>
-          (d.contract_end || 2026) <= currentYear && !moves.some((m) => m.driverName === d.name),
+          (d.contract_end || 2026) <= currentYear &&
+          !moves.some((m) => m.driverName === d.name) &&
+          !d.next_team_id, // Se já assinou pré-contrato para o próximo ano, não gera evento de vácuo
       )
 
       // Identificar os melhores pilotos livres e equipes de topo (McLaren, Ferrari, Red Bull, Mercedes)
@@ -1145,6 +1414,8 @@ export const f1Service = {
           await pb.collection('drivers').update(d.id, {
             contract_end: currentYear + 2,
             salary: Math.round(d.salary * 1.15),
+            next_team_id: destinationTeam.id,
+            next_contract_role: 'titular',
             age: d.age + 1,
           })
         } else if (d.category === 'f2' && d.speed >= 79 && Math.random() < 0.6) {
@@ -1164,12 +1435,23 @@ export const f1Service = {
           await pb.collection('drivers').update(d.id, {
             category: 'f1',
             contract_end: currentYear + 2,
+            next_team_id: targetTeam.id,
+            next_contract_role: 'titular',
             age: d.age + 1,
           })
         }
       }
 
-      // Se não gerou nenhum movimento, gerar pelo menos 2 movimentos narrativos para a silly season ser viva
+      // Se não gerou nenhum movimento, recuperar histórico já registrado durante a temporada ou defaults
+      try {
+        const seasonRec = await pb.collection('seasons').getOne<SeasonModel>(seasonId)
+        if (seasonRec?.market_moves && seasonRec.market_moves.length > 0) {
+          moves.push(...seasonRec.market_moves)
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+
       if (moves.length < 2) {
         moves.push({
           id: `move_default_1`,
@@ -1195,7 +1477,7 @@ export const f1Service = {
         })
       }
 
-      // Salvar os movimentos no registro da temporada atual
+      // Salvar todos os movimentos acumulados no registro da temporada atual
       try {
         await pb.collection('seasons').update(seasonId, {
           market_moves: moves,
@@ -1275,6 +1557,38 @@ export const f1Service = {
         }
       } catch (err) {
         console.warn('Erro ao limpar setups anteriores:', err)
+      }
+
+      // 2b. Migrar pilotos com pré-contrato (next_team_id) para a nova temporada
+      try {
+        const driversWithNext = await pb.collection('drivers').getFullList<DriverModel>({
+          filter: 'next_team_id != null && next_team_id != ""',
+        })
+        for (const d of driversWithNext) {
+          const nextTeam = d.next_team_id
+          const nextRole = d.next_contract_role || 'titular'
+          if (nextRole === 'reserva') {
+            await pb.collection('drivers').update(d.id, {
+              team_id: null,
+              reserve_team_id: nextTeam,
+              role: 'reserva',
+              next_team_id: null,
+              next_contract_role: null,
+              contract_end: nextYear + 1,
+            })
+          } else {
+            await pb.collection('drivers').update(d.id, {
+              team_id: nextTeam,
+              reserve_team_id: null,
+              role: 'titular',
+              next_team_id: null,
+              next_contract_role: null,
+              contract_end: nextYear + 1,
+            })
+          }
+        }
+      } catch (migErr) {
+        console.warn('Erro ao migrar pilotos com pré-contrato na troca de temporada:', migErr)
       }
 
       // 3. Update Season record: year + 1, current_round = 1, clear market_moves

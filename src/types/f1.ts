@@ -99,6 +99,8 @@ export interface DriverModel {
   morale?: number // 0-100 (afetada por resultados, contrato, etc.)
   physical_condition?: number // 0-100 (condição física afetada por fadiga acumulada e corridas)
   helmet?: string | null
+  next_team_id?: string | null
+  next_contract_role?: 'titular' | 'reserva' | null
   created?: string
   updated?: string
 }
