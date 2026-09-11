@@ -2255,6 +2255,10 @@ export default function RacePage() {
         `Volta ${currentLap} de ${totalLaps} • ${gpInfo.circuit} • Velocidade ${simSpeed}x`,
       )
 
+      // Sincroniza táticas e ordens de ritmo ativas no início da volta: as mudanças do jogador valem a partir da VOLTA SEGUINTE
+      const currentActiveTactics = { ...activeCarTacticsInLoopRef.current }
+      const currentActivePaceOrders = { ...activePaceOrdersInLoopRef.current }
+
       // Fator de facilidade de ultrapassagem do circuito atual
       const circuitOvertakeFactor = getCircuitOvertakeFactor(gpInfo.name, gpInfo.circuit)
       const currentTrackTemp = forecast.trackTemp || 35
@@ -2381,10 +2385,6 @@ export default function RacePage() {
       const previousTrackOrder = [...currentGrid]
         .filter((c) => !c.dnf)
         .sort((a, b) => (a.position || 99) - (b.position || 99))
-
-      // Sincroniza táticas e ordens de ritmo ativas no início da volta: as mudanças do jogador valem a partir da VOLTA SEGUINTE
-      const currentActiveTactics = { ...activeCarTacticsInLoopRef.current }
-      const currentActivePaceOrders = { ...activePaceOrdersInLoopRef.current }
 
       // PASSO 1: Atualização de pneus, paradas planejadas/estratégicas e cálculo de ritmo livre
       const intermediateStates = currentGrid.map((entry) => {

@@ -26,47 +26,22 @@ export function useRealtime<TRecord extends RecordModel = RecordModel>(
 
     let unsubscribeFn: (() => Promise<void>) | undefined
     let cancelled = false
-    let retryTimeout: ReturnType<typeof setTimeout> | undefined
-    let attempts = 0
-    const maxRetries = 3
 
-    const subscribeWithRetry = () => {
-      if (cancelled) return
-
-      pb.collection<TRecord>(collectionName)
-        .subscribe('*', (e) => {
-          callbackRef.current(e)
-        })
-        .then((fn) => {
-          if (cancelled) {
-            fn().catch(() => {})
-          } else {
-            unsubscribeFn = fn
-            attempts = 0 // reset attempts on success
-          }
-        })
-        .catch((err) => {
-          // Silent retry with backoff on failure (e.g. 400 Invalid realtime client or network glitch)
-          if (cancelled) return
-          if (attempts < maxRetries) {
-            attempts += 1
-            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 4000) // 1s, 2s, 4s
-            // Clear stale state before retry
-            pb.realtime.unsubscribe().catch(() => {})
-            retryTimeout = setTimeout(() => {
-              subscribeWithRetry()
-            }, delay)
-          }
-        })
-    }
-
-    subscribeWithRetry()
+    pb.collection<TRecord>(collectionName)
+      .subscribe('*', (e) => {
+        callbackRef.current(e)
+      })
+      .then((fn) => {
+        if (cancelled) {
+          fn().catch(() => {})
+        } else {
+          unsubscribeFn = fn
+        }
+      })
+      .catch(() => {})
 
     return () => {
       cancelled = true
-      if (retryTimeout) {
-        clearTimeout(retryTimeout)
-      }
       if (unsubscribeFn) {
         unsubscribeFn().catch(() => {})
       }
