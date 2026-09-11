@@ -136,6 +136,11 @@ export default function CarPage() {
     return null
   }, [team])
 
+  // Verificação de equipe personalizada vs oficial
+  const isCustomTeam = useMemo(() => {
+    return Boolean(team?.is_custom ?? team?.name === 'Escuderia Brasil')
+  }, [team])
+
   // Handlers para upload e restauração da imagem do carro
   const handleUploadCarImage = async (file: File) => {
     if (!team) return
@@ -735,6 +740,8 @@ export default function CarPage() {
         <RealisticCarHero
           teamColor={team?.color || '#E10600'}
           teamName={team?.name || 'Sua Escuderia'}
+          teamKey={team?.team_key}
+          isCustomTeam={isCustomTeam}
           sponsors={sponsors}
           carLevel={overallLevel}
           parts={parts}

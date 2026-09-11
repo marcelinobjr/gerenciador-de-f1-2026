@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react'
-import defaultCarLateralImg from '@/assets/carro-lateral-2986d.jpeg'
+import { getCarroPorEquipeImage, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
 import { PartModel, SponsorModel } from '@/types/f1'
-import { Sparkles, Maximize2, Camera, RotateCcw, Loader2, Upload } from 'lucide-react'
+import { Sparkles, Maximize2, Camera, RotateCcw, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface RealisticCarHeroProps {
   teamColor?: string
   teamName?: string
+  teamKey?: string | null
+  isCustomTeam?: boolean
   sponsors?: SponsorModel[]
   carLevel?: number
   parts: PartModel[]
@@ -22,6 +24,8 @@ interface RealisticCarHeroProps {
 export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
   teamColor = '#E10600',
   teamName = 'Escuderia F1',
+  teamKey,
+  isCustomTeam = false,
   sponsors = [],
   carLevel = 75,
   parts = [],
@@ -35,9 +39,9 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [hoveredHotspot, setHoveredHotspot] = useState<string | null>(null)
-  const [colorBlendMode, setColorBlendMode] = useState<'multiply' | 'color-burn' | 'overlay'>(
-    'multiply',
-  )
+
+  // Imagem base do carro por equipe exclusiva da aba Carro
+  const resolvedBaseCarImage = getCarroPorEquipeImage(teamKey, isCustomTeam)
 
   // Normalizador de peças
   const findPart = (keyword: string): PartModel | undefined => {
@@ -59,15 +63,21 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
   const sideSponsor2 = activeSponsors[2] || 'EMBRAER'
   const wingSponsor = activeSponsors[3] || 'VALE'
 
-  // Hotspots mapeados em % na imagem do carro lateral
-  // Imagem: Carro branco virado para a esquerda (frente à esquerda ~5% - 22%, traseira à direita ~78% - 94%)
+  // Hotspots mapeados em % anatômicos na foto limpa do carro lateral
+  // O monoposto está virado para a esquerda:
+  // - Asa dianteira: ponta dianteira esquerda (~11%, ~78%)
+  // - Suspensão dianteira: eixo dianteiro (~25%, ~66%)
+  // - Monocoque / Sidepod: centro da carroceria / entrada do radiador (~52%, ~62%)
+  // - Tampa / Shark Fin: barbatana superior do motor (~66%, ~38%)
+  // - Asa Traseira: aerofólio superior traseiro à direita (~88%, ~34%)
+  // - Assoalho & Venturi: fundo plano e assoalho inferior (~50%, ~88%)
   const hotspots = [
     {
       id: frontWingPart?.id,
       key: 'asa-dianteira',
       title: 'Asa Dianteira',
       part: frontWingPart,
-      left: '10%',
+      left: '11%',
       top: '78%',
       labelPos: 'bottom',
     },
@@ -77,7 +87,7 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
       title: 'Suspensão Diant.',
       part: suspensionPart,
       left: '25%',
-      top: '68%',
+      top: '66%',
       labelPos: 'top',
     },
     {
@@ -284,11 +294,11 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
           {/* Sombra de contato do carro com o solo escuro */}
           <div className="absolute bottom-[2%] left-[4%] right-[4%] h-[12%] bg-black/90 blur-[10px] rounded-full pointer-events-none" />
 
-          {/* 1. IMAGEM DO CARRO REALISTA COM TRATAMENTO DARK (Fundo cinza neutralizado via blend mode e máscara) */}
+          {/* 1. IMAGEM DO CARRO REALISTA LIMPA COM INTEGRAÇÃO AO FUNDO DARK (VINHETA E SOMBRA DE ESTÚDIO) */}
           <div className="relative w-full h-full flex items-center justify-center">
-            {/* Imagem do carro F1 branco limpo integrado ao tema dark */}
+            {/* Foto original limpa do carro F1, sem sobreposições decorativas coloridas */}
             <img
-              src={customCarImage || defaultCarLateralImg}
+              src={customCarImage || resolvedBaseCarImage}
               alt={`${teamName} Carro de F1 2026`}
               className="w-full h-full object-contain pointer-events-none select-none relative z-10 brightness-[0.98] contrast-[1.05]"
               style={{
@@ -296,15 +306,15 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
                 filter: 'drop-shadow(0 14px 24px rgba(0, 0, 0, 0.9))',
               }}
               onError={(e) => {
-                // Fallback gracioso para a imagem embutida padrão caso a url customizada falhe
+                // Fallback gracioso para a imagem homologada de fallback caso a URL falhe
                 const target = e.currentTarget
-                if (target.src !== defaultCarLateralImg) {
-                  target.src = defaultCarLateralImg
+                if (target.src !== IMAGEM_CARRO_PADRAO_FALLBACK) {
+                  target.src = IMAGEM_CARRO_PADRAO_FALLBACK
                 }
               }}
             />
 
-            {/* Máscara e vinheta periférica suave para dissolver 100% as bordas da foto no fundo escuro */}
+            {/* Máscara e vinheta periférica suave para dissolver 100% as bordas da foto no estúdio escuro */}
             <div
               className="absolute inset-0 pointer-events-none z-10 rounded-xl"
               style={{
@@ -313,233 +323,159 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
               }}
             />
 
-            {/* 2. CAMADA DE PINTURA / REALCE NA COR DA EQUIPE SOBRE A CARROCERIA BRANCA */}
-            {/* SVG com formas anatômicas da carenagem lateral para colorir mantendo sombras e vincos originais */}
-            <svg
-              viewBox="0 0 1000 320"
-              className="absolute inset-0 w-full h-full pointer-events-none z-20 select-none"
-              style={{ mixBlendMode: 'multiply' }}
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <defs>
-                {/* Gradiente da pintura da equipe: cor pura no centro, degradê metálico */}
-                <linearGradient id="liveryTeamGrad" x1="10%" y1="50%" x2="90%" y2="50%">
-                  <stop offset="0%" stopColor={teamColor} stopOpacity="0.85" />
-                  <stop offset="35%" stopColor={teamColor} stopOpacity="0.9" />
-                  <stop offset="65%" stopColor={teamColor} stopOpacity="0.95" />
-                  <stop offset="95%" stopColor={teamColor} stopOpacity="0.8" />
-                </linearGradient>
+            {/* 2. DECALQUES DE PATROCINADORES SOBRE A CARROCERIA (SOMENTE PARA EQUIPES PERSONALIZADAS) */}
+            {isCustomTeam && (
+              <svg
+                viewBox="0 0 1000 320"
+                className="absolute inset-0 w-full h-full pointer-events-none z-30 select-none"
+                preserveAspectRatio="xMidYMid meet"
+              >
+                {/* DECALQUE 1: Patrocinador Principal no Sidepod */}
+                <g transform="translate(560, 206) skewX(-8)">
+                  <rect
+                    x="-90"
+                    y="-12"
+                    width="180"
+                    height="22"
+                    rx="3"
+                    fill="#000000"
+                    opacity="0.3"
+                  />
+                  <text
+                    x="0"
+                    y="4"
+                    fill="#FFFFFF"
+                    fontSize="11"
+                    fontWeight="900"
+                    fontFamily="'Montserrat', 'Arial Black', sans-serif"
+                    letterSpacing="1.5"
+                    textAnchor="middle"
+                    stroke="#000000"
+                    strokeWidth="1.5"
+                    paintOrder="stroke fill"
+                    opacity="0.95"
+                    lengthAdjust="spacingAndGlyphs"
+                    textLength={mainSponsor.length > 14 ? '170' : undefined}
+                  >
+                    {mainSponsor.toUpperCase()}
+                  </text>
+                </g>
 
-                <linearGradient id="sidepodStripe" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor={teamColor} stopOpacity="0.9" />
-                  <stop offset="100%" stopColor={teamColor} stopOpacity="0.4" />
-                </linearGradient>
+                {/* DECALQUE 2: Patrocinador Secundário no Shark Fin / Tampa do Motor */}
+                <g transform="translate(660, 136) rotate(-2)">
+                  <rect
+                    x="-65"
+                    y="-10"
+                    width="130"
+                    height="18"
+                    rx="3"
+                    fill="#000000"
+                    opacity="0.35"
+                  />
+                  <text
+                    x="0"
+                    y="3"
+                    fill="#FFFFFF"
+                    fontSize="9"
+                    fontWeight="800"
+                    fontFamily="'Montserrat', sans-serif"
+                    letterSpacing="1.2"
+                    textAnchor="middle"
+                    stroke="#000000"
+                    strokeWidth="1"
+                    paintOrder="stroke fill"
+                    lengthAdjust="spacingAndGlyphs"
+                    textLength={sideSponsor1.length > 12 ? '120' : undefined}
+                  >
+                    {sideSponsor1.toUpperCase()}
+                  </text>
+                </g>
 
-                {/* Brilho da pintura metálica */}
-                <linearGradient id="glossGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4" />
-                  <stop offset="50%" stopColor="#FFFFFF" stopOpacity="0.0" />
-                  <stop offset="100%" stopColor="#000000" stopOpacity="0.5" />
-                </linearGradient>
-              </defs>
+                {/* DECALQUE 3: Patrocinador na Asa Traseira (Placa vertical da asa traseira / Endplate) */}
+                <g transform="translate(885, 120)">
+                  <rect
+                    x="-45"
+                    y="-11"
+                    width="90"
+                    height="20"
+                    rx="2"
+                    fill="#000000"
+                    opacity="0.5"
+                  />
+                  <text
+                    x="0"
+                    y="3"
+                    fill="#FFFFFF"
+                    fontSize="9"
+                    fontWeight="900"
+                    fontFamily="'Montserrat', sans-serif"
+                    letterSpacing="1.2"
+                    textAnchor="middle"
+                    stroke="#000000"
+                    strokeWidth="1"
+                    paintOrder="stroke fill"
+                    lengthAdjust="spacingAndGlyphs"
+                    textLength={wingSponsor.length > 8 ? '80' : undefined}
+                  >
+                    {wingSponsor.slice(0, 16).toUpperCase()}
+                  </text>
+                </g>
 
-              {/* Faixa / Pintura no Bico Frontal (ajustada para a anatomia exata da foto) */}
-              <path
-                d="M 50 265 L 175 228 L 305 196 L 300 212 L 175 244 L 50 276 Z"
-                fill="url(#liveryTeamGrad)"
-                opacity="0.82"
-              />
+                {/* DECALQUE 4: Patrocinador no Bico Frontal (Nosecone) */}
+                <g transform="translate(200, 222) rotate(-9)">
+                  <rect x="-42" y="-8" width="84" height="16" rx="2" fill="#000000" opacity="0.3" />
+                  <text
+                    x="0"
+                    y="3"
+                    fill="#FFFFFF"
+                    fontSize="7.5"
+                    fontWeight="800"
+                    fontFamily="'Montserrat', sans-serif"
+                    letterSpacing="1"
+                    textAnchor="middle"
+                    stroke="#000000"
+                    strokeWidth="0.8"
+                    paintOrder="stroke fill"
+                    lengthAdjust="spacingAndGlyphs"
+                    textLength={sideSponsor2.length > 10 ? '76' : undefined}
+                  >
+                    {sideSponsor2.toUpperCase()}
+                  </text>
+                </g>
 
-              {/* Pintura Principal no Sidepod / Barriga do Monocoque */}
-              <path
-                d="M 440 188
-                   C 480 172, 540 168, 620 170
-                   C 690 172, 730 185, 750 205
-                   C 755 220, 750 242, 730 250
-                   L 460 250
-                   C 440 235, 435 205, 440 188 Z"
-                fill="url(#liveryTeamGrad)"
-                opacity="0.8"
-              />
+                {/* Logo Oficial F1 2026 discreto no chassi */}
+                <g transform="translate(340, 202)">
+                  <rect x="-14" y="-7" width="28" height="13" rx="2" fill="#E10600" />
+                  <text
+                    x="0"
+                    y="2.5"
+                    fill="#FFFFFF"
+                    fontSize="8"
+                    fontWeight="900"
+                    fontFamily="sans-serif"
+                    textAnchor="middle"
+                  >
+                    F1
+                  </text>
+                </g>
 
-              {/* Faixa aerodinâmica na Shark Fin / Tampa do Motor */}
-              <path
-                d="M 570 115
-                   L 760 145
-                   L 760 172
-                   L 590 162 Z"
-                fill={teamColor}
-                opacity="0.82"
-              />
-
-              {/* Pintura da Asa Traseira (Endplate e asa superior traseira) */}
-              <path
-                d="M 825 80 L 945 80 L 940 155 L 870 155 L 865 110 L 825 110 Z"
-                fill={teamColor}
-                opacity="0.8"
-              />
-
-              {/* Asa Dianteira Flap Superior */}
-              <path d="M 35 272 L 150 250 L 150 266 L 35 284 Z" fill={teamColor} opacity="0.85" />
-
-              {/* Halo arco frontal */}
-              <path
-                d="M 380 155 Q 430 118 475 128 Q 450 145 405 160 Z"
-                fill={teamColor}
-                opacity="0.7"
-              />
-            </svg>
-
-            {/* Brilho adicional com blend overlay para textura realista */}
-            <svg
-              viewBox="0 0 1000 320"
-              className="absolute inset-0 w-full h-full pointer-events-none z-20 select-none"
-              style={{ mixBlendMode: 'overlay' }}
-              preserveAspectRatio="xMidYMid meet"
-            >
-              {/* Realce de reflexo de estúdio sobre a carenagem */}
-              <path
-                d="M 440 188 C 500 170, 620 170, 720 185 L 710 195 C 620 178, 500 178, 445 195 Z"
-                fill="#FFFFFF"
-                opacity="0.5"
-              />
-            </svg>
-
-            {/* 3. PROPAGANDAS ESCRITAS / PATROCINADORES COMO DECALQUES SOBRE A CARROCERIA */}
-            <svg
-              viewBox="0 0 1000 320"
-              className="absolute inset-0 w-full h-full pointer-events-none z-30 select-none"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              {/* DECALQUE 1: Patrocinador Principal no Sidepod (perfeito sobre a barriga lateral do monoposto) */}
-              <g transform="translate(560, 206) skewX(-8)">
-                <rect x="-90" y="-12" width="180" height="22" rx="3" fill="#000000" opacity="0.3" />
-                <text
-                  x="0"
-                  y="4"
-                  fill="#FFFFFF"
-                  fontSize="11"
-                  fontWeight="900"
-                  fontFamily="'Montserrat', 'Arial Black', sans-serif"
-                  letterSpacing="1.5"
-                  textAnchor="middle"
-                  stroke="#000000"
-                  strokeWidth="1.5"
-                  paintOrder="stroke fill"
-                  opacity="0.95"
-                  lengthAdjust="spacingAndGlyphs"
-                  textLength={mainSponsor.length > 14 ? '170' : undefined}
-                >
-                  {mainSponsor.toUpperCase()}
-                </text>
-              </g>
-
-              {/* DECALQUE 2: Patrocinador Secundário no Shark Fin / Tampa do Motor */}
-              <g transform="translate(660, 136) rotate(-2)">
-                <rect
-                  x="-65"
-                  y="-10"
-                  width="130"
-                  height="18"
-                  rx="3"
-                  fill="#000000"
-                  opacity="0.35"
-                />
-                <text
-                  x="0"
-                  y="3"
-                  fill="#FFFFFF"
-                  fontSize="9"
-                  fontWeight="800"
-                  fontFamily="'Montserrat', sans-serif"
-                  letterSpacing="1.2"
-                  textAnchor="middle"
-                  stroke="#000000"
-                  strokeWidth="1"
-                  paintOrder="stroke fill"
-                  lengthAdjust="spacingAndGlyphs"
-                  textLength={sideSponsor1.length > 12 ? '120' : undefined}
-                >
-                  {sideSponsor1.toUpperCase()}
-                </text>
-              </g>
-
-              {/* DECALQUE 3: Patrocinador na Asa Traseira (Placa vertical da asa traseira / Endplate) */}
-              <g transform="translate(885, 120)">
-                <rect x="-45" y="-11" width="90" height="20" rx="2" fill="#000000" opacity="0.5" />
-                <text
-                  x="0"
-                  y="3"
-                  fill="#FFFFFF"
-                  fontSize="9"
-                  fontWeight="900"
-                  fontFamily="'Montserrat', sans-serif"
-                  letterSpacing="1.2"
-                  textAnchor="middle"
-                  stroke="#000000"
-                  strokeWidth="1"
-                  paintOrder="stroke fill"
-                  lengthAdjust="spacingAndGlyphs"
-                  textLength={wingSponsor.length > 8 ? '80' : undefined}
-                >
-                  {wingSponsor.slice(0, 16).toUpperCase()}
-                </text>
-              </g>
-
-              {/* DECALQUE 4: Patrocinador no Bico Frontal (Nosecone) */}
-              <g transform="translate(200, 222) rotate(-9)">
-                <rect x="-42" y="-8" width="84" height="16" rx="2" fill="#000000" opacity="0.3" />
-                <text
-                  x="0"
-                  y="3"
-                  fill="#FFFFFF"
-                  fontSize="7.5"
-                  fontWeight="800"
-                  fontFamily="'Montserrat', sans-serif"
-                  letterSpacing="1"
-                  textAnchor="middle"
-                  stroke="#000000"
-                  strokeWidth="0.8"
-                  paintOrder="stroke fill"
-                  lengthAdjust="spacingAndGlyphs"
-                  textLength={sideSponsor2.length > 10 ? '76' : undefined}
-                >
-                  {sideSponsor2.toUpperCase()}
-                </text>
-              </g>
-
-              {/* Logo Oficial F1 2026 discreto no chassi */}
-              <g transform="translate(340, 202)">
-                <rect x="-14" y="-7" width="28" height="13" rx="2" fill="#E10600" />
-                <text
-                  x="0"
-                  y="2.5"
-                  fill="#FFFFFF"
-                  fontSize="8"
-                  fontWeight="900"
-                  fontFamily="sans-serif"
-                  textAnchor="middle"
-                >
-                  F1
-                </text>
-              </g>
-
-              {/* Número do Piloto no bico */}
-              <g transform="translate(270, 206) rotate(-7)">
-                <circle cx="0" cy="0" r="9" fill="#0A0E17" stroke={teamColor} strokeWidth="1.5" />
-                <text
-                  x="0"
-                  y="3.5"
-                  fill="#FFFFFF"
-                  fontSize="9.5"
-                  fontWeight="900"
-                  fontFamily="'Arial Black', sans-serif"
-                  textAnchor="middle"
-                >
-                  1
-                </text>
-              </g>
-            </svg>
+                {/* Número do Piloto no bico */}
+                <g transform="translate(270, 206) rotate(-7)">
+                  <circle cx="0" cy="0" r="9" fill="#0A0E17" stroke={teamColor} strokeWidth="1.5" />
+                  <text
+                    x="0"
+                    y="3.5"
+                    fill="#FFFFFF"
+                    fontSize="9.5"
+                    fontWeight="900"
+                    fontFamily="'Arial Black', sans-serif"
+                    textAnchor="middle"
+                  >
+                    1
+                  </text>
+                </g>
+              </svg>
+            )}
 
             {/* 4. HOTSPOTS CLICÁVEIS SOBRE O CARRO REALISTA (Peças interativas) */}
             <div className="absolute inset-0 pointer-events-auto z-40">
