@@ -10,6 +10,7 @@ export interface ProgressBarProps {
   size?: 'sm' | 'md' | 'lg'
   className?: string
   trackClassName?: string
+  color?: 'default' | 'success' | 'warning' | 'danger'
 }
 
 /**
@@ -28,18 +29,22 @@ export function ProgressBar({
   size = 'md',
   className,
   trackClassName,
+  color,
 }: ProgressBarProps) {
   const percentage = Math.min(100, Math.max(0, (value / (max || 100)) * 100))
 
-  // Semântica de cor fixa
+  // Semântica de cor fixa ou explícita
   let colorClass = 'bg-emerald-500'
   let textColorClass = 'text-emerald-400'
-  if (percentage < 40) {
+  if (color === 'danger' || (!color && percentage < 40)) {
     colorClass = 'bg-red-500'
     textColorClass = 'text-red-400'
-  } else if (percentage < 70) {
+  } else if (color === 'warning' || (!color && percentage < 70)) {
     colorClass = 'bg-amber-500'
     textColorClass = 'text-amber-400'
+  } else if (color === 'default') {
+    colorClass = 'bg-[#00A6FB]'
+    textColorClass = 'text-[#00A6FB]'
   }
 
   const heightClass = {

@@ -1,37 +1,33 @@
 import React, { useMemo } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Activity, Flame, Fuel, Wrench, Scale, Users } from 'lucide-react'
+import { Activity, Flame, Fuel, Users, Scale, Wrench } from 'lucide-react'
 import { TireCompound } from '@/types/f1'
 import { TIRE_SPECS, isTireInCliff, TireCliffStatus } from '@/lib/f1-tire-system'
-import type { TeamOrderState, FiaPenalty, MechanicalIssue } from '@/lib/raceDrama'
-
-export type LivePaceOrder = 'segurar' | 'normal' | 'empurrar'
+import { TeamOrderState, FiaPenalty, MechanicalIssue, TeamOrderProposal } from '@/lib/raceDrama'
 
 export interface TelemetryDriverEntry {
   driverId: string
   driverName: string
-  teamId: string
   teamName: string
   teamColor: string
-  isPlayer: boolean
-  flag: string
-  nationality?: string
   position: number
-  dnf: boolean
-  dnfReason?: string
+  isPlayer: boolean
+  nationality?: string
+  flag?: string
   tireCompound?: TireCompound
-  tireWear?: number
-  pitStopsDone?: number
-  hasWingDamage?: boolean
+  tireWear?: number // 0 a 100
   lastLapTime?: string
   gapToLeader?: string
   gapToFront?: string
-  wearMultiplier?: number
-  lapsOnCurrentTire?: number
+  pitStopsDone?: number
+  dnf?: boolean
   cliffStatus?: TireCliffStatus
-  accumulatedTimeSec?: number
+  hasWingDamage?: boolean
   lapsInDirtyAir?: number
+  lapsOnCurrentTire?: number
+  wearMultiplier?: number
+  morale?: number
   aiStrategyProfile?: {
     type: 'conservadora' | 'equilibrada' | 'agressiva' | 'reativa'
     label: string
@@ -41,524 +37,410 @@ export interface TelemetryDriverEntry {
   }
 }
 
+export type LivePaceOrder = 'segurar' | 'normal' | 'empurrar'
+
 interface LiveTelemetryTableProps {
-  grid?: TelemetryDriverEntry[]
-  currentLap?: number
-  totalLaps?: number
-  liveRaceState?: {
-    grid?: TelemetryDriverEntry[]
-    currentLap?: number
-    totalLaps?: number
-    [key: string]: any
-  }
+  grid: TelemetryDriverEntry[]
+  currentLap: number
+  totalLaps: number
   trackAbrasiveness?: number
   playerCarTactics?: Record<string, 'attack' | 'normal' | 'save_fuel'>
-  onChangeTacticalMode?: (
-    driverId: string,
-    mode: 'attack' | 'normal' | 'save_fuel' | 'preserve',
-  ) => void
+  onChangeTacticalMode?: (driverId: string, mode: 'attack' | 'normal' | 'save_fuel') => void
   playerPaceOrders?: Record<string, LivePaceOrder>
-  onChangePaceOrder?: (driverId: string, pace: LivePaceOrder) => void
+  onChangePaceOrder?: (driverId: string, order: LivePaceOrder) => void
   isRaceFinished?: boolean
-  // Suporte opcional a mecânicas da Rodada B
-  teamOrders?: TeamOrderState | TeamOrderState[]
+  teamOrders?: TeamOrderState[] | TeamOrderState
   penalties?: FiaPenalty[]
   mechanicalIssues?: MechanicalIssue[]
-  teamOrderProposal?: {
-    fastDriverId: string
-    fastDriverName: string
-    slowDriverId: string
-    slowDriverName: string
-    gap: number
-    lapsPushed: number
-  } | null
+  teamOrderProposal?: TeamOrderProposal | null
   onApplyTeamOrder?: () => void
+  compact?: boolean
 }
 
-export function LiveTelemetryTable(props: LiveTelemetryTableProps) {
-  const grid = props.grid || props.liveRaceState?.grid || []
-  const currentLap = props.currentLap ?? props.liveRaceState?.currentLap ?? 1
-  const totalLaps = props.totalLaps ?? props.liveRaceState?.totalLaps ?? 50
-  const trackAbrasiveness = props.trackAbrasiveness ?? 6
-  const playerCarTactics = props.playerCarTactics ?? {}
-  const onChangeTacticalMode = props.onChangeTacticalMode
-  const playerPaceOrders = props.playerPaceOrders ?? {}
-  const onChangePaceOrder = props.onChangePaceOrder
-  const isRaceFinished = props.isRaceFinished ?? false
-  const teamOrders = props.teamOrders
-  const penalties = props.penalties || []
-  const mechanicalIssues = props.mechanicalIssues || []
-  const teamOrderProposal = props.teamOrderProposal
-  const onApplyTeamOrder = props.onApplyTeamOrder
-
-  // Normaliza lista de ordens de equipe ativas
-  const activeTeamOrders = useMemo(() => {
-    if (!teamOrders) return []
-    return Array.isArray(teamOrders)
-      ? teamOrders.filter((to) => to.active && !to.refused)
-      : teamOrders.active && !teamOrders.refused
-        ? [teamOrders]
-        : []
+export function LiveTelemetryTable({
+  grid,
+  currentLap,
+  totalLaps,
+  trackAbrasiveness = 6,
+  playerCarTactics = {},
+  onChangeTacticalMode,
+  playerPaceOrders = {},
+  onChangePaceOrder,
+  isRaceFinished = false,
+  teamOrders = [],
+  penalties = [],
+  mechanicalIssues = [],
+  teamOrderProposal = null,
+  onApplyTeamOrder,
+  compact = false,
+}: LiveTelemetryTableProps) {
+  const activeTeamOrders: TeamOrderState[] = useMemo(() => {
+    if (Array.isArray(teamOrders)) {
+      return teamOrders.filter((to) => to.active && !to.refused)
+    }
+    return teamOrders &&
+      (teamOrders as TeamOrderState).active &&
+      !(teamOrders as TeamOrderState).refused
+      ? [teamOrders]
+      : []
   }, [teamOrders])
 
   if (!grid || grid.length === 0) return null
 
   return (
-    <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333] shadow-2xl overflow-hidden">
-      <CardHeader className="py-3 px-4 bg-[#080C14]/90 border-b border-[#1A2333] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <Card className="bg-[#11161F] border border-[#1F2733] shadow-xl overflow-hidden rounded-xl flex flex-col h-full">
+      {/* Header Sticky */}
+      <CardHeader className="sticky top-0 z-20 py-2.5 px-3.5 bg-[#0B0E14] border-b border-[#1F2733] flex flex-row items-center justify-between shrink-0">
         <div>
-          <CardTitle className="text-sm font-bold text-[#F5F7FA] tracking-wide font-mono flex items-center gap-2">
-            <Activity className="w-4 h-4 text-cyan-400" />
-            TELEMETRIA OFICIAL DA CORRIDA EM TEMPO REAL // GRID COMPLETO (24 CARROS)
+          <CardTitle className="text-xs font-bold text-[#F5F7FA] tracking-wide flex items-center gap-1.5 uppercase">
+            <Activity className="w-3.5 h-3.5 text-[#00A6FB] shrink-0" />
+            Tabela ao Vivo // Grid
           </CardTitle>
-          <CardDescription className="text-[11px] text-[#8B95A7] font-mono">
-            Volta {currentLap} de {totalLaps} • Atualização a cada volta • Destaque para pilotos da
-            sua escuderia
+          <CardDescription className="text-[10px] text-[#8B95A7] font-num">
+            Volta {currentLap} de {totalLaps} • {grid.filter((g) => !g.dnf).length} em pista
           </CardDescription>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[11px]">
-            {grid.filter((g) => !g.dnf).length} em pista
-          </Badge>
-          <Badge className="bg-red-500/15 text-red-300 border border-red-500/30 font-mono text-[11px]">
-            {grid.filter((g) => g.dnf).length} abandonos
-          </Badge>
+        <div className="flex items-center gap-1.5">
           {!isRaceFinished && teamOrderProposal && onApplyTeamOrder && (
             <button
               type="button"
               onClick={onApplyTeamOrder}
-              className="bg-amber-500 hover:bg-amber-400 text-black font-bold font-mono text-[11px] px-2.5 py-1 rounded transition-colors shadow-sm flex items-center gap-1 shrink-0"
+              className="bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] px-2 py-0.5 rounded transition-colors shadow-sm flex items-center gap-1 shrink-0 cursor-pointer"
               title={`Solicitar que ${teamOrderProposal.slowDriverName} dê passagem para ${teamOrderProposal.fastDriverName}`}
             >
               <Users className="w-3 h-3" />
-              Pedir passagem
+              Troca
             </button>
+          )}
+          <span className="font-num text-[10px] font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+            {grid.filter((g) => !g.dnf).length} P
+          </span>
+          {grid.filter((g) => g.dnf).length > 0 && (
+            <span className="font-num text-[10px] font-bold text-red-400 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">
+              {grid.filter((g) => g.dnf).length} DNF
+            </span>
           )}
         </div>
       </CardHeader>
 
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead>
-              <tr className="border-b border-[#1A2333] text-[#8B95A7] uppercase tracking-wider bg-[#080C14]/90 text-[10px]">
-                <th className="py-2.5 px-3 w-12 text-center">Pos</th>
-                <th className="py-2.5 px-3">Piloto / Escuderia</th>
-                <th className="py-2.5 px-3 text-center">Perfil Tático</th>
-                <th className="py-2.5 px-3 text-center">Pneu Atual</th>
-                <th className="py-2.5 px-3 text-center">Vida / Desgaste</th>
-                <th className="py-2.5 px-3 text-center">Última Volta</th>
-                <th className="py-2.5 px-3 text-right">Diferença Frente</th>
-                <th className="py-2.5 px-3 text-right">Gap Líder</th>
-                <th className="py-2.5 px-3 text-center">Pits</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1A2333]">
-              {grid.map((entry) => {
-                const isMyCar = entry.isPlayer
-                const compoundSpec = TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio
-                const compoundLetter =
-                  entry.tireCompound === 'duro'
-                    ? 'D'
-                    : entry.tireCompound === 'medio'
-                      ? 'M'
-                      : entry.tireCompound === 'macio'
-                        ? 'S'
-                        : entry.tireCompound === 'intermediario'
-                          ? 'I'
-                          : 'W'
+      <CardContent className="p-0 flex-1 overflow-x-auto max-h-[580px] scrollbar-thin">
+        <table className="w-full text-left text-xs">
+          {/* Header Sticky da Tabela */}
+          <thead className="sticky top-0 z-10 bg-[#0E131B] border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider text-[10px]">
+            <tr>
+              <th className="py-2 px-2.5 w-10 text-center font-semibold">Pos</th>
+              <th className="py-2 px-2 font-semibold">Piloto</th>
+              {!compact && <th className="py-2 px-2 text-center font-semibold">Perfil / Ritmo</th>}
+              <th className="py-2 px-2 text-center font-semibold">Pneu</th>
+              <th className="py-2 px-2 text-center font-semibold">Vida</th>
+              <th className="py-2 px-2 text-right font-semibold">Gap Líder</th>
+              <th className="py-2 px-2 text-center font-semibold w-10">Pit</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#1F2733]/60">
+            {grid.map((entry) => {
+              const isMyCar = entry.isPlayer
+              const compoundSpec = TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio
+              const compoundLetter =
+                entry.tireCompound === 'duro'
+                  ? 'D'
+                  : entry.tireCompound === 'medio'
+                    ? 'M'
+                    : entry.tireCompound === 'macio'
+                      ? 'S'
+                      : entry.tireCompound === 'intermediario'
+                        ? 'I'
+                        : 'W'
 
-                const compoundColor =
-                  entry.tireCompound === 'duro'
-                    ? 'bg-slate-100 text-slate-900 border-slate-300'
-                    : entry.tireCompound === 'medio'
-                      ? 'bg-yellow-400 text-black border-yellow-500'
-                      : entry.tireCompound === 'macio'
-                        ? 'bg-red-600 text-white border-red-700'
-                        : entry.tireCompound === 'intermediario'
-                          ? 'bg-emerald-500 text-black border-emerald-600'
-                          : 'bg-blue-600 text-white border-blue-700'
+              const compoundColor =
+                entry.tireCompound === 'duro'
+                  ? 'bg-slate-100 text-slate-900 border-slate-300'
+                  : entry.tireCompound === 'medio'
+                    ? 'bg-yellow-400 text-black border-yellow-500'
+                    : entry.tireCompound === 'macio'
+                      ? 'bg-red-600 text-white border-red-700'
+                      : entry.tireCompound === 'intermediario'
+                        ? 'bg-emerald-500 text-black border-emerald-600'
+                        : 'bg-blue-600 text-white border-blue-700'
 
-                const wearVal = entry.tireWear || 5
-                const tireLifePct = Math.max(0, 100 - wearVal)
+              const wearVal = entry.tireWear || 5
+              const tireLifePct = Math.max(0, 100 - wearVal)
 
-                const lapsOnCompound = entry.lapsOnCurrentTire || 1
-                const cliffCheck = isTireInCliff(
-                  entry.tireCompound || 'medio',
-                  lapsOnCompound,
-                  entry.wearMultiplier ?? 1.0,
-                  trackAbrasiveness,
-                )
-                const isInCliff =
-                  cliffCheck.inCliff ||
-                  Boolean(entry.cliffStatus && entry.cliffStatus.isCliffReached > 0)
+              const lapsOnCompound = entry.lapsOnCurrentTire || 1
+              const cliffCheck = isTireInCliff(
+                entry.tireCompound || 'medio',
+                lapsOnCompound,
+                entry.wearMultiplier ?? 1.0,
+                trackAbrasiveness,
+              )
+              const isInCliff =
+                cliffCheck.inCliff ||
+                Boolean(entry.cliffStatus && entry.cliffStatus.isCliffReached > 0)
 
-                return (
-                  <tr
-                    key={entry.driverId}
-                    className={`transition-colors ${
-                      isMyCar
-                        ? isInCliff
-                          ? 'bg-red-950/40 font-semibold border-l-4 border-l-red-500 shadow-[inset_0_0_16px_rgba(239,68,68,0.3)] ring-1 ring-red-500/60'
-                          : 'bg-[#E10600]/15 font-semibold border-l-4 border-l-[#E10600] shadow-[inset_0_0_12px_rgba(225,6,0,0.15)] ring-1 ring-[#E10600]/40'
-                        : entry.dnf
-                          ? 'opacity-40 bg-red-950/20'
-                          : isInCliff
-                            ? 'bg-red-950/20 hover:bg-red-950/30'
-                            : 'hover:bg-[#161D29]/50'
-                    }`}
-                  >
-                    {/* Pos */}
-                    <td className="py-2.5 px-3 text-center">
+              return (
+                <tr
+                  key={entry.driverId}
+                  className={`transition-colors relative ${
+                    isMyCar
+                      ? isInCliff
+                        ? 'bg-red-950/30 font-semibold shadow-inner'
+                        : 'bg-[#161D29] font-semibold'
+                      : entry.dnf
+                        ? 'opacity-40 bg-red-950/10'
+                        : isInCliff
+                          ? 'bg-red-950/15 hover:bg-red-950/25'
+                          : 'hover:bg-[#161D29]/60 bg-[#11161F]'
+                  }`}
+                >
+                  {/* Pos com barra 3px na linha do jogador */}
+                  <td className="py-2 px-2 text-center relative">
+                    {/* Barra lateral 3px destacada da escuderia do jogador */}
+                    {isMyCar && (
                       <span
-                        className={`inline-flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold ${
-                          entry.dnf
-                            ? 'bg-red-900/60 text-red-200'
-                            : entry.position === 1
-                              ? 'bg-amber-400 text-black'
-                              : entry.position === 2
-                                ? 'bg-slate-300 text-black'
-                                : entry.position === 3
-                                  ? 'bg-amber-700 text-white'
-                                  : 'text-[#8B95A7]'
-                        }`}
+                        className="absolute left-0 top-0 bottom-0 w-[3px]"
+                        style={{ backgroundColor: entry.teamColor || '#E10600' }}
+                      />
+                    )}
+                    <span
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded font-num text-[11px] font-bold ${
+                        entry.dnf
+                          ? 'bg-red-900/60 text-red-200'
+                          : entry.position === 1
+                            ? 'bg-amber-400 text-black'
+                            : entry.position === 2
+                              ? 'bg-slate-300 text-black'
+                              : entry.position === 3
+                                ? 'bg-amber-700 text-white'
+                                : 'text-[#8B95A7] bg-[#0E131B]'
+                      }`}
+                    >
+                      {entry.dnf ? 'X' : entry.position}
+                    </span>
+                  </td>
+
+                  {/* Piloto & Selo MEU CARRO */}
+                  <td className="py-2 px-2">
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                      <span
+                        className="w-1.5 h-3.5 rounded-full shrink-0"
+                        style={{ backgroundColor: entry.teamColor || '#8B95A7' }}
+                      />
+                      <span
+                        title={entry.nationality || 'Nacionalidade'}
+                        className="cursor-default select-none text-xs shrink-0"
                       >
-                        {entry.dnf ? 'DNF' : entry.position}
+                        {entry.flag}
                       </span>
-                    </td>
-
-                    {/* Driver & Team */}
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-2">
-                        <span
-                          title={entry.nationality || 'Nacionalidade'}
-                          className="cursor-default select-none text-base"
-                        >
-                          {entry.flag}
-                        </span>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-xs ${isMyCar ? 'text-white font-extrabold' : 'text-[#F5F7FA]'}`}
-                            >
-                              {entry.driverName}
-                            </span>
-                            {isMyCar && (
-                              <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-3.5 font-bold animate-pulse">
-                                MEU CARRO
-                              </Badge>
-                            )}
-                            {/* Badge Team Order Pulsante */}
-                            {activeTeamOrders.some(
-                              (to) =>
-                                to.fastDriverId === entry.driverId ||
-                                to.slowDriverId === entry.driverId,
-                            ) && (
-                              <Badge
-                                className="bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[9px] px-1 py-0 h-3.5 font-mono font-bold animate-pulse flex items-center gap-0.5 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
-                                title="Ordem de equipe em andamento: piloto instruído a trocar de posição"
-                              >
-                                <Users className="w-2.5 h-2.5" />
-                                TEAM ORDER
-                              </Badge>
-                            )}
-                            {/* Badges de Penalidades FIA */}
-                            {penalties
-                              .filter((p) => p.driverId === entry.driverId && !p.served)
-                              .map((p) => (
-                                <Badge
-                                  key={p.id}
-                                  className={`text-[9px] px-1 py-0 h-3.5 font-mono font-bold flex items-center gap-0.5 border ${
-                                    p.kind === 'stop_and_go'
-                                      ? 'bg-purple-950/80 text-purple-300 border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.3)]'
-                                      : p.kind === '10s'
-                                        ? 'bg-red-950/80 text-red-300 border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
-                                        : 'bg-amber-950/80 text-amber-300 border-amber-500/60'
-                                  }`}
-                                  title={`Penalidade FIA: ${p.reason} (${p.kind})`}
-                                >
-                                  <Scale className="w-2.5 h-2.5" />
-                                  {p.kind === 'stop_and_go'
-                                    ? '⚖️ STOP&GO'
-                                    : p.kind === '10s'
-                                      ? '⚖️ +10s'
-                                      : '⚖️ +5s'}
-                                </Badge>
-                              ))}
-                            {/* Ícone de Falha Mecânica Leve */}
-                            {mechanicalIssues
-                              .filter(
-                                (m) =>
-                                  m.driverId === entry.driverId &&
-                                  m.severity === 'light' &&
-                                  !m.isDnf,
-                              )
-                              .map((issue, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center text-red-500 hover:text-red-400 cursor-help"
-                                  title={`🔧 Falha Mecânica (${issue.type}): ${issue.description} (+${issue.pacePenaltySec}s/volta)`}
-                                >
-                                  <Wrench className="w-3.5 h-3.5 animate-pulse text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
-                                </span>
-                              ))}
-                            {isMyCar && isInCliff && (
-                              <Badge className="bg-red-600 text-white text-[9px] px-1.5 py-0 h-3.5 font-extrabold animate-bounce border border-red-400">
-                                BOX URGENTE
-                              </Badge>
-                            )}
-                            {entry.hasWingDamage && (
-                              <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
-                                ASA QUEBRADA
-                              </Badge>
-                            )}
-                            {(entry.lapsInDirtyAir || 0) >= 3 && (
-                              <Badge
-                                variant="outline"
-                                className="text-[9px] px-1 py-0 h-3.5 border-orange-500/50 text-orange-400 bg-orange-500/10"
-                                title={`Ar turbulento (Dirty Air) por ${entry.lapsInDirtyAir} voltas: +0.12s no ritmo e desgaste extra`}
-                              >
-                                DIRTY AIR
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="text-[10px] block" style={{ color: entry.teamColor }}>
-                            {entry.teamName}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={`text-xs truncate ${
+                              isMyCar ? 'text-[#F5F7FA] font-bold' : 'text-[#F5F7FA]'
+                            }`}
+                          >
+                            {entry.driverName}
                           </span>
+                          {isMyCar && (
+                            <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-[#E10600]/20 text-red-300 border border-[#E10600]/40">
+                              SUA EQUIPE
+                            </span>
+                          )}
+                          {isInCliff && (
+                            <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-red-600 text-white animate-pulse">
+                              CLIFF
+                            </span>
+                          )}
+                          {entry.hasWingDamage && (
+                            <span className="shrink-0 px-1 py-0.2 rounded text-[8px] font-bold uppercase bg-red-600 text-white">
+                              ASA
+                            </span>
+                          )}
                         </div>
+                        <span
+                          className="text-[10px] truncate block leading-tight"
+                          style={{ color: entry.teamColor }}
+                        >
+                          {entry.teamName}
+                        </span>
                       </div>
-                    </td>
+                    </div>
+                  </td>
 
-                    {/* Tactical Profile Badge / Selector */}
-                    <td className="py-2.5 px-3 text-center">
+                  {/* Perfil Tático / Ritmo (Apenas se não compacto) */}
+                  {!compact && (
+                    <td className="py-2 px-2 text-center">
                       {isMyCar ? (
                         !isRaceFinished && !entry.dnf ? (
-                          <div className="flex flex-col items-center gap-1">
-                            {/* Linha 1: Tática existente de consumo/ataque */}
+                          <div className="flex flex-col items-center gap-0.5">
                             {onChangeTacticalMode && (
-                              <div className="inline-flex items-center gap-1 bg-[#0B0F19] p-0.5 rounded border border-[#1E2638]">
+                              <div className="inline-flex items-center gap-0.5 bg-[#0B0F19] p-0.5 rounded border border-[#1F2733]">
                                 <button
                                   type="button"
                                   onClick={() => onChangeTacticalMode(entry.driverId, 'attack')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all flex items-center gap-0.5 border ${
+                                  className={`px-1 py-0.2 rounded text-[8px] font-bold transition-all ${
                                     (playerCarTactics[entry.driverId] || 'normal') === 'attack'
-                                      ? 'bg-red-600 text-white border-red-400 shadow-[0_0_8px_#dc2626]'
-                                      : 'bg-[#111726] text-red-400 border-red-900/40 hover:bg-red-950/60'
+                                      ? 'bg-red-600 text-white'
+                                      : 'text-red-400 hover:text-white'
                                   }`}
-                                  title="Ataque: ritmo ×0.97, +30% pneus, +25% combustível, +30% peças"
+                                  title="Ataque"
                                 >
-                                  <Flame className="w-2.5 h-2.5" /> Ataque
+                                  ATQ
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => onChangeTacticalMode(entry.driverId, 'normal')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                  className={`px-1 py-0.2 rounded text-[8px] font-bold transition-all ${
                                     (playerCarTactics[entry.driverId] || 'normal') === 'normal'
-                                      ? 'bg-slate-600 text-white border-slate-400 shadow-sm'
-                                      : 'bg-[#111726] text-slate-400 border-slate-800 hover:text-white'
+                                      ? 'bg-slate-600 text-white'
+                                      : 'text-slate-400 hover:text-white'
                                   }`}
-                                  title="Padrão: sem modificadores"
+                                  title="Padrão"
                                 >
-                                  Padrão
+                                  PAD
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => onChangeTacticalMode(entry.driverId, 'save_fuel')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all flex items-center gap-0.5 border ${
+                                  className={`px-1 py-0.2 rounded text-[8px] font-bold transition-all ${
                                     (playerCarTactics[entry.driverId] || 'normal') === 'save_fuel'
-                                      ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_8px_#059669]'
-                                      : 'bg-[#111726] text-emerald-400 border-emerald-900/40 hover:bg-emerald-950/60'
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'text-emerald-400 hover:text-white'
                                   }`}
-                                  title="Economizar: ritmo ×1.02, -25% pneus, -30% combustível, -25% peças"
+                                  title="Economizar"
                                 >
-                                  <Fuel className="w-2.5 h-2.5" /> Economizar
+                                  ECO
                                 </button>
                               </div>
                             )}
 
-                            {/* Linha 2: 3 Botões de Ordem de Ritmo ao Vivo (Segurar / Normal / Empurrar) */}
                             {onChangePaceOrder && (
-                              <div className="inline-flex items-center gap-1 bg-[#080D18] p-0.5 rounded border border-cyan-900/40 shadow-inner">
-                                <span className="text-[8px] font-mono font-bold text-cyan-400 uppercase px-1">
-                                  Ritmo:
-                                </span>
+                              <div className="inline-flex items-center gap-0.5 bg-[#080D18] p-0.5 rounded border border-[#1F2733]">
                                 <button
                                   type="button"
                                   onClick={() => onChangePaceOrder(entry.driverId, 'segurar')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                  className={`px-1 py-0.2 rounded text-[8px] font-bold ${
                                     (playerPaceOrders[entry.driverId] || 'normal') === 'segurar'
-                                      ? 'bg-blue-600 text-white border-blue-300 shadow-[0_0_8px_#2563eb]'
-                                      : 'bg-[#101726] text-blue-300 border-blue-900/40 hover:bg-blue-950/70'
+                                      ? 'bg-blue-600 text-white'
+                                      : 'text-blue-300'
                                   }`}
-                                  title="Segurar ritmo: +1,5s/volta, desgaste ×0,65 (poupa pneu e combustível). Válido a partir da volta seguinte."
+                                  title="Segurar ritmo"
                                 >
-                                  Segurar
+                                  SEG
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => onChangePaceOrder(entry.driverId, 'normal')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                  className={`px-1 py-0.2 rounded text-[8px] font-bold ${
                                     (playerPaceOrders[entry.driverId] || 'normal') === 'normal'
-                                      ? 'bg-slate-600 text-white border-slate-300 shadow-sm'
-                                      : 'bg-[#101726] text-slate-400 border-slate-800 hover:text-white'
+                                      ? 'bg-slate-600 text-white'
+                                      : 'text-slate-400'
                                   }`}
-                                  title="Ritmo normal / neutro"
+                                  title="Normal"
                                 >
-                                  Normal
+                                  NOR
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => onChangePaceOrder(entry.driverId, 'empurrar')}
-                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border ${
+                                  className={`px-1 py-0.2 rounded text-[8px] font-bold ${
                                     (playerPaceOrders[entry.driverId] || 'normal') === 'empurrar'
-                                      ? 'bg-orange-600 text-white border-orange-300 shadow-[0_0_8px_#ea580c]'
-                                      : 'bg-[#101726] text-orange-400 border-orange-900/40 hover:bg-orange-950/70'
+                                      ? 'bg-orange-600 text-white'
+                                      : 'text-orange-400'
                                   }`}
-                                  title="Empurrar ritmo: -0,3s/volta, desgaste ×1,25 (busca fechar gap). Válido a partir da volta seguinte."
+                                  title="Empurrar ritmo"
                                 >
-                                  Empurrar
+                                  EMP
                                 </button>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center gap-1">
-                            <Badge className="bg-red-500/15 border-red-500/30 text-red-300 text-[9px] px-1.5 py-0">
-                              {playerCarTactics[entry.driverId] === 'attack'
-                                ? 'Ataque'
-                                : playerCarTactics[entry.driverId] === 'save_fuel'
-                                  ? 'Economizar'
-                                  : 'Padrão'}
-                            </Badge>
-                            {playerPaceOrders[entry.driverId] && (
-                              <Badge className="bg-cyan-500/15 border-cyan-500/30 text-cyan-300 text-[9px] px-1.5 py-0 capitalize">
-                                Ritmo: {playerPaceOrders[entry.driverId]}
-                              </Badge>
-                            )}
-                          </div>
+                          <span className="font-num text-[10px] text-[#8B95A7]">
+                            {playerCarTactics[entry.driverId] || 'Padrão'}
+                          </span>
                         )
                       ) : entry.aiStrategyProfile ? (
-                        <Badge
-                          className={`text-[9px] px-1.5 py-0 border ${entry.aiStrategyProfile.badgeBg}`}
+                        <span
+                          className={`inline-block text-[9px] px-1 py-0 rounded font-medium border ${entry.aiStrategyProfile.badgeBg}`}
                           title={entry.aiStrategyProfile.description}
                         >
                           {entry.aiStrategyProfile.label}
-                        </Badge>
+                        </span>
                       ) : (
-                        <span className="text-[10px] text-slate-500">—</span>
+                        <span className="text-[10px] text-[#8B95A7]">—</span>
                       )}
                     </td>
+                  )}
 
-                    {/* Tire Compound Icon/Letter */}
-                    <td className="py-2.5 px-3 text-center">
-                      <div className="inline-flex items-center gap-1">
-                        <span
-                          className={`w-5 h-5 rounded-full inline-flex items-center justify-center font-bold text-[10px] border shadow-sm ${compoundColor}`}
-                          title={compoundSpec.name}
-                        >
-                          {compoundLetter}
-                        </span>
-                        <span className="text-[10px] text-[#8B95A7] capitalize">
-                          {entry.tireCompound?.slice(0, 3)}
-                        </span>
-                        {isInCliff && (
-                          <Badge
-                            variant="destructive"
-                            className={`text-[9px] px-1 py-0 h-4 font-bold uppercase tracking-wider bg-red-600 text-white animate-pulse border-red-500 shadow-sm ${
-                              isMyCar ? 'ring-1 ring-white/70 shadow-red-500/50' : ''
-                            }`}
-                            title={`Pneu em Cliff! Perda de ritmo: +${(
-                              cliffCheck.penaltyPerLap ||
-                              entry.cliffStatus?.extraLapTimeSec ||
-                              compoundSpec.cliffDegradationPerLapSec
-                            ).toFixed(2)}s/volta`}
-                          >
-                            CLIFF
-                          </Badge>
-                        )}
-                      </div>
-                    </td>
+                  {/* Pneu */}
+                  <td className="py-2 px-2 text-center">
+                    <span
+                      className={`w-4 h-4 rounded-full inline-flex items-center justify-center font-bold text-[9px] font-num border ${compoundColor}`}
+                      title={compoundSpec.name}
+                    >
+                      {compoundLetter}
+                    </span>
+                  </td>
 
-                    {/* Life / Wear % with visual progress bar */}
-                    <td className="py-2.5 px-3 text-center">
-                      <div className="w-24 mx-auto space-y-1">
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-[#8B95A7]">{tireLifePct}% vida</span>
-                          <span
-                            className={`font-bold ${
-                              wearVal > 80
-                                ? 'text-red-400'
-                                : wearVal > 55
-                                  ? 'text-amber-400'
-                                  : 'text-emerald-400'
-                            }`}
-                          >
-                            {wearVal}% desg.
-                          </span>
-                        </div>
-                        <div className="w-full bg-[#0B0E14] rounded-full h-1.5 overflow-hidden border border-[#1F2733]">
-                          <div
-                            className={`h-full transition-all ${
-                              tireLifePct < 25
-                                ? 'bg-red-500'
-                                : tireLifePct < 50
-                                  ? 'bg-amber-400'
-                                  : 'bg-emerald-400'
-                            }`}
-                            style={{ width: `${tireLifePct}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Last Lap Time */}
-                    <td className="py-2.5 px-3 text-center">
+                  {/* Vida Pneu em .font-num com micro barra */}
+                  <td className="py-2 px-2 text-center">
+                    <div className="w-14 mx-auto space-y-0.5">
                       <span
-                        className={`text-xs ${isMyCar ? 'text-cyan-300 font-bold' : 'text-[#8B95A7]'}`}
-                      >
-                        {entry.lastLapTime || '1:18.420'}
-                      </span>
-                    </td>
-
-                    {/* Gap to Front */}
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="text-xs text-[#8B95A7]">{entry.gapToFront || '-'}</span>
-                    </td>
-
-                    {/* Gap to Leader */}
-                    <td className="py-2.5 px-3 text-right">
-                      <span
-                        className={`text-xs ${
-                          entry.position === 1 ? 'text-amber-400 font-bold' : 'text-[#F5F7FA]'
+                        className={`font-num text-[10px] font-bold block ${
+                          wearVal > 80
+                            ? 'text-red-400'
+                            : wearVal > 55
+                              ? 'text-amber-400'
+                              : 'text-emerald-400'
                         }`}
                       >
-                        {entry.position === 1
-                          ? 'LÍDER'
-                          : entry.gapToLeader && entry.gapToLeader !== 'LÍDER'
-                            ? entry.gapToLeader
-                            : '—'}
+                        {tireLifePct}%
                       </span>
-                    </td>
+                      <div className="w-full bg-[#0B0E14] rounded-full h-1 overflow-hidden border border-[#1F2733]">
+                        <div
+                          className={`h-full ${
+                            tireLifePct < 25
+                              ? 'bg-red-500'
+                              : tireLifePct < 50
+                                ? 'bg-amber-400'
+                                : 'bg-emerald-400'
+                          }`}
+                          style={{ width: `${tireLifePct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </td>
 
-                    {/* Pits Done */}
-                    <td className="py-2.5 px-3 text-center">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 ${
-                          (entry.pitStopsDone || 0) > 0
-                            ? 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10'
-                            : 'border-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {entry.pitStopsDone || 0}
-                      </Badge>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                  {/* Gap Líder em .font-num tabular alinhado à direita */}
+                  <td className="py-2 px-2 text-right">
+                    <span
+                      className={`font-num text-xs tabular-nums block ${
+                        entry.position === 1
+                          ? 'text-amber-400 font-bold'
+                          : isMyCar
+                            ? 'text-[#00A6FB] font-semibold'
+                            : 'text-[#F5F7FA]'
+                      }`}
+                    >
+                      {entry.position === 1
+                        ? 'LÍDER'
+                        : entry.gapToLeader && entry.gapToLeader !== 'LÍDER'
+                          ? entry.gapToLeader
+                          : '—'}
+                    </span>
+                  </td>
+
+                  {/* Pits em .font-num */}
+                  <td className="py-2 px-2 text-center">
+                    <span className="font-num text-[11px] font-bold text-[#8B95A7]">
+                      {entry.pitStopsDone || 0}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </CardContent>
     </Card>
   )

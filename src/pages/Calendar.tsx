@@ -8,6 +8,8 @@ import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { AmbientBackground } from '@/components/AmbientBackground'
+import { PageHeader } from '@/components/PageHeader'
+import { EmptyState } from '@/components/EmptyState'
 import { CircuitModel, RaceResultModel, DriverModel, GrandPrixInfo } from '@/types/f1'
 import {
   Calendar,
@@ -20,7 +22,6 @@ import {
   Clock,
   Search,
 } from 'lucide-react'
-import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -224,8 +225,9 @@ export default function CalendarPage() {
   }, [search, filterStatus, resultsByRound, currentRound])
 
   return (
-    <div className="relative space-y-8 animate-fade-in-up">
+    <div className="relative space-y-6 animate-fade-in-up">
       <AmbientBackground />
+
       {/* Input de arquivo global oculto para upload de imagem de circuito */}
       <input
         type="file"
@@ -236,44 +238,29 @@ export default function CalendarPage() {
         disabled={uploadingRound !== null}
       />
 
-      {/* Header da Pagina */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
-        <div>
-          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
-            Temporada Oficial F1 2026 // Calendário FIA
-          </span>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
-            Calendário de Corridas
-          </h1>
-          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
-            As 24 etapas do Campeonato Mundial: especificações técnicas de cada autódromo, traçados
-            oficiais com suporte a upload de imagem e resultados de cada GP (pontos do 1º ao 10º
-            lugar, sem bonificação por volta mais rápida).
-          </p>
-        </div>
-
-        {/* Indicadores de Rodada / Status */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge
-            variant="outline"
-            className="font-mono text-xs px-3 py-1.5 border-[#00A6FB]/40 text-[#00A6FB] bg-[#00A6FB]/10 flex items-center gap-1.5"
-          >
+      {/* PageHeader padronizado com eyebrow RACE OPERATIONS // CALENDÁRIO 2026 */}
+      <PageHeader
+        eyebrow="RACE OPERATIONS // CALENDÁRIO 2026"
+        title="Calendário de Corridas"
+        description="As 24 etapas do Campeonato Mundial: especificações técnicas de cada autódromo, traçados oficiais com suporte a upload de imagem e resultados de cada GP."
+        badge={
+          <span className="px-2.5 py-1 rounded-md text-xs font-num font-semibold bg-[#11161F] border border-[#1F2733] text-[#00A6FB] flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-[#00A6FB]" />
-            <span>Rodada Atual: {currentRound}/24</span>
-          </Badge>
-          <Badge
-            variant="outline"
-            className="font-mono text-xs px-3 py-1.5 border-emerald-500/40 text-emerald-400 bg-emerald-500/10 flex items-center gap-1.5"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{Math.max(0, currentRound - 1)} Disputadas</span>
-          </Badge>
-        </div>
-      </div>
+            Rodada {currentRound}/24
+          </span>
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-md text-xs font-num font-semibold bg-[#11161F] border border-[#1F2733] text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              {Math.max(0, currentRound - 1)} Disputadas
+            </span>
+          </div>
+        }
+      />
 
-      {/* Barra de Filtros e Busca */}
-      <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl p-3.5 rounded-2xl font-mono text-xs">
+      {/* Barra de Filtros e Busca (Camada 1: #11161F, borda #1F2733) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#11161F] border border-[#1F2733] p-3 rounded-xl text-xs">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8B95A7]" />
           <input
@@ -281,13 +268,15 @@ export default function CalendarPage() {
             placeholder="Buscar por GP, circuito ou país..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#080C14]/90 border border-[#1A2333] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#F5F7FA] focus:outline-none focus:border-cyan-400 placeholder:text-[#8B95A7]"
+            className="w-full bg-[#0B0E14] border border-[#1F2733] rounded-lg pl-9 pr-3 py-1.5 text-xs text-[#F5F7FA] focus:outline-none focus:border-[#00A6FB] placeholder:text-[#8B95A7]"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[#8B95A7] shrink-0">Status:</span>
-          <div className="flex items-center gap-1">
+          <span className="text-[#8B95A7] text-[11px] uppercase tracking-wider font-semibold shrink-0">
+            Status:
+          </span>
+          <div className="inline-flex items-center p-0.5 rounded-lg bg-[#0E131B] border border-[#1F2733]">
             {[
               { id: 'todos', label: 'Todos (24)' },
               { id: 'concluidos', label: 'Concluídos' },
@@ -297,10 +286,10 @@ export default function CalendarPage() {
                 key={st.id}
                 type="button"
                 onClick={() => setFilterStatus(st.id as any)}
-                className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   filterStatus === st.id
-                    ? 'bg-[#E10600] text-white font-bold shadow'
-                    : 'bg-[#080C14]/90 text-[#8B95A7] hover:text-[#F5F7FA] border border-[#1A2333]'
+                    ? 'bg-[#161D29] text-[#F5F7FA] font-bold border border-[#1F2733] shadow-sm'
+                    : 'text-[#8B95A7] hover:text-[#F5F7FA]'
                 }`}
               >
                 {st.label}
@@ -314,23 +303,27 @@ export default function CalendarPage() {
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-96 w-full bg-[#11161F] rounded-2xl" />
+            <Skeleton key={i} className="h-96 w-full bg-[#11161F] rounded-xl" />
           ))}
         </div>
       ) : filteredGPs.length === 0 ? (
-        <div className="p-12 text-center border border-dashed border-[#1F2733] rounded-2xl text-[#8B95A7] font-mono text-xs space-y-2">
-          <p>Nenhuma etapa encontrada com os filtros aplicados.</p>
-          <button
-            type="button"
-            onClick={() => {
-              setSearch('')
-              setFilterStatus('todos')
-            }}
-            className="text-[#00A6FB] underline underline-offset-4 cursor-pointer"
-          >
-            Limpar filtros
-          </button>
-        </div>
+        <EmptyState
+          icon={Calendar}
+          title="Nenhuma etapa encontrada"
+          description="Nenhum GP corresponde aos filtros aplicados. Tente limpar os termos de busca."
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('')
+                setFilterStatus('todos')
+              }}
+              className="text-xs text-[#00A6FB] hover:underline cursor-pointer font-medium"
+            >
+              Limpar filtros
+            </button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredGPs.map((gp) => {
@@ -340,10 +333,6 @@ export default function CalendarPage() {
             const isCurrent = gp.round === currentRound
             const isUploading = uploadingRound === gp.round
 
-            // Prioridade de exibicao da imagem do tracado:
-            // 1. Foto enviada pelo usuario salva no PocketBase
-            // 2. Se for round 1 (Australia) e nao houver upload do usuario, usa a imagem anexada pelo usuario
-            // 3. Tracado vetorial CircuitBlueprint
             const uploadedPhotoUrl = dbCircuit?.photo
               ? pb.files.getUrl(dbCircuit, dbCircuit.photo)
               : null
@@ -351,74 +340,64 @@ export default function CalendarPage() {
             const activeCircuitImage = uploadedPhotoUrl || defaultAsset
 
             return (
-              <Card
+              <div
                 key={gp.round}
-                className={`relative z-10 overflow-hidden transition-all duration-200 flex flex-col justify-between ${
+                className={`overflow-hidden rounded-xl border transition-all duration-200 flex flex-col justify-between ${
                   isCurrent
-                    ? 'bg-[#090D15]/90 backdrop-blur-md border-[#00A6FB] shadow-xl ring-2 ring-[#00A6FB]/40'
-                    : isCompleted
-                      ? 'bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] hover:border-cyan-500/40 shadow-lg'
-                      : 'bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] opacity-95 hover:border-cyan-500/40 shadow-lg'
+                    ? 'bg-[#11161F] border-[#00A6FB] shadow-xl ring-1 ring-[#00A6FB]/40'
+                    : 'bg-[#11161F] border-[#1F2733] hover:border-[#1F2733]/90'
                 }`}
               >
-                {/* Linha de status no topo do card */}
+                {/* Barra 3px de status no topo */}
                 <div
-                  className={`h-1.5 w-full ${
-                    isCurrent
-                      ? 'bg-gradient-to-r from-[#00A6FB] to-[#38BDF8]'
-                      : isCompleted
-                        ? 'bg-[#E10600]'
-                        : 'bg-[#1F2733]'
+                  className={`h-[3px] w-full ${
+                    isCurrent ? 'bg-[#00A6FB]' : isCompleted ? 'bg-emerald-500' : 'bg-[#1F2733]'
                   }`}
                 />
 
                 {/* Banner de Exibicao do Circuito (~16:9) */}
-                <div className="relative w-full aspect-[16/9] max-h-64 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
+                <div className="relative w-full aspect-[16/9] max-h-64 bg-[#0B0E14] overflow-hidden border-b border-[#1F2733] group flex items-center justify-center">
                   {activeCircuitImage ? (
-                    // Exibição da imagem do traçado com detecção de luminância inteligente
                     <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden flex items-center justify-center p-2">
                       <CircuitTrackImage
                         src={activeCircuitImage}
                         alt={`Traçado do ${gp.circuit}`}
                         className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
                       />
-                      {/* Leve gradiente escuro no rodape para legibilidade das tags */}
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/80 via-transparent to-black/20 pointer-events-none" />
 
-                      {/* Tag sutil de identificacao da imagem */}
-                      <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] font-mono text-[#F5F7FA] drop-shadow-md z-10">
-                        <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                        <span className="font-semibold tracking-wider uppercase">
+                      <div className="absolute bottom-2 left-3 flex items-center gap-2 text-[10px] text-[#F5F7FA] drop-shadow-md z-10">
+                        <span className="w-2 h-2 rounded-full bg-[#00A6FB]" />
+                        <span className="eyebrow text-[#F5F7FA]">
                           {uploadedPhotoUrl ? 'TRAÇADO HOMOLOGADO (UPLOAD)' : 'MAPA OFICIAL FIA'}
                         </span>
                       </div>
                     </div>
                   ) : (
-                    // Fallback vetorial: CircuitBlueprint renderizado com o tracado tecnico
                     <div className="w-full h-full relative">
                       <CircuitBlueprint
                         round={gp.round}
                         circuitName={gp.name}
                         laps={gp.laps}
                         lengthKm={gp.circuitLengthKm}
-                        className="h-full border-none rounded-none !p-3"
+                        className="h-full border-none rounded-none !p-3 bg-[#0B0E14]"
                       />
                     </div>
                   )}
 
                   {/* Badge de Rodada (canto superior esquerdo) */}
                   <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
-                    <Badge
-                      className={`font-mono text-xs font-bold px-2.5 py-1 shadow-md border ${
+                    <span
+                      className={`font-num text-xs font-bold px-2.5 py-1 rounded-md border shadow-md ${
                         isCurrent
-                          ? 'bg-[#00A6FB] text-white border-cyan-400'
+                          ? 'bg-[#00A6FB] text-white border-[#00A6FB]'
                           : isCompleted
-                            ? 'bg-[#E10600] text-white border-red-500'
-                            : 'bg-[#0B0E14]/85 text-[#8B95A7] border-[#1F2733]'
+                            ? 'bg-[#161D29] text-emerald-400 border-emerald-500/40'
+                            : 'bg-[#0B0E14]/90 text-[#8B95A7] border-[#1F2733]'
                       }`}
                     >
                       {isCurrent ? '⚡ GP ATUAL • ' : ''}R{gp.round}/24
-                    </Badge>
+                    </span>
                   </div>
 
                   {/* Botao de Upload da Imagem do Circuito (canto superior direito) */}
@@ -427,17 +406,17 @@ export default function CalendarPage() {
                       type="button"
                       onClick={() => triggerUploadForRound(gp)}
                       disabled={uploadingRound !== null}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-[#0B0E14]/85 hover:bg-[#0B0E14] text-[#F5F7FA] border border-[#1F2733] shadow-lg backdrop-blur-md transition-all hover:border-cyan-400 disabled:opacity-60 cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B0E14]/90 hover:bg-[#161D29] text-[#F5F7FA] border border-[#1F2733] shadow-lg backdrop-blur-md transition-all hover:border-[#00A6FB] disabled:opacity-60 cursor-pointer"
                       title={`Carregar foto/mapa do traçado do ${gp.circuit}`}
                     >
                       {isUploading ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00A6FB]" />
                           <span>Enviando...</span>
                         </>
                       ) : (
                         <>
-                          <Camera className="w-3.5 h-3.5 text-cyan-400" />
+                          <Camera className="w-3.5 h-3.5 text-[#00A6FB]" />
                           <span>{activeCircuitImage ? 'Trocar Imagem' : 'Imagem do Circuito'}</span>
                         </>
                       )}
@@ -455,14 +434,12 @@ export default function CalendarPage() {
                           <span className="text-xl leading-none" role="img" aria-label={gp.country}>
                             {gp.flag}
                           </span>
-                          <span className="text-xs font-mono text-[#8B95A7] uppercase tracking-wider">
-                            {gp.country}
-                          </span>
+                          <span className="eyebrow text-[#8B95A7]">{gp.country}</span>
                         </div>
-                        <h2 className="text-lg sm:text-xl font-black text-[#F5F7FA] mt-1 tracking-tight">
+                        <h2 className="text-lg sm:text-xl font-bold text-[#F5F7FA] mt-1 tracking-tight">
                           {gp.name}
                         </h2>
-                        <p className="text-xs font-mono text-cyan-400 flex items-center gap-1.5 mt-0.5">
+                        <p className="text-xs text-[#00A6FB] flex items-center gap-1.5 mt-0.5">
                           <MapPin className="w-3.5 h-3.5 shrink-0" />
                           <span>{gp.circuit}</span>
                         </p>
@@ -470,84 +447,84 @@ export default function CalendarPage() {
 
                       <div className="text-right shrink-0">
                         {isCompleted ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                             ✓ Concluído
-                          </Badge>
+                          </span>
                         ) : isCurrent ? (
-                          <Badge className="bg-[#00A6FB]/15 text-[#00A6FB] border border-[#00A6FB]/30 text-[10px] font-mono animate-pulse">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#00A6FB]/10 text-[#00A6FB] border border-[#00A6FB]/30">
                             ● Próxima Etapa
-                          </Badge>
+                          </span>
                         ) : (
-                          <Badge className="bg-[#1F2733] text-[#8B95A7] border border-[#1F2733] text-[10px] font-mono">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#161D29] text-[#8B95A7] border border-[#1F2733]">
                             A Disputar
-                          </Badge>
+                          </span>
                         )}
                       </div>
                     </div>
 
                     {/* Especificacoes Tecnicas da Pista */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 p-3 bg-[#080C14]/80 border border-[#1A2333] rounded-xl font-mono text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 p-3 bg-[#0B0E14] border border-[#1F2733] rounded-lg text-xs">
                       <div>
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">Extensão</span>
-                        <strong className="text-cyan-400 text-sm font-bold">
+                        <span className="eyebrow block text-[10px]">Extensão</span>
+                        <strong className="text-[#00A6FB] text-sm font-bold font-num">
                           {gp.circuitLengthKm.toFixed(3)} km
                         </strong>
                       </div>
                       <div>
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">Voltas</span>
-                        <strong className="text-[#F5F7FA] text-sm font-bold">{gp.laps}</strong>
+                        <span className="eyebrow block text-[10px]">Voltas</span>
+                        <strong className="text-[#F5F7FA] text-sm font-bold font-num">
+                          {gp.laps}
+                        </strong>
                       </div>
                       <div>
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">Curvas</span>
-                        <strong className="text-amber-400 text-sm font-bold">
+                        <span className="eyebrow block text-[10px]">Curvas</span>
+                        <strong className="text-amber-400 text-sm font-bold font-num">
                           {gp.turns || '—'}
                         </strong>
                       </div>
                       <div>
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">
-                          Distância
-                        </span>
-                        <strong className="text-emerald-400 text-sm font-bold">
+                        <span className="eyebrow block text-[10px]">Distância</span>
+                        <strong className="text-emerald-400 text-sm font-bold font-num">
                           {(gp.laps * gp.circuitLengthKm).toFixed(1)} km
                         </strong>
                       </div>
                     </div>
 
                     {/* Caracteristica da Pista */}
-                    <p className="text-xs text-[#8B95A7] italic mt-2.5 font-mono">
+                    <p className="text-xs text-[#8B95A7] italic mt-2.5 leading-relaxed">
                       "{gp.characteristic}"
                     </p>
                   </div>
 
                   {/* Secao de Resultados da Temporada */}
-                  <div className="pt-3 border-t border-[#1F2733]/80">
+                  <div className="pt-3 border-t border-[#1F2733]">
                     {roundResults && roundResults.allResults.length > 0 ? (
                       <div className="space-y-2.5">
-                        <div className="flex items-center justify-between text-xs font-mono">
+                        <div className="flex items-center justify-between text-xs">
                           <span className="text-xs font-bold text-[#F5F7FA] uppercase tracking-wider flex items-center gap-1.5">
                             <Trophy className="w-3.5 h-3.5 text-amber-400" />
                             Resultado Oficial da Etapa
                           </span>
-                          <span className="text-[11px] text-[#8B95A7]">
-                            {roundResults.allResults.length} pilotos classificados
+                          <span className="font-num text-[11px] text-[#8B95A7]">
+                            {roundResults.allResults.length} classificados
                           </span>
                         </div>
 
                         {/* Podio P1, P2, P3 */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-mono">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                           {/* P1 - Vencedor */}
                           <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-md bg-amber-500 text-black font-extrabold flex items-center justify-center text-xs shrink-0 shadow-sm">
+                            <span className="w-6 h-6 rounded-md bg-amber-500 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num">
                               P1
                             </span>
                             <div className="overflow-hidden">
-                              <span className="text-[10px] text-amber-400 block font-bold uppercase leading-none">
+                              <span className="eyebrow text-amber-400 block text-[9px] leading-none">
                                 Vencedor
                               </span>
                               <span className="font-bold text-[#F5F7FA] truncate block mt-0.5">
                                 {roundResults.p1?.expand?.driver_id?.name || 'Vencedor P1'}
                               </span>
-                              <span className="text-[10px] text-[#8B95A7] truncate block">
+                              <span className="text-[10px] text-[#8B95A7] truncate block font-num">
                                 {roundResults.p1?.expand?.team_id?.name || 'Equipe'} • 25 pts
                               </span>
                             </div>
@@ -555,17 +532,17 @@ export default function CalendarPage() {
 
                           {/* P2 */}
                           <div className="p-2.5 rounded-lg bg-slate-400/10 border border-slate-400/20 flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-md bg-slate-300 text-black font-extrabold flex items-center justify-center text-xs shrink-0">
+                            <span className="w-6 h-6 rounded-md bg-slate-300 text-black font-extrabold flex items-center justify-center text-xs shrink-0 font-num">
                               P2
                             </span>
                             <div className="overflow-hidden">
-                              <span className="text-[10px] text-slate-300 block font-bold uppercase leading-none">
+                              <span className="eyebrow text-slate-300 block text-[9px] leading-none">
                                 2º Lugar
                               </span>
                               <span className="font-bold text-[#F5F7FA] truncate block mt-0.5">
                                 {roundResults.p2?.expand?.driver_id?.name || 'Piloto P2'}
                               </span>
-                              <span className="text-[10px] text-[#8B95A7] truncate block">
+                              <span className="text-[10px] text-[#8B95A7] truncate block font-num">
                                 {roundResults.p2?.expand?.team_id?.name || 'Equipe'} • 18 pts
                               </span>
                             </div>
@@ -573,17 +550,17 @@ export default function CalendarPage() {
 
                           {/* P3 */}
                           <div className="p-2.5 rounded-lg bg-amber-700/15 border border-amber-700/30 flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-md bg-amber-700 text-white font-extrabold flex items-center justify-center text-xs shrink-0">
+                            <span className="w-6 h-6 rounded-md bg-amber-700 text-white font-extrabold flex items-center justify-center text-xs shrink-0 font-num">
                               P3
                             </span>
                             <div className="overflow-hidden">
-                              <span className="text-[10px] text-amber-600 block font-bold uppercase leading-none">
+                              <span className="eyebrow text-amber-600 block text-[9px] leading-none">
                                 3º Lugar
                               </span>
                               <span className="font-bold text-[#F5F7FA] truncate block mt-0.5">
                                 {roundResults.p3?.expand?.driver_id?.name || 'Piloto P3'}
                               </span>
-                              <span className="text-[10px] text-[#8B95A7] truncate block">
+                              <span className="text-[10px] text-[#8B95A7] truncate block font-num">
                                 {roundResults.p3?.expand?.team_id?.name || 'Equipe'} • 15 pts
                               </span>
                             </div>
@@ -591,7 +568,7 @@ export default function CalendarPage() {
                         </div>
 
                         {/* Volta mais rapida & Pontos da Equipe do Jogador */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-2.5 bg-[#0B0E14] border border-[#1F2733] rounded-lg text-xs font-mono">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-2.5 bg-[#0B0E14] border border-[#1F2733] rounded-lg text-xs">
                           {/* Volta Mais Rapida */}
                           <div className="flex items-center gap-2">
                             <Zap className="w-3.5 h-3.5 text-purple-400 shrink-0" />
@@ -604,29 +581,31 @@ export default function CalendarPage() {
                           {/* Desempenho da Escuderia do Jogador */}
                           <div className="flex items-center gap-2 sm:border-l sm:border-[#1F2733] sm:pl-3">
                             <span className="text-[#8B95A7]">{team?.name || 'Sua Escuderia'}:</span>
-                            <Badge className="bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 text-xs font-bold">
+                            <span className="font-num font-bold text-xs px-2 py-0.5 rounded bg-[#00A6FB]/10 text-[#00A6FB] border border-[#00A6FB]/30">
                               {roundResults.playerTotalPoints > 0
                                 ? `+${roundResults.playerTotalPoints} pts marcados`
                                 : '0 pts nesta etapa'}
-                            </Badge>
+                            </span>
                           </div>
                         </div>
                       </div>
                     ) : (
                       // Etapa ainda nao disputada
-                      <div className="p-4 rounded-xl bg-[#0B0E14]/60 border border-dashed border-[#1F2733] text-center font-mono text-xs text-[#8B95A7] flex flex-col items-center justify-center gap-1.5">
-                        <Clock className="w-4 h-4 text-[#8B95A7]/70" />
-                        <span>Etapa a disputar na temporada 2026</span>
-                        <span className="text-[10px] text-[#8B95A7]/60">
+                      <div className="p-4 rounded-xl bg-[#0B0E14] border border-dashed border-[#1F2733] text-center text-xs text-[#8B95A7] flex flex-col items-center justify-center gap-1.5">
+                        <Clock className="w-4 h-4 text-[#8B95A7]" />
+                        <span className="font-medium text-[#F5F7FA]">
+                          Etapa a disputar na temporada 2026
+                        </span>
+                        <span className="text-[11px] text-[#8B95A7]">
                           {isCurrent
                             ? 'Esta é a próxima corrida agendada na aba "Corrida"!'
-                            : `Aguardando a conclusão das rodadas anteriores.`}
+                            : 'Aguardando a conclusão das rodadas anteriores.'}
                         </span>
                       </div>
                     )}
                   </div>
                 </div>
-              </Card>
+              </div>
             )
           })}
         </div>
