@@ -8,7 +8,15 @@ import { standingsService } from '@/services/standingsService'
 import { formatCurrency } from '@/lib/formatters'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { toast } from '@/hooks/use-toast'
-import { BadgePercent, TrendingUp, Handshake, DollarSign, AlertTriangle } from 'lucide-react'
+import {
+  BadgePercent,
+  TrendingUp,
+  Handshake,
+  DollarSign,
+  AlertTriangle,
+  CheckCircle,
+  Lock,
+} from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +31,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { notificationService } from '@/services/notificationService'
+import { PageHeader } from '@/components/PageHeader'
+import { StatCard } from '@/components/StatCard'
+import { DataTable } from '@/components/DataTable'
+import { EmptyState } from '@/components/EmptyState'
 
 export default function SponsorsPage() {
   const { user, team, season, refreshTeamAndSeason } = useAuth()
@@ -240,316 +252,274 @@ export default function SponsorsPage() {
   return (
     <div className="relative space-y-8 animate-fade-in-up">
       <AmbientBackground />
-      {/* Header */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
-        <div>
-          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
-            Marketing & Finanças
-          </span>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
-            Gestão de Patrocínios & Receitas
-          </h1>
-          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
-            Negocie cotas de patrocínio comercial. Atenda aos requisitos de desempenho esportivo
-            para manter os repasses ativos em cada GP.
-          </p>
-        </div>
-      </div>
-
-      {/* Indicador de Desempenho e Multiplicador de Contratos */}
-      <div className="relative z-10 p-4 rounded-2xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-[#00A6FB]" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#00A6FB]">
-              Índice de Atratividade Comercial F1 2026
-            </span>
-          </div>
-          <p className="text-sm font-semibold text-[#F5F7FA]">
-            Multiplicador de Contrato Atual:{' '}
-            <span
-              className={`font-mono text-base ${
-                performanceStats.multiplier >= 1 ? 'text-emerald-400' : 'text-amber-400'
-              }`}
-            >
-              x{performanceStats.multiplier.toFixed(2)}
-            </span>{' '}
-            <span className="text-xs font-normal text-[#8B95A7]">
-              ({performanceStats.explanation})
-            </span>
-          </p>
-          <p className="text-xs text-[#8B95A7]">
-            O valor oferecido pelos patrocinadores escala diretamente com a posição nos Construtores
-            (P1 paga ~x1,40; lanterna ~x0,70) e conquistas de vitórias e pódios.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      {/* PageHeader Race Operations */}
+      <PageHeader
+        eyebrow="RACE OPERATIONS // MARKETING & FINANÇAS"
+        title="Gestão de Patrocínios & Receitas"
+        description="Negociação de cotas comerciais exclusivas (bico, laterais, asa, halo, macacão, retrovisores) indexadas ao desempenho nos Construtores."
+        badge={
           <Badge
             variant="outline"
-            className="border-[#1A2333] bg-[#080C14]/90 text-xs font-mono text-[#F5F7FA] px-3 py-1.5"
+            className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] font-mono text-xs"
           >
-            Cotas Ocupadas:{' '}
-            <strong className="text-emerald-400 ml-1">{occupiedSlots.size}/6</strong>
+            Cotas Ocupadas: {occupiedSlots.size}/6
           </Badge>
-        </div>
+        }
+      />
+
+      {/* KPIs com StatCard */}
+      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <StatCard
+          eyebrow="RECEITA / RODADA"
+          value={formatCurrency(totalRevenuePerRound)}
+          subtext="Creditado após cada simulação de GP"
+          icon={DollarSign}
+          iconColor="text-emerald-400"
+          accentColor="#10B981"
+        />
+
+        <StatCard
+          eyebrow="MULTIPLICADOR COMERCIAL"
+          value={`x${performanceStats.multiplier.toFixed(2)}`}
+          subtext={performanceStats.explanation}
+          icon={TrendingUp}
+          iconColor={performanceStats.multiplier >= 1 ? 'text-emerald-400' : 'text-amber-400'}
+        />
+
+        <StatCard
+          eyebrow="CONTRATOS ATIVOS"
+          value={`${activeSponsors.filter((s) => s.status === 'ativo').length}`}
+          subtext={`${activeSponsors.filter((s) => s.status === 'suspenso').length} suspenso(s) por meta`}
+          icon={Handshake}
+          iconColor="text-[#00A6FB]"
+        />
+
+        <StatCard
+          eyebrow="COTAS LIVRES"
+          value={`${Math.max(0, 6 - occupiedSlots.size)} de 6`}
+          subtext={`${occupiedSlots.size} posições reservadas no carro`}
+          icon={BadgePercent}
+          iconColor="text-amber-400"
+        />
       </div>
 
-      {/* Receita Total Estimada Card */}
-      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] sm:col-span-2 shadow-xl">
-          <CardHeader className="pb-2 border-b border-[#1A2333]">
-            <CardTitle className="text-xs font-mono font-bold uppercase tracking-wider text-[#8B95A7] flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              Receita Total Estimada por Rodada de GP
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl sm:text-4xl font-extrabold font-mono text-emerald-400">
-                {formatCurrency(totalRevenuePerRound)}
-              </span>
-              <span className="text-xs font-mono text-[#8B95A7]">/ rodada</span>
-            </div>
-            <p className="text-xs text-[#8B95A7] mt-1 font-mono">
-              Pagamentos creditados no balanço financeiro logo após o término da simulação de cada
-              corrida.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
-          <CardHeader className="pb-2 border-b border-[#1A2333]">
-            <CardTitle className="text-xs font-mono font-bold uppercase tracking-wider text-[#8B95A7]">
-              Contratos em Vigor
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-3xl font-extrabold font-mono text-[#F5F7FA]">
-              {activeSponsors.filter((s) => s.status === 'ativo').length}
-              <span className="text-xs text-[#8B95A7] font-normal font-mono ml-2">ativos</span>
-            </div>
-            <p className="text-[11px] text-[#8B95A7] mt-1 font-mono">
-              {activeSponsors.filter((s) => s.status === 'suspenso').length} suspenso(s) por meta
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Seção Contratos Ativos */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
-        <CardHeader className="pb-3 border-b border-[#1A2333]">
-          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#00A6FB] block">
-            PARCERIAS ESTABELECIDAS
-          </span>
-          <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
-            <Handshake className="w-5 h-5 text-[#00A6FB]" />
+      {/* Seção Contratos Ativos na Camada 1 */}
+      <div className="relative z-10 rounded-xl bg-[#11161F] border border-[#1F2733] p-5 shadow-sm space-y-4">
+        <div className="pb-3 border-b border-[#1F2733]">
+          <span className="eyebrow text-[#8B95A7] block">PARCERIAS ESTABELECIDAS</span>
+          <h3 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2 mt-1">
+            <Handshake className="w-4 h-4 text-[#00A6FB]" />
             Contratos Comerciais Ativos ({activeSponsors.length})
-          </CardTitle>
-          <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-            Avaliação automática a cada GP: se a meta de construtores ou moral não for cumprida, o
-            repasse fica suspenso até a recuperação.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </h3>
+          <p className="text-xs text-[#8B95A7] mt-0.5">
+            Avaliação a cada GP: se a meta de construtores ou moral não for cumprida, o repasse fica
+            suspenso até recuperação.
+          </p>
+        </div>
+
+        <div>
           {loading ? (
             <div className="space-y-3">
-              <Skeleton className="h-20 w-full bg-[#1F2733]" />
-              <Skeleton className="h-20 w-full bg-[#1F2733]" />
+              <Skeleton className="h-16 w-full bg-[#161D29]" />
+              <Skeleton className="h-16 w-full bg-[#161D29]" />
             </div>
           ) : activeSponsors.length === 0 ? (
-            <div className="p-8 text-center border border-dashed border-[#1F2733] rounded-xl text-[#8B95A7]">
-              <p>Nenhum contrato ativo no momento.</p>
-              <p className="text-xs mt-1 text-[#00A6FB]">
-                Assine novos patrocinadores no catálogo abaixo.
-              </p>
-            </div>
+            <EmptyState
+              icon={Handshake}
+              title="Nenhum contrato ativo"
+              description="Assine novas parcerias no catálogo de cotas abaixo para gerar fluxo de caixa."
+              compact
+            />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {activeSponsors.map((sp) => {
-                const isSuspended = sp.status === 'suspenso'
-                return (
-                  <div
-                    key={sp.id}
-                    className={`p-4 rounded-xl border transition-all ${
-                      isSuspended
-                        ? 'bg-amber-950/20 border-amber-500/40'
-                        : 'bg-[#0B0E14] border-[#1F2733] hover:border-[#1F2733]/80'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-base text-[#F5F7FA]">{sp.name}</h3>
-                          {sp.slot && (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] font-mono border-[#00A6FB]/40 text-[#00A6FB] bg-[#00A6FB]/10 uppercase"
-                            >
-                              Cota: {sp.slot}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs font-mono text-[#8B95A7] mt-0.5">
-                          Exigência:{' '}
-                          <strong className="text-[#F5F7FA]">
-                            {sp.requirement || 'Sem exigência'}
-                          </strong>
-                        </p>
-                      </div>
+            <DataTable
+              keyExtractor={(sp) => sp.id}
+              data={activeSponsors}
+              playerRowPredicate={() => true}
+              playerRowTeamColor={team?.color || '#00A6FB'}
+              playerBadgeLabel="ATIVO"
+              columns={[
+                {
+                  key: 'name',
+                  header: 'Patrocinador',
+                  render: (sp) => (
+                    <div>
+                      <span className="font-bold text-[#F5F7FA] text-sm block">{sp.name}</span>
+                      <span className="text-[11px] text-[#8B95A7] font-mono">
+                        Meta: {sp.requirement || 'Sem exigência'}
+                      </span>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'slot',
+                  header: 'Cota Reservada',
+                  render: (sp) => (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-mono border-[#1F2733] bg-[#161D29] text-[#F5F7FA] uppercase"
+                    >
+                      {sp.slot || 'Geral'}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: 'value_per_round',
+                  header: 'Repasse / GP',
+                  align: 'right',
+                  isNumeric: true,
+                  render: (sp) => (
+                    <span className="font-num font-bold text-emerald-400 text-sm">
+                      {formatCurrency(sp.value_per_round)}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'rounds_remaining',
+                  header: 'Duração',
+                  align: 'center',
+                  render: (sp) => (
+                    <span className="font-num text-[#8B95A7]">
+                      {sp.rounds_remaining ?? 24} rodadas
+                    </span>
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (sp) => {
+                    const isSuspended = sp.status === 'suspenso'
+                    return (
                       <Badge
                         variant="outline"
-                        className={`text-xs font-mono ${
+                        className={`text-[10px] font-mono ${
                           isSuspended
                             ? 'border-amber-500/50 text-amber-400 bg-amber-500/10'
                             : 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
                         }`}
                       >
-                        {isSuspended ? 'Suspenso por Meta' : 'Ativo'}
+                        {isSuspended ? 'Suspenso por Meta' : 'Repasse Regular'}
                       </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-[#1F2733] text-xs font-mono">
-                      <div>
-                        <span className="text-[#8B95A7] block text-[10px]">Repasse / Rodada</span>
-                        <strong className="text-emerald-400 text-sm">
-                          {formatCurrency(sp.value_per_round)}
-                        </strong>
-                      </div>
-                      <div>
-                        <span className="text-[#8B95A7] block text-[10px]">Duração Restante</span>
-                        <span className="text-[#F5F7FA]">
-                          {sp.rounds_remaining ?? '24'} rodadas
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-[#1F2733]/60 flex items-center justify-between">
-                      <span className="text-[11px] text-[#8B95A7] font-mono">
-                        {isSuspended
-                          ? 'Aguardando recuperação no grid'
-                          : 'Repasse regular garantido'}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setTerminatingSponsor(sp)}
-                        className="text-xs h-7 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                      >
-                        Encerrar Contrato
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                  },
+                },
+                {
+                  key: 'actions',
+                  header: 'Ação',
+                  align: 'right',
+                  render: (sp) => (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTerminatingSponsor(sp)}
+                      className="text-xs h-7 text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                    >
+                      Encerrar
+                    </Button>
+                  ),
+                },
+              ]}
+            />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Seção Patrocinadores Disponíveis com Cotas Exclusivas */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
-        <CardHeader className="pb-3 border-b border-[#1A2333]">
-          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-amber-400 block">
-            PORTFÓLIO DE OFERTAS FIA
-          </span>
-          <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
-            <BadgePercent className="w-5 h-5 text-amber-400" />
-            Cotas de Patrocínio Comercial F1 2026 (Exclusividade por Posição)
-          </CardTitle>
-          <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
+      <div className="relative z-10 rounded-xl bg-[#11161F] border border-[#1F2733] p-5 shadow-sm space-y-4">
+        <div className="pb-3 border-b border-[#1F2733]">
+          <span className="eyebrow text-[#8B95A7] block">PORTFÓLIO DE OFERTAS</span>
+          <h3 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2 mt-1">
+            <BadgePercent className="w-4 h-4 text-amber-400" />
+            Cotas de Patrocínio Comercial (Exclusividade por Posição no Monoposto)
+          </h3>
+          <p className="text-xs text-[#8B95A7] mt-0.5">
             Cada local do carro (bico, laterais, asa traseira, halo, macacão, retrovisores) possui
-            uma cota EXCLUSIVA. Fechar um contrato reserva a posição e encerra as outras ofertas
-            para aquela cota.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {marketCatalogWithStatus.map((m) => {
-              return (
-                <div
-                  key={m.name}
-                  className={`p-4 rounded-xl border space-y-3 flex flex-col justify-between transition-all ${
-                    m.isAlreadySigned
-                      ? 'bg-[#0B0E14]/60 border-emerald-900/40 opacity-70'
-                      : m.isSlotOccupied
-                        ? 'bg-[#0B0E14]/40 border-dashed border-[#1F2733] opacity-60'
-                        : 'bg-[#0B0E14] border-[#1F2733] hover:border-[#1F2733]/80'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-bold text-sm text-[#F5F7FA]">{m.name}</h3>
-                        <Badge
-                          variant="secondary"
-                          className="mt-1 text-[10px] font-mono bg-[#161D29] text-[#00A6FB] border border-[#00A6FB]/30"
-                        >
-                          Cota: {m.slotLabel}
-                        </Badge>
-                      </div>
+            uma cota exclusiva. Fechar um contrato reserva a posição e encerra ofertas concorrentes.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {marketCatalogWithStatus.map((m) => {
+            return (
+              <div
+                key={m.name}
+                className={`p-4 rounded-xl border space-y-3 flex flex-col justify-between transition-all ${
+                  m.isAlreadySigned
+                    ? 'bg-[#161D29]/60 border-emerald-900/40 opacity-70'
+                    : m.isSlotOccupied
+                      ? 'bg-[#161D29]/40 border-dashed border-[#1F2733] opacity-60'
+                      : 'bg-[#161D29] border-[#1F2733] hover:border-[#2C3849]'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-sm text-[#F5F7FA]">{m.name}</h4>
                       <Badge
-                        variant="outline"
-                        className="text-[10px] border-[#00A6FB]/40 text-[#00A6FB] shrink-0"
+                        variant="secondary"
+                        className="mt-1 text-[10px] font-mono bg-[#11161F] text-[#F5F7FA] border border-[#1F2733]"
                       >
-                        {m.rounds} GPs
+                        Cota: {m.slotLabel}
                       </Badge>
                     </div>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-[#1F2733] bg-[#11161F] text-[#8B95A7] font-mono shrink-0"
+                    >
+                      {m.rounds} GPs
+                    </Badge>
+                  </div>
 
-                    <p className="text-[11px] text-[#8B95A7] mt-2 leading-relaxed">
-                      {m.description}
-                    </p>
+                  <p className="text-[11px] text-[#8B95A7] mt-2 leading-relaxed">{m.description}</p>
 
-                    <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] mt-3 space-y-1 text-xs font-mono">
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-[#8B95A7]">Valor base:</span>
-                        <span className="text-[#8B95A7] line-through text-[11px]">
-                          {formatCurrency(m.valuePerRound)}
+                  <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] mt-3 space-y-1 text-xs font-mono">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[#8B95A7]">Valor base:</span>
+                      <span className="text-[#8B95A7] line-through text-[11px] font-num">
+                        {formatCurrency(m.valuePerRound)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[#8B95A7] flex items-center gap-1">
+                        Com bônus:
+                        <span className="text-[10px] text-emerald-400 font-num">
+                          (x{performanceStats.multiplier.toFixed(2)})
                         </span>
-                      </div>
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-[#8B95A7] flex items-center gap-1">
-                          Valor com bônus:
-                          <span className="text-[10px] text-emerald-400">
-                            (x{performanceStats.multiplier.toFixed(2)})
-                          </span>
-                        </span>
-                        <strong className="text-emerald-400 font-bold text-sm">
-                          {formatCurrency(m.scaledValue)}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#8B95A7]">Exigência:</span>
-                        <strong className="text-amber-400">{m.requirement}</strong>
-                      </div>
+                      </span>
+                      <strong className="text-emerald-400 font-bold text-sm font-num">
+                        {formatCurrency(m.scaledValue)}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#8B95A7]">Exigência:</span>
+                      <strong className="text-[#F5F7FA]">{m.requirement}</strong>
                     </div>
                   </div>
-
-                  <div className="mt-2">
-                    {m.isAlreadySigned ? (
-                      <div className="p-2 text-center rounded-lg bg-emerald-950/30 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
-                        ✓ Contrato em Vigor
-                      </div>
-                    ) : m.isSlotOccupied ? (
-                      <div className="p-2 text-center rounded-lg bg-[#161D29] border border-[#1F2733] text-[#8B95A7] text-[11px] font-mono">
-                        🔒 Cota ocupada ({m.occupantName || 'por outro patrocinador'})
-                      </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => setSigningSponsor(m)}
-                        className="w-full bg-[#E10600] hover:bg-[#FF2E25] text-white text-xs font-semibold h-8 shadow"
-                      >
-                        Fechar Contrato Exclusivo
-                      </Button>
-                    )}
-                  </div>
                 </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+
+                <div className="mt-2">
+                  {m.isAlreadySigned ? (
+                    <div className="p-2 text-center rounded-lg bg-emerald-950/20 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+                      ✓ Contrato em Vigor
+                    </div>
+                  ) : m.isSlotOccupied ? (
+                    <div className="p-2 text-center rounded-lg bg-[#11161F] border border-[#1F2733] text-[#8B95A7] text-[11px] font-mono">
+                      🔒 Cota ocupada ({m.occupantName || 'por outro patrocinador'})
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => setSigningSponsor(m)}
+                      className="w-full bg-[#E10600] hover:bg-[#FF2E25] text-white text-xs font-bold h-8 shadow"
+                    >
+                      Fechar Contrato Exclusivo
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Modal: Fechar Contrato */}
       <Dialog open={!!signingSponsor} onOpenChange={(open) => !open && setSigningSponsor(null)}>

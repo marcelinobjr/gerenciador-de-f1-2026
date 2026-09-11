@@ -42,6 +42,10 @@ import { Badge } from '@/components/ui/badge'
 import { Slider } from '@/components/ui/slider'
 import { DriverHelmet } from '@/components/DriverHelmet'
 import { AmbientBackground } from '@/components/AmbientBackground'
+import { PageHeader } from '@/components/PageHeader'
+import { ProgressBar } from '@/components/ProgressBar'
+import { DataTable, DataTableColumn } from '@/components/DataTable'
+import { EmptyState } from '@/components/EmptyState'
 
 import {
   Dialog,
@@ -589,38 +593,29 @@ export default function TeamPage() {
   return (
     <div className="relative space-y-8 animate-fade-in-up">
       <AmbientBackground />
-      {/* Header */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
-        <div>
-          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
-            Gestão Esportiva & Elenco 2026
-          </span>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
-            Equipe & Mercado de Pilotos
-          </h1>
-          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
-            Estrutura oficial de 2 titulares + 1 piloto reserva com 2 sessões de treino livre/ano,
-            substituição por incapacidade e mercado com revelações da F2.
-          </p>
-        </div>
-
-        {/* Indicador de Força da Equipe */}
-        <div className="bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 px-4 py-2.5 rounded-xl flex items-center gap-3 shadow-lg">
-          <div className="text-right">
-            <span className="text-[10px] font-mono text-[#8B95A7] uppercase block">
-              Força da Escuderia
-            </span>
-            <span className="text-xl font-mono font-black text-amber-400">{teamStrength}/100</span>
-          </div>
+      {/* PageHeader Race Operations */}
+      <PageHeader
+        eyebrow="RACE OPERATIONS // GESTÃO ESPORTIVA"
+        title="Minha Equipe & Mercado de Pilotos"
+        description="Estrutura de 2 titulares + 1 piloto reserva com treinos livres anuais, substituição por incapacidade médica e mercado da F1/F2."
+        badge={
           <Badge
             variant="outline"
-            className="text-[10px] font-mono border-amber-500/40 text-amber-400 bg-amber-500/10"
+            className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] font-mono text-xs"
           >
             {isCustomTeam ? '12ª Equipe Própria' : 'Equipe Oficial 2026'}
           </Badge>
-        </div>
-      </div>
+        }
+        actions={
+          <div className="bg-[#11161F] border border-[#1F2733] px-3.5 py-2 rounded-lg flex items-center gap-3">
+            <div className="text-right">
+              <span className="eyebrow block text-[#8B95A7]">FORÇA DA ESCUDERIA</span>
+              <span className="font-num text-lg font-bold text-[#F5F7FA]">{teamStrength}/100</span>
+            </div>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+          </div>
+        }
+      />
 
       {/* Alerta de Piloto Incapacitado (se houver) */}
       {incapacitatedDriver && (
@@ -869,64 +864,32 @@ export default function TeamPage() {
                       </div>
                     </div>
 
-                    {/* Attributes Bars */}
+                    {/* Attributes Bars com ProgressBar */}
                     <div className="grid grid-cols-2 gap-3 text-xs font-mono">
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[#8B95A7]">
-                          <span className="flex items-center gap-1">
-                            <Flame className="w-3 h-3 text-[#E10600]" /> Velocidade
-                          </span>
-                          <span className="text-[#F5F7FA] font-bold">{driver.speed}</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#E10600]"
-                            style={{ width: `${driver.speed}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[#8B95A7]">
-                          <span className="flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3 text-[#00A6FB]" /> Consistência
-                          </span>
-                          <span className="text-[#F5F7FA] font-bold">{driver.consistency}</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#00A6FB]"
-                            style={{ width: `${driver.consistency}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[#8B95A7]">
-                          <span className="flex items-center gap-1">
-                            <CloudRain className="w-3 h-3 text-sky-400" /> Chuva
-                          </span>
-                          <span className="text-[#F5F7FA] font-bold">{driver.rain}</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                          <div className="h-full bg-sky-400" style={{ width: `${driver.rain}%` }} />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[#8B95A7]">
-                          <span className="flex items-center gap-1">
-                            <Shield className="w-3 h-3 text-amber-400" /> Defesa
-                          </span>
-                          <span className="text-[#F5F7FA] font-bold">{driver.defense}</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-amber-400"
-                            style={{ width: `${driver.defense}%` }}
-                          />
-                        </div>
-                      </div>
+                      <ProgressBar
+                        value={driver.speed}
+                        label="VELOCIDADE"
+                        size="sm"
+                        valueFormatter={(v) => `${v}`}
+                      />
+                      <ProgressBar
+                        value={driver.consistency}
+                        label="CONSISTÊNCIA"
+                        size="sm"
+                        valueFormatter={(v) => `${v}`}
+                      />
+                      <ProgressBar
+                        value={driver.rain}
+                        label="CHUVA"
+                        size="sm"
+                        valueFormatter={(v) => `${v}`}
+                      />
+                      <ProgressBar
+                        value={driver.defense}
+                        label="DEFESA"
+                        size="sm"
+                        valueFormatter={(v) => `${v}`}
+                      />
                     </div>
 
                     {/* Perfil de Desgaste de Pneus (Estilo & Consistência) */}
@@ -952,69 +915,14 @@ export default function TeamPage() {
                       )
                     })()}
 
-                    {/* Moral & Condição Física */}
+                    {/* Moral & Condição Física via ProgressBar */}
                     <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] grid grid-cols-2 gap-3 text-xs font-mono">
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[#8B95A7]">
-                          <span className="flex items-center gap-1 text-[#F5F7FA]">
-                            <Sparkles className="w-3 h-3 text-amber-400" /> Moral do Piloto
-                          </span>
-                          <span
-                            className={`font-bold ${
-                              (driver.morale ?? 80) >= 80
-                                ? 'text-emerald-400'
-                                : (driver.morale ?? 80) >= 60
-                                  ? 'text-amber-400'
-                                  : 'text-red-400'
-                            }`}
-                          >
-                            {driver.morale ?? 80}%
-                          </span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              (driver.morale ?? 80) >= 80
-                                ? 'bg-emerald-400'
-                                : (driver.morale ?? 80) >= 60
-                                  ? 'bg-amber-400'
-                                  : 'bg-red-400'
-                            }`}
-                            style={{ width: `${driver.morale ?? 80}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[#8B95A7]">
-                          <span className="flex items-center gap-1 text-[#F5F7FA]">
-                            <HeartPulse className="w-3 h-3 text-rose-400" /> Condição Física
-                          </span>
-                          <span
-                            className={`font-bold ${
-                              (driver.physical_condition ?? 90) >= 80
-                                ? 'text-emerald-400'
-                                : (driver.physical_condition ?? 90) >= 60
-                                  ? 'text-amber-400'
-                                  : 'text-red-400'
-                            }`}
-                          >
-                            {driver.physical_condition ?? 90}%
-                          </span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              (driver.physical_condition ?? 90) >= 80
-                                ? 'bg-emerald-400'
-                                : (driver.physical_condition ?? 90) >= 60
-                                  ? 'bg-amber-400'
-                                  : 'bg-rose-400'
-                            }`}
-                            style={{ width: `${driver.physical_condition ?? 90}%` }}
-                          />
-                        </div>
-                      </div>
+                      <ProgressBar value={driver.morale ?? 80} label="MORAL DO PILOTO" size="sm" />
+                      <ProgressBar
+                        value={driver.physical_condition ?? 90}
+                        label="CONDIÇÃO FÍSICA"
+                        size="sm"
+                      />
                     </div>
 
                     {/* Salary & Action Buttons */}
@@ -1220,22 +1128,18 @@ export default function TeamPage() {
                 </div>
               </div>
 
-              {/* Moral e Condição Física do Reserva */}
+              {/* Moral e Condição Física do Reserva via ProgressBar */}
               <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] grid grid-cols-2 gap-3 text-xs font-mono">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#8B95A7] flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-400" /> Moral:
-                  </span>
-                  <span className="font-bold text-emerald-400">{reserveDriver.morale ?? 85}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[#8B95A7] flex items-center gap-1">
-                    <HeartPulse className="w-3 h-3 text-rose-400" /> Condição Física:
-                  </span>
-                  <span className="font-bold text-emerald-400">
-                    {reserveDriver.physical_condition ?? 95}%
-                  </span>
-                </div>
+                <ProgressBar
+                  value={reserveDriver.morale ?? 85}
+                  label="MORAL DO RESERVA"
+                  size="sm"
+                />
+                <ProgressBar
+                  value={reserveDriver.physical_condition ?? 95}
+                  label="CONDIÇÃO FÍSICA"
+                  size="sm"
+                />
               </div>
             </div>
           )}
@@ -1473,138 +1377,186 @@ export default function TeamPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-[#1F2733] text-[#8B95A7] uppercase tracking-wider">
-                    <th className="py-2.5 px-3">Origem</th>
-                    <th className="py-2.5 px-3">Piloto</th>
-                    <th className="py-2.5 px-2">Idade</th>
-                    <th className="py-2.5 px-2 text-center">Vel</th>
-                    <th className="py-2.5 px-2 text-center">Cons</th>
-                    <th className="py-2.5 px-2 text-center">Chuva</th>
-                    <th className="py-2.5 px-2 text-center">Def</th>
-                    <th className="py-2.5 px-3">Salário / Reajuste</th>
-                    <th className="py-2.5 px-3">Status Silly Season</th>
-                    <th className="py-2.5 px-3 text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1F2733]/60">
-                  {filteredMarket.map((driver) => {
-                    const perf = driverPerformanceMap[driver.id] || {
+            <DataTable
+              keyExtractor={(d) => d.id}
+              data={filteredMarket}
+              playerRowPredicate={(d) => d.team_id === team?.id || d.next_team_id === team?.id}
+              playerRowTeamColor={team?.color || '#E10600'}
+              playerBadgeLabel="SEU PILOTO"
+              emptyMessage="Nenhum piloto encontrado para os filtros selecionados."
+              columns={[
+                {
+                  key: 'category',
+                  header: 'Origem',
+                  render: (d) => getCategoryBadge(d.category),
+                  width: '90px',
+                },
+                {
+                  key: 'name',
+                  header: 'Piloto',
+                  render: (d) => (
+                    <div className="flex items-center gap-2">
+                      <span className="text-base" title={d.nationality}>
+                        {getFlag(d.nationality)}
+                      </span>
+                      <div>
+                        <span className="font-bold text-[#F5F7FA] text-sm block">{d.name}</span>
+                        {d.team_id && (
+                          <span className="text-[10px] text-[#8B95A7] font-mono">
+                            Equipe 2026: {d.team_id === team?.id ? 'Sua Equipe' : 'Grid F1'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'age',
+                  header: 'Idade',
+                  align: 'center',
+                  render: (d) => <span className="font-num text-[#8B95A7]">{d.age}</span>,
+                  width: '60px',
+                },
+                {
+                  key: 'speed',
+                  header: 'Vel',
+                  align: 'center',
+                  render: (d) => (
+                    <span className="font-num font-bold text-[#F5F7FA]">{d.speed}</span>
+                  ),
+                  width: '50px',
+                },
+                {
+                  key: 'consistency',
+                  header: 'Cons',
+                  align: 'center',
+                  render: (d) => (
+                    <span className="font-num font-bold text-[#F5F7FA]">{d.consistency}</span>
+                  ),
+                  width: '50px',
+                },
+                {
+                  key: 'rain',
+                  header: 'Chuva',
+                  align: 'center',
+                  render: (d) => <span className="font-num font-bold text-sky-400">{d.rain}</span>,
+                  width: '50px',
+                },
+                {
+                  key: 'defense',
+                  header: 'Def',
+                  align: 'center',
+                  render: (d) => (
+                    <span className="font-num font-bold text-amber-400">{d.defense}</span>
+                  ),
+                  width: '50px',
+                },
+                {
+                  key: 'salary',
+                  header: 'Salário / Reajuste',
+                  align: 'right',
+                  isNumeric: true,
+                  render: (d) => {
+                    const perf = driverPerformanceMap[d.id] || {
                       multiplier: 1,
                       explanation: 'Estável',
-                      adjustedSalary: driver.salary,
+                      adjustedSalary: d.salary,
                     }
-                    const isAlreadySignedToPlayer = driver.next_team_id === team?.id
-                    const isSignedToRival =
-                      !!driver.next_team_id && driver.next_team_id !== team?.id
+                    return (
+                      <div className="text-right">
+                        <div className="font-bold font-num text-[#F5F7FA]">
+                          {formatCurrency(perf.adjustedSalary)}
+                        </div>
+                        {perf.multiplier !== 1 && (
+                          <div
+                            className={`text-[10px] font-mono ${
+                              perf.multiplier > 1 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                            title={perf.explanation}
+                          >
+                            {perf.multiplier > 1
+                              ? `+${Math.round((perf.multiplier - 1) * 100)}%`
+                              : `-${Math.round((1 - perf.multiplier) * 100)}%`}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  },
+                },
+                {
+                  key: 'status',
+                  header: 'Silly Season',
+                  render: (d) => {
+                    const isAlreadySignedToPlayer = d.next_team_id === team?.id
+                    const isSignedToRival = !!d.next_team_id && d.next_team_id !== team?.id
+
+                    if (isAlreadySignedToPlayer) {
+                      return (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono">
+                          ✓ Assinado p/ {nextSeasonYear}
+                        </Badge>
+                      )
+                    }
+                    if (isSignedToRival) {
+                      return (
+                        <Badge className="bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-mono">
+                          Assinado com rival
+                        </Badge>
+                      )
+                    }
+                    if (isSillySeasonOpen) {
+                      return (
+                        <Badge
+                          variant="outline"
+                          className="text-amber-400 border-amber-500/30 text-[10px] font-mono"
+                        >
+                          Livre p/ {nextSeasonYear}
+                        </Badge>
+                      )
+                    }
+                    return <span className="text-[10px] text-zinc-500 font-mono">Abre na R12</span>
+                  },
+                },
+                {
+                  key: 'action',
+                  header: 'Ação',
+                  align: 'right',
+                  render: (d) => {
+                    const isAlreadySignedToPlayer = d.next_team_id === team?.id
+                    const isSignedToRival = !!d.next_team_id && d.next_team_id !== team?.id
 
                     return (
-                      <tr key={driver.id} className="hover:bg-[#161D29]/40 transition-colors">
-                        <td className="py-3 px-3">{getCategoryBadge(driver.category)}</td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base" title={driver.nationality}>
-                              {getFlag(driver.nationality)}
-                            </span>
-                            <div>
-                              <span className="font-extrabold text-[#F5F7FA] text-base group-hover:text-cyan-400 transition-colors block">
-                                {driver.name}
-                              </span>
-                              {driver.team_id && (
-                                <span className="text-[10px] text-zinc-400 font-mono">
-                                  Equipe 2026:{' '}
-                                  {driver.team_id === team?.id ? 'Sua Equipe' : 'Grid F1'}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-2 text-[#8B95A7]">{driver.age}</td>
-                        <td className="py-3 px-2 text-center font-bold text-[#E10600]">
-                          {driver.speed}
-                        </td>
-                        <td className="py-3 px-2 text-center font-bold text-[#00A6FB]">
-                          {driver.consistency}
-                        </td>
-                        <td className="py-3 px-2 text-center font-bold text-sky-400">
-                          {driver.rain}
-                        </td>
-                        <td className="py-3 px-2 text-center font-bold text-amber-400">
-                          {driver.defense}
-                        </td>
-                        <td className="py-3 px-3 text-[#F5F7FA]">
-                          <div className="font-bold">{formatCurrency(perf.adjustedSalary)}</div>
-                          {perf.multiplier !== 1 && (
-                            <div
-                              className={`text-[10px] font-mono ${
-                                perf.multiplier > 1 ? 'text-emerald-400' : 'text-rose-400'
-                              }`}
-                              title={perf.explanation}
-                            >
-                              {perf.multiplier > 1
-                                ? `+${Math.round((perf.multiplier - 1) * 100)}% por desempenho`
-                                : `-${Math.round((1 - perf.multiplier) * 100)}% por desempenho`}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-3">
-                          {isAlreadySignedToPlayer ? (
-                            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono">
-                              ✓ Assinado p/ {nextSeasonYear}
-                            </Badge>
-                          ) : isSignedToRival ? (
-                            <Badge className="bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-mono">
-                              Assinado com rival
-                            </Badge>
-                          ) : isSillySeasonOpen ? (
-                            <Badge
-                              variant="outline"
-                              className="text-amber-400 border-amber-500/30 text-[10px] font-mono"
-                            >
-                              Livre p/ {nextSeasonYear}
-                            </Badge>
-                          ) : (
-                            <span className="text-[10px] text-zinc-500 font-mono">Abre na R12</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <Button
-                            size="sm"
-                            disabled={
-                              !isSillySeasonOpen || isAlreadySignedToPlayer || isSignedToRival
-                            }
-                            onClick={() => openHireDialog(driver)}
-                            className={`${
-                              !isSillySeasonOpen
+                      <Button
+                        size="sm"
+                        disabled={!isSillySeasonOpen || isAlreadySignedToPlayer || isSignedToRival}
+                        onClick={() => openHireDialog(d)}
+                        className={`${
+                          !isSillySeasonOpen
+                            ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                            : isAlreadySignedToPlayer
+                              ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default'
+                              : isSignedToRival
                                 ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
-                                : isAlreadySignedToPlayer
-                                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default'
-                                  : isSignedToRival
-                                    ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
-                                    : 'bg-[#E10600] hover:bg-[#FF2E25] text-white'
-                            } text-xs h-7 px-3 shadow`}
-                          >
-                            {!isSillySeasonOpen ? (
-                              <span className="flex items-center gap-1">
-                                <Lock className="w-3 h-3" /> Bloqueado
-                              </span>
-                            ) : isAlreadySignedToPlayer ? (
-                              'Contratado'
-                            ) : isSignedToRival ? (
-                              'Indisponível'
-                            ) : (
-                              `Assinar p/ ${nextSeasonYear}`
-                            )}
-                          </Button>
-                        </td>
-                      </tr>
+                                : 'bg-[#E10600] hover:bg-[#FF2E25] text-white'
+                        } text-xs h-7 px-3 shadow`}
+                      >
+                        {!isSillySeasonOpen ? (
+                          <span className="flex items-center gap-1">
+                            <Lock className="w-3 h-3" /> Bloqueado
+                          </span>
+                        ) : isAlreadySignedToPlayer ? (
+                          'Contratado'
+                        ) : isSignedToRival ? (
+                          'Indisponível'
+                        ) : (
+                          `Assinar p/ ${nextSeasonYear}`
+                        )}
+                      </Button>
                     )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  },
+                },
+              ]}
+            />
           )}
         </CardContent>
       </Card>

@@ -40,8 +40,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-
 import { notificationService } from '@/services/notificationService'
+import { PageHeader } from '@/components/PageHeader'
+import { ProgressBar } from '@/components/ProgressBar'
+import { StatCard } from '@/components/StatCard'
 
 export default function CarPage() {
   const { user, team, season, refreshTeamAndSeason } = useAuth()
@@ -684,133 +686,121 @@ export default function CarPage() {
   return (
     <div className="relative space-y-8 animate-fade-in-up">
       <AmbientBackground />
-      {/* Header */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1F2733]/80">
-        <div>
-          <span className="text-xs font-mono font-black tracking-widest text-[#E10600] uppercase flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#E10600] shadow-[0_0_8px_#E10600] animate-pulse" />
-            Engenharia & Blueprint Técnico Oficial
-          </span>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mt-1 drop-shadow-md">
-            Monoposto 2026 // Arquitetura & Componentes
-          </h1>
-          <p className="text-xs sm:text-sm text-[#8B95A7] font-mono mt-1">
-            Interaja com o blueprint milimetrado, monitore o desgaste estrutural após cada GP e
-            repare ou aprimore as 6 peças homologadas.
-          </p>
-        </div>
-
-        {/* Badges: Integridade Média + Cost Cap + Motor */}
-        <div className="flex flex-wrap items-center gap-2">
+      {/* PageHeader Race Operations */}
+      <PageHeader
+        eyebrow="RACE OPERATIONS // ENGENHARIA & P&D"
+        title="Monoposto 2026 // Arquitetura & Componentes"
+        description="Blueprint milimetrado, telemetria de fadiga mecânica após cada GP e gestão das 6 peças homologadas sob o teto da FIA."
+        badge={
           <Badge
             variant="outline"
-            className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
-              averageCondition >= 80
-                ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
-                : averageCondition >= 60
-                  ? 'border-amber-500/40 text-amber-400 bg-amber-500/10'
-                  : 'border-red-500/50 text-red-400 bg-red-500/10 animate-pulse'
-            }`}
+            className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] font-mono text-xs"
           >
-            <Activity className="w-4 h-4" />
-            <span>Integridade: {averageCondition}%</span>
+            Nível Geral: {overallLevel}/10
           </Badge>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
+                averageCondition >= 80
+                  ? 'border-emerald-500/40 text-emerald-400 bg-[#11161F]'
+                  : averageCondition >= 60
+                    ? 'border-amber-500/40 text-amber-400 bg-[#11161F]'
+                    : 'border-red-500/50 text-red-400 bg-[#11161F]'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Integridade: {averageCondition}%</span>
+            </Badge>
 
-          <Badge
-            variant="outline"
-            className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
-              isCostCapBreached
-                ? 'border-red-500 text-red-400 bg-red-500/10 animate-pulse'
-                : currentCostCapSpent / COST_CAP_LIMIT > 0.8
-                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
-                  : 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
-            }`}
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>
-              Teto FIA: {formatCurrency(currentCostCapSpent)} / {formatCurrency(COST_CAP_LIMIT)}
-            </span>
-          </Badge>
+            <Badge
+              variant="outline"
+              className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
+                isCostCapBreached
+                  ? 'border-red-500 text-red-400 bg-[#11161F]'
+                  : currentCostCapSpent / COST_CAP_LIMIT > 0.8
+                    ? 'border-amber-500 text-amber-400 bg-[#11161F]'
+                    : 'border-emerald-500/40 text-emerald-400 bg-[#11161F]'
+              }`}
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              <span>Teto FIA: {formatCurrency(currentCostCapSpent)}</span>
+            </Badge>
 
-          <Badge
-            variant="outline"
-            className={`font-mono text-xs px-3 py-1.5 flex items-center gap-2 ${
-              enginePoolUsed > f1Service.MAX_ALLOWED_ENGINES
-                ? 'border-red-500 text-red-400 bg-red-500/10 animate-pulse'
-                : enginePoolUsed === f1Service.MAX_ALLOWED_ENGINES
-                  ? 'border-amber-500 text-amber-400 bg-amber-500/10'
-                  : 'border-[#00A6FB]/40 text-[#00A6FB] bg-[#00A6FB]/10'
-            }`}
-          >
-            <Flame className="w-4 h-4" />
-            <span>
-              Motor #{enginePoolUsed}/4 ({activeEngineWear}% uso)
-            </span>
-          </Badge>
-        </div>
-      </div>
+            <Badge
+              variant="outline"
+              className="font-mono text-xs px-3 py-1.5 flex items-center gap-2 border-[#1F2733] bg-[#11161F] text-[#F5F7FA]"
+            >
+              <Flame className="w-3.5 h-3.5 text-[#E10600]" />
+              <span>
+                PU #{enginePoolUsed}/4 ({activeEngineWear}% desgaste)
+              </span>
+            </Badge>
+          </div>
+        }
+      />
 
-      {/* PAINEL FIA: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
+      {/* PAINEL ELEVADO CAMADA 2: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
       <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card Cost Cap */}
-        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
-          <div className="flex items-center justify-between pb-2">
+        {/* Card Cost Cap - Painel Elevado Camada 2 */}
+        <div className="rounded-xl bg-[#161D29] border border-[#2C3849] p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
             <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-emerald-400" />
-              <h3 className="text-sm font-bold text-[#F5F7FA] font-mono">
-                TETO DE GASTOS FIA (COST CAP 2026)
-              </h3>
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              <h3 className="eyebrow text-[#F5F7FA]">TETO DE GASTOS FIA (COST CAP 2026)</h3>
             </div>
-            <span className="text-xs font-mono font-bold text-[#F5F7FA]">
+            <span className="font-num text-xs font-bold text-[#F5F7FA]">
               {Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}%
             </span>
           </div>
 
           <div className="space-y-2 mt-2">
-            <Progress
+            <ProgressBar
               value={Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}
-              className="h-2.5 bg-[#0B0E14]"
+              size="md"
             />
             <div className="flex items-center justify-between text-xs font-mono text-[#8B95A7]">
               <span>
                 Gasto em P&D / Reparos:{' '}
-                <strong className="text-white">{formatCurrency(currentCostCapSpent)}</strong>
+                <strong className="text-white font-num">
+                  {formatCurrency(currentCostCapSpent)}
+                </strong>
               </span>
               <span>
-                Limite: <strong className="text-white">{formatCurrency(COST_CAP_LIMIT)}</strong>
+                Limite:{' '}
+                <strong className="text-white font-num">{formatCurrency(COST_CAP_LIMIT)}</strong>
               </span>
             </div>
-            <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-[#1F2733]/60">
+            <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-[#1F2733]">
               <span className="text-[#8B95A7]">Margem Restante no Teto:</span>
               <strong
-                className={remainingCostCap < 20000000 ? 'text-amber-400' : 'text-emerald-400'}
+                className={`font-num font-bold ${remainingCostCap < 20000000 ? 'text-amber-400' : 'text-emerald-400'}`}
               >
                 {formatCurrency(remainingCostCap)}
               </strong>
             </div>
-            <p className="text-[10px] text-[#8B95A7] italic">
-              Regulamento Financeiro FIA: Limite anual padronizado de R$ 215M. Ultrapassar o teto
-              desencadeia Investigação Oficial da FIA com dedução de pontos de construtores e
-              sanções de P&D.
+            <p className="text-[10px] text-[#8B95A7] leading-relaxed">
+              Regulamento Financeiro FIA: limite de R$ 215M. Violações ativam investigação com perda
+              de pontos.
             </p>
           </div>
-        </Card>
+        </div>
 
-        {/* Card Pool de Motores & Desgaste */}
-        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
-          <div className="flex items-center justify-between pb-2">
+        {/* Card Pool de Motores & Desgaste - Painel Elevado Camada 2 */}
+        <div className="rounded-xl bg-[#161D29] border border-[#2C3849] p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
             <div className="flex items-center gap-2">
-              <Flame className="w-5 h-5 text-[#E10600]" />
-              <h3 className="text-sm font-bold text-[#F5F7FA] font-mono">
-                VIDA ÚTIL DO MOTOR & POOL DA TEMPORADA
-              </h3>
+              <Flame className="w-4 h-4 text-[#E10600]" />
+              <h3 className="eyebrow text-[#F5F7FA]">SAÚDE DA UNIDADE DE POTÊNCIA</h3>
             </div>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
                 enginePoolUsed > 4
                   ? 'border-red-500 text-red-400 bg-red-500/10'
-                  : 'border-emerald-500/40 text-emerald-400'
+                  : 'border-[#1F2733] bg-[#11161F] text-[#F5F7FA]'
               }`}
             >
               PU #{enginePoolUsed} de 4
@@ -819,27 +809,20 @@ export default function CarPage() {
 
           <div className="space-y-3 mt-1 text-xs font-mono">
             <div>
-              <div className="flex justify-between items-center text-[11px] mb-1">
-                <span className="text-[#8B95A7]">Desgaste do Motor Atual:</span>
-                <strong
-                  className={`font-bold ${
-                    activeEngineWear >= 70
-                      ? 'text-red-400'
-                      : activeEngineWear >= 40
-                        ? 'text-amber-400'
-                        : 'text-emerald-400'
-                  }`}
-                >
-                  {activeEngineWear}% ACUMULADO
-                </strong>
-              </div>
-              <Progress value={activeEngineWear} className="h-2 bg-[#0B0E14]" />
+              <ProgressBar
+                value={Math.max(0, 100 - activeEngineWear)}
+                label="CONDIÇÃO MECÂNICA DA PU"
+                size="md"
+                valueFormatter={(val) =>
+                  `${Math.round(val)}% integridade (${activeEngineWear}% uso)`
+                }
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#1F2733]/60">
+            <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#1F2733]">
               <div>
                 <span className="text-[#8B95A7] block text-[10px]">Cota Sem Penalidade</span>
-                <strong className="text-white">
+                <strong className="text-white font-num">
                   {remainingEnginesInQuota > 0
                     ? `${remainingEnginesInQuota} unidade(s) livre(s)`
                     : 'COTA ESGOTADA!'}
@@ -847,7 +830,7 @@ export default function CarPage() {
               </div>
               <div>
                 <span className="text-[#8B95A7] block text-[10px]">Próxima Troca Excedente</span>
-                <span className={enginePoolUsed >= 4 ? 'text-red-400 font-bold' : 'text-slate-400'}>
+                <span className={enginePoolUsed >= 4 ? 'text-red-400 font-bold' : 'text-[#8B95A7]'}>
                   {enginePoolUsed < 4
                     ? 'Sem punição'
                     : enginePoolUsed === 4
@@ -857,11 +840,11 @@ export default function CarPage() {
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-between gap-2">
+            <div className="pt-2 flex items-center justify-between gap-2 border-t border-[#1F2733]">
               <span className="text-[10px] text-[#8B95A7]">
                 {activeEngineWear >= 60
-                  ? '⚠️ Alta degradação! Risco de quebra nas corridas.'
-                  : 'Unidade em faixa térmica e mecânica estável.'}
+                  ? 'Alta degradação térmica e risco de quebra.'
+                  : 'Unidade em faixa térmica estável.'}
               </span>
               <Button
                 size="sm"
@@ -871,13 +854,13 @@ export default function CarPage() {
                   team?.budget! < 15000000 ||
                   currentCostCapSpent + 15000000 > COST_CAP_LIMIT
                 }
-                className="bg-amber-600 hover:bg-amber-500 text-black font-bold text-xs h-7 px-3 shrink-0"
+                className="bg-[#11161F] hover:bg-[#161D29] text-[#F5F7FA] border border-[#2C3849] font-bold text-xs h-7 px-3 shrink-0"
               >
                 {introducingEngine ? 'Ativando...' : 'Introduzir Nova PU (R$ 15M)'}
               </Button>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* SELETOR DE MODO DE APRESENTAÇÃO DO MONOPOSTO */}
@@ -986,67 +969,36 @@ export default function CarPage() {
               <>
                 {/* Métricas: Nível + Condição */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Bloco 1: Nível & Potencial Técnico */}
-                  <div className="p-4 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[#8B95A7] font-mono uppercase">
-                        Nível Homologado FIA
-                      </span>
-                      <span className="text-xs font-mono font-bold text-cyan-400">
-                        NÍVEL {selectedPart.level} / 10
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="h-2.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-cyan-500 to-[#E10600] transition-all duration-300"
-                          style={{ width: `${(selectedPart.level / 10) * 100}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] font-mono text-[#8B95A7]">
-                        <span>0 (Padrão)</span>
-                        <span>5 (Intermediário)</span>
-                        <span>10 (Topo)</span>
-                      </div>
-                    </div>
+                  {/* Bloco 1: Nível & Potencial Técnico via ProgressBar */}
+                  <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-3">
+                    <ProgressBar
+                      value={selectedPart.level}
+                      max={10}
+                      label="NÍVEL HOMOLOGADO FIA"
+                      size="md"
+                      valueFormatter={(v, m) => `NÍVEL ${v} / ${m}`}
+                    />
 
                     <p className="text-[11px] text-[#8B95A7] leading-relaxed">
                       Contribuição aerodinâmica/mecânica direta: cada nível adiciona{' '}
-                      <strong className="text-[#F5F7FA]">+1,0 pt</strong> ao índice geral de
-                      competitividade nas 24 etapas.
+                      <strong className="text-[#F5F7FA] font-num">+1,0 pt</strong> ao índice geral
+                      de competitividade nas 24 etapas.
                     </p>
                   </div>
 
-                  {/* Bloco 2: Condição / Desgaste Físico */}
-                  <div className="p-4 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[#8B95A7] font-mono uppercase">
-                        Integridade Estrutural
-                      </span>
-                      <span className={`text-xs font-mono font-bold ${selectedCondInfo.color}`}>
-                        {selectedPart.condition ?? 100}% OPERACIONAL
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="h-2.5 w-full bg-[#1F2733] rounded-full overflow-hidden">
-                        <div
-                          className={`h-full bg-gradient-to-r ${selectedCondInfo.barColor} transition-all duration-300`}
-                          style={{ width: `${selectedPart.condition ?? 100}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] font-mono text-[#8B95A7]">
-                        <span className="text-red-400">&lt;50% Crítico</span>
-                        <span className="text-amber-400">50-79% Moderado</span>
-                        <span className="text-emerald-400">80-100% Ótimo</span>
-                      </div>
-                    </div>
+                  {/* Bloco 2: Condição / Desgaste Físico via ProgressBar */}
+                  <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-3">
+                    <ProgressBar
+                      value={selectedPart.condition ?? 100}
+                      max={100}
+                      label="INTEGRIDADE ESTRUTURAL"
+                      size="md"
+                    />
 
                     <div className="flex items-start gap-1.5 text-[11px] font-mono">
                       <AlertTriangle
                         className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
-                          (selectedPart.condition ?? 100) < 60 ? 'text-red-400' : 'text-slate-400'
+                          (selectedPart.condition ?? 100) < 60 ? 'text-red-400' : 'text-[#8B95A7]'
                         }`}
                       />
                       <span className="text-[#8B95A7] leading-relaxed">
