@@ -83,6 +83,15 @@ export default function CarPage() {
 
   useEffect(() => {
     loadParts()
+
+    // Recarrega quando a janela/aba volta ao foco
+    const handleFocus = () => {
+      loadParts()
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [team?.id])
 
   useRealtime('parts', () => {
