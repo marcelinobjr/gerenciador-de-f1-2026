@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T00:32:09.681Z",
+  "generatedAt": "2026-09-11T00:58:14.516Z",
   "collections": [
     {
       "name": "users",
@@ -169,6 +169,12 @@
         },
         {
           "name": "photo",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "carImage",
           "type": "file",
           "required": false,
           "system": false

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
+import pb from '@/lib/pocketbase/client'
 import { PartModel, SponsorModel } from '@/types/f1'
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { CarBlueprint } from '@/components/CarBlueprint'
@@ -52,6 +53,7 @@ export default function CarPage() {
   const [upgradingPartId, setUpgradingPartId] = useState<string | null>(null)
   const [repairingPartId, setRepairingPartId] = useState<string | null>(null)
   const [activeCarDisplay, setActiveCarDisplay] = useState<'realistic' | 'blueprint'>('realistic')
+  const [isUploadingCarImage, setIsUploadingCarImage] = useState(false)
 
   const loadParts = async () => {
     if (!team) {
@@ -124,6 +126,78 @@ export default function CarPage() {
       averageCondition: avgCond,
     }
   }, [parts, currentEngine])
+
+  // Car custom image URL from PocketBase record
+  const customCarImageUrl = useMemo(() => {
+    if (!team) return null
+    if (team.carImage) {
+      return pb.files.getUrl(team, team.carImage)
+    }
+    return null
+  }, [team])
+
+  // Handlers para upload e restauração da imagem do carro
+  const handleUploadCarImage = async (file: File) => {
+    if (!team) return
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: 'destructive',
+        title: 'Formato inválido',
+        description: 'Por favor, selecione um arquivo de imagem (PNG, JPG ou WEBP).',
+      })
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        variant: 'destructive',
+        title: 'Arquivo muito grande',
+        description: 'O tamanho máximo da imagem é de 5MB.',
+      })
+      return
+    }
+
+    setIsUploadingCarImage(true)
+    try {
+      await f1Service.uploadTeamCarImage(team.id, file)
+      await refreshTeamAndSeason()
+      toast({
+        title: 'Imagem do carro atualizada!',
+        description: 'A nova foto do monoposto foi salva e integrada com sucesso ao chassi.',
+      })
+    } catch (err: any) {
+      console.error('Erro ao atualizar imagem do carro:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao trocar imagem',
+        description: err?.message || 'Falha ao fazer upload da imagem no servidor.',
+      })
+    } finally {
+      setIsUploadingCarImage(false)
+    }
+  }
+
+  const handleResetCarImage = async () => {
+    if (!team) return
+    setIsUploadingCarImage(true)
+    try {
+      await f1Service.resetTeamCarImage(team.id)
+      await refreshTeamAndSeason()
+      toast({
+        title: 'Imagem padrão restaurada',
+        description: 'A vista lateral voltou para o monoposto oficial homologado da FIA.',
+      })
+    } catch (err: any) {
+      console.error('Erro ao restaurar imagem do carro:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao restaurar imagem',
+        description: err?.message || 'Falha ao restaurar imagem padrão.',
+      })
+    } finally {
+      setIsUploadingCarImage(false)
+    }
+  }
 
   // Cost cap limit FIA (R$ 135M)
   const COST_CAP_LIMIT = f1Service.COST_CAP_LIMIT
@@ -665,6 +739,10 @@ export default function CarPage() {
           carLevel={overallLevel}
           parts={parts}
           selectedPartId={selectedPartId}
+          customCarImage={customCarImageUrl}
+          isUploadingImage={isUploadingCarImage}
+          onUploadCarImage={handleUploadCarImage}
+          onResetCarImage={handleResetCarImage}
           onSelectPart={(id) => setSelectedPartId(id)}
           onOpenBlueprint={() => setActiveCarDisplay('blueprint')}
         />

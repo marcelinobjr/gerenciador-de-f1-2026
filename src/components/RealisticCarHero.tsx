@@ -1,17 +1,7 @@
-import React, { useState } from 'react'
-import carLateralImg from '@/assets/image-73c41.png'
+import React, { useState, useRef } from 'react'
+import defaultCarLateralImg from '@/assets/carro-lateral-2986d.jpeg'
 import { PartModel, SponsorModel } from '@/types/f1'
-import {
-  Sparkles,
-  Maximize2,
-  Wrench,
-  CheckCircle2,
-  AlertTriangle,
-  Layers,
-  Zap,
-  Shield,
-  Eye,
-} from 'lucide-react'
+import { Sparkles, Maximize2, Camera, RotateCcw, Loader2, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface RealisticCarHeroProps {
@@ -21,6 +11,10 @@ interface RealisticCarHeroProps {
   carLevel?: number
   parts: PartModel[]
   selectedPartId: string | null
+  customCarImage?: string | null
+  isUploadingImage?: boolean
+  onUploadCarImage?: (file: File) => void | Promise<void>
+  onResetCarImage?: () => void | Promise<void>
   onSelectPart: (partId: string) => void
   onOpenBlueprint?: () => void
 }
@@ -32,9 +26,14 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
   carLevel = 75,
   parts = [],
   selectedPartId,
+  customCarImage,
+  isUploadingImage = false,
+  onUploadCarImage,
+  onResetCarImage,
   onSelectPart,
   onOpenBlueprint,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [hoveredHotspot, setHoveredHotspot] = useState<string | null>(null)
   const [colorBlendMode, setColorBlendMode] = useState<'multiply' | 'color-burn' | 'overlay'>(
     'multiply',
@@ -190,6 +189,60 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
             <span className="font-bold text-cyan-400">{carLevel}/100</span>
           </div>
 
+          {/* Input oculto para carregar imagem do carro */}
+          {onUploadCarImage && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  onUploadCarImage(file)
+                }
+                if (e.target) e.target.value = ''
+              }}
+            />
+          )}
+
+          {/* Botão de Trocar Imagem do Carro */}
+          {onUploadCarImage && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingImage}
+              title="Carregue qualquer imagem própria para substituir a foto lateral"
+              className="px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/40 hover:to-teal-600/40 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            >
+              {isUploadingImage ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                  <span>Salvando imagem...</span>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Trocar imagem do carro</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Botão discreto para restaurar imagem padrão se customCarImage estiver ativa */}
+          {customCarImage && onResetCarImage && (
+            <button
+              type="button"
+              onClick={onResetCarImage}
+              disabled={isUploadingImage}
+              title="Restaurar a foto homologada padrão"
+              className="px-2.5 py-1 rounded-lg bg-[#0D1424] hover:bg-[#152037] border border-[#1E293B] hover:border-slate-500 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3 text-slate-400" />
+              <span>Restaurar padrão</span>
+            </button>
+          )}
+
           {onOpenBlueprint && (
             <button
               type="button"
@@ -235,12 +288,19 @@ export const RealisticCarHero: React.FC<RealisticCarHeroProps> = ({
           <div className="relative w-full h-full flex items-center justify-center">
             {/* Imagem do carro F1 branco limpo integrado ao tema dark */}
             <img
-              src={carLateralImg}
+              src={customCarImage || defaultCarLateralImg}
               alt={`${teamName} Carro de F1 2026`}
               className="w-full h-full object-contain pointer-events-none select-none relative z-10 brightness-[0.98] contrast-[1.05]"
               style={{
                 // Fundo cinza suavemente mesclado com o estúdio escuro
                 filter: 'drop-shadow(0 14px 24px rgba(0, 0, 0, 0.9))',
+              }}
+              onError={(e) => {
+                // Fallback gracioso para a imagem embutida padrão caso a url customizada falhe
+                const target = e.currentTarget
+                if (target.src !== defaultCarLateralImg) {
+                  target.src = defaultCarLateralImg
+                }
               }}
             />
 

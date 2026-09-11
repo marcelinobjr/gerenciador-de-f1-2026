@@ -41,6 +41,18 @@ export const f1Service = {
     return await pb.collection('teams').update<TeamModel>(id, data)
   },
 
+  async uploadTeamCarImage(teamId: string, file: File): Promise<TeamModel> {
+    const formData = new FormData()
+    formData.append('carImage', file)
+    return await pb.collection('teams').update<TeamModel>(teamId, formData)
+  },
+
+  async resetTeamCarImage(teamId: string): Promise<TeamModel> {
+    return await pb.collection('teams').update<TeamModel>(teamId, {
+      carImage: null,
+    })
+  },
+
   // Seasons
   async getSeasonByTeam(teamId: string): Promise<SeasonModel | null> {
     try {

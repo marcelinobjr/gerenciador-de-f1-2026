@@ -1,12 +1,13 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { SponsorModel } from '@/types/f1'
-import lateralCarPhoto from '@/assets/image-73c41.png'
+import defaultLateralCarPhoto from '@/assets/carro-lateral-2986d.jpeg'
 
 interface CarLiveryProps {
   teamColor?: string
   teamName?: string
   sponsors?: SponsorModel[]
   carLevel?: number
+  customCarImage?: string | null
   className?: string
 }
 
@@ -15,6 +16,7 @@ export const CarLivery: React.FC<CarLiveryProps> = ({
   teamName = 'Escuderia F1',
   sponsors = [],
   carLevel = 75,
+  customCarImage,
   className = '',
 }) => {
   // Extract active sponsors
@@ -69,7 +71,7 @@ export const CarLivery: React.FC<CarLiveryProps> = ({
 
         {/* Imagem do carro branco integrada ao dark */}
         <img
-          src={lateralCarPhoto}
+          src={customCarImage || defaultLateralCarPhoto}
           alt={`${teamName} Carro de F1 2026`}
           className="w-full h-full object-contain pointer-events-none select-none relative z-10 brightness-[0.98] contrast-[1.08]"
         />
