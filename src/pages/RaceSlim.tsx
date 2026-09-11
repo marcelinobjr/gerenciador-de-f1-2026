@@ -72,6 +72,7 @@ import { DriverHelmet } from '@/components/DriverHelmet'
 // Sub-componentes modulares da corrida
 import { LiveRaceFeed } from '@/components/race/LiveRaceFeed'
 import { LiveTelemetryTable } from '@/components/race/LiveTelemetryTable'
+import { LiveRaceHUD } from '@/components/race/LiveRaceHUD'
 import { PracticeQualyResults, SessionResultRow } from '@/components/race/PracticeQualyResults'
 import { RaceResultsTable, RaceResultEntry } from '@/components/race/RaceResultsTable'
 import { DecisionModals } from '@/components/race/DecisionModals'
@@ -119,6 +120,8 @@ export interface SimDriverEntry extends RaceResultEntry {
   lapsOnCurrentTire?: number
   cliffStatus?: TireCliffStatus
   dnfLap?: number
+  fuelRemaining?: number // % combustível restante (0 a 110)
+  carPartsHealth?: { id: string; name: string; condition: number }[]
   aiStrategyProfile?: {
     type: 'conservadora' | 'equilibrada' | 'agressiva' | 'reativa'
     label: string
@@ -237,6 +240,7 @@ export default function RacePage() {
       tire_compound: 'medio',
       target_pit_lap: 25,
       second_tire_compound: 'duro',
+      initial_fuel_load: 100,
     },
   })
 
@@ -347,12 +351,18 @@ export default function RacePage() {
     Map<
       string,
       {
-        mode: 'attack' | 'preserve' | 'stay_out'
+        mode: 'attack' | 'preserve' | 'save_fuel' | 'stay_out'
         expiresAtLap: number
         startLap?: number
       }
     >
   >(new Map())
+  const [hudTacticalModes, setHudTacticalModes] = useState<
+    Record<string, 'attack' | 'preserve' | 'save_fuel' | 'normal'>
+  >({})
+  const [forcePitRepairWing, setForcePitRepairWing] = useState<boolean>(false)
+  const [forcePitRepairParts, setForcePitRepairParts] = useState<boolean>(false)
+  const [raceInitialFuelPct, setRaceInitialFuelPct] = useState<number>(100)
   // Rastreia se piloto respondeu 'stay_out' ("AGUENTE MAIS") durante a prova
   const driversRespondedStayOutRef = useRef<Set<string>>(new Set())
   const hasUsedPreserveModeRef = useRef<boolean>(false)
@@ -463,8 +473,13 @@ export default function RacePage() {
             if (s.session && next[s.session]) {
               next[s.session] = { ...next[s.session], ...s }
             }
-            if (s.session === 'race' && s.driver_strategies) {
-              setDriverStrategies(s.driver_strategies)
+            if (s.session === 'race') {
+              if (s.driver_strategies) {
+                setDriverStrategies(s.driver_strategies)
+              }
+              if (s.initial_fuel_load) {
+                setRaceInitialFuelPct(s.initial_fuel_load)
+              }
             }
           })
           return next
@@ -510,6 +525,40 @@ export default function RacePage() {
     const sName = team?.engine_supplier || 'Mercedes'
     return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
   }, [team?.engine_supplier])
+
+  // ITEM 5: Avaliação do Pool de Motores Comprometido
+  const puPoolStatus = useMemo(() => {
+    const activeWear = team?.active_engine_wear ?? 15
+    const history = Array.isArray(team?.engine_history) && team.engine_history.length > 0
+      ? team.engine_history
+      : [{ id: 1, wear: activeWear, status: 'instalado', supplier: team?.engine_supplier || 'Mercedes', introducedRound: 1 }]
+
+    const allWornAbove65 = history.every((pu: any) => (pu.wear ?? 0) > 65)
+    // Custo de uma nova PU = R$ 15M; verificar se tem orçamento ou margem de teto
+    const engineCost = 15000000
+    const currentCostCapSpent = team?.cost_cap_spent ?? 0
+    const COST_CAP_LIMIT = 135000000
+    const hasBudget = (team?.budget ?? 0) >= engineCost
+    const hasCapMargin = currentCostCapSpent + engineCost <= COST_CAP_LIMIT
+    const cannotAffordOrExceedsCap = !hasBudget || !hasCapMargin
+
+    const isCompromised = allWornAbove65 && cannotAffordOrExceedsCap
+
+    // Encontrar o motor com menor desgaste
+    const sortedByWear = [...history].sort((a: any, b: any) => (a.wear ?? 0) - (b.wear ?? 0))
+    const leastWornPu = sortedByWear[0] || { id: 1, wear: activeWear }
+    const leastWear = leastWornPu.wear ?? activeWear
+    const excessOver65 = Math.max(0, leastWear - 65)
+    const pacePenaltySec = excessOver65 * 0.03
+
+    return {
+      isCompromised,
+      leastWornPu,
+      leastWear,
+      excessOver65,
+      pacePenaltySec,
+    }
+  }, [team?.active_engine_wear, team?.engine_history, team?.budget, team?.cost_cap_spent, team?.engine_supplier])
 
   // Set default selected driver once drivers load
   useEffect(() => {
@@ -4027,9 +4076,23 @@ export default function RacePage() {
         const activeCircuitImage = uploadedPhotoUrl || defaultAsset
 
         return (
+          {/* ITEM 5: BANNER DE POOL DE MOTORES COMPROMETIDO */}
+          {puPoolStatus.isCompromised && (
+            <div className="p-4 rounded-xl bg-amber-950/40 border-2 border-amber-500/70 shadow-lg space-y-2 animate-pulse">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                <h4 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider">
+                  ⚠️ ALERTA FIA: POOL DE MOTORES COMPROMETIDO
+                </h4>
+              </div>
+              <p className="text-xs text-amber-100 font-mono leading-relaxed">
+                ⚠️ Todos os motores estão comprometidos (&gt;65% de desgaste) e sua equipe não possui margem financeira ou de teto de gastos para introduzir uma nova PU. Você larga obrigatoriamente com o motor menos desgastado (PU #{puPoolStatus.leastWornPu.id} com {puPoolStatus.leastWear}% de desgaste). Desempenho reduzido: penalidade de ritmo de +{puPoolStatus.pacePenaltySec.toFixed(2)}s/volta (+0,03s por % acima de 65%).
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="relative z-10 lg:col-span-1">
-              <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] overflow-hidden flex flex-col justify-between h-full shadow-xl">
+            <div className="relative z-10 lg:col-span-1">              <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] overflow-hidden flex flex-col justify-between h-full shadow-xl">
                 <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
                   {activeCircuitImage ? (
                     <div className="w-full h-full relative bg-[#F5F7FA] overflow-hidden flex items-center justify-center">
@@ -4535,6 +4598,44 @@ export default function RacePage() {
                         <span>80% (Pico elétrico agressivo / alto desgaste)</span>
                       </div>
                     </div>
+
+                    {/* ITEM 1: Carga Inicial de Combustível (90% a 110%) */}
+                    {isRaceSession && (
+                      <div className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1E293B] space-y-2.5">
+                        <div className="flex justify-between items-center text-xs font-mono">
+                          <span className="text-white font-bold flex items-center gap-1.5">
+                            <Fuel className="w-4 h-4 text-cyan-400" /> Carga Inicial de Combustível (Briefing Pré-Corrida):
+                          </span>
+                          <Badge
+                            className={`font-mono text-xs ${
+                              raceInitialFuelPct < 100
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                : raceInitialFuelPct > 100
+                                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            }`}
+                          >
+                            {raceInitialFuelPct}% Tanque ({raceInitialFuelPct < 100 ? `${((100 - raceInitialFuelPct) * -0.025).toFixed(2)}s/volta (leve)` : raceInitialFuelPct > 100 ? `+${((raceInitialFuelPct - 100) * 0.02).toFixed(2)}s/volta (pesado)` : 'Carga Ideal 100%'})
+                          </Badge>
+                        </div>
+                        <Slider
+                          value={[raceInitialFuelPct]}
+                          min={90}
+                          max={110}
+                          step={1}
+                          onValueChange={(val) => {
+                            setRaceInitialFuelPct(val[0])
+                            updateCurrentSetup('initial_fuel_load', val[0])
+                          }}
+                          className="py-1"
+                        />
+                        <div className="flex justify-between text-[10px] font-mono text-[#8B95A7]">
+                          <span className="text-amber-400">90% (Carro mais leve até -0.25s/v, alto risco de falta)</span>
+                          <span className="text-emerald-400">100% (Padrão seguro)</span>
+                          <span className="text-blue-400">110% (Pesado, folga total)</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Feedback de Engenharia */}
                     <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1E293B] space-y-3 font-mono">

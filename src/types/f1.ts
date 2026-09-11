@@ -253,6 +253,7 @@ export interface SessionSetupModel {
   target_pit_lap?: number
   second_tire_compound?: TireCompound
   driver_wear?: number
+  initial_fuel_load?: number // 90 a 110%, padrão 100%
   driver_strategies?: Record<string, DriverRaceStrategy> // Estratégia customizada por piloto (driverId -> strategy)
   driver_setups?: Record<string, DriverCarSetup> // Setup individual por piloto (asa, suspensão, balanço elétrico)
   notes?: string

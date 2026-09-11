@@ -45,6 +45,8 @@ export interface DriverRadioContext {
   gapBehindSec?: number
   gapFrontSec?: number
   engineWear?: number
+  hasZeroConditionPart?: boolean
+  brokenPartName?: string
   wearProfileName?: string // 'Muito Agressivo' | 'Agressivo' | 'Moderado' | 'Conservador' | 'Muito Conservador'
   morale?: number
   speed?: number
@@ -518,6 +520,41 @@ export function evaluateDriverRadioTriggers(
       updatedCooldowns: {
         ...cooldowns,
         lastLapWeather: currentLap,
+      },
+    }
+  }
+
+  // 8. GATILHO COMPONENTE COM 0% DE CONDIÇÃO (Falha mecânica crítica)
+  const compCooldownOver =
+    !cooldowns.lastLapComponentFailure || currentLap - cooldowns.lastLapComponentFailure >= 4
+
+  if (ctx.hasZeroConditionPart && compCooldownOver) {
+    const partNameStr = ctx.brokenPartName ? ` na peça ${ctx.brokenPartName}` : ''
+    const compVariants =
+      isLowMorale && RADIO_PHRASES.component_failure.dramatic
+        ? [...RADIO_PHRASES.component_failure[tone], ...RADIO_PHRASES.component_failure.dramatic]
+        : RADIO_PHRASES.component_failure[tone]
+    const baseText = pickRandom(compVariants)
+    const text = partNameStr ? `${baseText} [${ctx.brokenPartName}]` : baseText
+
+    return {
+      message: {
+        id: `radio_compfail_${ctx.driverId}_${currentLap}`,
+        lap: currentLap,
+        driverId: ctx.driverId,
+        driverName: ctx.driverName,
+        teamName: ctx.teamName,
+        teamColor: ctx.teamColor,
+        isPlayer: ctx.isPlayer,
+        isUrgent: true,
+        category: 'component_failure',
+        message: text,
+        personalityTag: ctx.wearProfileName || 'Piloto',
+        timestamp: nowStr,
+      },
+      updatedCooldowns: {
+        ...cooldowns,
+        lastLapComponentFailure: currentLap,
       },
     }
   }

@@ -34,6 +34,8 @@ export interface DecisionDriverContext {
   tireWear?: number
   pitStopsDone?: number
   hasWingDamage?: boolean
+  brokenPartsCount?: number
+  brokenPartsNames?: string[]
 }
 
 export interface DecisionModalsProps {
@@ -84,6 +86,10 @@ export interface DecisionModalsProps {
   availableForcePitSets: TireSetItem[]
   forcePitSelectedSetId: string
   setForcePitSelectedSetId: (id: string) => void
+  repairWingOption?: boolean
+  setRepairWingOption?: (val: boolean) => void
+  repairPartsOption?: boolean
+  setRepairPartsOption?: (val: boolean) => void
   teamChassisLevel?: number
   onExecuteForcedPitStop: () => void
 }
@@ -130,6 +136,10 @@ export function DecisionModals({
   availableForcePitSets,
   forcePitSelectedSetId,
   setForcePitSelectedSetId,
+  repairWingOption = false,
+  setRepairWingOption,
+  repairPartsOption = false,
+  setRepairPartsOption,
   teamChassisLevel = 75,
   onExecuteForcedPitStop,
 }: DecisionModalsProps) {
@@ -933,6 +943,98 @@ export function DecisionModals({
                 })}
               </div>
             </div>
+
+            {/* Opções de Reparo Mecânico e Estrutural */}
+            {(() => {
+              const selectedDriver = activePlayerDrivers.find(
+                (d) => d.driverId === forcePitSelectedDriverId,
+              )
+              const hasWingDmg = !!selectedDriver?.hasWingDamage
+              const zeroParts = selectedDriver?.brokenPartsCount ?? 0
+              const zeroNames = selectedDriver?.brokenPartsNames ?? []
+
+              return (
+                <div className="p-3 rounded-lg bg-[#101522] border border-amber-500/40 space-y-2.5 font-mono text-xs">
+                  <span className="text-amber-400 font-bold block uppercase text-[11px] flex items-center gap-1.5">
+                    <Wrench className="w-4 h-4" /> Serviços Extras de Box & Reparo no Carro:
+                  </span>
+
+                  {/* 1. Troca de asa/bico danificado (+8s) */}
+                  <label
+                    className={`flex items-start gap-2.5 p-2 rounded-md border cursor-pointer transition-all ${
+                      repairWingOption
+                        ? 'border-amber-400 bg-amber-500/20 text-white'
+                        : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7] hover:border-slate-500'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={repairWingOption}
+                      onChange={(e) => setRepairWingOption?.(e.target.checked)}
+                      className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-0"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs">
+                          Substituir Asa Dianteira / Bico Danificado
+                        </span>
+                        <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px]">
+                          +8.0s na parada
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {hasWingDmg
+                          ? '⚠️ Asa com danos detectados na corrida! Repara a aerodinâmica e elimina perda de ritmo.'
+                          : 'Troca preventiva de bico/asa dianteira.'}
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* 2. Reparar peças com 0% (+4.5s por peça para 60%) */}
+                  <label
+                    className={`flex items-start gap-2.5 p-2 rounded-md border cursor-pointer transition-all ${
+                      repairPartsOption
+                        ? 'border-cyan-400 bg-cyan-500/20 text-white'
+                        : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7] hover:border-slate-500'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={repairPartsOption}
+                      onChange={(e) => setRepairPartsOption?.(e.target.checked)}
+                      className="mt-0.5 rounded border-slate-700 text-cyan-500 focus:ring-0"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-xs">
+                          Reparar Peças em Colapso (0% Condição)
+                        </span>
+                        <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/40 text-[10px]">
+                          {zeroParts > 0 ? `+${(zeroParts * 4.5).toFixed(1)}s` : '+4.5s por peça'}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {zeroParts > 0
+                          ? `Restaurará ${zeroParts} peça(s) zerada(s) (${zeroNames.join(', ')}) para 60% de integridade, eliminando o risco iminente de abandono (DNF).`
+                          : 'Restaura para 60% de condição qualquer componente que tenha zerado durante a prova (+4.5s cada).'}
+                      </p>
+                    </div>
+                  </label>
+
+                  <div className="flex items-center justify-between text-[11px] text-[#8B95A7] pt-1 border-t border-[#1F2733]">
+                    <span>Tempo de serviço adicional previsto:</span>
+                    <strong className="text-amber-400">
+                      +
+                      {(
+                        (repairWingOption ? 8.0 : 0) +
+                        (repairPartsOption ? Math.max(1, zeroParts) * 4.5 : 0)
+                      ).toFixed(1)}
+                      s
+                    </strong>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Crew note */}
             <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-[11px] font-mono space-y-1">
