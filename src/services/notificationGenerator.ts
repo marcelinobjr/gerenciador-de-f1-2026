@@ -79,13 +79,13 @@ export const notificationGenerator = {
 
     // 4. Investigação FIA / Estouro de Teto de Gastos
     const spent = team.cost_cap_spent ?? 0
-    const limit = 135000000 // Teto F1 2026 oficial R$ 135M
+    const limit = 215000000 // Teto F1 2026 oficial R$ 215M
     if (spent > limit) {
       const overspend = spent - limit
       notificationsToCreate.push({
         type: 'fia',
         title: `⚖️ Investigação FIA: Teto Financeiro Estourado`,
-        message: `Sua equipe excedeu o limite orçamentário de R$ 135M em R$ ${(overspend / 1000000).toFixed(1)}M. Sanções e deduções de pontos aplicáveis pelo regulamento 2026.`,
+        message: `Sua equipe excedeu o limite orçamentário de R$ 215M em R$ ${(overspend / 1000000).toFixed(1)}M. Sanções e deduções de pontos aplicáveis pelo regulamento 2026.`,
         round: currentRound,
         link: '/car',
       })

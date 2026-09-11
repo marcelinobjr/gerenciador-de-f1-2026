@@ -359,9 +359,80 @@ export default function RacePage() {
       }
     >
   >(new Map())
+  // Estratégia ao vivo por carro do jogador (Record<string, 'attack' | 'normal' | 'save_fuel'>)
+  const [playerCarTactics, setPlayerCarTactics] = useState<
+    Record<string, 'attack' | 'normal' | 'save_fuel'>
+  >({})
+  const playerCarTacticsRef = useRef<Record<string, 'attack' | 'normal' | 'save_fuel'>>({})
+  const activeCarTacticsInLoopRef = useRef<Record<string, 'attack' | 'normal' | 'save_fuel'>>({})
+
+  // Sincroniza a ref da tática com o estado do jogador
+  useEffect(() => {
+    playerCarTacticsRef.current = playerCarTactics
+  }, [playerCarTactics])
+
   const [hudTacticalModes, setHudTacticalModes] = useState<
     Record<string, 'attack' | 'preserve' | 'save_fuel' | 'normal'>
   >({})
+
+  // Manipulador de mudança tática independente por carro do jogador
+  const handleChangeTacticalMode = (
+    driverId: string,
+    mode: 'attack' | 'normal' | 'save_fuel' | 'preserve',
+  ) => {
+    const validMode: 'attack' | 'normal' | 'save_fuel' = mode === 'preserve' ? 'save_fuel' : mode
+
+    const driverName =
+      drivers.find((d) => d.id === driverId)?.name ||
+      liveRaceState?.grid?.find((g) => g.driverId === driverId)?.driverName ||
+      'Piloto'
+
+    setPlayerCarTactics((prev) => ({
+      ...prev,
+      [driverId]: validMode,
+    }))
+    playerCarTacticsRef.current = {
+      ...playerCarTacticsRef.current,
+      [driverId]: validMode,
+    }
+    setHudTacticalModes((prev) => ({
+      ...prev,
+      [driverId]: validMode,
+    }))
+
+    const radioMsg =
+      validMode === 'attack'
+        ? `📻 Box confirma: ${driverName} vai atacar daqui pra frente! Modo de ataque total ativado.`
+        : validMode === 'save_fuel'
+          ? `📻 Box confirma: ${driverName} vai economizar daqui pra frente! Poupando combustível e pneus.`
+          : `📻 Box confirma: ${driverName} retorna ao ritmo padrão.`
+
+    const currentLap = liveRaceState?.currentLap || 1
+    const nowStr = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+
+    setLiveEvents((prev) => [
+      {
+        id: `ev_tactic_${Date.now()}_${driverId}`,
+        lap: currentLap,
+        type: 'team_radio',
+        message: radioMsg,
+        driverName,
+        teamColor: team?.color || '#E10600',
+        isPlayer: true,
+        timestamp: nowStr,
+      },
+      ...prev,
+    ])
+
+    toast({
+      title: 'Estratégia Atualizada',
+      description: radioMsg,
+    })
+  }
   const [forcePitRepairWing, setForcePitRepairWing] = useState<boolean>(false)
   const [forcePitRepairParts, setForcePitRepairParts] = useState<boolean>(false)
   const [raceInitialFuelPct, setRaceInitialFuelPct] = useState<number>(100)
@@ -1316,8 +1387,17 @@ export default function RacePage() {
       window.sessionStorage.removeItem('f1_live_race_running')
       window.dispatchEvent(new Event('f1-live-race-status-change'))
     }
-  }, [liveRaceState?.inProgress])
+  }, [liveRaceState?.inProgress, activeSession])
 
+  // Limpeza de segurança na desmontagem do componente para evitar intervals zumbis
+  useEffect(() => {
+    return () => {
+      if (liveRaceTimerRef.current) {
+        clearInterval(liveRaceTimerRef.current)
+        liveRaceTimerRef.current = null
+      }
+    }
+  }, [])
   // Calculate tire life in laps based on track abrasiveness
   const calculateCompoundLaps = (compound: TireCompound) => {
     const abrasiveness = gpInfo.tireAbrasiveness || 6
@@ -1417,7 +1497,17 @@ export default function RacePage() {
     setSimProgress(0)
     setRaceIncidents([])
     setSafetyCarActive(false)
+    setRaceResults(null)
     driversRespondedStayOutRef.current.clear()
+
+    const initialTactics: Record<string, 'attack' | 'normal' | 'save_fuel'> = {}
+    titulars.forEach((t) => {
+      initialTactics[t.id] = 'normal'
+    })
+    setPlayerCarTactics(initialTactics)
+    playerCarTacticsRef.current = initialTactics
+    activeCarTacticsInLoopRef.current = initialTactics
+    setHudTacticalModes(initialTactics)
 
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const aiRivals = getAICompetitors(team?.team_key, isCustomTeam)
@@ -1645,6 +1735,11 @@ export default function RacePage() {
         lastLapTime: '1:18.420',
         gapToLeader: gridPosition === 1 ? 'LÍDER' : `+${startAccumulatedTime.toFixed(3)}s`,
         gapToFront: gridPosition === 1 ? '-' : '+0.350s',
+        fuelRemaining: isPlayerDriver ? setups.race.initial_fuel_load || 100 : 100,
+        carPartsHealth:
+          isPlayerDriver && parts.length > 0
+            ? parts.map((p) => ({ id: p.id, name: p.name, condition: p.condition ?? 100 }))
+            : undefined,
       })
     })
 
@@ -1847,6 +1942,7 @@ export default function RacePage() {
 
     if (liveRaceTimerRef.current) {
       clearInterval(liveRaceTimerRef.current)
+      liveRaceTimerRef.current = null
     }
 
     const timer = setInterval(() => {
@@ -1854,7 +1950,16 @@ export default function RacePage() {
         return
       }
 
-      currentLap += 1
+      // Barreira de término síncrona: se já completou as voltas, encerra imediatamente
+      if (currentLap >= totalLaps) {
+        clearInterval(timer)
+        liveRaceTimerRef.current = null
+        finishRaceSimulation(currentGrid, currentWeather)
+        return
+      }
+
+      // Incremento estritamente travado no total de voltas
+      currentLap = Math.min(totalLaps, currentLap + 1)
       const pct = Math.min(99, Math.round((currentLap / totalLaps) * 100))
       setSimProgress(pct)
       setSimText(
@@ -1871,16 +1976,24 @@ export default function RacePage() {
         .filter((c) => !c.dnf)
         .sort((a, b) => (a.position || 99) - (b.position || 99))
 
+      // Sincroniza táticas ativas no início da volta: as mudanças do jogador valem a partir da volta seguinte
+      const currentActiveTactics = { ...activeCarTacticsInLoopRef.current }
+
       // PASSO 1: Atualização de pneus, paradas planejadas/estratégicas e cálculo de ritmo livre
       const intermediateStates = currentGrid.map((entry) => {
         if (entry.dnf) return { entry, freeLapSec: 0, pitLossSec: 0, didPitThisLap: false }
 
-        // Modificadores táticos do piloto
+        // Modificadores táticos do piloto: ordem de rádio temporária tem precedência, senão tática permanente do carro do jogador
         const tacticalMod = tacticalModifiersRef.current.get(entry.driverId)
         const isModActive = entry.isPlayer && tacticalMod && currentLap <= tacticalMod.expiresAtLap
         if (entry.isPlayer && tacticalMod && currentLap > tacticalMod.expiresAtLap) {
           tacticalModifiersRef.current.delete(entry.driverId)
         }
+
+        // Tática ativa nesta volta para o carro do jogador (ataque, normal ou economizar combustível)
+        const playerTacticThisLap: 'attack' | 'normal' | 'save_fuel' = entry.isPlayer
+          ? currentActiveTactics[entry.driverId] || 'normal'
+          : 'normal'
 
         const spec = TIRE_SPECS[entry.tireCompound || 'medio'] || TIRE_SPECS.medio
         const compoundWearRate = spec.wearFactor
@@ -1889,8 +2002,20 @@ export default function RacePage() {
         // Dirty air extra wear: +0.35% a +0.65%/volta a partir da 3ª volta seguida em dirty air
         const dirtyAirExtraWear = (entry.lapsInDirtyAir || 0) >= 3 ? 0.35 + Math.random() * 0.3 : 0
 
-        // Modificador de desgaste de pneus: 0.75 no modo PRESERVE O CARRO
-        const tireWearMultiplier = isModActive && tacticalMod.mode === 'preserve' ? 0.75 : 1.0
+        // Modificador de desgaste de pneus:
+        // - Ataque: +30% desgaste (1.30)
+        // - Economizar: -25% desgaste (0.75)
+        // - Ordem temporária 'preserve': 0.75
+        let tireWearMultiplier = 1.0
+        if (entry.isPlayer) {
+          if (isModActive && tacticalMod.mode === 'preserve') {
+            tireWearMultiplier = 0.75
+          } else if (playerTacticThisLap === 'attack') {
+            tireWearMultiplier = 1.3
+          } else if (playerTacticThisLap === 'save_fuel') {
+            tireWearMultiplier = 0.75
+          }
+        }
         const inc =
           ((compoundWearRate * (abrasiveness / 5)) / 1.5) * driverMultiplier * tireWearMultiplier +
           dirtyAirExtraWear
