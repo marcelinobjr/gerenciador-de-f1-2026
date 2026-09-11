@@ -19,7 +19,10 @@ import ferrariCarImg from '@/assets/ferrari-918a9.png'
 import haasCarImg from '@/assets/haas-6f08d.png'
 import mclarenCarImg from '@/assets/mclaren-f7e77.png'
 import mercedesCarImg from '@/assets/mercedes-fbf8d.png'
+import racingBullsCarImg from '@/assets/vcarb-cdba0.png'
 import redbullCarImg from '@/assets/redbull-f11b0.png'
+import williamsCarImg from '@/assets/williams-4b724.png'
+import customWhiteCarImg from '@/assets/carro-lateral-3bf16.jpeg'
 
 export type OfficialTeamKey =
   | 'audi'
@@ -36,7 +39,7 @@ export type OfficialTeamKey =
   | 'cadillac'
 
 /**
- * Mapa onde as fotos específicas de cada escuderia serão cadastradas à medida que forem enviadas.
+ * Mapa onde as fotos específicas de cada escuderia do grid 2026 estão cadastradas.
  * Caso o valor seja undefined ou null, a aplicação utiliza a imagem homologada de fallback.
  */
 export const CARRO_POR_EQUIPE_MAP: Partial<Record<OfficialTeamKey, string>> = {
@@ -47,18 +50,18 @@ export const CARRO_POR_EQUIPE_MAP: Partial<Record<OfficialTeamKey, string>> = {
   mclaren: mclarenCarImg,
   astonmartin: astonMartinCarImg,
   alpine: alpineCarImg,
-  williams: undefined,
-  racingbulls: undefined,
+  williams: williamsCarImg,
+  racingbulls: racingBullsCarImg,
   haas: haasCarImg,
   andretti: andrettiCarImg,
   cadillac: cadillacCarImg,
 }
 
 /**
- * Imagem específica para escuderias personalizadas (criada/editada pelo jogador).
- * A definir pelo usuário depois — por enquanto cai no fallback.
+ * Imagem específica para escuderias personalizadas (equipe própria montada pelo jogador).
+ * Monoposto branco limpo vista lateral sem patrocinadores, perfeito para decalques e customização.
  */
-export const IMAGEM_CARRO_CUSTOM: string | undefined = undefined
+export const IMAGEM_CARRO_CUSTOM: string = customWhiteCarImg
 
 /**
  * Imagem padrão de fallback (monoposto branco FIA 2026 limpo).
