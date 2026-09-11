@@ -3,12 +3,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { SponsorModel } from '@/types/f1'
-import { AVAILABLE_MARKET_SPONSORS, getAICompetitors } from '@/lib/f1-data'
-import {
-  simulateAiGridFiaStandings,
-  getFiaPointsForPosition,
-  normalizeEntityName,
-} from '@/lib/f1-standings-calculator'
+import { AVAILABLE_MARKET_SPONSORS } from '@/lib/f1-data'
+import { standingsService } from '@/services/standingsService'
 import { formatCurrency } from '@/lib/formatters'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { toast } from '@/hooks/use-toast'
@@ -67,74 +63,17 @@ export default function SponsorsPage() {
     loadSponsors()
   })
 
-  // Determina a posição de construtores, vitórias e pódios da equipe para o multiplicador
+  // Determina a posição de construtores, vitórias e pódios da equipe para o multiplicador via standingsService
   const performanceStats = useMemo(() => {
-    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
-    const currentRound = season?.current_round || 1
-    const pastRoundsToSimulate = raceResults.length > 0 ? 0 : Math.max(0, currentRound - 1)
-    const { driverStandingsMap: aiDriverStats } = simulateAiGridFiaStandings(
-      team?.team_key,
-      isCustomTeam,
-      pastRoundsToSimulate,
-    )
-    const aiGrid = getAICompetitors(team?.team_key, isCustomTeam)
-
-    const tMap: Record<
-      string,
-      { points: number; wins: number; podiums: number; isPlayer: boolean }
-    > = {}
-    aiGrid.forEach((aiTeam) => {
-      const d1 = aiDriverStats[`${aiTeam.id}_d1`] || { points: 0, wins: 0, podiums: 0 }
-      const d2 = aiDriverStats[`${aiTeam.id}_d2`] || { points: 0, wins: 0, podiums: 0 }
-      tMap[aiTeam.id] = {
-        points: d1.points + d2.points,
-        wins: d1.wins + d2.wins,
-        podiums: d1.podiums + d2.podiums,
-        isPlayer: false,
-      }
+    const standings = standingsService.calculateStandings({
+      raceResults,
+      team,
+      season,
     })
 
-    const playerTeamId = team?.id || 'player'
-    let playerPoints = 0
-    let playerWins = 0
-    let playerPodiums = 0
-
-    raceResults.forEach((res) => {
-      const isPlayerResult =
-        res.team_id === team?.id ||
-        res.expand?.team_id?.name === team?.name ||
-        (team?.name && res.teamName === team.name)
-
-      if (isPlayerResult) {
-        const pts =
-          typeof res.points === 'number' && res.points > 0
-            ? res.points
-            : getFiaPointsForPosition(res.position)
-        playerPoints += pts
-        if (res.position === 1) {
-          playerWins += 1
-          playerPodiums += 1
-        } else if (res.position <= 3) {
-          playerPodiums += 1
-        }
-      }
-    })
-
-    tMap[playerTeamId] = {
-      points: playerPoints,
-      wins: playerWins,
-      podiums: playerPodiums,
-      isPlayer: true,
-    }
-
-    const sortedTeams = Object.entries(tMap).sort((a, b) => {
-      if (b[1].points !== a[1].points) return b[1].points - a[1].points
-      if (b[1].wins !== a[1].wins) return b[1].wins - a[1].wins
-      return b[1].podiums - a[1].podiums
-    })
-
-    const playerRankIdx = sortedTeams.findIndex((item) => item[1].isPlayer)
-    const constructorPos = playerRankIdx !== -1 ? playerRankIdx + 1 : 6
+    const constructorPos = standings.playerConstructorRank || 6
+    const playerWins = standings.playerWins || 0
+    const playerPodiums = standings.playerPodiums || 0
 
     const scale = f1Service.calculateSponsorMultiplier({
       constructorPos,

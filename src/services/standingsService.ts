@@ -190,6 +190,13 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   })
 
   // 2. Processa race_results reais persistidos no banco
+  // Rastreia se resultados da equipe do jogador foram contabilizados diretamente caso playerDrivers não tenha sido passado
+  let fallbackPlayerPts = 0
+  let fallbackPlayerWins = 0
+  let fallbackPlayerPodiums = 0
+  let fallbackPlayerBestPos = 99
+  let fallbackPlayerFound = false
+
   raceResults.forEach((res) => {
     let targetDriver = dMap[res.driver_id]
 
@@ -252,6 +259,27 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
         targetDriver.totalPenaltiesSec = (targetDriver.totalPenaltiesSec || 0) + penaltySec
         targetDriver.penaltiesCount = (targetDriver.penaltiesCount || 0) + 1
       }
+    } else {
+      // Caso o piloto não esteja em dMap mas seja da equipe do jogador (ex: chamada sem playerDrivers)
+      const isPlayerResult =
+        res.team_id === team?.id ||
+        res.expand?.team_id?.name === team?.name ||
+        (team?.name && (res as any).teamName === team.name)
+
+      if (isPlayerResult) {
+        fallbackPlayerFound = true
+        const pts = calculatePointsForResults(res)
+        fallbackPlayerPts += pts
+        if (res.position === 1) {
+          fallbackPlayerWins += 1
+          fallbackPlayerPodiums += 1
+        } else if (res.position <= 3) {
+          fallbackPlayerPodiums += 1
+        }
+        if (res.position < fallbackPlayerBestPos) {
+          fallbackPlayerBestPos = res.position
+        }
+      }
     }
   })
 
@@ -295,18 +323,24 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   let playerTeamPodiums = 0
   let playerTeamBestPos = 99
 
-  playerDrivers.forEach((d) => {
-    const standing = dMap[d.id]
-    if (standing) {
-      playerTeamPts += standing.points
-      playerTeamWins += standing.wins
-      playerTeamPodiums += standing.podiums
-      if (standing.bestPosition < playerTeamBestPos) {
-        playerTeamBestPos = standing.bestPosition
+  if (playerDrivers.length > 0) {
+    playerDrivers.forEach((d) => {
+      const standing = dMap[d.id]
+      if (standing) {
+        playerTeamPts += standing.points
+        playerTeamWins += standing.wins
+        playerTeamPodiums += standing.podiums
+        if (standing.bestPosition < playerTeamBestPos) {
+          playerTeamBestPos = standing.bestPosition
+        }
       }
-    }
-  })
-
+    })
+  } else if (fallbackPlayerFound) {
+    playerTeamPts = fallbackPlayerPts
+    playerTeamWins = fallbackPlayerWins
+    playerTeamPodiums = fallbackPlayerPodiums
+    playerTeamBestPos = fallbackPlayerBestPos
+  }
   // Dedução de pontos FIA por violação de teto de gastos
   const fiaDeduction = team?.constructors_points_deduction || 0
   const netPlayerTeamPts = Math.max(0, playerTeamPts - fiaDeduction)

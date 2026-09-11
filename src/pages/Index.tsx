@@ -5,7 +5,7 @@ import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, EventModel, PartModel, RaceResultModel } from '@/types/f1'
 import { F1_2026_CALENDAR, getAICompetitors, OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
-import { simulateAiGridFiaStandings, normalizeEntityName } from '@/lib/f1-standings-calculator'
+import { standingsService } from '@/services/standingsService'
 import { formatCurrency } from '@/lib/formatters'
 import {
   Trophy,
@@ -174,87 +174,25 @@ export default function Index() {
       .catch(() => {})
   })
 
-  // Standings calculation
+  // Standings calculation via standingsService
   const { constructorPosition, teamPoints, driverPointsMap, morale } = useMemo(() => {
-    // team points (com dedução da FIA se houver infração do teto de gastos)
-    const myResults = raceResults.filter((r) => r.team_id === team?.id)
-    const rawTPoints = myResults.reduce((acc, curr) => acc + (curr.points || 0), 0)
-    const fiaDeduction = team?.constructors_points_deduction || 0
-    const tPoints = Math.max(0, rawTPoints - fiaDeduction)
-
-    // drivers points map
-    const dMap: Record<string, number> = {}
-    drivers.forEach((d) => {
-      const dResults = raceResults.filter((r) => r.driver_id === d.id)
-      dMap[d.id] = dResults.reduce((acc, curr) => acc + (curr.points || 0), 0)
+    const standings = standingsService.calculateStandings({
+      raceResults,
+      playerDrivers: drivers,
+      team,
+      season,
     })
 
-    // Simulated competitor points based on past rounds using official FIA scale
-    const currentRound = season?.current_round || 1
-    const isCustom = team?.is_custom ?? team?.name === 'Escuderia Brasil'
-    const aiTeams = getAICompetitors(team?.team_key, isCustom)
-
-    const recordedRounds = new Set<number>()
-    raceResults.forEach((r) => {
-      if (typeof r.round === 'number') recordedRounds.add(r.round)
+    const calcMorale = standingsService.getTeamMorale({
+      teamPoints: standings.teamPoints,
+      constructorRank: standings.playerConstructorRank,
+      parts,
     })
-    const hasRecordedResults = recordedRounds.size > 0
-    const pastRoundsToSimulate = hasRecordedResults ? 0 : Math.max(0, currentRound - 1)
-
-    const { teamStandingsMap: aiTeamStats } = simulateAiGridFiaStandings(
-      team?.team_key,
-      isCustom,
-      pastRoundsToSimulate,
-    )
-
-    // Se temos resultados gravados no banco, somamos os pontos reais das equipes rivais
-    const competitorPointsFromDB: Record<string, number> = {}
-    if (hasRecordedResults) {
-      raceResults.forEach((res) => {
-        if (res.team_id !== team?.id) {
-          const expTeam = (res.expand as any)?.team_id
-          const teamNameNorm = expTeam?.name ? normalizeEntityName(expTeam.name) : ''
-          const matchedAiTeam = aiTeams.find(
-            (t) =>
-              t.id === res.team_id ||
-              (teamNameNorm && normalizeEntityName(t.name) === teamNameNorm),
-          )
-          const matchedId = matchedAiTeam ? matchedAiTeam.id : res.team_id
-          competitorPointsFromDB[matchedId] =
-            (competitorPointsFromDB[matchedId] || 0) + (res.points || 0)
-        }
-      })
-    }
-
-    const competitorsWithPoints = aiTeams.map((aiTeam) => {
-      const realPoints = competitorPointsFromDB[aiTeam.id]
-      const simulatedPoints = (aiTeamStats[aiTeam.id] || { points: 0 }).points
-      const points = hasRecordedResults && realPoints !== undefined ? realPoints : simulatedPoints
-      return {
-        id: aiTeam.id,
-        name: aiTeam.name,
-        points,
-      }
-    })
-
-    const allTeams = [
-      ...competitorsWithPoints,
-      { id: team?.id || 'player', name: team?.name || 'Sua Escuderia', points: tPoints },
-    ].sort((a, b) => b.points - a.points)
-
-    const myRank = allTeams.findIndex((t) => t.id === (team?.id || 'player')) + 1
-
-    // Team Morale: based on average part levels, points and budget
-    const avgParts = parts.length > 0 ? parts.reduce((a, b) => a + b.level, 0) / parts.length : 5
-    let calcMorale = Math.round(50 + (avgParts - 5) * 4 + Math.min(25, tPoints / 3))
-    if (myRank <= 3) calcMorale += 10
-    else if (myRank <= 6) calcMorale += 5
-    calcMorale = Math.max(10, Math.min(100, calcMorale))
 
     return {
-      constructorPosition: myRank > 0 ? myRank : 5,
-      teamPoints: tPoints,
-      driverPointsMap: dMap,
+      constructorPosition: standings.playerConstructorRank,
+      teamPoints: standings.teamPoints,
+      driverPointsMap: standings.driverPointsMap,
       morale: calcMorale,
     }
   }, [raceResults, team, season, drivers, parts])
