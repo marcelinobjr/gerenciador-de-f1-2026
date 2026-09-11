@@ -17,6 +17,9 @@ import audiCarImg from '@/assets/audi-13288.png'
 import cadillacCarImg from '@/assets/cadilac01-b80f2.png'
 import ferrariCarImg from '@/assets/ferrari-918a9.png'
 import haasCarImg from '@/assets/haas-6f08d.png'
+import mclarenCarImg from '@/assets/mclaren-f7e77.png'
+import mercedesCarImg from '@/assets/mercedes-fbf8d.png'
+import redbullCarImg from '@/assets/redbull-f11b0.png'
 
 export type OfficialTeamKey =
   | 'audi'
@@ -38,10 +41,10 @@ export type OfficialTeamKey =
  */
 export const CARRO_POR_EQUIPE_MAP: Partial<Record<OfficialTeamKey, string>> = {
   audi: audiCarImg,
-  mercedes: undefined,
-  redbull: undefined,
+  mercedes: mercedesCarImg,
+  redbull: redbullCarImg,
   ferrari: ferrariCarImg,
-  mclaren: undefined,
+  mclaren: mclarenCarImg,
   astonmartin: astonMartinCarImg,
   alpine: alpineCarImg,
   williams: undefined,
