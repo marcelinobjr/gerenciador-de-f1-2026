@@ -335,13 +335,17 @@ export default function StandingsPage() {
       }
     })
 
+    // Aplica dedução de pontos no Mundial de Construtores por violação do teto FIA
+    const fiaDeduction = team?.constructors_points_deduction || 0
+    const netPlayerTeamPts = Math.max(0, playerTeamPts - fiaDeduction)
+
     const playerTeamId = team?.id || 'player'
     tMap[playerTeamId] = {
       id: playerTeamId,
       name: team?.name || 'Escuderia Brasil',
       color: team?.color || '#FF3B30',
       engine: team?.engine_supplier || 'Mercedes',
-      points: playerTeamPts,
+      points: netPlayerTeamPts,
       wins: playerTeamWins,
       podiums: playerTeamPodiums,
       bestPosition: playerTeamBestPos,
@@ -632,9 +636,19 @@ export default function StandingsPage() {
                                   {cTeam.name}
                                 </span>
                                 {cTeam.isPlayer && (
-                                  <Badge className="bg-[#E10600] text-white text-[9px] px-1.5 py-0 h-4">
-                                    Sua Escuderia
-                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    <Badge className="bg-[#E10600] text-white text-[9px] px-1.5 py-0 h-4">
+                                      Sua Escuderia
+                                    </Badge>
+                                    {(team?.constructors_points_deduction || 0) > 0 && (
+                                      <Badge
+                                        className="bg-red-950/80 text-red-400 border border-red-500/50 text-[9px] px-1.5 py-0 h-4"
+                                        title="Penalidade FIA por exceder teto de gastos"
+                                      >
+                                        -{team?.constructors_points_deduction} pts FIA
+                                      </Badge>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </td>

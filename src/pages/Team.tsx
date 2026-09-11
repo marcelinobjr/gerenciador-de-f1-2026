@@ -1601,7 +1601,7 @@ export default function TeamPage() {
               {currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT && (
                 <div className="p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-red-200 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                  <span>A taxa ultrapassará o teto de gastos anual da FIA de R$ 135,00 M.</span>
+                  <span>A taxa ultrapassará o teto de gastos anual da FIA de R$ 215,00 M.</span>
                 </div>
               )}
             </div>

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T01:14:31.725Z",
+  "generatedAt": "2026-09-11T01:30:05.479Z",
   "collections": [
     {
       "name": "users",
@@ -176,6 +176,24 @@
         {
           "name": "carImage",
           "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cost_cap_penalties",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "rd_penalty_rounds_left",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "constructors_points_deduction",
+          "type": "number",
           "required": false,
           "system": false
         }

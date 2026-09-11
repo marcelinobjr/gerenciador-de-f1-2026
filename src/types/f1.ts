@@ -17,9 +17,19 @@ export interface TeamModel {
   reserve_setup_bonus?: boolean // true se o piloto reserva treinou no FP e gerou bônus de setup
   photo?: string // Foto lateral do carro / banner da equipe
   carImage?: string // Foto lateral personalizada do carro do jogador
-  cost_cap_spent?: number // Total gasto na temporada sujeito ao teto FIA (R$ 135M)
+  cost_cap_spent?: number // Total gasto na temporada sujeito ao teto FIA (R$ 215M)
   engine_pool_used?: number // Motores introduzidos no pool (limite regulamentar 4 antes de penalidades)
   active_engine_wear?: number // Desgaste 0-100% da unidade de potência atualmente instalada no carro
+  cost_cap_penalties?: Array<{
+    id: string
+    timestamp: string
+    overspendAmount: number
+    pointsDeducted: number
+    rdPenaltyRounds: number
+    reason: string
+  }>
+  rd_penalty_rounds_left?: number // Rodadas com eficácia de P&D/Oficina reduzida pela FIA
+  constructors_points_deduction?: number // Dedução de pontos nos construtores
   engine_history?: Array<{
     id: number
     wear: number

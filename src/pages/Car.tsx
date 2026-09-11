@@ -204,7 +204,7 @@ export default function CarPage() {
     }
   }
 
-  // Cost cap limit FIA (R$ 135M)
+  // Cost cap limit FIA (R$ 215M)
   const COST_CAP_LIMIT = f1Service.COST_CAP_LIMIT
   const currentCostCapSpent = team?.cost_cap_spent ?? 0
   const remainingCostCap = Math.max(0, COST_CAP_LIMIT - currentCostCapSpent)
@@ -221,6 +221,94 @@ export default function CarPage() {
     return Math.round(4000000 + currentLevel * 1500000)
   }
 
+  // Estado para diálogo de estouro consciente do Teto de Gastos (Investigação FIA)
+  const [costCapBreachDialog, setCostCapBreachDialog] = useState<{
+    isOpen: boolean
+    actionType: 'upgrade' | 'repair' | 'engine' | 'supplier'
+    cost: number
+    part?: PartModel
+    supplier?: any
+    itemName: string
+    overspendAmount: number
+    pointsDeduction: number
+    rdPenaltyRounds: number
+  }>({
+    isOpen: false,
+    actionType: 'upgrade',
+    cost: 0,
+    itemName: '',
+    overspendAmount: 0,
+    pointsDeduction: 0,
+    rdPenaltyRounds: 0,
+  })
+
+  // Executa o aprimoramento da peça (com ou sem estouro)
+  const executeUpgradePart = async (part: PartModel, breachCostCap: boolean = false) => {
+    if (!team) return
+    const cost = getUpgradeCost(part.level)
+
+    if (team.budget < cost) {
+      toast({
+        variant: 'destructive',
+        title: 'Orçamento Insuficiente',
+        description: `Você precisa de ${formatCurrency(cost)} para investir em ${part.name}. Saldo: ${formatCurrency(team.budget)}.`,
+      })
+      return
+    }
+
+    // Se estiver sob penalidade de P&D pela FIA, avisa sobre eficácia reduzida
+    const hasRdPenalty = (team.rd_penalty_rounds_left || 0) > 0
+
+    setUpgradingPartId(part.id)
+    try {
+      const newLevel = part.level + 1
+
+      if (breachCostCap) {
+        const breachResult = await f1Service.applyCostCapBreach(
+          team,
+          cost,
+          `Desenvolvimento da peça ${part.name} (Nível ${newLevel})`,
+        )
+        await f1Service.updatePart(part.id, { level: newLevel })
+
+        toast({
+          variant: 'destructive',
+          title: '🚨 INVESTIGAÇÃO FIA DEFLAGRADA!',
+          description: `Estouro de ${formatCurrency(breachResult.overspendAmount)} no teto! Punição: -${breachResult.pointsDeducted} pts de construtores e ${breachResult.rdPenaltyRounds} corridas com P&D reduzido.`,
+        })
+      } else {
+        const newBudget = team.budget - cost
+        const newSpentCap = currentCostCapSpent + cost
+
+        await Promise.all([
+          f1Service.updatePart(part.id, { level: newLevel }),
+          f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
+          f1Service.addEvent(
+            team.id,
+            `P&D: ${part.name} aprimorado para o Nível ${newLevel} por ${formatCurrency(cost)} (Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
+            'desenvolvimento',
+          ),
+        ])
+
+        toast({
+          title: 'Aprimoramento Concluído!',
+          description: `${part.name} subiu para o nível ${newLevel}/10.${hasRdPenalty ? ' ⚠️ Eficácia de P&D reduzida por sanção FIA.' : ''}`,
+        })
+      }
+
+      refreshTeamAndSeason()
+      loadParts()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro no Aprimoramento',
+        description: err?.message || 'Falha ao processar upgrade de peça.',
+      })
+    } finally {
+      setUpgradingPartId(null)
+    }
+  }
+
   // Handle invest / upgrade part with Cost Cap check
   const handleUpgradePart = async (part: PartModel) => {
     if (!team) return
@@ -234,56 +322,87 @@ export default function CarPage() {
 
     const cost = getUpgradeCost(part.level)
 
-    // 1. Cost Cap Check: bloqueio estrito da FIA
+    // Cost Cap Check: Oferece escolha consciente de estourar o teto
     if (currentCostCapSpent + cost > COST_CAP_LIMIT) {
-      toast({
-        variant: 'destructive',
-        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
-        description: `Este investimento de ${formatCurrency(cost)} ultrapassaria o limite anual de ${formatCurrency(COST_CAP_LIMIT)}. Margem restante: ${formatCurrency(remainingCostCap)}.`,
+      const overspend = currentCostCapSpent + cost - COST_CAP_LIMIT
+      const pointsDed = Math.max(10, Math.round(10 + (overspend / 5000000) * 5))
+      const rdRounds = Math.min(6, Math.max(2, Math.round(2 + overspend / 10000000)))
+
+      setCostCapBreachDialog({
+        isOpen: true,
+        actionType: 'upgrade',
+        cost,
+        part,
+        itemName: `${part.name} (Nível ${part.level + 1})`,
+        overspendAmount: overspend,
+        pointsDeduction: pointsDed,
+        rdPenaltyRounds: rdRounds,
       })
       return
     }
+
+    await executeUpgradePart(part, false)
+  }
+
+  // Executa o reparo de oficina (com ou sem estouro)
+  const executeRepairPart = async (part: PartModel, breachCostCap: boolean = false) => {
+    if (!team) return
+    const cost = f1Service.getPartRepairCost(part)
 
     if (team.budget < cost) {
       toast({
         variant: 'destructive',
-        title: 'Orçamento Insuficiente',
-        description: `Você precisa de ${formatCurrency(cost)} para investir em ${part.name}. Saldo: ${formatCurrency(team.budget)}.`,
+        title: 'Orçamento Insuficiente para Oficina',
+        description: `A revisão estrutural de ${part.name} exige ${formatCurrency(cost)}. Saldo atual: ${formatCurrency(team.budget)}.`,
       })
       return
     }
 
-    setUpgradingPartId(part.id)
+    setRepairingPartId(part.id)
     try {
-      const newLevel = part.level + 1
-      const newBudget = team.budget - cost
-      const newSpentCap = currentCostCapSpent + cost
+      if (breachCostCap) {
+        const breachResult = await f1Service.applyCostCapBreach(
+          team,
+          cost,
+          `Revisão de oficina em ${part.name}`,
+        )
+        await f1Service.repairPart(part.id)
 
-      await Promise.all([
-        f1Service.updatePart(part.id, { level: newLevel }),
-        f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
-        f1Service.addEvent(
-          team.id,
-          `P&D: ${part.name} aprimorado para o Nível ${newLevel} por ${formatCurrency(cost)} (Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
-          'desenvolvimento',
-        ),
-      ])
+        toast({
+          variant: 'destructive',
+          title: '🚨 INVESTIGAÇÃO FIA DEFLAGRADA!',
+          description: `Reparo efetuado violando o teto! Excedente: ${formatCurrency(breachResult.overspendAmount)}. Punição: -${breachResult.pointsDeducted} pontos nos construtores.`,
+        })
+      } else {
+        const newBudget = team.budget - cost
+        const newSpentCap = currentCostCapSpent + cost
 
-      toast({
-        title: 'Aprimoramento Concluído!',
-        description: `${part.name} subiu para o nível ${newLevel}/10. Desempenho aerodinâmico/mecânico melhorado.`,
-      })
+        await Promise.all([
+          f1Service.repairPart(part.id),
+          f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
+          f1Service.addEvent(
+            team.id,
+            `Oficina: ${part.name} restaurada a 100% (Custo: ${formatCurrency(cost)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
+            'desenvolvimento',
+          ),
+        ])
+
+        toast({
+          title: 'Revisão Concluída!',
+          description: `${part.name} foi inspecionada por ultrassom e restaurada para 100% de integridade.`,
+        })
+      }
 
       refreshTeamAndSeason()
       loadParts()
     } catch (err: any) {
       toast({
         variant: 'destructive',
-        title: 'Erro no Aprimoramento',
-        description: err?.message || 'Falha ao processar upgrade de peça.',
+        title: 'Erro no Reparo',
+        description: err?.message || 'Falha ao reparar componente.',
       })
     } finally {
-      setUpgradingPartId(null)
+      setRepairingPartId(null)
     }
   }
 
@@ -301,72 +420,33 @@ export default function CarPage() {
 
     const cost = f1Service.getPartRepairCost(part)
 
-    // Cost Cap check
+    // Cost Cap check: Opção de estourar teto conscientemente
     if (currentCostCapSpent + cost > COST_CAP_LIMIT) {
-      toast({
-        variant: 'destructive',
-        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
-        description: `O reparo de ${formatCurrency(cost)} excede a margem restante de ${formatCurrency(remainingCostCap)} do teto FIA.`,
+      const overspend = currentCostCapSpent + cost - COST_CAP_LIMIT
+      const pointsDed = Math.max(10, Math.round(10 + (overspend / 5000000) * 5))
+      const rdRounds = Math.min(6, Math.max(2, Math.round(2 + overspend / 10000000)))
+
+      setCostCapBreachDialog({
+        isOpen: true,
+        actionType: 'repair',
+        cost,
+        part,
+        itemName: `Revisão de ${part.name}`,
+        overspendAmount: overspend,
+        pointsDeduction: pointsDed,
+        rdPenaltyRounds: rdRounds,
       })
       return
     }
 
-    if (team.budget < cost) {
-      toast({
-        variant: 'destructive',
-        title: 'Orçamento Insuficiente para Oficina',
-        description: `A revisão estrutural de ${part.name} exige ${formatCurrency(cost)}. Saldo atual: ${formatCurrency(team.budget)}.`,
-      })
-      return
-    }
-
-    setRepairingPartId(part.id)
-    try {
-      const newBudget = team.budget - cost
-      const newSpentCap = currentCostCapSpent + cost
-
-      await Promise.all([
-        f1Service.repairPart(part.id),
-        f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
-        f1Service.addEvent(
-          team.id,
-          `Oficina: ${part.name} restaurada a 100% (Custo: ${formatCurrency(cost)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
-          'desenvolvimento',
-        ),
-      ])
-
-      toast({
-        title: 'Revisão Concluída!',
-        description: `${part.name} foi inspecionada por ultrassom e restaurada para 100% de integridade.`,
-      })
-
-      refreshTeamAndSeason()
-      loadParts()
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro no Reparo',
-        description: err?.message || 'Falha ao reparar componente.',
-      })
-    } finally {
-      setRepairingPartId(null)
-    }
+    await executeRepairPart(part, false)
   }
 
-  // Introduce new engine into pool
+  // Introduce new engine into pool (com opção de estourar teto conscientemente)
   const [introducingEngine, setIntroducingEngine] = useState(false)
-  const handleIntroduceNewEngine = async () => {
+  const executeIntroduceNewEngine = async (breachCostCap: boolean = false) => {
     if (!team) return
     const engineCost = 15000000 // R$ 15M por nova PU
-
-    if (currentCostCapSpent + engineCost > COST_CAP_LIMIT) {
-      toast({
-        variant: 'destructive',
-        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
-        description: `A introdução de nova unidade de potência de ${formatCurrency(engineCost)} viola o teto de gastos da FIA! Margem restante: ${formatCurrency(remainingCostCap)}.`,
-      })
-      return
-    }
 
     if (team.budget < engineCost) {
       toast({
@@ -379,18 +459,40 @@ export default function CarPage() {
 
     setIntroducingEngine(true)
     try {
-      const res = await f1Service.introduceNewEngine(team, engineCost)
-      if (res.penaltyPositions > 0) {
+      if (breachCostCap) {
+        const breachResult = await f1Service.applyCostCapBreach(
+          team,
+          engineCost,
+          `Introdução da PU #${(team.engine_pool_used || 1) + 1}`,
+        )
+        // Atualiza a equipe com o novo motor
+        const res = await f1Service.introduceNewEngine(breachResult.team, 0)
         toast({
           variant: 'destructive',
-          title: `Motor #${res.engineNumber} Ativado — Penalidade Aplicada!`,
-          description: `Limite anual de 4 motores excedido! Você largará com ${res.penaltyPositions} posições de punição no próximo GP.`,
+          title: '🚨 INVESTIGAÇÃO FIA DEFLAGRADA!',
+          description: `Estouro consciente de ${formatCurrency(breachResult.overspendAmount)}! Punição: -${breachResult.pointsDeducted} pontos nos construtores e eficácia reduzida por ${breachResult.rdPenaltyRounds} corridas.`,
         })
+        if (res.penaltyPositions > 0) {
+          toast({
+            variant: 'destructive',
+            title: `Motor #${res.engineNumber} Ativado — Penalidade de Grid!`,
+            description: `Você largará com ${res.penaltyPositions} posições de punição no próximo GP por ultrapassar a cota de motores.`,
+          })
+        }
       } else {
-        toast({
-          title: `Nova Unidade de Potência #${res.engineNumber} Instalada!`,
-          description: `Motor zerado (0% desgaste) instalado com sucesso dentro da cota permitida (${res.engineNumber}/4).`,
-        })
+        const res = await f1Service.introduceNewEngine(team, engineCost)
+        if (res.penaltyPositions > 0) {
+          toast({
+            variant: 'destructive',
+            title: `Motor #${res.engineNumber} Ativado — Penalidade Aplicada!`,
+            description: `Limite anual de 4 motores excedido! Você largará com ${res.penaltyPositions} posições de punição no próximo GP.`,
+          })
+        } else {
+          toast({
+            title: `Nova Unidade de Potência #${res.engineNumber} Instalada!`,
+            description: `Motor zerado (0% desgaste) instalado com sucesso dentro da cota permitida (${res.engineNumber}/4).`,
+          })
+        }
       }
       refreshTeamAndSeason()
     } catch (err: any) {
@@ -404,19 +506,34 @@ export default function CarPage() {
     }
   }
 
-  // Switch engine supplier handler with Cost Cap check
-  const handleSwitchSupplier = async () => {
-    if (!selectedSupplier || !team) return
-    const penaltyFee = 15000000 // R$ 15M troca de motor
+  const handleIntroduceNewEngine = async () => {
+    if (!team) return
+    const engineCost = 15000000 // R$ 15M por nova PU
 
-    if (currentCostCapSpent + penaltyFee > COST_CAP_LIMIT) {
-      toast({
-        variant: 'destructive',
-        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
-        description: `A taxa de rescisão e readequação de chassi de ${formatCurrency(penaltyFee)} excede o limite do teto de gastos da FIA.`,
+    if (currentCostCapSpent + engineCost > COST_CAP_LIMIT) {
+      const overspend = currentCostCapSpent + engineCost - COST_CAP_LIMIT
+      const pointsDed = Math.max(10, Math.round(10 + (overspend / 5000000) * 5))
+      const rdRounds = Math.min(6, Math.max(2, Math.round(2 + overspend / 10000000)))
+
+      setCostCapBreachDialog({
+        isOpen: true,
+        actionType: 'engine',
+        cost: engineCost,
+        itemName: `Nova Unidade de Potência #${(team.engine_pool_used || 1) + 1}`,
+        overspendAmount: overspend,
+        pointsDeduction: pointsDed,
+        rdPenaltyRounds: rdRounds,
       })
       return
     }
+
+    await executeIntroduceNewEngine(false)
+  }
+
+  // Switch engine supplier handler with Cost Cap check
+  const executeSwitchSupplier = async (supplier: any, breachCostCap: boolean = false) => {
+    if (!supplier || !team) return
+    const penaltyFee = 15000000 // R$ 15M troca de motor
 
     if (team.budget < penaltyFee) {
       toast({
@@ -429,25 +546,41 @@ export default function CarPage() {
 
     setIsProcessing(true)
     try {
-      const newBudget = team.budget - penaltyFee
-      const newSpentCap = currentCostCapSpent + penaltyFee
+      if (breachCostCap) {
+        const breachResult = await f1Service.applyCostCapBreach(
+          team,
+          penaltyFee,
+          `Troca de fornecedor de motor para ${supplier.name}`,
+        )
+        await f1Service.updateTeam(team.id, {
+          engine_supplier: supplier.name,
+        })
+        toast({
+          variant: 'destructive',
+          title: '🚨 INVESTIGAÇÃO FIA DEFLAGRADA!',
+          description: `Troca de fornecedor acima do teto! Excedente: ${formatCurrency(breachResult.overspendAmount)}. Punição: -${breachResult.pointsDeducted} pontos nos construtores e restrição de P&D por ${breachResult.rdPenaltyRounds} corridas.`,
+        })
+      } else {
+        const newBudget = team.budget - penaltyFee
+        const newSpentCap = currentCostCapSpent + penaltyFee
 
-      await f1Service.updateTeam(team.id, {
-        engine_supplier: selectedSupplier.name,
-        budget: newBudget,
-        cost_cap_spent: newSpentCap,
-      })
+        await f1Service.updateTeam(team.id, {
+          engine_supplier: supplier.name,
+          budget: newBudget,
+          cost_cap_spent: newSpentCap,
+        })
 
-      await f1Service.addEvent(
-        team.id,
-        `Fornecedor de unidade de potência trocado para ${selectedSupplier.name} (Custo: ${formatCurrency(penaltyFee)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
-        'desenvolvimento',
-      )
+        await f1Service.addEvent(
+          team.id,
+          `Fornecedor de unidade de potência trocado para ${supplier.name} (Custo: ${formatCurrency(penaltyFee)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
+          'desenvolvimento',
+        )
 
-      toast({
-        title: 'Fornecedor de Motor Atualizado!',
-        description: `A equipe agora é impulsionada pela unidade ${selectedSupplier.name} 50/50 Híbrida.`,
-      })
+        toast({
+          title: 'Fornecedor de Motor Atualizado!',
+          description: `A equipe agora é impulsionada pela unidade ${supplier.name} 50/50 Híbrida.`,
+        })
+      }
 
       setSelectedSupplier(null)
       refreshTeamAndSeason()
@@ -459,6 +592,47 @@ export default function CarPage() {
       })
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  const handleSwitchSupplier = async () => {
+    if (!selectedSupplier || !team) return
+    const penaltyFee = 15000000 // R$ 15M troca de motor
+
+    if (currentCostCapSpent + penaltyFee > COST_CAP_LIMIT) {
+      const overspend = currentCostCapSpent + penaltyFee - COST_CAP_LIMIT
+      const pointsDed = Math.max(10, Math.round(10 + (overspend / 5000000) * 5))
+      const rdRounds = Math.min(6, Math.max(2, Math.round(2 + overspend / 10000000)))
+
+      setCostCapBreachDialog({
+        isOpen: true,
+        actionType: 'supplier',
+        cost: penaltyFee,
+        supplier: selectedSupplier,
+        itemName: `Troca para Motor ${selectedSupplier.name}`,
+        overspendAmount: overspend,
+        pointsDeduction: pointsDed,
+        rdPenaltyRounds: rdRounds,
+      })
+      return
+    }
+
+    await executeSwitchSupplier(selectedSupplier, false)
+  }
+
+  // Confirmação do estouro consciente
+  const handleConfirmCostCapBreach = async () => {
+    const dialog = { ...costCapBreachDialog }
+    setCostCapBreachDialog((prev) => ({ ...prev, isOpen: false }))
+
+    if (dialog.actionType === 'upgrade' && dialog.part) {
+      await executeUpgradePart(dialog.part, true)
+    } else if (dialog.actionType === 'repair' && dialog.part) {
+      await executeRepairPart(dialog.part, true)
+    } else if (dialog.actionType === 'engine') {
+      await executeIntroduceNewEngine(true)
+    } else if (dialog.actionType === 'supplier' && dialog.supplier) {
+      await executeSwitchSupplier(dialog.supplier, true)
     }
   }
 
@@ -604,8 +778,9 @@ export default function CarPage() {
               </strong>
             </div>
             <p className="text-[10px] text-[#8B95A7] italic">
-              Regulamento Financeiro FIA: Gastos acima de R$ 135M são bloqueados para evitar
-              punições fiscais severas.
+              Regulamento Financeiro FIA: Limite anual padronizado de R$ 215M. Ultrapassar o teto
+              desencadeia Investigação Oficial da FIA com dedução de pontos de construtores e
+              sanções de P&D.
             </p>
           </div>
         </Card>
@@ -1223,6 +1398,104 @@ export default function CarPage() {
           })}
         </div>
       </div>
+
+      {/* DIÁLOGO DE CONFIRMAÇÃO: ESTOURO CONSCIENTE DO TETO DE GASTOS (INVESTIGAÇÃO FIA) */}
+      <Dialog
+        open={costCapBreachDialog.isOpen}
+        onOpenChange={(open) =>
+          !open && setCostCapBreachDialog((prev) => ({ ...prev, isOpen: false }))
+        }
+      >
+        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-red-500/60 text-[#F5F7FA] sm:max-w-[540px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-red-500 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse" />
+              INVESTIGAÇÃO FIA: VIOLAÇÃO DO TETO DE GASTOS
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#8B95A7]">
+              O custo desta operação excede o limite orçamentário anual regulamentar de R$ 215M.
+              Você pode optar por cancelar ou estourar o teto deliberadamente assumindo as punições
+              federativas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2 font-mono text-xs">
+            <div className="p-3 rounded-lg bg-red-950/30 border border-red-500/30 space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-[#8B95A7]">Ação solicitada:</span>
+                <strong className="text-white">{costCapBreachDialog.itemName}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#8B95A7]">Custo da operação:</span>
+                <strong className="text-white">{formatCurrency(costCapBreachDialog.cost)}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#8B95A7]">Margem atual no teto:</span>
+                <strong className="text-amber-400">{formatCurrency(remainingCostCap)}</strong>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-red-500/20">
+                <span className="text-red-400 font-bold">Excedente sujeito a punição:</span>
+                <strong className="text-red-400 font-black">
+                  +{formatCurrency(costCapBreachDialog.overspendAmount)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-[#0F172A] border border-amber-500/40 space-y-2">
+              <span className="text-amber-400 font-bold flex items-center gap-1.5 text-xs">
+                ⚖️ SANÇÕES REGULAMENTARES IMEDIATAS:
+              </span>
+              <ul className="space-y-1.5 text-[11px] text-[#CBD5E1]">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-red-400 font-bold">•</span>
+                  <span>
+                    Dedução de{' '}
+                    <strong className="text-red-400">
+                      -{costCapBreachDialog.pointsDeduction} pontos
+                    </strong>{' '}
+                    no Campeonato Mundial de Construtores FIA.
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-red-400 font-bold">•</span>
+                  <span>
+                    Eficácia e tempo de túnel de vento / P&D / oficina reduzidos pelas próximas{' '}
+                    <strong className="text-amber-300">
+                      {costCapBreachDialog.rdPenaltyRounds} corridas
+                    </strong>
+                    .
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-red-400 font-bold">•</span>
+                  <span>
+                    Comunicado de escândalo financeiro publicado nos feeds mundiais de
+                    automobilismo.
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-2 border-t border-[#1F2733]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCostCapBreachDialog((prev) => ({ ...prev, isOpen: false }))}
+              className="border-[#1F2733] hover:bg-[#1A2333] text-xs font-mono"
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmCostCapBreach}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs font-mono shadow-[0_0_12px_rgba(225,6,0,0.5)]"
+            >
+              Estourar o teto e arcar com as consequências
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal: Confirmar Troca de Fornecedor de Motor */}
       <Dialog open={!!selectedSupplier} onOpenChange={(open) => !open && setSelectedSupplier(null)}>

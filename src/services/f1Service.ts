@@ -843,6 +843,68 @@ export const f1Service = {
     return updatedSpent
   },
 
+  // Aplica violação deliberada do teto de gastos com Investigação Oficial da FIA
+  async applyCostCapBreach(
+    team: TeamModel,
+    cost: number,
+    reason: string,
+  ): Promise<{
+    team: TeamModel
+    overspendAmount: number
+    pointsDeducted: number
+    rdPenaltyRounds: number
+  }> {
+    const currentSpent = team.cost_cap_spent || 0
+    const newSpent = currentSpent + cost
+    const newBudget = team.budget - cost
+    const overspendAmount = Math.max(0, newSpent - this.COST_CAP_LIMIT)
+
+    // Penalidade proporcional ao excedente:
+    // Mínimo de 10 pts, + 5 pts por cada R$ 5M de excedente
+    // P&D afetado por 2 a 5 rodadas
+    const pointsDeducted = Math.max(10, Math.round(10 + (overspendAmount / 5000000) * 5))
+    const rdPenaltyRounds = Math.min(6, Math.max(2, Math.round(2 + overspendAmount / 10000000)))
+
+    const currentPenalties = Array.isArray(team.cost_cap_penalties)
+      ? [...team.cost_cap_penalties]
+      : []
+
+    currentPenalties.push({
+      id: `cc_pen_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      overspendAmount,
+      pointsDeducted,
+      rdPenaltyRounds,
+      reason,
+    })
+
+    const totalDeduction = (team.constructors_points_deduction || 0) + pointsDeducted
+    const currentRdLeft = team.rd_penalty_rounds_left || 0
+    const newRdLeft = Math.max(currentRdLeft, rdPenaltyRounds)
+
+    const updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
+      budget: newBudget,
+      cost_cap_spent: newSpent,
+      constructors_points_deduction: totalDeduction,
+      rd_penalty_rounds_left: newRdLeft,
+      cost_cap_penalties: currentPenalties,
+    })
+
+    // Adiciona evento oficial da FIA
+    await pb.collection('events').create({
+      message: `🚨 INVESTIGAÇÃO FIA: VIOLAÇÃO DO TETO DE GASTOS! A equipe ${team.name} excedeu o teto em R$ ${(overspendAmount / 1000000).toFixed(1)}M (${reason}). PUNIÇÕES APLICADAS: -${pointsDeducted} pontos no Mundial de Construtores e eficácia de P&D/Oficina reduzida por ${newRdLeft} corridas.`,
+      type: 'desenvolvimento',
+      team_id: team.id,
+    })
+
+    return {
+      team: updatedTeam,
+      overspendAmount,
+      pointsDeducted,
+      rdPenaltyRounds: newRdLeft,
+    }
+  },
+
   // Introduz uma nova unidade de potência no pool da equipe
   async introduceNewEngine(
     team: TeamModel,

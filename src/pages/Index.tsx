@@ -227,9 +227,11 @@ export default function Index() {
 
   // Standings calculation
   const { constructorPosition, teamPoints, driverPointsMap, morale } = useMemo(() => {
-    // team points
+    // team points (com dedução da FIA se houver infração do teto de gastos)
     const myResults = raceResults.filter((r) => r.team_id === team?.id)
-    const tPoints = myResults.reduce((acc, curr) => acc + (curr.points || 0), 0)
+    const rawTPoints = myResults.reduce((acc, curr) => acc + (curr.points || 0), 0)
+    const fiaDeduction = team?.constructors_points_deduction || 0
+    const tPoints = Math.max(0, rawTPoints - fiaDeduction)
 
     // drivers points map
     const dMap: Record<string, number> = {}

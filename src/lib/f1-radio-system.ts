@@ -9,6 +9,7 @@ export type RadioCategory =
   | 'rival_ahead'
   | 'rival_behind'
   | 'engine'
+  | 'component_failure'
 export type BossResponseType = 'box_now' | 'stay_out' | 'attack_mode' | 'preserve_car'
 
 export interface DriverRadioMessage {
@@ -59,6 +60,7 @@ export interface DriverRadioCooldowns {
   lastLapRivalAhead?: number
   lastLapRivalBehind?: number
   lastLapEngine?: number
+  lastLapComponentFailure?: number
   acknowledgedStayOutCliffLap?: number
 }
 
@@ -199,6 +201,27 @@ export const RADIO_PHRASES: Record<
       'O motor está passando dos limites, alertas de temperatura no painel!',
       'Pressão e temperatura do motor elevadas. Precisamos cuidar da unidade.',
       'Sinto pequena perda de potência na reta principal. Monitorando parâmetros.',
+    ],
+  },
+  component_failure: {
+    aggressive: [
+      'SOCORRO! A peça chegou a 0%, o carro tá quebrando em pedaços na pista!',
+      'Alerta catastrófico! Vibração violenta no componente zerado, posso abandonar a qualquer curva!',
+      'A peça tá colapsando! Não tenho estabilidade nem ritmo, risco extremo de abandono!',
+    ],
+    conservative: [
+      'Integridade estrutural em 0%. Falha terminal iminente no componente.',
+      'A telemetria acusa colapso total da peça. Ritmo severamente comprometido e risco de DNF.',
+      'Componente zerado. O carro está extremamente instável e perigoso.',
+    ],
+    standard: [
+      'ALERTA CRÍTICO! Componente a 0% de condição! Perda drástica de ritmo e perigo iminente de abandono!',
+      'O carro está se desintegrando! A peça não resistiu, estou perdendo muito tempo por volta!',
+      'Falha estrutural grave! Risco iminente de quebra terminal e retirada da corrida!',
+    ],
+    dramatic: [
+      'MEU DEUS! A PEÇA TÁ DESINTEGRANDO! O carro tá incontrolável, vou bater ou abandonar agora!',
+      'ALERTA VERMELHO! Colapso mecânico total! O componente foi pro saco, estamos à beira do DNF!',
     ],
   },
 }
