@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { DriverModel, EventModel, PartModel, RaceResultModel } from '@/types/f1'
-import { F1_2026_CALENDAR, getAICompetitors, OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { standingsService } from '@/services/standingsService'
 import { formatCurrency } from '@/lib/formatters'
 import {
@@ -244,81 +244,17 @@ export default function Index() {
   // ERS: condição da unidade de potência (50% elétrico no regulamento 2026)
   const ersPct = team ? Math.max(0, 100 - (team.active_engine_wear ?? 0)) : 100
 
-  // Pilotos organizados: titulares (1 e 2) e reserva
+  // Pilotos organizados: titulares (1 e 2) e reserva (apenas dados reais persistidos no banco)
   const { titularDrivers, reserveDriver } = useMemo(() => {
     const tit = drivers.filter((d) => d.role !== 'reserva').slice(0, 2)
-    let res = drivers.find((d) => d.role === 'reserva')
-
-    // Se faltar algum piloto na listagem por não ter sido cadastrado ainda no banco, puxa da OFFICIAL_GRID_TEAMS
-    if (tit.length < 2 && team?.team_key) {
-      const official = OFFICIAL_GRID_TEAMS.find((t) => t.key === team.team_key)
-      if (official) {
-        if (tit.length === 0) {
-          tit.push({
-            id: 'mock_driver_1',
-            name: official.driver1.name,
-            age: official.driver1.age,
-            salary: official.driver1.salary,
-            nationality: official.driver1.nationality,
-            role: 'titular',
-            speed: official.driver1.speed,
-            consistency: official.driver1.consistency,
-            rain: official.driver1.rain,
-            defense: official.driver1.defense,
-            physical_condition: 95,
-            morale: 80,
-          } as any)
-        }
-        if (tit.length === 1) {
-          tit.push({
-            id: 'mock_driver_2',
-            name: official.driver2.name,
-            age: official.driver2.age,
-            salary: official.driver2.salary,
-            nationality: official.driver2.nationality,
-            role: 'titular',
-            speed: official.driver2.speed,
-            consistency: official.driver2.consistency,
-            rain: official.driver2.rain,
-            defense: official.driver2.defense,
-            physical_condition: 92,
-            morale: 78,
-          } as any)
-        }
-        if (!res && official.reserveDriver) {
-          res = {
-            id: 'mock_driver_res',
-            name: official.reserveDriver.name,
-            age: official.reserveDriver.age,
-            salary: official.reserveDriver.salary,
-            nationality: official.reserveDriver.nationality,
-            role: 'reserva',
-            speed: official.reserveDriver.speed,
-            consistency: official.reserveDriver.consistency,
-            rain: official.reserveDriver.rain,
-            defense: official.reserveDriver.defense,
-            physical_condition: 95,
-            morale: 75,
-          } as any
-        }
-      }
-    }
-
+    const res = drivers.find((d) => d.role === 'reserva')
     return { titularDrivers: tit, reserveDriver: res }
-  }, [drivers, team?.team_key])
+  }, [drivers])
 
   // Notícias formatadas com badges e ícones
   const displayEvents = useMemo(() => {
     if (events.length === 0) {
-      return [
-        {
-          id: 'mock_ev_1',
-          type: 'resultado',
-          title: 'Temporada Oficial F1 2026 iniciada!',
-          desc: 'Todas as escuderias ajustaram os parâmetros para o novo regulamento híbrido 50/50.',
-          date: 'Início',
-        },
-      ]
+      return []
     }
     return events.slice(0, 3).map((ev) => {
       let title = ''
@@ -461,26 +397,31 @@ export default function Index() {
             </p>
           </div>
 
-          {/* Card 4: SETORES S1/S2/S3 COM TEMPOS EM VERMELHO E TRAÇADO REAL DO CALENDÁRIO (col-span-2) */}
+          {/* Card 4: SETORES DO CIRCUITO / TELEMETRIA EM TEMPO REAL (col-span-2) */}
           <div className="lg:col-span-2 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3 relative overflow-hidden shadow-lg flex items-center justify-between gap-2">
-            {/* Tempos em vermelho */}
-            <div className="space-y-1 font-mono">
-              <div>
-                <span className="text-[10px] text-cyan-400 font-bold block leading-none">S1</span>
-                <span className="text-[#E10600] font-black text-xs leading-none">22.431</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-cyan-400 font-bold block leading-none">S2</span>
-                <span className="text-[#E10600] font-black text-xs leading-none">31.208</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-cyan-400 font-bold block leading-none">S3</span>
-                <span className="text-[#E10600] font-black text-xs leading-none">26.917</span>
+            {/* Estado honesto dos setores */}
+            <div className="space-y-1 font-mono min-w-0">
+              <span className="text-[10px] text-[#8B95A7] uppercase font-bold tracking-wider block">
+                SETORES S1/S2/S3
+              </span>
+              <div className="space-y-0.5 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-cyan-400/80 font-bold leading-none">S1</span>
+                  <span className="text-[#8B95A7] font-mono text-[11px]">--.---</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-cyan-400/80 font-bold leading-none">S2</span>
+                  <span className="text-[#8B95A7] font-mono text-[11px]">--.---</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-cyan-400/80 font-bold leading-none">S3</span>
+                  <span className="text-[#8B95A7] font-mono text-[11px]">--.---</span>
+                </div>
               </div>
             </div>
 
-            {/* Traçado real do circuito (Imagem do Calendário) ao lado com pontos vermelhos */}
-            <div className="w-20 h-16 sm:w-24 sm:h-18 flex items-center justify-center relative rounded-lg bg-black/40 border border-white/10 overflow-hidden p-1">
+            {/* Traçado real do circuito (Imagem do Calendário) */}
+            <div className="w-20 h-16 sm:w-24 sm:h-18 flex items-center justify-center relative rounded-lg bg-black/40 border border-white/10 overflow-hidden p-1 shrink-0">
               {currentCircuitPhotoUrl ? (
                 <CircuitTrackImage
                   src={currentCircuitPhotoUrl}
@@ -508,93 +449,46 @@ export default function Index() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
-                  <circle
-                    cx={currentTrack.startFinish.x}
-                    cy={currentTrack.startFinish.y}
-                    r="3.5"
-                    fill="#E10600"
-                    className="animate-pulse"
-                  />
                 </svg>
               )}
-              {/* Pontos vermelhos luminosos sutis nos setores */}
-              <div className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-[#E10600] shadow-[0_0_6px_#E10600]" />
-              <div className="absolute bottom-2 left-3 w-1.5 h-1.5 rounded-full bg-[#E10600] shadow-[0_0_6px_#E10600]" />
             </div>
           </div>
 
-          {/* Card 5: VOLTA ATUAL COM DELTA EM VERMELHO + ESTRATÉGIA DE CORRIDA COM GRÁFICO (col-span-3) */}
-          <div className="lg:col-span-3 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3.5 relative overflow-hidden shadow-lg grid grid-cols-2 gap-2">
-            {/* Lado Esquerdo: VOLTA ATUAL com delta em vermelho */}
-            <div className="flex flex-col justify-between border-r border-[#1F2733]/70 pr-2">
-              <span className="text-[10px] font-mono text-[#8B95A7] uppercase font-bold tracking-wider">
-                VOLTA ATUAL
+          {/* Card 5: STATUS DE SESSÃO / TELEMETRIA EM PISTA (col-span-3) */}
+          <div className="lg:col-span-3 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333]/90 p-3.5 relative overflow-hidden shadow-lg flex flex-col justify-between">
+            <div className="flex items-center justify-between pb-1.5 border-b border-[#1F2733]/60">
+              <span className="text-[10px] font-mono text-[#8B95A7] uppercase font-bold tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-cyan-400" />
+                TELEMETRIA DE SESSÃO
               </span>
-              <div className="my-1">
-                <span className="text-xl sm:text-2xl font-black font-mono text-white tracking-tight block">
-                  1:13.542
-                </span>
-                <span className="text-xs sm:text-sm font-mono font-black text-[#E10600]">
-                  +0.217
-                </span>
-              </div>
-              <span className="text-[9px] font-mono text-[#8B95A7] uppercase">VOLTA</span>
+              <Badge
+                variant="outline"
+                className="text-[9px] font-mono text-[#8B95A7] border-white/10 bg-black/40 px-1.5 py-0"
+              >
+                GP {currentRoundNumber}
+              </Badge>
             </div>
 
-            {/* Lado Direito: ESTRATÉGIA DE CORRIDA com gráfico de linha Soft/Medium/Hard */}
-            <div className="flex flex-col justify-between pl-1 font-mono">
-              <span className="text-[9px] text-[#8B95A7] uppercase font-bold tracking-wider truncate">
-                ESTRATÉGIA DE CORRIDA
+            <div className="py-2">
+              <p className="text-xs font-mono text-[#CBD5E1] font-semibold leading-snug">
+                Telemetria disponível durante o fim de semana
+              </p>
+              <p className="text-[11px] font-mono text-[#8B95A7] mt-1 leading-relaxed">
+                Tempos de volta, setores e estratégia de compostos ativos na sessão de pista.
+              </p>
+            </div>
+
+            <div className="pt-1.5 border-t border-[#1F2733]/40 flex items-center justify-between">
+              <span className="text-[10px] font-mono text-[#8B95A7]">
+                Volta atual: <strong className="text-white font-normal">--:--.---</strong>
               </span>
-
-              {/* Compostos com anéis de cor */}
-              <div className="space-y-0.5 text-[9px] my-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full ring-2 ring-[#E10600] bg-transparent" />
-                  <span className="text-white font-semibold">Soft</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full ring-2 ring-[#F59E0B] bg-transparent" />
-                  <span className="text-[#CBD5E1]">Medium</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full ring-2 ring-slate-400 bg-transparent" />
-                  <span className="text-[#8B95A7]">Hard</span>
-                </div>
-              </div>
-
-              {/* Gráfico de linha dos compostos */}
-              <div className="h-6 w-full relative">
-                <svg viewBox="0 0 100 24" className="w-full h-full overflow-visible">
-                  {/* Linhas de base */}
-                  <line
-                    x1="0"
-                    y1="20"
-                    x2="100"
-                    y2="20"
-                    stroke="rgba(255,255,255,0.1)"
-                    strokeWidth="1"
-                  />
-                  {/* Linha de degradação vermelha conectando os stints */}
-                  <path
-                    d="M 10 4 L 45 10 L 95 18"
-                    fill="none"
-                    stroke="#E10600"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                  {/* Pontos nos compostos */}
-                  <circle cx="10" cy="4" r="2.5" fill="#E10600" />
-                  <circle cx="45" cy="10" r="2.5" fill="#F59E0B" />
-                  <circle cx="95" cy="18" r="2.5" fill="#FFFFFF" />
-                </svg>
-                <div className="flex justify-between text-[7px] text-[#8B95A7] mt-0.5">
-                  <span>0</span>
-                  <span>20</span>
-                  <span>40</span>
-                  <span>60</span>
-                </div>
-              </div>
+              <Link
+                to="/race"
+                className="text-[10px] font-mono font-bold text-[#00A6FB] hover:text-cyan-300 transition-colors flex items-center gap-1"
+              >
+                Abrir Pista
+                <ChevronRight className="w-3 h-3" />
+              </Link>
             </div>
           </div>
         </div>
@@ -876,19 +770,27 @@ export default function Index() {
                     <Skeleton className="h-16 w-full bg-[#161D29]" />
                     <Skeleton className="h-16 w-full bg-[#161D29]" />
                   </div>
+                ) : titularDrivers.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-[#080C14]/60 border border-dashed border-[#1F2733] text-center font-mono text-xs text-[#8B95A7] space-y-2">
+                    <p>Nenhum piloto titular vinculado à escuderia no momento.</p>
+                    <Link
+                      to="/team"
+                      className="inline-flex items-center gap-1 text-[#00A6FB] hover:text-cyan-300 font-bold underline underline-offset-4"
+                    >
+                      Contratar pilotos no Centro de Equipe
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
                 ) : (
                   <>
                     {/* Titular 1 & Titular 2 */}
-                    {titularDrivers.map((driver, idx) => {
-                      const pts = driverPointsMap[driver.id] ?? (idx === 0 ? 52 : 18)
+                    {titularDrivers.map((driver) => {
+                      const pts = driverPointsMap[driver.id] ?? 0
                       const flag = getCountryFlag(driver.nationality)
-                      const salaryM = ((driver.salary || 10000000) / 1_000_000).toLocaleString(
-                        'pt-BR',
-                        {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1,
-                        },
-                      )
+                      const salaryM = ((driver.salary || 0) / 1_000_000).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })
 
                       return (
                         <div
@@ -945,13 +847,10 @@ export default function Index() {
                         <div className="flex items-center gap-4 shrink-0 font-mono">
                           <span className="text-xs text-[#8B95A7] hidden sm:inline">
                             {reserveDriver.age} anos <span className="text-[#334155]">|</span> R${' '}
-                            {((reserveDriver.salary || 4000000) / 1_000_000).toLocaleString(
-                              'pt-BR',
-                              {
-                                minimumFractionDigits: 1,
-                                maximumFractionDigits: 1,
-                              },
-                            )}{' '}
+                            {((reserveDriver.salary || 0) / 1_000_000).toLocaleString('pt-BR', {
+                              minimumFractionDigits: 1,
+                              maximumFractionDigits: 1,
+                            })}{' '}
                             M
                           </span>
                           <div className="text-right">
@@ -1001,6 +900,10 @@ export default function Index() {
                     <Skeleton className="h-12 w-full bg-[#161D29]" />
                     <Skeleton className="h-12 w-full bg-[#161D29]" />
                     <Skeleton className="h-12 w-full bg-[#161D29]" />
+                  </div>
+                ) : displayEvents.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-[#080C14]/60 border border-dashed border-[#1F2733] text-center font-mono text-xs text-[#8B95A7]">
+                    Nenhum comunicado oficial registrado recentemente.
                   </div>
                 ) : (
                   displayEvents.map((ev) => {
