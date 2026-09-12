@@ -127,6 +127,8 @@ export interface RaceResultModel {
   position: number
   points: number
   fastest_lap?: boolean
+  laps_completed?: number
+  accumulated_time_sec?: number
   created?: string
   updated?: string
   // expanded relations if any

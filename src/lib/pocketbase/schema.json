@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-12T13:19:59.180Z",
+  "generatedAt": "2026-09-12T13:34:52.790Z",
   "collections": [
     {
       "name": "users",
@@ -524,6 +524,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "laps_completed",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "accumulated_time_sec",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_race_results_season_round ON race_results (season_id, round)"]
