@@ -158,6 +158,19 @@ export const f1Service = {
   },
 
   // Drivers
+  async getAllDrivers(): Promise<DriverModel[]> {
+    try {
+      const records = await pb.collection('drivers').getFullList<DriverModel>({
+        sort: '-speed',
+        expand: 'team_id,reserve_team_id',
+      })
+      return records
+    } catch (e) {
+      console.error('Error fetching all drivers:', e)
+      return []
+    }
+  },
+
   async getTeamDrivers(teamId: string): Promise<DriverModel[]> {
     try {
       const records = await pb.collection('drivers').getFullList<DriverModel>({

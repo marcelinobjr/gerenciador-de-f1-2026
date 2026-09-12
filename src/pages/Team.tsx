@@ -596,8 +596,8 @@ export default function TeamPage() {
       {/* PageHeader Race Operations */}
       <PageHeader
         eyebrow="RACE OPERATIONS // GESTÃO ESPORTIVA"
-        title="Minha Equipe & Mercado de Pilotos"
-        description="Estrutura de 2 titulares + 1 piloto reserva com treinos livres anuais, substituição por incapacidade médica e mercado da F1/F2."
+        title="Minha Equipe"
+        description="Estrutura de 2 titulares + 1 piloto reserva com treinos livres anuais, substituição por incapacidade médica e unidade de potência."
         badge={
           <Badge
             variant="outline"
@@ -810,9 +810,15 @@ export default function TeamPage() {
           ) : titularDrivers.length === 0 ? (
             <div className="p-8 text-center border border-dashed border-[#1F2733] rounded-xl text-[#8B95A7]">
               <p>Você ainda não possui pilotos titulares contratados.</p>
-              <p className="text-xs mt-1 text-[#00A6FB]">
-                Contrate pilotos titulares no mercado de agentes livres abaixo.
-              </p>
+              <div className="pt-2">
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/pilotos')}
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs"
+                >
+                  Ver todos os pilotos no mercado
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1007,9 +1013,19 @@ export default function TeamPage() {
                 Sua equipe não possui piloto reserva no momento.
               </p>
               <p className="text-xs text-muted-foreground">
-                Contrate um piloto reserva no mercado livre abaixo para cumprir os 2 treinos livres
+                Contrate um piloto reserva na aba Pilotos para cumprir os 2 treinos livres
                 do ano e proteger seu time contra lesões.
               </p>
+              <div className="pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate('/pilotos')}
+                  className="border-[#1F2733] text-cyan-400 hover:text-white text-xs"
+                >
+                  Ver todos os pilotos
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-4">
@@ -1146,9 +1162,40 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
-      {/* Seção 3: Mercado de Pilotos Disponíveis (F2 + Mercado) */}
+      {/* Banner / Card de redirecionamento para o Universo de Pilotos */}
+      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-cyan-500/10 via-transparent to-transparent pointer-events-none" />
+        <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-cyan-400">
+                UNIVERSO DE PILOTOS & MERCADO
+              </span>
+              <Badge className="bg-cyan-500/15 border-cyan-500/40 text-cyan-300 font-mono text-[10px]">
+                Aba Dedicada
+              </Badge>
+            </div>
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Users className="w-5 h-5 text-cyan-400" />
+              Mercado Global & Grid de Pilotos F1
+            </h3>
+            <p className="text-xs text-[#8B95A7] max-w-xl">
+              Explore o grid completo de pilotos oficiais, agentes livres e promessas com fotos reais, histórico de corridas, filtros e contratações para sua escuderia.
+            </p>
+          </div>
+
+          <Button
+            onClick={() => navigate('/pilotos')}
+            className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono shrink-0 shadow-lg"
+          >
+            Ver todos os pilotos
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Fornecedor de Unidade de Potência */}
       <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
-        <CardHeader className="pb-3 border-b border-[#1A2333]">
           {/* Aviso Silly Season: Rodada < 12 bloqueada vs Rodada >= 12 aberta */}
           {!isSillySeasonOpen ? (
             <div className="mb-4 p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/50 flex items-center gap-3">

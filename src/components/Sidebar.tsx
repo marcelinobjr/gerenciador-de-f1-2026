@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
+  UserCheck,
   Wrench,
   Handshake,
   Flag,
@@ -34,6 +35,7 @@ export const SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
     items: [
       { name: 'Painel', path: '/', icon: LayoutDashboard },
       { name: 'Minha Equipe', path: '/team', icon: Users },
+      { name: 'Pilotos', path: '/pilotos', icon: UserCheck },
       { name: 'Carro & P&D', path: '/car', icon: Wrench },
       { name: 'Patrocínios', path: '/sponsors', icon: Handshake },
     ],
@@ -54,6 +56,7 @@ export const SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
 export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/': 'Painel de Controle',
   '/team': 'Minha Equipe',
+  '/pilotos': 'Pilotos da Temporada',
   '/car': 'Carro & P&D',
   '/sponsors': 'Patrocínios',
   '/race': 'Fim de Semana de Corrida',

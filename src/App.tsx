@@ -18,6 +18,7 @@ import StandingsPage from './pages/Standings'
 import CalendarPage from './pages/CalendarPage'
 import HistoryPage from './pages/History'
 import TeamSelectionPage from './pages/TeamSelection'
+import DriversPage from './pages/DriversPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -38,6 +39,7 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/team" element={<TeamPage />} />
+              <Route path="/pilotos" element={<DriversPage />} />
               <Route path="/teams" element={<TeamsPage />} />
               <Route path="/car" element={<CarPage />} />
               <Route path="/sponsors" element={<SponsorsPage />} />
