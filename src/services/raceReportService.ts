@@ -172,6 +172,7 @@ export const raceReportService = {
         newMorale: entry.newMorale,
         oldPhysical: entry.oldPhysical,
         newPhysical: entry.newPhysical,
+        physicalReason: (entry as any).physicalReason,
       }
     })
 
@@ -275,6 +276,7 @@ export const raceReportService = {
       allIncidents: raceIncidents,
       radioHighlights,
       bestMoment,
+      puWearSummary: (params as any).puWearSummary,
     }
   },
 

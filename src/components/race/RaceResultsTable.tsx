@@ -31,6 +31,9 @@ export interface RaceResultEntry {
   newMorale?: number
   oldPhysical?: number
   newPhysical?: number
+  physicalReason?: string
+  physicalDelta?: number
+  moraleDelta?: number
 }
 
 interface RaceResultsTableProps {
@@ -39,6 +42,7 @@ interface RaceResultsTableProps {
   raceResults?: RaceResultEntry[]
   incidents: string[]
   isFinishing: boolean
+  puWearSummary?: string
   onAdvanceRound: () => void
   onOpenReport?: () => void
 }
@@ -49,6 +53,7 @@ export function RaceResultsTable({
   raceResults,
   incidents,
   isFinishing,
+  puWearSummary,
   onAdvanceRound,
   onOpenReport,
 }: RaceResultsTableProps) {
@@ -100,7 +105,8 @@ export function RaceResultsTable({
           drivers,
           previousRaceResults: [],
           currentRaceResults: [],
-        })
+          puWearSummary,
+        } as any)
 
         setCurrentReport(generated)
         setReportModalOpen(true)
@@ -246,6 +252,64 @@ export function RaceResultsTable({
               </tbody>
             </table>
           </div>
+
+          {/* Painel Informativo da Equipe Pós-Corrida: Custo Físico & Desgaste da PU */}
+          {displayResults.some(
+            (r) => r.isPlayer && (r.physicalReason || r.physicalDelta !== undefined),
+          ) && (
+            <div className="p-3.5 rounded-xl bg-[#090D15] border border-[#1F2733] space-y-2">
+              <div className="flex items-center justify-between border-b border-[#1F2733]/60 pb-1.5">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-400">
+                  ⚡ Condição Física dos Pilotos no GP
+                </span>
+                <span className="text-[10px] font-mono text-[#8B95A7]">Impacto da Prova</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {displayResults
+                  .filter((r) => r.isPlayer)
+                  .map((r) => {
+                    const delta =
+                      r.physicalDelta !== undefined
+                        ? r.physicalDelta
+                        : r.newPhysical !== undefined && r.oldPhysical !== undefined
+                          ? r.newPhysical - r.oldPhysical
+                          : undefined
+                    return (
+                      <div
+                        key={r.driverId}
+                        className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733]/80 space-y-1"
+                      >
+                        <div className="flex items-center justify-between font-bold">
+                          <span className="text-white">{r.driverName}</span>
+                          <span className="text-amber-400 font-mono text-[11px]">
+                            {delta !== undefined ? `${delta > 0 ? `+${delta}` : delta}%` : ''}
+                            {r.newPhysical !== undefined ? ` (Física: ${r.newPhysical}%)` : ''}
+                          </span>
+                        </div>
+                        {r.physicalReason && (
+                          <p className="text-[11px] text-slate-300 font-mono leading-relaxed">
+                            {r.physicalReason}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Resumo do Desgaste da PU no Fim de Semana */}
+          {puWearSummary && (
+            <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] flex items-center justify-between gap-3 text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400">⚙️</span>
+                <span className="text-[#8B95A7] uppercase font-bold text-[10px]">
+                  Unidade de Potência (PU):
+                </span>
+                <span className="text-slate-200">{puWearSummary}</span>
+              </div>
+            </div>
+          )}
 
           {/* Incidentes Registrados */}
           {incidents && incidents.length > 0 && (

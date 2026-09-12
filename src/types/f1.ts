@@ -343,6 +343,7 @@ export interface DriverPostRaceSummary {
   newMorale?: number
   oldPhysical?: number
   newPhysical?: number
+  physicalReason?: string
 }
 
 export interface RadioHighlight {
@@ -385,6 +386,7 @@ export interface RaceReportData {
     badge?: string
     driverName?: string
   }
+  puWearSummary?: string
 }
 
 export interface RaceReportModel {

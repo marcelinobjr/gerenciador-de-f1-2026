@@ -1688,6 +1688,7 @@ export const f1Service = {
 
       // 2. MIGRAÇÃO CRÍTICA DE PRÉ-CONTRATOS (OBRIGATÓRIO SEM SILÊNCIO)
       // Executado com prioridade máxima para que o grid da nova temporada seja consolidado
+      const migratedDriverIds = new Set<string>()
       try {
         const driversWithNext = await pb.collection('drivers').getFullList<DriverModel>({
           filter: 'next_team_id != null && next_team_id != ""',
@@ -1721,6 +1722,7 @@ export const f1Service = {
                 contract_end: nextYear + 1,
               })
             }
+            migratedDriverIds.add(d.id)
           } catch (driverErr: any) {
             console.error(`Falha ao migrar pré-contrato de ${d.name}:`, driverErr)
             migrationErrors.push(`${d.name}: ${driverErr?.message || driverErr}`)
@@ -1828,6 +1830,53 @@ export const f1Service = {
         throw new Error(`Falha crítica no mercado da IA: ${aiMarketErr?.message || aiMarketErr}`)
       }
 
+      // 2.3 IDENTIFICAR CAMPEÃO DE PILOTOS DA TEMPORADA ANTERIOR
+      let championDriverId: string | null = null
+      let championDriverName: string | null = null
+      try {
+        const seasonRaceResults = await pb.collection('race_results').getFullList({
+          filter: `season_id='${currentSeasonId}'`,
+        })
+
+        if (seasonRaceResults.length > 0) {
+          const driverPtsMap = new Map<string, number>()
+          seasonRaceResults.forEach((r: any) => {
+            const dId = r.driver_id
+            if (dId) {
+              driverPtsMap.set(dId, (driverPtsMap.get(dId) || 0) + (r.points || 0))
+            }
+          })
+
+          let maxPts = -1
+          for (const [dId, pts] of driverPtsMap.entries()) {
+            if (pts > maxPts) {
+              maxPts = pts
+              championDriverId = dId
+            }
+          }
+        }
+
+        // Fallback: se não tiver pontos ou registros na tabela, buscar piloto da equipe campeã de construtores
+        if (!championDriverId) {
+          const sortedTeams = await pb.collection('teams').getFullList<TeamModel>({
+            sort: '-points,-strength',
+          })
+          if (sortedTeams.length > 0) {
+            const topTeam = sortedTeams[0]
+            const topTeamDrivers = await pb.collection('drivers').getFullList<DriverModel>({
+              filter: `team_id='${topTeam.id}' && role='titular'`,
+              sort: '-speed',
+            })
+            if (topTeamDrivers.length > 0) {
+              championDriverId = topTeamDrivers[0].id
+              championDriverName = topTeamDrivers[0].name
+            }
+          }
+        }
+      } catch (champErr) {
+        console.warn('Aviso ao determinar campeão da temporada:', champErr)
+      }
+
       // 3. LIMPEZA TOTAL DE RESULTADOS DE CORRIDA E RELATÓRIOS DA TEMPORADA ANTERIOR
       // Garante que a classificação do novo ano inicie estritamente zerada
       try {
@@ -1891,7 +1940,55 @@ export const f1Service = {
         console.warn('Aviso ao renegociar patrocínios na nova temporada:', spErr)
       }
 
-      // 6. RESET DE MOTOR E PEÇAS PARA O NOVO ANO
+      // 6. RESET DE FÍSICA E MORAL DOS PILOTOS NA VIRADA DE TEMPORADA
+      // Regras:
+      // - Física = 100 para TODOS os drivers (category='f1', mercado e reservas) — férias de pré-temporada;
+      // - Moral = 50 para todos os drivers, EXCETO:
+      //   * Campeão de pilotos da temporada anterior: moral 80;
+      //   * Pilotos que RENOVARAM contrato com a mesma equipe (team_id inalterado pela migração): moral 65;
+      try {
+        const allDrivers = await pb.collection('drivers').getFullList<DriverModel>()
+        const driverResetErrors: string[] = []
+
+        for (const d of allDrivers) {
+          try {
+            const isChampion = championDriverId ? d.id === championDriverId : false
+            const isRenewed =
+              !migratedDriverIds.has(d.id) && Boolean(d.team_id) && d.role === 'titular'
+
+            let targetMorale = 50
+            if (isChampion) {
+              targetMorale = 80
+            } else if (isRenewed) {
+              targetMorale = 65
+            }
+
+            await pb.collection('drivers').update(d.id, {
+              physical_condition: 100,
+              morale: targetMorale,
+              is_incapacitated: false,
+              incapacitated_rounds_left: 0,
+              incapacitated_reason: '',
+            })
+          } catch (drvErr: any) {
+            console.error(`Erro ao resetar física e moral de ${d.name}:`, drvErr)
+            driverResetErrors.push(`${d.name}: ${drvErr?.message || drvErr}`)
+          }
+        }
+
+        if (driverResetErrors.length > 0) {
+          throw new Error(
+            `Falha ao resetar condição dos pilotos (${driverResetErrors.length}): ${driverResetErrors.join('; ')}`,
+          )
+        }
+      } catch (drvResetErr: any) {
+        console.error('Erro crítico no reset de física e moral dos pilotos:', drvResetErr)
+        throw new Error(
+          `Falha crítica no reset de pilotos para a pré-temporada: ${drvResetErr?.message || drvResetErr}`,
+        )
+      }
+
+      // 6.1 RESET DE MOTOR E PEÇAS PARA O NOVO ANO
       try {
         await pb.collection('teams').update(teamId, {
           active_engine_wear: 0,

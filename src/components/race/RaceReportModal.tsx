@@ -374,11 +374,33 @@ export function RaceReportModal({
                         )}
                       </div>
                     )}
+
+                    {/* Justificativa detalhada do custo físico se presente */}
+                    {driver.physicalReason && (
+                      <div className="pl-2 pt-1.5 text-[11px] text-amber-300/90 font-mono">
+                        <span>Física: </span>
+                        <span>{driver.physicalReason}</span>
+                      </div>
+                    )}
                   </div>
                 )
               })}
             </div>
           </div>
+
+          {/* 3.1 DESGASTE DA UNIDADE DE POTÊNCIA (PU) COM MOTIVOS */}
+          {report.puWearSummary && (
+            <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-1.5">
+              <div className="flex items-center justify-between border-b border-[#1F2733] pb-2">
+                <span className="eyebrow text-[#8B95A7] text-[11px] flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" /> Desgaste da Unidade de Potência
+                  (PU)
+                </span>
+                <span className="text-[11px] font-mono text-cyan-400">Telemetria de Motor</span>
+              </div>
+              <p className="text-xs font-mono text-slate-200 mt-1">{report.puWearSummary}</p>
+            </div>
+          )}
 
           {/* 4. MELHORES RÁDIOS DA CORRIDA */}
           <div className="space-y-3">
