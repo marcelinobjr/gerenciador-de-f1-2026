@@ -1957,6 +1957,7 @@ export default function RacePage() {
         flag: driver.flag,
         nationality: (driver as any).nationality,
         score: gridScoreAdvantage - penalty,
+        lapsCompleted: 0,
         accumulatedTimeSec: Number(startAccumulatedTime.toFixed(3)),
         lapsInDirtyAir: 0,
         position: gridPosition,
@@ -2742,6 +2743,7 @@ export default function RacePage() {
 
         const updatedEntry: SimDriverEntry = {
           ...entry,
+          lapsCompleted: (entry.lapsCompleted || 0) + (entry.dnf || isRanOutOfFuel ? 0 : 1),
           tireWear: effectiveWear,
           tireCompound: nextCompound,
           pitStopsDone: pitStops,
@@ -2908,6 +2910,7 @@ export default function RacePage() {
 
         return {
           ...entry,
+          lapsCompleted: (entry.lapsCompleted || 0) + (entry.dnf ? 0 : 1),
           accumulatedTimeSec: Number(newAccumulated.toFixed(3)),
           lastLapTimeSec: Number(lapSec.toFixed(3)),
           tireWear: finalWear,
@@ -2928,15 +2931,15 @@ export default function RacePage() {
         return a.accumulatedTimeSec - b.accumulatedTimeSec
       })
 
-      // Ajuste fino pós-ultrapassagem se marcado como passedFront: garante que fique à frente por -0.250s
+      // Ajuste fino pós-ultrapassagem se marcado como passedFront: garante que fique à frente por mais de 0.051s
       for (let i = 0; i < sortedActiveGrid.length; i++) {
         const car = sortedActiveGrid[i]
         if (car.dnf) continue
         const lapData = processedLaps.get(car.driverId)
         if (lapData?.passedFront && i > 0) {
           const carAhead = sortedActiveGrid[i - 1]
-          if (car.accumulatedTimeSec >= carAhead.accumulatedTimeSec) {
-            car.accumulatedTimeSec = Number((carAhead.accumulatedTimeSec - 0.25).toFixed(3))
+          if (car.accumulatedTimeSec >= carAhead.accumulatedTimeSec - 0.051) {
+            car.accumulatedTimeSec = Number((carAhead.accumulatedTimeSec - 0.052).toFixed(3))
           }
         }
       }
@@ -4457,7 +4460,14 @@ export default function RacePage() {
 
     const activeDrivers = resultsWithPenalties
       .filter((e) => !e.dnf)
-      .sort((a, b) => (a.position || 0) - (b.position || 0))
+      .sort((a, b) => {
+        const lapsA = a.lapsCompleted ?? 0
+        const lapsB = b.lapsCompleted ?? 0
+        if (lapsB !== lapsA) {
+          return lapsB - lapsA
+        }
+        return (a.accumulatedTimeSec || 0) - (b.accumulatedTimeSec || 0)
+      })
 
     const dnfDrivers = resultsWithPenalties
       .filter((e) => e.dnf)
@@ -4474,6 +4484,7 @@ export default function RacePage() {
 
     const pointsTable = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
     const winnerAccTime = finalOrderedGrid[0]?.accumulatedTimeSec || 0
+    const winnerLaps = finalOrderedGrid[0]?.lapsCompleted ?? gpInfo.laps
     const winnerMinutes = Math.floor(winnerAccTime / 60)
     const winnerRemainingSec = (winnerAccTime % 60).toFixed(3)
 
@@ -4486,8 +4497,9 @@ export default function RacePage() {
       } else if (idx === 0) {
         entry.totalTime = `${winnerMinutes}m ${winnerRemainingSec}s`
       } else {
-        const exactGap = Math.max(0, (entry.accumulatedTimeSec || 0) - winnerAccTime).toFixed(3)
-        entry.totalTime = `+${exactGap}s`
+        const exactGapSec = Math.max(0, (entry.accumulatedTimeSec || 0) - winnerAccTime)
+        const lapsBehind = Math.max(0, winnerLaps - (entry.lapsCompleted ?? winnerLaps))
+        entry.totalTime = formatGap(exactGapSec, false, lapsBehind)
       }
     })
 
@@ -4699,6 +4711,8 @@ export default function RacePage() {
               position: res.position,
               points: calculatedPoints,
               fastest_lap: !!res.fastestLap,
+              laps_completed: res.lapsCompleted ?? gpInfo.laps,
+              accumulated_time_sec: res.accumulatedTimeSec,
             })
             savedCount++
           } else {

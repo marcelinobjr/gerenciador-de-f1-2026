@@ -13,7 +13,7 @@ export interface SimDriverEntry extends RaceResultEntry {
   fastestLap: boolean
   usedOvertake: boolean
   accumulatedTimeSec: number
-  lapsCompleted: number
+  lapsCompleted?: number
   lastLapTimeSec?: number
   lapsInDirtyAir?: number
   tireCompound?: TireCompound
