@@ -143,6 +143,8 @@ export function RaceResultsTable({
               size="sm"
               onClick={onAdvanceRound}
               disabled={isFinishing}
+              data-advance-round=""
+              data-is-finishing={isFinishing ? 'true' : 'false'}
               className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold px-5 shadow-lg cursor-pointer flex items-center gap-1.5"
             >
               <span>{isFinishing ? 'Salvando dados...' : 'Avançar para Próxima Rodada'}</span>
