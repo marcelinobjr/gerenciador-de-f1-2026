@@ -1,7 +1,8 @@
 import type { WeekendSession, LiveRaceEvent } from '@/types/race-events'
 import type { RaceResultEntry } from '@/components/race/RaceResultsTable'
 import type { SessionResultRow } from '@/components/race/PracticeQualyResults'
-import type { TireCompound, TireCliffStatus } from '@/lib/f1-tire-system'
+import type { TireCliffStatus } from '@/lib/f1-tire-system'
+import type { TireCompound } from '@/types/f1'
 
 export type { WeekendSession, LiveRaceEvent }
 

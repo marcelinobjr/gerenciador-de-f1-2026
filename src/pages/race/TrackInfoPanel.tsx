@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Flag, AlertTriangle } from 'lucide-react'
 import { CircuitBlueprint } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
-import { pb } from '@/lib/pocketbase/client'
+import pb from '@/lib/pocketbase/client'
 import type { CircuitModel, TeamModel } from '@/types/f1'
 
 export interface TrackInfoPanelProps {
