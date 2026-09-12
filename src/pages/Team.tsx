@@ -1,40 +1,32 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
-import { DriverModel, RaceResultModel } from '@/types/f1'
+import { DriverModel } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
 import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { EngineSupplierSpec } from '@/types/f1'
 import { getCountryFlag } from '@/lib/country-flags'
 import { toast } from '@/hooks/use-toast'
-import { getFiaPointsForPosition, normalizeEntityName } from '@/lib/f1-standings-calculator'
 import {
   Users,
-  Briefcase,
   AlertTriangle,
   Sliders,
-  DollarSign,
-  TrendingUp,
   Shield,
-  CloudRain,
-  Flame,
-  CheckCircle2,
   CheckCircle,
-  Wrench,
   XCircle,
   Calendar,
   Sparkles,
   ArrowRightLeft,
   UserCheck,
-  Award,
   Activity,
   HeartPulse,
   Disc,
   Cpu,
   Zap,
-  Lock,
+  ChevronRight,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -44,8 +36,6 @@ import { DriverHelmet } from '@/components/DriverHelmet'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { PageHeader } from '@/components/PageHeader'
 import { ProgressBar } from '@/components/ProgressBar'
-import { DataTable, DataTableColumn } from '@/components/DataTable'
-import { EmptyState } from '@/components/EmptyState'
 
 import {
   Dialog,
@@ -58,11 +48,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function TeamPage() {
+  const navigate = useNavigate()
   const { team, season, refreshTeamAndSeason } = useAuth()
 
   const [teamDrivers, setTeamDrivers] = useState<DriverModel[]>([])
-  const [marketDrivers, setMarketDrivers] = useState<DriverModel[]>([])
-  const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modals state
@@ -71,9 +60,6 @@ export default function TeamPage() {
   const [contractYears, setContractYears] = useState<number>(1)
 
   const [fireDriver, setFireDriver] = useState<DriverModel | null>(null)
-  const [hireDriver, setHireDriver] = useState<DriverModel | null>(null)
-  const [hireRole, setHireRole] = useState<'titular' | 'reserva'>('titular')
-  const [driverToReplaceId, setDriverToReplaceId] = useState<string>('')
 
   // Engine switch state
   const [selectedSupplier, setSelectedSupplier] = useState<EngineSupplierSpec | null>(null)
@@ -84,12 +70,6 @@ export default function TeamPage() {
   const [selectedFpRounds, setSelectedFpRounds] = useState<number[]>([7, 13])
 
   const [isProcessing, setIsProcessing] = useState(false)
-  const [marketCategoryFilter, setMarketCategoryFilter] = useState<string>('todos')
-  const [marketSortBy, setMarketSortBy] = useState<
-    'speed' | 'consistency' | 'rain' | 'defense' | 'salary' | 'age'
-  >('speed')
-  const [marketSortOrder, setMarketSortOrder] = useState<'desc' | 'asc'>('desc')
-  const [marketSearchTerm, setMarketSearchTerm] = useState<string>('')
 
   // Team strength calculation / display
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
@@ -170,15 +150,8 @@ export default function TeamPage() {
       return
     }
     try {
-      const seasonYear = season?.year || 2026
-      const [tDrivers, mDrivers, results] = await Promise.all([
-        f1Service.getTeamDrivers(team.id),
-        f1Service.getSillySeasonMarketDrivers(seasonYear),
-        season?.id ? f1Service.getSeasonRaceResults(season.id) : Promise.resolve([]),
-      ])
+      const tDrivers = await f1Service.getTeamDrivers(team.id)
       setTeamDrivers(tDrivers)
-      setMarketDrivers(mDrivers)
-      setRaceResults(results)
     } catch (err) {
       console.error('Error loading team page data:', err)
     } finally {
@@ -214,184 +187,7 @@ export default function TeamPage() {
     [titularDrivers],
   )
 
-  // Metadados das categorias disponíveis no mercado de pilotos
-  const CATEGORY_META: Record<
-    string,
-    { label: string; shortBadge: string; badgeClass: string; desc: string }
-  > = {
-    f1: {
-      label: 'Fórmula 1',
-      shortBadge: 'F1',
-      badgeClass: 'bg-red-500/20 text-red-400 border-red-500/40',
-      desc: 'Pilotos com experiência de grid e reservas oficiais da F1',
-    },
-    f2: {
-      label: 'Fórmula 2',
-      shortBadge: 'F2',
-      badgeClass: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
-      desc: 'Jovens promessas do grid de acesso da F1 — talentosos e acessíveis',
-    },
-    indycar: {
-      label: 'IndyCar',
-      shortBadge: 'INDYCAR',
-      badgeClass: 'bg-rose-500/20 text-rose-400 border-rose-500/40',
-      desc: 'Pilotos de ponta da fórmula americana — altíssima velocidade e agressividade',
-    },
-    indynxt: {
-      label: 'Indy NXT',
-      shortBadge: 'INDY NXT',
-      badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
-      desc: 'Categoria de acesso da IndyCar — jovens talentos de baixo custo salarial',
-    },
-    formula_e: {
-      label: 'Fórmula E',
-      shortBadge: 'FÓRMULA E',
-      badgeClass: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40',
-      desc: 'Especialistas em circuitos de rua, consistência tática e defesa sólida',
-    },
-    nascar: {
-      label: 'NASCAR Cup',
-      shortBadge: 'NASCAR',
-      badgeClass: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
-      desc: 'Estrelas da NASCAR — ritmo intenso e corpo a corpo agressivo',
-    },
-    prototipos: {
-      label: 'Protótipos (WEC)',
-      shortBadge: 'PROTÓTIPOS',
-      badgeClass: 'bg-purple-500/20 text-purple-400 border-purple-500/40',
-      desc: 'Campeões de Le Mans e Hypercars — consistência implacável e domínio na chuva',
-    },
-    mercado: {
-      label: 'Mercado F1',
-      shortBadge: 'MERCADO',
-      badgeClass: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
-      desc: 'Veteranos e pilotos livres sem assento ativo em 2026',
-    },
-  }
-
-  // Filtered and sorted market drivers based on tab/search/sort
-  const filteredMarket = useMemo(() => {
-    let result = marketDrivers.slice()
-
-    // 1. Filtrar por categoria
-    if (marketCategoryFilter !== 'todos') {
-      if (marketCategoryFilter === 'mercado') {
-        result = result.filter((d) => d.category === 'mercado' || !d.category)
-      } else {
-        result = result.filter((d) => d.category === marketCategoryFilter)
-      }
-    }
-
-    // 2. Filtrar por busca (nome ou nacionalidade)
-    if (marketSearchTerm.trim()) {
-      const term = marketSearchTerm.toLowerCase().trim()
-      result = result.filter(
-        (d) => d.name.toLowerCase().includes(term) || d.nationality.toLowerCase().includes(term),
-      )
-    }
-
-    // 3. Ordenação
-    result.sort((a, b) => {
-      let valA = a[marketSortBy] ?? 0
-      let valB = b[marketSortBy] ?? 0
-      if (typeof valA === 'string') valA = Number(valA) || 0
-      if (typeof valB === 'string') valB = Number(valB) || 0
-
-      if (marketSortOrder === 'asc') {
-        return valA - valB
-      } else {
-        return valB - valA
-      }
-    })
-
-    return result
-  }, [marketDrivers, marketCategoryFilter, marketSearchTerm, marketSortBy, marketSortOrder])
-
-  const getCategoryBadge = (cat?: string | null) => {
-    const meta = CATEGORY_META[cat || 'mercado'] || CATEGORY_META.mercado
-    return (
-      <Badge
-        variant="outline"
-        className={`${meta.badgeClass} font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 whitespace-nowrap`}
-      >
-        {meta.shortBadge}
-      </Badge>
-    )
-  }
-
-  // Flag emoji helper
-  const getFlag = (nat: string) => getCountryFlag(nat)
-
-  const currentRound = season?.current_round || 1
-  const isSillySeasonOpen = currentRound >= 12
   const nextSeasonYear = (season?.year || 2026) + 1
-
-  // Mapa de desempenho por piloto para reajuste de preço na temporada atual
-  const driverPerformanceMap = useMemo(() => {
-    const stats: Record<
-      string,
-      { points: number; bestPos: number; wins: number; podiums: number }
-    > = {}
-
-    // Prepara índices de busca
-    const nameToStatsKey: Record<string, string> = {}
-    marketDrivers.forEach((d) => {
-      stats[d.id] = { points: 0, bestPos: 99, wins: 0, podiums: 0 }
-      nameToStatsKey[normalizeEntityName(d.name)] = d.id
-      nameToStatsKey[
-        d.name
-          .toLowerCase()
-          .trim()
-          .replace(/[^a-z0-9]/g, '')
-      ] = d.id
-    })
-
-    raceResults.forEach((res) => {
-      let targetId = stats[res.driver_id] ? res.driver_id : ''
-      if (!targetId && res.expand?.driver_id?.name) {
-        const norm = normalizeEntityName(res.expand.driver_id.name)
-        targetId = nameToStatsKey[norm] || ''
-      }
-      if (!targetId && (res as any).driverName) {
-        const norm = normalizeEntityName((res as any).driverName)
-        targetId = nameToStatsKey[norm] || ''
-      }
-
-      if (targetId && stats[targetId]) {
-        const pts =
-          typeof res.points === 'number' && res.points > 0
-            ? res.points
-            : getFiaPointsForPosition(res.position)
-        stats[targetId].points += pts
-        if (res.position < stats[targetId].bestPos) stats[targetId].bestPos = res.position
-        if (res.position === 1) stats[targetId].wins += 1
-        if (res.position <= 3) stats[targetId].podiums += 1
-      }
-    })
-
-    const multipliers: Record<
-      string,
-      { multiplier: number; explanation: string; adjustedSalary: number }
-    > = {}
-
-    marketDrivers.forEach((d) => {
-      const st = stats[d.id] || { points: 0, bestPos: 99, wins: 0, podiums: 0 }
-      const perf = f1Service.calculateDriverPerformancePriceMultiplier(
-        st.points,
-        st.bestPos,
-        st.wins,
-        st.podiums,
-        currentRound,
-      )
-      multipliers[d.id] = {
-        multiplier: perf.multiplier,
-        explanation: perf.explanation,
-        adjustedSalary: Math.round(d.salary * perf.multiplier),
-      }
-    })
-
-    return multipliers
-  }, [marketDrivers, raceResults, currentRound])
 
   // Renegotiate contract handler
   const handleRenegotiate = async () => {
@@ -472,65 +268,6 @@ export default function TeamPage() {
         variant: 'destructive',
         title: 'Erro ao demitir piloto',
         description: err?.message || 'Falha ao processar rescisão.',
-      })
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  // Open Hire dialog
-  const openHireDialog = (driver: DriverModel) => {
-    if (!isSillySeasonOpen) {
-      toast({
-        variant: 'destructive',
-        title: 'Mercado Fechado',
-        description: 'O mercado abre na rodada 12 — Silly Season',
-      })
-      return
-    }
-    setHireDriver(driver)
-    setHireRole('titular')
-    if (titularDrivers.length >= 2) {
-      setDriverToReplaceId(titularDrivers[0]?.id || '')
-    } else {
-      setDriverToReplaceId('')
-    }
-  }
-
-  // Hire driver handler (Silly Season para próxima temporada)
-  const handleHire = async () => {
-    if (!hireDriver || !team) return
-    if (!isSillySeasonOpen) {
-      toast({
-        variant: 'destructive',
-        title: 'Mercado Fechado',
-        description: 'O mercado abre na rodada 12 — Silly Season',
-      })
-      return
-    }
-    setIsProcessing(true)
-    try {
-      const perf = driverPerformanceMap[hireDriver.id]
-      const finalSalary = perf?.adjustedSalary || hireDriver.salary
-
-      // Assina pré-contrato para a próxima temporada: termina a atual na equipe de origem e migra na virada do ano
-      await f1Service.signNextSeasonDriver(hireDriver.id, team.id, hireRole, finalSalary)
-
-      const headline = `📝 PRÉ-CONTRATO ${nextSeasonYear}: ${hireDriver.name} assina com a ${team.name} para a próxima temporada!`
-      await f1Service.addEvent(team.id, headline, 'contrato')
-
-      toast({
-        title: `Contrato para a temporada ${nextSeasonYear} assinado!`,
-        description: `${hireDriver.name} defenderá a ${team.name} como ${hireRole === 'titular' ? 'titular' : 'piloto reserva'} em ${nextSeasonYear}. Ele termina 2026 na equipe atual.`,
-      })
-
-      setHireDriver(null)
-      loadData()
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro na contratação',
-        description: err?.message || 'Não foi possível assinar o pré-contrato.',
       })
     } finally {
       setIsProcessing(false)
@@ -1013,8 +750,8 @@ export default function TeamPage() {
                 Sua equipe não possui piloto reserva no momento.
               </p>
               <p className="text-xs text-muted-foreground">
-                Contrate um piloto reserva na aba Pilotos para cumprir os 2 treinos livres
-                do ano e proteger seu time contra lesões.
+                Contrate um piloto reserva na aba Pilotos para cumprir os 2 treinos livres do ano e
+                proteger seu time contra lesões.
               </p>
               <div className="pt-2">
                 <Button
@@ -1180,431 +917,18 @@ export default function TeamPage() {
               Mercado Global & Grid de Pilotos F1
             </h3>
             <p className="text-xs text-[#8B95A7] max-w-xl">
-              Explore o grid completo de pilotos oficiais, agentes livres e promessas com fotos reais, histórico de corridas, filtros e contratações para sua escuderia.
+              Explore o grid completo de pilotos oficiais, agentes livres e promessas com fotos
+              reais, histórico de corridas, filtros e contratações para sua escuderia.
             </p>
           </div>
 
           <Button
             onClick={() => navigate('/pilotos')}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono shrink-0 shadow-lg"
+            className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono shrink-0 shadow-lg cursor-pointer"
           >
             Ver todos os pilotos
             <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
-        </CardContent>
-      </Card>
-
-      {/* Fornecedor de Unidade de Potência */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
-          {/* Aviso Silly Season: Rodada < 12 bloqueada vs Rodada >= 12 aberta */}
-          {!isSillySeasonOpen ? (
-            <div className="mb-4 p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/50 flex items-center gap-3">
-              <Lock className="w-5 h-5 text-amber-400 shrink-0" />
-              <div className="space-y-0.5 text-xs font-mono">
-                <strong className="text-amber-300 font-bold block text-sm">
-                  O mercado abre na rodada 12 — Silly Season
-                </strong>
-                <p className="text-amber-200/80">
-                  Rodada atual: {currentRound} de 24. As negociações de pilotos entre escuderias e
-                  pré-contratos para {nextSeasonYear} estão temporariamente bloqueadas pela FIA até
-                  a metade da temporada.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 text-xs font-mono">
-                <Flame className="w-5 h-5 text-emerald-400 shrink-0" />
-                <div>
-                  <strong className="text-emerald-300 font-bold block">
-                    Silly Season Aberta! Negociações para a Temporada {nextSeasonYear}
-                  </strong>
-                  <span className="text-[#8B95A7]">
-                    Contratos assinados agora entram em vigor no próximo ano. Salários reajustados
-                    pelo desempenho na pista.
-                  </span>
-                </div>
-              </div>
-              <Badge className="bg-emerald-500 text-black font-bold text-xs uppercase px-2.5 py-1">
-                R{currentRound}/24 Ativa
-              </Badge>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-                MERCADO GLOBAL DE TALENTOS & SILLY SEASON
-              </span>
-              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
-                <Briefcase className="w-5 h-5 text-amber-400" />
-                Mercado de Pilotos ({filteredMarket.length} pilotos disponíveis)
-              </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-                Garimpe estrelas da F1, jovens promessas da F2 ou veteranos com preços reajustados
-                por desempenho.
-              </CardDescription>
-            </div>
-
-            {/* Controles de Busca e Ordenação */}
-            <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-              <input
-                type="text"
-                placeholder="Buscar piloto ou país..."
-                value={marketSearchTerm}
-                onChange={(e) => setMarketSearchTerm(e.target.value)}
-                className="bg-[#0B0E14] border border-[#1F2733] text-foreground rounded-md px-3 py-1.5 text-xs focus:outline-none focus:border-amber-400 placeholder:text-zinc-500 w-44"
-              />
-
-              <div className="flex items-center gap-1.5 bg-[#0B0E14] border border-[#1F2733] rounded-md px-2 py-1 text-xs text-[#8B95A7]">
-                <span>Ordenar:</span>
-                <select
-                  value={marketSortBy}
-                  onChange={(e) => setMarketSortBy(e.target.value as any)}
-                  className="bg-transparent text-foreground focus:outline-none cursor-pointer font-bold"
-                >
-                  <option value="speed" className="bg-[#11161F]">
-                    Velocidade
-                  </option>
-                  <option value="consistency" className="bg-[#11161F]">
-                    Consistência
-                  </option>
-                  <option value="rain" className="bg-[#11161F]">
-                    Chuva
-                  </option>
-                  <option value="defense" className="bg-[#11161F]">
-                    Defesa
-                  </option>
-                  <option value="salary" className="bg-[#11161F]">
-                    Salário
-                  </option>
-                  <option value="age" className="bg-[#11161F]">
-                    Idade
-                  </option>
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => setMarketSortOrder(marketSortOrder === 'desc' ? 'asc' : 'desc')}
-                  title={marketSortOrder === 'desc' ? 'Maior para menor' : 'Menor para maior'}
-                  className="ml-1 text-amber-400 hover:text-amber-300 font-bold px-1"
-                >
-                  {marketSortOrder === 'desc' ? '↓ Maior' : '↑ Menor'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Categorias - Filtro em formato de botões textuais / tabs */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#1F2733]/60">
-            <span className="text-[11px] font-mono text-[#8B95A7] mr-1">Filtrar:</span>
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('todos')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'todos'
-                  ? 'bg-white text-black font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              Todos ({marketDrivers.length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('f2')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'f2'
-                  ? 'bg-blue-500 text-white font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              Fórmula 2 ({marketDrivers.filter((d) => d.category === 'f2').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('indycar')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'indycar'
-                  ? 'bg-rose-500 text-white font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              IndyCar ({marketDrivers.filter((d) => d.category === 'indycar').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('indynxt')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'indynxt'
-                  ? 'bg-emerald-500 text-white font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              Indy NXT ({marketDrivers.filter((d) => d.category === 'indynxt').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('formula_e')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'formula_e'
-                  ? 'bg-cyan-500 text-black font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              Fórmula E ({marketDrivers.filter((d) => d.category === 'formula_e').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('nascar')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'nascar'
-                  ? 'bg-yellow-500 text-black font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              NASCAR ({marketDrivers.filter((d) => d.category === 'nascar').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('prototipos')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'prototipos'
-                  ? 'bg-purple-500 text-white font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              Protótipos ({marketDrivers.filter((d) => d.category === 'prototipos').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMarketCategoryFilter('mercado')}
-              className={`text-xs px-2.5 py-1 rounded-md font-mono transition-colors ${
-                marketCategoryFilter === 'mercado'
-                  ? 'bg-amber-500 text-black font-bold shadow'
-                  : 'bg-[#0B0E14] text-[#8B95A7] border border-[#1F2733] hover:text-white'
-              }`}
-            >
-              Mercado F1 (
-              {
-                marketDrivers.filter(
-                  (d) => d.category === 'mercado' || !d.category || d.category === 'f1',
-                ).length
-              }
-              )
-            </button>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-16 w-full bg-[#1F2733]" />
-              <Skeleton className="h-16 w-full bg-[#1F2733]" />
-              <Skeleton className="h-16 w-full bg-[#1F2733]" />
-            </div>
-          ) : filteredMarket.length === 0 ? (
-            <div className="text-center py-8 text-xs text-[#8B95A7] space-y-2">
-              <p>Nenhum piloto encontrado para os filtros selecionados.</p>
-              {marketSearchTerm && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMarketSearchTerm('')}
-                  className="text-xs h-7 border-[#1F2733]"
-                >
-                  Limpar busca "{marketSearchTerm}"
-                </Button>
-              )}
-            </div>
-          ) : (
-            <DataTable
-              keyExtractor={(d) => d.id}
-              data={filteredMarket}
-              playerRowPredicate={(d) => d.team_id === team?.id || d.next_team_id === team?.id}
-              playerRowTeamColor={team?.color || '#E10600'}
-              playerBadgeLabel="SEU PILOTO"
-              emptyMessage="Nenhum piloto encontrado para os filtros selecionados."
-              columns={[
-                {
-                  key: 'category',
-                  header: 'Origem',
-                  render: (d) => getCategoryBadge(d.category),
-                  width: '90px',
-                },
-                {
-                  key: 'name',
-                  header: 'Piloto',
-                  render: (d) => (
-                    <div className="flex items-center gap-2">
-                      <span className="text-base" title={d.nationality}>
-                        {getFlag(d.nationality)}
-                      </span>
-                      <div>
-                        <span className="font-bold text-[#F5F7FA] text-sm block">{d.name}</span>
-                        {d.team_id && (
-                          <span className="text-[10px] text-[#8B95A7] font-mono">
-                            Equipe 2026: {d.team_id === team?.id ? 'Sua Equipe' : 'Grid F1'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'age',
-                  header: 'Idade',
-                  align: 'center',
-                  render: (d) => <span className="font-num text-[#8B95A7]">{d.age}</span>,
-                  width: '60px',
-                },
-                {
-                  key: 'speed',
-                  header: 'Vel',
-                  align: 'center',
-                  render: (d) => (
-                    <span className="font-num font-bold text-[#F5F7FA]">{d.speed}</span>
-                  ),
-                  width: '50px',
-                },
-                {
-                  key: 'consistency',
-                  header: 'Cons',
-                  align: 'center',
-                  render: (d) => (
-                    <span className="font-num font-bold text-[#F5F7FA]">{d.consistency}</span>
-                  ),
-                  width: '50px',
-                },
-                {
-                  key: 'rain',
-                  header: 'Chuva',
-                  align: 'center',
-                  render: (d) => <span className="font-num font-bold text-sky-400">{d.rain}</span>,
-                  width: '50px',
-                },
-                {
-                  key: 'defense',
-                  header: 'Def',
-                  align: 'center',
-                  render: (d) => (
-                    <span className="font-num font-bold text-amber-400">{d.defense}</span>
-                  ),
-                  width: '50px',
-                },
-                {
-                  key: 'salary',
-                  header: 'Salário / Reajuste',
-                  align: 'right',
-                  isNumeric: true,
-                  render: (d) => {
-                    const perf = driverPerformanceMap[d.id] || {
-                      multiplier: 1,
-                      explanation: 'Estável',
-                      adjustedSalary: d.salary,
-                    }
-                    return (
-                      <div className="text-right">
-                        <div className="font-bold font-num text-[#F5F7FA]">
-                          {formatCurrency(perf.adjustedSalary)}
-                        </div>
-                        {perf.multiplier !== 1 && (
-                          <div
-                            className={`text-[10px] font-mono ${
-                              perf.multiplier > 1 ? 'text-emerald-400' : 'text-rose-400'
-                            }`}
-                            title={perf.explanation}
-                          >
-                            {perf.multiplier > 1
-                              ? `+${Math.round((perf.multiplier - 1) * 100)}%`
-                              : `-${Math.round((1 - perf.multiplier) * 100)}%`}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  },
-                },
-                {
-                  key: 'status',
-                  header: 'Silly Season',
-                  render: (d) => {
-                    const isAlreadySignedToPlayer = d.next_team_id === team?.id
-                    const isSignedToRival = !!d.next_team_id && d.next_team_id !== team?.id
-
-                    if (isAlreadySignedToPlayer) {
-                      return (
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono">
-                          ✓ Assinado p/ {nextSeasonYear}
-                        </Badge>
-                      )
-                    }
-                    if (isSignedToRival) {
-                      return (
-                        <Badge className="bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-mono">
-                          Assinado com rival
-                        </Badge>
-                      )
-                    }
-                    if (isSillySeasonOpen) {
-                      return (
-                        <Badge
-                          variant="outline"
-                          className="text-amber-400 border-amber-500/30 text-[10px] font-mono"
-                        >
-                          Livre p/ {nextSeasonYear}
-                        </Badge>
-                      )
-                    }
-                    return <span className="text-[10px] text-zinc-500 font-mono">Abre na R12</span>
-                  },
-                },
-                {
-                  key: 'action',
-                  header: 'Ação',
-                  align: 'right',
-                  render: (d) => {
-                    const isAlreadySignedToPlayer = d.next_team_id === team?.id
-                    const isSignedToRival = !!d.next_team_id && d.next_team_id !== team?.id
-
-                    return (
-                      <Button
-                        size="sm"
-                        disabled={!isSillySeasonOpen || isAlreadySignedToPlayer || isSignedToRival}
-                        onClick={() => openHireDialog(d)}
-                        className={`${
-                          !isSillySeasonOpen
-                            ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
-                            : isAlreadySignedToPlayer
-                              ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default'
-                              : isSignedToRival
-                                ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
-                                : 'bg-[#E10600] hover:bg-[#FF2E25] text-white'
-                        } text-xs h-7 px-3 shadow`}
-                      >
-                        {!isSillySeasonOpen ? (
-                          <span className="flex items-center gap-1">
-                            <Lock className="w-3 h-3" /> Bloqueado
-                          </span>
-                        ) : isAlreadySignedToPlayer ? (
-                          'Contratado'
-                        ) : isSignedToRival ? (
-                          'Indisponível'
-                        ) : (
-                          `Assinar p/ ${nextSeasonYear}`
-                        )}
-                      </Button>
-                    )
-                  },
-                },
-              ]}
-            />
-          )}
         </CardContent>
       </Card>
 
@@ -1951,142 +1275,6 @@ export default function TeamPage() {
               className="bg-red-600 hover:bg-red-700 text-white font-semibold"
             >
               {isProcessing ? 'Processando...' : 'Pagar Multa e Dispensar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal: Contratar Piloto (Pré-contrato Silly Season) */}
-      <Dialog open={!!hireDriver} onOpenChange={(open) => !open && setHireDriver(null)}>
-        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              Contrato para a temporada {nextSeasonYear}
-            </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
-              Silly Season: O piloto assina para o ano que vem ({nextSeasonYear}). Ele terminará a
-              temporada atual na equipe atual e migrará ao término da rodada 24.
-            </DialogDescription>
-          </DialogHeader>
-
-          {hireDriver &&
-            (() => {
-              const perf = driverPerformanceMap[hireDriver.id] || {
-                multiplier: 1,
-                explanation: 'Estável',
-                adjustedSalary: hireDriver.salary,
-              }
-              return (
-                <div className="space-y-4 py-2 text-xs font-mono">
-                  <div className="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-500/30 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#8B95A7]">Piloto Alvo:</span>
-                      <strong className="text-white text-sm">
-                        {hireDriver.name} ({hireDriver.age} anos)
-                      </strong>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#8B95A7]">Vigência do Contrato:</span>
-                      <Badge className="bg-emerald-500 text-black font-bold text-[10px]">
-                        Temporada {nextSeasonYear}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#8B95A7]">Salário Base Inicial:</span>
-                      <span className="text-zinc-400 line-through">
-                        {formatCurrency(hireDriver.salary)}/ano
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#8B95A7]">Ajuste por Desempenho:</span>
-                      <span
-                        className={
-                          perf.multiplier >= 1
-                            ? 'text-emerald-400 font-bold'
-                            : 'text-rose-400 font-bold'
-                        }
-                      >
-                        {perf.multiplier >= 1
-                          ? `+${Math.round((perf.multiplier - 1) * 100)}%`
-                          : `-${Math.round((1 - perf.multiplier) * 100)}%`}{' '}
-                        ({perf.explanation})
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center pt-1 border-t border-emerald-500/20">
-                      <span className="text-white font-bold">
-                        Salário Acordado ({nextSeasonYear}):
-                      </span>
-                      <strong className="text-emerald-400 text-sm">
-                        {formatCurrency(perf.adjustedSalary)}/ano
-                      </strong>
-                    </div>
-                  </div>
-
-                  {/* Papel do piloto */}
-                  <div className="space-y-2">
-                    <label className="text-[#8B95A7] block text-xs">
-                      Papel a assumir na equipe em {nextSeasonYear}:
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setHireRole('titular')}
-                        className={`p-3 rounded-lg border text-center transition-all ${
-                          hireRole === 'titular'
-                            ? 'border-[#E10600] bg-[#E10600]/15 text-white font-bold'
-                            : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
-                        }`}
-                      >
-                        <div>Piloto Titular</div>
-                        <div className="text-[10px] text-[#8B95A7] mt-0.5">
-                          Assento titular oficial em {nextSeasonYear}
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setHireRole('reserva')}
-                        className={`p-3 rounded-lg border text-center transition-all ${
-                          hireRole === 'reserva'
-                            ? 'border-amber-500 bg-amber-500/15 text-amber-300 font-bold'
-                            : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
-                        }`}
-                      >
-                        <div>Piloto Reserva</div>
-                        <div className="text-[10px] text-[#8B95A7] mt-0.5">
-                          Treinos Livres e reserva em {nextSeasonYear}
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 rounded bg-[#11161F] border border-[#1F2733] text-[11px] text-[#8B95A7]">
-                    ℹ️ <strong>Nota Silly Season:</strong> O piloto segue disputando as corridas
-                    restantes de 2026 pela sua equipe atual sem qualquer alteração no grid deste
-                    ano. Na virada para a temporada {nextSeasonYear}, ele será integrado
-                    automaticamente ao seu elenco.
-                  </div>
-                </div>
-              )
-            })()}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setHireDriver(null)}
-              className="border-[#1F2733] text-[#8B95A7]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleHire}
-              disabled={isProcessing}
-              className="bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold"
-            >
-              {isProcessing
-                ? 'Registrando contrato...'
-                : `Assinar Contrato para a Temporada ${nextSeasonYear}`}
             </Button>
           </DialogFooter>
         </DialogContent>
