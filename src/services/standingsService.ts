@@ -97,8 +97,13 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   const { raceResults = [], playerDrivers = [], team, season } = params
   const currentRound = season?.current_round || 1
 
+  // Filtrar estritamente resultados da temporada atual para isolamento absoluto
+  const filteredResults = season?.id
+    ? raceResults.filter((r) => !r.season_id || r.season_id === season.id)
+    : raceResults
+
   const recordedRounds = new Set<number>()
-  raceResults.forEach((r) => {
+  filteredResults.forEach((r) => {
     if (typeof r.round === 'number') {
       recordedRounds.add(r.round)
     }
@@ -106,8 +111,9 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   const hasRecordedResults = recordedRounds.size > 0
 
   // Se o banco tem resultados gravados para as rodadas, calculamos diretamente deles.
-  // Caso a rodada atual esteja avançada sem corridas gravadas (fallback determinístico),
-  // simulamos pelas rodadas passadas com a tabela oficial FIA.
+  // Se a rodada atual está no início (ex: Round 1 ou Round 2 antes da corrida) e não há resultados anteriores,
+  // nunca simular retroativamente se já estivermos na temporada nova ou se o jogador estiver disputando rodada a rodada.
+  // A classificação deve refletir os race_results reais.
   const pastRoundsToSimulate = hasRecordedResults ? 0 : Math.max(0, currentRound - 1)
 
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
@@ -197,7 +203,7 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   let fallbackPlayerBestPos = 99
   let fallbackPlayerFound = false
 
-  raceResults.forEach((res) => {
+  filteredResults.forEach((res) => {
     let targetDriver = dMap[res.driver_id]
 
     // Expand do PocketBase

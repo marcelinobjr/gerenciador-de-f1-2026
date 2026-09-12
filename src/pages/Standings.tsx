@@ -339,7 +339,7 @@ export default function StandingsPage() {
       {/* Header oficial da fundação Race Operations */}
       <PageHeader
         eyebrow="RACE OPERATIONS // CLASSIFICAÇÕES"
-        title="Classificação Geral F1 2026"
+        title={`Classificação Geral F1 ${season?.year || 2026}`}
         description={
           <span>
             Grid oficial com{' '}
@@ -349,7 +349,7 @@ export default function StandingsPage() {
         }
         badge={
           <span className="px-2.5 py-1 rounded-md text-xs font-num font-semibold bg-[#11161F] border border-[#1F2733] text-[#8B95A7]">
-            Rodada {currentRound} de {totalRounds}
+            Temporada {season?.year || 2026} • Rodada {currentRound} de {totalRounds}
           </span>
         }
         actions={
@@ -396,7 +396,7 @@ export default function StandingsPage() {
             <EmptyState
               icon={Award}
               title="Sem pontuação registrada ainda"
-              description="A tabela de pilotos será preenchida automaticamente após a conclusão das sessões de corrida da temporada 2026."
+              description={`A tabela de pilotos será preenchida automaticamente após a conclusão das sessões de corrida da temporada ${season?.year || 2026}.`}
             />
             <p className="text-xs text-[#8B95A7]">
               Você está na Rodada {currentRound}. Acesse a aba "Fim de Semana" para iniciar o GP!
@@ -426,7 +426,7 @@ export default function StandingsPage() {
           <EmptyState
             icon={Trophy}
             title="Sem classificação de equipes ainda"
-            description="A tabela de construtores será atualizada com os pontos FIA e premiação após cada GP da temporada 2026."
+            description={`A tabela de construtores será atualizada com os pontos FIA e premiação após cada GP da temporada ${season?.year || 2026}.`}
           />
           <p className="text-xs text-[#8B95A7]">
             Você está na Rodada {currentRound}. Acesse a aba "Fim de Semana" para iniciar o GP!

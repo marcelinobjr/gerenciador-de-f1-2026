@@ -1663,7 +1663,7 @@ export const f1Service = {
     playerFinalConstructorRank = 1,
   ): Promise<SeasonModel> {
     try {
-      // 0. Pagar premiação anual FIA baseada na colocação do jogador nos construtores
+      // 1. PREMIAÇÃO FIA DE CONSTRUTORES (P1: R$ 175M até P12: R$ 70M)
       const prizeAmount = this.CONSTRUCTOR_PRIZE_BY_RANK[playerFinalConstructorRank] || 70000000
       try {
         const teamRec = await pb.collection('teams').getOne<TeamModel>(teamId)
@@ -1671,17 +1671,74 @@ export const f1Service = {
         await pb.collection('teams').update(teamId, {
           budget: updatedBudget,
           cost_cap_spent: 0, // Novo teto de gastos no novo ano
+          constructors_points_deduction: 0,
+          rd_penalty_rounds_left: 0,
         })
         await this.addEvent(
           teamId,
           `🏆 PREMIAÇÃO FIA DE CONSTRUTORES: P${playerFinalConstructorRank} conquistado! Repasse anual de R$ ${(prizeAmount / 1000000).toFixed(0)}M creditado nos cofres da equipe para financiar a temporada ${nextYear}!`,
           'patrocinio',
         )
-      } catch (err) {
-        console.warn('Erro ao creditar premiação anual de construtores:', err)
+      } catch (err: any) {
+        console.error('Erro ao creditar premiação anual de construtores:', err)
+        throw new Error(
+          `Falha ao creditar premiação de construtores da FIA: ${err?.message || err}`,
+        )
       }
 
-      // 1. Reset race results for the new season or delete them
+      // 2. MIGRAÇÃO CRÍTICA DE PRÉ-CONTRATOS (OBRIGATÓRIO SEM SILÊNCIO)
+      // Executado com prioridade máxima para que o grid da nova temporada seja consolidado
+      try {
+        const driversWithNext = await pb.collection('drivers').getFullList<DriverModel>({
+          filter: 'next_team_id != null && next_team_id != ""',
+        })
+
+        const migrationErrors: string[] = []
+
+        for (const d of driversWithNext) {
+          try {
+            const nextTeam = d.next_team_id
+            const nextRole = d.next_contract_role || 'titular'
+
+            if (nextRole === 'reserva') {
+              await pb.collection('drivers').update(d.id, {
+                team_id: null,
+                reserve_team_id: nextTeam,
+                role: 'reserva',
+                category: 'f1',
+                next_team_id: null,
+                next_contract_role: null,
+                contract_end: nextYear + 1,
+              })
+            } else {
+              await pb.collection('drivers').update(d.id, {
+                team_id: nextTeam,
+                reserve_team_id: null,
+                role: 'titular',
+                category: 'f1',
+                next_team_id: null,
+                next_contract_role: null,
+                contract_end: nextYear + 1,
+              })
+            }
+          } catch (driverErr: any) {
+            console.error(`Falha ao migrar pré-contrato de ${d.name}:`, driverErr)
+            migrationErrors.push(`${d.name}: ${driverErr?.message || driverErr}`)
+          }
+        }
+
+        if (migrationErrors.length > 0) {
+          throw new Error(
+            `Falha na efetivação de contratos (${migrationErrors.length} piloto(s)): ${migrationErrors.join('; ')}`,
+          )
+        }
+      } catch (migErr: any) {
+        console.error('Erro ao migrar pilotos com pré-contrato na troca de temporada:', migErr)
+        throw new Error(`Falha crítica na migração dos pré-contratos: ${migErr?.message || migErr}`)
+      }
+
+      // 3. LIMPEZA TOTAL DE RESULTADOS DE CORRIDA E RELATÓRIOS DA TEMPORADA ANTERIOR
+      // Garante que a classificação do novo ano inicie estritamente zerada
       try {
         const results = await pb.collection('race_results').getFullList({
           filter: `season_id='${currentSeasonId}'`,
@@ -1689,11 +1746,23 @@ export const f1Service = {
         for (const r of results) {
           await pb.collection('race_results').delete(r.id)
         }
-      } catch (err) {
-        console.warn('Erro ao limpar resultados da temporada anterior:', err)
+      } catch (err: any) {
+        console.error('Erro ao limpar resultados de corrida anteriores:', err)
+        throw new Error(`Falha ao zerar resultados da temporada anterior: ${err?.message || err}`)
       }
 
-      // 2. Reset session setups
+      try {
+        const reports = await pb.collection('race_reports').getFullList({
+          filter: `season_id='${currentSeasonId}'`,
+        })
+        for (const rep of reports) {
+          await pb.collection('race_reports').delete(rep.id)
+        }
+      } catch (repErr) {
+        console.warn('Aviso ao limpar relatórios antigos:', repErr)
+      }
+
+      // 4. RESET DE SETUPS E TELEMETRIA DE SESSÃO
       try {
         const setups = await pb.collection('session_setups').getFullList({
           filter: `season_id='${currentSeasonId}'`,
@@ -1701,51 +1770,12 @@ export const f1Service = {
         for (const s of setups) {
           await pb.collection('session_setups').delete(s.id)
         }
-      } catch (err) {
-        console.warn('Erro ao limpar setups anteriores:', err)
+      } catch (err: any) {
+        console.error('Erro ao limpar setups anteriores:', err)
+        throw new Error(`Falha ao limpar setups da temporada anterior: ${err?.message || err}`)
       }
 
-      // 2b. Migrar pilotos com pré-contrato (next_team_id) para a nova temporada
-      try {
-        const driversWithNext = await pb.collection('drivers').getFullList<DriverModel>({
-          filter: 'next_team_id != null && next_team_id != ""',
-        })
-        for (const d of driversWithNext) {
-          const nextTeam = d.next_team_id
-          const nextRole = d.next_contract_role || 'titular'
-          if (nextRole === 'reserva') {
-            await pb.collection('drivers').update(d.id, {
-              team_id: null,
-              reserve_team_id: nextTeam,
-              role: 'reserva',
-              next_team_id: null,
-              next_contract_role: null,
-              contract_end: nextYear + 1,
-            })
-          } else {
-            await pb.collection('drivers').update(d.id, {
-              team_id: nextTeam,
-              reserve_team_id: null,
-              role: 'titular',
-              next_team_id: null,
-              next_contract_role: null,
-              contract_end: nextYear + 1,
-            })
-          }
-        }
-      } catch (migErr) {
-        console.warn('Erro ao migrar pilotos com pré-contrato na troca de temporada:', migErr)
-      }
-
-      // 3. Update Season record: year + 1, current_round = 1, clear market_moves
-      const updatedSeason = await pb.collection('seasons').update<SeasonModel>(currentSeasonId, {
-        year: nextYear,
-        current_round: 1,
-        total_rounds: 24,
-        market_moves: null,
-      })
-
-      // 3b. Renegociar contratos de patrocínio para a nova temporada conforme resultado do mundial
+      // 5. RENEGOCIAÇÃO DE PATROCÍNIOS DA EQUIPE PARA A NOVA TEMPORADA
       try {
         const teamSponsors = await pb.collection('sponsors').getFullList<SponsorModel>({
           filter: `team_id='${teamId}'`,
@@ -1754,7 +1784,6 @@ export const f1Service = {
           constructorPos: playerFinalConstructorRank,
         })
         for (const sp of teamSponsors) {
-          // Reajustar valor por corrida conforme desempenho
           const recalculatedValue = Math.round(sp.value_per_round * multiplier)
           await pb.collection('sponsors').update(sp.id, {
             value_per_round: recalculatedValue,
@@ -1768,20 +1797,23 @@ export const f1Service = {
           'patrocinio',
         )
       } catch (spErr) {
-        console.warn('Erro ao renegociar patrocínios na nova temporada:', spErr)
+        console.warn('Aviso ao renegociar patrocínios na nova temporada:', spErr)
       }
 
-      // 4. Reset team active engine wear to 0 and engine pool used to 1
+      // 6. RESET DE MOTOR E PEÇAS PARA O NOVO ANO
       try {
         await pb.collection('teams').update(teamId, {
           active_engine_wear: 0,
           engine_pool_used: 1,
+          cost_cap_spent: 0,
+          constructors_points_deduction: 0,
+          rd_penalty_rounds_left: 0,
         })
-      } catch (err) {
-        console.warn('Erro ao resetar motor da equipe:', err)
+      } catch (err: any) {
+        console.error('Erro ao resetar motor da equipe:', err)
+        throw new Error(`Falha ao resetar motor da equipe: ${err?.message || err}`)
       }
 
-      // 5. Restore parts condition to 100% for the new season
       try {
         const teamParts = await pb.collection('parts').getFullList<PartModel>({
           filter: `team_id='${teamId}'`,
@@ -1791,11 +1823,22 @@ export const f1Service = {
             condition: 100,
           })
         }
-      } catch (err) {
-        console.warn('Erro ao restaurar peças para a nova temporada:', err)
+      } catch (err: any) {
+        console.error('Erro ao restaurar peças para a nova temporada:', err)
+        throw new Error(`Falha ao restaurar peças para a nova temporada: ${err?.message || err}`)
       }
 
-      // 6. Log announcement event
+      // 7. ATUALIZAÇÃO DO REGISTRO DE TEMPORADA
+      // Inicia a nova temporada no Round 1, zera last_processed_round e market_moves
+      const updatedSeason = await pb.collection('seasons').update<SeasonModel>(currentSeasonId, {
+        year: nextYear,
+        current_round: 1,
+        total_rounds: 24,
+        market_moves: null,
+        last_processed_round: 0,
+      })
+
+      // 8. LOG DE EVENTO ANÚNCIO DE NOVA TEMPORADA
       try {
         await this.addEvent(
           teamId,
@@ -1807,8 +1850,8 @@ export const f1Service = {
       }
 
       return updatedSeason
-    } catch (e) {
-      console.error('Erro ao iniciar próxima temporada:', e)
+    } catch (e: any) {
+      console.error('Erro crítico ao iniciar próxima temporada:', e)
       throw e
     }
   },
