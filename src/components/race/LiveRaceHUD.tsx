@@ -11,7 +11,7 @@ import {
   Activity,
   ArrowRight,
 } from 'lucide-react'
-import { SimDriverEntry } from '@/pages/RaceSlim'
+import { SimDriverEntry } from '@/pages/race/types'
 import { TireCompound } from '@/types/f1'
 
 interface LiveRaceHUDProps {

@@ -5,13 +5,20 @@ import { PageHeader } from '@/components/PageHeader'
 import { ChevronRight, FastForward, Play, RotateCcw } from 'lucide-react'
 import type { WeekendSession } from '@/types/race-events'
 
+export type WeekendDisplaySession =
+  | WeekendSession
+  | 'treino_livre'
+  | 'classificacao'
+  | 'corrida'
+  | 'pos_corrida'
+
 export interface WeekendHeaderProps {
   currentRound: number
   gpInfo: {
     name: string
     circuit: string
   }
-  weekendSession: WeekendSession
+  weekendSession: WeekendDisplaySession
   isSimulating: boolean
   hasRaceFinished: boolean
   hasQualyFinished: boolean
@@ -37,10 +44,16 @@ export function WeekendHeader({
 }: WeekendHeaderProps) {
   const getSessionBadgeColor = () => {
     switch (weekendSession) {
+      case 'tp1':
+      case 'tp2':
       case 'treino_livre':
         return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'q1':
+      case 'q2':
+      case 'q3':
       case 'classificacao':
         return 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+      case 'race':
       case 'corrida':
         return 'bg-red-500/20 text-red-400 border-red-500/30'
       case 'pos_corrida':
@@ -52,6 +65,18 @@ export function WeekendHeader({
 
   const getSessionLabel = () => {
     switch (weekendSession) {
+      case 'tp1':
+        return 'Treino Livre 1 (TP1)'
+      case 'tp2':
+        return 'Treino Livre 2 (TP2)'
+      case 'q1':
+        return 'Qualificação 1 (Q1)'
+      case 'q2':
+        return 'Qualificação 2 (Q2)'
+      case 'q3':
+        return 'Qualificação 3 (Q3)'
+      case 'race':
+        return 'Grande Prêmio (Corrida)'
       case 'treino_livre':
         return 'Treino Livre (FP1)'
       case 'classificacao':
