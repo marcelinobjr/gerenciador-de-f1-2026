@@ -352,8 +352,11 @@ export function formatLapTime(timeSec: number): string {
 /**
  * Converte diferença de segundos para string "+X.XXXs" ou "LÍDER" ou "-"
  */
-export function formatGap(gapSec: number, isLeader: boolean = false): string {
+export function formatGap(gapSec: number, isLeader: boolean = false, lapsBehind?: number): string {
   if (isLeader) return 'LÍDER'
+  if (typeof lapsBehind === 'number' && lapsBehind >= 1) {
+    return lapsBehind === 1 ? '+1 VOLTA' : `+${lapsBehind} VOLTAS`
+  }
   if (gapSec <= 0.0005) return '+0.000s'
   return `+${gapSec.toFixed(3)}s`
 }

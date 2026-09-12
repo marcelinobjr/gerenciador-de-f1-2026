@@ -324,6 +324,7 @@ export interface DriverPostRaceSummary {
   finalPosition: number
   points: number
   fastestLap?: boolean
+  lapsCompleted?: number
   dnf?: boolean
   dnfReason?: string
   totalTime?: string
@@ -374,6 +375,7 @@ export interface RaceReportData {
   date?: string
   weatherSummary?: string
   totalLaps: number
+  lapsCompleted?: number
   teamDrivers: DriverPostRaceSummary[]
   teamPoints: number
   constructorDelta: ConstructorPositionDelta

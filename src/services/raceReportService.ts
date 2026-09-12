@@ -163,6 +163,7 @@ export const raceReportService = {
         finalPosition: entry.dnf ? 99 : entry.position,
         points: pts,
         fastestLap: !!entry.fastestLap,
+        lapsCompleted: entry.lapsCompleted,
         dnf: !!entry.dnf,
         dnfReason: entry.dnfReason,
         totalTime: entry.totalTime || (entry.dnf ? 'DNF' : 'Tempo Concluído'),

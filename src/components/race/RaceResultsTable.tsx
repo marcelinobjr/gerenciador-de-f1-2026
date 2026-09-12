@@ -27,6 +27,8 @@ export interface RaceResultEntry {
   dnf?: boolean
   dnfReason?: string
   totalTime?: string
+  lapsCompleted?: number
+  accumulatedTimeSec?: number
   oldMorale?: number
   newMorale?: number
   oldPhysical?: number
@@ -235,8 +237,10 @@ export function RaceResultsTable({
                             {r.dnfReason || 'Abandono'}
                           </span>
                         ) : (
-                          r.totalTime ||
-                          (r.position === 1 ? '1h 28m 34s' : `+${(r.position - 1) * 2.4}s`)
+                          <span className={r.position === 1 ? 'text-amber-400 font-bold' : ''}>
+                            {r.totalTime ||
+                              (r.position === 1 ? '1h 28m 34s' : `+${(r.position - 1) * 2.4}s`)}
+                          </span>
                         )}
                       </td>
                       <td className="py-2.5 px-2 text-right font-num">

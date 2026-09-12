@@ -244,7 +244,9 @@ export function RaceReportModal({
                         <div>
                           <h4 className="text-sm font-extrabold text-white">{driver.driverName}</h4>
                           <span className="text-[10px] text-[#8B95A7] font-num">
-                            {driver.totalTime || 'Concluído'}
+                            {driver.dnf
+                              ? driver.dnfReason || 'DNF'
+                              : driver.totalTime || 'Concluído'}
                           </span>
                         </div>
                       </div>

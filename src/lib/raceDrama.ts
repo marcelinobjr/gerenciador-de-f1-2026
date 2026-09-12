@@ -85,10 +85,13 @@ export interface FinalResultWithPenalties {
   driverId: string
   driverName?: string
   position: number
+  accumulatedTimeSec?: number
   totalTimeSec?: number
   totalTime?: string
+  lapsCompleted?: number
   dnf?: boolean
   dnfReason?: string
+  dnfLap?: number
   timePenaltySec?: number
   appliedPenalties?: FiaPenalty[]
   [key: string]: any
@@ -656,6 +659,7 @@ function formatSecondsToDisplay(sec: number): string {
 export function applyPenaltiesToResults<T extends FinalResultWithPenalties>(
   results: T[],
   penalties: FiaPenalty[] = [],
+  totalRaceLaps = 50,
 ): T[] {
   if (!results || results.length === 0) return []
 
@@ -670,7 +674,7 @@ export function applyPenaltiesToResults<T extends FinalResultWithPenalties>(
     }
   })
 
-  // Calcula tempo total efetivo para cada piloto ativo
+  // Calcula tempo total efetivo para cada piloto ativo usando accumulatedTimeSec real
   const modified = results.map((entry) => {
     const driverPenalties = unservedPenaltiesMap[entry.driverId] || []
     const penaltySum = driverPenalties.reduce((acc, p) => acc + (p.timePenaltySec || 0), 0)
@@ -684,26 +688,47 @@ export function applyPenaltiesToResults<T extends FinalResultWithPenalties>(
     }
 
     const baseSec =
-      typeof entry.totalTimeSec === 'number'
-        ? entry.totalTimeSec
-        : parseTimeToSeconds(entry.totalTime, 5400 + (entry.position || 10) * 2)
+      typeof entry.accumulatedTimeSec === 'number'
+        ? entry.accumulatedTimeSec
+        : typeof entry.totalTimeSec === 'number'
+          ? entry.totalTimeSec
+          : parseTimeToSeconds(entry.totalTime, 0)
 
-    const finalSec = baseSec + penaltySum
+    const finalSec = Number((baseSec + penaltySum).toFixed(3))
 
     return {
       ...entry,
+      accumulatedTimeSec: finalSec,
       totalTimeSec: finalSec,
-      totalTime: formatSecondsToDisplay(finalSec),
       timePenaltySec: penaltySum,
       appliedPenalties: driverPenalties,
     }
   })
 
-  // Reordena: Não-DNFs ordenados por totalTimeSec ASC, depois DNFs
+  // Reordena:
+  // 1. Não-DNFs ordenados primeiramente por voltas completadas DESC (se disponíveis),
+  //    e depois por accumulatedTimeSec ASC
+  // 2. DNFs ordenados por dnfLap DESC, depois position ASC
   const finishedDrivers = modified.filter((d) => !d.dnf)
   const dnfDrivers = modified.filter((d) => d.dnf)
 
-  finishedDrivers.sort((a, b) => (a.totalTimeSec || 0) - (b.totalTimeSec || 0))
+  finishedDrivers.sort((a, b) => {
+    const lapsA = typeof a.lapsCompleted === 'number' ? a.lapsCompleted : totalRaceLaps
+    const lapsB = typeof b.lapsCompleted === 'number' ? b.lapsCompleted : totalRaceLaps
+    if (lapsB !== lapsA) {
+      return lapsB - lapsA
+    }
+    return (a.accumulatedTimeSec || 0) - (b.accumulatedTimeSec || 0)
+  })
+
+  dnfDrivers.sort((a, b) => {
+    const lapA = a.dnfLap ?? 0
+    const lapB = b.dnfLap ?? 0
+    if (lapB !== lapA) {
+      return lapB - lapA
+    }
+    return (a.position || 0) - (b.position || 0)
+  })
 
   const reordered: T[] = [
     ...finishedDrivers.map((d, idx) => ({ ...d, position: idx + 1 })),
