@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
-import { f1Service } from '@/services/f1Service'
-import { useRealtime } from '@/hooks/use-realtime'
-import { DriverModel, RaceResultModel } from '@/types/f1'
-import { standingsService, DriverStanding, TeamStanding } from '@/services/standingsService'
-import { Trophy, Award, Users, Scale, Medal } from 'lucide-react'
+import { useUnifiedSeason } from '@/hooks/use-unified-season'
+import { DriverStanding, TeamStanding } from '@/services/standingsService'
+import { Trophy, Award, Users, Scale, Medal, AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -17,49 +14,17 @@ import { formatCurrency } from '@/lib/formatters'
 export type { DriverStanding, TeamStanding }
 
 export default function StandingsPage() {
-  const { team, season } = useAuth()
+  const {
+    team,
+    season,
+    driverStandings,
+    constructorStandings,
+    loading,
+    currentRound,
+    totalRounds,
+  } = useUnifiedSeason()
 
   const [activeTab, setActiveTab] = useState<'drivers' | 'constructors'>('drivers')
-  const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
-  const [playerDrivers, setPlayerDrivers] = useState<DriverModel[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const loadData = async () => {
-    if (!season || !team) {
-      setLoading(false)
-      return
-    }
-    try {
-      const [rList, dList] = await Promise.all([
-        f1Service.getSeasonRaceResults(season.id),
-        f1Service.getTeamDrivers(team.id),
-      ])
-      setRaceResults(rList)
-      setPlayerDrivers(dList)
-    } catch (err) {
-      console.error('Error loading standings data:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadData()
-  }, [season?.id, team?.id])
-
-  useRealtime('race_results', () => {
-    loadData()
-  })
-
-  // Calculate aggregated standings via unified service
-  const { driverStandings, constructorStandings } = useMemo(() => {
-    return standingsService.calculateStandings({
-      raceResults,
-      playerDrivers,
-      team,
-      season,
-    })
-  }, [raceResults, playerDrivers, team, season])
 
   // Máximo de pontos para calcular as mini-barras relativas ao líder
   const maxDriverPoints = useMemo(() => {
@@ -368,7 +333,7 @@ export default function StandingsPage() {
   ]
 
   return (
-    <div className="relative space-y-6 animate-fade-in-up">
+    <div className="relative z-10 space-y-6 animate-fade-in-up">
       <AmbientBackground />
 
       {/* Header oficial da fundação Race Operations */}
@@ -384,7 +349,7 @@ export default function StandingsPage() {
         }
         badge={
           <span className="px-2.5 py-1 rounded-md text-xs font-num font-semibold bg-[#11161F] border border-[#1F2733] text-[#8B95A7]">
-            Rodada {season?.current_round || 1} de {season?.total_rounds || 24}
+            Rodada {currentRound} de {totalRounds}
           </span>
         }
         actions={
@@ -427,11 +392,16 @@ export default function StandingsPage() {
         </div>
       ) : activeTab === 'drivers' ? (
         driverStandings.length === 0 ? (
-          <EmptyState
-            icon={Award}
-            title="Nenhum piloto classificado"
-            description="A tabela de pilotos será preenchida automaticamente após a conclusão das sessões de corrida."
-          />
+          <div className="p-8 rounded-xl bg-[#11161F] border border-[#1F2733] text-center space-y-3">
+            <EmptyState
+              icon={Award}
+              title="Sem pontuação registrada ainda"
+              description="A tabela de pilotos será preenchida automaticamente após a conclusão das sessões de corrida da temporada 2026."
+            />
+            <p className="text-xs text-[#8B95A7]">
+              Você está na Rodada {currentRound}. Acesse a aba "Fim de Semana" para iniciar o GP!
+            </p>
+          </div>
         ) : (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs px-1 text-[#8B95A7]">
@@ -452,11 +422,16 @@ export default function StandingsPage() {
           </div>
         )
       ) : constructorStandings.length === 0 ? (
-        <EmptyState
-          icon={Trophy}
-          title="Nenhuma equipe classificada"
-          description="A tabela de construtores será atualizada com os pontos FIA e premiação após cada GP."
-        />
+        <div className="p-8 rounded-xl bg-[#11161F] border border-[#1F2733] text-center space-y-3">
+          <EmptyState
+            icon={Trophy}
+            title="Sem classificação de equipes ainda"
+            description="A tabela de construtores será atualizada com os pontos FIA e premiação após cada GP da temporada 2026."
+          />
+          <p className="text-xs text-[#8B95A7]">
+            Você está na Rodada {currentRound}. Acesse a aba "Fim de Semana" para iniciar o GP!
+          </p>
+        </div>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs px-1 text-[#8B95A7]">

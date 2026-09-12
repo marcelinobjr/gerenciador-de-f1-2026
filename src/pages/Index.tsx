@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
-import { DriverModel, EventModel, PartModel, RaceResultModel } from '@/types/f1'
+import { EventModel, PartModel } from '@/types/f1'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { standingsService } from '@/services/standingsService'
 import { formatCurrency } from '@/lib/formatters'
@@ -79,29 +80,34 @@ const formatEventDateBR = (isoString?: string) => {
 
 export default function Index() {
   const { user, team, season, refreshTeamAndSeason } = useAuth()
+  const {
+    raceResults,
+    playerDrivers: drivers,
+    currentRound: currentRoundNumber,
+    totalRounds,
+    loading: unifiedLoading,
+  } = useUnifiedSeason()
   const navigate = useNavigate()
 
-  const [drivers, setDrivers] = useState<DriverModel[]>([])
   const [events, setEvents] = useState<EventModel[]>([])
   const [parts, setParts] = useState<PartModel[]>([])
-  const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
-  const [circuits, setCircuits] = useState<CircuitModel[]>([])
-  const [loading, setLoading] = useState(true)
+  const [circuits, setCircuits] = useState<any[]>([])
+  const [loadingExtras, setLoadingExtras] = useState(true)
   const [initialFuelLoad, setInitialFuelLoad] = useState<number | null>(null)
 
-  const loadDashboardData = async () => {
+  const loading = unifiedLoading || loadingExtras
+
+  const loadDashboardExtras = async () => {
     if (!team || !season) {
-      setLoading(false)
+      setLoadingExtras(false)
       return
     }
     try {
       const currentRoundForSetups = season.current_round || 1
-      const [dList, eList, pList, rList, cList, setupsList] = await Promise.all([
-        f1Service.getTeamDrivers(team.id),
+      const [eList, pList, cList, setupsList] = await Promise.all([
         f1Service.getTeamEvents(team.id, 20),
         f1Service.getTeamParts(team.id),
-        f1Service.getSeasonRaceResults(season.id),
-        f1Service.getAllCircuits().catch(() => [] as CircuitModel[]),
+        f1Service.getAllCircuits().catch(() => []),
         f1Service.getSessionSetups(team.id, season.id, currentRoundForSetups).catch(() => []),
       ])
 
@@ -116,57 +122,23 @@ export default function Index() {
         setInitialFuelLoad(null)
       }
 
-      // Se não houver piloto reserva diretamente em team_id, buscar quem tem reserve_team_id
-      let fullDrivers = [...dList]
-      const hasReserve = fullDrivers.some((d) => d.role === 'reserva')
-      if (!hasReserve) {
-        try {
-          const marketOrReserves = await f1Service.getMarketDrivers()
-          const myReserve = marketOrReserves.find(
-            (d) => d.reserve_team_id === team.id || (d.role === 'reserva' && d.team_id === team.id),
-          )
-          if (myReserve && !fullDrivers.some((d) => d.id === myReserve.id)) {
-            fullDrivers.push(myReserve)
-          }
-        } catch (rErr) {
-          console.warn('Erro ao carregar piloto reserva:', rErr)
-        }
-      }
-
-      setDrivers(fullDrivers)
       setEvents(eList)
       setParts(pList)
-      setRaceResults(rList)
       setCircuits(cList)
     } catch (err) {
-      console.error('Error loading dashboard data:', err)
+      console.error('Error loading dashboard extras:', err)
     } finally {
-      setLoading(false)
+      setLoadingExtras(false)
     }
   }
 
   useEffect(() => {
-    loadDashboardData()
+    loadDashboardExtras()
   }, [team?.id, season?.id])
 
   // Realtime updates
   useRealtime('events', () => {
     if (team?.id) f1Service.getTeamEvents(team.id, 20).then(setEvents)
-  })
-  useRealtime('race_results', () => {
-    if (season?.id) f1Service.getSeasonRaceResults(season.id).then(setRaceResults)
-  })
-  useRealtime('drivers', () => {
-    if (team?.id) {
-      f1Service.getTeamDrivers(team.id).then((dList) => {
-        setDrivers((prev) => {
-          const reserves = prev.filter(
-            (p) => p.role === 'reserva' && !dList.some((d) => d.id === p.id),
-          )
-          return [...dList, ...reserves]
-        })
-      })
-    }
   })
   useRealtime('seasons', () => {
     refreshTeamAndSeason()
@@ -201,12 +173,10 @@ export default function Index() {
     }
   }, [raceResults, team, season, drivers, parts])
 
-  const currentRoundIndex = (season?.current_round || 1) - 1
+  const currentRoundIndex = (currentRoundNumber || 1) - 1
   const currentGP =
     F1_2026_CALENDAR[Math.min(currentRoundIndex, F1_2026_CALENDAR.length - 1)] ||
     F1_2026_CALENDAR[0]
-  const currentRoundNumber = season?.current_round || 1
-  const totalRounds = season?.total_rounds || 24
 
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
   const totalGridTeams = isCustomTeam ? 12 : 11

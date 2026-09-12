@@ -66,17 +66,27 @@ export function LiveRaceHUD({
   isFinishing: propIsFinishing = false,
 }: LiveRaceHUDProps) {
   // Se as props não forem passadas diretamente pelo wrapper pai, resolve automaticamente via DOM/janela
+  const [domFinishing, setDomFinishing] = useState(false)
+
+  useEffect(() => {
+    const checkFinishing = () => {
+      if (typeof document !== 'undefined') {
+        const hasFinishingBtn = Boolean(
+          document.querySelector(
+            'button[data-advance-round]:disabled, button[data-is-finishing="true"]',
+          ),
+        )
+        setDomFinishing(hasFinishingBtn)
+      }
+    }
+    const interval = setInterval(checkFinishing, 500)
+    return () => clearInterval(interval)
+  }, [])
+
   const onAdvanceRound =
     propOnAdvanceRound ||
     (typeof window !== 'undefined' ? (window as any).__f1_handleAdvanceRound : undefined)
-  const isFinishing =
-    propIsFinishing ||
-    (typeof document !== 'undefined' &&
-      Boolean(
-        document.querySelector(
-          'button[data-advance-round]:disabled, button[data-is-finishing="true"]',
-        ),
-      ))
+  const isFinishing = propIsFinishing || domFinishing
   // Quando a corrida terminar ou se já estiver terminada, inicia ou entra em estado recolhido
   const [collapsed, setCollapsed] = useState(isRaceFinished)
   const hasAutoScrolledRef = useRef(false)
@@ -131,19 +141,27 @@ export function LiveRaceHUD({
 
   // Tenta resolver avanço de rodada
   const handleAdvanceInternal = () => {
-    if (onAdvanceRound) {
-      onAdvanceRound()
+    if (propOnAdvanceRound) {
+      propOnAdvanceRound()
       return
     }
+
     // Fallback prioritário: se houver botão de avançar na tabela com o atributo data-advance-round, clica nele
     const btn =
-      (document.querySelector('button[data-advance-round]') as HTMLButtonElement | null) ||
-      (Array.from(document.querySelectorAll('button')).find((b) =>
+      (document.querySelector(
+        'button[data-advance-round]:not([disabled])',
+      ) as HTMLButtonElement | null) ||
+      (Array.from(document.querySelectorAll('button:not([disabled])')).find((b) =>
         b.textContent?.includes('Avançar para Próxima Rodada'),
       ) as HTMLButtonElement | null)
 
     if (btn) {
       btn.click()
+      return
+    }
+
+    if (onAdvanceRound) {
+      onAdvanceRound()
       return
     }
 

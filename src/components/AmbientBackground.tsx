@@ -16,7 +16,7 @@ export function AmbientBackground({ className = '', opacity = 1 }: AmbientBackgr
   return (
     <div
       aria-hidden="true"
-      className={`fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#0B0E14] ${className}`}
+      className={`fixed inset-0 pointer-events-none -z-10 overflow-hidden bg-[#0B0E14] ${className}`}
       style={{ opacity }}
     >
       {/* Imagem de fundo: Garagem técnica oficial com overlay escuro consistente */}

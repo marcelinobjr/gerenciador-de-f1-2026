@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
+import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
@@ -27,15 +27,23 @@ import { Skeleton } from '@/components/ui/skeleton'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
 
 export default function CalendarPage() {
-  const { team, season } = useAuth()
+  const {
+    team,
+    season,
+    raceResults,
+    playerDrivers,
+    currentRound,
+    totalRounds,
+    loading: seasonLoading,
+  } = useUnifiedSeason()
   const { toast } = useToast()
 
   const [circuits, setCircuits] = useState<CircuitModel[]>([])
-  const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
-  const [playerDrivers, setPlayerDrivers] = useState<DriverModel[]>([])
+  const [circuitsLoading, setCircuitsLoading] = useState(true)
   const [allDbDrivers, setAllDbDrivers] = useState<DriverModel[]>([])
   const [allDbTeams, setAllDbTeams] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+
+  const loading = seasonLoading || circuitsLoading
 
   // Filtros e busca
   const [search, setSearch] = useState('')
@@ -46,30 +54,20 @@ export default function CalendarPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const activeRoundRef = useRef<GrandPrixInfo | null>(null)
 
-  const loadData = async () => {
-    if (!season || !team) {
-      setLoading(false)
-      return
-    }
+  const loadCircuits = async () => {
     try {
-      const [circuitsList, resultsList, driversList] = await Promise.all([
-        f1Service.getAllCircuits(),
-        f1Service.getSeasonRaceResults(season.id),
-        f1Service.getTeamDrivers(team.id),
-      ])
+      const circuitsList = await f1Service.getAllCircuits()
       setCircuits(circuitsList)
-      setRaceResults(resultsList)
-      setPlayerDrivers(driversList)
     } catch (err) {
-      console.error('Erro ao carregar dados do calendário:', err)
+      console.error('Erro ao carregar circuitos:', err)
     } finally {
-      setLoading(false)
+      setCircuitsLoading(false)
     }
   }
 
   useEffect(() => {
-    loadData()
-  }, [season?.id, team?.id])
+    loadCircuits()
+  }, [])
 
   // Carga de apoio para resolução de nomes caso o expand de driver_id ou team_id falhe
   useEffect(() => {
@@ -94,10 +92,7 @@ export default function CalendarPage() {
   }, [])
 
   useRealtime('circuits', () => {
-    loadData()
-  })
-  useRealtime('race_results', () => {
-    loadData()
+    loadCircuits()
   })
 
   // Mapa de circuitos salvos no banco indexados por round
@@ -250,7 +245,6 @@ export default function CalendarPage() {
   }
 
   // Filtragem dos GPs
-  const currentRound = season?.current_round || 1
   const filteredGPs = useMemo(() => {
     return F1_2026_CALENDAR.filter((gp) => {
       const matchesSearch =
@@ -270,7 +264,7 @@ export default function CalendarPage() {
   }, [search, filterStatus, resultsByRound, currentRound])
 
   return (
-    <div className="relative space-y-6 animate-fade-in-up pb-10">
+    <div className="relative z-10 space-y-6 animate-fade-in-up pb-10">
       <AmbientBackground />
 
       {/* Input de arquivo global oculto para upload de imagem de circuito */}
@@ -420,7 +414,7 @@ export default function CalendarPage() {
             return (
               <div
                 key={gp.round}
-                className={`overflow-hidden rounded-xl border transition-all duration-200 flex flex-col justify-between ${
+                className={`overflow-hidden rounded-xl border transition-all duration-200 flex flex-col min-h-[560px] ${
                   isCurrent
                     ? 'bg-[#11161F] border-[#00A6FB] shadow-xl ring-1 ring-[#00A6FB]/40'
                     : 'bg-[#11161F] border-[#1F2733] hover:border-[#2C3849]'
@@ -428,13 +422,13 @@ export default function CalendarPage() {
               >
                 {/* Barra de status de 3px no topo */}
                 <div
-                  className={`h-[3px] w-full ${
+                  className={`h-[3px] w-full shrink-0 ${
                     isCurrent ? 'bg-[#00A6FB]' : isCompleted ? 'bg-emerald-500' : 'bg-[#1F2733]'
                   }`}
                 />
 
-                {/* Banner 16:9 do Traçado */}
-                <div className="relative w-full aspect-[16/9] max-h-60 bg-[#080B10] overflow-hidden border-b border-[#1F2733] group flex items-center justify-center">
+                {/* Banner do Traçado com altura fixa e sem esmagamento */}
+                <div className="relative w-full h-52 sm:h-60 shrink-0 bg-[#080B10] overflow-hidden border-b border-[#1F2733] group flex items-center justify-center">
                   {activeCircuitImage ? (
                     <div className="w-full h-full relative bg-[#080B10] overflow-hidden flex items-center justify-center p-3">
                       <CircuitTrackImage
@@ -502,7 +496,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* Conteúdo Informativo Completo do Card */}
+                {/* Conteúdo Informativo Completo do Card (sempre visível, flex-grow e espaçado) */}
                 <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
                   {/* Cabeçalho informativo: bandeira + país (eyebrow), nome do GP, circuito com ícone de localização, e badge de status */}
                   <div className="space-y-3">
