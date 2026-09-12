@@ -788,7 +788,7 @@ export default function Index() {
         <div className="flex items-center gap-2 text-center sm:text-left">
           <span className="font-extrabold text-white">{team?.name || 'AUDI F1 TEAM'}</span>
           <span className="text-[#334155]">|</span>
-          <span>GERENCIADOR DE F1 2026</span>
+          <span>GERENCIADOR DE F1 {season?.year || 2026}</span>
         </div>
 
         <div className="flex items-center gap-3 text-center sm:text-right text-[11px]">

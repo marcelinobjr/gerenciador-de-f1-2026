@@ -348,7 +348,7 @@ export default function HistoryPage() {
       {/* PageHeader padrão Race Operations */}
       <PageHeader
         eyebrow="RACE OPERATIONS // HISTÓRICO"
-        title="Histórico da Temporada 2026"
+        title={`Histórico da Temporada ${season?.year || 2026}`}
         description={
           <span>
             Arquivo GP a GP da temporada oficial FIA • Evolução de pontos acumulados, relatórios de

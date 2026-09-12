@@ -802,9 +802,9 @@ export default function TeamsPage() {
 
       {/* PageHeader padrão Race Operations */}
       <PageHeader
-        eyebrow="RACE OPERATIONS // GRID 2026"
-        title="Grid da Temporada 2026"
-        description="As 11 construtoras da temporada 2026, hierarquia técnica oficial da FIA, unidades de potência, elenco de pilotos e posição no Mundial de Construtores."
+        eyebrow={`RACE OPERATIONS // GRID ${season?.year || 2026}`}
+        title={`Grid da Temporada ${season?.year || 2026}`}
+        description={`As 11 construtoras da temporada ${season?.year || 2026}, hierarquia técnica oficial da FIA, unidades de potência, elenco de pilotos e posição no Mundial de Construtores.`}
         badge={
           <div className="flex items-center gap-2">
             <Badge
@@ -1042,7 +1042,9 @@ export default function TeamsPage() {
                             className="inline-block w-2 h-2 rounded-full"
                             style={{ backgroundColor: t.color }}
                           />
-                          <span>F1 2026 SPEC // {t.name.toUpperCase()}</span>
+                          <span>
+                            F1 {season?.year || 2026} SPEC // {t.name.toUpperCase()}
+                          </span>
                         </div>
                       </div>
                     )}

@@ -120,7 +120,7 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
                     style={{ backgroundColor: teamColor }}
                   />
                   <span className="text-[10px] text-[#8B95A7] font-medium truncate">
-                    {team?.name || 'Equipe F1 2026'}
+                    {team?.name || `Equipe F1 ${season?.year || 2026}`}
                   </span>
                 </div>
               </div>

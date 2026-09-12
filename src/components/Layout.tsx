@@ -106,7 +106,6 @@ export default function Layout() {
           season={season}
           onLogout={handleLogout}
         />
-
         {/* Área de Conteúdo Principal (fundo Camada 0 #0B0E14) */}
         <main
           className={`flex-1 w-full ${
@@ -117,18 +116,18 @@ export default function Layout() {
         >
           <Outlet />
         </main>
-
         {/* Rodapé discreto dentro da área de conteúdo */}
         <footer className="w-full border-t border-[#1F2733] bg-[#0B0E14] py-5 text-center text-xs text-[#8B95A7] mt-auto">
           <div className="max-w-[1100px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="font-medium text-[#F5F7FA]">
-              F1 Manager 2026 <span className="text-[#8B95A7] font-normal">• Temporada 2026</span>
+              F1 Manager {season?.year || 2026}{' '}
+              <span className="text-[#8B95A7] font-normal">• Temporada {season?.year || 2026}</span>
             </p>
             <p className="text-[11px] text-[#8B95A7]">
-              Jogo de gerenciamento pessoal — regras oficiais da F1 2026
+              Jogo de gerenciamento pessoal — regras oficiais da F1 {season?.year || 2026}
             </p>
           </div>
-        </footer>
+        </footer>{' '}
       </div>
 
       {/* Modal de Configurações (E2-A: Conta & Carreira) */}
@@ -165,7 +164,7 @@ export default function Layout() {
                 </p>
                 <ul className="list-disc pl-5 space-y-1 text-[#F5F7FA]">
                   <li>Sua equipe atual e orçamento acumulado</li>
-                  <li>Temporada 2026 e resultados de todas as corridas</li>
+                  <li>Temporada {season?.year || 2026} e resultados de todas as corridas</li>
                   <li>Patrocínios ativos e peças desenvolvidas no P&D</li>
                   <li>Contratos de pilotos (eles voltam disponíveis para o mercado)</li>
                   <li>Histórico de comunicados e eventos</li>

@@ -120,7 +120,7 @@ export function SettingsModal({
                       {team?.name || 'Escuderia F1'}
                     </h4>
                     <p className="text-xs text-[#8B95A7] truncate">
-                      Temporada 2026 • Rodada {currentRound} de {totalRounds}
+                      Temporada {season?.year || 2026} • Rodada {currentRound} de {totalRounds}
                     </p>
                   </div>
                 </div>
@@ -151,7 +151,7 @@ export function SettingsModal({
                 <div className="flex items-start gap-2 text-xs text-[#8B95A7]">
                   <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <p className="text-[11px] leading-relaxed">
-                    Deseja iniciar uma nova trajetória na temporada 2026? Você pode reiniciar sua
+                    Deseja reiniciar sua trajetória nesta temporada? Você pode reiniciar sua
                     carreira a qualquer momento mantendo sua conta de usuário ativa.
                   </p>
                 </div>

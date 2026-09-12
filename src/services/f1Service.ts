@@ -1737,6 +1737,97 @@ export const f1Service = {
         throw new Error(`Falha crítica na migração dos pré-contratos: ${migErr?.message || migErr}`)
       }
 
+      // 2.1 APOSENTADORIA DE VETERANOS (executada antes do mercado da IA)
+      // Regra: idade >= 40 e contract_end <= (nextYear - 1), OU idade >= 45 em qualquer caso
+      try {
+        const allDriversForRetirement = await pb.collection('drivers').getFullList<DriverModel>()
+        for (const d of allDriversForRetirement) {
+          const contractEnd = d.contract_end || nextYear - 1
+          const shouldRetire = (d.age >= 40 && contractEnd <= nextYear - 1) || d.age >= 45
+          if (shouldRetire) {
+            await pb.collection('drivers').update(d.id, {
+              category: 'mercado',
+              role: null,
+              team_id: null,
+              reserve_team_id: null,
+              next_team_id: null,
+              next_contract_role: null,
+              salary: 0,
+            })
+            await this.addEvent(
+              teamId,
+              `🏁 APOSENTADORIA: A lenda ${d.name} encerrou sua carreira profissional aos ${d.age} anos!`,
+              'contrato',
+            )
+          }
+        }
+      } catch (retErr: any) {
+        console.error('Erro ao processar aposentadorias de pilotos:', retErr)
+        throw new Error(
+          `Falha crítica no processamento de aposentadorias: ${retErr?.message || retErr}`,
+        )
+      }
+
+      // 2.2 MERCADO DA IA: COMPLETAR VAGAS DE TITULARES EM EQUIPES DA IA
+      // Equipes de IA com menos de 2 titulares contratam os melhores pilotos livres por score (speed*0.6 + consistency*0.4)
+      try {
+        const allTeamsForMarket = await pb.collection('teams').getFullList<TeamModel>({
+          sort: '-strength',
+        })
+        const aiTeams = allTeamsForMarket.filter((t) => t.id !== teamId)
+
+        const allDriversAfterRetirement = await pb.collection('drivers').getFullList<DriverModel>()
+
+        // Contar titulares atuais por equipe
+        const teamTitularCount = new Map<string, number>()
+        aiTeams.forEach((t) => teamTitularCount.set(t.id, 0))
+
+        allDriversAfterRetirement.forEach((d) => {
+          if (d.team_id && d.role === 'titular' && teamTitularCount.has(d.team_id)) {
+            teamTitularCount.set(d.team_id, (teamTitularCount.get(d.team_id) || 0) + 1)
+          }
+        })
+
+        // Pilotos ativos elegíveis para o mercado da IA
+        const freeDriversPool = allDriversAfterRetirement.filter((d) => {
+          const contractEnd = d.contract_end || nextYear - 1
+          const isRetired = (d.age >= 40 && contractEnd <= nextYear - 1) || d.age >= 45
+          if (isRetired) return false
+          if (d.team_id && d.role === 'titular') return false
+          return true
+        })
+
+        // Ordenar pilotos por score decrescente
+        freeDriversPool.sort((a, b) => {
+          const scoreA = (a.speed || 75) * 0.6 + (a.consistency || 75) * 0.4
+          const scoreB = (b.speed || 75) * 0.6 + (b.consistency || 75) * 0.4
+          return scoreB - scoreA
+        })
+
+        let poolPtr = 0
+        // Ordenar equipes de IA por força decrescente (já ordenado pelo sort PocketBase)
+        for (const aiTeam of aiTeams) {
+          const currentCount = teamTitularCount.get(aiTeam.id) || 0
+          let needed = 2 - currentCount
+          while (needed > 0 && poolPtr < freeDriversPool.length) {
+            const chosenDriver = freeDriversPool[poolPtr++]
+            await pb.collection('drivers').update(chosenDriver.id, {
+              team_id: aiTeam.id,
+              role: 'titular',
+              category: 'f1',
+              contract_end: nextYear + 2,
+              next_team_id: null,
+              next_contract_role: null,
+            })
+            needed--
+            teamTitularCount.set(aiTeam.id, (teamTitularCount.get(aiTeam.id) || 0) + 1)
+          }
+        }
+      } catch (aiMarketErr: any) {
+        console.error('Erro ao processar mercado da IA na virada de temporada:', aiMarketErr)
+        throw new Error(`Falha crítica no mercado da IA: ${aiMarketErr?.message || aiMarketErr}`)
+      }
+
       // 3. LIMPEZA TOTAL DE RESULTADOS DE CORRIDA E RELATÓRIOS DA TEMPORADA ANTERIOR
       // Garante que a classificação do novo ano inicie estritamente zerada
       try {

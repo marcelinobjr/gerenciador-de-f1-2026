@@ -57,10 +57,10 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/car': 'Carro & P&D',
   '/sponsors': 'Patrocínios',
   '/race': 'Fim de Semana de Corrida',
-  '/calendario': 'Calendário Oficial 2026',
+  '/calendario': 'Calendário Oficial',
   '/standings': 'Classificações do Campeonato',
   '/historico': 'Histórico da Temporada',
-  '/teams': 'Grid da Temporada 2026',
+  '/teams': 'Grid da Temporada',
 }
 
 export interface SidebarProps {
@@ -124,7 +124,7 @@ export function Sidebar({
                 fontSize="21"
                 letterSpacing="0.5"
               >
-                2026
+                {season?.year || 2026}
               </text>
             </svg>
           </div>
@@ -238,7 +238,7 @@ export function Sidebar({
             <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] space-y-1.5">
               <div className="flex items-center justify-between text-[11px] leading-none">
                 <span className="text-[#8B95A7] text-[10px] font-medium tracking-wide">
-                  TEMPORADA 2026
+                  TEMPORADA {season?.year || 2026}
                 </span>
                 <span className="font-num text-white font-bold text-xs tabular-nums">
                   R{currentRound}/{totalRounds}

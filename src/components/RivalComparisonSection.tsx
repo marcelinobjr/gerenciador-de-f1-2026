@@ -319,7 +319,7 @@ export function RivalComparisonSection({ allTeams, playerTeam }: RivalComparison
             <span className="text-xs font-bold text-white flex items-center gap-1.5">
               <Trophy className="w-3.5 h-3.5 text-amber-400" /> Eficiência de Pontos
             </span>
-            <span className="text-[10px] text-[#8B95A7] font-num">Temporada 2026</span>
+            <span className="text-[10px] text-[#8B95A7] font-num">Temporada Atual</span>
           </div>
 
           <div className="space-y-2.5 text-xs font-num">

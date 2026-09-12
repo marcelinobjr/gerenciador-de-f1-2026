@@ -279,7 +279,7 @@ export default function CalendarPage() {
 
       {/* PageHeader oficial Race Operations */}
       <PageHeader
-        eyebrow="RACE OPERATIONS // CALENDÁRIO 2026"
+        eyebrow={`RACE OPERATIONS // CALENDÁRIO ${season?.year || 2026}`}
         title="Calendário de Corridas"
         description="As 24 etapas do Campeonato Mundial: especificações técnicas de cada autódromo, traçados oficiais com suporte a upload de imagem e resultados de cada GP."
         badge={
@@ -720,7 +720,7 @@ export default function CalendarPage() {
                         <span className="font-medium text-[#F5F7FA]">
                           {isCurrent
                             ? 'Etapa Atual — Pronta para Disputa'
-                            : 'Etapa a Disputar no Campeonato 2026'}
+                            : `Etapa a Disputar no Campeonato ${season?.year || 2026}`}
                         </span>
                         <span className="text-[11px] text-[#8B95A7]">
                           {isCurrent
