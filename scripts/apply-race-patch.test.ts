@@ -9,7 +9,7 @@ describe('apply-race-patch', () => {
 
     const originalContent = fs.readFileSync(filePath, 'utf8')
 
-    // PRIMEIRO grava uma cópia de segurança em src/pages/RaceSlim.tsx.bak
+    // Grava cópia de backup antes de qualquer edição
     fs.writeFileSync(bakPath, originalContent, 'utf8')
 
     let content = originalContent
@@ -25,19 +25,10 @@ describe('apply-race-patch', () => {
       content = content.replace(target, replacement)
     }
 
-    // ALVO (a1): initialGrid.push lapsCompleted: 0
-    const targetA1 = `      initialGrid.push({
-        driverId: driver.driverId,
-        driverName: driver.driverName,
-        teamId: driver.teamId,
-        teamName: driver.teamName,
-        teamColor: driver.teamColor,
-        isPlayer: driver.isPlayer,
-        flag: driver.flag,
-        nationality: (driver as any).nationality,
-        score: gridScoreAdvantage - penalty,`
-
-    const replaceA1 = `      initialGrid.push({
+    // PASSO 2 (a) lapsCompleted no grid inicial:
+    // Alvo: initialGrid.push com score: gridScoreAdvantage - penalty,
+    // Garantir que lapsCompleted: 0 esteja presente.
+    const targetA = `      initialGrid.push({
         driverId: driver.driverId,
         driverName: driver.driverName,
         teamId: driver.teamId,
@@ -49,49 +40,35 @@ describe('apply-race-patch', () => {
         score: gridScoreAdvantage - penalty,
         lapsCompleted: 0,`
 
-    applyReplace(targetA1, replaceA1, 'initialGrid.push (lapsCompleted: 0)')
+    if (!content.includes(targetA)) {
+      const targetAOld = `      initialGrid.push({
+        driverId: driver.driverId,
+        driverName: driver.driverName,
+        teamId: driver.teamId,
+        teamName: driver.teamName,
+        teamColor: driver.teamColor,
+        isPlayer: driver.isPlayer,
+        flag: driver.flag,
+        nationality: (driver as any).nationality,
+        score: gridScoreAdvantage - penalty,`
+      const replaceA = `      initialGrid.push({
+        driverId: driver.driverId,
+        driverName: driver.driverName,
+        teamId: driver.teamId,
+        teamName: driver.teamName,
+        teamColor: driver.teamColor,
+        isPlayer: driver.isPlayer,
+        flag: driver.flag,
+        nationality: (driver as any).nationality,
+        score: gridScoreAdvantage - penalty,
+        lapsCompleted: 0,`
+      applyReplace(targetAOld, replaceA, '(a) initialGrid.push (lapsCompleted: 0)')
+    }
 
-    // ALVO (a2): ponto 1 do loop onde os estados intermediários são mapeados (intermediateStates = currentGrid.map)
-    const targetA2 = `        const updatedEntry: SimDriverEntry = {
-          ...entry,
-          tireWear: effectiveWear,
-          tireCompound: nextCompound,
-          pitStopsDone: pitStops,
-          lapsOnCurrentTire: effectiveLapsOnTire,
-          cliffStatus,
-          fuelRemaining: nextFuelRemaining,`
-
-    const replaceA2 = `        const updatedEntry: SimDriverEntry = {
-          ...entry,
-          lapsCompleted: (entry.lapsCompleted || 0) + (entry.dnf || isRanOutOfFuel ? 0 : 1),
-          tireWear: effectiveWear,
-          tireCompound: nextCompound,
-          pitStopsDone: pitStops,
-          lapsOnCurrentTire: effectiveLapsOnTire,
-          cliffStatus,
-          fuelRemaining: nextFuelRemaining,`
-
-    applyReplace(targetA2, replaceA2, 'loop intermediateStates (ponto 1 increment lapsCompleted)')
-
-    // ALVO (a3): ponto 2 do loop onde os estados intermediários são mapeados (updatedGridIntermediate = intermediateStates.map)
-    const targetA3 = `      // PASSO 3: Atualizar accumulatedTimeSec e ordenar estritamente por tempo acumulado
-      const updatedGridIntermediate: SimDriverEntry[] = intermediateStates.map(({ entry }) => {
-        if (entry.dnf) return entry
-
-        const lapData = processedLaps.get(entry.driverId)
-        const lapSec = lapData?.lapTimeSec || 78.42
-        const extraWear = lapData?.extraWear || 0
-        const dirtyAirCount = lapData?.dirtyAirCount || 0
-        const didPass = lapData?.passedFront || false
-
-        let newAccumulated = entry.accumulatedTimeSec + lapSec
-        const finalWear = Math.min(100, (entry.tireWear || 5) + extraWear)
-
-        return {
-          ...entry,
-          accumulatedTimeSec: Number(newAccumulated.toFixed(3)),`
-
-    const replaceA3 = `      // PASSO 3: Atualizar accumulatedTimeSec e ordenar estritamente por tempo acumulado
+    // PASSO 2 (b) lapsCompleted no loop de voltas:
+    // Alvo: updatedGridIntermediate: SimDriverEntry[] = intermediateStates.map
+    // Incrementar entry.lapsCompleted += 1 para cada piloto não-DNF a cada volta processada
+    const targetB = `      // PASSO 3: Atualizar accumulatedTimeSec e ordenar estritamente por tempo acumulado
       const updatedGridIntermediate: SimDriverEntry[] = intermediateStates.map(({ entry }) => {
         if (entry.dnf) return entry
 
@@ -109,28 +86,29 @@ describe('apply-race-patch', () => {
           lapsCompleted: (entry.lapsCompleted || 0) + (entry.dnf ? 0 : 1),
           accumulatedTimeSec: Number(newAccumulated.toFixed(3)),`
 
-    applyReplace(
-      targetA3,
-      replaceA3,
-      'loop updatedGridIntermediate (ponto 2 increment lapsCompleted)',
-    )
+    if (!content.includes(targetB)) {
+      const targetBOld = `      // PASSO 3: Atualizar accumulatedTimeSec e ordenar estritamente por tempo acumulado
+      const updatedGridIntermediate: SimDriverEntry[] = intermediateStates.map(({ entry }) => {
+        if (entry.dnf) return entry
 
-    // ALVO (b): clamp pós-ultrapassagem: garantir que o carro que ultrapassou fique estritamente a mais de 0.051s do carro da frente
-    // Mantendo a troca de posições e clamp no tempo acumulado e gapFrontSec
-    const targetB = `      // Ajuste fino pós-ultrapassagem se marcado como passedFront: garante que fique à frente por -0.250s
-      for (let i = 0; i < sortedActiveGrid.length; i++) {
-        const car = sortedActiveGrid[i]
-        if (car.dnf) continue
-        const lapData = processedLaps.get(car.driverId)
-        if (lapData?.passedFront && i > 0) {
-          const carAhead = sortedActiveGrid[i - 1]
-          if (car.accumulatedTimeSec >= carAhead.accumulatedTimeSec) {
-            car.accumulatedTimeSec = Number((carAhead.accumulatedTimeSec - 0.25).toFixed(3))
-          }
-        }
-      }`
+        const lapData = processedLaps.get(entry.driverId)
+        const lapSec = lapData?.lapTimeSec || 78.42
+        const extraWear = lapData?.extraWear || 0
+        const dirtyAirCount = lapData?.dirtyAirCount || 0
+        const didPass = lapData?.passedFront || false
 
-    const replaceB = `      // Ajuste fino pós-ultrapassagem se marcado como passedFront: garante que fique à frente por mais de 0.051s
+        let newAccumulated = entry.accumulatedTimeSec + lapSec
+        const finalWear = Math.min(100, (entry.tireWear || 5) + extraWear)
+
+        return {
+          ...entry,
+          accumulatedTimeSec: Number(newAccumulated.toFixed(3)),`
+      applyReplace(targetBOld, targetB, '(b) updatedGridIntermediate (lapsCompleted increment)')
+    }
+
+    // PASSO 2 (c) Clamp de gap pós-ultrapassagem:
+    // Onde carAhead.accumulatedTimeSec, garantir que o gap resultante sobre o carro da frente seja sempre > 0.051s
+    const targetC = `      // Ajuste fino pós-ultrapassagem se marcado como passedFront: garante que fique à frente por mais de 0.051s
       for (let i = 0; i < sortedActiveGrid.length; i++) {
         const car = sortedActiveGrid[i]
         if (car.dnf) continue
@@ -143,46 +121,26 @@ describe('apply-race-patch', () => {
         }
       }`
 
-    applyReplace(targetB, replaceB, 'clamp pos-ultrapassagem (0.051s)')
-
-    // ALVO (c): finishRaceSimulation ordenar não-DNFs por lapsCompleted DESC + accumulatedTimeSec ASC; DNFs por dnfLap DESC; position = idx + 1; formatGap(diffSec, false, lapsBehind)
-    const targetC = `    const activeDrivers = resultsWithPenalties
-      .filter((e) => !e.dnf)
-      .sort((a, b) => (a.position || 0) - (b.position || 0))
-
-    const dnfDrivers = resultsWithPenalties
-      .filter((e) => e.dnf)
-      .sort((a, b) => {
-        const lapA = a.dnfLap ?? 0
-        const lapB = b.dnfLap ?? 0
-        if (lapB !== lapA) {
-          return lapB - lapA
+    if (!content.includes(targetC)) {
+      const targetCOld = `      // Ajuste fino pós-ultrapassagem se marcado como passedFront: garante que fique à frente por -0.250s
+      for (let i = 0; i < sortedActiveGrid.length; i++) {
+        const car = sortedActiveGrid[i]
+        if (car.dnf) continue
+        const lapData = processedLaps.get(car.driverId)
+        if (lapData?.passedFront && i > 0) {
+          const carAhead = sortedActiveGrid[i - 1]
+          if (car.accumulatedTimeSec >= carAhead.accumulatedTimeSec) {
+            car.accumulatedTimeSec = Number((carAhead.accumulatedTimeSec - 0.25).toFixed(3))
+          }
         }
-        return (a.position || 0) - (b.position || 0)
-      })
+      }`
+      applyReplace(targetCOld, targetC, '(c) clamp pós-ultrapassagem > 0.051s')
+    }
 
-    const finalOrderedGrid = [...activeDrivers, ...dnfDrivers]
-
-    const pointsTable = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-    const winnerAccTime = finalOrderedGrid[0]?.accumulatedTimeSec || 0
-    const winnerMinutes = Math.floor(winnerAccTime / 60)
-    const winnerRemainingSec = (winnerAccTime % 60).toFixed(3)
-
-    finalOrderedGrid.forEach((entry, idx) => {
-      entry.position = idx + 1
-      entry.points = !entry.dnf && idx < pointsTable.length ? pointsTable[idx] : 0
-
-      if (entry.dnf) {
-        entry.totalTime = 'ABANDONO (DNF)'
-      } else if (idx === 0) {
-        entry.totalTime = \`\${winnerMinutes}m \${winnerRemainingSec}s\`
-      } else {
-        const exactGap = Math.max(0, (entry.accumulatedTimeSec || 0) - winnerAccTime).toFixed(3)
-        entry.totalTime = \`+\${exactGap}s\`
-      }
-    })`
-
-    const replaceC = `    const activeDrivers = resultsWithPenalties
+    // PASSO 2 (d) finishRaceSimulation ordenação e formatGap:
+    // ativos por lapsCompleted DESC + accumulatedTimeSec ASC; DNFs por último, por dnfLap DESC; position = idx + 1;
+    // formatGap(exactGapSec, false, lapsBehind)
+    const targetD = `    const activeDrivers = resultsWithPenalties
       .filter((e) => !e.dnf)
       .sort((a, b) => {
         const lapsA = a.lapsCompleted ?? 0
@@ -227,20 +185,48 @@ describe('apply-race-patch', () => {
       }
     })`
 
-    applyReplace(targetC, replaceC, 'finishRaceSimulation (ordenacao e formatGap)')
+    if (!content.includes(targetD)) {
+      const targetDOld = `    const activeDrivers = resultsWithPenalties
+      .filter((e) => !e.dnf)
+      .sort((a, b) => (a.position || 0) - (b.position || 0))
 
-    // ALVO (d): handleAdvanceRound gravar laps_completed e accumulated_time_sec
-    const targetD = `            await f1Service.createRaceResult({
-              season_id: season.id,
-              round: currentRound,
-              driver_id: canonicalDriverId,
-              team_id: canonicalTeamId,
-              position: res.position,
-              points: calculatedPoints,
-              fastest_lap: !!res.fastestLap,
-            })`
+    const dnfDrivers = resultsWithPenalties
+      .filter((e) => e.dnf)
+      .sort((a, b) => {
+        const lapA = a.dnfLap ?? 0
+        const lapB = b.dnfLap ?? 0
+        if (lapB !== lapA) {
+          return lapB - lapA
+        }
+        return (a.position || 0) - (b.position || 0)
+      })
 
-    const replaceD = `            await f1Service.createRaceResult({
+    const finalOrderedGrid = [...activeDrivers, ...dnfDrivers]
+
+    const pointsTable = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
+    const winnerAccTime = finalOrderedGrid[0]?.accumulatedTimeSec || 0
+    const winnerMinutes = Math.floor(winnerAccTime / 60)
+    const winnerRemainingSec = (winnerAccTime % 60).toFixed(3)
+
+    finalOrderedGrid.forEach((entry, idx) => {
+      entry.position = idx + 1
+      entry.points = !entry.dnf && idx < pointsTable.length ? pointsTable[idx] : 0
+
+      if (entry.dnf) {
+        entry.totalTime = 'ABANDONO (DNF)'
+      } else if (idx === 0) {
+        entry.totalTime = \`\${winnerMinutes}m \${winnerRemainingSec}s\`
+      } else {
+        const exactGap = Math.max(0, (entry.accumulatedTimeSec || 0) - winnerAccTime).toFixed(3)
+        entry.totalTime = \`+\${exactGap}s\`
+      }
+    })`
+      applyReplace(targetDOld, targetD, '(d) finishRaceSimulation ordenação e formatGap')
+    }
+
+    // PASSO 3 Persistência (handleAdvanceRound):
+    // Ao gravar race_results, enviar também laps_completed e accumulated_time_sec
+    const targetE = `            await f1Service.createRaceResult({
               season_id: season.id,
               round: currentRound,
               driver_id: canonicalDriverId,
@@ -252,14 +238,31 @@ describe('apply-race-patch', () => {
               accumulated_time_sec: res.accumulatedTimeSec,
             })`
 
-    applyReplace(
-      targetD,
-      replaceD,
-      'handleAdvanceRound (gravar laps_completed e accumulated_time_sec)',
-    )
+    if (!content.includes(targetE)) {
+      const targetEOld = `            await f1Service.createRaceResult({
+              season_id: season.id,
+              round: currentRound,
+              driver_id: canonicalDriverId,
+              team_id: canonicalTeamId,
+              position: res.position,
+              points: calculatedPoints,
+              fastest_lap: !!res.fastestLap,
+            })`
+      applyReplace(
+        targetEOld,
+        targetE,
+        'handleAdvanceRound persistência laps_completed e accumulated_time_sec',
+      )
+    }
 
-    // Gravar o arquivo modificado de volta em src/pages/RaceSlim.tsx
     fs.writeFileSync(filePath, content, 'utf8')
-    expect(fs.readFileSync(filePath, 'utf8')).toContain('lapsCompleted: 0')
+
+    // Verificações finais
+    const saved = fs.readFileSync(filePath, 'utf8')
+    expect(saved).toContain('lapsCompleted: 0')
+    expect(saved).toContain('carAhead.accumulatedTimeSec - 0.051')
+    expect(saved).toContain('formatGap(exactGapSec, false, lapsBehind)')
+    expect(saved).toContain('laps_completed: res.lapsCompleted ?? gpInfo.laps')
+    expect(saved).toContain('accumulated_time_sec: res.accumulatedTimeSec')
   })
 })
