@@ -9,8 +9,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122312-fc092.png'
 
 export default function AuthPage() {
-  const { login, register } = useAuth()
+  const { login, register, careerPhase } = useAuth()
   const navigate = useNavigate()
+
+  // Se o usuário já estiver autenticado e tentar acessar /auth, direciona para o ambiente correto
+  React.useEffect(() => {
+    if (careerPhase === 'career') {
+      navigate('/', { replace: true })
+    } else if (careerPhase === 'lobby') {
+      navigate('/lobby', { replace: true })
+    }
+  }, [careerPhase, navigate])
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login')
 
@@ -77,7 +86,7 @@ export default function AuthPage() {
     setIsSubmitting(true)
     try {
       await login(email, password)
-      navigate('/', { replace: true })
+      // O careerPhase reativo cuidará da transição para '/' ou '/lobby'
     } catch (err: any) {
       console.error(err)
       setGeneralError(err?.message || 'Falha ao autenticar. Verifique o email e senha.')
@@ -98,7 +107,7 @@ export default function AuthPage() {
     setIsSubmitting(true)
     try {
       await register(name, email, password)
-      navigate('/', { replace: true })
+      // O careerPhase reativo cuidará da transição para '/' ou '/lobby'
     } catch (err: any) {
       console.error(err)
       setGeneralError(err?.message || 'Falha ao criar conta. Tente outro email.')

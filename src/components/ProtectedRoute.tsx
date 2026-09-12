@@ -1,29 +1,27 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Loader2 } from 'lucide-react'
+import { RouteLoadingScreen } from '@/components/CareerRoute'
 
+/**
+ * ProtectedRoute: Mantido por compatibilidade histórica, delegando para CareerRoute.
+ * A nova arquitetura utiliza CareerRoute e LobbyRoute como os guards principais.
+ */
 export function ProtectedRoute() {
-  const { user, team, isLoading } = useAuth()
+  const { careerPhase } = useAuth()
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0B0E14] text-[#F5F7FA] flex flex-col items-center justify-center p-4">
-        <Loader2 className="w-10 h-10 text-[#E10600] animate-spin mb-4" />
-        <p className="font-mono text-sm text-[#8B95A7] tracking-wider uppercase">
-          Carregando telemetria F1 2026...
-        </p>
-      </div>
-    )
+  if (careerPhase === 'loading') {
+    return <RouteLoadingScreen />
   }
 
-  if (!user) {
+  if (careerPhase === 'auth') {
     return <Navigate to="/auth" replace />
   }
 
-  // If user is authenticated but has not selected/created a team yet, redirect to team selection
-  if (!team) {
-    return <Navigate to="/selecionar-equipe" replace />
+  if (careerPhase === 'lobby') {
+    return <Navigate to="/lobby" replace />
   }
 
   return <Outlet />
 }
+
+export default ProtectedRoute

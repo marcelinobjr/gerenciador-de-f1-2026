@@ -46,18 +46,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 
 export default function TeamSelectionPage() {
-  const { user, team, isLoading, refreshTeamAndSeason } = useAuth()
+  const { user, refreshTeamAndSeason } = useAuth()
   const navigate = useNavigate()
-
-  // If user is not logged in, send to auth
-  React.useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/auth', { replace: true })
-    } else if (!isLoading && team) {
-      // If user already has a team, send to dashboard
-      navigate('/', { replace: true })
-    }
-  }, [user, team, isLoading, navigate])
 
   const [activeTab, setActiveTab] = useState<'existing' | 'custom'>('existing')
 
@@ -212,7 +202,7 @@ export default function TeamSelectionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-[#F5F7FA] py-10 px-4 sm:px-6">
+    <div className="min-h-[calc(100vh-3.5rem)] bg-[#0B0E14] text-[#F5F7FA] py-8 sm:py-10 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
         {/* Header */}
         <div className="text-center space-y-3 pb-4 border-b border-[#1F2733]">

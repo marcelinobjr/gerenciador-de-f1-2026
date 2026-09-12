@@ -3,8 +3,10 @@ import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
-import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { CareerRoute } from '@/components/CareerRoute'
+import { LobbyRoute } from '@/components/LobbyRoute'
 import Layout from './components/Layout'
+import LobbyLayout from './components/LobbyLayout'
 
 // Pages
 import Index from './pages/Index'
@@ -28,14 +30,19 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
-          {/* Public Route */}
+          {/* 1. Rota Pública de Autenticação */}
           <Route path="/auth" element={<AuthPage />} />
 
-          {/* Team Selection Route for authenticated users without a team */}
-          <Route path="/selecionar-equipe" element={<TeamSelectionPage />} />
+          {/* 2. Ambiente Lobby / Pré-Jogo (Guarded por LobbyRoute) */}
+          <Route element={<LobbyRoute />}>
+            <Route element={<LobbyLayout />}>
+              <Route path="/lobby" element={<TeamSelectionPage />} />
+              <Route path="/selecionar-equipe" element={<TeamSelectionPage />} />
+            </Route>
+          </Route>
 
-          {/* Protected Routes */}
-          <Route element={<ProtectedRoute />}>
+          {/* 3. Ambiente Carreira (Guarded por CareerRoute) */}
+          <Route element={<CareerRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/team" element={<TeamPage />} />

@@ -4,11 +4,14 @@ import { RecordModel } from 'pocketbase'
 import { f1Service } from '@/services/f1Service'
 import { TeamModel, SeasonModel } from '@/types/f1'
 
+export type CareerPhase = 'loading' | 'auth' | 'lobby' | 'career'
+
 interface AuthContextType {
   user: RecordModel | null
   team: TeamModel | null
   season: SeasonModel | null
   isLoading: boolean
+  careerPhase: CareerPhase
   refreshTeamAndSeason: () => Promise<void>
   resetGame: () => Promise<void>
   login: (email: string, pass: string) => Promise<void>
@@ -70,6 +73,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Estado derivado careerPhase de acordo com as regras:
+  // - loading enquanto usuário/equipe/temporada ainda estiverem sendo carregados
+  // - auth quando não houver usuário autenticado
+  // - lobby quando houver usuário autenticado, mas não houver equipe/carreira
+  // - career quando houver usuário + equipe válidos
+  let careerPhase: CareerPhase = 'loading'
+  if (isLoading) {
+    careerPhase = 'loading'
+  } else if (!user) {
+    careerPhase = 'auth'
+  } else if (!team) {
+    careerPhase = 'lobby'
+  } else {
+    careerPhase = 'career'
+  }
+
   const login = async (email: string, pass: string) => {
     const authData = await pb.collection('users').authWithPassword(email, pass)
     setUser(authData.record)
@@ -109,6 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         team,
         season,
         isLoading,
+        careerPhase,
         refreshTeamAndSeason,
         resetGame,
         login,
