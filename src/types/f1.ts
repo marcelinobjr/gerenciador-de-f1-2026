@@ -43,6 +43,9 @@ export interface TeamModel {
   career_settings?: any
   custom_grid_teams?: any
   universe_type?: string
+  hero_title?: string
+  hero_tagline?: string
+  hero_car_model?: string
   created?: string
   updated?: string
 }

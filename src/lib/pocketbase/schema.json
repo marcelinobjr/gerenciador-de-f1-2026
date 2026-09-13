@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-13T02:26:45.496Z",
+  "generatedAt": "2026-09-13T03:08:27.991Z",
   "collections": [
     {
       "name": "users",
@@ -223,6 +223,24 @@
         },
         {
           "name": "universe_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hero_title",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hero_tagline",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hero_car_model",
           "type": "text",
           "required": false,
           "system": false

@@ -60,9 +60,11 @@ export default function Layout() {
   }
 
   const isFullWidthPage = location.pathname === '/' || location.pathname === '/race'
+  const teamName = team?.name || 'Audi F1 Team'
+  const seasonYear = season?.year || 2026
 
   return (
-    <div className="min-h-screen flex bg-[#0B0E14] text-[#F5F7FA]">
+    <div className="min-h-screen flex bg-[#07090D] text-[#F5F7FA]">
       {/* 1. Sidebar desktop fixa à esquerda (≥ lg) */}
       <div className="hidden lg:block shrink-0 sticky top-0 h-screen z-40">
         <Sidebar
@@ -71,6 +73,7 @@ export default function Layout() {
           team={team}
           season={season}
           onOpenSettings={() => setSettingsOpen(true)}
+          onLogout={handleLogout}
         />
       </div>
 
@@ -78,7 +81,7 @@ export default function Layout() {
       <Sheet open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
         <SheetContent
           side="left"
-          className="p-0 w-[260px] bg-[#11161F] border-[#1F2733] text-[#F5F7FA] sm:max-w-[280px]"
+          className="p-0 w-[270px] bg-[#0A0D12] border-[#1C2330] text-[#F5F7FA] sm:max-w-[280px]"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Menu de Navegação F1 Manager</SheetTitle>
@@ -91,15 +94,16 @@ export default function Layout() {
               setMobileDrawerOpen(false)
               setSettingsOpen(true)
             }}
+            onLogout={handleLogout}
             onItemClick={() => setMobileDrawerOpen(false)}
             className="w-full h-full border-r-0"
           />
         </SheetContent>
       </Sheet>
 
-      {/* 3. Coluna Principal: Topbar fina + Conteúdo + Rodapé */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Topbar Fina com blur permitido */}
+      {/* 3. Coluna Principal: Topbar fixa + Conteúdo + Rodapé */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#07090D]">
+        {/* Topbar Fina com métricas em tempo real */}
         <Topbar
           onOpenMobileMenu={() => setMobileDrawerOpen(true)}
           user={user}
@@ -107,31 +111,36 @@ export default function Layout() {
           season={season}
           onLogout={handleLogout}
         />
-        {/* Área de Conteúdo Principal (fundo Camada 0 #0B0E14) */}
+
+        {/* Área de Conteúdo Principal */}
         <main
           className={`flex-1 w-full ${
             isFullWidthPage
-              ? 'max-w-[1500px] mx-auto px-3 sm:px-5 lg:px-8 py-4 md:py-6'
-              : 'max-w-[1100px] mx-auto px-4 sm:px-6 py-6 md:py-8'
+              ? 'max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-6'
+              : 'max-w-[1200px] mx-auto px-4 sm:px-6 py-6 md:py-8'
           }`}
         >
           <Outlet />
         </main>
-        {/* Rodapé discreto dentro da área de conteúdo */}
-        <footer className="w-full border-t border-[#1F2733] bg-[#0B0E14] py-5 text-center text-xs text-[#8B95A7] mt-auto">
-          <div className="max-w-[1100px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="font-medium text-[#F5F7FA]">
-              F1 Manager {season?.year || 2026}{' '}
-              <span className="text-[#8B95A7] font-normal">• Temporada {season?.year || 2026}</span>
-            </p>
-            <p className="text-[11px] text-[#8B95A7]">
-              Jogo de gerenciamento pessoal — regras oficiais da F1 {season?.year || 2026}
-            </p>
+
+        {/* Rodapé aprovado: "Audi F1 Team | Temporada 2026" à esquerda, "FASTER. SMARTER. TOGETHER." à direita */}
+        <footer className="w-full border-t border-[#1C2330] bg-[#090C12] py-4 text-xs text-[#8B95A7] mt-auto">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-white tracking-wider uppercase">{teamName}</span>
+              <span className="text-[#334155]">|</span>
+              <span className="text-[#94A3B8]">Temporada {seasonYear}</span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#64748B]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />
+              <span>FASTER. SMARTER. TOGETHER.</span>
+            </div>
           </div>
-        </footer>{' '}
+        </footer>
       </div>
 
-      {/* Modal de Configurações (E2-A: Conta & Carreira) */}
+      {/* Modal de Configurações */}
       <SettingsModal
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -148,13 +157,13 @@ export default function Layout() {
         open={resetDialogOpen}
         onOpenChange={(open) => !isResetting && setResetDialogOpen(open)}
       >
-        <AlertDialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-md">
+        <AlertDialogContent className="bg-[#0F141C] border-[#1F2733] text-[#F5F7FA] max-w-md">
           <AlertDialogHeader>
             <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
               <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
               <span>Reiniciar Progresso do Jogo?</span>
             </div>
-            <AlertDialogTitle className="text-lg font-bold text-[#F5F7FA]">
+            <AlertDialogTitle className="text-lg font-bold text-white">
               Deseja zerar sua carreira nesta temporada?
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -163,9 +172,9 @@ export default function Layout() {
                   Esta ação é <strong className="text-[#EF4444]">irreversível</strong> e apagará
                   todos os dados da sua escuderia atual:
                 </p>
-                <ul className="list-disc pl-5 space-y-1 text-[#F5F7FA]">
+                <ul className="list-disc pl-5 space-y-1 text-[#CBD5E1]">
                   <li>Sua equipe atual e orçamento acumulado</li>
-                  <li>Temporada {season?.year || 2026} e resultados de todas as corridas</li>
+                  <li>Temporada {seasonYear} e resultados de todas as corridas</li>
                   <li>Patrocínios ativos e peças desenvolvidas no P&D</li>
                   <li>Contratos de pilotos (eles voltam disponíveis para o mercado)</li>
                   <li>Histórico de comunicados e eventos</li>

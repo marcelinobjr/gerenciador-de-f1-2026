@@ -128,6 +128,13 @@ export const f1Service = {
     return await pb.collection('teams').update<TeamModel>(id, data)
   },
 
+  async updateHeroPreferences(
+    teamId: string,
+    prefs: { hero_title?: string; hero_tagline?: string; hero_car_model?: string },
+  ): Promise<TeamModel> {
+    return await pb.collection('teams').update<TeamModel>(teamId, prefs)
+  },
+
   async uploadTeamCarImage(teamId: string, file: File): Promise<TeamModel> {
     const formData = new FormData()
     formData.append('carImage', file)
