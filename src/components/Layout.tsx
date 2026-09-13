@@ -115,9 +115,11 @@ export default function Layout() {
         {/* Área de Conteúdo Principal */}
         <main
           className={`flex-1 w-full ${
-            isFullWidthPage
-              ? 'max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-6'
-              : 'max-w-[1200px] mx-auto px-4 sm:px-6 py-6 md:py-8'
+            location.pathname === '/'
+              ? 'w-full px-2.5 sm:px-4 lg:px-5 py-2.5 sm:py-3'
+              : isFullWidthPage
+                ? 'max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-6'
+                : 'max-w-[1200px] mx-auto px-4 sm:px-6 py-6 md:py-8'
           }`}
         >
           <Outlet />

@@ -22,6 +22,7 @@ import HistoryPage from './pages/History'
 import TeamSelectionPage from './pages/TeamSelection'
 import { LobbyPage } from './pages/LobbyPage'
 import DriversPage from './pages/DriversPage'
+import PaddockPage from './pages/PaddockPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/sponsors" element={<SponsorsPage />} />
               <Route path="/race" element={<RacePage />} />
               <Route path="/standings" element={<StandingsPage />} />
+              <Route path="/paddock" element={<PaddockPage />} />
               <Route path="/historico" element={<HistoryPage />} />
               <Route path="/calendario" element={<CalendarPage />} />
             </Route>

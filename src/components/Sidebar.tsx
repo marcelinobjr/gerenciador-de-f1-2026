@@ -5,11 +5,11 @@ import {
   Users,
   Wrench,
   Cpu,
-  Flag,
-  Calendar,
-  Trophy,
-  Handshake,
+  Building2,
   DollarSign,
+  Flag,
+  Trophy,
+  Users2,
   BookOpen,
   Settings,
   Save,
@@ -45,49 +45,88 @@ export interface SidebarNavGroup {
 }
 
 /**
- * Os 9 itens principais da Sidebar da Fase 3A:
+ * As 10 áreas oficiais da Carreira F1 2026:
+ * SEÇÃO GESTÃO:
  * 1. Central (/)
- * 2. Minha Equipe (/team)
- * 3. Carro e Peças (/car)
- * 4. Desenvolvimento (/car?tab=pd — ou aviso "em construção")
- * 5. Fim de Semana (/race)
- * 6. Calendário (/calendario)
- * 7. Campeonato (/standings)
- * 8. Patrocinadores (/sponsors)
- * 9. Finanças (/sponsors — finanças e receitas)
- * 10. Histórico (/historico)
+ * 2. Equipe (/team)
+ * 3. Carro (/car)
+ * 4. Desenvolvimento (/car?tab=pd — P&D, peças, engenharia)
+ * 5. Infraestrutura (/car — fábrica, simulador, túnel de vento, aviso modal elegante)
+ * 6. Comercial & Finanças (/sponsors — patrocinadores, receitas, despesas, teto)
+ *
+ * SEÇÃO COMPETIÇÃO:
+ * 7. Fim de Semana (/race — treinos, qualy, sprint, corrida)
+ * 8. Campeonato (/standings — calendário, classificação, resultados)
+ * 9. Paddock (/paddock — todas as equipes, pilotos, staff, mercado, rumores, comparação)
+ * 10. Histórico (/historico — temporadas passadas, recordes, títulos, arquivo)
  */
-export const CAREER_NAV_ITEMS = [
-  { name: 'Central', path: '/', icon: LayoutDashboard },
-  { name: 'Minha Equipe', path: '/team', icon: Users },
-  { name: 'Carro e Peças', path: '/car', icon: Wrench },
+
+export interface NavSection {
+  title: string
+  items: {
+    name: string
+    path: string
+    icon: React.ComponentType<{ className?: string }>
+    badge?: string
+    isNotice?: boolean
+    noticeTitle?: string
+    noticeDesc?: string
+  }[]
+}
+
+export const CAREER_NAV_SECTIONS: NavSection[] = [
   {
-    name: 'Desenvolvimento',
-    path: '/car',
-    icon: Cpu,
-    isNotice: true,
-    noticeTitle: 'Desenvolvimento & Infraestrutura',
-    noticeDesc:
-      'A expansão das instalações da fábrica, túnel de vento CFD e centro de simulador será liberada nas próximas fases da carreira. Você pode aprimorar as peças do carro em Carro & P&D.',
+    title: 'GESTÃO',
+    items: [
+      { name: 'Central', path: '/', icon: LayoutDashboard },
+      { name: 'Equipe', path: '/team', icon: Users },
+      { name: 'Carro', path: '/car', icon: Wrench },
+      {
+        name: 'Desenvolvimento',
+        path: '/car',
+        icon: Cpu,
+        isNotice: true,
+        noticeTitle: 'Desenvolvimento (P&D & Engenharia)',
+        noticeDesc:
+          'O fluxo de engenharia aeronáutica, CFD e fabricação rápida é operado através do painel de Carro & Peças. Você pode aprimorar qualquer componente do monoposto.',
+      },
+      {
+        name: 'Infraestrutura',
+        path: '/car',
+        icon: Building2,
+        isNotice: true,
+        noticeTitle: 'Infraestrutura da Fábrica',
+        noticeDesc:
+          'Expansão das instalações de Hinwil/Neuburg, simulador de pilotos, centro de testes de pit stop e academia de jovens talentos.',
+      },
+      { name: 'Comercial & Finanças', path: '/sponsors', icon: DollarSign },
+    ],
   },
-  { name: 'Fim de Semana', path: '/race', icon: Flag },
-  { name: 'Calendário', path: '/calendario', icon: Calendar },
-  { name: 'Campeonato', path: '/standings', icon: Trophy },
-  { name: 'Patrocinadores', path: '/sponsors', icon: Handshake },
-  { name: 'Finanças', path: '/sponsors', icon: DollarSign },
-  { name: 'Histórico', path: '/historico', icon: BookOpen },
+  {
+    title: 'COMPETIÇÃO',
+    items: [
+      { name: 'Fim de Semana', path: '/race', icon: Flag },
+      { name: 'Campeonato', path: '/standings', icon: Trophy },
+      { name: 'Paddock', path: '/paddock', icon: Users2 },
+      { name: 'Histórico', path: '/historico', icon: BookOpen },
+    ],
+  },
 ]
+
+// Lista plana para compatibilidade de rotas
+export const CAREER_NAV_ITEMS = CAREER_NAV_SECTIONS.flatMap((s) => s.items)
 
 export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/': 'Central de Operações',
-  '/team': 'Minha Equipe',
+  '/team': 'Equipe',
   '/pilotos': 'Pilotos da Temporada',
   '/car': 'Carro e Peças',
-  '/sponsors': 'Patrocinadores & Finanças',
-  '/race': 'Fim de Semana de Corrida',
+  '/sponsors': 'Comercial & Finanças',
+  '/race': 'Fim de Semana',
   '/calendario': 'Calendário Oficial',
-  '/standings': 'Classificações do Campeonato',
-  '/historico': 'Histórico da Temporada',
+  '/standings': 'Campeonato Mundial',
+  '/paddock': 'Paddock Oficial',
+  '/historico': 'Histórico',
   '/teams': 'Grid da Temporada',
 }
 
@@ -194,96 +233,97 @@ export function Sidebar({
         )}
       </div>
 
-      {/* 9 Itens Principais da Carreira */}
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-        {!collapsed && (
-          <div className="px-2.5 pb-1 text-[10px] font-mono font-bold tracking-wider text-[#64748B] uppercase">
-            Menu Principal
-          </div>
-        )}
+      {/* 10 Áreas da Carreira agrupadas por GESTÃO e COMPETIÇÃO */}
+      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-3">
+        {CAREER_NAV_SECTIONS.map((section) => (
+          <div key={section.title} className="space-y-0.5">
+            {!collapsed && (
+              <div className="px-2.5 pt-1 pb-1 text-[9px] font-mono font-bold tracking-wider text-[#64748B] uppercase">
+                {section.title}
+              </div>
+            )}
 
-        <nav className="space-y-0.5">
-          {CAREER_NAV_ITEMS.map((item, idx) => {
-            const Icon = item.icon
-            // Item ativo: correspondência exata para '/', ou prefixo para outras rotas
-            const isActive =
-              item.path === '/'
-                ? location.pathname === '/'
-                : location.pathname === item.path ||
-                  (item.path !== '/' && location.pathname.startsWith(item.path))
+            <nav className="space-y-0.5">
+              {section.items.map((item, idx) => {
+                const Icon = item.icon
+                const isActive =
+                  item.path === '/'
+                    ? location.pathname === '/'
+                    : location.pathname === item.path ||
+                      (item.path !== '/' && location.pathname.startsWith(item.path))
 
-            const handleClick = (e: React.MouseEvent) => {
-              if (item.isNotice) {
-                // Abre aviso elegante de em construção
-                setNoticeModal({
-                  open: true,
-                  title: item.noticeTitle || item.name,
-                  description: item.noticeDesc || '',
-                })
-              }
-              if (onItemClick) onItemClick()
-            }
+                const handleClick = (e: React.MouseEvent) => {
+                  if (item.isNotice) {
+                    setNoticeModal({
+                      open: true,
+                      title: item.noticeTitle || item.name,
+                      description: item.noticeDesc || '',
+                    })
+                  }
+                  if (onItemClick) onItemClick()
+                }
 
-            const navItemContent = (
-              <NavLink
-                key={`${item.name}-${idx}`}
-                to={item.path}
-                onClick={handleClick}
-                className={cn(
-                  'relative flex items-center gap-3 rounded-lg text-xs font-semibold transition-all duration-150',
-                  collapsed ? 'justify-center h-10 w-10 mx-auto px-0' : 'px-3 py-2.5 w-full',
-                  isActive
-                    ? 'bg-[#18202E] text-white shadow-sm'
-                    : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#121822]',
-                )}
-              >
-                {/* Linha vermelha Audi #E10600 no item ativo */}
-                {isActive && (
-                  <span
-                    className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full"
-                    style={{ backgroundColor: '#E10600' }}
-                  />
-                )}
-
-                <Icon
-                  className={cn(
-                    'shrink-0 transition-colors',
-                    collapsed ? 'w-4 h-4' : 'w-4 h-4',
-                    isActive ? 'text-[#E10600]' : 'text-[#8B95A7]',
-                  )}
-                />
-
-                {!collapsed && (
-                  <span className="truncate tracking-tight flex-1 text-left font-medium">
-                    {item.name}
-                  </span>
-                )}
-
-                {!collapsed && item.isNotice && (
-                  <span className="text-[9px] font-mono uppercase bg-[#1E293B] text-[#94A3B8] px-1.5 py-0.5 rounded border border-[#334155]">
-                    P&D
-                  </span>
-                )}
-              </NavLink>
-            )
-
-            if (collapsed) {
-              return (
-                <Tooltip key={`${item.name}-${idx}`} delayDuration={100}>
-                  <TooltipTrigger asChild>{navItemContent}</TooltipTrigger>
-                  <TooltipContent
-                    side="right"
-                    className="bg-[#11161F] border-[#1F2733] text-white text-xs font-semibold px-2.5 py-1"
+                const navItemContent = (
+                  <NavLink
+                    key={`${item.name}-${idx}`}
+                    to={item.path}
+                    onClick={handleClick}
+                    className={cn(
+                      'relative flex items-center gap-2.5 rounded-lg text-xs font-semibold transition-all duration-150',
+                      collapsed ? 'justify-center h-9 w-9 mx-auto px-0' : 'px-2.5 py-2 w-full',
+                      isActive
+                        ? 'bg-[#18202E] text-white shadow-sm'
+                        : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#121822]',
+                    )}
                   >
-                    {item.name}
-                  </TooltipContent>
-                </Tooltip>
-              )
-            }
+                    {isActive && (
+                      <span
+                        className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full"
+                        style={{ backgroundColor: '#E10600' }}
+                      />
+                    )}
 
-            return navItemContent
-          })}
-        </nav>
+                    <Icon
+                      className={cn(
+                        'shrink-0 transition-colors',
+                        collapsed ? 'w-4 h-4' : 'w-4 h-4',
+                        isActive ? 'text-[#E10600]' : 'text-[#8B95A7]',
+                      )}
+                    />
+
+                    {!collapsed && (
+                      <span className="truncate tracking-tight flex-1 text-left font-medium">
+                        {item.name}
+                      </span>
+                    )}
+
+                    {!collapsed && item.isNotice && (
+                      <span className="text-[8px] font-mono uppercase bg-[#1E293B] text-[#94A3B8] px-1 py-0.2 rounded border border-[#334155]">
+                        INFO
+                      </span>
+                    )}
+                  </NavLink>
+                )
+
+                if (collapsed) {
+                  return (
+                    <Tooltip key={`${item.name}-${idx}`} delayDuration={100}>
+                      <TooltipTrigger asChild>{navItemContent}</TooltipTrigger>
+                      <TooltipContent
+                        side="right"
+                        className="bg-[#11161F] border-[#1F2733] text-white text-xs font-semibold px-2.5 py-1"
+                      >
+                        {item.name}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                }
+
+                return navItemContent
+              })}
+            </nav>
+          </div>
+        ))}
       </div>
 
       {/* Seção Inferior: Configurações, Salvar Jogo, Carregar Jogo, Sair */}
