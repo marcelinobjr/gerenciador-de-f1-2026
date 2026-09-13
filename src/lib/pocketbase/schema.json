@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-12T23:22:03.378Z",
+  "generatedAt": "2026-09-13T02:26:45.496Z",
   "collections": [
     {
       "name": "users",
@@ -194,6 +194,36 @@
         {
           "name": "constructors_points_deduction",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "manager_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "manager_profile",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "career_settings",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custom_grid_teams",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "universe_type",
+          "type": "text",
           "required": false,
           "system": false
         }

@@ -6,7 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { CareerRoute } from '@/components/CareerRoute'
 import { LobbyRoute } from '@/components/LobbyRoute'
 import Layout from './components/Layout'
-import LobbyLayout from './components/LobbyLayout'
+import { LobbyLayout } from './components/LobbyLayout'
 
 // Pages
 import Index from './pages/Index'
@@ -20,6 +20,7 @@ import StandingsPage from './pages/Standings'
 import CalendarPage from './pages/CalendarPage'
 import HistoryPage from './pages/History'
 import TeamSelectionPage from './pages/TeamSelection'
+import { LobbyPage } from './pages/LobbyPage'
 import DriversPage from './pages/DriversPage'
 import NotFound from './pages/NotFound'
 
@@ -36,8 +37,8 @@ const App = () => (
           {/* 2. Ambiente Lobby / Pré-Jogo (Guarded por LobbyRoute) */}
           <Route element={<LobbyRoute />}>
             <Route element={<LobbyLayout />}>
-              <Route path="/lobby" element={<TeamSelectionPage />} />
-              <Route path="/selecionar-equipe" element={<TeamSelectionPage />} />
+              <Route path="/lobby" element={<LobbyPage />} />
+              <Route path="/selecionar-equipe" element={<LobbyPage />} />
             </Route>
           </Route>
 

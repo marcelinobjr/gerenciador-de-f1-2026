@@ -38,6 +38,11 @@ export interface TeamModel {
     introducedRound: number
   }>
   user_id?: string
+  manager_name?: string
+  manager_profile?: any
+  career_settings?: any
+  custom_grid_teams?: any
+  universe_type?: string
   created?: string
   updated?: string
 }
