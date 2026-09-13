@@ -11,7 +11,7 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
   {
     filename: '1-Rafael_Camara.png',
     normalizedKey: 'camara',
-    surnameVariants: ['camara', 'câmara', 'rafael camara'],
+    surnameVariants: ['camara', 'câmara', 'rafael camara', 'rafael câmara'],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AFglSRVgTsz2f6TmpfB2t64/1-Rafael_Camara.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -32,14 +32,21 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
   {
     filename: '4-Lando_Noris.png',
     normalizedKey: 'norris',
-    surnameVariants: ['norris', 'noris', 'lando norris'],
+    surnameVariants: ['norris', 'noris', 'lando norris', 'lando noris'],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AFCxoYih3Ws-PNYanOT00iI/4-Lando_Noris.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
   {
     filename: '5-Gabriel_Bortoleto.png',
     normalizedKey: 'bortoleto',
-    surnameVariants: ['bortoleto', 'gabriel bortoleto'],
+    surnameVariants: [
+      'bortoleto',
+      'bortoletto',
+      'gabriel bortoleto',
+      'gabriel bortoletto',
+      'g. bortoleto',
+      'g bortoleto',
+    ],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AIzc-ON2kz8-VpQLZ1bQRow/5-Gabriel_Bortoleto.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -81,7 +88,14 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
   {
     filename: '11-Sergio_Pérez.png',
     normalizedKey: 'perez',
-    surnameVariants: ['perez', 'pérez', 'sergio perez'],
+    surnameVariants: [
+      'perez',
+      'pérez',
+      'sergio perez',
+      'sergio pérez',
+      'checo perez',
+      'checo pérez',
+    ],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AMkXU5E61IrScr1sPGuvPeg/11-Sergio_P%C3%A9rez.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -207,7 +221,7 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
   {
     filename: '77-Walteri_Botas.png',
     normalizedKey: 'bottas',
-    surnameVariants: ['bottas', 'botas', 'valtteri bottas', 'walteri botas', 'valtteri botas'],
+    surnameVariants: ['bottas', 'botas', 'valtteri bottas', 'walteri botas', 'valteri bottas'],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/ACdoJDrAxHz85-k_Sz44BD0/77-Walteri_Botas.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -271,6 +285,9 @@ export function extractDriverSurname(fullName: string): string {
  */
 export function getDriverPhotoSources(driverName?: string): {
   localPath: string
+  localCandidates: string[]
+  filename?: string
+  normalizedKey: string
   dropboxUrl?: string
   fallbackLocal: string
   fallbackDropbox: string
@@ -290,28 +307,42 @@ export function getDriverPhotoSources(driverName?: string): {
 
   // Specific spellings tolerance
   if (!matched) {
-    if (normFullName.includes('norris') || normFullName.includes('noris')) {
+    if (normFullName.includes('bortoleto') || normFullName.includes('bortoletto')) {
+      matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'bortoleto')
+    } else if (normFullName.includes('norris') || normFullName.includes('noris')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'norris')
     } else if (normFullName.includes('russell') || normFullName.includes('russel')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'russell')
     } else if (normFullName.includes('bottas') || normFullName.includes('botas')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'bottas')
-    } else if (normFullName.includes('lawson')) {
+    } else if (normFullName.includes('lawson') || normFullName.includes('lian')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'lawson')
-    } else if (normFullName.includes('bearman')) {
+    } else if (normFullName.includes('bearman') || normFullName.includes('ollie')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'bearman')
-    } else if (normFullName.includes('hulkenberg')) {
+    } else if (normFullName.includes('hulkenberg') || normFullName.includes('hulken')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'hulkenberg')
-    } else if (normFullName.includes('perez')) {
+    } else if (normFullName.includes('perez') || normFullName.includes('checo')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'perez')
-    } else if (normFullName.includes('antonelli')) {
+    } else if (normFullName.includes('antonelli') || normFullName.includes('kimi')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'antonelli')
+    } else if (normFullName.includes('camara') || normFullName.includes('câmara')) {
+      matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'camara')
     }
   }
 
   const key = matched ? matched.normalizedKey : surname
+  // Suporte a caminhos locais canônicos: /pilotos/{key}.png ou /pilotos/{filename}
+  const localCandidates = [
+    `/pilotos/${key}.png`,
+    matched?.filename ? `/pilotos/${matched.filename}` : null,
+    `/pilotos/gabriel_bortoleto.png`,
+  ].filter(Boolean) as string[]
+
   return {
     localPath: `/pilotos/${key}.png`,
+    localCandidates,
+    filename: matched?.filename,
+    normalizedKey: key,
     dropboxUrl: matched?.dropboxUrl,
     fallbackLocal: GENERIC_DRIVER_PHOTO,
     fallbackDropbox: GENERIC_DRIVER_DROPBOX_URL,

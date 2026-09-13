@@ -217,22 +217,56 @@ export default function IndexPage() {
   }, [targetDate])
 
   // Imagem do carro do Hero
+  // Ordem de resolução:
+  // 1. Se o jogador escolheu um modelo customizado no Hero (Carro1 a Carro5)
+  // 2. Se a equipe tem imagem em public/equipes/<team_key>.png (com audi.png já integrada)
+  // 3. Se a equipe tem imagem personalizada salva no backend (team.carImage)
+  // 4. Imagem homologada da equipe em CARRO_POR_EQUIPE_MAP
+  // 5. Fallback homologado
   const heroCarImage = useMemo(() => {
-    // 1. Se o jogador escolheu um modelo customizado no Hero
+    // 1. Se o jogador escolheu um modelo customizado no Hero (Carro1 a Carro5)
     if (team?.hero_car_model) {
-      const modelMatch = CAR_MODEL_ASSETS.find((m) => m.id === team.hero_car_model)
-      if (modelMatch) return modelMatch.dropboxUrl
+      const modelId = team.hero_car_model.toLowerCase()
+      // Tenta modelo local em public/carros/ primeiro
+      const localCustom = `/carros/${modelId}.png`
+      const modelMatch = CAR_MODEL_ASSETS.find(
+        (m) => m.id.toLowerCase() === modelId || m.id === team.hero_car_model,
+      )
+      if (modelMatch) return localCustom || modelMatch.dropboxUrl
+      return `/carros/${team.hero_car_model}.png`
     }
-    // 2. Se a equipe tem imagem personalizada salva
+
+    const normalizedTeamKey = (team?.team_key || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+    // 2. Audi da equipe do jogador no save atual: anexo oficial foto de garagem
+    if (normalizedTeamKey === 'audi') {
+      return '/equipes/audi.png'
+    }
+
+    // 3. Se a equipe tem imagem personalizada salva no backend (upload manual do jogador)
     if (team?.carImage) {
       return pb.files.getUrl(team, team.carImage)
     }
-    // 3. Imagem homologada da equipe
+
+    // 4. Imagem homologada da equipe em CARRO_POR_EQUIPE_MAP
     if (team?.team_key && CARRO_POR_EQUIPE_MAP[team.team_key]) {
       return CARRO_POR_EQUIPE_MAP[team.team_key]
     }
+    // 5. Tenta caminho padrão de equipe local
+    if (normalizedTeamKey) {
+      return `/equipes/${normalizedTeamKey}.png`
+    }
+
     return IMAGEM_CARRO_PADRAO_FALLBACK
   }, [team])
+
+  // Estado de erro para o Hero Car Image para exibir fallback estilizado caso o arquivo não exista
+  const [heroCarImgFailed, setHeroCarImgFailed] = useState(false)
+
+  // Reset do erro quando a equipe ou imagem mudar
+  useEffect(() => {
+    setHeroCarImgFailed(false)
+  }, [heroCarImage])
 
   // Textos do Hero
   const heroTitle = team?.hero_title || team?.name || 'AUDI F1 TEAM'
@@ -614,14 +648,60 @@ export default function IndexPage() {
           {/* Lado Direito: Monoposto de F1 em alta definição */}
           <div className="lg:col-span-6 relative flex items-center justify-center min-h-[180px] sm:min-h-[220px]">
             <div className="relative w-full max-w-[560px] aspect-[16/7] flex items-center justify-center">
-              <img
-                src={heroCarImage}
-                alt={`${team?.name || 'F1 Car'} 2026`}
-                className="w-full h-full object-contain filter drop-shadow-[0_15px_30px_rgba(0,0,0,0.85)] hover:scale-105 transition-transform duration-300"
-                onError={(e) => {
-                  ;(e.currentTarget as HTMLImageElement).src = IMAGEM_CARRO_PADRAO_FALLBACK
-                }}
-              />
+              {!heroCarImgFailed ? (
+                <img
+                  src={heroCarImage}
+                  alt={`${team?.name || 'F1 Car'} 2026`}
+                  className="w-full h-full object-contain filter drop-shadow-[0_15px_30px_rgba(0,0,0,0.85)] hover:scale-105 transition-transform duration-300"
+                  onError={(e) => {
+                    const currentImg = e.currentTarget as HTMLImageElement
+                    // Tenta o fallback homologado antes do fallback com iniciais
+                    if (
+                      currentImg.src !== IMAGEM_CARRO_PADRAO_FALLBACK &&
+                      !currentImg.src.includes('carro-lateral')
+                    ) {
+                      currentImg.src = IMAGEM_CARRO_PADRAO_FALLBACK
+                    } else {
+                      setHeroCarImgFailed(true)
+                    }
+                  }}
+                />
+              ) : (
+                /* Fallback estilizado com iniciais da equipe e efeito de chassi aerodinâmico */
+                <div
+                  className="w-full h-full rounded-2xl flex flex-col items-center justify-center p-6 border border-white/10 shadow-2xl relative overflow-hidden"
+                  style={{
+                    backgroundColor: `${team?.color || '#E10600'}15`,
+                    borderColor: `${team?.color || '#E10600'}40`,
+                  }}
+                >
+                  <div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-pulse"
+                    style={{ animationDuration: '3s' }}
+                  />
+                  <div
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center font-mono font-black text-3xl shadow-xl border border-white/20 mb-2"
+                    style={{
+                      backgroundColor: team?.color || '#E10600',
+                      color: '#FFFFFF',
+                      textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                    }}
+                  >
+                    {(team?.name || 'F1')
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((w) => w[0])
+                      .join('')
+                      .toUpperCase()}
+                  </div>
+                  <span className="font-mono font-black tracking-widest text-sm text-white uppercase">
+                    {team?.name || 'Equipe 2026'}
+                  </span>
+                  <span className="font-mono text-[10px] text-[#94A3B8] tracking-wider uppercase mt-1">
+                    Monoposto Homologado FIA // Aguardando Foto Oficial
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1598,6 +1678,7 @@ export default function IndexPage() {
               <div className="grid grid-cols-5 gap-2">
                 {CAR_MODEL_ASSETS.map((asset) => {
                   const isSelected = editHeroCarModel === asset.id
+                  const localModelPath = `/carros/${asset.id.toLowerCase()}.png`
                   return (
                     <button
                       key={asset.id}
@@ -1610,8 +1691,16 @@ export default function IndexPage() {
                       }`}
                     >
                       <img
-                        src={asset.dropboxUrl}
+                        src={localModelPath}
                         alt={asset.name}
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement
+                          if (target.src !== asset.dropboxUrl) {
+                            target.src = asset.dropboxUrl
+                          } else {
+                            target.src = IMAGEM_CARRO_PADRAO_FALLBACK
+                          }
+                        }}
                         className="w-full h-8 object-contain"
                       />
                       <span className="text-[9px] text-[#CBD5E1] block mt-1 truncate">

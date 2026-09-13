@@ -13,7 +13,10 @@ import defaultWhiteCarFallback from '@/assets/carro-lateral-2986d.jpeg'
 import alpineCarImg from '@/assets/alpine-c36dc.png'
 import andrettiCarImg from '@/assets/andretti-b0db5.png'
 import astonMartinCarImg from '@/assets/astonmartin-38691.png'
+import audiHeroCarImg from '@/assets/audi-33495.png'
 import audiCarImg from '@/assets/audi-13288.png'
+
+export { audiHeroCarImg }
 import cadillacCarImg from '@/assets/cadilac01-b80f2.png'
 import ferrariCarImg from '@/assets/ferrari-918a9.png'
 import haasCarImg from '@/assets/haas-6f08d.png'
@@ -43,7 +46,7 @@ export type OfficialTeamKey =
  * Caso o valor seja undefined ou null, a aplicação utiliza a imagem homologada de fallback.
  */
 export const CARRO_POR_EQUIPE_MAP: Partial<Record<OfficialTeamKey, string>> = {
-  audi: audiCarImg,
+  audi: '/equipes/audi.png',
   mercedes: mercedesCarImg,
   redbull: redbullCarImg,
   ferrari: ferrariCarImg,

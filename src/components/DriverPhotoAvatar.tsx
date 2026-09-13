@@ -20,8 +20,38 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   alt,
 }) => {
   const sources = getDriverPhotoSources(name)
-  // Stage: 0 = local /pilotos/{key}.png, 1 = dropbox direct, 2 = local generico.png, 3 = dropbox generico, 4 = initials fallback
-  const [stage, setStage] = useState<number>(0)
+  // Lista de URLs candidatas locais e remotas para tentar em ordem:
+  // 1. /pilotos/{key}.png (ex.: /pilotos/bortoleto.png)
+  // 2. /pilotos/{filename} (ex.: /pilotos/5-Gabriel_Bortoleto.png)
+  // 3. /pilotos/gabriel_bortoleto.png (se aplicável)
+  // 4. Dropbox direct URL (se existir)
+  // 5. /pilotos/generico.png
+  // 6. Dropbox generico
+  // 7. Fallback de iniciais estilizadas
+  const candidateUrls = React.useMemo(() => {
+    const list: string[] = []
+    if (sources.localPath) list.push(sources.localPath)
+    if (sources.filename) {
+      const namedFile = `/pilotos/${sources.filename}`
+      if (!list.includes(namedFile)) list.push(namedFile)
+    }
+    if (sources.normalizedKey === 'bortoleto') {
+      const customLocal = '/pilotos/gabriel_bortoleto.png'
+      if (!list.includes(customLocal)) list.push(customLocal)
+    }
+    if (sources.dropboxUrl && !list.includes(sources.dropboxUrl)) {
+      list.push(sources.dropboxUrl)
+    }
+    if (sources.fallbackLocal && !list.includes(sources.fallbackLocal)) {
+      list.push(sources.fallbackLocal)
+    }
+    if (sources.fallbackDropbox && !list.includes(sources.fallbackDropbox)) {
+      list.push(sources.fallbackDropbox)
+    }
+    return list
+  }, [sources])
+
+  const [attemptIndex, setAttemptIndex] = useState<number>(0)
 
   const sizeClasses = {
     xs: 'w-7 h-7 text-[10px]',
@@ -40,23 +70,14 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   }
 
   const handleError = () => {
-    setStage((prev) => prev + 1)
+    setAttemptIndex((prev) => prev + 1)
   }
 
-  // Determine current image URL to try
-  let currentSrc: string | null = null
-  if (stage === 0) {
-    currentSrc = sources.localPath
-  } else if (stage === 1) {
-    currentSrc = sources.dropboxUrl || sources.fallbackLocal
-  } else if (stage === 2) {
-    currentSrc = sources.fallbackLocal
-  } else if (stage === 3) {
-    currentSrc = sources.fallbackDropbox
-  }
+  const currentSrc = candidateUrls[attemptIndex] || null
+  const isExhausted = attemptIndex >= candidateUrls.length || !currentSrc
 
-  if (stage >= 4 || !currentSrc) {
-    // Fallback: Initials on team color background
+  if (isExhausted) {
+    // Fallback: Iniciais estilizadas sobre fundo na cor da equipe
     return (
       <div
         className={cn(
@@ -91,12 +112,12 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
         src={currentSrc}
         alt={alt || name}
         onError={handleError}
-        loading="lazy"
+        loading="eager"
         className={cn(
           'w-full h-full object-cover object-top transition-transform duration-300 hover:scale-105',
           imgClassName,
         )}
-      />
+      />{' '}
     </div>
   )
 }
