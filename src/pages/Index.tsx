@@ -238,9 +238,18 @@ export default function IndexPage() {
 
     const normalizedTeamKey = (team?.team_key || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 
-    // 2. Audi da equipe do jogador no save atual: anexo oficial foto de garagem
-    if (normalizedTeamKey === 'audi') {
-      return '/equipes/audi.png'
+    // 2. Imagem homologada da equipe em CARRO_POR_EQUIPE_MAP (para Audi, foto oficial da garagem Audi importada diretamente)
+    if (
+      team?.team_key &&
+      CARRO_POR_EQUIPE_MAP[team.team_key as keyof typeof CARRO_POR_EQUIPE_MAP]
+    ) {
+      return CARRO_POR_EQUIPE_MAP[team.team_key as keyof typeof CARRO_POR_EQUIPE_MAP]
+    }
+    if (
+      normalizedTeamKey &&
+      CARRO_POR_EQUIPE_MAP[normalizedTeamKey as keyof typeof CARRO_POR_EQUIPE_MAP]
+    ) {
+      return CARRO_POR_EQUIPE_MAP[normalizedTeamKey as keyof typeof CARRO_POR_EQUIPE_MAP]
     }
 
     // 3. Se a equipe tem imagem personalizada salva no backend (upload manual do jogador)
@@ -248,11 +257,7 @@ export default function IndexPage() {
       return pb.files.getUrl(team, team.carImage)
     }
 
-    // 4. Imagem homologada da equipe em CARRO_POR_EQUIPE_MAP
-    if (team?.team_key && CARRO_POR_EQUIPE_MAP[team.team_key]) {
-      return CARRO_POR_EQUIPE_MAP[team.team_key]
-    }
-    // 5. Tenta caminho padrão de equipe local
+    // 4. Tenta caminho padrão de equipe local em public/equipes/
     if (normalizedTeamKey) {
       return `/equipes/${normalizedTeamKey}.png`
     }
