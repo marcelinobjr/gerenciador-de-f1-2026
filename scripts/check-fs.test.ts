@@ -4,14 +4,40 @@ import { describe, it, expect } from 'vitest'
 
 describe('check-fs', () => {
   it('reads headers to confirm image', () => {
-    const p1 = path.resolve(process.cwd(), 'src/assets/audi-a0460.png')
-    const p2 = path.resolve(process.cwd(), 'src/assets/image-cd908.png')
-    const buf1 = fs.readFileSync(p1)
-    const buf2 = fs.readFileSync(p2)
-    const w1 = buf1.readUInt32BE(16)
-    const h1 = buf1.readUInt32BE(20)
-    const w2 = buf2.readUInt32BE(16)
-    const h2 = buf2.readUInt32BE(20)
-    expect({ w1, h1, w2, h2 }).toEqual({ w1: 0, h1: 0, w2: 0, h2: 0 })
+    const p3 = path.resolve(process.cwd(), 'src/assets/05-gabrielbortoleto-ed602.png')
+    const p4 = path.resolve(process.cwd(), 'src/assets/05-gabrielbortoleto-171b0.png')
+    const p5 = path.resolve(process.cwd(), 'src/assets/image-bc4f0.png')
+    const buf3 = fs.readFileSync(p3)
+    const buf4 = fs.readFileSync(p4)
+    const buf5 = fs.readFileSync(p5)
+    const w3 = buf3.readUInt32BE(16)
+    const h3 = buf3.readUInt32BE(20)
+    const w4 = buf4.readUInt32BE(16)
+    const h4 = buf4.readUInt32BE(20)
+    const w5 = buf5.readUInt32BE(16)
+    const h5 = buf5.readUInt32BE(20)
+
+    // Check sizes
+    expect({
+      w3,
+      h3,
+      len3: buf3.length,
+      w4,
+      h4,
+      len4: buf4.length,
+      w5,
+      h5,
+      len5: buf5.length,
+    }).toEqual({
+      w3: 0,
+      h3: 0,
+      len3: 0,
+      w4: 0,
+      h4: 0,
+      len4: 0,
+      w5: 0,
+      h5: 0,
+      len5: 0,
+    })
   })
 })

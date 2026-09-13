@@ -1,9 +1,12 @@
 // Service for driver photos mapping and URLs
 // Public Dropbox direct URLs for 32 drivers with dl=1
+import bortoletoBundledImg from '@/assets/05-gabrielbortoleto-ed602.png'
+
 export interface DriverPhotoInfo {
   filename: string
   normalizedKey: string // e.g. "verstappen"
   surnameVariants: string[]
+  bundledImg?: string
   dropboxUrl: string
 }
 
@@ -47,6 +50,7 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
       'g. bortoleto',
       'g bortoleto',
     ],
+    bundledImg: bortoletoBundledImg,
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AIzc-ON2kz8-VpQLZ1bQRow/5-Gabriel_Bortoleto.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -288,6 +292,7 @@ export function getDriverPhotoSources(driverName?: string): {
   localCandidates: string[]
   filename?: string
   normalizedKey: string
+  bundledImg?: string
   dropboxUrl?: string
   fallbackLocal: string
   fallbackDropbox: string
@@ -333,9 +338,19 @@ export function getDriverPhotoSources(driverName?: string): {
   const key = matched ? matched.normalizedKey : surname
   // Suporte a caminhos locais canônicos: /pilotos/{key}.png ou /pilotos/{filename}
   const localCandidates = [
+    matched?.bundledImg,
+    // Formato com nome completo e underscore
+    normFullName ? `/pilotos/${normFullName.replace(/\s+/g, '_')}.png` : null,
+    // Formato com chave de sobrenome
     `/pilotos/${key}.png`,
+    // Formato com filename registrado
     matched?.filename ? `/pilotos/${matched.filename}` : null,
-    `/pilotos/gabriel_bortoleto.png`,
+    // Variações de Bortoleto se aplicável
+    key === 'bortoleto' ? '/pilotos/gabriel_bortoleto.png' : null,
+    key === 'bortoleto' ? '/pilotos/bortoleto.png' : null,
+    key === 'bortoleto' ? '/pilotos/bortoletto.png' : null,
+    key === 'bortoleto' ? '/pilotos/5-Gabriel_Bortoleto.png' : null,
+    key === 'bortoleto' ? '/pilotos/05-Gabriel_Bortoleto.png' : null,
   ].filter(Boolean) as string[]
 
   return {
@@ -343,6 +358,7 @@ export function getDriverPhotoSources(driverName?: string): {
     localCandidates,
     filename: matched?.filename,
     normalizedKey: key,
+    bundledImg: matched?.bundledImg,
     dropboxUrl: matched?.dropboxUrl,
     fallbackLocal: GENERIC_DRIVER_PHOTO,
     fallbackDropbox: GENERIC_DRIVER_DROPBOX_URL,

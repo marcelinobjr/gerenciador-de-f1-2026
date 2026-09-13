@@ -64,9 +64,9 @@ describe('download-assets-test', () => {
     if (!fs.existsSync(testDir)) fs.mkdirSync(testDir, { recursive: true })
     const dest = path.join(testDir, 'ferrari.png')
     const ok = await downloadFile(
-      'https://dl.dropboxusercontent.com/scl/fo/ydtmveudv8i1tyvntggnp/AJdZ5IlvncA__FBlCcvyB94/Ferrari.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7',
+      'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AIzc-ON2kz8-VpQLZ1bQRow/5-Gabriel_Bortoleto.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
       dest,
     )
-    console.log('Download ferrari result:', ok, fs.existsSync(dest) ? fs.statSync(dest).size : 0)
+    console.log('Download bortoleto result:', ok, fs.existsSync(dest) ? fs.statSync(dest).size : 0)
   }, 30000)
 })

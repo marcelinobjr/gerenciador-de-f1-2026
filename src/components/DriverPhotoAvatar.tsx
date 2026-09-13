@@ -21,23 +21,48 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
 }) => {
   const sources = getDriverPhotoSources(name)
   // Lista de URLs candidatas locais e remotas para tentar em ordem:
-  // 1. /pilotos/{key}.png (ex.: /pilotos/bortoleto.png)
-  // 2. /pilotos/{filename} (ex.: /pilotos/5-Gabriel_Bortoleto.png)
-  // 3. /pilotos/gabriel_bortoleto.png (se aplicável)
-  // 4. Dropbox direct URL (se existir)
-  // 5. /pilotos/generico.png
-  // 6. Dropbox generico
-  // 7. Fallback de iniciais estilizadas
+  // 1. Imagem empacotada no bundle (ex: asset oficial importado do Gabriel Bortoleto)
+  // 2. /pilotos/{key}.png (ex.: /pilotos/bortoleto.png)
+  // 3. /pilotos/{filename} (ex.: /pilotos/5-Gabriel_Bortoleto.png)
+  // 4. Variações de grafia / arquivos locais em public/pilotos/
+  // 5. Dropbox direct URL (se existir)
+  // 6. /pilotos/generico.png
+  // 7. Dropbox generico
+  // 8. Fallback elegante de iniciais estilizadas na cor da equipe
   const candidateUrls = React.useMemo(() => {
     const list: string[] = []
-    if (sources.localPath) list.push(sources.localPath)
+
+    // Injeta candidatos locais resolvidos pelo helper
+    if (sources.localCandidates && sources.localCandidates.length > 0) {
+      for (const cand of sources.localCandidates) {
+        if (cand && !list.includes(cand)) {
+          list.push(cand)
+        }
+      }
+    }
+
+    if (sources.bundledImg && !list.includes(sources.bundledImg)) {
+      list.unshift(sources.bundledImg)
+    }
+
+    if (sources.localPath && !list.includes(sources.localPath)) {
+      list.push(sources.localPath)
+    }
     if (sources.filename) {
       const namedFile = `/pilotos/${sources.filename}`
       if (!list.includes(namedFile)) list.push(namedFile)
     }
     if (sources.normalizedKey === 'bortoleto') {
-      const customLocal = '/pilotos/gabriel_bortoleto.png'
-      if (!list.includes(customLocal)) list.push(customLocal)
+      const variants = [
+        '/pilotos/gabriel_bortoleto.png',
+        '/pilotos/bortoleto.png',
+        '/pilotos/bortoletto.png',
+        '/pilotos/5-Gabriel_Bortoleto.png',
+        '/pilotos/05-Gabriel_Bortoleto.png',
+      ]
+      for (const v of variants) {
+        if (!list.includes(v)) list.push(v)
+      }
     }
     if (sources.dropboxUrl && !list.includes(sources.dropboxUrl)) {
       list.push(sources.dropboxUrl)

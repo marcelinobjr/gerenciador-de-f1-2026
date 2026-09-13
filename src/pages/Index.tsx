@@ -11,7 +11,6 @@ import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/car
 import { CAR_MODEL_ASSETS } from '@/lib/lobby-assets'
 import { TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
-import { DriverHelmet } from '@/components/DriverHelmet'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
