@@ -3,18 +3,16 @@ migrate(
   (app) => {
     const teams = app.findCollectionByNameOrId('teams')
 
-    // 1. manager_profile: JSON estruturado com perfil e atributos do chefe
     if (!teams.fields.getByName('manager_profile')) {
       teams.fields.add(
         new JSONField({
           name: 'manager_profile',
           required: false,
-          maxSize: 1048576,
+          maxSize: 1048576, // 1MB para suportar profile com baseAttributes, bônus, links etc.
         }),
       )
     }
 
-    // 2. career_settings: JSON com configurações da carreira (dificuldade, dev speed, etc.)
     if (!teams.fields.getByName('career_settings')) {
       teams.fields.add(
         new JSONField({
@@ -25,18 +23,16 @@ migrate(
       )
     }
 
-    // 3. custom_grid_teams: JSON array com a composição do grid escolhido
     if (!teams.fields.getByName('custom_grid_teams')) {
       teams.fields.add(
         new JSONField({
           name: 'custom_grid_teams',
           required: false,
-          maxSize: 1048576,
+          maxSize: 1048576, // 1MB para array com 12+ equipes completas
         }),
       )
     }
 
-    // 4. universe_type: tipo de universo escolhido (championship_2026 | custom_championship)
     if (!teams.fields.getByName('universe_type')) {
       teams.fields.add(
         new TextField({
@@ -47,7 +43,6 @@ migrate(
       )
     }
 
-    // 5. hero_title: título customizado de exibição do Hero Card
     if (!teams.fields.getByName('hero_title')) {
       teams.fields.add(
         new TextField({
@@ -58,7 +53,6 @@ migrate(
       )
     }
 
-    // 6. hero_tagline: subtítulo/lema da equipe
     if (!teams.fields.getByName('hero_tagline')) {
       teams.fields.add(
         new TextField({
@@ -69,7 +63,6 @@ migrate(
       )
     }
 
-    // 7. hero_car_model: modelo 3D/ilustrado do carro selecionado
     if (!teams.fields.getByName('hero_car_model')) {
       teams.fields.add(
         new TextField({
@@ -84,7 +77,7 @@ migrate(
   },
   (app) => {
     const teams = app.findCollectionByNameOrId('teams')
-    const toRemove = [
+    const fields = [
       'manager_profile',
       'career_settings',
       'custom_grid_teams',
@@ -93,7 +86,7 @@ migrate(
       'hero_tagline',
       'hero_car_model',
     ]
-    for (const f of toRemove) {
+    for (const f of fields) {
       if (teams.fields.getByName(f)) {
         teams.fields.removeByName(f)
       }

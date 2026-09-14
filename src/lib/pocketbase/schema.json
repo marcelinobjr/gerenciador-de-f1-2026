@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-13T04:08:53.636Z",
+  "generatedAt": "2026-09-14T10:44:34.915Z",
   "collections": [
     {
       "name": "users",
@@ -29,14 +29,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
       "indexes": [
@@ -96,7 +101,13 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["Ferrari", "Mercedes", "Honda", "Ford", "Audi"]
+          "selectValues": [
+            "Ferrari",
+            "Mercedes",
+            "Honda",
+            "Ford",
+            "Audi"
+          ]
         },
         {
           "name": "user_id",
@@ -110,14 +121,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "strength",
@@ -246,7 +262,9 @@
           "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_teams_user ON teams (user_id)"]
+      "indexes": [
+        "CREATE INDEX idx_teams_user ON teams (user_id)"
+      ]
     },
     {
       "name": "seasons",
@@ -289,14 +307,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "market_moves",
@@ -311,7 +334,9 @@
           "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_seasons_team ON seasons (team_id)"]
+      "indexes": [
+        "CREATE INDEX idx_seasons_team ON seasons (team_id)"
+      ]
     },
     {
       "name": "drivers",
@@ -390,21 +415,29 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "role",
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["titular", "reserva"]
+          "selectValues": [
+            "titular",
+            "reserva"
+          ]
         },
         {
           "name": "category",
@@ -495,7 +528,10 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["titular", "reserva"]
+          "selectValues": [
+            "titular",
+            "reserva"
+          ]
         }
       ],
       "indexes": [
@@ -564,14 +600,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "laps_completed",
@@ -586,7 +627,9 @@
           "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_race_results_season_round ON race_results (season_id, round)"]
+      "indexes": [
+        "CREATE INDEX idx_race_results_season_round ON race_results (season_id, round)"
+      ]
     },
     {
       "name": "sponsors",
@@ -622,7 +665,11 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["ativo", "suspenso", "encerrado"]
+          "selectValues": [
+            "ativo",
+            "suspenso",
+            "encerrado"
+          ]
         },
         {
           "name": "rounds_remaining",
@@ -642,14 +689,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "slot",
@@ -658,7 +710,9 @@
           "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_sponsors_team ON sponsors (team_id)"]
+      "indexes": [
+        "CREATE INDEX idx_sponsors_team ON sponsors (team_id)"
+      ]
     },
     {
       "name": "parts",
@@ -695,14 +749,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "condition",
@@ -711,7 +770,9 @@
           "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_parts_team ON parts (team_id)"]
+      "indexes": [
+        "CREATE INDEX idx_parts_team ON parts (team_id)"
+      ]
     },
     {
       "name": "events",
@@ -735,7 +796,12 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["resultado", "contrato", "desenvolvimento", "patrocinio"]
+          "selectValues": [
+            "resultado",
+            "contrato",
+            "desenvolvimento",
+            "patrocinio"
+          ]
         },
         {
           "name": "team_id",
@@ -749,17 +815,24 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
-      "indexes": ["CREATE INDEX idx_events_team_created ON events (team_id, created DESC)"]
+      "indexes": [
+        "CREATE INDEX idx_events_team_created ON events (team_id, created DESC)"
+      ]
     },
     {
       "name": "session_setups",
@@ -797,7 +870,14 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["tp1", "tp2", "q1", "q2", "q3", "race"]
+          "selectValues": [
+            "tp1",
+            "tp2",
+            "q1",
+            "q2",
+            "q3",
+            "race"
+          ]
         },
         {
           "name": "wing_level",
@@ -822,7 +902,13 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["duro", "medio", "macio", "intermediario", "chuva_extrema"]
+          "selectValues": [
+            "duro",
+            "medio",
+            "macio",
+            "intermediario",
+            "chuva_extrema"
+          ]
         },
         {
           "name": "target_pit_lap",
@@ -835,7 +921,13 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["duro", "medio", "macio", "intermediario", "chuva_extrema"]
+          "selectValues": [
+            "duro",
+            "medio",
+            "macio",
+            "intermediario",
+            "chuva_extrema"
+          ]
         },
         {
           "name": "driver_wear",
@@ -854,14 +946,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         },
         {
           "name": "driver_strategies",
@@ -920,17 +1017,24 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
-      "indexes": ["CREATE UNIQUE INDEX idx_circuits_round ON circuits (round)"]
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_circuits_round ON circuits (round)"
+      ]
     },
     {
       "name": "notifications",
@@ -1001,14 +1105,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
       "indexes": [
@@ -1076,14 +1185,19 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate"]
+          "autodateTriggers": [
+            "onCreate"
+          ]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
+          "autodateTriggers": [
+            "onCreate",
+            "onUpdate"
+          ]
         }
       ],
       "indexes": [
