@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { PageHeader } from '@/components/PageHeader'
 import { AmbientBackground } from '@/components/AmbientBackground'
@@ -6,11 +6,11 @@ import { DriverPoster } from '@/components/DriverPoster'
 import { getCountryFlag } from '@/lib/country-flags'
 import {
   MBJ_2026_PILOTS,
-  MBJPilotData,
   checkEligibility,
   getOverallRating,
   USD_TO_BRL_RATE,
 } from '@/lib/mbj-drivers-data'
+import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Input } from '@/components/ui/input'
@@ -55,40 +55,247 @@ import {
   CloudRain,
   DollarSign,
   UserPlus,
+  Calendar,
+  Building2,
+  Loader2,
 } from 'lucide-react'
+import { DriverModel, TeamModel } from '@/types/f1'
+
+export interface UnifiedDriverItem {
+  id: string
+  name: string
+  nationality: string
+  age: number
+  speed: number
+  consistency: number
+  rain: number
+  defense: number
+  salaryUsd: number
+  salaryBrl: number
+  contractEnd: number
+  teamId?: string | null
+  teamKey?: string | null
+  teamName?: string | null
+  teamColor?: string | null
+  role?: 'titular' | 'reserva' | null
+  category: 'f1' | 'f2' | 'indycar' | 'indynxt' | 'formula_e' | 'nascar' | 'prototipos' | 'mercado'
+  potentialMin: number
+  potentialMax: number
+  f1RacesCompleted: number
+  superlicensePoints: number
+  isAcademyProspect: boolean
+  isPlayerDriver: boolean
+  nextTeamId?: string | null
+  nextContractRole?: 'titular' | 'reserva' | null
+  rawDbRecord?: DriverModel
+}
 
 export default function DriversPage() {
-  const { user, team, refreshUserTeam } = useAuth()
+  const { team, season, refreshTeamAndSeason } = useAuth()
   const { toast } = useToast()
+
+  const [dbDrivers, setDbDrivers] = useState<DriverModel[]>([])
+  const [dbTeams, setDbTeams] = useState<TeamModel[]>([])
+  const [isLoading, setIsLoading] = useState<boolean>(true)
 
   const [activeTab, setActiveTab] = useState<string>('grid')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all')
   const [selectedRatingFilter, setSelectedRatingFilter] = useState<string>('all')
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all')
+
+  // Modal de Contratação
   const [isContractingModalOpen, setIsContractingModalOpen] = useState<boolean>(false)
-  const [selectedPilotForContract, setSelectedPilotForContract] = useState<MBJPilotData | null>(
-    null,
-  )
+  const [selectedPilotForContract, setSelectedPilotForContract] =
+    useState<UnifiedDriverItem | null>(null)
   const [contractRole, setContractRole] = useState<'titular' | 'reserva'>('titular')
+  const [contractMode, setContractMode] = useState<'immediate' | 'precontract'>('immediate')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
-  // Filtros combinados
-  const filteredPilots = useMemo(() => {
-    return MBJ_2026_PILOTS.filter((pilot) => {
+  // Carrega motoristas e equipes reais do banco
+  const loadDatabaseData = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const [driversRes, teamsRes] = await Promise.all([
+        pb.collection('drivers').getFullList<DriverModel>({
+          sort: '-speed',
+        }),
+        pb.collection('teams').getFullList<TeamModel>({
+          sort: 'name',
+        }),
+      ])
+      setDbDrivers(driversRes)
+      setDbTeams(teamsRes)
+    } catch (err) {
+      console.error('Erro ao carregar pilotos/equipes do banco:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadDatabaseData()
+  }, [loadDatabaseData])
+
+  // Rodada atual do campeonato do save
+  const currentRound = season?.current_round || 1
+  const canPreContract = currentRound >= 12
+
+  // Normalização unificada unindo banco PocketBase + dados catalogados do MBJ
+  const unifiedDrivers: UnifiedDriverItem[] = useMemo(() => {
+    // Mapa auxiliar do MBJ por nome normalizado
+    const mbjMap = new Map<string, (typeof MBJ_2026_PILOTS)[number]>()
+    for (const pilot of MBJ_2026_PILOTS) {
+      mbjMap.set(pilot.name.toLowerCase().trim(), pilot)
+    }
+
+    // Mapa auxiliar de equipes do banco por ID e por team_key
+    const teamById = new Map<string, TeamModel>()
+    const teamByKey = new Map<string, TeamModel>()
+    for (const t of dbTeams) {
+      teamById.set(t.id, t)
+      if (t.team_key) teamByKey.set(t.team_key.toLowerCase(), t)
+    }
+
+    const result: UnifiedDriverItem[] = []
+    const visitedNames = new Set<string>()
+
+    // 1. Processa todos os pilotos presentes no Banco de Dados
+    for (const d of dbDrivers) {
+      const normName = d.name.toLowerCase().trim()
+      visitedNames.add(normName)
+
+      const mbjInfo = mbjMap.get(normName)
+      const associatedTeamId = d.team_id || d.reserve_team_id || null
+      const associatedTeam = associatedTeamId ? teamById.get(associatedTeamId) : null
+
+      const isPlayer = Boolean(team?.id && (d.team_id === team.id || d.reserve_team_id === team.id))
+
+      // Salário em BRL e USD
+      const rawSalary = d.salary || (mbjInfo ? mbjInfo.salaryUsd : 3000000)
+      const salaryUsd = rawSalary > 100000000 ? Math.round(rawSalary / USD_TO_BRL_RATE) : rawSalary
+      const salaryBrl = salaryUsd * USD_TO_BRL_RATE
+
+      // Equipe
+      const teamName =
+        associatedTeam?.name || (mbjInfo?.teamName ?? (associatedTeamId ? 'Equipe F1' : null))
+      const teamColor = associatedTeam?.color || '#E10600'
+      const teamKey = associatedTeam?.team_key || mbjInfo?.teamKey || null
+
+      // Categoria
+      const cat = (d.category || mbjInfo?.category || 'f1') as UnifiedDriverItem['category']
+
+      // Métricas operacionais
+      const speed = d.speed || mbjInfo?.speed || 75
+      const consistency = d.consistency || mbjInfo?.consistency || 75
+      const rain = d.rain || mbjInfo?.rain || 75
+      const defense = d.defense || mbjInfo?.defense || 75
+
+      // Projeções P
+      const potentialMin = mbjInfo?.potentialMin ?? Math.max(70, speed - 2)
+      const potentialMax = mbjInfo?.potentialMax ?? Math.min(99, speed + 6)
+      const f1Races = mbjInfo?.f1RacesCompleted ?? (cat === 'f1' ? 20 : 0)
+      const superlicense = mbjInfo?.superlicensePoints ?? (cat === 'f1' ? 50 : 35)
+      const isProspect = mbjInfo?.isAcademyProspect || cat === 'f2' || (d.age < 22 && f1Races === 0)
+
+      result.push({
+        id: d.id,
+        name: d.name,
+        nationality: d.nationality || mbjInfo?.nationality || 'Mundial',
+        age: d.age || mbjInfo?.age || 25,
+        speed,
+        consistency,
+        rain,
+        defense,
+        salaryUsd,
+        salaryBrl,
+        contractEnd: d.contract_end || 2026,
+        teamId: associatedTeamId,
+        teamKey,
+        teamName,
+        teamColor,
+        role: d.role || (d.reserve_team_id ? 'reserva' : d.team_id ? 'titular' : null),
+        category: cat,
+        potentialMin,
+        potentialMax,
+        f1RacesCompleted: f1Races,
+        superlicensePoints: superlicense,
+        isAcademyProspect: Boolean(isProspect),
+        isPlayerDriver: isPlayer,
+        nextTeamId: d.next_team_id,
+        nextContractRole: d.next_contract_role,
+        rawDbRecord: d,
+      })
+    }
+
+    // 2. Incorpora pilotos MBJ não cadastrados no banco para catálogo estático
+    for (const pilot of MBJ_2026_PILOTS) {
+      const normName = pilot.name.toLowerCase().trim()
+      if (visitedNames.has(normName)) continue
+
+      result.push({
+        id: pilot.id,
+        name: pilot.name,
+        nationality: pilot.nationality,
+        age: pilot.age,
+        speed: pilot.speed,
+        consistency: pilot.consistency,
+        rain: pilot.rain,
+        defense: pilot.defense,
+        salaryUsd: pilot.salaryUsd,
+        salaryBrl: pilot.salaryBrl,
+        contractEnd: 2026 + (pilot.contractYears || 1),
+        teamId: null,
+        teamKey: pilot.teamKey || null,
+        teamName: pilot.teamName || null,
+        teamColor: '#E10600',
+        role: pilot.role || null,
+        category: pilot.category,
+        potentialMin: pilot.potentialMin,
+        potentialMax: pilot.potentialMax,
+        f1RacesCompleted: pilot.f1RacesCompleted,
+        superlicensePoints: pilot.superlicensePoints,
+        isAcademyProspect: Boolean(pilot.isAcademyProspect || pilot.category === 'f2'),
+        isPlayerDriver: false,
+      })
+    }
+
+    return result
+  }, [dbDrivers, dbTeams, team])
+
+  // Formatação de valores em Real (BRL)
+  const formatBrlCurrency = (usd: number) => {
+    const brl = usd * USD_TO_BRL_RATE
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      maximumFractionDigits: 0,
+    }).format(brl)
+  }
+
+  // Filtros combinados globais
+  const filteredDrivers = useMemo(() => {
+    return unifiedDrivers.filter((pilot) => {
       // Busca por nome ou nacionalidade
       const matchesSearch =
         pilot.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         pilot.nationality.toLowerCase().includes(searchQuery.toLowerCase())
-
       if (!matchesSearch) return false
 
       // Filtro de equipe
       if (selectedTeamFilter !== 'all') {
         if (selectedTeamFilter === 'free_agents') {
-          if (pilot.teamKey) return false
-        } else if (pilot.teamKey !== selectedTeamFilter) {
-          return false
+          if (pilot.teamId || pilot.teamKey) return false
+        } else {
+          const matchKey = pilot.teamKey?.toLowerCase() === selectedTeamFilter.toLowerCase()
+          const matchId = pilot.teamId === selectedTeamFilter
+          if (!matchKey && !matchId) return false
         }
+      }
+
+      // Filtro de categoria
+      if (selectedCategoryFilter !== 'all') {
+        if (pilot.category !== selectedCategoryFilter) return false
       }
 
       // Filtro de faixa de overall
@@ -103,49 +310,69 @@ export default function DriversPage() {
 
       return true
     })
-  }, [searchQuery, selectedTeamFilter, selectedRatingFilter])
+  }, [
+    unifiedDrivers,
+    searchQuery,
+    selectedTeamFilter,
+    selectedCategoryFilter,
+    selectedRatingFilter,
+  ])
 
-  // Segmentação por aba
+  // Segmentação das 4 Abas Solicitadas:
+  // 1. Grid F1: Pilotos titulares e reservas das 11 equipes de 2026 (incluindo Cadillac)
   const gridF1Pilots = useMemo(() => {
-    return filteredPilots.filter(
-      (p) => (p.category === 'f1' && p.teamKey) || p.role === 'titular' || p.role === 'reserva',
+    return filteredDrivers.filter(
+      (p) =>
+        (p.category === 'f1' && (p.teamId || p.teamKey)) ||
+        p.role === 'titular' ||
+        p.role === 'reserva',
     )
-  }, [filteredPilots])
+  }, [filteredDrivers])
 
+  // 2. Agentes Livres: Pilotos sem vínculo (team_id null e reserve_team_id null), disponíveis para contratação
   const freeAgentsPilots = useMemo(() => {
-    return filteredPilots.filter((p) => !p.teamKey || p.category === 'mercado')
-  }, [filteredPilots])
+    return filteredDrivers.filter((p) => !p.teamId && !p.teamKey)
+  }, [filteredDrivers])
 
+  // 3. Mercado & Contratação: listagem geral com elegibilidade dinâmica, rodadas >= 12 pré-contrato
   const marketPilots = useMemo(() => {
-    // Todos disponíveis para negociação ou agentes livres + categorias alternativas
-    return filteredPilots.filter((p) => p.category !== 'f1' || !p.teamKey || p.role === 'reserva')
-  }, [filteredPilots])
+    return filteredDrivers.filter((p) => !p.isPlayerDriver)
+  }, [filteredDrivers])
 
+  // 4. Prospectos & Academia: Jovens talentos (Fórmula 2 / Fórmula 3 / Indynxt) com potencial/overall, idade < 23
   const prospectPilots = useMemo(() => {
-    return filteredPilots.filter((p) => p.isAcademyProspect || p.category === 'f2' || p.age < 22)
-  }, [filteredPilots])
+    return filteredDrivers.filter(
+      (p) =>
+        p.isAcademyProspect ||
+        p.category === 'f2' ||
+        p.category === 'indynxt' ||
+        (p.age <= 22 && p.f1RacesCompleted === 0),
+    )
+  }, [filteredDrivers])
 
-  // Formatação de valores em Real (BRL)
-  const formatBrlCurrency = (usd: number) => {
-    const brl = usd * USD_TO_BRL_RATE
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
-    }).format(brl)
-  }
-
-  const handleOpenContractModal = (pilot: MBJPilotData) => {
+  // Abertura do modal de contratação
+  const handleOpenContractModal = (pilot: UnifiedDriverItem) => {
     setSelectedPilotForContract(pilot)
     const eligibility = checkEligibility(pilot)
+
+    // Ajusta papel padrão
     if (!eligibility.canSignTitular && eligibility.canSignReserve) {
       setContractRole('reserva')
     } else {
       setContractRole('titular')
     }
+
+    // Se estiver na rodada >= 12, permite escolher entre pré-contrato ou contratação imediata
+    if (canPreContract) {
+      setContractMode('precontract')
+    } else {
+      setContractMode('immediate')
+    }
+
     setIsContractingModalOpen(true)
   }
 
+  // Execução da Contratação com Mutação Segura e Desconto do Orçamento
   const handleConfirmContract = async () => {
     if (!selectedPilotForContract || !team) {
       toast({
@@ -159,9 +386,25 @@ export default function DriversPage() {
     const eligibility = checkEligibility(selectedPilotForContract)
     if (contractRole === 'titular' && !eligibility.canSignTitular) {
       toast({
-        title: 'Contratação não permitida',
+        title: 'Contratação titular não permitida',
         description:
-          'Pilotos menores de 18 anos só podem assumir posições de desenvolvimento ou reserva.',
+          'Pilotos menores de 18 anos só podem assumir posições de desenvolvimento ou reserva na academia.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Custo salarial em BRL para desconto no orçamento do time do save
+    const annualSalaryBrl = selectedPilotForContract.salaryBrl
+    const proratedSigningFee =
+      contractMode === 'immediate'
+        ? Math.round(annualSalaryBrl * 0.25) // Taxa de luvas/transferência imediata
+        : Math.round(annualSalaryBrl * 0.1) // Taxa de pré-contrato (10%)
+
+    if ((team.budget || 0) < proratedSigningFee) {
+      toast({
+        title: 'Orçamento Insuficiente',
+        description: `Sua equipe precisa de ao menos ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(proratedSigningFee)} para arcar com as luvas contratuais.`,
         variant: 'destructive',
       })
       return
@@ -169,57 +412,102 @@ export default function DriversPage() {
 
     setIsSubmitting(true)
     try {
-      // 1. Verificar se o piloto já existe na coleção drivers do backend
-      let existingDriver = null
-      try {
-        existingDriver = await pb
-          .collection('drivers')
-          .getFirstListItem(`name ~ "${selectedPilotForContract.name.split(' ').pop()}"`)
-      } catch {
-        existingDriver = null
+      // 1. Localizar ou criar o piloto no banco
+      let targetDriverId = selectedPilotForContract.rawDbRecord?.id
+
+      if (!targetDriverId) {
+        // Busca por nome no banco caso não tenha id de banco mapeado
+        try {
+          const found = await pb
+            .collection('drivers')
+            .getFirstListItem(`name = "${selectedPilotForContract.name}"`)
+          targetDriverId = found.id
+        } catch {
+          // Cria registro novo de piloto no catálogo do banco
+          const created = await pb.collection('drivers').create({
+            name: selectedPilotForContract.name,
+            nationality: selectedPilotForContract.nationality,
+            age: selectedPilotForContract.age,
+            speed: selectedPilotForContract.speed,
+            consistency: selectedPilotForContract.consistency,
+            rain: selectedPilotForContract.rain,
+            defense: selectedPilotForContract.defense,
+            salary: selectedPilotForContract.salaryUsd,
+            contract_end: 2027,
+            role: contractRole,
+            category: 'f1',
+            morale: 80,
+            physical_condition: 100,
+          })
+          targetDriverId = created.id
+        }
       }
 
-      if (existingDriver) {
-        // Atualiza vínculo com o time do usuário
-        await pb.collection('drivers').update(existingDriver.id, {
-          team_id: team.id,
-          role: contractRole,
-          salary: selectedPilotForContract.salaryUsd,
-          category: 'f1',
+      // 2. Aplica a alteração contratual no piloto
+      if (contractMode === 'precontract') {
+        // Pré-contrato para a próxima temporada (rodada 12+)
+        await pb.collection('drivers').update(targetDriverId, {
+          next_team_id: team.id,
+          next_contract_role: contractRole,
         })
       } else {
-        // Cria registro novo vinculado à equipe do usuário
-        await pb.collection('drivers').create({
-          name: selectedPilotForContract.name,
-          nationality: selectedPilotForContract.nationality,
-          age: selectedPilotForContract.age,
-          speed: selectedPilotForContract.speed,
-          consistency: selectedPilotForContract.consistency,
-          rain: selectedPilotForContract.rain,
-          defense: selectedPilotForContract.defense,
-          salary: selectedPilotForContract.salaryUsd,
-          contract_end: 2027,
-          role: contractRole,
-          category: 'f1',
-          team_id: team.id,
-        })
+        // Contratação Imediata (substituindo ou preenchendo vaga)
+        if (contractRole === 'titular') {
+          await pb.collection('drivers').update(targetDriverId, {
+            team_id: team.id,
+            reserve_team_id: null,
+            role: 'titular',
+            category: 'f1',
+            salary: selectedPilotForContract.salaryUsd,
+          })
+        } else {
+          await pb.collection('drivers').update(targetDriverId, {
+            reserve_team_id: team.id,
+            team_id: null,
+            role: 'reserva',
+            category: 'f1',
+            salary: selectedPilotForContract.salaryUsd,
+          })
+        }
       }
 
-      // Notificação e atualização de estado
+      // 3. Descontar as luvas do orçamento do save do usuário de forma segura
+      const updatedBudget = Math.max(0, (team.budget || 0) - proratedSigningFee)
+      await pb.collection('teams').update(team.id, {
+        budget: updatedBudget,
+      })
+
+      // 4. Registra evento financeiro/contratual na equipe
+      try {
+        await pb.collection('events').create({
+          team_id: team.id,
+          message:
+            contractMode === 'precontract'
+              ? `Pré-contrato assinado com ${selectedPilotForContract.name} para a próxima temporada (${contractRole}). Taxa de garantia: R$ ${Math.round(proratedSigningFee / 1000000)}M.`
+              : `Contratação de ${selectedPilotForContract.name} formalizada com sucesso como piloto ${contractRole}. Taxa de assinatura: R$ ${Math.round(proratedSigningFee / 1000000)}M.`,
+          type: 'contrato',
+        })
+      } catch (evErr) {
+        console.warn('Falha ao gravar evento de contrato:', evErr)
+      }
+
       toast({
-        title: 'Contratação Concluída com Sucesso!',
-        description: `${selectedPilotForContract.name} agora é piloto ${contractRole} da ${team.name}.`,
+        title: 'Operação Contratual Concluída!',
+        description:
+          contractMode === 'precontract'
+            ? `Pré-contrato com ${selectedPilotForContract.name} registrado para a próxima temporada da ${team.name}.`
+            : `${selectedPilotForContract.name} agora faz parte do plantel oficial da ${team.name} como ${contractRole}.`,
       })
 
       setIsContractingModalOpen(false)
       setSelectedPilotForContract(null)
-      if (refreshUserTeam) {
-        await refreshUserTeam()
-      }
+
+      // Atualiza os dados locais e o contexto do usuário
+      await Promise.all([loadDatabaseData(), refreshTeamAndSeason?.()])
     } catch (err: any) {
       toast({
-        title: 'Falha ao formalizar contrato',
-        description: err?.message || 'Não foi possível registrar o piloto no seu save.',
+        title: 'Falha ao processar contrato',
+        description: err?.message || 'Não foi possível registrar o piloto.',
         variant: 'destructive',
       })
     } finally {
@@ -227,11 +515,10 @@ export default function DriversPage() {
     }
   }
 
-  const renderPilotCard = (pilot: MBJPilotData, showContractButton = true) => {
+  // Renderizador unificado do card do piloto
+  const renderPilotCard = (pilot: UnifiedDriverItem, showContractButton = true) => {
     const ovr = getOverallRating(pilot)
     const eligibility = checkEligibility(pilot)
-    const isPlayerDriver =
-      pilot.teamKey === team?.team_key || (team?.id && pilot.teamKey === team.id)
 
     return (
       <Card
@@ -277,13 +564,20 @@ export default function DriversPage() {
                   {pilot.teamName || 'Agente Livre'}
                 </span>
                 {pilot.role && (
-                  <Badge variant="secondary" className="text-[10px] uppercase py-0 px-1.5 ml-1">
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] uppercase py-0 px-1.5 ml-1 ${
+                      pilot.role === 'titular'
+                        ? 'bg-red-950/80 text-red-300 border border-red-800/60'
+                        : 'bg-blue-950/80 text-blue-300 border border-blue-800/60'
+                    }`}
+                  >
                     {pilot.role}
                   </Badge>
                 )}
               </CardDescription>
 
-              {/* Status de Elegibilidade */}
+              {/* Status de Elegibilidade FIA */}
               <div className="mt-2.5">
                 {eligibility.status === 'academia' && (
                   <Badge className="bg-purple-950/80 text-purple-300 border-purple-700/60 text-[10px] flex items-center gap-1 w-fit">
@@ -344,18 +638,26 @@ export default function DriversPage() {
               {formatBrlCurrency(pilot.salaryUsd)}/ano
             </span>
           </div>
+
           <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
             <span>Potencial Projetado:</span>
             <span className="text-zinc-200 font-mono">
               {pilot.potentialMin} - {pilot.potentialMax}
             </span>
           </div>
+
+          {pilot.nextTeamId && (
+            <div className="mt-2 text-[10px] text-amber-300 bg-amber-950/40 p-1.5 rounded border border-amber-800/50 flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> Pré-contrato firmado para 2027 (
+              {pilot.nextContractRole})
+            </div>
+          )}
         </CardContent>
 
         <CardFooter className="p-4 pt-2">
-          {isPlayerDriver ? (
+          {pilot.isPlayerDriver ? (
             <Button disabled className="w-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-              Piloto da sua Equipe
+              Piloto da sua Equipe ({pilot.role || 'Contrato Ativo'})
             </Button>
           ) : showContractButton ? (
             <Button
@@ -384,7 +686,7 @@ export default function DriversPage() {
 
       <PageHeader
         title="Hub de Pilotos & Universo MBJ 2026"
-        description="Catálogo oficial de pilotos F1 2026, mercado global de transferências, prospectos da academia e contratações em tempo real."
+        description="Catálogo oficial do grid 2026, mercado global de transferências, prospectos da academia e contratações em tempo real."
       />
 
       {/* Barra de Filtros e Busca */}
@@ -399,34 +701,43 @@ export default function DriversPage() {
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Select value={selectedTeamFilter} onValueChange={setSelectedTeamFilter}>
-            <SelectTrigger className="w-[180px] bg-zinc-950/60 border-zinc-700 text-zinc-200">
+            <SelectTrigger className="w-[170px] bg-zinc-950/60 border-zinc-700 text-zinc-200">
               <SelectValue placeholder="Filtrar Equipe" />
             </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-700 text-zinc-200">
+            <SelectContent className="bg-zinc-900 border-zinc-700 text-zinc-200 max-h-60">
               <SelectItem value="all">Todas as Equipes</SelectItem>
               <SelectItem value="free_agents">Agentes Livres</SelectItem>
-              <SelectItem value="cadillac">Cadillac F1 Team</SelectItem>
-              <SelectItem value="audi">Audi Revolut F1</SelectItem>
-              <SelectItem value="ferrari">Ferrari</SelectItem>
-              <SelectItem value="red_bull">Red Bull</SelectItem>
-              <SelectItem value="mclaren">McLaren</SelectItem>
-              <SelectItem value="mercedes">Mercedes</SelectItem>
-              <SelectItem value="aston_martin">Aston Martin</SelectItem>
-              <SelectItem value="alpine">Alpine</SelectItem>
-              <SelectItem value="williams">Williams</SelectItem>
-              <SelectItem value="haas">Haas F1</SelectItem>
-              <SelectItem value="rb">RB F1 Team</SelectItem>
+              {ALL_GRID_TEAMS_DATABASE.map((t) => (
+                <SelectItem key={t.key} value={t.key}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+            <SelectTrigger className="w-[140px] bg-zinc-950/60 border-zinc-700 text-zinc-200">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent className="bg-zinc-900 border-zinc-700 text-zinc-200">
+              <SelectItem value="all">Todas Categorias</SelectItem>
+              <SelectItem value="f1">Fórmula 1</SelectItem>
+              <SelectItem value="f2">Fórmula 2</SelectItem>
+              <SelectItem value="indycar">IndyCar</SelectItem>
+              <SelectItem value="formula_e">Fórmula E</SelectItem>
+              <SelectItem value="prototipos">WEC / Protótipos</SelectItem>
+              <SelectItem value="mercado">Mercado Geral</SelectItem>
             </SelectContent>
           </Select>
 
           <Select value={selectedRatingFilter} onValueChange={setSelectedRatingFilter}>
-            <SelectTrigger className="w-[140px] bg-zinc-950/60 border-zinc-700 text-zinc-200">
+            <SelectTrigger className="w-[130px] bg-zinc-950/60 border-zinc-700 text-zinc-200">
               <SelectValue placeholder="Rating OVR" />
             </SelectTrigger>
             <SelectContent className="bg-zinc-900 border-zinc-700 text-zinc-200">
-              <SelectItem value="all">Todos os Níveis</SelectItem>
+              <SelectItem value="all">Todos OVR</SelectItem>
               <SelectItem value="90+">Elite (90+)</SelectItem>
               <SelectItem value="80-89">Titulares (80-89)</SelectItem>
               <SelectItem value="sub80">Jovens (&lt; 80)</SelectItem>
@@ -435,97 +746,116 @@ export default function DriversPage() {
         </div>
       </div>
 
-      {/* Abas Principais do Hub */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-zinc-900 border border-zinc-800 p-1 rounded-lg grid grid-cols-2 sm:grid-cols-4 w-full h-auto">
-          <TabsTrigger
-            value="grid"
-            className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-          >
-            <Trophy className="w-4 h-4" />
-            <span>Grid F1 2026 ({gridF1Pilots.length})</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="free_agents"
-            className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-          >
-            <Users className="w-4 h-4" />
-            <span>Agentes Livres ({freeAgentsPilots.length})</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="market"
-            className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-          >
-            <Briefcase className="w-4 h-4" />
-            <span>Mercado & Contratação ({marketPilots.length})</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="prospects"
-            className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-          >
-            <GraduationCap className="w-4 h-4" />
-            <span>Prospectos & Academia ({prospectPilots.length})</span>
-          </TabsTrigger>
-        </TabsList>
+      {/* Indicador de Carregamento */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center p-12 text-zinc-400 space-y-3">
+          <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+          <p className="text-sm">Sincronizando banco de dados de pilotos...</p>
+        </div>
+      ) : (
+        /* Abas Principais do Hub */
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="bg-zinc-900 border border-zinc-800 p-1 rounded-lg grid grid-cols-2 sm:grid-cols-4 w-full h-auto">
+            <TabsTrigger
+              value="grid"
+              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+            >
+              <Trophy className="w-4 h-4" />
+              <span>Grid F1 ({gridF1Pilots.length})</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="free_agents"
+              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+            >
+              <Users className="w-4 h-4" />
+              <span>Agentes Livres ({freeAgentsPilots.length})</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="market"
+              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+            >
+              <Briefcase className="w-4 h-4" />
+              <span>Mercado & Contratação ({marketPilots.length})</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="prospects"
+              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span>Prospectos & Academia ({prospectPilots.length})</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* ABA 1: GRID F1 2026 (11 EQUIPES INCLUINDO CADILLAC) */}
-        <TabsContent value="grid" className="space-y-4">
-          <div className="flex items-center justify-between bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400">
-            <span>
-              Mostrando os 22 titulares e reservas oficiais das 11 construtoras da temporada 2026.
-            </span>
-            <span className="font-semibold text-zinc-300">
-              Cadillac F1: Sergio Pérez & Valtteri Bottas
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {gridF1Pilots.map((pilot) => renderPilotCard(pilot, true))}
-          </div>
-        </TabsContent>
+          {/* ABA 1: GRID F1 2026 (11 EQUIPES INCLUINDO CADILLAC) */}
+          <TabsContent value="grid" className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-red-500" />
+                Pilotos titulares e reservas das 11 construtoras oficiais da temporada 2026.
+              </span>
+              <span className="font-semibold text-zinc-300">
+                Cadillac F1: Sergio Pérez & Valtteri Bottas
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {gridF1Pilots.map((pilot) => renderPilotCard(pilot, true))}
+            </div>
+          </TabsContent>
 
-        {/* ABA 2: AGENTES LIVRES (SEM VÍNCULO) */}
-        <TabsContent value="free_agents" className="space-y-4">
-          <div className="bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>
-              Pilotos experientes sem contrato ativo. Podem ser contratados de imediato sem
-              pagamento de multa rescisória a outras equipes.
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {freeAgentsPilots.map((pilot) => renderPilotCard(pilot, true))}
-          </div>
-        </TabsContent>
+          {/* ABA 2: AGENTES LIVRES (SEM VÍNCULO) */}
+          <TabsContent value="free_agents" className="space-y-4">
+            <div className="bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>
+                Pilotos sem vínculo contratual ativo com nenhuma equipe. Estão imediatamente
+                disponíveis para contratação sem taxa rescisória entre times.
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {freeAgentsPilots.map((pilot) => renderPilotCard(pilot, true))}
+            </div>
+          </TabsContent>
 
-        {/* ABA 3: MERCADO & CONTRATAÇÃO (ELEGIBILIDADE FUNCIONAL) */}
-        <TabsContent value="market" className="space-y-4">
-          <div className="bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400 flex items-center justify-between">
-            <span>
-              Mercado Global com critérios de Elegibilidade da FIA. Valores convertidos para Reais
-              (R$).
-            </span>
-            <span className="text-zinc-300 font-mono">
-              Cotação: US$ 1,00 = R$ {USD_TO_BRL_RATE.toFixed(2)}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {marketPilots.map((pilot) => renderPilotCard(pilot, true))}
-          </div>
-        </TabsContent>
+          {/* ABA 3: MERCADO & CONTRATAÇÃO (ELEGIBILIDADE DINÂMICA) */}
+          <TabsContent value="market" className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-amber-400" />
+                Rodada atual: <strong className="text-white">R{currentRound}/24</strong>.
+                {canPreContract ? (
+                  <span className="text-emerald-400 ml-1 font-medium">
+                    (Pré-contratos para a próxima temporada liberados)
+                  </span>
+                ) : (
+                  <span className="text-zinc-400 ml-1">
+                    (Pré-contratos liberados a partir da Rodada 12)
+                  </span>
+                )}
+              </span>
+              <span className="text-zinc-300 font-mono">
+                Cotação Oficial: US$ 1,00 = R$ {USD_TO_BRL_RATE.toFixed(2)}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {marketPilots.map((pilot) => renderPilotCard(pilot, true))}
+            </div>
+          </TabsContent>
 
-        {/* ABA 4: PROSPECTOS & ACADEMIA */}
-        <TabsContent value="prospects" className="space-y-4">
-          <div className="bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400">
-            <span>
-              Jovens pilotos da Fórmula 2, Fórmula 3 e programas juniores. Pilotos menores de 18
-              anos exigem desenvolvimento e homologação restrita.
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {prospectPilots.map((pilot) => renderPilotCard(pilot, true))}
-          </div>
-        </TabsContent>
-      </Tabs>
+          {/* ABA 4: PROSPECTOS & ACADEMIA */}
+          <TabsContent value="prospects" className="space-y-4">
+            <div className="bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400 flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-purple-400" />
+              <span>
+                Jovens talentos e pilotos em formação da Fórmula 2, Fórmula 3 e Indy NXT. Atletas
+                menores de 18 anos exigem evolução na academia antes de assumir titularidade.
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {prospectPilots.map((pilot) => renderPilotCard(pilot, true))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
 
       {/* MODAL DE FORMALIZAÇÃO DE CONTRATO */}
       <Dialog open={isContractingModalOpen} onOpenChange={setIsContractingModalOpen}>
@@ -533,18 +863,18 @@ export default function DriversPage() {
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-red-500" />
-              Formalizar Contrato de Piloto
+              Formalizar Proposta Contratual
             </DialogTitle>
             <DialogDescription className="text-zinc-400 text-xs">
               Vincule o piloto à sua equipe ({team?.name || 'Sua Equipe'}). O registro será
-              persistido no seu save sem afetar o grid global.
+              persistido no save com atualização direta do orçamento da equipe.
             </DialogDescription>
           </DialogHeader>
 
           {selectedPilotForContract && (
             <div className="space-y-4 py-2">
               <div className="flex gap-4 p-3 bg-zinc-950 rounded-lg border border-zinc-800">
-                <div className="w-20">
+                <div className="w-20 shrink-0">
                   <DriverPoster name={selectedPilotForContract.name} aspectRatio="poster" />
                 </div>
                 <div className="flex-1 text-xs space-y-1">
@@ -556,6 +886,16 @@ export default function DriversPage() {
                   </div>
                   <div className="text-emerald-400 font-semibold pt-1">
                     Salário anual: {formatBrlCurrency(selectedPilotForContract.salaryUsd)} (R$)
+                  </div>
+                  <div className="text-zinc-400 text-[11px]">
+                    Orçamento atual da equipe:{' '}
+                    <span className="text-white font-medium">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                        maximumFractionDigits: 0,
+                      }).format(team?.budget || 0)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -583,6 +923,46 @@ export default function DriversPage() {
                   </div>
                 )
               })()}
+
+              {/* Escolha do Modalidade de Contrato (Imediato vs Pré-contrato) */}
+              {canPreContract && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-300">
+                    Vigência do Contrato (Rodada {currentRound}):
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setContractMode('immediate')}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        contractMode === 'immediate'
+                          ? 'border-red-600 bg-red-600/10 text-white'
+                          : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="font-bold text-xs">Contratação Imediata</div>
+                      <div className="text-[10px] opacity-80 mt-0.5">
+                        Assume vaga na temporada atual
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setContractMode('precontract')}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        contractMode === 'precontract'
+                          ? 'border-red-600 bg-red-600/10 text-white'
+                          : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="font-bold text-xs">Pré-contrato 2027</div>
+                      <div className="text-[10px] opacity-80 mt-0.5">
+                        Garante vaga para a próxima temporada
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Escolha da Vaga */}
               <div className="space-y-2">
@@ -642,7 +1022,16 @@ export default function DriversPage() {
               disabled={isSubmitting}
               className="bg-red-600 hover:bg-red-700 text-white font-medium"
             >
-              {isSubmitting ? 'Registrando Contrato...' : 'Assinar Contrato'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Registrando Contrato...
+                </>
+              ) : contractMode === 'precontract' ? (
+                'Firmar Pré-contrato'
+              ) : (
+                'Assinar Contrato'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

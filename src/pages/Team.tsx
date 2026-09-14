@@ -145,7 +145,7 @@ export default function TeamPage() {
     : 'Desenvolvendo tecnologia e performance para colocar a equipe no topo do automobilismo mundial com paixão e precisão.'
 
   const teamPrincipalName = team?.manager_name || 'Jogador'
-  const boardConfidence = team?.board_confidence ?? 93
+  const boardConfidence = (team as any)?.board_confidence ?? 93
   const overallMorale = 82 // Morale index %
 
   // Staff members
