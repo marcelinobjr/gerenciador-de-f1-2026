@@ -16,45 +16,76 @@ export function normalizeDriverSurname(fullName: string): string {
  * Mapeamento direto de nome canônico para arquivo em /pilotos/
  * Cobre nomes com numeração oficial e variações .png / .jpg / .webp
  */
-const PILOT_FILE_MAP: Record<string, string> = {
-  verstappen: '3-Max_Verstappen.png',
-  ricciardo: '3-Daniel_Ricciardo.png',
-  norris: '4-Lando_Noris.png',
-  bortoleto: '5-Gabriel_Bortoleto.png',
-  hadjar: '6-Isack_Hadjar.png',
-  tsolov: '6-Nicola_Tsolov.png',
-  doohan: '7-Jack_Doohan.png',
-  mini: '9-Gabriel_Mini.png',
-  gasly: '10-Pierre_Gasly.png',
-  perez: '11-Sergio_Pérez.png',
-  antonelli: '12-Kimi_Antonelli.png',
-  alonso: '14-Fernando_Alonso.png',
-  leclerc: '16-Charles_Leclerc.png',
-  stroll: '18-Lance_Stroll.png',
-  tsunoda: '22-Yuki_Tsunoda.png',
-  albon: '23-Alex_Albon.png',
-  herta: '26-Colton_Herta.png',
-  hulkenberg: '27-Nico_Hulkenberg.png',
-  lawson: '30-Lian_Lawson.png',
-  lindblad: '31-Arvid_Lindblad.png',
-  ocon: '31-Esteban_Ocon.png',
-  drugovich: '34-Felipe_Drugovich.png',
-  colapinto: '43-Franco_Colapinto.png',
-  hamilton: '44-Lewis_Hamilton.png',
-  fittipaldi: '51-Pietro_Fittipaldi.png',
-  sainz: '55-Carlos_Sainz.png',
-  russell: '63-George_Russel.png',
-  bottas: '77-Walteri_Botas.jpg',
-  piastri: '81-Oscar_Piastri.png',
-  bearman: '87-Olivier_Bearman.png',
-  camara: '1-Rafael_Camara-b1a66.png',
-  beganovic: '1-Dino_Beganovic-83aea.jpg',
-  chastain: '1-Ross_Chastain-91a77.jpg',
+const PILOT_FILE_MAP: Record<string, string[]> = {
+  verstappen: ['3-Max_Verstappen.png', '3-Max_Verstappen.jpg'],
+  ricciardo: ['3-Daniel_Ricciardo.png', '3-Daniel_Ricciardo.jpg'],
+  norris: ['4-Lando_Noris.png', '4-Lando_Norris.png', '4-Lando_Noris.jpg', '4-Lando_Norris.jpg'],
+  bortoleto: [
+    '5-Gabriel_Bortoleto.png',
+    '5-Gabriel_Bortoleto.jpg',
+    '05-Gabriel_Bortoleto.png',
+    '05-Gabriel_Bortoleto.jpg',
+  ],
+  hadjar: ['6-Isack_Hadjar.png', '6-Isack_Hadjar.jpg'],
+  tsolov: ['6-Nicola_Tsolov.png', '6-Nicola_Tsolov.jpg'],
+  doohan: ['7-Jack_Doohan.png', '7-Jack_Doohan.jpg'],
+  mini: ['9-Gabriel_Mini.png', '9-Gabriel_Mini.jpg'],
+  gasly: ['10-Pierre_Gasly.png', '10-Pierre_Gasly.jpg'],
+  perez: [
+    '11-Sergio_Pérez.png',
+    '11-Sergio_Pérez.jpg',
+    '11-Sergio_Perez.png',
+    '11-Sergio_Perez.jpg',
+  ],
+  antonelli: ['12-Kimi_Antonelli.png', '12-Kimi_Antonelli.jpg'],
+  alonso: ['14-Fernando_Alonso.png', '14-Fernando_Alonso.jpg'],
+  leclerc: ['16-Charles_Leclerc.png', '16-Charles_Leclerc.jpg'],
+  stroll: ['18-Lance_Stroll.png', '18-Lance_Stroll.jpg'],
+  tsunoda: ['22-Yuki_Tsunoda.png', '22-Yuki_Tsunoda.jpg'],
+  albon: ['23-Alex_Albon.png', '23-Alex_Albon.jpg'],
+  herta: ['26-Colton_Herta.png', '26-Colton_Herta.jpg'],
+  hulkenberg: ['27-Nico_Hulkenberg.png', '27-Nico_Hulkenberg.jpg'],
+  lawson: ['30-Lian_Lawson.png', '30-Lian_Lawson.jpg', '30-Liam_Lawson.png', '30-Liam_Lawson.jpg'],
+  lindblad: [
+    '30-Arvid_Lindblad.jpg',
+    '30-Arvid_Lindblad.png',
+    '31-Arvid_Lindblad.png',
+    '31-Arvid_Lindblad.jpg',
+  ],
+  ocon: ['31-Esteban_Ocon.png', '31-Esteban_Ocon.jpg'],
+  drugovich: ['34-Felipe_Drugovich.png', '34-Felipe_Drugovich.jpg'],
+  colapinto: ['43-Franco_Colapinto.png', '43-Franco_Colapinto.jpg'],
+  hamilton: ['44-Lewis_Hamilton.png', '44-Lewis_Hamilton.jpg'],
+  fittipaldi: ['51-Pietro_Fittipaldi.png', '51-Pietro_Fittipaldi.jpg'],
+  sainz: ['55-Carlos_Sainz.png', '55-Carlos_Sainz.jpg'],
+  russell: [
+    '63-George_Russel.png',
+    '63-George_Russel.jpg',
+    '63-George_Russell.png',
+    '63-George_Russell.jpg',
+  ],
+  bottas: [
+    '77-Walteri_Botas.jpg',
+    '77-Walteri_Botas.png',
+    '77-Valtteri_Bottas.jpg',
+    '77-Valtteri_Bottas.png',
+  ],
+  piastri: ['81-Oscar_Piastri.png', '81-Oscar_Piastri.jpg'],
+  bearman: ['87-Olivier_Bearman.png', '87-Olivier_Bearman.jpg', '87-Oliver_Bearman.png'],
+  camara: [
+    '1-Rafael_Camara.png',
+    '1-Rafael_Camara.jpg',
+    '1-Rafael_Camara-b1a66.png',
+    '1-Rafael_Câmara.png',
+  ],
+  beganovic: ['1-Dino_Beganovic.jpg', '1-Dino_Beganovic.png', '1-Dino_Beganovic-83aea.jpg'],
+  chastain: ['1-Ross_Chastain.jpg', '1-Ross_Chastain.png', '1-Ross_Chastain-91a77.jpg'],
 }
 
 /**
- * Retorna uma lista de URLs candidatas locais para o pôster do piloto,
- * integrando a pipeline driver-photos.ts e variações canônicas de extensão.
+ * Retorna uma lista de URLs candidatas locais para o pôster do piloto.
+ * Prioriza arquivos locais em /pilotos/ com nomes canônicos numerados (.png / .jpg / .webp),
+ * eliminando a dependência do Dropbox como fonte primária.
  */
 export function getLocalDriverPosterCandidates(name: string): string[] {
   if (!name) return []
@@ -64,61 +95,69 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
 
   const candidates: string[] = []
 
-  // 1. Asset empacotado no bundle se houver
+  const addCandidate = (url?: string | null) => {
+    if (url && !candidates.includes(url)) {
+      candidates.push(url)
+    }
+  }
+
+  // 1. Asset empacotado no bundle se houver (ex.: Bortoleto oficial)
   if (sources.bundledImg) {
-    candidates.push(sources.bundledImg)
+    addCandidate(sources.bundledImg)
   }
 
-  // 2. Mapeamento explícito de arquivo canônico numerado
-  const mappedFile =
+  // 2. Mapeamento explícito de arquivos canônicos locais numerados em /pilotos/
+  const mappedFiles =
     PILOT_FILE_MAP[surname] || (sources.normalizedKey && PILOT_FILE_MAP[sources.normalizedKey])
-  if (mappedFile) {
-    candidates.push(`/pilotos/${mappedFile}`)
-    // Se for .jpg ou .png tenta a outra extensão também
-    if (mappedFile.endsWith('.jpg')) {
-      candidates.push(`/pilotos/${mappedFile.replace('.jpg', '.png')}`)
-    } else if (mappedFile.endsWith('.png')) {
-      candidates.push(`/pilotos/${mappedFile.replace('.png', '.jpg')}`)
+  if (mappedFiles && Array.isArray(mappedFiles)) {
+    for (const file of mappedFiles) {
+      addCandidate(`/pilotos/${file}`)
     }
   }
 
-  // 3. Dropbox URL direta do piloto como candidato confiável
-  if (sources.dropboxUrl) {
-    candidates.push(sources.dropboxUrl)
-  }
-
-  // 4. Fontes locais de driver-photos
+  // 3. Arquivo registrado na lista canônica DRIVER_PHOTOS
   if (sources.filename) {
-    const fn = `/pilotos/${sources.filename}`
-    if (!candidates.includes(fn)) candidates.push(fn)
-  }
-
-  if (sources.localCandidates) {
-    for (const c of sources.localCandidates) {
-      if (c && !candidates.includes(c)) candidates.push(c)
+    addCandidate(`/pilotos/${sources.filename}`)
+    if (sources.filename.endsWith('.png')) {
+      addCandidate(`/pilotos/${sources.filename.replace('.png', '.jpg')}`)
+    } else if (sources.filename.endsWith('.jpg')) {
+      addCandidate(`/pilotos/${sources.filename.replace('.jpg', '.png')}`)
     }
   }
 
-  // 5. Formatos padrão com extensões variadas
+  // 4. Candidatos locais adicionais do helper driver-photos
+  if (sources.localCandidates && sources.localCandidates.length > 0) {
+    for (const c of sources.localCandidates) {
+      addCandidate(c)
+    }
+  }
+
+  // 5. Formatos padrão com chave/sobrenome e extensões variadas (.png, .jpg, .webp)
   const keysToTry = [sources.normalizedKey, surname].filter(Boolean)
   for (const k of keysToTry) {
     for (const ext of ['.png', '.jpg', '.webp']) {
-      const p = `/pilotos/${k}${ext}`
-      if (!candidates.includes(p)) candidates.push(p)
+      addCandidate(`/pilotos/${k}${ext}`)
     }
   }
 
-  // 6. Nome com underscore
+  // 6. Formatos com nome completo e underscore com e sem acentos
   if (norm) {
     const under = norm.replace(/\s+/g, '_')
     for (const ext of ['.png', '.jpg', '.webp']) {
-      const p = `/pilotos/${under}${ext}`
-      if (!candidates.includes(p)) candidates.push(p)
+      addCandidate(`/pilotos/${under}${ext}`)
     }
   }
-  // 7. Fallback para Dropbox genérico antes de desistir totalmente
-  if (sources.fallbackDropbox && !candidates.includes(sources.fallbackDropbox)) {
-    candidates.push(sources.fallbackDropbox)
+  const rawClean = name.trim().replace(/\s+/g, '_')
+  for (const ext of ['.png', '.jpg', '.webp']) {
+    addCandidate(`/pilotos/${rawClean}${ext}`)
+  }
+
+  // 7. Dropbox URL DIRETA apenas como último recurso de contingência (nunca fonte primária)
+  if (sources.dropboxUrl) {
+    addCandidate(sources.dropboxUrl)
+  }
+  if (sources.fallbackDropbox) {
+    addCandidate(sources.fallbackDropbox)
   }
 
   return candidates

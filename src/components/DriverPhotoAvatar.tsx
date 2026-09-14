@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { getDriverPhotoSources } from '@/lib/driver-photos'
+import { getLocalDriverPosterCandidates, getInitials } from '@/lib/pilot-posters'
 import { cn } from '@/lib/utils'
 
 export interface DriverPhotoAvatarProps {
@@ -19,64 +19,8 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   size = 'md',
   alt,
 }) => {
-  const sources = getDriverPhotoSources(name)
-  // Lista de URLs candidatas locais e remotas para tentar em ordem:
-  // 1. Imagem empacotada no bundle (ex: asset oficial importado do Gabriel Bortoleto)
-  // 2. /pilotos/{key}.png (ex.: /pilotos/bortoleto.png)
-  // 3. /pilotos/{filename} (ex.: /pilotos/5-Gabriel_Bortoleto.png)
-  // 4. Variações de grafia / arquivos locais em public/pilotos/
-  // 5. Dropbox direct URL (se existir)
-  // 6. /pilotos/generico.png
-  // 7. Dropbox generico
-  // 8. Fallback elegante de iniciais estilizadas na cor da equipe
-  const candidateUrls = React.useMemo(() => {
-    const list: string[] = []
-
-    // Injeta candidatos locais resolvidos pelo helper
-    if (sources.localCandidates && sources.localCandidates.length > 0) {
-      for (const cand of sources.localCandidates) {
-        if (cand && !list.includes(cand)) {
-          list.push(cand)
-        }
-      }
-    }
-
-    if (sources.bundledImg && !list.includes(sources.bundledImg)) {
-      list.unshift(sources.bundledImg)
-    }
-
-    if (sources.localPath && !list.includes(sources.localPath)) {
-      list.push(sources.localPath)
-    }
-    if (sources.filename) {
-      const namedFile = `/pilotos/${sources.filename}`
-      if (!list.includes(namedFile)) list.push(namedFile)
-      // Variações com/sem hash e extensões
-      if (sources.filename.endsWith('.jpg')) {
-        const pngAlt = `/pilotos/${sources.filename.replace('.jpg', '.png')}`
-        if (!list.includes(pngAlt)) list.push(pngAlt)
-      } else if (sources.filename.endsWith('.png')) {
-        const jpgAlt = `/pilotos/${sources.filename.replace('.png', '.jpg')}`
-        if (!list.includes(jpgAlt)) list.push(jpgAlt)
-      }
-    }
-    if (sources.normalizedKey === 'bortoleto') {
-      const variants = [
-        '/pilotos/gabriel_bortoleto.png',
-        '/pilotos/bortoleto.png',
-        '/pilotos/bortoletto.png',
-        '/pilotos/5-Gabriel_Bortoleto.png',
-        '/pilotos/05-Gabriel_Bortoleto.png',
-      ]
-      for (const v of variants) {
-        if (!list.includes(v)) list.push(v)
-      }
-    }
-    if (sources.fallbackLocal && !list.includes(sources.fallbackLocal)) {
-      list.push(sources.fallbackLocal)
-    }
-    return list
-  }, [sources])
+  // Usa o mesmo resolvedor de fotos canônicas que o DriverPoster
+  const candidateUrls = React.useMemo(() => getLocalDriverPosterCandidates(name), [name])
 
   const [attemptIndex, setAttemptIndex] = useState<number>(0)
 
@@ -89,12 +33,10 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
     '2xl': 'w-36 h-36 text-xl',
   }
 
-  const getInitials = (driverName: string) => {
-    if (!driverName) return 'F1'
-    const parts = driverName.trim().split(/\s+/)
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
+  // Reseta índice de tentativa quando o piloto mudar
+  React.useEffect(() => {
+    setAttemptIndex(0)
+  }, [name])
 
   const handleError = () => {
     setAttemptIndex((prev) => prev + 1)

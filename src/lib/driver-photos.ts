@@ -182,14 +182,14 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
   {
     filename: '30-Lian_Lawson.png',
     normalizedKey: 'lawson',
-    surnameVariants: ['lawson', 'liam lawson', 'lian lawson'],
+    surnameVariants: ['lawson', 'liam lawson', 'lian lawson', '30-liam lawson'],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AHJdt-Agv0wy7SLboUAbtOU/30-Lian_Lawson.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
   {
-    filename: '31-Arvid_Lindblad.png',
+    filename: '30-Arvid_Lindblad.jpg',
     normalizedKey: 'lindblad',
-    surnameVariants: ['lindblad', 'arvid lindblad'],
+    surnameVariants: ['lindblad', 'arvid lindblad', '30-arvid lindblad', '31-arvid lindblad'],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AOUhlzWLT-o1zfq04WM92wc/31-Arvid_Lindblad.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -243,7 +243,7 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AIBFlEZ44c7RKc-IAsl_q-A/63-George_Russel.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
   {
-    filename: '77-Walteri_Botas.png',
+    filename: '77-Walteri_Botas.jpg',
     normalizedKey: 'bottas',
     surnameVariants: ['bottas', 'botas', 'valtteri bottas', 'walteri botas', 'valteri bottas'],
     dropboxUrl:
@@ -363,29 +363,57 @@ export function getDriverPhotoSources(driverName?: string): {
   // Suporte a caminhos locais canônicos: /pilotos/{key}.png ou /pilotos/{filename}
   const localCandidates = [
     matched?.bundledImg,
+    // Formato canônico numerado com filename registrado
+    matched?.filename ? `/pilotos/${matched.filename}` : null,
+    // Variação de extensão do filename registrado (.jpg <-> .png <-> .webp)
+    matched?.filename && matched.filename.endsWith('.png')
+      ? `/pilotos/${matched.filename.replace('.png', '.jpg')}`
+      : null,
+    matched?.filename && matched.filename.endsWith('.jpg')
+      ? `/pilotos/${matched.filename.replace('.jpg', '.png')}`
+      : null,
+    matched?.filename
+      ? `/pilotos/${matched.filename.replace(/\.(png|jpg|jpeg)$/i, '.webp')}`
+      : null,
     // Formato com nome completo e underscore
     normFullName ? `/pilotos/${normFullName.replace(/\s+/g, '_')}.png` : null,
+    normFullName ? `/pilotos/${normFullName.replace(/\s+/g, '_')}.jpg` : null,
+    normFullName ? `/pilotos/${normFullName.replace(/\s+/g, '_')}.webp` : null,
     // Formato com chave de sobrenome
     `/pilotos/${key}.png`,
-    // Formato com filename registrado
-    matched?.filename ? `/pilotos/${matched.filename}` : null,
+    `/pilotos/${key}.jpg`,
+    `/pilotos/${key}.webp`,
     // Variações com nomes originais de pôster e extensões
+    key === 'lindblad' ? '/pilotos/30-Arvid_Lindblad.jpg' : null,
+    key === 'lindblad' ? '/pilotos/30-Arvid_Lindblad.png' : null,
+    key === 'lindblad' ? '/pilotos/31-Arvid_Lindblad.png' : null,
+    key === 'lindblad' ? '/pilotos/31-Arvid_Lindblad.jpg' : null,
+    key === 'bottas' ? '/pilotos/77-Walteri_Botas.jpg' : null,
+    key === 'bottas' ? '/pilotos/77-Walteri_Botas.png' : null,
+    key === 'bottas' ? '/pilotos/77-Valtteri_Bottas.jpg' : null,
+    key === 'bottas' ? '/pilotos/77-Valtteri_Bottas.png' : null,
+    key === 'chastain' ? '/pilotos/1-Ross_Chastain.jpg' : null,
+    key === 'chastain' ? '/pilotos/1-Ross_Chastain.png' : null,
     key === 'chastain' ? '/pilotos/1-Ross_Chastain-91a77.jpg' : null,
     key === 'chastain' ? '/pilotos/ross_chastain.jpg' : null,
     key === 'chastain' ? '/pilotos/ross_chastain.png' : null,
+    key === 'beganovic' ? '/pilotos/1-Dino_Beganovic.jpg' : null,
+    key === 'beganovic' ? '/pilotos/1-Dino_Beganovic.png' : null,
     key === 'beganovic' ? '/pilotos/1-Dino_Beganovic-83aea.jpg' : null,
     key === 'beganovic' ? '/pilotos/dino_beganovic.jpg' : null,
     key === 'beganovic' ? '/pilotos/dino_beganovic.png' : null,
-    key === 'camara' ? '/pilotos/1-Rafael_Camara-b1a66.png' : null,
     key === 'camara' ? '/pilotos/1-Rafael_Camara.png' : null,
+    key === 'camara' ? '/pilotos/1-Rafael_Camara.jpg' : null,
+    key === 'camara' ? '/pilotos/1-Rafael_Camara-b1a66.png' : null,
     key === 'camara' ? '/pilotos/rafael_camara.png' : null,
     key === 'camara' ? '/pilotos/rafael_camara.jpg' : null,
     // Variações de Bortoleto se aplicável
+    key === 'bortoleto' ? '/pilotos/5-Gabriel_Bortoleto.png' : null,
+    key === 'bortoleto' ? '/pilotos/5-Gabriel_Bortoleto.jpg' : null,
+    key === 'bortoleto' ? '/pilotos/05-Gabriel_Bortoleto.png' : null,
     key === 'bortoleto' ? '/pilotos/gabriel_bortoleto.png' : null,
     key === 'bortoleto' ? '/pilotos/bortoleto.png' : null,
     key === 'bortoleto' ? '/pilotos/bortoletto.png' : null,
-    key === 'bortoleto' ? '/pilotos/5-Gabriel_Bortoleto.png' : null,
-    key === 'bortoleto' ? '/pilotos/05-Gabriel_Bortoleto.png' : null,
   ].filter(Boolean) as string[]
 
   return {
