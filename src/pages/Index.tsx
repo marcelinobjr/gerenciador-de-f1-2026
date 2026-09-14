@@ -213,10 +213,10 @@ export default function IndexPage() {
   // Imagem do carro do Hero
   const heroCarImage = useMemo(() => {
     if (team?.hero_car_model) {
-      const modelId = team.hero_car_model.toLowerCase()
+      const modelId = (team.hero_car_model || '').toLowerCase()
       const localCustom = `/carros/${modelId}.png`
       const modelMatch = CAR_MODEL_ASSETS.find(
-        (m) => m.id.toLowerCase() === modelId || m.id === team.hero_car_model,
+        (m) => (m.id || '').toLowerCase() === modelId || m.id === team.hero_car_model,
       )
       if (modelMatch) return localCustom || modelMatch.dropboxUrl
       return `/carros/${team.hero_car_model}.png`
@@ -536,15 +536,15 @@ export default function IndexPage() {
       ]
     }
     return events.slice(0, 4).map((ev) => {
-      const createdTime = new Date(ev.created).getTime()
+      const createdTime = new Date(ev?.created || Date.now()).getTime()
       const diffHours = Math.max(1, Math.floor((Date.now() - createdTime) / 3600000))
       const timeAgo =
         diffHours < 24 ? `Há ${diffHours} horas` : `Há ${Math.floor(diffHours / 24)} dias`
 
       return {
-        id: ev.id,
-        title: ev.message || 'Atualização oficial do paddock',
-        category: ev.type?.toUpperCase() || 'PADDOCK',
+        id: ev?.id,
+        title: ev?.message || 'Atualização oficial do paddock',
+        category: (ev?.type || '').toUpperCase() || 'PADDOCK',
         timeAgo,
       }
     })
@@ -552,10 +552,11 @@ export default function IndexPage() {
 
   // Checklist de Próximas Ações
   const pendingActionsList = useMemo(() => {
+    const gpName = currentGP?.name || ''
     return [
       {
         id: 'action-setup',
-        title: `Revisar estratégia para o GP do ${currentGP.name.replace('GP do ', '').replace('GP da ', '')}`,
+        title: `Revisar estratégia para o GP do ${gpName.replace('GP do ', '').replace('GP da ', '')}`,
         deadline: 'Hoje',
       },
       {
@@ -579,7 +580,7 @@ export default function IndexPage() {
         deadline: '3 dias',
       },
     ]
-  }, [currentGP.name])
+  }, [currentGP?.name])
 
   const handleToggleAction = (id: string) => {
     setCheckedActions((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -693,15 +694,17 @@ export default function IndexPage() {
             <div className="mt-2 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xl shrink-0">{currentGP.flag}</span>
+                  <span className="text-xl shrink-0">{currentGP?.flag || '🏁'}</span>
                   <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate">
-                    {currentGP.name
+                    {(currentGP?.name || 'GP')
                       .replace('Grande Prêmio', 'GP')
                       .replace('GP do ', '')
                       .replace('GP da ', '')}
                   </h3>
                 </div>
-                <p className="text-[11px] font-mono text-[#8B95A7] truncate">{currentGP.circuit}</p>
+                <p className="text-[11px] font-mono text-[#8B95A7] truncate">
+                  {currentGP?.circuit || ''}
+                </p>
               </div>
 
               {/* Traçado vetorial em miniatura */}
@@ -965,14 +968,15 @@ export default function IndexPage() {
             {/* Mini Tabela Top 5 */}
             <div className="mt-2 space-y-1 font-mono text-xs">
               {standingsTab === 'construtores'
-                ? topConstructors.map((c, i) => {
+                ? topConstructors.map((c: any, i: number) => {
+                    const cName = c?.teamName || c?.name || ''
                     const isUser =
-                      c.teamName.toLowerCase().includes('audi') ||
-                      c.teamName === team?.name ||
-                      c.position === constructorPosition
+                      (cName || '').toLowerCase().includes('audi') ||
+                      (team?.name && cName === team.name) ||
+                      c?.position === constructorPosition
                     return (
                       <div
-                        key={c.teamName || i}
+                        key={cName || c?.id || i}
                         className={`flex items-center justify-between py-1 px-2 rounded ${
                           isUser
                             ? 'bg-[#E10600]/20 border border-[#E10600]/40 text-white font-bold'
@@ -981,28 +985,31 @@ export default function IndexPage() {
                       >
                         <div className="flex items-center gap-2 truncate">
                           <span className="text-[#8B95A7] w-3 text-center text-[11px]">
-                            {c.position || i + 1}
+                            {c?.position || i + 1}
                           </span>
-                          <span className="truncate text-[11px]">{c.teamName}</span>
+                          <span className="truncate text-[11px]">{cName}</span>
                         </div>
-                        <span className="text-white font-bold text-[11px]">{c.points}</span>
+                        <span className="text-white font-bold text-[11px]">{c?.points ?? 0}</span>
                       </div>
                     )
                   })
-                : topDrivers.map((d, i) => (
-                    <div
-                      key={d.driverName || i}
-                      className="flex items-center justify-between py-1 px-2 rounded text-[#CBD5E1]"
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="text-[#8B95A7] w-3 text-center text-[11px]">
-                          {d.position || i + 1}
-                        </span>
-                        <span className="truncate text-[11px]">{d.driverName}</span>
+                : topDrivers.map((d: any, i: number) => {
+                    const dName = d?.driverName || d?.name || ''
+                    return (
+                      <div
+                        key={dName || d?.id || i}
+                        className="flex items-center justify-between py-1 px-2 rounded text-[#CBD5E1]"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-[#8B95A7] w-3 text-center text-[11px]">
+                            {d?.position || i + 1}
+                          </span>
+                          <span className="truncate text-[11px]">{dName}</span>
+                        </div>
+                        <span className="text-white font-bold text-[11px]">{d?.points ?? 0}</span>
                       </div>
-                      <span className="text-white font-bold text-[11px]">{d.points}</span>
-                    </div>
-                  ))}
+                    )
+                  })}
             </div>
           </div>
 
@@ -1466,7 +1473,7 @@ export default function IndexPage() {
               <div className="grid grid-cols-5 gap-2">
                 {CAR_MODEL_ASSETS.map((asset) => {
                   const isSelected = editHeroCarModel === asset.id
-                  const localModelPath = `/carros/${asset.id.toLowerCase()}.png`
+                  const localModelPath = `/carros/${(asset?.id || '').toLowerCase()}.png`
                   return (
                     <button
                       key={asset.id}
