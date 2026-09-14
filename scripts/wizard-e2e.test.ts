@@ -5,9 +5,20 @@ import { BASE_MANAGER_ATTRIBUTES } from '@/lib/manager-profiles'
 describe('Wizard E2E create and delete verification on teams collection', () => {
   it('creates a team record with the exact wizard payload and deletes it cleanly', async () => {
     // 1. Autenticar com o usuário padrão caso não esteja autenticado
-    if (!pb.authStore.isValid) {
-      await pb.collection('users').authWithPassword('m.blasques@multi.br.com', 'Skip@Pass')
-    }
+    const envUrl = import.meta.env.VITE_POCKETBASE_URL
+    console.log('VITE_POCKETBASE_URL:', envUrl)
+    expect(envUrl).toBeDefined()
+    expect(envUrl).not.toBe('')
+
+    const authData = await pb
+      .collection('users')
+      .authWithPassword('m.blasques@multi.br.com', 'Skip@Pass')
+    console.log(
+      'Autenticado com sucesso! Token presente:',
+      !!authData.token,
+      'User ID:',
+      authData.record?.id,
+    )
 
     expect(pb.authStore.isValid).toBe(true)
     const currentUserId = pb.authStore.record?.id || 'jxe5h74yat69x3x'
@@ -70,8 +81,8 @@ describe('Wizard E2E create and delete verification on teams collection', () => 
       },
     ]
 
-    const testPayload = {
-      name: 'Audi F1 Test',
+    const exactUserPayload = {
+      name: 'Audi F1 Team',
       color: '#FF2A00',
       chassis_level: 47,
       aero_level: 47,
@@ -82,15 +93,15 @@ describe('Wizard E2E create and delete verification on teams collection', () => 
       is_custom: false,
       team_key: 'audi',
       user_id: currentUserId,
-      manager_name: 'Teste',
+      manager_name: 'Marcelino Blasques',
       manager_profile: {
         profileId: 'engenheiro',
         title: 'O Engenheiro',
         archetype: 'Engenheiro',
         specialty: 'Tecnologia',
         style: 'Técnico, metódico, desenvolvimento',
-        nationality: 'Alemanha',
-        age: 45,
+        nationality: 'Brasil 🇧🇷',
+        age: 50,
         avatarUrl:
           'https://www.dropbox.com/scl/fo/us1odvwyg5fika5v93cp2/AIlU1g5tLGEU4Fm-HM3McVc/03-Engenheiro.png?rlkey=g7j5jucdc3rhdvv7211cfsuu1&dl=1',
         bonuses: [
@@ -102,7 +113,7 @@ describe('Wizard E2E create and delete verification on teams collection', () => 
         baseAttributes: BASE_MANAGER_ATTRIBUTES,
       },
       career_settings: {
-        aiDifficulty: 'easy',
+        aiDifficulty: 'normal',
         eventFrequency: 'normal',
         marketBehavior: 'dynamic',
         devSpeed: 'normal',
@@ -113,23 +124,25 @@ describe('Wizard E2E create and delete verification on teams collection', () => 
       universe_type: 'custom_championship',
     }
 
+    const testPayload = exactUserPayload
+
     // 3. Executar o create
     let createdRecord: any = null
     try {
+      console.log('Tentando criar registro com testPayload...')
       createdRecord = await pb.collection('teams').create(testPayload)
+      console.log('Sucesso na criação:', createdRecord?.id)
     } catch (err: any) {
-      console.error(
-        'Falha no POST /api/collections/teams/records:',
-        JSON.stringify(err?.response || err),
+      throw new Error(
+        `PB_FAIL: status=${err?.status} data=${JSON.stringify(err?.data)} resp=${JSON.stringify(err?.response)}`,
       )
-      throw err
     }
 
     expect(createdRecord).toBeDefined()
     expect(createdRecord.id).toBeTruthy()
-    expect(createdRecord.name).toBe('Audi F1 Test')
+    expect(createdRecord.name).toBe('Audi F1 Team')
     expect(createdRecord.engine_supplier).toBe('Audi')
-    expect(createdRecord.manager_name).toBe('Teste')
+    expect(createdRecord.manager_name).toBe('Marcelino Blasques')
     expect(createdRecord.universe_type).toBe('custom_championship')
 
     // 4. Limpar o registro de teste imediatamente (DELETE)
