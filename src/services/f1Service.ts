@@ -104,8 +104,10 @@ export const f1Service = {
   // Teams
   async getPlayerTeam(userId: string): Promise<TeamModel | null> {
     try {
+      if (!userId) return null
+      const safeUserId = userId.replace(/"/g, '')
       const records = await pb.collection('teams').getList<TeamModel>(1, 1, {
-        filter: `user_id = "${userId}"`,
+        filter: `user_id = "${safeUserId}"`,
       })
       return records.items[0] || null
     } catch (e) {
@@ -151,8 +153,10 @@ export const f1Service = {
   // Seasons
   async getSeasonByTeam(teamId: string): Promise<SeasonModel | null> {
     try {
+      if (!teamId) return null
+      const safeTeamId = teamId.replace(/"/g, '')
       const records = await pb.collection('seasons').getList<SeasonModel>(1, 1, {
-        filter: `team_id = "${teamId}"`,
+        filter: `team_id = "${safeTeamId}"`,
       })
       return records.items[0] || null
     } catch (e) {
@@ -2209,7 +2213,7 @@ export const f1Service = {
           if (sortedTeams.length > 0) {
             const topTeam = sortedTeams[0]
             const topTeamDrivers = await pb.collection('drivers').getFullList<DriverModel>({
-              filter: `team_id='${topTeam.id}' && role='titular'`,
+              filter: `team_id = "${topTeam.id}" && role = "titular"`,
               sort: '-speed',
             })
             if (topTeamDrivers.length > 0) {
@@ -2263,7 +2267,7 @@ export const f1Service = {
       // 5. RENEGOCIAÇÃO DE PATROCÍNIOS DA EQUIPE PARA A NOVA TEMPORADA
       try {
         const teamSponsors = await pb.collection('sponsors').getFullList<SponsorModel>({
-          filter: `team_id='${teamId}'`,
+          filter: `team_id = "${teamId}"`,
         })
         const { multiplier, explanation } = this.calculateSponsorMultiplier({
           constructorPos: playerFinalConstructorRank,
@@ -2349,7 +2353,7 @@ export const f1Service = {
 
       try {
         const teamParts = await pb.collection('parts').getFullList<PartModel>({
-          filter: `team_id='${teamId}'`,
+          filter: `team_id = "${teamId}"`,
         })
         for (const p of teamParts) {
           await pb.collection('parts').update(p.id, {

@@ -91,16 +91,23 @@ export function WeekendHeader({
   }
 
   return (
-    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#1A2333]">
+    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#1F2733] bg-[#090D15]/80 backdrop-blur-md p-4 rounded-xl border">
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <Badge variant="outline" className={`font-mono text-xs ${getSessionBadgeColor()}`}>
+          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+            FIA F1 WORLD CHAMPIONSHIP // RACE OPERATIONS
+          </span>
+          <Badge
+            variant="outline"
+            className={`font-mono text-[10px] font-bold ${getSessionBadgeColor()}`}
+          >
             {getSessionLabel()}
           </Badge>
           <span className="text-xs font-mono text-[#8B95A7]">Etapa {currentRound} de 24</span>
         </div>
         <PageHeader
           title={gpInfo.name}
+          eyebrow="FIM DE SEMANA DE GP"
           description={`Fim de semana oficial da Fórmula 1 em ${gpInfo.circuit}`}
         />
       </div>

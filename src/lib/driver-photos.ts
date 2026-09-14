@@ -12,9 +12,29 @@ export interface DriverPhotoInfo {
 
 export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
   {
-    filename: '1-Rafael_Camara.png',
+    filename: '1-Ross_Chastain-91a77.jpg',
+    normalizedKey: 'chastain',
+    surnameVariants: ['chastain', 'ross chastain', 'r. chastain', 'ross_chastain'],
+    dropboxUrl: '',
+  },
+  {
+    filename: '1-Dino_Beganovic-83aea.jpg',
+    normalizedKey: 'beganovic',
+    surnameVariants: ['beganovic', 'dino beganovic', 'd. beganovic', 'dino_beganovic'],
+    dropboxUrl: '',
+  },
+  {
+    filename: '1-Rafael_Camara-b1a66.png',
     normalizedKey: 'camara',
-    surnameVariants: ['camara', 'câmara', 'rafael camara', 'rafael câmara'],
+    surnameVariants: [
+      'camara',
+      'câmara',
+      'rafael camara',
+      'rafael câmara',
+      'r. camara',
+      'r. câmara',
+      'rafael_camara',
+    ],
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AFglSRVgTsz2f6TmpfB2t64/1-Rafael_Camara.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -332,6 +352,10 @@ export function getDriverPhotoSources(driverName?: string): {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'antonelli')
     } else if (normFullName.includes('camara') || normFullName.includes('câmara')) {
       matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'camara')
+    } else if (normFullName.includes('chastain') || normFullName.includes('ross')) {
+      matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'chastain')
+    } else if (normFullName.includes('beganovic') || normFullName.includes('dino')) {
+      matched = DRIVER_PHOTOS.find((p) => p.normalizedKey === 'beganovic')
     }
   }
 
@@ -345,6 +369,17 @@ export function getDriverPhotoSources(driverName?: string): {
     `/pilotos/${key}.png`,
     // Formato com filename registrado
     matched?.filename ? `/pilotos/${matched.filename}` : null,
+    // Variações com nomes originais de pôster e extensões
+    key === 'chastain' ? '/pilotos/1-Ross_Chastain-91a77.jpg' : null,
+    key === 'chastain' ? '/pilotos/ross_chastain.jpg' : null,
+    key === 'chastain' ? '/pilotos/ross_chastain.png' : null,
+    key === 'beganovic' ? '/pilotos/1-Dino_Beganovic-83aea.jpg' : null,
+    key === 'beganovic' ? '/pilotos/dino_beganovic.jpg' : null,
+    key === 'beganovic' ? '/pilotos/dino_beganovic.png' : null,
+    key === 'camara' ? '/pilotos/1-Rafael_Camara-b1a66.png' : null,
+    key === 'camara' ? '/pilotos/1-Rafael_Camara.png' : null,
+    key === 'camara' ? '/pilotos/rafael_camara.png' : null,
+    key === 'camara' ? '/pilotos/rafael_camara.jpg' : null,
     // Variações de Bortoleto se aplicável
     key === 'bortoleto' ? '/pilotos/gabriel_bortoleto.png' : null,
     key === 'bortoleto' ? '/pilotos/bortoleto.png' : null,

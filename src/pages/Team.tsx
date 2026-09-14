@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Slider } from '@/components/ui/slider'
 import { DriverHelmet } from '@/components/DriverHelmet'
+import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { PageHeader } from '@/components/PageHeader'
 import { ProgressBar } from '@/components/ProgressBar'
@@ -570,10 +571,20 @@ export default function TeamPage() {
                         : 'border-[#1F2733] hover:border-[#1F2733]/80'
                     }`}
                   >
-                    {/* Driver Header */}
+                    {/* Driver Header com Foto Real do Piloto + Capacete */}
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <DriverHelmet driver={driver} teamColor={team?.color} size="md" />
+                        <div className="relative shrink-0">
+                          <DriverPhotoAvatar
+                            name={driver.name}
+                            teamColor={team?.color || '#E10600'}
+                            size="lg"
+                            className="border-2 border-[#1F2733]"
+                          />
+                          <div className="absolute -bottom-1 -right-1">
+                            <DriverHelmet driver={driver} teamColor={team?.color} size="sm" />
+                          </div>
+                        </div>
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-bold text-base text-[#F5F7FA]">{driver.name}</h3>
@@ -582,7 +593,7 @@ export default function TeamPage() {
                             </span>
                           </div>
                           <p className="text-xs font-mono text-[#8B95A7]">
-                            {driver.age} anos • Fim de Contrato:{' '}
+                            {driver.age} anos • Contrato até:{' '}
                             <strong className="text-[#F5F7FA]">{driver.contract_end}</strong>
                           </p>
                         </div>
@@ -768,7 +779,17 @@ export default function TeamPage() {
             <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <DriverHelmet driver={reserveDriver} teamColor={team?.color} size="md" />
+                  <div className="relative shrink-0">
+                    <DriverPhotoAvatar
+                      name={reserveDriver.name}
+                      teamColor={team?.color || '#D97706'}
+                      size="lg"
+                      className="border-2 border-[#1F2733]"
+                    />
+                    <div className="absolute -bottom-1 -right-1">
+                      <DriverHelmet driver={reserveDriver} teamColor={team?.color} size="sm" />
+                    </div>
+                  </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-base text-[#F5F7FA]">{reserveDriver.name}</h3>

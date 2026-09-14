@@ -51,6 +51,14 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
     if (sources.filename) {
       const namedFile = `/pilotos/${sources.filename}`
       if (!list.includes(namedFile)) list.push(namedFile)
+      // Variações com/sem hash e extensões
+      if (sources.filename.endsWith('.jpg')) {
+        const pngAlt = `/pilotos/${sources.filename.replace('.jpg', '.png')}`
+        if (!list.includes(pngAlt)) list.push(pngAlt)
+      } else if (sources.filename.endsWith('.png')) {
+        const jpgAlt = `/pilotos/${sources.filename.replace('.png', '.jpg')}`
+        if (!list.includes(jpgAlt)) list.push(jpgAlt)
+      }
     }
     if (sources.normalizedKey === 'bortoleto') {
       const variants = [

@@ -80,15 +80,18 @@ export const IMAGEM_CARRO_PADRAO_FALLBACK: string = defaultWhiteCarFallback
  */
 export function getCarroPorEquipeImage(teamKey?: string | null, isCustom?: boolean): string {
   if (isCustom) {
-    return IMAGEM_CARRO_CUSTOM || IMAGEM_CARRO_PADRAO_FALLBACK
+    return '/carros/custom.png' || IMAGEM_CARRO_CUSTOM || IMAGEM_CARRO_PADRAO_FALLBACK
   }
 
   if (teamKey) {
     const normalizedKey = teamKey.toLowerCase().replace(/[-_]/g, '') as OfficialTeamKey
+    // 1. Checa se há imagem mapeada no bundle
     const specificImage = CARRO_POR_EQUIPE_MAP[normalizedKey]
     if (specificImage) {
       return specificImage
     }
+    // 2. Fallback para caminho público se equipe existir em /equipes/{key}.png ou /carros/{key}.png
+    return `/equipes/${normalizedKey}.png`
   }
 
   return IMAGEM_CARRO_PADRAO_FALLBACK

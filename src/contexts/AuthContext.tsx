@@ -14,8 +14,8 @@ interface AuthContextType {
   careerPhase: CareerPhase
   refreshTeamAndSeason: () => Promise<void>
   resetGame: () => Promise<void>
-  login: (email: string, pass: string) => Promise<void>
-  register: (name: string, email: string, pass: string) => Promise<void>
+  login: (email: string, pass: string) => Promise<TeamModel | null>
+  register: (name: string, email: string, pass: string) => Promise<TeamModel | null>
   logout: () => void
   ensureValidSession: () => Promise<boolean>
 }
@@ -28,20 +28,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [season, setSeason] = useState<SeasonModel | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const loadUserData = async (currentUserId: string) => {
+  const loadUserData = async (currentUserId: string): Promise<TeamModel | null> => {
+    let resolvedTeam: TeamModel | null = null
     try {
-      const playerTeam = await f1Service.getPlayerTeam(currentUserId)
-      setTeam(playerTeam)
+      resolvedTeam = await f1Service.getPlayerTeam(currentUserId)
+      setTeam(resolvedTeam)
 
-      if (playerTeam) {
-        const playerSeason = await f1Service.getSeasonByTeam(playerTeam.id)
-        setSeason(playerSeason)
+      if (resolvedTeam) {
+        try {
+          const playerSeason = await f1Service.getSeasonByTeam(resolvedTeam.id)
+          setSeason(playerSeason)
+        } catch (seasonErr) {
+          console.warn('[AuthProvider] Falha não impeditiva ao consultar temporada:', seasonErr)
+          setSeason(null)
+        }
       } else {
         setSeason(null)
       }
     } catch (e) {
-      console.error('Error loading team and season:', e)
+      console.error('[AuthProvider] Erro ao carregar dados do usuário:', e)
+      setTeam(null)
+      setSeason(null)
     }
+    return resolvedTeam
   }
 
   const refreshTeamAndSeason = async () => {
@@ -103,20 +112,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     careerPhase = 'career'
   }
 
-  const login = async (email: string, pass: string) => {
+  const login = async (email: string, pass: string): Promise<TeamModel | null> => {
     const authData = await pb.collection('users').authWithPassword(email, pass)
     setUser(authData.record)
-    await loadUserData(authData.record.id)
+    setIsLoading(false)
+    let teamResult: TeamModel | null = null
+    if (authData.record?.id) {
+      teamResult = await loadUserData(authData.record.id)
+    }
+    return teamResult
   }
 
-  const register = async (name: string, email: string, pass: string) => {
+  const register = async (name: string, email: string, pass: string): Promise<TeamModel | null> => {
     await pb.collection('users').create({
       name,
       email,
       password: pass,
       passwordConfirm: pass,
     })
-    await login(email, pass)
+    return await login(email, pass)
   }
 
   const resetGame = async () => {

@@ -89,8 +89,14 @@ export default function AuthPage() {
 
     setIsSubmitting(true)
     try {
-      await login(email, password)
-      // O careerPhase reativo cuidará da transição para '/' ou '/lobby'
+      const activeTeam = await login(email, password)
+      // Navegação direta e imediata após login bem-sucedido:
+      // se tem carreira ativa vai para Central (/), se não tem vai para Lobby (/lobby)
+      if (activeTeam) {
+        navigate('/', { replace: true })
+      } else {
+        navigate('/lobby', { replace: true })
+      }
     } catch (err: any) {
       console.error(err)
       setGeneralError(err?.message || 'Falha ao autenticar. Verifique o email e senha.')
@@ -110,8 +116,12 @@ export default function AuthPage() {
 
     setIsSubmitting(true)
     try {
-      await register(name, email, password)
-      // O careerPhase reativo cuidará da transição para '/' ou '/lobby'
+      const activeTeam = await register(name, email, password)
+      if (activeTeam) {
+        navigate('/', { replace: true })
+      } else {
+        navigate('/lobby', { replace: true })
+      }
     } catch (err: any) {
       console.error(err)
       setGeneralError(err?.message || 'Falha ao criar conta. Tente outro email.')
