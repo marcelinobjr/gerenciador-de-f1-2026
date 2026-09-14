@@ -44,7 +44,14 @@ export function WizardStepper({ currentStep, onStepClick, canNavigateTo }: Wizar
             const IconComponent = step.icon
 
             return (
-              <React.Fragment key={step.id}>
+              <div
+                key={step.id}
+                className={
+                  index < STEPS.length - 1
+                    ? 'flex items-center flex-1 last:flex-initial'
+                    : 'flex items-center'
+                }
+              >
                 {/* Step button */}
                 <button
                   type="button"
@@ -98,7 +105,7 @@ export function WizardStepper({ currentStep, onStepClick, canNavigateTo }: Wizar
                     }`}
                   />
                 )}
-              </React.Fragment>
+              </div>
             )
           })}
         </nav>

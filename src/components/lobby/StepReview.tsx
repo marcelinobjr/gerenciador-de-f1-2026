@@ -278,9 +278,9 @@ export function StepReview({
           className="w-full sm:w-auto bg-[#E10600] hover:bg-[#FF2E25] text-white font-extrabold text-sm h-12 px-8 shadow-xl shadow-[#E10600]/30 shrink-0 uppercase tracking-wider"
         >
           {isSubmitting ? (
-            <>
+            <span className="inline-flex items-center">
               <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Homologando Carreira...
-            </>
+            </span>
           ) : (
             'COMEÇAR CARREIRA'
           )}
