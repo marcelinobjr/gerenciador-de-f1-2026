@@ -42,9 +42,19 @@ const PILOT_FILE_MAP: Record<string, string[]> = {
   leclerc: ['16-Charles_Leclerc.png', '16-Charles_Leclerc.jpg'],
   stroll: ['18-Lance_Stroll.png', '18-Lance_Stroll.jpg'],
   tsunoda: ['22-Yuki_Tsunoda.png', '22-Yuki_Tsunoda.jpg'],
-  albon: ['23-Alex_Albon.png', '23-Alex_Albon.jpg'],
+  albon: [
+    '23-Alex_Albon.png',
+    '23-Alex_Albon.jpg',
+    '23-Alexander_Albon.png',
+    '23-Alexander_Albon.jpg',
+  ],
   herta: ['26-Colton_Herta.png', '26-Colton_Herta.jpg'],
-  hulkenberg: ['27-Nico_Hulkenberg.png', '27-Nico_Hulkenberg.jpg'],
+  hulkenberg: [
+    '27-Nico_Hulkenberg.png',
+    '27-Nico_Hulkenberg.jpg',
+    '27-Nico_Hülkenberg.png',
+    '27-Nico_Hülkenberg.jpg',
+  ],
   lawson: ['30-Lian_Lawson.png', '30-Lian_Lawson.jpg', '30-Liam_Lawson.png', '30-Liam_Lawson.jpg'],
   lindblad: [
     '30-Arvid_Lindblad.jpg',
@@ -77,7 +87,12 @@ const PILOT_FILE_MAP: Record<string, string[]> = {
     '77-Walteri_Botas-77a8b.jpg',
   ],
   piastri: ['81-Oscar_Piastri.png', '81-Oscar_Piastri.jpg'],
-  bearman: ['87-Olivier_Bearman.png', '87-Olivier_Bearman.jpg', '87-Oliver_Bearman.png'],
+  bearman: [
+    '87-Olivier_Bearman.png',
+    '87-Olivier_Bearman.jpg',
+    '87-Oliver_Bearman.png',
+    '87-Oliver_Bearman.jpg',
+  ],
   camara: [
     '1-Rafael_Camara.png',
     '1-Rafael_Camara.jpg',

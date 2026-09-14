@@ -383,6 +383,9 @@ export function getDriverPhotoSources(driverName?: string): {
     `/pilotos/${key}.png`,
     `/pilotos/${key}.jpg`,
     `/pilotos/${key}.webp`,
+    // Formato com chave de sobrenome maiúsculo/capitalizado
+    `/pilotos/${key.charAt(0).toUpperCase() + key.slice(1)}.png`,
+    `/pilotos/${key.charAt(0).toUpperCase() + key.slice(1)}.jpg`,
     // Variações com nomes originais de pôster e extensões
     key === 'colapinto' ? '/pilotos/43-Franco_Colapinto.png' : null,
     key === 'colapinto' ? '/pilotos/43-Franco_Colapinto.jpg' : null,
