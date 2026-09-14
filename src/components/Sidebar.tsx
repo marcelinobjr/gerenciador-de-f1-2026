@@ -92,12 +92,8 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
       },
       {
         name: 'Infraestrutura',
-        path: '/car',
+        path: '/infraestrutura',
         icon: Building2,
-        isNotice: true,
-        noticeTitle: 'Infraestrutura da Fábrica',
-        noticeDesc:
-          'Expansão das instalações de Hinwil/Neuburg, simulador de pilotos, centro de testes de pit stop e academia de jovens talentos.',
       },
       { name: 'Comercial & Finanças', path: '/sponsors', icon: DollarSign },
     ],
@@ -121,6 +117,7 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/team': 'Equipe',
   '/pilotos': 'Pilotos da Temporada',
   '/car': 'Carro e Peças',
+  '/infraestrutura': 'Infraestrutura & Instalações',
   '/sponsors': 'Comercial & Finanças',
   '/race': 'Fim de Semana',
   '/calendario': 'Calendário Oficial',
@@ -399,7 +396,7 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Modal Informativo para Desenvolvimento & Infraestrutura */}
+      {/* Modal Informativo para Desenvolvimento (mantido conforme requisito) */}
       <Dialog
         open={noticeModal.open}
         onOpenChange={(open) => setNoticeModal((prev) => ({ ...prev, open }))}
@@ -419,9 +416,9 @@ export function Sidebar({
           <div className="p-3 rounded-lg bg-[#141B26] border border-[#1F2733] flex items-start gap-2.5 text-xs text-[#CBD5E1]">
             <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <p>
-              Por enquanto, você pode evoluir 6 peças vitais do monoposto (Asa dianteira, traseira,
-              chassi, assoalho, suspensão e aero ativa) diretamente no módulo{' '}
-              <strong>Carro e Peças</strong>.
+              O fluxo de pesquisa & desenvolvimento de novos pacotes aerodinâmicos e melhorias
+              estruturais é conduzido na tela <strong>Carro e Peças</strong>, agora potencializado
+              pelo nível da sua <strong>Fábrica & CFD</strong>.
             </p>
           </div>
         </DialogContent>

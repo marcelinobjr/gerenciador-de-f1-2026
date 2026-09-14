@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T12:51:28.274Z",
+  "generatedAt": "2026-09-14T13:42:19.731Z",
   "collections": [
     {
       "name": "users",
@@ -242,6 +242,30 @@
         {
           "name": "hero_car_model",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "factory_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "simulator_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pitstop_center_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "youth_academy_level",
+          "type": "number",
           "required": false,
           "system": false
         }

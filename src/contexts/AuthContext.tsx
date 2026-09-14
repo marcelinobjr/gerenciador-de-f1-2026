@@ -3,6 +3,7 @@ import pb from '@/lib/pocketbase/client'
 import { RecordModel } from 'pocketbase'
 import { f1Service } from '@/services/f1Service'
 import { TeamModel, SeasonModel } from '@/types/f1'
+import { setActivePlayerPitstopCenterLevel } from '@/lib/f1-tire-system'
 
 export type CareerPhase = 'loading' | 'auth' | 'lobby' | 'career'
 
@@ -33,6 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       resolvedTeam = await f1Service.getPlayerTeam(currentUserId)
       setTeam(resolvedTeam)
+      if (resolvedTeam?.pitstop_center_level) {
+        setActivePlayerPitstopCenterLevel(resolvedTeam.pitstop_center_level)
+      }
 
       if (resolvedTeam) {
         try {

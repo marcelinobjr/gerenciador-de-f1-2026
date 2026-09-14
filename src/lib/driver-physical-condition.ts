@@ -25,6 +25,7 @@ export interface CalculateDriverPhysicalCostParams {
   weather?: 'seco' | 'chuva_fraca' | 'chuva_forte' | string
   isDemandingCircuit?: boolean
   isAggressivePace?: boolean
+  simulatorLevel?: number // Nível 1 a 5 do Simulador Dinâmico da equipe
 }
 
 export interface DriverPhysicalCostResult {
@@ -63,8 +64,12 @@ export function calculateDriverPhysicalCost(
   // 4. Circuito fisicamente exigente: +2%
   const circuitMod = params.isDemandingCircuit ? 2.0 : 0.0
 
+  // 5. Bônus conservador do Simulador da equipe: atenua fadiga em 0.5% por nível acima do Nível 1 (até -2%)
+  const simLevel = params.simulatorLevel ?? 3
+  const simDiscount = Math.max(0, (simLevel - 1) * 0.5)
+
   // Total raw antes de clampar
-  const rawCost = baseCost + heatExtra + rainMod + paceMod + circuitMod
+  const rawCost = baseCost + heatExtra + rainMod + paceMod + circuitMod - simDiscount
 
   // Clampar entre 4 e 10 (alvo normal 4-8%)
   const finalCost = Math.max(3, Math.min(10, Math.round(rawCost)))
@@ -84,6 +89,9 @@ export function calculateDriverPhysicalCost(
     reasons.push('chuva intensa')
   } else if (params.weather === 'chuva_fraca') {
     reasons.push('pista molhada')
+  }
+  if (simDiscount >= 0.5) {
+    reasons.push(`preparo no simulador (-${simDiscount.toFixed(1)}%)`)
   }
 
   const reasonDetail = reasons.length > 0 ? reasons.join(', ') : 'condições amenas'

@@ -19,6 +19,7 @@ import RacePage from './pages/RaceSlim'
 import StandingsPage from './pages/Standings'
 import CalendarPage from './pages/CalendarPage'
 import HistoryPage from './pages/History'
+import InfrastructurePage from './pages/InfrastructurePage'
 import TeamSelectionPage from './pages/TeamSelection'
 import { LobbyPage } from './pages/LobbyPage'
 import DriversPage from './pages/DriversPage'
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/pilotos" element={<DriversPage />} />
               <Route path="/teams" element={<TeamsPage />} />
               <Route path="/car" element={<CarPage />} />
+              <Route path="/infraestrutura" element={<InfrastructurePage />} />
               <Route path="/sponsors" element={<SponsorsPage />} />
               <Route path="/race" element={<RacePage />} />
               <Route path="/standings" element={<StandingsPage />} />

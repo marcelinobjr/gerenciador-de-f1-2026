@@ -2509,4 +2509,286 @@ export const f1Service = {
       await pb.collection('teams').delete(teamId)
     }
   },
+
+  // ==========================================
+  // MÓDULO DE INFRAESTRUTURA (FASE 3D)
+  // ==========================================
+
+  /**
+   * Obtém os níveis das 4 instalações com fallback seguro (1 a 5).
+   */
+  getFacilityLevels(team: TeamModel | null | undefined): {
+    factory: number
+    simulator: number
+    pitstop_center: number
+    youth_academy: number
+  } {
+    const rawFactory = team?.factory_level
+    const rawSim = team?.simulator_level
+    const rawPit = team?.pitstop_center_level
+    const rawAcademy = team?.youth_academy_level
+
+    const sanitize = (val: number | undefined) => {
+      if (typeof val !== 'number' || isNaN(val) || val <= 0) return 3
+      return Math.max(1, Math.min(5, Math.round(val)))
+    }
+
+    return {
+      factory: sanitize(rawFactory),
+      simulator: sanitize(rawSim),
+      pitstop_center: sanitize(rawPit),
+      youth_academy: sanitize(rawAcademy),
+    }
+  },
+
+  /**
+   * Calcula o custo de upgrade de uma instalação para o próximo nível.
+   * Níveis 2..5.
+   */
+  getFacilityUpgradeCost(targetLevel: number): number {
+    const table: Record<number, number> = {
+      2: 8000000,
+      3: 16000000,
+      4: 28000000,
+      5: 45000000,
+    }
+    return table[targetLevel] || 15000000
+  },
+
+  /**
+   * Desconto percentual proporcionado pelo nível da Fábrica em P&D e reparos de peças (0% a 12%).
+   */
+  getFactoryDiscountRate(factoryLevel: number = 1): number {
+    const lvl = Math.max(1, Math.min(5, factoryLevel))
+    return (lvl - 1) * 0.03 // Nível 1: 0%, Nível 2: 3%, Nível 3: 6%, Nível 4: 9%, Nível 5: 12%
+  },
+
+  /**
+   * Executa a expansão de uma instalação:
+   * - Atualiza campo em teams (ex: factory_level)
+   * - Debita custo do orçamento
+   * - Incrementa cost_cap_spent respeitando teto de gastos
+   * - Registra evento na timeline e notificação no sistema
+   */
+  async upgradeFacility(
+    team: TeamModel,
+    facilityField:
+      | 'factory_level'
+      | 'simulator_level'
+      | 'pitstop_center_level'
+      | 'youth_academy_level',
+    facilityName: string,
+    currentRound: number = 1,
+    userId?: string,
+  ): Promise<{
+    team: TeamModel
+    newLevel: number
+    cost: number
+    overspendAmount: number
+  }> {
+    const currentLevel = Math.max(1, Math.min(5, (team as any)[facilityField] || 1))
+    if (currentLevel >= 5) {
+      throw new Error(`A instalação ${facilityName} já atingiu o nível máximo (Nível 5).`)
+    }
+
+    const nextLevel = currentLevel + 1
+    const cost = this.getFacilityUpgradeCost(nextLevel)
+
+    if (team.budget < cost) {
+      throw new Error(
+        `Orçamento insuficiente. Custo de expansão: R$ ${(cost / 1000000).toFixed(1)}M. Saldo atual: R$ ${(team.budget / 1000000).toFixed(1)}M.`,
+      )
+    }
+
+    const currentCostCapSpent = team.cost_cap_spent || 0
+    const newBudget = team.budget - cost
+    const newSpentCap = currentCostCapSpent + cost
+    const isBreach = newSpentCap > this.COST_CAP_LIMIT
+    const overspendAmount = Math.max(0, newSpentCap - this.COST_CAP_LIMIT)
+
+    const updatePayload: Partial<TeamModel> = {
+      [facilityField]: nextLevel,
+      budget: newBudget,
+      cost_cap_spent: newSpentCap,
+    }
+
+    let updatedTeam: TeamModel
+    if (isBreach) {
+      const breachRes = await this.applyCostCapBreach(
+        team,
+        cost,
+        `Expansão da instalação ${facilityName} para o Nível ${nextLevel}`,
+      )
+      // Atualizar o campo da instalação sobre a equipe retornada
+      updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
+        [facilityField]: nextLevel,
+      })
+    } else {
+      updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, updatePayload)
+      await this.addEvent(
+        team.id,
+        `🏗️ INFRAESTRUTURA: ${facilityName} expandida para o Nível ${nextLevel}/5! Investimento de R$ ${(cost / 1000000).toFixed(1)}M contabilizado no orçamento operacional.`,
+        'desenvolvimento',
+      )
+    }
+
+    // Registrar notificação oficial
+    if (userId) {
+      const title = `Instalação Concluída: ${facilityName}`
+      const msg = `As obras da sua ${facilityName} foram finalizadas com sucesso, alcançando o Nível ${nextLevel}/5.`
+      try {
+        await pb.collection('notifications').create({
+          user_id: userId,
+          type: 'sistema',
+          title,
+          message: msg,
+          round: currentRound,
+          read: false,
+          link: '/infraestrutura',
+        })
+      } catch (notifErr) {
+        console.warn('Erro ao criar notificação de infraestrutura:', notifErr)
+      }
+    }
+
+    return {
+      team: updatedTeam,
+      newLevel: nextLevel,
+      cost,
+      overspendAmount,
+    }
+  },
+
+  /**
+   * Gera novos prospectos jovens no mercado de pilotos com base no nível da Academia de Jovens Pilotos.
+   * Chamado periodicamente a cada 3 rodadas ao avançar o campeonato.
+   */
+  async generateAcademyProspects(
+    academyLevel: number = 3,
+    teamId: string,
+    currentRound: number = 1,
+  ): Promise<DriverModel[]> {
+    if (academyLevel <= 0) return []
+
+    // Pool de nomes e sobrenomes jovens internacionais
+    const FIRST_NAMES = [
+      'Lucas',
+      'Matteo',
+      'Enzo',
+      'Theo',
+      'Arthur',
+      'Leo',
+      'Gabriel',
+      'Maxime',
+      'Oliver',
+      'Kimi',
+      'Liam',
+      'Felix',
+      'Jack',
+      'Noah',
+      'Zane',
+      'Ayumu',
+      'Dennis',
+      'Victor',
+      'Dino',
+      'Rafael',
+      'Caio',
+      'Sebastian',
+      'Martinius',
+    ]
+    const LAST_NAMES = [
+      'Camara',
+      'Fornaroli',
+      'Mini',
+      'Goethe',
+      'Meguetounif',
+      'Dunne',
+      'Boyá',
+      'Ramos',
+      'Stenshorne',
+      'Tramnitz',
+      'Bilinski',
+      'Inthraphuvasak',
+      'Zagazeta',
+      'Montoya',
+      'Flörsch',
+      'Mansell',
+      'Browning',
+      'Leon',
+      'Shields',
+      'Lindblad',
+    ]
+    const NATIONALITIES = [
+      'Brasil',
+      'Itália',
+      'França',
+      'Alemanha',
+      'Reino Unido',
+      'Espanha',
+      'Austrália',
+      'Noruega',
+      'Dinamarca',
+      'Japão',
+      'Estados Unidos',
+      'Argentina',
+    ]
+
+    const count = Math.min(2, Math.max(1, Math.floor(academyLevel / 2)))
+    const createdDrivers: DriverModel[] = []
+
+    for (let i = 0; i < count; i++) {
+      const fName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]
+      const lName = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]
+      const fullName = `${fName} ${lName}`
+      const nationality = NATIONALITIES[Math.floor(Math.random() * NATIONALITIES.length)]
+      const age = 17 + Math.floor(Math.random() * 4) // 17 a 20 anos
+
+      // Calibração de notas baseada no nível da academia (Nível 1 ~70, Nível 5 ~82)
+      const baseSkill = 68 + academyLevel * 2.5 + Math.floor(Math.random() * 4)
+      const speed = Math.min(84, Math.max(68, Math.round(baseSkill)))
+      const consistency = Math.min(82, Math.max(65, Math.round(baseSkill - 2 + Math.random() * 4)))
+      const rain = Math.min(84, Math.max(65, Math.round(baseSkill - 1 + Math.random() * 5)))
+      const defense = Math.min(82, Math.max(64, Math.round(baseSkill - 2 + Math.random() * 4)))
+      const salary = Math.round(1200000 + (speed - 65) * 150000)
+
+      try {
+        // Evita duplicatas pelo nome
+        const existing = await pb.collection('drivers').getList(1, 1, {
+          filter: `name = "${fullName}"`,
+        })
+
+        if (existing.items.length === 0) {
+          const rec = await pb.collection('drivers').create<DriverModel>({
+            name: fullName,
+            nationality,
+            age,
+            speed,
+            consistency,
+            rain,
+            defense,
+            salary,
+            contract_end: 2027,
+            team_id: null,
+            role: null,
+            category: 'f2',
+            morale: 85,
+            physical_condition: 95,
+          })
+          createdDrivers.push(rec)
+        }
+      } catch (err) {
+        console.warn('Erro ao criar prospecto júnior da academia:', err)
+      }
+    }
+
+    if (createdDrivers.length > 0) {
+      await this.addEvent(
+        teamId,
+        `🎓 ACADEMIA DE PILOTOS: O scouting da sua Academia revelou ${createdDrivers.length} novo(s) talento(s) na F2 (${createdDrivers.map((d) => d.name).join(', ')}). Disponíveis no mercado!`,
+        'contrato',
+      )
+    }
+
+    return createdDrivers
+  },
 }

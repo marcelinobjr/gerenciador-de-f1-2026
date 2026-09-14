@@ -257,24 +257,50 @@ export function calculateDriverTireWearProfile(driver: {
   return { multiplier, profileName, badgeColor, description }
 }
 
+// Armazenamento em memória do nível ativo do Centro de Pit Stop do jogador para quando a chamada omitir o parâmetro
+let activePlayerPitstopCenterLevel = 3
+
+export function setActivePlayerPitstopCenterLevel(level: number) {
+  if (typeof level === 'number' && !isNaN(level)) {
+    activePlayerPitstopCenterLevel = Math.max(1, Math.min(5, Math.round(level)))
+  }
+}
+
+export function getActivePlayerPitstopCenterLevel(): number {
+  return activePlayerPitstopCenterLevel
+}
+
 export function calculatePitStopDuration(
   teamName: string,
   driverName: string,
   isPlayer: boolean,
   teamStrength = 75,
+  pitstopCenterLevel?: number,
 ): PitStopTimingResult {
+  // Se for o jogador e não foi fornecido explicitamente, herda o nível atual configurado
+  const effectiveLevel =
+    typeof pitstopCenterLevel === 'number'
+      ? Math.max(1, Math.min(5, Math.round(pitstopCenterLevel)))
+      : isPlayer
+        ? activePlayerPitstopCenterLevel
+        : 3
+
   // Red Bull, Ferrari, McLaren têm mecânicos mais rápidos (~2.1s a 2.6s)
   // Equipes médias/novatas variam de 2.5s a 3.5s
   const baseRating = Math.max(50, Math.min(100, teamStrength))
   const efficiency = (baseRating - 50) / 50 // 0 a 1
 
+  // Efeito conservador do Centro de Treinamento de Pit Stop: 0,05s a 0,15s por nível (0.08s por nível acima do 1)
+  const pitCenterBonus = Math.max(0, (effectiveLevel - 1) * 0.08)
+
   const bestBase = 2.1
   const variance = (1 - efficiency) * 0.8 + Math.random() * 0.5
-  let duration = Number((bestBase + variance).toFixed(2))
+  let duration = Math.max(1.85, Number((bestBase + variance - pitCenterBonus).toFixed(2)))
 
-  // Chance de erro / pit stop lento: ~7%
+  // Chance de erro / pit stop lento: 7% base, reduzida conforme o nível do Centro de Testes (até ~3.5% no Nível 5)
+  const errorProbability = Math.max(0.035, 0.07 - (effectiveLevel - 1) * 0.008)
   const errorRoll = Math.random()
-  const isSlowPit = errorRoll < 0.07
+  const isSlowPit = errorRoll < errorProbability
 
   let slowReason = ''
   if (isSlowPit) {

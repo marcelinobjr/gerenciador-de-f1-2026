@@ -20,6 +20,10 @@ export interface TeamModel {
   cost_cap_spent?: number // Total gasto na temporada sujeito ao teto FIA (R$ 215M)
   engine_pool_used?: number // Motores introduzidos no pool (limite regulamentar 4 antes de penalidades)
   active_engine_wear?: number // Desgaste 0-100% da unidade de potência atualmente instalada no carro
+  factory_level?: number // Nível 1 a 5 da Fábrica de P&D
+  simulator_level?: number // Nível 1 a 5 do Simulador de Pilotos
+  pitstop_center_level?: number // Nível 1 a 5 do Centro de Testes de Pit Stop
+  youth_academy_level?: number // Nível 1 a 5 da Academia de Jovens Pilotos
   cost_cap_penalties?: Array<{
     id: string
     timestamp: string
