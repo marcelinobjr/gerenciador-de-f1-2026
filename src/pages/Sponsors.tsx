@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast'
 import {
   BadgePercent,
   TrendingUp,
+  TrendingDown,
   Handshake,
   DollarSign,
   AlertTriangle,
@@ -249,71 +250,217 @@ export default function SponsorsPage() {
     })
   }, [signedSponsorNames, occupiedSlots, activeSponsors, performanceStats.multiplier])
 
+  // Estimativas de receitas e despesas com dados reais do save
+  const estPrizePerRound = useMemo(() => {
+    // Estimativa por GP com base na posição atual de construtores
+    const rank = performanceStats.constructorPos
+    if (rank === 1) return 2200000
+    if (rank === 2) return 1800000
+    if (rank === 3) return 1500000
+    if (rank <= 5) return 1100000
+    if (rank <= 8) return 800000
+    return 550000
+  }, [performanceStats.constructorPos])
+
+  const estDriverSalariesPerRound = 750000 // R$ 750k / GP para os 2 pilotos titulares
+  const estOperationalCostsPerRound = 450000 // Logística, pneus, hospitalidade por GP
+  const totalExpensesPerRound = estDriverSalariesPerRound + estOperationalCostsPerRound
+  const netCashFlowPerRound = totalRevenuePerRound + estPrizePerRound - totalExpensesPerRound
+
   return (
-    <div className="relative space-y-8 animate-fade-in-up">
+    <div className="relative space-y-8 animate-fade-in-up text-[#F5F7FA]">
       <AmbientBackground />
       {/* PageHeader Race Operations */}
       <PageHeader
         eyebrow="RACE OPERATIONS // MARKETING & FINANÇAS"
-        title="Gestão de Patrocínios & Receitas"
-        description="Negociação de cotas comerciais exclusivas (bico, laterais, asa, halo, macacão, retrovisores) indexadas ao desempenho nos Construtores."
+        title="Gestão Comercial & Finanças"
+        description="Balanço financeiro em tempo real, orçamento disponível, cotas de patrocínio no monoposto e projeção de receitas por GP."
         badge={
           <Badge
             variant="outline"
-            className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] font-mono text-xs"
+            className="border-[#1F2733] bg-[#090D15] text-[#F5F7FA] font-mono text-xs"
           >
             Cotas Ocupadas: {occupiedSlots.size}/6
           </Badge>
         }
       />
 
-      {/* KPIs com StatCard */}
+      {/* CARDS PRINCIPAIS: BALANÇO FINANCEIRO & ORÇAMENTO DO SAVE */}
       <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <StatCard
-          eyebrow="RECEITA / RODADA"
-          value={formatCurrency(totalRevenuePerRound)}
-          subtext="Creditado após cada simulação de GP"
-          icon={DollarSign}
-          iconColor="text-emerald-400"
-          accentColor="#10B981"
-        />
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-4 shadow-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+              SALDO EM CAIXA
+            </span>
+            <DollarSign className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-black font-mono text-[#F5F7FA] tracking-tight">
+            {formatCurrency(team?.budget ?? 0)}
+          </div>
+          <p className="text-[11px] text-[#8B95A7] font-mono">
+            Orçamento líquido disponível da escuderia {team?.name || ''}
+          </p>
+        </div>
 
-        <StatCard
-          eyebrow="MULTIPLICADOR COMERCIAL"
-          value={`x${performanceStats.multiplier.toFixed(2)}`}
-          subtext={performanceStats.explanation}
-          icon={TrendingUp}
-          iconColor={performanceStats.multiplier >= 1 ? 'text-emerald-400' : 'text-amber-400'}
-        />
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-4 shadow-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-emerald-400">
+              RECEITA ESTIMADA / GP
+            </span>
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-black font-mono text-emerald-400 tracking-tight">
+            +{formatCurrency(totalRevenuePerRound + estPrizePerRound)}
+          </div>
+          <p className="text-[11px] text-[#8B95A7] font-mono">
+            {formatCurrency(totalRevenuePerRound)} (patrocínios) +{' '}
+            {formatCurrency(estPrizePerRound)} (FIA)
+          </p>
+        </div>
 
-        <StatCard
-          eyebrow="CONTRATOS ATIVOS"
-          value={`${activeSponsors.filter((s) => s.status === 'ativo').length}`}
-          subtext={`${activeSponsors.filter((s) => s.status === 'suspenso').length} suspenso(s) por meta`}
-          icon={Handshake}
-          iconColor="text-[#00A6FB]"
-        />
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-4 shadow-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-red-400">
+              CUSTOS OPERACIONAIS / GP
+            </span>
+            <TrendingDown className="w-4 h-4 text-red-400" />
+          </div>
+          <div className="text-2xl font-black font-mono text-red-400 tracking-tight">
+            -{formatCurrency(totalExpensesPerRound)}
+          </div>
+          <p className="text-[11px] text-[#8B95A7] font-mono">
+            Salários pilotos ({formatCurrency(estDriverSalariesPerRound)}) + logística/box
+          </p>
+        </div>
 
-        <StatCard
-          eyebrow="COTAS LIVRES"
-          value={`${Math.max(0, 6 - occupiedSlots.size)} de 6`}
-          subtext={`${occupiedSlots.size} posições reservadas no carro`}
-          icon={BadgePercent}
-          iconColor="text-amber-400"
-        />
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-4 shadow-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-cyan-400">
+              FLUXO LÍQUIDO / GP
+            </span>
+            <BadgePercent className="w-4 h-4 text-cyan-400" />
+          </div>
+          <div
+            className={`text-2xl font-black font-mono tracking-tight ${
+              netCashFlowPerRound >= 0 ? 'text-emerald-400' : 'text-red-400'
+            }`}
+          >
+            {netCashFlowPerRound >= 0 ? '+' : ''}
+            {formatCurrency(netCashFlowPerRound)}
+          </div>
+          <p className="text-[11px] text-[#8B95A7] font-mono">
+            Índice comercial:{' '}
+            <strong className="text-white">x{performanceStats.multiplier.toFixed(2)}</strong> (P
+            {performanceStats.constructorPos} Construtores)
+          </p>
+        </div>
       </div>
 
-      {/* Seção Contratos Ativos na Camada 1 */}
-      <div className="relative z-10 rounded-xl bg-[#11161F] border border-[#1F2733] p-5 shadow-sm space-y-4">
-        <div className="pb-3 border-b border-[#1F2733]">
-          <span className="eyebrow text-[#8B95A7] block">PARCERIAS ESTABELECIDAS</span>
-          <h3 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2 mt-1">
-            <Handshake className="w-4 h-4 text-[#00A6FB]" />
-            Contratos Comerciais Ativos ({activeSponsors.length})
-          </h3>
-          <p className="text-xs text-[#8B95A7] mt-0.5">
-            Avaliação a cada GP: se a meta de construtores ou moral não for cumprida, o repasse fica
-            suspenso até recuperação.
+      {/* PAINEL ELEVADO: QUADRO DE FLUXO DE CAIXA DETALHADO */}
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card Receitas */}
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-emerald-400">
+              FONTES DE RECEITA // GP
+            </span>
+            <span className="font-num text-xs font-bold text-emerald-400">
+              +{formatCurrency(totalRevenuePerRound + estPrizePerRound)}
+            </span>
+          </div>
+          <div className="space-y-2 text-xs font-mono">
+            <div className="flex justify-between items-center text-[#8B95A7]">
+              <span>Contratos de Patrocínio ({activeSponsors.length}):</span>
+              <strong className="text-emerald-400 font-num">
+                +{formatCurrency(totalRevenuePerRound)}
+              </strong>
+            </div>
+            <div className="flex justify-between items-center text-[#8B95A7]">
+              <span>Premiação FIA por GP (estimada):</span>
+              <strong className="text-emerald-400 font-num">
+                +{formatCurrency(estPrizePerRound)}
+              </strong>
+            </div>
+            <div className="flex justify-between items-center text-[#8B95A7] pt-1 border-t border-[#1F2733]">
+              <span>Bônus por Vitórias ({performanceStats.wins}):</span>
+              <strong className="text-white font-num">
+                {performanceStats.wins > 0
+                  ? `+${formatCurrency(performanceStats.wins * 1500000)}`
+                  : 'R$ 0'}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Card Despesas Operacionais */}
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-red-400">
+              DESPESAS OPERACIONAIS // GP
+            </span>
+            <span className="font-num text-xs font-bold text-red-400">
+              -{formatCurrency(totalExpensesPerRound)}
+            </span>
+          </div>
+          <div className="space-y-2 text-xs font-mono">
+            <div className="flex justify-between items-center text-[#8B95A7]">
+              <span>Folha Salarial dos Pilotos:</span>
+              <strong className="text-red-400 font-num">
+                -{formatCurrency(estDriverSalariesPerRound)}
+              </strong>
+            </div>
+            <div className="flex justify-between items-center text-[#8B95A7]">
+              <span>Logística, Box & Viagens:</span>
+              <strong className="text-red-400 font-num">
+                -{formatCurrency(estOperationalCostsPerRound)}
+              </strong>
+            </div>
+            <div className="flex justify-between items-center text-[#8B95A7] pt-1 border-t border-[#1F2733]">
+              <span>Desenvolvimento de Peças (P&D):</span>
+              <strong className="text-white font-num">Por demanda (/car)</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Card Status do Teto FIA */}
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+              TETO DE GASTOS FIA (COST CAP)
+            </span>
+            <span className="font-mono text-xs font-bold text-[#F5F7FA]">R$ 215M Limite</span>
+          </div>
+          <div className="space-y-2 text-xs font-mono">
+            <div className="flex justify-between items-center text-[#8B95A7]">
+              <span>Posição Atual Construtores:</span>
+              <strong className="text-[#F5F7FA]">P{performanceStats.constructorPos}</strong>
+            </div>
+            <div className="flex justify-between items-center text-[#8B95A7]">
+              <span>Cotas Livres no Monoposto:</span>
+              <strong className="text-amber-400">{Math.max(0, 6 - occupiedSlots.size)} de 6</strong>
+            </div>
+            <div className="flex justify-between items-center text-[#8B95A7] pt-1 border-t border-[#1F2733]">
+              <span>Regulamento Financeiro:</span>
+              <span className="text-emerald-400 font-bold">100% Homologado</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Seção Contratos Ativos */}
+      <div className="relative z-10 rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-4">
+        <div className="pb-3 border-b border-[#1F2733] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+              PARCERIAS ESTABELECIDAS
+            </span>
+            <h3 className="text-base font-black text-[#F5F7FA] flex items-center gap-2 mt-0.5">
+              <Handshake className="w-4 h-4 text-emerald-400" />
+              Contratos Comerciais em Vigor ({activeSponsors.length})
+            </h3>
+          </div>
+          <p className="text-xs text-[#8B95A7] font-mono">
+            Repasses vinculados ao cumprimento da meta após cada GP
           </p>
         </div>
 
@@ -335,7 +482,7 @@ export default function SponsorsPage() {
               keyExtractor={(sp) => sp.id}
               data={activeSponsors}
               playerRowPredicate={() => true}
-              playerRowTeamColor={team?.color || '#00A6FB'}
+              playerRowTeamColor={team?.color || '#E10600'}
               playerBadgeLabel="ATIVO"
               columns={[
                 {
@@ -356,7 +503,7 @@ export default function SponsorsPage() {
                   render: (sp) => (
                     <Badge
                       variant="outline"
-                      className="text-[10px] font-mono border-[#1F2733] bg-[#161D29] text-[#F5F7FA] uppercase"
+                      className="text-[10px] font-mono border-[#1F2733] bg-[#0B0E14] text-[#F5F7FA] uppercase"
                     >
                       {sp.slot || 'Geral'}
                     </Badge>
@@ -424,14 +571,16 @@ export default function SponsorsPage() {
       </div>
 
       {/* Seção Patrocinadores Disponíveis com Cotas Exclusivas */}
-      <div className="relative z-10 rounded-xl bg-[#11161F] border border-[#1F2733] p-5 shadow-sm space-y-4">
+      <div className="relative z-10 rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-4">
         <div className="pb-3 border-b border-[#1F2733]">
-          <span className="eyebrow text-[#8B95A7] block">PORTFÓLIO DE OFERTAS</span>
-          <h3 className="text-base font-bold text-[#F5F7FA] flex items-center gap-2 mt-1">
+          <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+            PORTFÓLIO DE OFERTAS // MERCADO COMERCIAL
+          </span>
+          <h3 className="text-base font-black text-[#F5F7FA] flex items-center gap-2 mt-0.5">
             <BadgePercent className="w-4 h-4 text-amber-400" />
             Cotas de Patrocínio Comercial (Exclusividade por Posição no Monoposto)
           </h3>
-          <p className="text-xs text-[#8B95A7] mt-0.5">
+          <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
             Cada local do carro (bico, laterais, asa traseira, halo, macacão, retrovisores) possui
             uma cota exclusiva. Fechar um contrato reserva a posição e encerra ofertas concorrentes.
           </p>
@@ -444,10 +593,10 @@ export default function SponsorsPage() {
                 key={m.name}
                 className={`p-4 rounded-xl border space-y-3 flex flex-col justify-between transition-all ${
                   m.isAlreadySigned
-                    ? 'bg-[#161D29]/60 border-emerald-900/40 opacity-70'
+                    ? 'bg-[#0B0E14]/70 border-emerald-900/40 opacity-70'
                     : m.isSlotOccupied
-                      ? 'bg-[#161D29]/40 border-dashed border-[#1F2733] opacity-60'
-                      : 'bg-[#161D29] border-[#1F2733] hover:border-[#2C3849]'
+                      ? 'bg-[#0B0E14]/50 border-dashed border-[#1F2733] opacity-60'
+                      : 'bg-[#0B0E14] border-[#1F2733] hover:border-[#2C3849]'
                 }`}
               >
                 <div>
@@ -456,14 +605,14 @@ export default function SponsorsPage() {
                       <h4 className="font-bold text-sm text-[#F5F7FA]">{m.name}</h4>
                       <Badge
                         variant="secondary"
-                        className="mt-1 text-[10px] font-mono bg-[#11161F] text-[#F5F7FA] border border-[#1F2733]"
+                        className="mt-1 text-[10px] font-mono bg-[#161D29] text-[#F5F7FA] border border-[#1F2733]"
                       >
                         Cota: {m.slotLabel}
                       </Badge>
                     </div>
                     <Badge
                       variant="outline"
-                      className="text-[10px] border-[#1F2733] bg-[#11161F] text-[#8B95A7] font-mono shrink-0"
+                      className="text-[10px] border-[#1F2733] bg-[#161D29] text-[#8B95A7] font-mono shrink-0"
                     >
                       {m.rounds} GPs
                     </Badge>
@@ -471,7 +620,7 @@ export default function SponsorsPage() {
 
                   <p className="text-[11px] text-[#8B95A7] mt-2 leading-relaxed">{m.description}</p>
 
-                  <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] mt-3 space-y-1 text-xs font-mono">
+                  <div className="p-2.5 rounded-lg bg-[#090D15] border border-[#1F2733] mt-3 space-y-1 text-xs font-mono">
                     <div className="flex justify-between items-baseline">
                       <span className="text-[#8B95A7]">Valor base:</span>
                       <span className="text-[#8B95A7] line-through text-[11px] font-num">
@@ -502,14 +651,14 @@ export default function SponsorsPage() {
                       ✓ Contrato em Vigor
                     </div>
                   ) : m.isSlotOccupied ? (
-                    <div className="p-2 text-center rounded-lg bg-[#11161F] border border-[#1F2733] text-[#8B95A7] text-[11px] font-mono">
+                    <div className="p-2 text-center rounded-lg bg-[#090D15] border border-[#1F2733] text-[#8B95A7] text-[11px] font-mono">
                       🔒 Cota ocupada ({m.occupantName || 'por outro patrocinador'})
                     </div>
                   ) : (
                     <Button
                       size="sm"
                       onClick={() => setSigningSponsor(m)}
-                      className="w-full bg-[#E10600] hover:bg-[#FF2E25] text-white text-xs font-bold h-8 shadow"
+                      className="w-full bg-[#E10600] hover:bg-[#b80500] text-white text-xs font-bold h-8 shadow uppercase tracking-wider"
                     >
                       Fechar Contrato Exclusivo
                     </Button>

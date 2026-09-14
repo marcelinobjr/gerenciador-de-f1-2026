@@ -308,7 +308,7 @@ export default function DriversPage() {
   }
 
   return (
-    <div className="relative space-y-6 animate-fade-in-up pb-12">
+    <div className="relative space-y-6 animate-fade-in-up pb-12 text-[#F5F7FA]">
       <AmbientBackground />
 
       {/* Cabeçalho da Página */}
@@ -319,7 +319,7 @@ export default function DriversPage() {
         badge={
           <Badge
             variant="outline"
-            className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] font-mono text-xs"
+            className="border-[#1F2733] bg-[#090D15] text-[#F5F7FA] font-mono text-xs"
           >
             {filteredDrivers.length} Pilotos Registrados
           </Badge>
@@ -329,16 +329,16 @@ export default function DriversPage() {
             variant="outline"
             size="sm"
             onClick={() => navigate('/team')}
-            className="border-[#1F2733] bg-[#161D29] text-xs hover:bg-[#1F2733] text-[#F5F7FA]"
+            className="border-[#1F2733] bg-[#090D15] text-xs hover:bg-[#161D29] text-[#F5F7FA] font-mono uppercase tracking-wider"
           >
-            <Users className="w-3.5 h-3.5 mr-1.5 text-cyan-400" />
+            <Users className="w-3.5 h-3.5 mr-1.5 text-[#E10600]" />
             Minha Equipe
           </Button>
         }
       />
 
       {/* Barra de Filtros e Busca */}
-      <div className="p-4 rounded-xl bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-lg space-y-3">
+      <div className="p-4 rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] shadow-xl space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Campo de Busca */}
           <div className="relative flex-1">
@@ -348,7 +348,7 @@ export default function DriversPage() {
               placeholder="Buscar por nome, nacionalidade ou equipe..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-sm text-[#F5F7FA] placeholder:text-zinc-500 focus:outline-none focus:border-cyan-500 transition-colors"
+              className="w-full pl-9 pr-4 py-2 rounded-lg bg-[#0B0E14] border border-[#1F2733] text-sm text-[#F5F7FA] placeholder:text-[#8B95A7] focus:outline-none focus:border-[#E10600] transition-colors font-mono"
             />
           </div>
 
@@ -425,7 +425,7 @@ export default function DriversPage() {
                 type="button"
                 onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
                 title={sortOrder === 'desc' ? 'Maior para menor' : 'Menor para maior'}
-                className="text-cyan-400 hover:text-cyan-300 font-bold px-1 ml-0.5"
+                className="text-[#E10600] hover:text-red-400 font-bold px-1 ml-0.5"
               >
                 {sortOrder === 'desc' ? '↓' : '↑'}
               </button>
@@ -440,7 +440,7 @@ export default function DriversPage() {
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="p-4 rounded-xl bg-[#090D15]/80 border border-[#1A2333] space-y-3"
+              className="p-4 rounded-xl bg-[#090D15]/85 border border-[#1F2733] space-y-3"
             >
               <div className="flex items-center gap-3">
                 <Skeleton className="w-16 h-16 rounded-xl bg-[#161D29]" />
@@ -454,8 +454,10 @@ export default function DriversPage() {
           ))}
         </div>
       ) : filteredDrivers.length === 0 ? (
-        <div className="p-12 text-center rounded-xl bg-[#090D15]/80 border border-[#1A2333] space-y-3">
-          <p className="text-zinc-400 text-sm">Nenhum piloto encontrado com os filtros atuais.</p>
+        <div className="p-12 text-center rounded-xl bg-[#090D15]/85 border border-[#1F2733] space-y-3">
+          <p className="text-[#8B95A7] text-sm font-mono">
+            Nenhum piloto encontrado com os filtros atuais.
+          </p>
           {(searchTerm || teamFilter !== 'todas' || situationFilter !== 'todas') && (
             <Button
               variant="outline"
@@ -465,7 +467,7 @@ export default function DriversPage() {
                 setTeamFilter('todas')
                 setSituationFilter('todas')
               }}
-              className="border-[#1F2733] text-xs"
+              className="border-[#1F2733] text-xs font-mono"
             >
               Limpar todos os filtros
             </Button>
@@ -493,8 +495,8 @@ export default function DriversPage() {
                 onClick={() => setSelectedDriver(driver)}
                 className={`group relative p-4 rounded-xl bg-[#090D15]/85 backdrop-blur-sm border transition-all duration-200 cursor-pointer flex flex-col justify-between hover:scale-[1.01] hover:shadow-xl ${
                   isUserDriver
-                    ? 'border-cyan-500/50 hover:border-cyan-400 ring-1 ring-cyan-500/20'
-                    : 'border-[#1A2333] hover:border-[#2A374D]'
+                    ? 'border-[#E10600]/80 shadow-md shadow-[#E10600]/10 ring-1 ring-[#E10600]/40'
+                    : 'border-[#1F2733] hover:border-[#2C3849]'
                 }`}
               >
                 {/* Indicador de cor da equipe no topo */}
@@ -519,7 +521,7 @@ export default function DriversPage() {
                           <span className="text-sm shrink-0" title={driver.nationality}>
                             {getCountryFlag(driver.nationality)}
                           </span>
-                          <h3 className="font-bold text-sm text-[#F5F7FA] truncate group-hover:text-cyan-300 transition-colors">
+                          <h3 className="font-bold text-sm text-[#F5F7FA] truncate group-hover:text-red-400 transition-colors">
                             {driver.name}
                           </h3>
                         </div>
@@ -600,7 +602,7 @@ export default function DriversPage() {
       {/* Modal de Detalhes do Piloto */}
       <Dialog open={!!selectedDriver} onOpenChange={(open) => !open && setSelectedDriver(null)}>
         {selectedDriver && (
-          <DialogContent className="max-w-xl bg-[#0B0E14] border-[#1F2733] text-[#F5F7FA] p-6">
+          <DialogContent className="max-w-xl bg-[#090D15]/95 backdrop-blur-md border border-[#1F2733] text-[#F5F7FA] p-6 shadow-2xl">
             {(() => {
               const currentTeam = selectedDriver.team_id
                 ? teamsMap.get(selectedDriver.team_id)

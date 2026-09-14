@@ -694,7 +694,7 @@ export default function CarPage() {
         badge={
           <Badge
             variant="outline"
-            className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] font-mono text-xs"
+            className="border-[#1F2733] bg-[#090D15] text-[#F5F7FA] font-mono text-xs"
           >
             Nível Geral: {overallLevel}/10
           </Badge>
@@ -742,14 +742,16 @@ export default function CarPage() {
         }
       />
 
-      {/* PAINEL ELEVADO CAMADA 2: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
+      {/* PAINEL ELEVADO: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
       <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card Cost Cap - Painel Elevado Camada 2 */}
-        <div className="rounded-xl bg-[#161D29] border border-[#2C3849] p-5 shadow-sm space-y-3">
+        {/* Card Cost Cap */}
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-emerald-400" />
-              <h3 className="eyebrow text-[#F5F7FA]">TETO DE GASTOS FIA (COST CAP 2026)</h3>
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+                TETO DE GASTOS FIA (COST CAP 2026)
+              </span>
             </div>
             <span className="font-num text-xs font-bold text-[#F5F7FA]">
               {Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}%
@@ -788,19 +790,21 @@ export default function CarPage() {
           </div>
         </div>
 
-        {/* Card Pool de Motores & Desgaste - Painel Elevado Camada 2 */}
-        <div className="rounded-xl bg-[#161D29] border border-[#2C3849] p-5 shadow-sm space-y-3">
+        {/* Card Pool de Motores & Desgaste */}
+        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
             <div className="flex items-center gap-2">
               <Flame className="w-4 h-4 text-[#E10600]" />
-              <h3 className="eyebrow text-[#F5F7FA]">SAÚDE DA UNIDADE DE POTÊNCIA</h3>
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+                SAÚDE DA UNIDADE DE POTÊNCIA
+              </span>
             </div>
             <Badge
               variant="outline"
               className={`font-mono text-xs ${
                 enginePoolUsed > 4
                   ? 'border-red-500 text-red-400 bg-red-500/10'
-                  : 'border-[#1F2733] bg-[#11161F] text-[#F5F7FA]'
+                  : 'border-[#1F2733] bg-[#0B0E14] text-[#F5F7FA]'
               }`}
             >
               PU #{enginePoolUsed} de 4
@@ -854,7 +858,7 @@ export default function CarPage() {
                   team?.budget! < 15000000 ||
                   currentCostCapSpent + 15000000 > COST_CAP_LIMIT
                 }
-                className="bg-[#11161F] hover:bg-[#161D29] text-[#F5F7FA] border border-[#2C3849] font-bold text-xs h-7 px-3 shrink-0"
+                className="bg-[#0B0E14] hover:bg-[#161D29] text-[#F5F7FA] border border-[#1F2733] font-bold text-xs h-7 px-3 shrink-0"
               >
                 {introducingEngine ? 'Ativando...' : 'Introduzir Nova PU (R$ 15M)'}
               </Button>
@@ -864,8 +868,8 @@ export default function CarPage() {
       </div>
 
       {/* SELETOR DE MODO DE APRESENTAÇÃO DO MONOPOSTO */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-xl bg-[#080D17]/80 border border-[#1A2333]">
-        <div className="flex items-center gap-1">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733]">
+        <div className="flex items-center gap-1.5">
           <Button
             type="button"
             variant="ghost"
@@ -873,8 +877,8 @@ export default function CarPage() {
             onClick={() => setActiveCarDisplay('realistic')}
             className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
               activeCarDisplay === 'realistic'
-                ? 'bg-gradient-to-r from-[#E10600] to-rose-700 text-white font-bold shadow-[0_0_12px_rgba(225,6,0,0.4)]'
-                : 'text-slate-400 hover:text-white hover:bg-[#121B2D]'
+                ? 'bg-[#E10600] text-white font-bold shadow-[0_0_12px_rgba(225,6,0,0.4)]'
+                : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 mr-1.5" />
@@ -889,7 +893,7 @@ export default function CarPage() {
             className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
               activeCarDisplay === 'blueprint'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(0,166,251,0.3)] font-bold'
-                : 'text-slate-400 hover:text-white hover:bg-[#121B2D]'
+                : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]'
             }`}
           >
             <Layers className="w-3.5 h-3.5 mr-1.5" />
@@ -897,7 +901,7 @@ export default function CarPage() {
           </Button>
         </div>
 
-        <span className="text-[11px] font-mono text-slate-500 hidden sm:inline px-2">
+        <span className="text-[11px] font-mono text-[#8B95A7] hidden sm:inline px-2">
           {activeCarDisplay === 'realistic'
             ? 'Visual lateral com pintura da equipe, patrocinadores e hotspots'
             : 'Vistas técnica, lateral e superior com cotas milimétricas'}
@@ -934,20 +938,143 @@ export default function CarPage() {
         />
       )}
 
+      {/* GRID DENSO: CARDS DAS 6 PEÇAS HOMOLOGADAS FIA */}
+      <div className="relative z-10 space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-[#1F2733]">
+          <div>
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+              COMPONENTES DO MONOPOSTO // ESPECIFICAÇÃO 2026
+            </span>
+            <h3 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
+              <Layers className="w-4 h-4 text-cyan-400" />
+              Peças Homologadas & Níveis de P&D ({parts.length}/6)
+            </h3>
+          </div>
+          <span className="text-xs font-mono text-[#8B95A7]">
+            Clique em qualquer peça para selecionar e inspecionar
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {parts.map((p) => {
+            const isSelected = selectedPartId === p.id
+            const cond = p.condition ?? 100
+            const condInfo = getConditionInfo(cond)
+            const upCost = getUpgradeCost(p.level)
+            const repCost = f1Service.getPartRepairCost(p)
+            const isMax = p.level >= 10
+
+            return (
+              <div
+                key={p.id}
+                onClick={() => setSelectedPartId(p.id)}
+                className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                  isSelected
+                    ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
+                    : 'bg-[#090D15]/85 backdrop-blur-md border-[#1F2733] hover:border-[#2C3849]'
+                }`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-sm text-[#F5F7FA]">{p.name}</h4>
+                        {isSelected && (
+                          <Badge className="bg-cyan-500 text-slate-950 text-[9px] font-mono font-bold h-4 px-1.5">
+                            Ativa
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono text-[#8B95A7]">
+                        FIA Spec 2026 • Componente #{p.id.slice(-4).toUpperCase()}
+                      </span>
+                    </div>
+
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-mono font-bold shrink-0 ${condInfo.bg}`}
+                    >
+                      {cond}%
+                    </Badge>
+                  </div>
+
+                  {/* Barras de Nível e Condição */}
+                  <div className="space-y-2 pt-1 font-mono text-xs">
+                    <ProgressBar
+                      value={p.level}
+                      max={10}
+                      label="NÍVEL"
+                      size="sm"
+                      valueFormatter={(v) => `${v}/10`}
+                    />
+                    <ProgressBar
+                      value={cond}
+                      max={100}
+                      label="INTEGRIDADE"
+                      size="sm"
+                      valueFormatter={(v) => `${v}%`}
+                    />
+                  </div>
+                </div>
+
+                {/* Rodapé do Card com Valores e Ações Rápidas */}
+                <div className="pt-2 border-t border-[#1F2733] flex items-center justify-between text-xs font-mono">
+                  <div>
+                    <span className="text-[#8B95A7] text-[10px] block">Upgrade N{p.level + 1}</span>
+                    <strong className="text-[#F5F7FA] text-xs">
+                      {isMax ? 'Máx FIA' : formatCurrency(upCost)}
+                    </strong>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {cond < 100 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRepairPart(p)
+                        }}
+                        disabled={repairingPartId === p.id}
+                        className="h-6 text-[10px] px-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20"
+                      >
+                        {repairingPartId === p.id ? 'Revisando...' : 'Oficina'}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleUpgradePart(p)
+                      }}
+                      disabled={isMax || upgradingPartId === p.id}
+                      className="h-6 text-[10px] px-2 border-[#1F2733] text-cyan-400 hover:bg-cyan-500/20"
+                    >
+                      {upgradingPartId === p.id ? '...' : isMax ? 'Máx' : '+1 Nível'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* PAINEL DE INSPEÇÃO DA PEÇA SELECIONADA + RESUMO DE PERFORMANCE */}
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Card: Painel de Inspeção da Peça Clicada */}
-        <Card className="lg:col-span-2 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl relative overflow-hidden">
+        <Card className="lg:col-span-2 bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-bl-full pointer-events-none" />
 
-          <CardHeader className="pb-3 border-b border-[#1A2333]">
+          <CardHeader className="pb-3 border-b border-[#1F2733]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <span className="text-[10px] font-mono text-[#E10600] font-black uppercase tracking-widest block">
                   TELEMETRIA & DIAGNÓSTICO DE OFICINA
                 </span>
                 <CardTitle className="text-xl font-black text-white flex items-center gap-2.5 mt-0.5">
-                  <Wrench className="w-5 h-5 text-cyan-400" />
+                  <Wrench className="w-5 h-5 text-[#E10600]" />
                   {selectedPart ? selectedPart.name : 'Selecione uma peça'}
                 </CardTitle>
               </div>
@@ -959,8 +1086,8 @@ export default function CarPage() {
               )}
             </div>
             <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-              Inspecione a fadiga metálica acumulada por voltas e decida entre desenvolver um novo
-              nível ou revisar a peça na oficina.
+              Inspecione a fadiga metálica acumulada após as corridas e decida entre desenvolver um
+              novo nível ou revisar a peça na oficina.
             </CardDescription>
           </CardHeader>
 
@@ -1133,13 +1260,13 @@ export default function CarPage() {
         </Card>
 
         {/* Card Resumo: Nível Geral do Carro + Impacto de Desgaste */}
-        <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] flex flex-col justify-between shadow-xl">
-          <CardHeader className="pb-2 border-b border-[#1A2333]">
-            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#00A6FB] block">
+        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] flex flex-col justify-between shadow-xl">
+          <CardHeader className="pb-2 border-b border-[#1F2733]">
+            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
               PERFORMANCE GERAL
             </span>
             <CardTitle className="text-base font-black text-white flex items-center gap-2 mt-0.5">
-              <Gauge className="w-5 h-5 text-[#00A6FB]" />
+              <Gauge className="w-5 h-5 text-[#E10600]" />
               Índice de Competitividade
             </CardTitle>
             <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
@@ -1148,16 +1275,16 @@ export default function CarPage() {
           </CardHeader>
 
           <CardContent className="space-y-5 pt-4">
-            <div className="text-center p-5 rounded-2xl bg-[#080C14]/80 border border-[#1A2333] relative overflow-hidden">
+            <div className="text-center p-5 rounded-2xl bg-[#0B0E14] border border-[#1F2733] relative overflow-hidden">
               <div className="text-5xl font-extrabold font-mono text-[#F5F7FA] tracking-tight">
                 {overallLevel}
                 <span className="text-xs text-[#8B95A7] font-normal block mt-1">
                   / 100 Índice de Ritmo
                 </span>
               </div>
-              <div className="mt-3 w-full bg-[#1F2733] h-3 rounded-full overflow-hidden">
+              <div className="mt-3 w-full bg-[#161D29] h-2.5 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-cyan-500 to-[#E10600] transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-[#E10600] transition-all duration-500"
                   style={{ width: `${overallLevel}%` }}
                 />
               </div>
@@ -1216,19 +1343,19 @@ export default function CarPage() {
       </div>
 
       {/* BLOCO FIXO EXPLICATIVO: REGRAS TÉCNICAS F1 2026 */}
-      <div className="relative z-10 rounded-2xl bg-[#090D15]/80 backdrop-blur-md border border-[#00A6FB]/40 p-5 shadow-xl relative overflow-hidden">
+      <div className="relative z-10 rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl relative overflow-hidden">
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#00A6FB]/10 text-[#00A6FB] flex items-center justify-center shrink-0 mt-0.5">
+          <div className="w-10 h-10 rounded-xl bg-[#E10600]/10 text-[#E10600] flex items-center justify-center shrink-0 mt-0.5 border border-[#E10600]/30">
             <Info className="w-5 h-5" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 flex-1">
             <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#00A6FB] block">
+              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
                 DIRETRIZES TÉCNICAS HOMOLOGADAS
               </span>
               <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2 mt-0.5">
                 Novo Regulamento Técnico FIA — Fórmula 1 2026
-                <Badge className="bg-[#00A6FB] text-[#0B0E14] font-mono text-[10px] font-bold">
+                <Badge className="bg-[#E10600] text-white font-mono text-[10px] font-bold">
                   Oficial
                 </Badge>
               </h2>
@@ -1239,39 +1366,41 @@ export default function CarPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-1">
+              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-[#E10600]">
                   <Zap className="w-4 h-4" />
                   <span>Unidade de Potência 50/50</span>
                 </div>
                 <p className="text-[#8B95A7] text-[11px] leading-relaxed">
                   Eliminação do MGU-H. O motor elétrico MGU-K salta para{' '}
-                  <strong>350 kW (~475 cv)</strong>, dividindo a tração de forma igual com o motor
-                  V6 Turbo (100% combustível sustentável).
+                  <strong className="text-[#F5F7FA]">350 kW (~475 cv)</strong>, dividindo a tração
+                  de forma igual com o motor V6 Turbo (100% combustível sustentável).
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-[#00A6FB]">
+              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-cyan-400">
                   <Layers className="w-4 h-4" />
                   <span>Aerodinâmica Ativa</span>
                 </div>
                 <p className="text-[#8B95A7] text-[11px] leading-relaxed">
                   O DRS foi extinto. As asas dianteira e traseira possuem 2 estados:{' '}
-                  <strong>Z-Mode</strong> (alta sustentação em curvas) e{' '}
-                  <strong>X-Mode / Straight Mode</strong> (baixo arrasto eletrônico em retas).
+                  <strong className="text-[#F5F7FA]">Z-Mode</strong> (alta sustentação em curvas) e{' '}
+                  <strong className="text-[#F5F7FA]">X-Mode / Straight Mode</strong> (baixo arrasto
+                  em retas).
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#080C14]/80 border border-[#1A2333] space-y-1">
+              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-amber-400">
                   <Flame className="w-4 h-4" />
                   <span>Modo Overtake & 768 kg</span>
                 </div>
                 <p className="text-[#8B95A7] text-[11px] leading-relaxed">
                   Quando o carro está a &lt;1s do rival, o piloto aciona o{' '}
-                  <strong>Modo Overtake</strong> com energia extra na bateria para manobras de
-                  ultrapassagem. O peso mínimo caiu para <strong>768 kg</strong>.
+                  <strong className="text-[#F5F7FA]">Modo Overtake</strong> com energia extra na
+                  bateria para ultrapassagem. O peso mínimo caiu para{' '}
+                  <strong className="text-[#F5F7FA]">768 kg</strong>.
                 </p>
               </div>
             </div>
@@ -1296,50 +1425,58 @@ export default function CarPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {ENGINE_SUPPLIERS.map((sup) => {
-            const isCurrent = team?.engine_supplier === sup.name
+            const isCurrent = (team?.engine_supplier || 'Mercedes') === sup.name
             return (
               <div
                 key={sup.name}
-                className={`p-4 rounded-xl border transition-all ${
+                className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
                   isCurrent
-                    ? 'bg-[#090D15]/95 border-[#00A6FB] shadow-lg shadow-[#00A6FB]/10 ring-1 ring-[#00A6FB]'
-                    : 'bg-[#090D15]/85 backdrop-blur-md border border-[#1A2333]/90 hover:border-[#00A6FB]/40'
+                    ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
+                    : 'bg-[#090D15]/85 backdrop-blur-md border-[#1F2733] hover:border-[#2C3849]'
                 }`}
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-base text-[#F5F7FA]">{sup.name}</h3>
-                      {isCurrent && (
-                        <Badge className="bg-[#00A6FB] text-slate-900 text-[10px] font-mono font-bold">
-                          Atual
-                        </Badge>
-                      )}
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-base text-[#F5F7FA]">{sup.name}</h3>
+                        {isCurrent && (
+                          <Badge className="bg-cyan-500 text-slate-950 text-[10px] font-mono font-bold">
+                            Atual
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[10px] font-mono text-cyan-400 mt-0.5">{sup.techBadge}</p>
                     </div>
-                    <p className="text-[10px] font-mono text-[#00A6FB] mt-0.5">{sup.techBadge}</p>
+                  </div>
+
+                  <p className="text-[11px] text-[#8B95A7] mt-2 line-clamp-2 leading-relaxed">
+                    {sup.description}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-[#1F2733] text-xs font-mono">
+                    <div className="p-1.5 rounded bg-[#0B0E14] border border-[#1F2733]">
+                      <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-cyan-400" /> Potência
+                      </span>
+                      <strong className="text-[#F5F7FA] text-sm">{sup.power}/100</strong>
+                    </div>
+                    <div className="p-1.5 rounded bg-[#0B0E14] border border-[#1F2733]">
+                      <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3 text-emerald-400" /> Confiab.
+                      </span>
+                      <strong className="text-emerald-400 text-sm">{sup.reliability}%</strong>
+                    </div>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-[#8B95A7] mt-2 line-clamp-2 leading-relaxed">
-                  {sup.description}
-                </p>
-
-                <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-[#1F2733] text-xs font-mono">
+                <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#1F2733]">
                   <div>
-                    <span className="text-[#8B95A7] block text-[10px]">Potência</span>
-                    <strong className="text-[#F5F7FA]">{sup.power}/100</strong>
+                    <span className="text-[10px] text-[#8B95A7] block font-mono">Custo anual</span>
+                    <strong className="text-xs font-mono text-[#F5F7FA]">
+                      {formatCurrency(sup.costAnnual)}
+                    </strong>
                   </div>
-                  <div>
-                    <span className="text-[#8B95A7] block text-[10px]">Confiabilidade</span>
-                    <strong className="text-emerald-400">{sup.reliability}%</strong>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#1F2733]/60">
-                  <span className="text-xs font-mono font-bold text-[#F5F7FA]">
-                    {formatCurrency(sup.costAnnual)}
-                    <span className="text-[10px] text-[#8B95A7] font-normal">/ano</span>
-                  </span>
 
                   {isCurrent ? (
                     <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
@@ -1350,7 +1487,7 @@ export default function CarPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => setSelectedSupplier(sup)}
-                      className="border-[#1F2733] text-xs h-7 px-3 text-[#00A6FB] hover:bg-[#1F2733]"
+                      className="border-[#1F2733] text-xs h-7 px-3 text-cyan-400 hover:text-white hover:bg-cyan-600/20"
                     >
                       Trocar Fornecedor
                     </Button>

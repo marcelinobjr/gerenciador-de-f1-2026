@@ -80,7 +80,7 @@ export const IMAGEM_CARRO_PADRAO_FALLBACK: string = defaultWhiteCarFallback
  */
 export function getCarroPorEquipeImage(teamKey?: string | null, isCustom?: boolean): string {
   if (isCustom) {
-    return '/carros/custom.png' || IMAGEM_CARRO_CUSTOM || IMAGEM_CARRO_PADRAO_FALLBACK
+    return IMAGEM_CARRO_CUSTOM || IMAGEM_CARRO_PADRAO_FALLBACK
   }
 
   if (teamKey) {
