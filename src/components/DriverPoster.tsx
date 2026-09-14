@@ -1,0 +1,54 @@
+import React, { useState } from 'react'
+import { getLocalDriverPosterUrl, getInitials } from '@/lib/pilot-posters'
+import { cn } from '@/lib/utils'
+
+interface DriverPosterProps {
+  name: string
+  className?: string
+  aspectRatio?: 'square' | 'poster'
+  showInitialsFallback?: boolean
+}
+
+export const DriverPoster: React.FC<DriverPosterProps> = ({
+  name,
+  className,
+  aspectRatio = 'poster',
+  showInitialsFallback = true,
+}) => {
+  const [hasError, setHasError] = useState(false)
+  const posterUrl = getLocalDriverPosterUrl(name)
+
+  if (hasError || !posterUrl) {
+    if (!showInitialsFallback) return null
+    return (
+      <div
+        className={cn(
+          'flex items-center justify-center font-bold tracking-wider select-none text-zinc-300 bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700/60 rounded-md shadow-inner',
+          aspectRatio === 'poster' ? 'aspect-[3/4]' : 'aspect-square',
+          className,
+        )}
+      >
+        <span className="text-xl sm:text-2xl drop-shadow-md">{getInitials(name)}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-md border border-zinc-700/60 bg-zinc-900 group shadow-md',
+        aspectRatio === 'poster' ? 'aspect-[3/4]' : 'aspect-square',
+        className,
+      )}
+    >
+      <img
+        src={posterUrl}
+        alt={`Pôster de ${name}`}
+        onError={() => setHasError(true)}
+        className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+    </div>
+  )
+}
