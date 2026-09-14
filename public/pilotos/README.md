@@ -3,6 +3,15 @@
 Este diretório armazena os pôsteres e fotos locais dos pilotos com nomes canônicos e numeração oficial da F1 / universo MBJ 2026.
 O resolvedor de fotos (`src/lib/pilot-posters.ts` e `src/lib/driver-photos.ts`) busca PRIMEIRO nesta pasta pública antes de recorrer a qualquer contingência externa.
 
+## Status do Download do ZIP do Google Drive
+- **Arquivo ID:** `172uJ1KMVep63CJckatoM4T5MB13Knj-t`
+- **Tentativa de Download:** Realizada conforme especificação (GET na URL com `export=download`, captura dos parâmetros de bypass do virus-scan e requisição a `drive.usercontent.google.com`).
+- **Diagnóstico HTTP:**
+  - O link público requer autenticação/permissões ativas da conta Google (redireciona para `https://accounts.google.com/v3/signin/...` com título `<title>Google Drive: Sign-in</title>`).
+  - O Google Drive retornou a página de Sign-in/Login obrigatório antes de exibir o formulário de aviso de verificação de vírus (`Google Drive - Virus scan warning`).
+  - Portanto, os tokens ocultos (`id`, `export`, `confirm`, `uuid`) não são expostos publicamente sem sessão autenticada.
+  - Para disponibilizar os arquivos sem restrição de login da Google, o arquivo precisa ser compartilhado como "Qualquer pessoa com o link pode ler" ou hospedado em repositório público/bucket direto.
+
 ## Convenção Canônica de Nomenclatura
 - `{Número}-{Nome_Sobrenome}.{ext}` (ex.: `3-Max_Verstappen.png`, `16-Charles_Leclerc.png`, `11-Sergio_Pérez.png`, `5-Gabriel_Bortoleto.png`, `77-Walteri_Botas.jpg`, `43-Franco_Colapinto.png`)
 - Ou formato por chave/sobrenome: `{sobrenome}.{ext}` (ex.: `verstappen.png`, `bortoleto.png`, `perez.png`, `bottas.jpg`)
