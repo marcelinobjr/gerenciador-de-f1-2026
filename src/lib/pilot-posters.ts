@@ -82,7 +82,12 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
     }
   }
 
-  // 3. Fontes de driver-photos
+  // 3. Dropbox URL direta do piloto como candidato confiável
+  if (sources.dropboxUrl) {
+    candidates.push(sources.dropboxUrl)
+  }
+
+  // 4. Fontes locais de driver-photos
   if (sources.filename) {
     const fn = `/pilotos/${sources.filename}`
     if (!candidates.includes(fn)) candidates.push(fn)
@@ -94,7 +99,7 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
     }
   }
 
-  // 4. Formatos padrão com extensões variadas
+  // 5. Formatos padrão com extensões variadas
   const keysToTry = [sources.normalizedKey, surname].filter(Boolean)
   for (const k of keysToTry) {
     for (const ext of ['.png', '.jpg', '.webp']) {
@@ -103,7 +108,7 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
     }
   }
 
-  // 5. Nome com underscore
+  // 6. Nome com underscore
   if (norm) {
     const under = norm.replace(/\s+/g, '_')
     for (const ext of ['.png', '.jpg', '.webp']) {
@@ -111,10 +116,9 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
       if (!candidates.includes(p)) candidates.push(p)
     }
   }
-
-  // 6. Dropbox URL direta como candidato remoto antes de desistir
-  if (sources.dropboxUrl) {
-    candidates.push(sources.dropboxUrl)
+  // 7. Fallback para Dropbox genérico antes de desistir totalmente
+  if (sources.fallbackDropbox && !candidates.includes(sources.fallbackDropbox)) {
+    candidates.push(sources.fallbackDropbox)
   }
 
   return candidates

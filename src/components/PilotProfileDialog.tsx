@@ -26,6 +26,13 @@ import {
   Award,
   Lock,
   Eye,
+  Flame,
+  Target,
+  Gauge,
+  Heart,
+  Smile,
+  Compass,
+  Sparkles,
 } from 'lucide-react'
 import type { UnifiedDriverItem } from '@/pages/DriversPage'
 
@@ -120,13 +127,132 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
     }
   }
 
-  const speedData = getAttrDisplay(pilot.speed)
-  const consistencyData = getAttrDisplay(pilot.consistency)
-  const rainData = getAttrDisplay(pilot.rain)
-  const defenseData = getAttrDisplay(pilot.defense)
+  // Faixas qualitativas para estado mental/físico para pilotos de fora (V exato só para equipe do jogador)
+  const getQualitativeState = (
+    val: number,
+    kind: 'morale' | 'confidence' | 'condition' | 'stress',
+  ) => {
+    if (isUserTeam) return `${val}%`
+    if (kind === 'stress') {
+      if (val <= 20) return 'Baixo / Sob Controle'
+      if (val <= 40) return 'Moderado'
+      return 'Elevado'
+    }
+    if (val >= 85) return 'Muito Alta'
+    if (val >= 70) return 'Alta'
+    if (val >= 50) return 'Estável'
+    return 'Em Recuperação'
+  }
 
-  const traits = getDriverTraits(pilot)
-  const biography = getDriverBiography(pilot)
+  // 14 Atributos Esportivos MBJ
+  const sportAttrs = [
+    {
+      name: 'Velocidade',
+      val: pilot.speed,
+      icon: Zap,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500',
+    },
+    {
+      name: 'Classificação',
+      val: pilot.qualifying ?? pilot.speed,
+      icon: Target,
+      color: 'text-yellow-400',
+      bg: 'bg-yellow-500',
+    },
+    {
+      name: 'Ritmo de Corrida',
+      val: pilot.racePace ?? Math.round((pilot.speed + pilot.consistency) / 2),
+      icon: Gauge,
+      color: 'text-orange-400',
+      bg: 'bg-orange-500',
+    },
+    {
+      name: 'Consistência',
+      val: pilot.consistency,
+      icon: Activity,
+      color: 'text-blue-400',
+      bg: 'bg-blue-500',
+    },
+    {
+      name: 'Largada',
+      val: pilot.start ?? pilot.defense - 2,
+      icon: Flame,
+      color: 'text-red-400',
+      bg: 'bg-red-500',
+    },
+    {
+      name: 'Ultrapassagem',
+      val: pilot.overtake ?? pilot.speed - 1,
+      icon: Compass,
+      color: 'text-purple-400',
+      bg: 'bg-purple-500',
+    },
+    {
+      name: 'Defesa',
+      val: pilot.defense,
+      icon: Shield,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500',
+    },
+    { name: 'Chuva', val: pilot.rain, icon: CloudRain, color: 'text-cyan-400', bg: 'bg-cyan-500' },
+    {
+      name: 'Gestão de Pneus',
+      val: pilot.tireManagement ?? pilot.consistency,
+      icon: Gauge,
+      color: 'text-indigo-400',
+      bg: 'bg-indigo-500',
+    },
+    {
+      name: 'Energia / ERS',
+      val: pilot.energyManagement ?? pilot.consistency - 1,
+      icon: Zap,
+      color: 'text-teal-400',
+      bg: 'bg-teal-500',
+    },
+    {
+      name: 'Feedback Técnico',
+      val: pilot.feedback ?? pilot.consistency + 2,
+      icon: Activity,
+      color: 'text-emerald-300',
+      bg: 'bg-emerald-400',
+    },
+    {
+      name: 'Gestão de Pressão',
+      val: pilot.pressure ?? pilot.speed - 2,
+      icon: Heart,
+      color: 'text-rose-400',
+      bg: 'bg-rose-500',
+    },
+    {
+      name: 'Concentração',
+      val: pilot.concentration ?? pilot.consistency,
+      icon: Target,
+      color: 'text-sky-400',
+      bg: 'bg-sky-500',
+    },
+    {
+      name: 'Resiliência',
+      val: pilot.resilience ?? pilot.defense,
+      icon: Shield,
+      color: 'text-lime-400',
+      bg: 'bg-lime-500',
+    },
+  ]
+
+  // Personalidade P (faixas) & V (exatos)
+  const personalityP = [
+    { label: 'Agressividade', val: pilot.aggressiveness ?? 70 },
+    { label: 'Ambição', val: pilot.ambition ?? 80 },
+    { label: 'Lealdade', val: pilot.loyalty ?? 75 },
+    { label: 'Profissionalismo', val: pilot.professionalism ?? 85 },
+  ]
+
+  const traits =
+    pilot.revealedTraits && pilot.revealedTraits.length > 0
+      ? pilot.revealedTraits
+      : getDriverTraits(pilot)
+  const biography = pilot.biography || getDriverBiography(pilot)
 
   // Status/vínculo do piloto
   const currentTeamDisplay = pilot.teamName || 'Agente Livre (Sem equipe)'
@@ -231,86 +357,43 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
         {/* Corpo do Perfil Rolável */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm">
-          {/* Seção 1: Atributos Esportivos (Regra P / V) */}
+          {/* Seção 1: 14 Atributos Esportivos MBJ (Regra P / V) */}
           <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
               <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-blue-400" />
-                Atributos Esportivos{' '}
-                {isUserTeam ? '(Visão Interna Exata)' : '(Faixa Estimada de Olheiro)'}
+                14 Atributos Esportivos{' '}
+                {isUserTeam ? '(Valores Exatos da Sua Equipe)' : '(Faixas Projetadas MBJ)'}
               </h4>
               <Badge
                 variant="outline"
                 className="text-[10px] font-mono border-zinc-700 text-zinc-400"
               >
-                {isUserTeam ? 'Vínculo Pleno' : 'Projeção MBJ'}
+                {isUserTeam ? 'Vínculo Pleno' : 'Regra P/V'}
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-              {/* Velocidade */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-400 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-amber-400" /> Velocidade
-                  </span>
-                  <span className="font-mono font-bold text-white">{speedData.label}</span>
-                </div>
-                <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden flex">
-                  <div
-                    className="bg-amber-500 h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(100, (speedData.max / 100) * 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Consistência */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-400 flex items-center gap-1">
-                    <Activity className="w-3 h-3 text-blue-400" /> Consistência
-                  </span>
-                  <span className="font-mono font-bold text-white">{consistencyData.label}</span>
-                </div>
-                <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden flex">
-                  <div
-                    className="bg-blue-500 h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(100, (consistencyData.max / 100) * 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Ritmo na Chuva */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-400 flex items-center gap-1">
-                    <CloudRain className="w-3 h-3 text-cyan-400" /> Habilidade na Chuva
-                  </span>
-                  <span className="font-mono font-bold text-white">{rainData.label}</span>
-                </div>
-                <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden flex">
-                  <div
-                    className="bg-cyan-500 h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(100, (rainData.max / 100) * 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Defesa e Ultrapassagem */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-400 flex items-center gap-1">
-                    <Shield className="w-3 h-3 text-emerald-400" /> Defesa de Posição
-                  </span>
-                  <span className="font-mono font-bold text-white">{defenseData.label}</span>
-                </div>
-                <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden flex">
-                  <div
-                    className="bg-emerald-500 h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(100, (defenseData.max / 100) * 100)}%` }}
-                  />
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 pt-1">
+              {sportAttrs.map((attr) => {
+                const display = getAttrDisplay(attr.val)
+                const IconComponent = attr.icon
+                return (
+                  <div key={attr.name} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400 flex items-center gap-1.5">
+                        <IconComponent className={`w-3.5 h-3.5 ${attr.color}`} /> {attr.name}
+                      </span>
+                      <span className="font-mono font-bold text-white">{display.label}</span>
+                    </div>
+                    <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden flex">
+                      <div
+                        className={`${attr.bg} h-full rounded-full transition-all`}
+                        style={{ width: `${Math.min(100, (display.max / 100) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Potencial Projetado P */}
@@ -322,41 +405,195 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             </div>
           </div>
 
-          {/* Seção 2: Perfil & Personalidade (Visível + Traços) */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-2.5">
+          {/* Seção 2: Estado Físico & Mental (Qualitativo para fora / Exato para jogador) */}
+          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-              <Award className="w-3.5 h-3.5 text-purple-400" />
-              Traços & Personalidade Conhecida
+              <Heart className="w-3.5 h-3.5 text-rose-400" />
+              Estado Atual & Adaptação{' '}
+              {isUserTeam ? '(Telemetria Interna)' : '(Avaliação Qualitativa)'}
             </h4>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {traits.map((t) => (
-                <Badge
-                  key={t}
-                  variant="outline"
-                  className="bg-zinc-800/80 border-zinc-700 text-zinc-200 text-xs py-1 px-2.5"
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+                  Moral
+                </span>
+                <span className="font-bold text-white">
+                  {getQualitativeState(pilot.moraleState ?? 75, 'morale')}
+                </span>
+              </div>
+              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+                  Confiança
+                </span>
+                <span className="font-bold text-white">
+                  {getQualitativeState(pilot.confidence ?? 75, 'confidence')}
+                </span>
+              </div>
+              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+                  Condição Física
+                </span>
+                <span className="font-bold text-emerald-400">
+                  {getQualitativeState(pilot.physicalCondition ?? 100, 'condition')}
+                </span>
+              </div>
+              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+                  Nível de Estresse
+                </span>
+                <span className="font-bold text-amber-400">
+                  {getQualitativeState(pilot.stress ?? 25, 'stress')}
+                </span>
+              </div>
+            </div>
+
+            {/* Adaptações F1, Carro e Equipe */}
+            <div className="grid grid-cols-3 gap-2.5 pt-1 text-xs">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-zinc-400">
+                  <span>Adaptação F1</span>
+                  <span className="font-mono text-zinc-200">
+                    {getAttrDisplay(pilot.adaptationF1 ?? 80).label}
+                  </span>
+                </div>
+                <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full"
+                    style={{ width: `${pilot.adaptationF1 ?? 80}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-zinc-400">
+                  <span>Adaptação Carro</span>
+                  <span className="font-mono text-zinc-200">
+                    {getAttrDisplay(pilot.adaptationCar ?? 80).label}
+                  </span>
+                </div>
+                <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-full"
+                    style={{ width: `${pilot.adaptationCar ?? 80}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] text-zinc-400">
+                  <span>Adaptação Equipe</span>
+                  <span className="font-mono text-zinc-200">
+                    {getAttrDisplay(pilot.adaptationTeam ?? 80).label}
+                  </span>
+                </div>
+                <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                  <div
+                    className="bg-purple-500 h-full"
+                    style={{ width: `${pilot.adaptationTeam ?? 80}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Seção 3: Perfil, Personalidade & Popularidades */}
+          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+              <Smile className="w-3.5 h-3.5 text-purple-400" />
+              Personalidade & Imagem Comercial
+            </h4>
+
+            {/* 4 Métricas de Personalidade P (faixas) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+              {personalityP.map((p) => (
+                <div
+                  key={p.label}
+                  className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800 space-y-1"
                 >
-                  {t}
-                </Badge>
+                  <div className="flex justify-between text-[11px] text-zinc-400">
+                    <span>{p.label}</span>
+                    <span className="font-mono font-bold text-zinc-200">
+                      {getAttrDisplay(p.val).label}
+                    </span>
+                  </div>
+                  <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                    <div className="bg-purple-500 h-full" style={{ width: `${p.val}%` }} />
+                  </div>
+                </div>
               ))}
             </div>
-            {/* Oculto O em formato qualitativo seguro */}
-            <div className="mt-2 text-[11px] text-zinc-400 flex items-center gap-1.5 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
-              <Lock className="w-3 h-3 text-zinc-500 shrink-0" />
+
+            {/* Reputação e Popularidades V (exatos do PDF) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
+                  Reputação (V)
+                </span>
+                <span className="font-mono font-bold text-amber-300">
+                  {pilot.reputation ?? pilot.speed} pts
+                </span>
+              </div>
+              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
+                  Pop. Global (V)
+                </span>
+                <span className="font-mono font-bold text-blue-300">
+                  {pilot.globalPopularity ?? Math.max(30, pilot.speed - 5)}%
+                </span>
+              </div>
+              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
+                  Pop. Local (V)
+                </span>
+                <span className="font-mono font-bold text-emerald-300">
+                  {pilot.localPopularity ?? Math.min(100, pilot.speed + 10)}%
+                </span>
+              </div>
+              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
+                  Mercado Chave (V)
+                </span>
+                <span className="font-mono font-bold text-white">
+                  {pilot.localMarket || pilot.nationality.substring(0, 2).toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            {/* Traços revelados por nome */}
+            <div className="pt-2">
+              <span className="text-[11px] font-mono text-zinc-400 block mb-1.5 uppercase font-semibold">
+                Traços Revelados
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {traits.map((t) => (
+                  <Badge
+                    key={t}
+                    variant="outline"
+                    className="bg-zinc-800/80 border-zinc-700 text-zinc-200 text-xs py-1 px-2.5"
+                  >
+                    {t}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Parâmetros Ocultos O (sem números, apenas regra descritiva) */}
+            <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
+              <Lock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
               <span>
-                Parâmetros ocultos de desenvolvimento, tolerância à fadiga e curva de declínio
-                operam sob a regra confidencial do Banco MBJ.
+                Parâmetros Ocultos MBJ (Temperamento, 14 Tetos de Habilidade, Curva de Declínio,
+                Horizonte de Aposentadoria e Pesos Negociais) operam restritos à simulação interna.
               </span>
             </div>
           </div>
 
-          {/* Seção 3: Carreira & Histórico */}
+          {/* Seção 4: Carreira & Histórico (V) */}
           <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-2">
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
-              Trajetória & Carreira
+              Trajetória & Carreira (V)
             </h4>
             <p className="text-xs text-zinc-300 leading-relaxed">{biography}</p>
-            <div className="flex items-center gap-4 pt-2 text-[11px] font-mono text-zinc-400">
+            <div className="flex flex-wrap items-center gap-4 pt-2 text-[11px] font-mono text-zinc-400">
               <span>
                 GPs F1 Disputados: <strong className="text-white">{pilot.f1RacesCompleted}</strong>
               </span>
@@ -365,10 +602,19 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 Pontos Superlicença:{' '}
                 <strong className="text-white">{pilot.superlicensePoints}</strong>
               </span>
+              {pilot.preferredNumber && (
+                <>
+                  <span>•</span>
+                  <span>
+                    Número Preferido:{' '}
+                    <strong className="text-amber-400 font-bold">#{pilot.preferredNumber}</strong>
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Seção 4: Situação Contratual & Elegibilidade FIA */}
+          {/* Seção 5: Situação Contratual & Elegibilidade MBJ */}
           <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
               <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
@@ -380,24 +626,45 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 <span className="text-zinc-400 text-[11px]">Vínculo Atual:</span>
                 <div className="font-bold text-white">{currentTeamDisplay}</div>
                 <div className="text-[11px] text-zinc-400">{contractTermDisplay}</div>
+                {pilot.exitClauseUsd && (
+                  <div className="text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/60 mt-1 flex justify-between">
+                    <span>Multa Rescisória (P):</span>
+                    <span className="font-mono font-bold text-zinc-300">
+                      {formatUsdCurrency(pilot.exitClauseUsd, 'full')}
+                    </span>
+                  </div>
+                )}
+                {pilot.winBonusUsd && (
+                  <div className="text-[11px] text-zinc-400 flex justify-between">
+                    <span>Bônus por Vitória (P):</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      {formatUsdCurrency(pilot.winBonusUsd, 'full')}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800 space-y-1">
-                <span className="text-zinc-400 text-[11px]">Status Regulamentar FIA:</span>
+                <span className="text-zinc-400 text-[11px]">
+                  Status Regulamentar FIA / Elegibilidade MBJ:
+                </span>
                 <div className="flex items-center gap-1 font-bold text-white">
                   {eligibility.status === 'academia' && (
                     <span className="text-purple-400 flex items-center gap-1">
-                      <GraduationCap className="w-3.5 h-3.5" /> {eligibility.label}
+                      <GraduationCap className="w-3.5 h-3.5" />{' '}
+                      {pilot.eligibilityStatus || eligibility.label}
                     </span>
                   )}
                   {eligibility.status === 'homologacao' && (
                     <span className="text-amber-400 flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5" /> Exige Homologação
+                      <AlertTriangle className="w-3.5 h-3.5" />{' '}
+                      {pilot.eligibilityStatus || 'TESTE HOMOLOGAÇÃO MBJ'}
                     </span>
                   )}
                   {eligibility.status === 'elegivel' && (
                     <span className="text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Superlicença Válida
+                      <CheckCircle2 className="w-3.5 h-3.5" />{' '}
+                      {pilot.eligibilityStatus || 'Superlicença Válida FIA'}
                     </span>
                   )}
                 </div>

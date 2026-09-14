@@ -18,6 +18,11 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
   const candidateUrls = useMemo(() => getLocalDriverPosterCandidates(name), [name])
   const [candidateIndex, setCandidateIndex] = useState(0)
 
+  // Reset index when name changes
+  React.useEffect(() => {
+    setCandidateIndex(0)
+  }, [name])
+
   const isExhausted = candidateIndex >= candidateUrls.length
   const currentSrc = !isExhausted ? candidateUrls[candidateIndex] : null
 

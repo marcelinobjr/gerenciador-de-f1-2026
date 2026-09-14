@@ -84,6 +84,41 @@ export interface UnifiedDriverItem {
   nextTeamId?: string | null
   nextContractRole?: 'titular' | 'reserva' | null
   rawDbRecord?: DriverModel
+
+  // Propriedades expandidas MBJ para perfil completo (45 campos)
+  birthDate?: string
+  preferredNumber?: number
+  eligibilityStatus?: string
+  biography?: string
+  qualifying?: number
+  racePace?: number
+  start?: number
+  overtake?: number
+  tireManagement?: number
+  energyManagement?: number
+  feedback?: number
+  pressure?: number
+  concentration?: number
+  resilience?: number
+  aggressiveness?: number
+  ambition?: number
+  loyalty?: number
+  professionalism?: number
+  reputation?: number
+  globalPopularity?: number
+  localPopularity?: number
+  localMarket?: string
+  moraleState?: number
+  confidence?: number
+  physicalCondition?: number
+  stress?: number
+  adaptability?: number
+  adaptationF1?: number
+  adaptationCar?: number
+  adaptationTeam?: number
+  revealedTraits?: string[]
+  exitClauseUsd?: number
+  winBonusUsd?: number
 }
 
 export default function DriversPage() {
@@ -224,6 +259,43 @@ export default function DriversPage() {
         nextTeamId: d.next_team_id,
         nextContractRole: d.next_contract_role,
         rawDbRecord: d,
+
+        // Campos completos MBJ
+        birthDate: mbjInfo?.birthDate,
+        preferredNumber: mbjInfo?.preferredNumber,
+        eligibilityStatus: mbjInfo?.eligibilityStatus,
+        biography: mbjInfo?.biography,
+        qualifying:
+          mbjInfo?.qualifying ?? Math.min(99, Math.max(50, speed + (speed > 85 ? 1 : -1))),
+        racePace:
+          mbjInfo?.racePace ?? Math.min(99, Math.max(50, Math.round((speed + consistency) / 2))),
+        start: mbjInfo?.start ?? Math.min(99, Math.max(50, defense - 2)),
+        overtake: mbjInfo?.overtake ?? Math.min(99, Math.max(50, speed - 1)),
+        tireManagement: mbjInfo?.tireManagement ?? Math.min(99, Math.max(50, consistency)),
+        energyManagement: mbjInfo?.energyManagement ?? Math.min(99, Math.max(50, consistency - 1)),
+        feedback: mbjInfo?.feedback ?? Math.min(99, Math.max(50, consistency + 2)),
+        pressure: mbjInfo?.pressure ?? Math.min(99, Math.max(50, speed - 2)),
+        concentration: mbjInfo?.concentration ?? Math.min(99, Math.max(50, consistency)),
+        resilience: mbjInfo?.resilience ?? Math.min(99, Math.max(50, defense)),
+        aggressiveness: mbjInfo?.aggressiveness ?? 70,
+        ambition: mbjInfo?.ambition ?? 80,
+        loyalty: mbjInfo?.loyalty ?? 75,
+        professionalism: mbjInfo?.professionalism ?? 85,
+        reputation: mbjInfo?.reputation ?? Math.min(99, Math.max(50, speed)),
+        globalPopularity: mbjInfo?.globalPopularity ?? Math.min(99, Math.max(40, speed - 5)),
+        localPopularity: mbjInfo?.localPopularity ?? Math.min(100, Math.max(60, speed + 10)),
+        localMarket: mbjInfo?.localMarket,
+        moraleState: d.morale || mbjInfo?.moraleState || 75,
+        confidence: mbjInfo?.confidence ?? 75,
+        physicalCondition: d.physical_condition || mbjInfo?.physicalCondition || 100,
+        stress: mbjInfo?.stress ?? 25,
+        adaptability: mbjInfo?.adaptability ?? 80,
+        adaptationF1: mbjInfo?.adaptationF1 ?? (cat === 'f1' ? 90 : 60),
+        adaptationCar: mbjInfo?.adaptationCar ?? 80,
+        adaptationTeam: mbjInfo?.adaptationTeam ?? 80,
+        revealedTraits: mbjInfo?.revealedTraits,
+        exitClauseUsd: mbjInfo?.exitClauseUsd ?? Math.round(salaryUsd * 2.5),
+        winBonusUsd: mbjInfo?.winBonusUsd ?? Math.round(salaryUsd * 0.08),
       })
     }
 
@@ -255,6 +327,40 @@ export default function DriversPage() {
         superlicensePoints: pilot.superlicensePoints,
         isAcademyProspect: Boolean(pilot.isAcademyProspect || pilot.category === 'f2'),
         isPlayerDriver: false,
+
+        birthDate: pilot.birthDate,
+        preferredNumber: pilot.preferredNumber,
+        eligibilityStatus: pilot.eligibilityStatus,
+        biography: pilot.biography,
+        qualifying: pilot.qualifying ?? pilot.speed,
+        racePace: pilot.racePace ?? Math.round((pilot.speed + pilot.consistency) / 2),
+        start: pilot.start ?? pilot.defense - 2,
+        overtake: pilot.overtake ?? pilot.speed - 1,
+        tireManagement: pilot.tireManagement ?? pilot.consistency,
+        energyManagement: pilot.energyManagement ?? pilot.consistency - 1,
+        feedback: pilot.feedback ?? pilot.consistency + 2,
+        pressure: pilot.pressure ?? pilot.speed - 2,
+        concentration: pilot.concentration ?? pilot.consistency,
+        resilience: pilot.resilience ?? pilot.defense,
+        aggressiveness: pilot.aggressiveness ?? 70,
+        ambition: pilot.ambition ?? 80,
+        loyalty: pilot.loyalty ?? 75,
+        professionalism: pilot.professionalism ?? 85,
+        reputation: pilot.reputation ?? pilot.speed,
+        globalPopularity: pilot.globalPopularity ?? Math.max(30, pilot.speed - 10),
+        localPopularity: pilot.localPopularity ?? Math.min(100, pilot.speed + 10),
+        localMarket: pilot.localMarket,
+        moraleState: pilot.moraleState ?? 75,
+        confidence: pilot.confidence ?? 75,
+        physicalCondition: pilot.physicalCondition ?? 100,
+        stress: pilot.stress ?? 25,
+        adaptability: pilot.adaptability ?? 80,
+        adaptationF1: pilot.adaptationF1 ?? (pilot.category === 'f1' ? 90 : 60),
+        adaptationCar: pilot.adaptationCar ?? 80,
+        adaptationTeam: pilot.adaptationTeam ?? 80,
+        revealedTraits: pilot.revealedTraits,
+        exitClauseUsd: pilot.exitClauseUsd ?? Math.round(pilot.salaryUsd * 2.5),
+        winBonusUsd: pilot.winBonusUsd ?? Math.round(pilot.salaryUsd * 0.08),
       })
     }
 
@@ -536,20 +642,20 @@ export default function DriversPage() {
               />
             </div>
 
-            {/* Dados do Piloto com Grid sem sobreposição */}
-            <div className="flex-1 min-w-0">
+            {/* Dados do Piloto com Grid sem sobreposição e largura ampla */}
+            <div className="flex-1 min-w-0 flex flex-col justify-between">
               {/* Linha superior: País à esquerda, OVR sempre visível à direita */}
-              <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center justify-between gap-1.5 mb-1">
                 <Badge
                   variant="outline"
                   title={pilot.nationality}
-                  className="font-mono text-[11px] border-zinc-700 bg-zinc-800/80 text-zinc-300 truncate max-w-[120px] shrink"
+                  className="font-mono text-[11px] border-zinc-700 bg-zinc-800/80 text-zinc-300 shrink-0"
                 >
                   <span className="mr-1">{getCountryFlag(pilot.nationality)}</span>
-                  <span className="truncate">{pilot.nationality}</span>
+                  <span>{pilot.nationality}</span>
                 </Badge>
 
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0 ml-auto">
                   <span className="text-[10px] text-zinc-400 font-mono font-semibold uppercase">
                     OVR
                   </span>
@@ -567,24 +673,17 @@ export default function DriversPage() {
                 </div>
               </div>
 
-              {/* Nome completo com title para tooltip natural e sem corte agressivo */}
+              {/* Nome completo com title para tooltip nativo no hover, sem corte precoce */}
               <CardTitle
                 title={pilot.name}
-                className="text-base font-bold text-white group-hover:text-red-400 transition-colors line-clamp-1"
+                className="text-base font-bold text-white group-hover:text-red-400 transition-colors truncate"
               >
                 {pilot.name}
               </CardTitle>
 
-              {/* Idade + Equipe sem grudar */}
-              <CardDescription className="text-xs text-zinc-400 flex flex-wrap items-center gap-1.5 mt-0.5">
+              {/* Idade e Papel na primeira linha */}
+              <div className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
                 <span>{pilot.age} anos</span>
-                <span>•</span>
-                <span
-                  title={formattedTeamName}
-                  className="text-zinc-300 font-medium truncate max-w-[130px]"
-                >
-                  {formattedTeamName}
-                </span>
                 {pilot.role && (
                   <Badge
                     variant="secondary"
@@ -597,23 +696,43 @@ export default function DriversPage() {
                     {pilot.role}
                   </Badge>
                 )}
-              </CardDescription>
+              </div>
+
+              {/* Equipe em linha própria com tooltip nativo, sem cortar palavra-chave */}
+              <div
+                title={formattedTeamName}
+                className="text-xs text-zinc-300 font-medium truncate mt-0.5 block"
+              >
+                {formattedTeamName}
+              </div>
 
               {/* Status de Elegibilidade FIA */}
               <div className="mt-2">
                 {eligibility.status === 'academia' && (
-                  <Badge className="bg-purple-950/80 text-purple-300 border-purple-700/60 text-[10px] flex items-center gap-1 w-fit">
-                    <GraduationCap className="w-3 h-3" /> {eligibility.label}
+                  <Badge
+                    className="bg-purple-950/80 text-purple-300 border-purple-700/60 text-[10px] flex items-center gap-1 w-fit max-w-full truncate"
+                    title={eligibility.label}
+                  >
+                    <GraduationCap className="w-3 h-3 shrink-0" />{' '}
+                    <span className="truncate">{eligibility.label}</span>
                   </Badge>
                 )}
                 {eligibility.status === 'homologacao' && (
-                  <Badge className="bg-amber-950/80 text-amber-300 border-amber-700/60 text-[10px] flex items-center gap-1 w-fit">
-                    <AlertTriangle className="w-3 h-3" /> Exige Homologação
+                  <Badge
+                    className="bg-amber-950/80 text-amber-300 border-amber-700/60 text-[10px] flex items-center gap-1 w-fit max-w-full truncate"
+                    title="Exige Homologação"
+                  >
+                    <AlertTriangle className="w-3 h-3 shrink-0" />{' '}
+                    <span className="truncate">Exige Homologação</span>
                   </Badge>
                 )}
                 {eligibility.status === 'elegivel' && (
-                  <Badge className="bg-emerald-950/80 text-emerald-300 border-emerald-700/60 text-[10px] flex items-center gap-1 w-fit">
-                    <CheckCircle2 className="w-3 h-3" /> Superlicença Válida
+                  <Badge
+                    className="bg-emerald-950/80 text-emerald-300 border-emerald-700/60 text-[10px] flex items-center gap-1 w-fit max-w-full truncate"
+                    title="Superlicença Válida"
+                  >
+                    <CheckCircle2 className="w-3 h-3 shrink-0" />{' '}
+                    <span className="truncate">Superlicença Válida</span>
                   </Badge>
                 )}
               </div>

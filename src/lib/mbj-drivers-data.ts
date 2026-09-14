@@ -29,6 +29,75 @@ export interface MBJPilotData {
   isAcademyProspect?: boolean
   photoFilename?: string
   notes?: string
+
+  // Novos campos completos da Ficha MBJ 2026 (45 campos)
+  // Identidade V
+  birthDate?: string
+  preferredNumber?: number
+  eligibilityStatus?: string
+  f1ExperienceTier?: string
+  originSchema?: string
+  statusScenario?: string
+  biography?: string
+
+  // 14 Atributos Esportivos P
+  qualifying?: number
+  racePace?: number
+  start?: number
+  overtake?: number
+  tireManagement?: number
+  energyManagement?: number
+  feedback?: number
+  pressure?: number
+  concentration?: number
+  resilience?: number
+
+  // Personalidade P/V/O
+  aggressiveness?: number // P
+  ambition?: number // P
+  loyalty?: number // P
+  professionalism?: number // P
+  temperament?: number // O (oculto, apenas simulação)
+  reputation?: number // V
+  globalPopularity?: number // V
+  localPopularity?: number // V
+  localMarket?: string // V
+
+  // Estado P
+  moraleState?: number // P (qualitativo para fora)
+  confidence?: number // P (qualitativo para fora)
+  physicalCondition?: number // P (qualitativo para fora)
+  stress?: number // P (qualitativo para fora)
+  adaptability?: number // P
+  adaptationF1?: number // P
+  adaptationCar?: number // P
+  adaptationTeam?: number // P
+  combinedAdaptation?: number | string
+  learningRate?: string
+
+  // Negociação
+  minSalaryUsd?: number // O
+  acceptsReserve?: boolean // O
+  acceptedRoles?: string[] // O
+  negotiationWeights?: {
+    money?: number
+    project?: number
+    prestige?: number
+    stability?: number
+    role?: number
+    relationship?: number
+  } // O
+
+  // Contrato P
+  contractStart?: string
+  contractEndYear?: number
+  exitClauseUsd?: number
+  winBonusUsd?: number
+  hierarchyRole?: string
+  contractNature?: string
+
+  // Traços
+  revealedTraits?: string[]
 }
 
 export const USD_TO_BRL_RATE = 5.75
@@ -48,9 +117,46 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 96,
     rain: 99,
     defense: 97,
+    qualifying: 97,
+    racePace: 98,
+    start: 94,
+    overtake: 96,
+    tireManagement: 95,
+    energyManagement: 94,
+    feedback: 92,
+    pressure: 98,
+    concentration: 97,
+    resilience: 96,
+    aggressiveness: 88,
+    ambition: 99,
+    loyalty: 82,
+    professionalism: 94,
+    reputation: 99,
+    globalPopularity: 98,
+    localPopularity: 100,
+    localMarket: 'NL',
+    moraleState: 92,
+    confidence: 96,
+    physicalCondition: 98,
+    stress: 18,
+    adaptability: 96,
+    adaptationF1: 99,
+    adaptationCar: 95,
+    adaptationTeam: 98,
+    preferredNumber: 1,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Tetracampeão mundial de Fórmula 1 e recordista histórico de vitórias em uma única temporada. Piloto com velocidade pura avassaladora, controle sob chuva lendário e liderança técnica na Red Bull.',
+    revealedTraits: [
+      'Especialista em Chuva (TR01)',
+      'Mestre da Classificação (TR02)',
+      'Sangue Frio sob Pressão (TR10)',
+    ],
     salaryUsd: 55000000,
     salaryBrl: 55000000 * USD_TO_BRL_RATE,
     contractYears: 3,
+    exitClauseUsd: 120000000,
+    winBonusUsd: 2000000,
     potentialMin: 97,
     potentialMax: 99,
     f1RacesCompleted: 205,
@@ -70,9 +176,42 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 82,
     rain: 83,
     defense: 85,
+    qualifying: 83,
+    racePace: 84,
+    start: 82,
+    overtake: 85,
+    tireManagement: 82,
+    energyManagement: 81,
+    feedback: 80,
+    pressure: 82,
+    concentration: 83,
+    resilience: 84,
+    aggressiveness: 72,
+    ambition: 88,
+    loyalty: 76,
+    professionalism: 85,
+    reputation: 74,
+    globalPopularity: 62,
+    localPopularity: 88,
+    localMarket: 'NZ',
+    moraleState: 75,
+    confidence: 78,
+    physicalCondition: 95,
+    stress: 30,
+    adaptability: 84,
+    adaptationF1: 82,
+    adaptationCar: 80,
+    adaptationTeam: 82,
+    preferredNumber: 30,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Graduado do programa Red Bull Junior. Conquistou pontos logo em suas primeiras corridas de substituição e agora assume assento titular em tempo integral.',
+    revealedTraits: ['Combate Agressivo (TR09)', 'Adaptação Rápida (TR11)'],
     salaryUsd: 4000000,
     salaryBrl: 4000000 * USD_TO_BRL_RATE,
     contractYears: 2,
+    exitClauseUsd: 15000000,
+    winBonusUsd: 500000,
     potentialMin: 85,
     potentialMax: 90,
     f1RacesCompleted: 11,
@@ -92,9 +231,46 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 95,
     rain: 97,
     defense: 95,
+    qualifying: 95,
+    racePace: 97,
+    start: 92,
+    overtake: 96,
+    tireManagement: 98,
+    energyManagement: 94,
+    feedback: 96,
+    pressure: 98,
+    concentration: 96,
+    resilience: 95,
+    aggressiveness: 78,
+    ambition: 98,
+    loyalty: 88,
+    professionalism: 97,
+    reputation: 100,
+    globalPopularity: 100,
+    localPopularity: 98,
+    localMarket: 'GB',
+    moraleState: 88,
+    confidence: 94,
+    physicalCondition: 92,
+    stress: 20,
+    adaptability: 94,
+    adaptationF1: 99,
+    adaptationCar: 92,
+    adaptationTeam: 93,
+    preferredNumber: 44,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Heptacampeão mundial de F1 e ícone global do esporte motor. Estreou pela McLaren em 2007, construiu uma dinastia na Mercedes e agora veste o macacão escarlate da Scuderia Ferrari.',
+    revealedTraits: [
+      'Gestão de Pneus Primorosa (TR10)',
+      'Especialista em Chuva (TR01)',
+      'Liderança de Garagem (TR02)',
+    ],
     salaryUsd: 60000000,
     salaryBrl: 60000000 * USD_TO_BRL_RATE,
     contractYears: 2,
+    exitClauseUsd: 150000000,
+    winBonusUsd: 2500000,
     potentialMin: 94,
     potentialMax: 97,
     f1RacesCompleted: 350,
@@ -114,9 +290,42 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 91,
     rain: 92,
     defense: 93,
+    qualifying: 98,
+    racePace: 95,
+    start: 91,
+    overtake: 94,
+    tireManagement: 90,
+    energyManagement: 92,
+    feedback: 91,
+    pressure: 89,
+    concentration: 92,
+    resilience: 90,
+    aggressiveness: 82,
+    ambition: 96,
+    loyalty: 94,
+    professionalism: 92,
+    reputation: 96,
+    globalPopularity: 95,
+    localPopularity: 99,
+    localMarket: 'MC',
+    moraleState: 85,
+    confidence: 90,
+    physicalCondition: 96,
+    stress: 25,
+    adaptability: 92,
+    adaptationF1: 96,
+    adaptationCar: 94,
+    adaptationTeam: 97,
+    preferredNumber: 16,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Campeão da GP3 em 2016 e da F2 em 2017. Estreou na F1 em 2018 e tornou-se a referência técnica de velocidade pura da Scuderia Ferrari, reconhecido mundialmente pela habilidade em voltas de classificação.',
+    revealedTraits: ['Mestre da Pole Position (TR02)', 'Determinação Focada (TR10)'],
     salaryUsd: 36000000,
     salaryBrl: 36000000 * USD_TO_BRL_RATE,
     contractYears: 4,
+    exitClauseUsd: 90000000,
+    winBonusUsd: 1500000,
     potentialMin: 95,
     potentialMax: 98,
     f1RacesCompleted: 145,
@@ -444,9 +653,46 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 89,
     rain: 91,
     defense: 88,
+    qualifying: 89,
+    racePace: 87,
+    start: 86,
+    overtake: 86,
+    tireManagement: 88,
+    energyManagement: 87,
+    feedback: 94,
+    pressure: 88,
+    concentration: 89,
+    resilience: 87,
+    aggressiveness: 68,
+    ambition: 82,
+    loyalty: 89,
+    professionalism: 95,
+    reputation: 86,
+    globalPopularity: 78,
+    localPopularity: 92,
+    localMarket: 'DE',
+    moraleState: 84,
+    confidence: 86,
+    physicalCondition: 90,
+    stress: 22,
+    adaptability: 91,
+    adaptationF1: 96,
+    adaptationCar: 90,
+    adaptationTeam: 91,
+    preferredNumber: 27,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Piloto experiente com passagens marcantes por Williams, Force India, Renault e Haas. Escolhido como líder da transição e desenvolvimento do projeto de fábrica da Audi.',
+    revealedTraits: [
+      'Feedback Técnico de Elite (TR02)',
+      'Especialista em Chuva (TR01)',
+      'Constância de Long Run (TR10)',
+    ],
     salaryUsd: 7000000,
     salaryBrl: 7000000 * USD_TO_BRL_RATE,
     contractYears: 2,
+    exitClauseUsd: 20000000,
+    winBonusUsd: 800000,
     potentialMin: 86,
     potentialMax: 89,
     f1RacesCompleted: 228,
@@ -466,9 +712,42 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 85,
     rain: 86,
     defense: 87,
+    qualifying: 86,
+    racePace: 87,
+    start: 84,
+    overtake: 88,
+    tireManagement: 87,
+    energyManagement: 85,
+    feedback: 84,
+    pressure: 86,
+    concentration: 85,
+    resilience: 88,
+    aggressiveness: 76,
+    ambition: 94,
+    loyalty: 88,
+    professionalism: 90,
+    reputation: 82,
+    globalPopularity: 74,
+    localPopularity: 98,
+    localMarket: 'BR',
+    moraleState: 89,
+    confidence: 88,
+    physicalCondition: 98,
+    stress: 20,
+    adaptability: 92,
+    adaptationF1: 85,
+    adaptationCar: 88,
+    adaptationTeam: 90,
+    preferredNumber: 5,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Campeão da Fórmula 3 da FIA em 2023 e campeão da Fórmula 2 em 2024. Revelação brasileira que integra o projeto oficial Audi F1 para a nova era dos motores 2026.',
+    revealedTraits: ['Inteligência de Corrida (TR11)', 'Ultrapassagens Precisas (TR09)'],
     salaryUsd: 3500000,
     salaryBrl: 3500000 * USD_TO_BRL_RATE,
     contractYears: 2,
+    exitClauseUsd: 25000000,
+    winBonusUsd: 600000,
     potentialMin: 87,
     potentialMax: 94,
     f1RacesCompleted: 0,
@@ -488,9 +767,46 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 86,
     rain: 89,
     defense: 91,
+    qualifying: 84,
+    racePace: 89,
+    start: 85,
+    overtake: 88,
+    tireManagement: 94,
+    energyManagement: 89,
+    feedback: 88,
+    pressure: 87,
+    concentration: 86,
+    resilience: 89,
+    aggressiveness: 77,
+    ambition: 85,
+    loyalty: 84,
+    professionalism: 89,
+    reputation: 88,
+    globalPopularity: 90,
+    localPopularity: 100,
+    localMarket: 'MX',
+    moraleState: 80,
+    confidence: 82,
+    physicalCondition: 89,
+    stress: 26,
+    adaptability: 88,
+    adaptationF1: 96,
+    adaptationCar: 87,
+    adaptationTeam: 88,
+    preferredNumber: 11,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Múltiplo vencedor de GPs de F1 com Red Bull, Racing Point e Sauber. Reconhecido como o "Rei das Ruas" e mestre da conservação de pneus, agora lidera a estreia americana da Cadillac.',
+    revealedTraits: [
+      'Mestre dos Circuitos de Rua (TR10)',
+      'Gestão Notável de Pneus (TR02)',
+      'Defesa Feroz (TR09)',
+    ],
     salaryUsd: 14000000,
     salaryBrl: 14000000 * USD_TO_BRL_RATE,
     contractYears: 2,
+    exitClauseUsd: 35000000,
+    winBonusUsd: 1200000,
     potentialMin: 86,
     potentialMax: 90,
     f1RacesCompleted: 280,
@@ -510,9 +826,42 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 88,
     rain: 86,
     defense: 87,
+    qualifying: 90,
+    racePace: 87,
+    start: 86,
+    overtake: 85,
+    tireManagement: 88,
+    energyManagement: 88,
+    feedback: 93,
+    pressure: 87,
+    concentration: 89,
+    resilience: 87,
+    aggressiveness: 70,
+    ambition: 83,
+    loyalty: 90,
+    professionalism: 94,
+    reputation: 88,
+    globalPopularity: 86,
+    localPopularity: 96,
+    localMarket: 'FI',
+    moraleState: 82,
+    confidence: 84,
+    physicalCondition: 92,
+    stress: 21,
+    adaptability: 89,
+    adaptationF1: 96,
+    adaptationCar: 86,
+    adaptationTeam: 88,
+    preferredNumber: 77,
+    eligibilityStatus: 'SUPERLICENÇA VÁLIDA FIA',
+    biography:
+      'Vencedor de 10 GPs na F1 e vice-campeão mundial em 2019 e 2020 pela Mercedes. Traz precisão cirúrgica na volta lançada e maturidade técnica incomparável para a novata Cadillac.',
+    revealedTraits: ['Qualy Cirúrgico (TR02)', 'Jogador de Equipe (TR10)'],
     salaryUsd: 12000000,
     salaryBrl: 12000000 * USD_TO_BRL_RATE,
     contractYears: 2,
+    exitClauseUsd: 30000000,
+    winBonusUsd: 1000000,
     potentialMin: 86,
     potentialMax: 89,
     f1RacesCompleted: 246,
