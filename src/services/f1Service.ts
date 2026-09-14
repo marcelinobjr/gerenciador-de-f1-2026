@@ -875,6 +875,24 @@ export const f1Service = {
     }
   },
 
+  // Normalizador defensivo para fornecedores válidos no PocketBase (Ferrari | Mercedes | Honda | Ford | Audi)
+  normalizeEngineSupplier(supplier?: string): 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi' {
+    if (!supplier) return 'Mercedes'
+    const s = supplier.trim()
+    if (['Ferrari', 'Mercedes', 'Honda', 'Ford', 'Audi'].includes(s)) {
+      return s as 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
+    }
+    const lower = s.toLowerCase()
+    if (lower.includes('ferrari')) return 'Ferrari'
+    if (lower.includes('mercedes')) return 'Mercedes'
+    if (lower.includes('honda') || lower.includes('rbpt') || lower.includes('red bull'))
+      return 'Honda'
+    if (lower.includes('ford')) return 'Ford'
+    if (lower.includes('audi')) return 'Audi'
+    if (lower.includes('renault') || lower.includes('alpine')) return 'Mercedes' // Parceria técnica moderna
+    return 'Mercedes'
+  },
+
   // Initialize Career from Wizard (Fase 2: NewGameConfig completo)
   async initializeCareerWithConfig(
     userId: string,
@@ -887,7 +905,7 @@ export const f1Service = {
       // Criar equipe personalizada com dados do wizard
       const teamName = config.playerTeam.customName?.trim() || 'Minha Escuderia'
       const teamColor = config.playerTeam.customColor || '#00A6FB'
-      const engineSupplier = config.playerTeam.customEngine || 'Mercedes'
+      const engineSupplier = this.normalizeEngineSupplier(config.playerTeam.customEngine)
 
       const newTeam = await pb.collection('teams').create<TeamModel>({
         name: teamName,
@@ -919,7 +937,7 @@ export const f1Service = {
         custom_grid_teams: config.selectedTeams.map((t) => ({
           key: t.key,
           name: t.name,
-          engine: t.engine,
+          engine: this.normalizeEngineSupplier(t.engine),
           strength: t.strength,
           color: t.color,
         })),
@@ -981,6 +999,8 @@ export const f1Service = {
         throw new Error('Equipe oficial não encontrada no grid.')
       }
 
+      const engineSupplier = this.normalizeEngineSupplier(teamDef.engine)
+
       const newTeam = await pb.collection('teams').create<TeamModel>({
         name: teamDef.name,
         color: teamDef.color,
@@ -988,7 +1008,7 @@ export const f1Service = {
         aero_level: Math.round(teamDef.strength * 0.9),
         strategy_level: Math.round(teamDef.strength * 0.88),
         budget: teamDef.budget,
-        engine_supplier: teamDef.engine,
+        engine_supplier: engineSupplier,
         strength: teamDef.strength,
         is_custom: false,
         team_key: teamDef.key,
@@ -1011,7 +1031,7 @@ export const f1Service = {
         custom_grid_teams: config.selectedTeams.map((t) => ({
           key: t.key,
           name: t.name,
-          engine: t.engine,
+          engine: this.normalizeEngineSupplier(t.engine),
           strength: t.strength,
           color: t.color,
         })),

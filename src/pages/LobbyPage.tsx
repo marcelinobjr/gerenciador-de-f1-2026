@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { WizardStepper } from '@/components/lobby/WizardStepper'
 import { StepStart } from '@/components/lobby/StepStart'
 import { StepManager } from '@/components/lobby/StepManager'
@@ -265,9 +266,15 @@ export function LobbyPage() {
       navigate('/')
     } catch (err: any) {
       console.error('Erro ao criar carreira:', err)
+      const friendlyDetail = getErrorMessage(err)
+      const description =
+        friendlyDetail && friendlyDetail !== 'An unexpected error occurred.'
+          ? `Não foi possível criar a carreira: ${friendlyDetail}. Verifique os dados e tente novamente.`
+          : 'Não foi possível criar a carreira. Verifique os dados e tente novamente.'
+
       toast({
-        title: 'Erro ao criar carreira',
-        description: err?.message || 'Ocorreu um erro no servidor. Tente novamente.',
+        title: 'Não foi possível criar a carreira',
+        description,
         variant: 'destructive',
       })
     } finally {
