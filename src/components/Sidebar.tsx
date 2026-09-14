@@ -80,6 +80,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
     items: [
       { name: 'Central', path: '/', icon: LayoutDashboard },
       { name: 'Equipe', path: '/team', icon: Users },
+      { name: 'Pilotos', path: '/pilotos', icon: Users2 },
       { name: 'Carro', path: '/car', icon: Wrench },
       {
         name: 'Desenvolvimento',
@@ -103,7 +104,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
     items: [
       { name: 'Fim de Semana', path: '/race', icon: Flag },
       { name: 'Campeonato', path: '/standings', icon: Trophy },
-      { name: 'Paddock', path: '/paddock', icon: Users2 },
+      { name: 'Paddock', path: '/paddock', icon: Users },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
     ],
   },
@@ -269,15 +270,12 @@ export function Sidebar({
                       'relative flex items-center gap-2.5 rounded-lg text-xs font-semibold transition-all duration-150',
                       collapsed ? 'justify-center h-9 w-9 mx-auto px-0' : 'px-2.5 py-2 w-full',
                       isActive
-                        ? 'bg-[#18202E] text-white shadow-sm'
+                        ? 'bg-[#E10600]/15 text-white shadow-sm border border-[#E10600]/30'
                         : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#121822]',
                     )}
                   >
                     {isActive && (
-                      <span
-                        className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full"
-                        style={{ backgroundColor: '#E10600' }}
-                      />
+                      <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[#E10600]" />
                     )}
 
                     <Icon
@@ -388,9 +386,15 @@ export function Sidebar({
 
         {/* Rodapé da Sidebar com o slogan aprovado: "PEOPLE / CARS / RESULTS" */}
         {!collapsed && (
-          <div className="pt-2 mt-1 border-t border-[#1C2330]/60 text-center">
-            <span className="text-[9px] font-mono font-extrabold uppercase tracking-widest text-[#475569] block">
-              PEOPLE / CARS / RESULTS
+          <div className="pt-2 mt-1 border-t border-[#1C2330]/60 text-left px-2">
+            <span className="text-[9px] font-mono font-black italic tracking-wider text-rose-500/70 block">
+              PEOPLE
+            </span>
+            <span className="text-[9px] font-mono font-black italic tracking-wider text-neutral-400 block">
+              CARS
+            </span>
+            <span className="text-[9px] font-mono font-black italic tracking-wider text-neutral-500 block">
+              RESULTS
             </span>
           </div>
         )}

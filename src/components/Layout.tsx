@@ -134,9 +134,8 @@ export default function Layout() {
               <span className="text-[#94A3B8]">Temporada {seasonYear}</span>
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#64748B]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />
-              <span>FASTER. SMARTER. TOGETHER.</span>
+            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#8B95A7]">
+              <span>FASTER, SMARTER, TOGETHER.</span>
             </div>
           </div>
         </footer>

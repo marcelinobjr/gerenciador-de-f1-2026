@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
-import { DriverModel } from '@/types/f1'
+import { DriverModel, EngineSupplierSpec } from '@/types/f1'
 import { formatCurrency } from '@/lib/formatters'
 import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
 import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
-import { EngineSupplierSpec } from '@/types/f1'
 import { getCountryFlag } from '@/lib/country-flags'
 import { toast } from '@/hooks/use-toast'
 import {
@@ -27,6 +26,15 @@ import {
   Cpu,
   Zap,
   ChevronRight,
+  TrendingUp,
+  Building,
+  Briefcase,
+  Award,
+  Clock,
+  ArrowUpRight,
+  AlertCircle,
+  Info,
+  Flame,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,9 +43,7 @@ import { Slider } from '@/components/ui/slider'
 import { DriverHelmet } from '@/components/DriverHelmet'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { AmbientBackground } from '@/components/AmbientBackground'
-import { PageHeader } from '@/components/PageHeader'
 import { ProgressBar } from '@/components/ProgressBar'
-
 import {
   Dialog,
   DialogContent,
@@ -48,18 +54,20 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
+type TeamSubTab = 'visao_geral' | 'pilotos' | 'staff' | 'contratos' | 'academia' | 'cultura_moral'
+
 export default function TeamPage() {
   const navigate = useNavigate()
   const { team, season, refreshTeamAndSeason } = useAuth()
 
+  const [activeTab, setActiveTab] = useState<TeamSubTab>('visao_geral')
   const [teamDrivers, setTeamDrivers] = useState<DriverModel[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modals state
   const [renegotiateDriver, setRenegotiateDriver] = useState<DriverModel | null>(null)
-  const [salaryMultiplier, setSalaryMultiplier] = useState<number>(100) // 80% to 120%
+  const [salaryMultiplier, setSalaryMultiplier] = useState<number>(100)
   const [contractYears, setContractYears] = useState<number>(1)
-
   const [fireDriver, setFireDriver] = useState<DriverModel | null>(null)
 
   // Engine switch state
@@ -69,81 +77,20 @@ export default function TeamPage() {
   // FP practice modal
   const [fpModalOpen, setFpModalOpen] = useState(false)
   const [selectedFpRounds, setSelectedFpRounds] = useState<number[]>([7, 13])
-
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // Team strength calculation / display
-  const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
-  const teamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
+  const isCustomTeam = team?.is_custom ?? false
+  const teamStrength = team?.strength ?? 52
 
-  // Engine supplier current info
   const currentEngine = useMemo(() => {
-    const sName = team?.engine_supplier || 'Mercedes'
+    const sName = team?.engine_supplier || 'Audi'
     return ENGINE_SUPPLIERS.find((s) => s.name === sName) || ENGINE_SUPPLIERS[1]
   }, [team?.engine_supplier])
 
   const COST_CAP_LIMIT = f1Service.COST_CAP_LIMIT
   const currentCostCapSpent = team?.cost_cap_spent ?? 0
   const remainingCostCap = Math.max(0, COST_CAP_LIMIT - currentCostCapSpent)
-  const ENGINE_SWITCH_FEE = 15000000 // R$ 15M taxa de readequação de chassi
-
-  // Handle engine supplier switch in TeamPage
-  const handleSwitchSupplier = async () => {
-    if (!selectedSupplier || !team) return
-
-    if (currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT) {
-      toast({
-        variant: 'destructive',
-        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
-        description: `A taxa de rescisão e readequação de chassi de ${formatCurrency(ENGINE_SWITCH_FEE)} excede o limite do teto de gastos da FIA (${formatCurrency(COST_CAP_LIMIT)}). Margem restante: ${formatCurrency(remainingCostCap)}.`,
-      })
-      return
-    }
-
-    if (team.budget < ENGINE_SWITCH_FEE) {
-      toast({
-        variant: 'destructive',
-        title: 'Orçamento Insuficiente',
-        description: `A rescisão e adaptação de chassi exige ${formatCurrency(ENGINE_SWITCH_FEE)}. Seu saldo: ${formatCurrency(team.budget)}.`,
-      })
-      return
-    }
-
-    setIsSwitchingEngine(true)
-    try {
-      const newBudget = team.budget - ENGINE_SWITCH_FEE
-      const newSpentCap = currentCostCapSpent + ENGINE_SWITCH_FEE
-
-      await f1Service.updateTeam(team.id, {
-        engine_supplier: selectedSupplier.name,
-        budget: newBudget,
-        cost_cap_spent: newSpentCap,
-      })
-
-      await f1Service.addEvent(
-        team.id,
-        `Fornecedor de unidade de potência trocado para ${selectedSupplier.name} (Custo: ${formatCurrency(ENGINE_SWITCH_FEE)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
-        'desenvolvimento',
-      )
-
-      toast({
-        title: 'Fornecedor de Motor Atualizado!',
-        description: `A equipe agora é impulsionada pela unidade ${selectedSupplier.name} 50/50 Híbrida. Válido para toda a temporada!`,
-      })
-
-      setSelectedSupplier(null)
-      await refreshTeamAndSeason()
-      await loadData()
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro na troca de motor',
-        description: err?.message || 'Falha ao alterar fornecedor de motor.',
-      })
-    } finally {
-      setIsSwitchingEngine(false)
-    }
-  }
+  const ENGINE_SWITCH_FEE = 15000000
 
   const loadData = async () => {
     if (!team) {
@@ -168,7 +115,7 @@ export default function TeamPage() {
     loadData()
   })
 
-  // Separate starters and reserve
+  // Starters and reserve
   const titularDrivers = useMemo(
     () => teamDrivers.filter((d) => d.role !== 'reserva' && d.team_id === team?.id),
     [teamDrivers, team?.id],
@@ -182,13 +129,176 @@ export default function TeamPage() {
     [teamDrivers, team?.id],
   )
 
-  // Current incapacitated driver (if any)
   const incapacitatedDriver = useMemo(
     () => titularDrivers.find((d) => d.is_incapacitated),
     [titularDrivers],
   )
 
-  const nextSeasonYear = (season?.year || 2026) + 1
+  // Team identity details
+  const teamName = team?.name || 'Audi F1 Team'
+  const isAudi = teamName.toLowerCase().includes('audi')
+  const teamCountry = isAudi ? 'Alemanha' : 'Brasil'
+  const teamFlag = isAudi ? '🇩🇪' : '🇧🇷'
+  const teamHq = isAudi ? 'Neuburg an der Donau' : 'Interlagos, São Paulo'
+  const teamIntro = isAudi
+    ? 'Unindo a tradição alemã em engenharia com uma mentalidade moderna de alta performance. Nosso foco é construir um legado duradouro na Fórmula 1.'
+    : 'Desenvolvendo tecnologia e performance para colocar a equipe no topo do automobilismo mundial com paixão e precisão.'
+
+  const teamPrincipalName = team?.manager_name || 'Jogador'
+  const boardConfidence = team?.board_confidence ?? 93
+  const overallMorale = 82 // Morale index %
+
+  // Staff members
+  const staffMembers = [
+    {
+      role: 'Diretor Técnico',
+      name: 'James Key',
+      country: 'Reino Unido',
+      flag: '🇬🇧',
+      rating: 88,
+      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=44',
+    },
+    {
+      role: 'Chefe de Aerodinâmica',
+      name: 'Enrico Cardile',
+      country: 'Itália',
+      flag: '🇮🇹',
+      rating: 86,
+      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=88',
+    },
+    {
+      role: 'Chefe de Engenharia',
+      name: 'Adam Baker',
+      country: 'Reino Unido',
+      flag: '🇬🇧',
+      rating: 82,
+      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=62',
+    },
+    {
+      role: 'Chefe de Estratégia',
+      name: 'Hannah Schmitz',
+      country: 'Alemanha',
+      flag: '🇩🇪',
+      rating: 85,
+      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=female&seed=91',
+    },
+    {
+      role: 'Diretor Esportivo',
+      name: 'Allan McNish',
+      country: 'Reino Unido',
+      flag: '🇬🇧',
+      rating: 80,
+      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=33',
+    },
+  ]
+
+  // Academy young drivers
+  const academyDrivers = [
+    {
+      name: 'Tim Tramnitz',
+      country: 'Alemanha',
+      flag: '🇩🇪',
+      series: 'F2',
+      age: 18,
+      potential: 82,
+      current: 68,
+    },
+    {
+      name: 'Luke Browning',
+      country: 'Reino Unido',
+      flag: '🇬🇧',
+      series: 'F3',
+      age: 17,
+      potential: 78,
+      current: 65,
+    },
+  ]
+
+  // Action needed alerts
+  const attentionItems = [
+    {
+      id: 'alert-1',
+      icon: Flame,
+      iconColor: 'text-rose-500',
+      title: 'Contrato próximo do fim',
+      desc: 'Z. Maloney - contrato expira em 2026',
+      time: '1 ano',
+    },
+    {
+      id: 'alert-2',
+      icon: AlertTriangle,
+      iconColor: 'text-amber-500',
+      title: 'Acompanhar moral do piloto',
+      desc: 'G. Bortoleto tem demonstrado insatisfação com ritmo de desenvolvimento do carro',
+      time: '2 dias',
+    },
+    {
+      id: 'alert-3',
+      icon: Info,
+      iconColor: 'text-cyan-400',
+      title: 'Avaliar renovação de staff',
+      desc: 'E. Cardile - interesse de outras equipes',
+      time: '3 dias',
+    },
+  ]
+
+  // Handlers for engine switch
+  const handleSwitchSupplier = async () => {
+    if (!selectedSupplier || !team) return
+
+    if (currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT) {
+      toast({
+        variant: 'destructive',
+        title: 'Bloqueio FIA: Teto de Gastos Atingido!',
+        description: `A taxa de rescisão e readequação de chassi de ${formatCurrency(ENGINE_SWITCH_FEE)} excede o limite (${formatCurrency(COST_CAP_LIMIT)}).`,
+      })
+      return
+    }
+
+    if (team.budget < ENGINE_SWITCH_FEE) {
+      toast({
+        variant: 'destructive',
+        title: 'Orçamento Insuficiente',
+        description: `A rescisão e adaptação de chassi exige ${formatCurrency(ENGINE_SWITCH_FEE)}.`,
+      })
+      return
+    }
+
+    setIsSwitchingEngine(true)
+    try {
+      const newBudget = team.budget - ENGINE_SWITCH_FEE
+      const newSpentCap = currentCostCapSpent + ENGINE_SWITCH_FEE
+
+      await f1Service.updateTeam(team.id, {
+        engine_supplier: selectedSupplier.name,
+        budget: newBudget,
+        cost_cap_spent: newSpentCap,
+      })
+
+      await f1Service.addEvent(
+        team.id,
+        `Fornecedor de unidade de potência trocado para ${selectedSupplier.name}.`,
+        'desenvolvimento',
+      )
+
+      toast({
+        title: 'Fornecedor de Motor Atualizado!',
+        description: `A equipe agora é impulsionada pela unidade ${selectedSupplier.name} 50/50 Híbrida.`,
+      })
+
+      setSelectedSupplier(null)
+      await refreshTeamAndSeason()
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro na troca de motor',
+        description: err?.message || 'Falha ao alterar fornecedor de motor.',
+      })
+    } finally {
+      setIsSwitchingEngine(false)
+    }
+  }
 
   // Renegotiate contract handler
   const handleRenegotiate = async () => {
@@ -211,7 +321,7 @@ export default function TeamPage() {
 
       toast({
         title: 'Contrato Renegociado!',
-        description: `${renegotiateDriver.name} assinou até ${newContractEnd} com salário de ${formatCurrency(newSalary)}.`,
+        description: `${renegotiateDriver.name} assinou até ${newContractEnd}.`,
       })
 
       setRenegotiateDriver(null)
@@ -243,11 +353,8 @@ export default function TeamPage() {
         return
       }
 
-      // Deduct budget
       const updatedBudget = team.budget - penaltyCost
       await f1Service.updateTeam(team.id, { budget: updatedBudget })
-
-      // Release driver to market
       await f1Service.fireDriver(fireDriver.id)
 
       await f1Service.addEvent(
@@ -258,7 +365,7 @@ export default function TeamPage() {
 
       toast({
         title: 'Piloto Dispensado',
-        description: `${fireDriver.name} liberado para o mercado. Multa paga: ${formatCurrency(penaltyCost)}.`,
+        description: `${fireDriver.name} liberado para o mercado.`,
       })
 
       setFireDriver(null)
@@ -282,8 +389,7 @@ export default function TeamPage() {
       toast({
         variant: 'destructive',
         title: 'Seleção Inválida',
-        description:
-          'Você deve selecionar exatamente 2 Grandes Prêmios para os treinos livres do reserva.',
+        description: 'Você deve selecionar exatamente 2 Grandes Prêmios.',
       })
       return
     }
@@ -291,17 +397,10 @@ export default function TeamPage() {
     setIsProcessing(true)
     try {
       await f1Service.scheduleReserveFP(reserveDriver.id, selectedFpRounds)
-      await f1Service.addEvent(
-        team.id,
-        `Piloto reserva ${reserveDriver.name} escalado para os treinos livres dos GPs: ${selectedFpRounds.map((r) => F1_2026_CALENDAR[r - 1]?.name || `GP ${r}`).join(' e ')}.`,
-        'desenvolvimento',
-      )
-
       toast({
         title: 'Treinos Livres Agendados!',
-        description: `${reserveDriver.name} participará do FP1 nos GPs ${selectedFpRounds.join(' e ')}. Isso gerará dados e bônus de setup!`,
+        description: `${reserveDriver.name} participará do FP1 nos GPs ${selectedFpRounds.join(' e ')}.`,
       })
-
       setFpModalOpen(false)
       loadData()
     } catch (err: any) {
@@ -320,7 +419,6 @@ export default function TeamPage() {
       setSelectedFpRounds(selectedFpRounds.filter((r) => r !== roundNumber))
     } else {
       if (selectedFpRounds.length >= 2) {
-        // replace oldest
         setSelectedFpRounds([selectedFpRounds[1], roundNumber])
       } else {
         setSelectedFpRounds([...selectedFpRounds, roundNumber])
@@ -329,834 +427,998 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="relative space-y-8 animate-fade-in-up">
+    <div className="relative space-y-6 pb-12 animate-fade-in-up">
       <AmbientBackground />
-      {/* PageHeader Race Operations */}
-      <PageHeader
-        eyebrow="RACE OPERATIONS // GESTÃO ESPORTIVA"
-        title="Minha Equipe"
-        description="Estrutura de 2 titulares + 1 piloto reserva com treinos livres anuais, substituição por incapacidade médica e unidade de potência."
-        badge={
-          <Badge
-            variant="outline"
-            className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] font-mono text-xs"
-          >
-            {isCustomTeam ? '12ª Equipe Própria' : 'Equipe Oficial 2026'}
-          </Badge>
-        }
-        actions={
-          <div className="bg-[#11161F] border border-[#1F2733] px-3.5 py-2 rounded-lg flex items-center gap-3">
-            <div className="text-right">
-              <span className="eyebrow block text-[#8B95A7]">FORÇA DA ESCUDERIA</span>
-              <span className="font-num text-lg font-bold text-[#F5F7FA]">{teamStrength}/100</span>
-            </div>
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-          </div>
-        }
-      />
 
-      {/* Alerta de Piloto Incapacitado (se houver) */}
-      {incapacitatedDriver && (
-        <div className="p-4 rounded-xl bg-amber-950/30 border border-amber-500/40 flex items-start gap-3">
-          <HeartPulse className="w-5 h-5 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-          <div className="space-y-1 text-xs">
-            <div className="font-bold text-amber-300 text-sm flex items-center gap-2">
-              Afastamento Médico Ativo: {incapacitatedDriver.name}
-              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px]">
-                {incapacitatedDriver.incapacitated_rounds_left} corrida(s) restante(s)
-              </Badge>
+      {/* HEADER PRINCIPAL CONFORME MOCKUP */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-1">
+        <div>
+          <h1 className="text-4xl sm:text-5xl font-black italic tracking-tight text-white font-serif">
+            Equipe
+          </h1>
+          <p className="text-xs sm:text-sm font-medium tracking-wide text-neutral-400 mt-1">
+            Pessoas. Estrutura. Cultura. Performance.
+          </p>
+        </div>
+
+        {/* CITAÇÃO NO TOPO DIREITO */}
+        <div className="hidden lg:block text-right">
+          <p className="text-xs font-serif italic text-neutral-300">
+            &ldquo;Pessoas constroem performance.&rdquo;
+          </p>
+          <span className="text-[11px] font-bold tracking-widest text-[#E10600] uppercase font-mono">
+            Audi
+          </span>
+        </div>
+      </div>
+
+      {/* BARRA DE SUB-ABAS NO ESTILO DO MOCKUP */}
+      <div className="flex items-center gap-1.5 border-b border-neutral-800/80 pb-2 overflow-x-auto no-scrollbar">
+        {[
+          { id: 'visao_geral', label: 'Visão Geral' },
+          { id: 'pilotos', label: 'Pilotos' },
+          { id: 'staff', label: 'Staff' },
+          { id: 'contratos', label: 'Contratos' },
+          { id: 'academia', label: 'Academia' },
+          { id: 'cultura_moral', label: 'Cultura & Moral' },
+        ].map((tab) => {
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                if (tab.id === 'pilotos') {
+                  navigate('/pilotos')
+                  return
+                }
+                setActiveTab(tab.id as TeamSubTab)
+              }}
+              className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                isActive
+                  ? 'bg-[#E10600] text-white shadow-md shadow-red-600/30 font-bold'
+                  : 'bg-neutral-900/60 text-neutral-400 hover:text-white hover:bg-neutral-800/60 border border-neutral-800/50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* HERO CARD DE IDENTIDADE DA EQUIPE (MOCKUP) */}
+      <div className="relative rounded-2xl bg-[#0B0E14] border border-neutral-800/80 overflow-hidden shadow-2xl p-6 lg:p-7">
+        {/* Glow de fundo */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          {/* Logo e Info Institucional (col-span-8) */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex items-center gap-4">
+              {/* Logo da equipe */}
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-black/60 border border-neutral-800 flex items-center justify-center p-3 shadow-inner shrink-0">
+                <svg className="w-full h-auto text-white" viewBox="0 0 100 40" fill="currentColor">
+                  {/* Audi 4 rings icon */}
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                  <circle
+                    cx="40"
+                    cy="20"
+                    r="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                  <circle
+                    cx="60"
+                    cy="20"
+                    r="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                  <circle
+                    cx="80"
+                    cy="20"
+                    r="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                </svg>
+              </div>
+
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight uppercase">
+                  {teamName}
+                </h2>
+                <div className="flex items-center gap-2 mt-1 text-xs font-mono text-neutral-400">
+                  <span className="text-sm">{teamFlag}</span>
+                  <span>{teamCountry}</span>
+                  <span>•</span>
+                  <span>Sede: {teamHq}</span>
+                </div>
+              </div>
             </div>
-            <p className="text-zinc-300">
-              Motivo:{' '}
-              <strong className="text-white">
-                {incapacitatedDriver.incapacitated_reason || 'Lesão em treino físico'}
-              </strong>
-              . Durante o afastamento, o piloto reserva{' '}
-              <strong className="text-amber-400">
-                {reserveDriver?.name || 'seu reserva oficial'}
-              </strong>{' '}
-              assume automaticamente o cockpit na corrida!
+
+            <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed max-w-xl">
+              {teamIntro}
             </p>
+          </div>
+
+          {/* Cards laterais de Team Principal, Cultura, Moral e Diretoria (col-span-5) */}
+          <div className="lg:col-span-5 grid grid-cols-2 gap-3 font-mono">
+            {/* Team Principal */}
+            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
+              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
+                Team Principal
+              </span>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-[#E10600] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    {teamPrincipalName.charAt(0)}
+                  </div>
+                  <span className="text-xs font-bold text-white truncate max-w-[80px]">
+                    {teamPrincipalName}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setActiveTab('staff')}
+                  className="text-[10px] text-neutral-400 hover:text-white underline decoration-neutral-600 cursor-pointer"
+                >
+                  Ver perfil
+                </button>
+              </div>
+            </div>
+
+            {/* Moral Geral com anel % */}
+            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
+              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
+                Moral Geral
+              </span>
+              <div className="flex items-center gap-2.5 mt-2">
+                <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
+                  <svg className="w-8 h-8 -rotate-90" viewBox="0 0 32 32">
+                    <circle cx="16" cy="16" r="13" stroke="#1E293B" strokeWidth="2.5" fill="none" />
+                    <circle
+                      cx="16"
+                      cy="16"
+                      r="13"
+                      stroke="#10B981"
+                      strokeWidth="2.5"
+                      fill="none"
+                      strokeDasharray={2 * Math.PI * 13}
+                      strokeDashoffset={2 * Math.PI * 13 * (1 - overallMorale / 100)}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <Activity className="w-3.5 h-3.5 text-emerald-400 absolute" />
+                </div>
+                <span className="text-base font-black text-white">{overallMorale}%</span>
+              </div>
+            </div>
+
+            {/* Cultura da Equipe */}
+            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
+              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
+                Cultura da Equipe
+              </span>
+              <div className="flex items-center gap-2 mt-2">
+                <Award className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span className="text-xs font-bold text-white truncate">Alta Performance</span>
+              </div>
+            </div>
+
+            {/* Confiança da Diretoria com Estrela */}
+            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
+              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
+                Confiança da Diretoria
+              </span>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-amber-400 text-base">★</span>
+                <span className="text-base font-black text-white">{boardConfidence}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* VISÃO GERAL (GRID DO MOCKUP) */}
+      {activeTab === 'visao_geral' && (
+        <div className="space-y-6">
+          {/* LINHA SUPERIOR DO GRID (Pilotos / Membros Principais / Situação) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* 1. PILOTOS DA EQUIPE (col-span-5) */}
+            <div className="lg:col-span-5 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 flex flex-col justify-between shadow-lg">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-4">
+                  <span className="text-xs font-black uppercase tracking-wider text-white font-mono flex items-center gap-2">
+                    PILOTOS DA EQUIPE
+                  </span>
+                  <button
+                    onClick={() => navigate('/pilotos')}
+                    className="text-xs font-mono text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    Ver todos →
+                  </button>
+                </div>
+
+                {/* Cards por piloto (#1, #2, Reserva) */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  {/* Piloto #1 */}
+                  {(() => {
+                    const d1 = titularDrivers[0] || {
+                      name: 'Daniel Ricciardo',
+                      nationality: 'Austrália',
+                      speed: 87,
+                      consistency: 85,
+                      morale: 85,
+                      physical_condition: 92,
+                      fatigue: 28,
+                      contract_end: 2027,
+                      salary: 7500000,
+                    }
+                    const overall1 = Math.round(((d1.speed || 80) + (d1.consistency || 80)) / 2)
+                    return (
+                      <div className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/70 flex flex-col justify-between space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-neutral-400">
+                            <span className="text-white">#1</span>
+                            <span className="text-xs">{getCountryFlag(d1.nationality)}</span>
+                          </div>
+
+                          <div className="relative my-1.5 flex justify-center">
+                            <DriverPhotoAvatar
+                              name={d1.name}
+                              teamColor="#E10600"
+                              size="md"
+                              className="border border-neutral-800 rounded-lg"
+                            />
+                          </div>
+
+                          <div className="text-center">
+                            <div className="text-[11px] font-bold text-white truncate">
+                              {d1.name}
+                            </div>
+                            <div className="text-lg font-black text-white font-mono mt-0.5">
+                              {overall1}{' '}
+                              <span className="text-[9px] font-normal text-neutral-400">GER</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Barras Forma / Moral / Fadiga */}
+                        <div className="space-y-1 font-mono text-[9px]">
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Forma</span>
+                            <span className="text-emerald-400 font-bold">
+                              {d1.physical_condition || 92}
+                            </span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{ width: `${d1.physical_condition || 92}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Moral</span>
+                            <span className="text-cyan-400 font-bold">{d1.morale || 85}</span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-cyan-500 rounded-full"
+                              style={{ width: `${d1.morale || 85}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Fadiga</span>
+                            <span className="text-amber-400 font-bold">{d1.fatigue || 28}</span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-amber-500 rounded-full"
+                              style={{ width: `${d1.fatigue || 28}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
+                          <div>Contrato até {d1.contract_end || 2027}</div>
+                          <div className="text-neutral-300 font-semibold truncate">
+                            Salário: {formatCurrency(d1.salary || 7500000)}/ano
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Piloto #2 */}
+                  {(() => {
+                    const d2 = titularDrivers[1] || {
+                      name: 'Gabriel Bortoleto',
+                      nationality: 'Brasil',
+                      speed: 83,
+                      consistency: 82,
+                      morale: 78,
+                      physical_condition: 98,
+                      fatigue: 32,
+                      contract_end: 2028,
+                      salary: 3800000,
+                    }
+                    const overall2 = Math.round(((d2.speed || 83) + (d2.consistency || 82)) / 2)
+                    return (
+                      <div className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/70 flex flex-col justify-between space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-neutral-400">
+                            <span className="text-white">#2</span>
+                            <span className="text-xs">{getCountryFlag(d2.nationality)}</span>
+                          </div>
+
+                          <div className="relative my-1.5 flex justify-center">
+                            <DriverPhotoAvatar
+                              name={d2.name}
+                              teamColor="#E10600"
+                              size="md"
+                              className="border border-neutral-800 rounded-lg"
+                            />
+                          </div>
+
+                          <div className="text-center">
+                            <div className="text-[11px] font-bold text-white truncate">
+                              {d2.name}
+                            </div>
+                            <div className="text-lg font-black text-white font-mono mt-0.5">
+                              {overall2}{' '}
+                              <span className="text-[9px] font-normal text-neutral-400">GER</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Barras Forma / Moral / Fadiga */}
+                        <div className="space-y-1 font-mono text-[9px]">
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Forma</span>
+                            <span className="text-emerald-400 font-bold">
+                              {d2.physical_condition || 98}
+                            </span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{ width: `${d2.physical_condition || 98}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Moral</span>
+                            <span className="text-cyan-400 font-bold">{d2.morale || 78}</span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-cyan-500 rounded-full"
+                              style={{ width: `${d2.morale || 78}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Fadiga</span>
+                            <span className="text-amber-400 font-bold">{d2.fatigue || 32}</span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-amber-500 rounded-full"
+                              style={{ width: `${d2.fatigue || 32}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
+                          <div>Contrato até {d2.contract_end || 2028}</div>
+                          <div className="text-neutral-300 font-semibold truncate">
+                            Salário: {formatCurrency(d2.salary || 3800000)}/ano
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Piloto Reserva */}
+                  {(() => {
+                    const dr = reserveDriver || {
+                      name: 'Zane Maloney',
+                      nationality: 'Barbados',
+                      speed: 78,
+                      consistency: 77,
+                      morale: 75,
+                      physical_condition: 78,
+                      fatigue: 18,
+                      contract_end: 2026,
+                      salary: 1200000,
+                    }
+                    const overallR = Math.round(((dr.speed || 78) + (dr.consistency || 77)) / 2)
+                    return (
+                      <div className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/70 flex flex-col justify-between space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-neutral-400">
+                            <span className="text-amber-400">Reserva</span>
+                            <span className="text-xs">{getCountryFlag(dr.nationality)}</span>
+                          </div>
+
+                          <div className="relative my-1.5 flex justify-center">
+                            <DriverPhotoAvatar
+                              name={dr.name}
+                              teamColor="#D97706"
+                              size="md"
+                              className="border border-neutral-800 rounded-lg"
+                            />
+                          </div>
+
+                          <div className="text-center">
+                            <div className="text-[11px] font-bold text-white truncate">
+                              {dr.name}
+                            </div>
+                            <div className="text-lg font-black text-white font-mono mt-0.5">
+                              {overallR}{' '}
+                              <span className="text-[9px] font-normal text-neutral-400">GER</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Barras Forma / Moral / Fadiga */}
+                        <div className="space-y-1 font-mono text-[9px]">
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Forma</span>
+                            <span className="text-emerald-400 font-bold">
+                              {dr.physical_condition || 78}
+                            </span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{ width: `${dr.physical_condition || 78}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Moral</span>
+                            <span className="text-cyan-400 font-bold">{dr.morale || 75}</span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-cyan-500 rounded-full"
+                              style={{ width: `${dr.morale || 75}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-neutral-400">
+                            <span>Fadiga</span>
+                            <span className="text-amber-400 font-bold">{dr.fatigue || 18}</span>
+                          </div>
+                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-amber-500 rounded-full"
+                              style={{ width: `${dr.fatigue || 18}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
+                          <div>Contrato até {dr.contract_end || 2026}</div>
+                          <div className="text-neutral-300 font-semibold truncate">
+                            Salário: {formatCurrency(dr.salary || 1200000)}/ano
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. MEMBROS PRINCIPAIS DA EQUIPE (col-span-4) */}
+            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 flex flex-col justify-between shadow-lg">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-white font-mono flex items-center gap-2">
+                    MEMBROS PRINCIPAIS DA EQUIPE
+                  </span>
+                  <button
+                    onClick={() => setActiveTab('staff')}
+                    className="text-xs font-mono text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    Ver staff →
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {staffMembers.map((st) => (
+                    <div
+                      key={st.role}
+                      className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/60 flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={st.photo}
+                          alt={st.name}
+                          className="w-8 h-8 rounded-full object-cover border border-neutral-700 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-neutral-400 font-mono block truncate">
+                            {st.role}
+                          </span>
+                          <span className="text-xs font-bold text-white block truncate">
+                            {st.name}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 font-mono shrink-0">
+                        <span className="text-xs">{st.flag}</span>
+                        <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold">
+                          <span className="text-[10px] text-neutral-500">ıll</span>
+                          {st.rating}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. SITUAÇÃO DA EQUIPE (col-span-3) */}
+            <div className="lg:col-span-3 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 flex flex-col justify-between shadow-lg font-mono">
+              <div>
+                <div className="pb-3 border-b border-neutral-800/60 mb-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
+                    SITUAÇÃO DA EQUIPE
+                  </span>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-neutral-500" /> Funcionários
+                    </span>
+                    <strong className="text-white text-sm">320</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400 flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-neutral-500" /> Folha Salarial Anual
+                    </span>
+                    <strong className="text-white text-xs">R$ 48,5 M</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-cyan-400" /> Eficiência Operacional
+                    </span>
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      79%
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-emerald-400" /> Estabilidade
+                    </span>
+                    <strong className="text-emerald-400">85%</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Ambiente de Trabalho
+                    </span>
+                    <strong className="text-emerald-400">Muito Bom</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-neutral-800/60">
+                    <span className="text-neutral-400 flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-neutral-500" /> Risco de Rotatividade
+                    </span>
+                    <strong className="text-emerald-400">Baixo</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* LINHA INFERIOR DO GRID (Contratos em Destaque / Academia / Atenção Necessária) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* CONTRATOS EM DESTAQUE (col-span-4) */}
+            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 shadow-lg font-mono">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
+                <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
+                  CONTRATOS EM DESTAQUE
+                </span>
+                <button
+                  onClick={() => setActiveTab('contratos')}
+                  className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                >
+                  Ver todos →
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                {[
+                  { name: 'D. Ricciardo', role: 'Piloto', end: 2027, left: '2 anos' },
+                  { name: 'G. Bortoleto', role: 'Piloto', end: 2028, left: '3 anos' },
+                  { name: 'Z. Maloney', role: 'Piloto', end: 2026, left: '1 ano' },
+                  { name: 'J. Key', role: 'Diretor Técnico', end: 2027, left: '2 anos' },
+                  { name: 'E. Cardile', role: 'Chefe de Aerodinâmica', end: 2026, left: '1 ano' },
+                ].map((c) => (
+                  <div
+                    key={c.name}
+                    className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/60 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <span className="font-bold text-white block">{c.name}</span>
+                      <span className="text-[10px] text-neutral-400">
+                        {c.role} | Termina em {c.end}
+                      </span>
+                    </div>
+                    <span className="text-neutral-400 text-[11px] font-semibold">{c.left}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ACADEMIA DE PILOTOS (col-span-4) */}
+            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 shadow-lg flex flex-col justify-between font-mono">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
+                    ACADEMIA DE PILOTOS
+                  </span>
+                  <button
+                    onClick={() => setActiveTab('academia')}
+                    className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    Ver academia →
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {academyDrivers.map((ac) => (
+                    <div
+                      key={ac.name}
+                      className="p-3 rounded-xl bg-black/40 border border-neutral-800/60 space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-white">{ac.name}</span>
+                            <span className="text-xs">{ac.flag}</span>
+                            <Badge className="bg-neutral-800 text-neutral-300 text-[9px] px-1.5 py-0">
+                              {ac.series}
+                            </Badge>
+                          </div>
+                          <span className="text-[10px] text-neutral-400">Idade: {ac.age} anos</span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-base font-black text-white">{ac.current}</span>
+                          <span className="text-[10px] text-cyan-400 block">
+                            Potencial {ac.potential}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Barra de progresso */}
+                      <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-500 rounded-full"
+                          style={{ width: `${(ac.current / ac.potential) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bloco inferior institucional da academia */}
+              <div className="mt-4 pt-3 border-t border-neutral-800/60 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-neutral-400 font-sans leading-tight">
+                  Identificar e desenvolver talentos para o futuro da equipe.
+                </span>
+                <Button
+                  size="sm"
+                  onClick={() => setActiveTab('academia')}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-white text-xs h-7 shrink-0 cursor-pointer"
+                >
+                  Ver Academia
+                </Button>
+              </div>
+            </div>
+
+            {/* ATENÇÃO NECESSÁRIA (col-span-4) */}
+            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-white font-mono">
+                      ATENÇÃO NECESSÁRIA
+                    </span>
+                    <span className="w-5 h-5 rounded-full bg-[#E10600] text-white text-[11px] font-bold flex items-center justify-center font-mono">
+                      {attentionItems.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      toast({
+                        title: 'Alertas',
+                        description: 'Nenhum alerta crítico pendente no momento.',
+                      })
+                    }
+                    className="text-xs font-mono text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    Ver todas →
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {attentionItems.map((al) => {
+                    const IconComp = al.icon
+                    return (
+                      <div
+                        key={al.id}
+                        className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/60 flex items-start gap-2.5 text-xs"
+                      >
+                        <IconComp className={`w-4 h-4 ${al.iconColor} shrink-0 mt-0.5`} />
+                        <div className="flex-1 min-w-0">
+                          <span className="font-bold text-white block truncate">{al.title}</span>
+                          <p className="text-[11px] text-neutral-400 leading-tight line-clamp-2 mt-0.5">
+                            {al.desc}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-mono text-neutral-500 shrink-0">
+                          {al.time}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Bloco citação rodapé grid */}
+              <div className="mt-4 pt-3 border-t border-neutral-800/60 text-right">
+                <p className="text-[11px] font-serif italic text-neutral-400">
+                  &ldquo;Grandes equipes não são formadas apenas por pilotos. São formadas por
+                  pessoas que acreditam no mesmo destino.&rdquo;
+                </p>
+                <span className="text-[10px] font-bold tracking-widest text-[#E10600] uppercase font-mono mt-0.5 block">
+                  Audi
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Frente 1: Card Unidade de Potência 2026 (Fornecedores Homologados) */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl overflow-hidden group">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-cyan-500/10 via-transparent to-transparent pointer-events-none" />
-
-        <CardHeader className="pb-3 border-b border-[#1A2333]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
-                  REGULAMENTO FIA 2026 // TREM DE FORÇA 50/50
-                </span>
-                <Badge className="bg-cyan-500/15 border-cyan-500/40 text-cyan-300 font-mono text-[10px]">
-                  Turbo V6 + 350 kW MGU-K
-                </Badge>
-              </div>
-              <CardTitle className="text-xl font-black text-white flex items-center gap-2.5 mt-1">
-                <Cpu className="w-5 h-5 text-cyan-400" />
-                Unidade de Potência Atual: {currentEngine.name}
+      {/* SUB-ABA: STAFF */}
+      {activeTab === 'staff' && (
+        <div className="space-y-6">
+          <Card className="bg-[#0B0E14] border-neutral-800/80">
+            <CardHeader className="border-b border-neutral-800">
+              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#E10600]" />
+                Corpo Técnico e Liderança Esportiva
               </CardTitle>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="text-[#8B95A7]">Custo de Readequação / Troca:</span>
-              <strong className="text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
-                {formatCurrency(ENGINE_SWITCH_FEE)}
-              </strong>
-            </div>
-          </div>
-          <CardDescription className="text-xs text-[#8B95A7]">
-            O motor fornece aceleração em reta e afeta a probabilidade de falha mecânica nas
-            corridas. Alterne entre os 5 fabricantes homologados para a temporada 2026 com validação
-            orçamentária e teto de gastos.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="pt-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {ENGINE_SUPPLIERS.map((sup) => {
-              const isCurrent = (team?.engine_supplier || 'Mercedes') === sup.name
-              return (
-                <div
-                  key={sup.name}
-                  className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
-                    isCurrent
-                      ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
-                      : 'bg-[#0B0E14] border-[#1F2733] hover:border-[#1F2733]/90'
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-1">
+              <CardDescription className="text-xs text-neutral-400">
+                Engenheiros chefes e diretores responsáveis pelo projeto, estratégia de pit stop e
+                operações da equipe.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {staffMembers.map((st) => (
+                  <div
+                    key={st.name}
+                    className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex items-center justify-between gap-3 font-mono"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={st.photo}
+                        alt={st.name}
+                        className="w-12 h-12 rounded-full object-cover border-2 border-neutral-700"
+                      />
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-bold text-base text-[#F5F7FA]">{sup.name}</h3>
-                          {isCurrent && (
-                            <Badge className="bg-cyan-500 text-slate-950 text-[10px] font-mono font-bold">
-                              Equipado
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-[10px] font-mono text-cyan-400 mt-0.5">
-                          {sup.techBadge}
-                        </p>
+                        <span className="text-xs text-neutral-400 block">{st.role}</span>
+                        <strong className="text-sm text-white block">{st.name}</strong>
+                        <span className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
+                          {st.flag} {st.country}
+                        </span>
                       </div>
                     </div>
-
-                    <p className="text-[11px] text-[#8B95A7] leading-relaxed line-clamp-2">
-                      {sup.description}
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#1F2733] text-xs font-mono">
-                      <div className="p-1.5 rounded bg-[#080C14]/80 border border-[#1A2333]">
-                        <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-cyan-400" /> Potência
-                        </span>
-                        <strong className="text-[#F5F7FA] text-sm">{sup.power}/100</strong>
-                      </div>
-                      <div className="p-1.5 rounded bg-[#080C14]/80 border border-[#1A2333]">
-                        <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
-                          <Shield className="w-3 h-3 text-emerald-400" /> Confiab.
-                        </span>
-                        <strong className="text-emerald-400 text-sm">{sup.reliability}%</strong>
-                      </div>
+                    <div className="text-right">
+                      <span className="text-lg font-black text-emerald-400">{st.rating}</span>
+                      <span className="text-[10px] text-neutral-500 block">RATING</span>
                     </div>
                   </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-                  <div className="mt-3 pt-2.5 border-t border-[#1F2733]/80 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-[#8B95A7] block font-mono">
-                        Custo anual
-                      </span>
-                      <strong className="text-xs font-mono text-[#F5F7FA]">
-                        {formatCurrency(sup.costAnnual)}
-                      </strong>
+      {/* SUB-ABA: CONTRATOS */}
+      {activeTab === 'contratos' && (
+        <div className="space-y-6">
+          <Card className="bg-[#0B0E14] border-neutral-800/80">
+            <CardHeader className="border-b border-neutral-800">
+              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-[#E10600]" />
+                Gestão de Vínculos Contratuais
+              </CardTitle>
+              <CardDescription className="text-xs text-neutral-400">
+                Acompanhe o vencimento de contratos, salários vigentes e planeje renovações
+                antecipadas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-3 font-mono text-xs">
+                {titularDrivers.concat(reserveDriver ? [reserveDriver] : []).map((d) => (
+                  <div
+                    key={d.id}
+                    className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <DriverPhotoAvatar name={d.name} teamColor="#E10600" size="sm" />
+                      <div>
+                        <span className="font-bold text-white text-sm block">{d.name}</span>
+                        <span className="text-[11px] text-neutral-400">
+                          Função: {d.role === 'reserva' ? 'Piloto Reserva' : 'Piloto Titular'}
+                        </span>
+                      </div>
                     </div>
 
-                    {isCurrent ? (
-                      <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                        <CheckCircle className="w-3.5 h-3.5" /> Ativo
-                      </span>
-                    ) : (
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block">Salário Anual</span>
+                        <strong className="text-white">{formatCurrency(d.salary)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block">Término</span>
+                        <strong className="text-emerald-400">{d.contract_end || 2026}</strong>
+                      </div>
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => setSelectedSupplier(sup)}
-                        className="border-[#1A2333] text-xs h-7 px-2.5 text-cyan-400 hover:text-white hover:bg-cyan-600/20"
+                        onClick={() => {
+                          setRenegotiateDriver(d)
+                          setSalaryMultiplier(100)
+                          setContractYears(1)
+                        }}
+                        className="bg-[#E10600] hover:bg-red-700 text-white text-xs h-7 font-bold"
                       >
-                        Trocar Motor
+                        Renovar
                       </Button>
-                    )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="p-3 rounded-lg bg-[#080C14]/90 border border-[#1A2333] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-[#8B95A7]">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-cyan-400 shrink-0" />
-              <span>
-                Motor em operação: <strong className="text-[#F5F7FA]">{currentEngine.name}</strong>{' '}
-                • Potência {currentEngine.power} • Confiabilidade {currentEngine.reliability}%
-              </span>
-            </div>
-            <div className="flex items-center gap-3 text-[11px]">
-              <span>
-                Orçamento:{' '}
-                <strong className="text-emerald-400">{formatCurrency(team?.budget ?? 0)}</strong>
-              </span>
-              <span>•</span>
-              <span>
-                Teto FIA:{' '}
-                <strong className="text-white">{formatCurrency(currentCostCapSpent)}</strong> /{' '}
-                {formatCurrency(COST_CAP_LIMIT)}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Seção 1: Pilotos Titulares (2 titulares) */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
-        <CardHeader className="pb-4 border-b border-[#1A2333]">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-                GRID OFICIAL DA ESCUDERIA
-              </span>
-              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
-                <Users className="w-5 h-5 text-[#E10600]" />
-                Pilotos Titulares ({titularDrivers.length}/2)
-              </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-                Disputam a pontuação do mundial de pilotos e construtores. Influenciam ritmo, Modo
-                Overtake e estabilidade na chuva.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-28 w-full bg-[#1F2733]" />
-              <Skeleton className="h-28 w-full bg-[#1F2733]" />
-            </div>
-          ) : titularDrivers.length === 0 ? (
-            <div className="p-8 text-center border border-dashed border-[#1F2733] rounded-xl text-[#8B95A7]">
-              <p>Você ainda não possui pilotos titulares contratados.</p>
-              <div className="pt-2">
-                <Button
-                  size="sm"
-                  onClick={() => navigate('/pilotos')}
-                  className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs"
-                >
-                  Ver todos os pilotos no mercado
-                </Button>
+                ))}
               </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {titularDrivers.map((driver, index) => {
-                const isIncapacitated = !!driver.is_incapacitated
-                return (
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* SUB-ABA: ACADEMIA */}
+      {activeTab === 'academia' && (
+        <div className="space-y-6">
+          <Card className="bg-[#0B0E14] border-neutral-800/80">
+            <CardHeader className="border-b border-neutral-800">
+              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-cyan-400" />
+                Programa de Desenvolvimento e Jovens Pilotos
+              </CardTitle>
+              <CardDescription className="text-xs text-neutral-400">
+                Acompanhamento e suporte a pilotos promissores competindo na Fórmula 2 e Fórmula 3.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {academyDrivers.map((ac) => (
                   <div
-                    key={driver.id}
-                    className={`p-4 rounded-xl bg-[#0B0E14] border space-y-4 transition-all ${
-                      isIncapacitated
-                        ? 'border-amber-500/60 bg-amber-950/10'
-                        : 'border-[#1F2733] hover:border-[#1F2733]/80'
-                    }`}
+                    key={ac.name}
+                    className="p-5 rounded-2xl bg-black/40 border border-neutral-800 font-mono space-y-3"
                   >
-                    {/* Driver Header com Foto Real do Piloto + Capacete */}
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
-                          <DriverPhotoAvatar
-                            name={driver.name}
-                            teamColor={team?.color || '#E10600'}
-                            size="lg"
-                            className="border-2 border-[#1F2733]"
-                          />
-                          <div className="absolute -bottom-1 -right-1">
-                            <DriverHelmet driver={driver} teamColor={team?.color} size="sm" />
-                          </div>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-base text-[#F5F7FA]">{driver.name}</h3>
-                            <span className="text-base shrink-0" title={driver.nationality}>
-                              {getCountryFlag(driver.nationality)}
-                            </span>
-                          </div>
-                          <p className="text-xs font-mono text-[#8B95A7]">
-                            {driver.age} anos • Contrato até:{' '}
-                            <strong className="text-[#F5F7FA]">{driver.contract_end}</strong>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {isIncapacitated ? (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-500 text-amber-400 bg-amber-500/10 text-xs font-mono flex items-center gap-1"
-                          >
-                            <HeartPulse className="w-3 h-3" /> Incapacitado (
-                            {driver.incapacitated_rounds_left}r)
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="border-[#22C55E]/40 text-[#22C55E] bg-[#22C55E]/5 text-xs font-mono"
-                          >
-                            Titular Ativo
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Attributes Bars com ProgressBar */}
-                    <div className="grid grid-cols-2 gap-3 text-xs font-mono">
-                      <ProgressBar
-                        value={driver.speed}
-                        label="VELOCIDADE"
-                        size="sm"
-                        valueFormatter={(v) => `${v}`}
-                      />
-                      <ProgressBar
-                        value={driver.consistency}
-                        label="CONSISTÊNCIA"
-                        size="sm"
-                        valueFormatter={(v) => `${v}`}
-                      />
-                      <ProgressBar
-                        value={driver.rain}
-                        label="CHUVA"
-                        size="sm"
-                        valueFormatter={(v) => `${v}`}
-                      />
-                      <ProgressBar
-                        value={driver.defense}
-                        label="DEFESA"
-                        size="sm"
-                        valueFormatter={(v) => `${v}`}
-                      />
-                    </div>
-
-                    {/* Perfil de Desgaste de Pneus (Estilo & Consistência) */}
-                    {(() => {
-                      const wearProfile = calculateDriverTireWearProfile(driver)
-                      return (
-                        <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] space-y-1 font-mono text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[#8B95A7] text-[11px] flex items-center gap-1">
-                              <Disc className="w-3.5 h-3.5 text-amber-400" /> Desgaste de Pneus:
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] px-2 py-0.5 font-bold ${wearProfile.badgeColor}`}
-                            >
-                              {wearProfile.profileName} (x{wearProfile.multiplier})
-                            </Badge>
-                          </div>
-                          <p className="text-[10px] text-[#8B95A7] leading-tight">
-                            {wearProfile.description}
-                          </p>
-                        </div>
-                      )
-                    })()}
-
-                    {/* Moral & Condição Física via ProgressBar */}
-                    <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] grid grid-cols-2 gap-3 text-xs font-mono">
-                      <ProgressBar value={driver.morale ?? 80} label="MORAL DO PILOTO" size="sm" />
-                      <ProgressBar
-                        value={driver.physical_condition ?? 90}
-                        label="CONDIÇÃO FÍSICA"
-                        size="sm"
-                      />
-                    </div>
-
-                    {/* Salary & Action Buttons */}
-                    <div className="pt-2 border-t border-[#1F2733] flex items-center justify-between text-xs font-mono">
                       <div>
-                        <span className="text-[#8B95A7] block text-[10px]">Salário Anual</span>
-                        <strong className="text-[#F5F7FA] text-sm">
-                          {formatCurrency(driver.salary)}
-                        </strong>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-white">{ac.name}</h3>
+                          <span className="text-sm">{ac.flag}</span>
+                          <Badge className="bg-neutral-800 text-cyan-400 text-xs">
+                            {ac.series}
+                          </Badge>
+                        </div>
+                        <span className="text-xs text-neutral-400">Idade: {ac.age} anos</span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setRenegotiateDriver(driver)
-                            setSalaryMultiplier(100)
-                            setContractYears(1)
-                          }}
-                          className="border-[#1F2733] text-xs h-8 hover:bg-[#1F2733] text-[#F5F7FA]"
-                        >
-                          <Sliders className="w-3.5 h-3.5 mr-1" />
-                          Renegociar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setFireDriver(driver)}
-                          className="text-xs h-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                        >
-                          <XCircle className="w-3.5 h-3.5 mr-1" />
-                          Dispensar
-                        </Button>
+                      <div className="text-right">
+                        <span className="text-xl font-black text-white">{ac.current}</span>
+                        <span className="text-xs text-cyan-400 block">
+                          Potencial {ac.potential}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-neutral-400">
+                        <span>Evolução</span>
+                        <span>{Math.round((ac.current / ac.potential) * 100)}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-500 rounded-full"
+                          style={{ width: `${(ac.current / ac.potential) * 100}%` }}
+                        />
                       </div>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {/* Seção 2: Piloto Reserva (1 Piloto Reserva Oficial) */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl">
-        <CardHeader className="pb-4 border-b border-[#1A2333]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-amber-400 block">
-                SUPORTE TÉCNICO & DESENVOLVIMENTO
-              </span>
-              <CardTitle className="text-lg font-black text-white flex items-center gap-2 mt-0.5">
-                <UserCheck className="w-5 h-5 text-amber-400" />
-                Piloto Reserva Oficial (1 Piloto)
+      {/* SUB-ABA: CULTURA & MORAL */}
+      {activeTab === 'cultura_moral' && (
+        <div className="space-y-6">
+          <Card className="bg-[#0B0E14] border-neutral-800/80">
+            <CardHeader className="border-b border-neutral-800">
+              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                <HeartPulse className="w-5 h-5 text-rose-500" />
+                Cultura Organizacional e Moral da Fábrica
               </CardTitle>
-              <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-                Cumpre as 2 sessões obrigatórias de Treino Livre (FP1) no ano e substitui qualquer
-                titular incapacitado.
+              <CardDescription className="text-xs text-neutral-400">
+                O ambiente humano reflete diretamente na agilidade de fabricação e confiabilidade
+                das peças de corrida.
               </CardDescription>
-            </div>
-
-            {reserveDriver && (
-              <Button
-                onClick={() => {
-                  const currentScheduled = reserveDriver.fp_scheduled_rounds || [7, 13]
-                  setSelectedFpRounds(currentScheduled)
-                  setFpModalOpen(true)
-                }}
-                className="bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs h-8 shadow"
-              >
-                <Calendar className="w-3.5 h-3.5 mr-1.5" />
-                Agendar 2 Treinos Livres (FP1)
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {!reserveDriver ? (
-            <div className="p-6 text-center border border-dashed border-[#1F2733] rounded-xl text-[#8B95A7] space-y-2">
-              <p className="text-sm text-foreground">
-                Sua equipe não possui piloto reserva no momento.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Contrate um piloto reserva na aba Pilotos para cumprir os 2 treinos livres do ano e
-                proteger seu time contra lesões.
-              </p>
-              <div className="pt-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => navigate('/pilotos')}
-                  className="border-[#1F2733] text-cyan-400 hover:text-white text-xs"
-                >
-                  Ver todos os pilotos
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative shrink-0">
-                    <DriverPhotoAvatar
-                      name={reserveDriver.name}
-                      teamColor={team?.color || '#D97706'}
-                      size="lg"
-                      className="border-2 border-[#1F2733]"
-                    />
-                    <div className="absolute -bottom-1 -right-1">
-                      <DriverHelmet driver={reserveDriver} teamColor={team?.color} size="sm" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-base text-[#F5F7FA]">{reserveDriver.name}</h3>
-                      <span className="text-base shrink-0" title={reserveDriver.nationality}>
-                        {getCountryFlag(reserveDriver.nationality)}
-                      </span>
-                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-mono">
-                        Reserva Oficial
-                      </Badge>
-                    </div>
-                    <p className="text-xs font-mono text-[#8B95A7]">
-                      {reserveDriver.age} anos • Salário Anual:{' '}
-                      <strong className="text-foreground">
-                        {formatCurrency(reserveDriver.salary)}
-                      </strong>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Status / Ação do Reserva */}
-                <div className="flex items-center gap-2">
-                  {incapacitatedDriver ? (
-                    <Badge className="bg-amber-500 text-black font-bold text-xs px-2.5 py-1 flex items-center gap-1.5 animate-pulse">
-                      <ArrowRightLeft className="w-3.5 h-3.5" />
-                      Substituindo {incapacitatedDriver.name} no próximo GP!
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs font-mono"
-                    >
-                      Pronto para pilotar
-                    </Badge>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFireDriver(reserveDriver)}
-                    className="text-xs h-8 text-red-400 hover:text-red-300 hover:bg-red-950/20"
-                  >
-                    <XCircle className="w-3.5 h-3.5 mr-1" />
-                    Dispensar
-                  </Button>
-                </div>
-              </div>
-
-              {/* Informações dos 2 Treinos Livres */}
-              <div className="p-3 rounded-lg bg-[#11161F] border border-[#1F2733] space-y-2 text-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="text-muted-foreground font-mono flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    Participação Obrigatória em Treinos Livres da Temporada:
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-foreground font-semibold">
-                      Completados: {reserveDriver.fp_sessions_completed || 0}/2
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-muted-foreground font-mono">GPs Escalados:</span>
-                  {(reserveDriver.fp_scheduled_rounds || [7, 13]).map((roundNum) => {
-                    const gp = F1_2026_CALENDAR[roundNum - 1]
-                    const currentRd = season?.current_round || 1
-                    const isDone = roundNum < currentRd
-                    const isCurrent = roundNum === currentRd
-                    return (
-                      <Badge
-                        key={roundNum}
-                        variant="outline"
-                        className={`font-mono text-xs px-2.5 py-0.5 ${
-                          isDone
-                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                            : isCurrent
-                              ? 'border-amber-500 bg-amber-500/20 text-amber-300 animate-pulse'
-                              : 'border-border bg-background/50 text-foreground'
-                        }`}
-                      >
-                        {gp ? `${gp.flag} ${gp.name} (R${roundNum})` : `GP ${roundNum}`}
-                        {isDone ? ' ✓ Feito' : isCurrent ? ' (Este GP!)' : ''}
-                      </Badge>
-                    )
-                  })}
-                </div>
-
-                <p className="text-[11px] text-muted-foreground italic">
-                  💡 Benefício do treino do reserva: coletar dados no FP1 concede +2pts de acerto
-                  (setup) para a corrida seguinte e melhora os atributos do reserva ao longo do ano.
-                </p>
-              </div>
-
-              {/* Atributos do Reserva */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-1">
-                <div className="p-2 rounded bg-[#11161F] border border-[#1F2733] flex justify-between">
-                  <span className="text-[#8B95A7]">Velocidade:</span>
-                  <strong className="text-[#E10600]">{reserveDriver.speed}</strong>
-                </div>
-                <div className="p-2 rounded bg-[#11161F] border border-[#1F2733] flex justify-between">
-                  <span className="text-[#8B95A7]">Consistência:</span>
-                  <strong className="text-[#00A6FB]">{reserveDriver.consistency}</strong>
-                </div>
-                <div className="p-2 rounded bg-[#11161F] border border-[#1F2733] flex justify-between">
-                  <span className="text-[#8B95A7]">Chuva:</span>
-                  <strong className="text-sky-400">{reserveDriver.rain}</strong>
-                </div>
-                <div className="p-2 rounded bg-[#11161F] border border-[#1F2733] flex justify-between">
-                  <span className="text-[#8B95A7]">Defesa:</span>
-                  <strong className="text-amber-400">{reserveDriver.defense}</strong>
-                </div>
-              </div>
-
-              {/* Moral e Condição Física do Reserva via ProgressBar */}
-              <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] grid grid-cols-2 gap-3 text-xs font-mono">
-                <ProgressBar
-                  value={reserveDriver.morale ?? 85}
-                  label="MORAL DO RESERVA"
-                  size="sm"
-                />
-                <ProgressBar
-                  value={reserveDriver.physical_condition ?? 95}
-                  label="CONDIÇÃO FÍSICA"
-                  size="sm"
-                />
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Banner / Card de redirecionamento para o Universo de Pilotos */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] shadow-xl overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-cyan-500/10 via-transparent to-transparent pointer-events-none" />
-        <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-cyan-400">
-                UNIVERSO DE PILOTOS & MERCADO
-              </span>
-              <Badge className="bg-cyan-500/15 border-cyan-500/40 text-cyan-300 font-mono text-[10px]">
-                Aba Dedicada
-              </Badge>
-            </div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-cyan-400" />
-              Mercado Global & Grid de Pilotos F1
-            </h3>
-            <p className="text-xs text-[#8B95A7] max-w-xl">
-              Explore o grid completo de pilotos oficiais, agentes livres e promessas com fotos
-              reais, histórico de corridas, filtros e contratações para sua escuderia.
-            </p>
-          </div>
-
-          <Button
-            onClick={() => navigate('/pilotos')}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono shrink-0 shadow-lg cursor-pointer"
-          >
-            Ver todos os pilotos
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Modal Frente 1: Confirmar Troca de Fornecedor de Unidade de Potência */}
-      <Dialog
-        open={!!selectedSupplier}
-        onOpenChange={(open) => !isSwitchingEngine && !open && setSelectedSupplier(null)}
-      >
-        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA] max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-cyan-400" />
-              Trocar Fornecedor de Unidade de Potência
-            </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
-              A rescisão e readequação dos pontos de fixação do chassi possuem custo de integração
-              sob regras da FIA.
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedSupplier && (
-            <div className="space-y-4 py-2 text-xs font-mono">
-              <div className="p-3.5 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-[#8B95A7]">Novo Fornecedor:</span>
-                  <div className="text-right">
-                    <strong className="text-[#F5F7FA] text-sm block">
-                      {selectedSupplier.name}
-                    </strong>
-                    <span className="text-[10px] text-cyan-400">{selectedSupplier.techBadge}</span>
-                  </div>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Potência / Confiabilidade:</span>
-                  <span className="text-cyan-400 font-bold">
-                    {selectedSupplier.power} pts / {selectedSupplier.reliability}%
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
+                <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-center">
+                  <span className="text-xs text-neutral-400 uppercase block">Moral Geral</span>
+                  <span className="text-3xl font-black text-emerald-400 block mt-2">82%</span>
+                  <span className="text-[11px] text-neutral-500 mt-1 block">
+                    Ambiente Excelente
                   </span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Custo de Rescisão & Integração:</span>
-                  <strong className="text-amber-400 text-sm">
-                    {formatCurrency(ENGINE_SWITCH_FEE)}
-                  </strong>
-                </div>
-
-                <div className="flex justify-between pt-1 border-t border-[#1F2733]/60">
-                  <span className="text-[#8B95A7]">Saldo Atual da Equipe:</span>
-                  <span className="text-[#F5F7FA] font-bold">
-                    {formatCurrency(team?.budget ?? 0)}
+                <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-center">
+                  <span className="text-xs text-neutral-400 uppercase block">
+                    Confiança Diretoria
                   </span>
+                  <span className="text-3xl font-black text-amber-400 block mt-2">
+                    {boardConfidence}%
+                  </span>
+                  <span className="text-[11px] text-neutral-500 mt-1 block">Apoio Irrestrito</span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Impacto no Teto FIA:</span>
-                  <span
-                    className={
-                      currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT
-                        ? 'text-red-400 font-bold'
-                        : 'text-emerald-400'
-                    }
-                  >
-                    {formatCurrency(currentCostCapSpent + ENGINE_SWITCH_FEE)} /{' '}
-                    {formatCurrency(COST_CAP_LIMIT)}
+                <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-center">
+                  <span className="text-xs text-neutral-400 uppercase block">Estabilidade</span>
+                  <span className="text-3xl font-black text-cyan-400 block mt-2">85%</span>
+                  <span className="text-[11px] text-neutral-500 mt-1 block">
+                    Baixa Rotatividade
                   </span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-              {/* Validações de erro */}
-              {(team?.budget ?? 0) < ENGINE_SWITCH_FEE && (
-                <div className="p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-red-200 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                  <span>Saldo insuficiente para arcar com a taxa de R$ 15,00 M.</span>
-                </div>
-              )}
-
-              {currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT && (
-                <div className="p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-red-200 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                  <span>A taxa ultrapassará o teto de gastos anual da FIA de R$ 215,00 M.</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              disabled={isSwitchingEngine}
-              onClick={() => setSelectedSupplier(null)}
-              className="border-[#1F2733] text-[#8B95A7]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSwitchSupplier}
-              disabled={
-                isSwitchingEngine ||
-                (team?.budget ?? 0) < ENGINE_SWITCH_FEE ||
-                currentCostCapSpent + ENGINE_SWITCH_FEE > COST_CAP_LIMIT
-              }
-              className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
-            >
-              {isSwitchingEngine ? 'Adaptando chassi...' : 'Confirmar Troca de Motor'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal: Agendar Treinos Livres do Reserva */}
-      <Dialog open={fpModalOpen} onOpenChange={setFpModalOpen}>
-        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA] max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-amber-400" />
-              Escalar Reserva para 2 Treinos Livres (FP1)
-            </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
-              Selecione em quais 2 Grandes Prêmios da temporada 2026 o piloto{' '}
-              <strong className="text-white">{reserveDriver?.name}</strong> participará do primeiro
-              treino livre oficial (FP1).
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-            <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733] space-y-1">
-              <div className="flex justify-between font-mono">
-                <span className="text-[#8B95A7]">Treinos selecionados:</span>
-                <strong className="text-amber-400 font-bold">
-                  {selectedFpRounds.length} de 2 permitidos
-                </strong>
-              </div>
-              <p className="text-[11px] text-[#8B95A7]">
-                Durante o GP escolhido, o piloto reserva coleta telemetria avançada, garantindo um
-                bônus de setup no fim de semana e evoluindo seus próprios atributos.
-              </p>
-            </div>
-
-            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-              {F1_2026_CALENDAR.map((gp, idx) => {
-                const roundNum = idx + 1
-                const isSelected = selectedFpRounds.includes(roundNum)
-                const currentRd = season?.current_round || 1
-                const isPast = roundNum < currentRd
-
-                return (
-                  <div
-                    key={gp.round}
-                    onClick={() => !isPast && toggleFpRound(roundNum)}
-                    className={`p-2.5 rounded-lg border flex items-center justify-between transition-all ${
-                      isPast
-                        ? 'opacity-40 cursor-not-allowed border-[#1F2733] bg-[#0B0E14]'
-                        : isSelected
-                          ? 'border-amber-500 bg-amber-500/10 cursor-pointer text-white font-bold'
-                          : 'border-[#1F2733] bg-[#0B0E14] hover:border-amber-500/40 cursor-pointer text-[#8B95A7]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base">{gp.flag}</span>
-                      <div>
-                        <div className="text-xs font-semibold text-foreground">
-                          R{roundNum}. {gp.name}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          {gp.circuit} • {gp.laps} voltas
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="font-mono text-xs">
-                      {isPast ? (
-                        <span className="text-zinc-500">Já encerrado</span>
-                      ) : isSelected ? (
-                        <Badge className="bg-amber-500 text-black font-bold text-[10px]">
-                          ✓ Escalado
-                        </Badge>
-                      ) : (
-                        <span className="text-zinc-500 hover:text-white">Selecionar</span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setFpModalOpen(false)}
-              className="border-[#1F2733] text-[#8B95A7]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSaveFpSchedule}
-              disabled={isProcessing || selectedFpRounds.length !== 2}
-              className="bg-amber-500 hover:bg-amber-600 text-black font-bold"
-            >
-              {isProcessing ? 'Salvando...' : 'Confirmar Escalação (2 FPs)'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal: Renegociar Contrato */}
+      {/* MODAL: RENEGOCIAR CONTRATO */}
       <Dialog
         open={!!renegotiateDriver}
         onOpenChange={(open) => !open && setRenegotiateDriver(null)}
@@ -1243,7 +1505,7 @@ export default function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Dispensar Piloto */}
+      {/* MODAL: DISPENSAR PILOTO */}
       <Dialog open={!!fireDriver} onOpenChange={(open) => !open && setFireDriver(null)}>
         <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
           <DialogHeader>
@@ -1275,9 +1537,6 @@ export default function TeamPage() {
                   <span className="text-[#F5F7FA]">{formatCurrency(team?.budget ?? 0)}</span>
                 </div>
               </div>
-              <p className="text-[#8B95A7] text-[11px]">
-                O piloto será liberado imediatamente para o mercado e a vaga ficará aberta.
-              </p>
             </div>
           )}
 

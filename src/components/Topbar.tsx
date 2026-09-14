@@ -80,8 +80,8 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
     ]
     const weekday = weekdays[baseDate.getDay()]
     const day = baseDate.getDate()
-    const month = months[baseDate.getMonth()]
-    return `${weekday}, ${day} ${month}`
+    const month = months[baseDate.getMonth()].toUpperCase()
+    return `${day} ${month} ${seasonYear} — ${weekday}`
   }, [seasonYear, currentRound])
 
   // Manager avatar e nome
@@ -148,11 +148,11 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
           )}
 
           <div className="flex flex-col min-w-0">
-            <span className="font-extrabold text-sm text-white tracking-tight uppercase truncate">
+            <span className="font-black text-sm text-white tracking-tight uppercase truncate font-mono">
               {teamName}
             </span>
-            <span className="text-[10px] font-mono text-[#8B95A7] truncate">
-              Sede de Corrida • {team?.engine_supplier || 'Audi'} Power
+            <span className="text-[10px] font-mono font-bold tracking-widest text-red-500 uppercase truncate">
+              DRIVEN BY PROGRESS
             </span>
           </div>
         </div>
@@ -173,21 +173,19 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
 
         {/* Métrica 2: Data atual do jogo */}
         <div className="hidden lg:flex flex-col items-end leading-tight border-l border-[#1C2330] pl-3">
-          <span className="text-[10px] font-mono uppercase text-[#8B95A7] flex items-center gap-1">
-            <Calendar className="w-3 h-3 text-[#E10600]" />
-            Data Atual
+          <span className="text-xs font-mono font-bold text-[#F5F7FA] flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+            {gameDateFormatted}
           </span>
-          <span className="text-xs font-mono font-bold text-[#CBD5E1]">{gameDateFormatted}</span>
         </div>
 
         {/* Métrica 3: Orçamento Disponível */}
         <div className="hidden sm:flex flex-col items-end leading-tight border-l border-[#1C2330] pl-3">
-          <span className="text-[10px] font-mono uppercase text-[#8B95A7] tracking-wider">
-            Orçamento
-          </span>
-          <span className="text-xs font-mono font-bold text-emerald-400">
+          <span className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1">
+            <span className="text-emerald-500 font-bold">$</span>
             {formatCurrency(budget)}
           </span>
+          <span className="text-[10px] font-mono text-[#8B95A7] tracking-wider">Disponível</span>
         </div>
 
         {/* Métrica 4: Teto de Gastos com anel de progresso SVG */}
@@ -199,7 +197,7 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
                 cx="14"
                 cy="14"
                 r={radius}
-                stroke={costCapPct > 90 ? '#EF4444' : costCapPct > 70 ? '#F59E0B' : '#00A6FB'}
+                stroke="#10B981"
                 strokeWidth="2.5"
                 fill="none"
                 strokeDasharray={circumference}
@@ -212,31 +210,19 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
             </span>
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-[9px] font-mono uppercase text-[#8B95A7]">Teto FIA</span>
-            <span className="text-[11px] font-mono font-semibold text-[#CBD5E1]">
-              {formatCurrency(costCapSpent)}
-            </span>
+            <span className="text-[11px] font-mono font-bold text-white">{costCapPct}%</span>
+            <span className="text-[9px] font-mono uppercase text-[#8B95A7]">Teto de gastos</span>
           </div>
         </div>
 
-        {/* Métrica 5: Confiança da Diretoria (%) */}
-        <div className="hidden md:flex flex-col items-end leading-tight border-l border-[#1C2330] pl-3">
-          <span className="text-[10px] font-mono uppercase text-[#8B95A7] flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3 text-cyan-400" />
-            Confiança
-          </span>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <div className="w-12 h-1.5 rounded-full bg-[#1C2330] overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  width: `${confidence}%`,
-                  backgroundColor:
-                    confidence >= 70 ? '#10B981' : confidence >= 45 ? '#F59E0B' : '#EF4444',
-                }}
-              />
-            </div>
+        {/* Métrica 5: Confiança da Diretoria (%) com Estrela */}
+        <div className="hidden md:flex items-center gap-2 border-l border-[#1C2330] pl-3">
+          <span className="text-amber-400 text-sm">★</span>
+          <div className="flex flex-col leading-tight">
             <span className="text-xs font-mono font-bold text-white">{confidence}%</span>
+            <span className="text-[9px] font-mono uppercase text-[#8B95A7]">
+              Confiança da diretoria
+            </span>
           </div>
         </div>
 
@@ -270,7 +256,7 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
                 <span className="text-xs font-bold text-white max-w-[120px] truncate">
                   {managerName}
                 </span>
-                <span className="text-[10px] font-mono text-[#E10600] uppercase font-bold tracking-wider">
+                <span className="text-[10px] font-mono text-[#8B95A7] tracking-wider">
                   Team Principal
                 </span>
               </div>

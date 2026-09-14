@@ -72,14 +72,8 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
         if (!list.includes(v)) list.push(v)
       }
     }
-    if (sources.dropboxUrl && !list.includes(sources.dropboxUrl)) {
-      list.push(sources.dropboxUrl)
-    }
     if (sources.fallbackLocal && !list.includes(sources.fallbackLocal)) {
       list.push(sources.fallbackLocal)
-    }
-    if (sources.fallbackDropbox && !list.includes(sources.fallbackDropbox)) {
-      list.push(sources.fallbackDropbox)
     }
     return list
   }, [sources])
