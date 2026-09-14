@@ -11,7 +11,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { formatCurrency } from '@/lib/formatters'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { cn } from '@/lib/utils'
 
@@ -182,8 +181,7 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
         {/* Métrica 3: Orçamento Disponível */}
         <div className="hidden sm:flex flex-col items-end leading-tight border-l border-[#1C2330] pl-3">
           <span className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1">
-            <span className="text-emerald-500 font-bold">$</span>
-            {formatCurrency(budget)}
+            {`US$ ${(budget / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} M`}
           </span>
           <span className="text-[10px] font-mono text-[#8B95A7] tracking-wider">Disponível</span>
         </div>

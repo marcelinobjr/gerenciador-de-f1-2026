@@ -3,13 +3,9 @@ import { useAuth } from '@/contexts/AuthContext'
 import { PageHeader } from '@/components/PageHeader'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { DriverPoster } from '@/components/DriverPoster'
+import { PilotProfileDialog, formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { getCountryFlag } from '@/lib/country-flags'
-import {
-  MBJ_2026_PILOTS,
-  checkEligibility,
-  getOverallRating,
-  USD_TO_BRL_RATE,
-} from '@/lib/mbj-drivers-data'
+import { MBJ_2026_PILOTS, checkEligibility, getOverallRating } from '@/lib/mbj-drivers-data'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -58,6 +54,7 @@ import {
   Calendar,
   Building2,
   Loader2,
+  Eye,
 } from 'lucide-react'
 import { DriverModel, TeamModel } from '@/types/f1'
 
@@ -71,7 +68,6 @@ export interface UnifiedDriverItem {
   rain: number
   defense: number
   salaryUsd: number
-  salaryBrl: number
   contractEnd: number
   teamId?: string | null
   teamKey?: string | null
@@ -103,6 +99,12 @@ export default function DriversPage() {
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all')
   const [selectedRatingFilter, setSelectedRatingFilter] = useState<string>('all')
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all')
+
+  // Modal de Perfil MBJ (V/P/O)
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
+  const [selectedPilotForProfile, setSelectedPilotForProfile] = useState<UnifiedDriverItem | null>(
+    null,
+  )
 
   // Modal de Contratação
   const [isContractingModalOpen, setIsContractingModalOpen] = useState<boolean>(false)
@@ -151,10 +153,8 @@ export default function DriversPage() {
 
     // Mapa auxiliar de equipes do banco por ID e por team_key
     const teamById = new Map<string, TeamModel>()
-    const teamByKey = new Map<string, TeamModel>()
     for (const t of dbTeams) {
       teamById.set(t.id, t)
-      if (t.team_key) teamByKey.set(t.team_key.toLowerCase(), t)
     }
 
     const result: UnifiedDriverItem[] = []
@@ -171,10 +171,10 @@ export default function DriversPage() {
 
       const isPlayer = Boolean(team?.id && (d.team_id === team.id || d.reserve_team_id === team.id))
 
-      // Salário em BRL e USD
+      // Salário sempre em US$
+      // Se vier com valor inflado histórico (ex: > 100M que era em reais antigos), normaliza para US$
       const rawSalary = d.salary || (mbjInfo ? mbjInfo.salaryUsd : 3000000)
-      const salaryUsd = rawSalary > 100000000 ? Math.round(rawSalary / USD_TO_BRL_RATE) : rawSalary
-      const salaryBrl = salaryUsd * USD_TO_BRL_RATE
+      const salaryUsd = rawSalary > 100000000 ? Math.round(rawSalary / 5.75) : rawSalary
 
       // Equipe
       const teamName =
@@ -208,7 +208,6 @@ export default function DriversPage() {
         rain,
         defense,
         salaryUsd,
-        salaryBrl,
         contractEnd: d.contract_end || 2026,
         teamId: associatedTeamId,
         teamKey,
@@ -243,7 +242,6 @@ export default function DriversPage() {
         rain: pilot.rain,
         defense: pilot.defense,
         salaryUsd: pilot.salaryUsd,
-        salaryBrl: pilot.salaryBrl,
         contractEnd: 2026 + (pilot.contractYears || 1),
         teamId: null,
         teamKey: pilot.teamKey || null,
@@ -262,16 +260,6 @@ export default function DriversPage() {
 
     return result
   }, [dbDrivers, dbTeams, team])
-
-  // Formatação de valores em Real (BRL)
-  const formatBrlCurrency = (usd: number) => {
-    const brl = usd * USD_TO_BRL_RATE
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0,
-    }).format(brl)
-  }
 
   // Filtros combinados globais
   const filteredDrivers = useMemo(() => {
@@ -350,6 +338,12 @@ export default function DriversPage() {
     )
   }, [filteredDrivers])
 
+  // Abertura do perfil do piloto ao clicar no card
+  const handleOpenPilotProfile = (pilot: UnifiedDriverItem) => {
+    setSelectedPilotForProfile(pilot)
+    setIsProfileModalOpen(true)
+  }
+
   // Abertura do modal de contratação
   const handleOpenContractModal = (pilot: UnifiedDriverItem) => {
     setSelectedPilotForContract(pilot)
@@ -372,7 +366,7 @@ export default function DriversPage() {
     setIsContractingModalOpen(true)
   }
 
-  // Execução da Contratação com Mutação Segura e Desconto do Orçamento
+  // Execução da Contratação com Mutação Segura e Desconto do Orçamento (em US$)
   const handleConfirmContract = async () => {
     if (!selectedPilotForContract || !team) {
       toast({
@@ -394,17 +388,17 @@ export default function DriversPage() {
       return
     }
 
-    // Custo salarial em BRL para desconto no orçamento do time do save
-    const annualSalaryBrl = selectedPilotForContract.salaryBrl
-    const proratedSigningFee =
+    // Custo salarial em US$ para desconto no orçamento do time do save
+    const annualSalaryUsd = selectedPilotForContract.salaryUsd
+    const proratedSigningFeeUsd =
       contractMode === 'immediate'
-        ? Math.round(annualSalaryBrl * 0.25) // Taxa de luvas/transferência imediata
-        : Math.round(annualSalaryBrl * 0.1) // Taxa de pré-contrato (10%)
+        ? Math.round(annualSalaryUsd * 0.25) // Taxa de luvas/transferência imediata (25% do anual)
+        : Math.round(annualSalaryUsd * 0.1) // Taxa de pré-contrato (10%)
 
-    if ((team.budget || 0) < proratedSigningFee) {
+    if ((team.budget || 0) < proratedSigningFeeUsd) {
       toast({
         title: 'Orçamento Insuficiente',
-        description: `Sua equipe precisa de ao menos ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(proratedSigningFee)} para arcar com as luvas contratuais.`,
+        description: `Sua equipe precisa de ao menos ${formatUsdCurrency(proratedSigningFeeUsd, 'full')} para arcar com as luvas contratuais.`,
         variant: 'destructive',
       })
       return
@@ -471,8 +465,8 @@ export default function DriversPage() {
         }
       }
 
-      // 3. Descontar as luvas do orçamento do save do usuário de forma segura
-      const updatedBudget = Math.max(0, (team.budget || 0) - proratedSigningFee)
+      // 3. Descontar as luvas do orçamento do save do usuário de forma segura (em US$)
+      const updatedBudget = Math.max(0, (team.budget || 0) - proratedSigningFeeUsd)
       await pb.collection('teams').update(team.id, {
         budget: updatedBudget,
       })
@@ -483,8 +477,8 @@ export default function DriversPage() {
           team_id: team.id,
           message:
             contractMode === 'precontract'
-              ? `Pré-contrato assinado com ${selectedPilotForContract.name} para a próxima temporada (${contractRole}). Taxa de garantia: R$ ${Math.round(proratedSigningFee / 1000000)}M.`
-              : `Contratação de ${selectedPilotForContract.name} formalizada com sucesso como piloto ${contractRole}. Taxa de assinatura: R$ ${Math.round(proratedSigningFee / 1000000)}M.`,
+              ? `Pré-contrato assinado com ${selectedPilotForContract.name} para a próxima temporada (${contractRole}). Taxa de garantia: ${formatUsdCurrency(proratedSigningFeeUsd, 'compact')}.`
+              : `Contratação de ${selectedPilotForContract.name} formalizada com sucesso como piloto ${contractRole}. Taxa de assinatura: ${formatUsdCurrency(proratedSigningFeeUsd, 'compact')}.`,
           type: 'contrato',
         })
       } catch (evErr) {
@@ -520,53 +514,81 @@ export default function DriversPage() {
     const ovr = getOverallRating(pilot)
     const eligibility = checkEligibility(pilot)
 
+    // Formatação elegante do nome da equipe com espaçamento correto
+    const formattedTeamName = pilot.teamName
+      ? pilot.teamName.replace(/F1Team/i, 'F1 Team').trim()
+      : 'Agente Livre'
+
     return (
       <Card
         key={pilot.id}
-        className="overflow-hidden border-zinc-800 bg-zinc-900/90 hover:border-zinc-700 transition-all shadow-md flex flex-col justify-between"
+        onClick={() => handleOpenPilotProfile(pilot)}
+        className="group overflow-hidden border-zinc-800 bg-zinc-900/90 hover:border-zinc-700 hover:bg-zinc-900 transition-all shadow-md flex flex-col justify-between cursor-pointer"
       >
         <CardHeader className="p-4 pb-2">
-          <div className="flex gap-4">
-            <div className="w-24 shrink-0">
-              <DriverPoster name={pilot.name} aspectRatio="poster" className="w-full shadow" />
+          <div className="flex gap-3.5">
+            {/* Foto / Pôster com proporção limpa */}
+            <div className="w-20 sm:w-24 shrink-0">
+              <DriverPoster
+                name={pilot.name}
+                aspectRatio="poster"
+                className="w-full shadow-md rounded"
+              />
             </div>
+
+            {/* Dados do Piloto com Grid sem sobreposição */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1 mb-1">
+              {/* Linha superior: País à esquerda, OVR sempre visível à direita */}
+              <div className="flex items-center justify-between gap-2 mb-1">
                 <Badge
                   variant="outline"
-                  className="font-mono text-xs border-zinc-700 bg-zinc-800/80 text-zinc-300"
+                  title={pilot.nationality}
+                  className="font-mono text-[11px] border-zinc-700 bg-zinc-800/80 text-zinc-300 truncate max-w-[120px] shrink"
                 >
-                  {getCountryFlag(pilot.nationality)} {pilot.nationality}
+                  <span className="mr-1">{getCountryFlag(pilot.nationality)}</span>
+                  <span className="truncate">{pilot.nationality}</span>
                 </Badge>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-zinc-400 font-semibold">OVR</span>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[10px] text-zinc-400 font-mono font-semibold uppercase">
+                    OVR
+                  </span>
                   <Badge
-                    className={
+                    className={`font-mono font-bold text-xs px-1.5 py-0.5 ${
                       ovr >= 90
                         ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                         : ovr >= 82
                           ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                           : 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                    }
+                    }`}
                   >
                     {ovr}
                   </Badge>
                 </div>
               </div>
 
-              <CardTitle className="text-base sm:text-lg font-bold text-white truncate">
+              {/* Nome completo com title para tooltip natural e sem corte agressivo */}
+              <CardTitle
+                title={pilot.name}
+                className="text-base font-bold text-white group-hover:text-red-400 transition-colors line-clamp-1"
+              >
                 {pilot.name}
               </CardTitle>
-              <CardDescription className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5">
+
+              {/* Idade + Equipe sem grudar */}
+              <CardDescription className="text-xs text-zinc-400 flex flex-wrap items-center gap-1.5 mt-0.5">
                 <span>{pilot.age} anos</span>
                 <span>•</span>
-                <span className="text-zinc-300 font-medium">
-                  {pilot.teamName || 'Agente Livre'}
+                <span
+                  title={formattedTeamName}
+                  className="text-zinc-300 font-medium truncate max-w-[130px]"
+                >
+                  {formattedTeamName}
                 </span>
                 {pilot.role && (
                   <Badge
                     variant="secondary"
-                    className={`text-[10px] uppercase py-0 px-1.5 ml-1 ${
+                    className={`text-[9px] uppercase py-0 px-1 ml-0.5 ${
                       pilot.role === 'titular'
                         ? 'bg-red-950/80 text-red-300 border border-red-800/60'
                         : 'bg-blue-950/80 text-blue-300 border border-blue-800/60'
@@ -578,7 +600,7 @@ export default function DriversPage() {
               </CardDescription>
 
               {/* Status de Elegibilidade FIA */}
-              <div className="mt-2.5">
+              <div className="mt-2">
                 {eligibility.status === 'academia' && (
                   <Badge className="bg-purple-950/80 text-purple-300 border-purple-700/60 text-[10px] flex items-center gap-1 w-fit">
                     <GraduationCap className="w-3 h-3" /> {eligibility.label}
@@ -599,50 +621,50 @@ export default function DriversPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-4 pt-2 pb-2">
-          {/* Métricas O (Simulação) */}
-          <div className="grid grid-cols-4 gap-2 text-center bg-zinc-950/50 p-2 rounded-md border border-zinc-800/80 mt-1">
+        <CardContent className="p-4 pt-1 pb-2">
+          {/* Métricas V/P (Simulação e Atributos de Pista) */}
+          <div className="grid grid-cols-4 gap-1.5 text-center bg-zinc-950/60 p-2 rounded-md border border-zinc-800/80 mt-1">
             <div>
-              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5">
+              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5 font-mono">
                 <Zap className="w-2.5 h-2.5 text-amber-400" /> VEL
               </div>
-              <div className="text-xs font-bold text-white">{pilot.speed}</div>
+              <div className="text-xs font-mono font-bold text-white">{pilot.speed}</div>
             </div>
             <div>
-              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5">
+              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5 font-mono">
                 <Activity className="w-2.5 h-2.5 text-blue-400" /> CON
               </div>
-              <div className="text-xs font-bold text-white">{pilot.consistency}</div>
+              <div className="text-xs font-mono font-bold text-white">{pilot.consistency}</div>
             </div>
             <div>
-              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5">
+              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5 font-mono">
                 <CloudRain className="w-2.5 h-2.5 text-cyan-400" /> CHU
               </div>
-              <div className="text-xs font-bold text-white">{pilot.rain}</div>
+              <div className="text-xs font-mono font-bold text-white">{pilot.rain}</div>
             </div>
             <div>
-              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5">
+              <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-0.5 font-mono">
                 <Shield className="w-2.5 h-2.5 text-emerald-400" /> DEF
               </div>
-              <div className="text-xs font-bold text-white">{pilot.defense}</div>
+              <div className="text-xs font-mono font-bold text-white">{pilot.defense}</div>
             </div>
           </div>
 
-          {/* Dados Financeiros e Projeção */}
+          {/* Dados Financeiros em US$ e Projeção */}
           <div className="flex items-center justify-between text-xs mt-3 pt-2 border-t border-zinc-800">
             <span className="text-zinc-400 flex items-center gap-1">
               <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-              Salário Estimado:
+              Salário de Referência:
             </span>
-            <span className="font-semibold text-emerald-300">
-              {formatBrlCurrency(pilot.salaryUsd)}/ano
+            <span className="font-semibold font-mono text-emerald-300">
+              {formatUsdCurrency(pilot.salaryUsd, 'compact')}
             </span>
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
             <span>Potencial Projetado:</span>
-            <span className="text-zinc-200 font-mono">
-              {pilot.potentialMin} - {pilot.potentialMax}
+            <span className="text-zinc-200 font-mono font-semibold">
+              {pilot.potentialMin} – {pilot.potentialMax}
             </span>
           </div>
 
@@ -656,23 +678,49 @@ export default function DriversPage() {
 
         <CardFooter className="p-4 pt-2">
           {pilot.isPlayerDriver ? (
-            <Button disabled className="w-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-              Piloto da sua Equipe ({pilot.role || 'Contrato Ativo'})
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleOpenPilotProfile(pilot)
+              }}
+              className="w-full bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 flex items-center justify-center gap-1.5 text-xs"
+            >
+              <Eye className="w-3.5 h-3.5 text-red-400" />
+              Sua Equipe • Ver Perfil Pleno
             </Button>
           ) : showContractButton ? (
-            <Button
-              onClick={() => handleOpenContractModal(pilot)}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-medium flex items-center justify-center gap-1.5 transition-colors shadow"
-            >
-              <UserPlus className="w-4 h-4" /> Propor Contrato
-            </Button>
+            <div className="w-full flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenPilotProfile(pilot)
+                }}
+                className="flex-1 border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center gap-1"
+              >
+                <Eye className="w-3.5 h-3.5 text-zinc-400" /> Perfil
+              </Button>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenContractModal(pilot)
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium flex items-center justify-center gap-1 text-xs transition-colors shadow"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Contratar
+              </Button>
+            </div>
           ) : (
             <Button
               variant="outline"
-              onClick={() => handleOpenContractModal(pilot)}
-              className="w-full border-zinc-700 hover:bg-zinc-800 text-zinc-200"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleOpenPilotProfile(pilot)
+              }}
+              className="w-full border-zinc-700 hover:bg-zinc-800 text-zinc-200 text-xs flex items-center justify-center gap-1.5"
             >
-              Ver Detalhes do Piloto
+              <Eye className="w-3.5 h-3.5 text-zinc-400" /> Ver Perfil Detalhado
             </Button>
           )}
         </CardFooter>
@@ -686,7 +734,7 @@ export default function DriversPage() {
 
       <PageHeader
         title="Hub de Pilotos & Universo MBJ 2026"
-        description="Catálogo oficial do grid 2026, mercado global de transferências, prospectos da academia e contratações em tempo real."
+        description="Catálogo oficial do grid 2026, mercado global de transferências, prospectos da academia e contratações em US$ em tempo real."
       />
 
       {/* Barra de Filtros e Busca */}
@@ -753,38 +801,40 @@ export default function DriversPage() {
           <p className="text-sm">Sincronizando banco de dados de pilotos...</p>
         </div>
       ) : (
-        /* Abas Principais do Hub */
+        /* Abas Principais do Hub com Scroll Horizontal (Sem Sobreposição) */
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-zinc-900 border border-zinc-800 p-1 rounded-lg grid grid-cols-2 sm:grid-cols-4 w-full h-auto">
-            <TabsTrigger
-              value="grid"
-              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-            >
-              <Trophy className="w-4 h-4" />
-              <span>Grid F1 ({gridF1Pilots.length})</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="free_agents"
-              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-            >
-              <Users className="w-4 h-4" />
-              <span>Agentes Livres ({freeAgentsPilots.length})</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="market"
-              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-            >
-              <Briefcase className="w-4 h-4" />
-              <span>Mercado & Contratação ({marketPilots.length})</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="prospects"
-              className="flex items-center gap-2 py-2.5 data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
-            >
-              <GraduationCap className="w-4 h-4" />
-              <span>Prospectos & Academia ({prospectPilots.length})</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto pb-1 scrollbar-none">
+            <TabsList className="inline-flex w-auto min-w-full sm:w-full bg-zinc-900 border border-zinc-800 p-1 rounded-lg gap-1">
+              <TabsTrigger
+                value="grid"
+                className="flex items-center gap-2 py-2 px-3 sm:px-4 shrink-0 whitespace-nowrap data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+              >
+                <Trophy className="w-4 h-4 shrink-0" />
+                <span>Grid F1 ({gridF1Pilots.length})</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="free_agents"
+                className="flex items-center gap-2 py-2 px-3 sm:px-4 shrink-0 whitespace-nowrap data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+              >
+                <Users className="w-4 h-4 shrink-0" />
+                <span>Agentes Livres ({freeAgentsPilots.length})</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="market"
+                className="flex items-center gap-2 py-2 px-3 sm:px-4 shrink-0 whitespace-nowrap data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+              >
+                <Briefcase className="w-4 h-4 shrink-0" />
+                <span>Mercado & Contratação ({marketPilots.length})</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="prospects"
+                className="flex items-center gap-2 py-2 px-3 sm:px-4 shrink-0 whitespace-nowrap data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+              >
+                <GraduationCap className="w-4 h-4 shrink-0" />
+                <span>Prospectos & Academia ({prospectPilots.length})</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* ABA 1: GRID F1 2026 (11 EQUIPES INCLUINDO CADILLAC) */}
           <TabsContent value="grid" className="space-y-4">
@@ -832,8 +882,8 @@ export default function DriversPage() {
                   </span>
                 )}
               </span>
-              <span className="text-zinc-300 font-mono">
-                Cotação Oficial: US$ 1,00 = R$ {USD_TO_BRL_RATE.toFixed(2)}
+              <span className="text-emerald-400 font-mono font-medium">
+                Todas as transações e salários operam em Dólares (US$)
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -857,6 +907,15 @@ export default function DriversPage() {
         </Tabs>
       )}
 
+      {/* MODAL DE PERFIL DO PILOTO (V/P/O) */}
+      <PilotProfileDialog
+        pilot={selectedPilotForProfile}
+        open={isProfileModalOpen}
+        onOpenChange={setIsProfileModalOpen}
+        onOpenContractModal={(pilot) => handleOpenContractModal(pilot)}
+        currentRound={currentRound}
+      />
+
       {/* MODAL DE FORMALIZAÇÃO DE CONTRATO */}
       <Dialog open={isContractingModalOpen} onOpenChange={setIsContractingModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-lg">
@@ -867,7 +926,7 @@ export default function DriversPage() {
             </DialogTitle>
             <DialogDescription className="text-zinc-400 text-xs">
               Vincule o piloto à sua equipe ({team?.name || 'Sua Equipe'}). O registro será
-              persistido no save com atualização direta do orçamento da equipe.
+              persistido no save com atualização direta do orçamento em US$.
             </DialogDescription>
           </DialogHeader>
 
@@ -885,16 +944,13 @@ export default function DriversPage() {
                     {selectedPilotForContract.nationality} • {selectedPilotForContract.age} anos
                   </div>
                   <div className="text-emerald-400 font-semibold pt-1">
-                    Salário anual: {formatBrlCurrency(selectedPilotForContract.salaryUsd)} (R$)
+                    Salário anual de referência:{' '}
+                    {formatUsdCurrency(selectedPilotForContract.salaryUsd, 'full')}
                   </div>
                   <div className="text-zinc-400 text-[11px]">
-                    Orçamento atual da equipe:{' '}
-                    <span className="text-white font-medium">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                        maximumFractionDigits: 0,
-                      }).format(team?.budget || 0)}
+                    Orçamento disponível da equipe:{' '}
+                    <span className="text-white font-mono font-medium">
+                      {formatUsdCurrency(team?.budget || 0, 'full')}
                     </span>
                   </div>
                 </div>
@@ -924,7 +980,7 @@ export default function DriversPage() {
                 )
               })()}
 
-              {/* Escolha do Modalidade de Contrato (Imediato vs Pré-contrato) */}
+              {/* Escolha da Modalidade de Contrato (Imediato vs Pré-contrato) */}
               {canPreContract && (
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-zinc-300">

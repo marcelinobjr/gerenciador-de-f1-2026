@@ -1,7 +1,10 @@
 /**
  * Mapas e helpers para carregamento seguro de pôsteres/fotos locais dos pilotos MBJ 2026.
- * As fotos residem em public/pilotos/ e utilizam fallback direto para iniciais estilizadas.
+ * As fotos podem residir em public/pilotos/ (.png, .jpg, .webp) ou nos assets integrados.
+ * Suporta resolução canônica com número (ex: "3-Max_Verstappen.png", "16-Charles_Leclerc.png",
+ * "11-Sergio_Pérez.png", "5-Gabriel_Bortoleto.png", "77-Walteri_Botas.jpg").
  */
+import { getDriverPhotoSources, normalizeSurname } from '@/lib/driver-photos'
 
 export function normalizeDriverSurname(fullName: string): string {
   if (!fullName) return ''
@@ -9,68 +12,120 @@ export function normalizeDriverSurname(fullName: string): string {
   return parts[parts.length - 1].normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-export function getLocalDriverPosterUrl(name: string): string | null {
-  if (!name) return null
+/**
+ * Mapeamento direto de nome canônico para arquivo em /pilotos/
+ * Cobre nomes com numeração oficial e variações .png / .jpg / .webp
+ */
+const PILOT_FILE_MAP: Record<string, string> = {
+  verstappen: '3-Max_Verstappen.png',
+  ricciardo: '3-Daniel_Ricciardo.png',
+  norris: '4-Lando_Noris.png',
+  bortoleto: '5-Gabriel_Bortoleto.png',
+  hadjar: '6-Isack_Hadjar.png',
+  tsolov: '6-Nicola_Tsolov.png',
+  doohan: '7-Jack_Doohan.png',
+  mini: '9-Gabriel_Mini.png',
+  gasly: '10-Pierre_Gasly.png',
+  perez: '11-Sergio_Pérez.png',
+  antonelli: '12-Kimi_Antonelli.png',
+  alonso: '14-Fernando_Alonso.png',
+  leclerc: '16-Charles_Leclerc.png',
+  stroll: '18-Lance_Stroll.png',
+  tsunoda: '22-Yuki_Tsunoda.png',
+  albon: '23-Alex_Albon.png',
+  herta: '26-Colton_Herta.png',
+  hulkenberg: '27-Nico_Hulkenberg.png',
+  lawson: '30-Lian_Lawson.png',
+  lindblad: '31-Arvid_Lindblad.png',
+  ocon: '31-Esteban_Ocon.png',
+  drugovich: '34-Felipe_Drugovich.png',
+  colapinto: '43-Franco_Colapinto.png',
+  hamilton: '44-Lewis_Hamilton.png',
+  fittipaldi: '51-Pietro_Fittipaldi.png',
+  sainz: '55-Carlos_Sainz.png',
+  russell: '63-George_Russel.png',
+  bottas: '77-Walteri_Botas.jpg',
+  piastri: '81-Oscar_Piastri.png',
+  bearman: '87-Olivier_Bearman.png',
+  camara: '1-Rafael_Camara-b1a66.png',
+  beganovic: '1-Dino_Beganovic-83aea.jpg',
+  chastain: '1-Ross_Chastain-91a77.jpg',
+}
+
+/**
+ * Retorna uma lista de URLs candidatas locais para o pôster do piloto,
+ * integrando a pipeline driver-photos.ts e variações canônicas de extensão.
+ */
+export function getLocalDriverPosterCandidates(name: string): string[] {
+  if (!name) return []
+  const sources = getDriverPhotoSources(name)
+  const norm = normalizeSurname(name)
   const surname = normalizeDriverSurname(name)
 
-  // Mapeamento de exceções e nomes compostos
-  const aliasMap: Record<string, string> = {
-    verstappen: 'verstappen.webp',
-    lawson: 'lawson.webp',
-    hamilton: 'hamilton.webp',
-    leclerc: 'leclerc.webp',
-    norris: 'norris.webp',
-    piastri: 'piastri.webp',
-    russell: 'russell.webp',
-    antonelli: 'antonelli.webp',
-    alonso: 'alonso.webp',
-    stroll: 'stroll.webp',
-    gasly: 'gasly.webp',
-    doohan: 'doohan.webp',
-    albon: 'albon.webp',
-    sainz: 'sainz.webp',
-    tsunoda: 'tsunoda.webp',
-    hadjar: 'hadjar.webp',
-    ocon: 'ocon.webp',
-    bearman: 'bearman.webp',
-    hulkenberg: 'hulkenberg.webp',
-    bortoleto: 'bortoleto.webp',
-    perez: 'perez.webp',
-    bottas: 'bottas.webp',
-    ricciardo: 'ricciardo.webp',
-    magnussen: 'magnussen.webp',
-    zhou: 'zhou.webp',
-    schumacher: 'schumacher.webp',
-    sargeant: 'sargeant.webp',
-    devries: 'devries.webp',
-    vries: 'devries.webp',
-    shwartzman: 'shwartzman.webp',
-    pourchaire: 'pourchaire.webp',
-    palou: 'palou.webp',
-    herta: 'herta.webp',
-    oward: 'oward.webp',
-    drugovich: 'drugovich.webp',
-    colapinto: 'colapinto.webp',
-    fittipaldi: 'fittipaldi.webp',
-    efittipaldi: 'efittipaldi.webp',
-    camara: 'camara.webp',
-    lindblad: 'lindblad.webp',
-    aron: 'aron.webp',
-    maloney: 'maloney.webp',
-    iwasa: 'iwasa.webp',
-    giovinazzi: 'giovinazzi.webp',
-    vesti: 'vesti.webp',
-    martins: 'martins.webp',
-    slater: 'slater.webp',
-    fornaroli: 'fornaroli.webp',
-    mini: 'mini.webp',
-    taponen: 'taponen.webp',
-    chastain: 'chastain.webp',
-    larson: 'larson.webp',
+  const candidates: string[] = []
+
+  // 1. Asset empacotado no bundle se houver
+  if (sources.bundledImg) {
+    candidates.push(sources.bundledImg)
   }
 
-  const filename = aliasMap[surname] || `${surname}.webp`
-  return `/pilotos/${filename}`
+  // 2. Mapeamento explícito de arquivo canônico numerado
+  const mappedFile =
+    PILOT_FILE_MAP[surname] || (sources.normalizedKey && PILOT_FILE_MAP[sources.normalizedKey])
+  if (mappedFile) {
+    candidates.push(`/pilotos/${mappedFile}`)
+    // Se for .jpg ou .png tenta a outra extensão também
+    if (mappedFile.endsWith('.jpg')) {
+      candidates.push(`/pilotos/${mappedFile.replace('.jpg', '.png')}`)
+    } else if (mappedFile.endsWith('.png')) {
+      candidates.push(`/pilotos/${mappedFile.replace('.png', '.jpg')}`)
+    }
+  }
+
+  // 3. Fontes de driver-photos
+  if (sources.filename) {
+    const fn = `/pilotos/${sources.filename}`
+    if (!candidates.includes(fn)) candidates.push(fn)
+  }
+
+  if (sources.localCandidates) {
+    for (const c of sources.localCandidates) {
+      if (c && !candidates.includes(c)) candidates.push(c)
+    }
+  }
+
+  // 4. Formatos padrão com extensões variadas
+  const keysToTry = [sources.normalizedKey, surname].filter(Boolean)
+  for (const k of keysToTry) {
+    for (const ext of ['.png', '.jpg', '.webp']) {
+      const p = `/pilotos/${k}${ext}`
+      if (!candidates.includes(p)) candidates.push(p)
+    }
+  }
+
+  // 5. Nome com underscore
+  if (norm) {
+    const under = norm.replace(/\s+/g, '_')
+    for (const ext of ['.png', '.jpg', '.webp']) {
+      const p = `/pilotos/${under}${ext}`
+      if (!candidates.includes(p)) candidates.push(p)
+    }
+  }
+
+  // 6. Dropbox URL direta como candidato remoto antes de desistir
+  if (sources.dropboxUrl) {
+    candidates.push(sources.dropboxUrl)
+  }
+
+  return candidates
+}
+
+/**
+ * Retorna a primeira URL provável de pôster para o piloto
+ */
+export function getLocalDriverPosterUrl(name: string): string | null {
+  const candidates = getLocalDriverPosterCandidates(name)
+  return candidates.length > 0 ? candidates[0] : null
 }
 
 export function getInitials(name: string): string {

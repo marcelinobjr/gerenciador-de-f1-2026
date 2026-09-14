@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { getLocalDriverPosterUrl, getInitials } from '@/lib/pilot-posters'
+import React, { useState, useMemo } from 'react'
+import { getLocalDriverPosterCandidates, getInitials } from '@/lib/pilot-posters'
 import { cn } from '@/lib/utils'
 
 interface DriverPosterProps {
@@ -15,10 +15,13 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
   aspectRatio = 'poster',
   showInitialsFallback = true,
 }) => {
-  const [hasError, setHasError] = useState(false)
-  const posterUrl = getLocalDriverPosterUrl(name)
+  const candidateUrls = useMemo(() => getLocalDriverPosterCandidates(name), [name])
+  const [candidateIndex, setCandidateIndex] = useState(0)
 
-  if (hasError || !posterUrl) {
+  const isExhausted = candidateIndex >= candidateUrls.length
+  const currentSrc = !isExhausted ? candidateUrls[candidateIndex] : null
+
+  if (isExhausted || !currentSrc) {
     if (!showInitialsFallback) return null
     return (
       <div
@@ -42,9 +45,10 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
       )}
     >
       <img
-        src={posterUrl}
+        key={currentSrc}
+        src={currentSrc}
         alt={`Pôster de ${name}`}
-        onError={() => setHasError(true)}
+        onError={() => setCandidateIndex((prev) => prev + 1)}
         className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
         loading="lazy"
       />
@@ -52,3 +56,4 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
     </div>
   )
 }
+export default DriverPoster
