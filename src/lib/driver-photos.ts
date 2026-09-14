@@ -384,6 +384,10 @@ export function getDriverPhotoSources(driverName?: string): {
     `/pilotos/${key}.jpg`,
     `/pilotos/${key}.webp`,
     // Variações com nomes originais de pôster e extensões
+    key === 'colapinto' ? '/pilotos/43-Franco_Colapinto.png' : null,
+    key === 'colapinto' ? '/pilotos/43-Franco_Colapinto.jpg' : null,
+    key === 'colapinto' ? '/pilotos/43-Franco_Colapinto-5ea8a.jpg' : null,
+    key === 'colapinto' ? '/pilotos/43-Franco_Colapinto-5ea8a.png' : null,
     key === 'lindblad' ? '/pilotos/30-Arvid_Lindblad.jpg' : null,
     key === 'lindblad' ? '/pilotos/30-Arvid_Lindblad.png' : null,
     key === 'lindblad' ? '/pilotos/31-Arvid_Lindblad.png' : null,
