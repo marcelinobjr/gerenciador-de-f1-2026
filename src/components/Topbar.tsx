@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { formatCurrency } from '@/lib/formatters'
-import { MANAGER_AVATAR_ASSETS, getTeamLogoUrl } from '@/lib/lobby-assets'
+import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { cn } from '@/lib/utils'
 
 export interface TopbarProps {
@@ -86,20 +86,14 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
 
   // Manager avatar e nome
   const managerName = team?.manager_name || user?.name || 'Team Principal'
-  const managerProfile = team?.manager_profile
 
-  // Encontrar foto do avatar selecionado no wizard ou fallback
-  const managerAvatarUrl = useMemo(() => {
-    if (managerProfile?.avatarNumber) {
-      const match = MANAGER_AVATAR_ASSETS.find((a) => a.number === managerProfile.avatarNumber)
-      if (match) return match.dropboxUrl
-    }
-    if (managerProfile?.avatarId) {
-      const match = MANAGER_AVATAR_ASSETS.find((a) => a.id === managerProfile.avatarId)
-      if (match) return match.dropboxUrl
-    }
-    return MANAGER_AVATAR_ASSETS[0].dropboxUrl
-  }, [managerProfile])
+  // Iniciais do manager para fallback estilizado inline
+  const managerInitials = useMemo(() => {
+    const raw = (managerName || 'Team Principal').trim().split(/\s+/)
+    if (!raw.length || !raw[0]) return 'TP'
+    if (raw.length === 1) return raw[0].slice(0, 2).toUpperCase()
+    return (raw[0][0] + raw[raw.length - 1][0]).toUpperCase()
+  }, [managerName])
 
   // Logo da equipe (se oficial)
   const teamLogoUrl = useMemo(() => {
@@ -137,7 +131,12 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
             <img
               src={teamLogoUrl}
               alt={teamName}
+              crossOrigin="anonymous"
+              data-html2canvas-ignore="true"
               className="w-7 h-7 object-contain shrink-0 filter drop-shadow"
+              onError={(e) => {
+                ;(e.currentTarget as HTMLElement).style.display = 'none'
+              }}
             />
           ) : (
             <div
@@ -254,16 +253,17 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
               className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-full bg-[#141B24] hover:bg-[#1C2533] border border-[#232D3F] transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#E10600]"
               aria-label="Menu do Team Principal"
             >
-              <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[#1E293B] border border-white/20 shrink-0">
-                <img
-                  src={managerAvatarUrl}
-                  alt={managerName}
-                  className="w-full h-full object-cover object-top"
-                  onError={(e) => {
-                    // Fallback para inicial
-                    ;(e.target as HTMLElement).style.display = 'none'
-                  }}
-                />
+              <div
+                className="relative w-8 h-8 rounded-full overflow-hidden bg-[#1E293B] border border-white/20 shrink-0 flex items-center justify-center"
+                data-html2canvas-ignore="true"
+              >
+                <div
+                  className="w-full h-full rounded-full flex items-center justify-center text-xs font-black text-white uppercase shadow-inner select-none"
+                  style={{ backgroundColor: teamColor }}
+                  title={managerName}
+                >
+                  {managerInitials}
+                </div>
               </div>
 
               <div className="hidden sm:flex flex-col text-left leading-tight">
