@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Flag, KeyRound, Mail, User, AlertCircle, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,15 +11,19 @@ import heroGarageBg from '@/assets/chatgpt-image-10-de-set.de-2026-122312-fc092.
 export default function AuthPage() {
   const { login, register, careerPhase } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const expiredMessage = (location.state as any)?.expiredMessage
 
   // Se o usuário já estiver autenticado e tentar acessar /auth, direciona para o ambiente correto
   React.useEffect(() => {
-    if (careerPhase === 'career') {
-      navigate('/', { replace: true })
-    } else if (careerPhase === 'lobby') {
-      navigate('/lobby', { replace: true })
+    if (!expiredMessage) {
+      if (careerPhase === 'career') {
+        navigate('/', { replace: true })
+      } else if (careerPhase === 'lobby') {
+        navigate('/lobby', { replace: true })
+      }
     }
-  }, [careerPhase, navigate])
+  }, [careerPhase, navigate, expiredMessage])
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login')
 
@@ -32,7 +36,7 @@ export default function AuthPage() {
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [nameError, setNameError] = useState('')
-  const [generalError, setGeneralError] = useState('')
+  const [generalError, setGeneralError] = useState(expiredMessage || '')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Real-time validation

@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { SessionExpiredError, refreshAuthSession } from '@/lib/pocketbase/authHelper'
 import { WizardStepper } from '@/components/lobby/WizardStepper'
 import { StepStart } from '@/components/lobby/StepStart'
 import { StepManager } from '@/components/lobby/StepManager'
@@ -251,7 +252,24 @@ export function LobbyPage() {
 
     setIsSubmitting(true)
     try {
-      // Criação definitiva via f1Service
+      // 1. Garantir que a sessão esteja fresca antes de criar a carreira.
+      // Se authRefresh falhar, redireciona para /auth com a mensagem pedida.
+      try {
+        await refreshAuthSession()
+      } catch (authErr) {
+        toast({
+          title: 'Sessão expirada',
+          description: 'Sessão expirada, entre novamente',
+          variant: 'destructive',
+        })
+        navigate('/auth', {
+          replace: true,
+          state: { expiredMessage: 'Sessão expirada, entre novamente' },
+        })
+        return
+      }
+
+      // 2. Criação definitiva via f1Service (com retry automático interno)
       await f1Service.initializeCareerWithConfig(user.id, wizardConfig)
 
       // Atualiza contexto global
@@ -266,6 +284,19 @@ export function LobbyPage() {
       navigate('/')
     } catch (err: any) {
       console.error('Erro ao criar carreira:', err)
+      if (err instanceof SessionExpiredError) {
+        toast({
+          title: 'Sessão expirada',
+          description: 'Sessão expirada, entre novamente',
+          variant: 'destructive',
+        })
+        navigate('/auth', {
+          replace: true,
+          state: { expiredMessage: 'Sessão expirada, entre novamente' },
+        })
+        return
+      }
+
       const friendlyDetail = getErrorMessage(err)
       const description =
         friendlyDetail && friendlyDetail !== 'An unexpected error occurred.'

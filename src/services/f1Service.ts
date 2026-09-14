@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import { withAuthRetry, refreshAuthSession } from '@/lib/pocketbase/authHelper'
 import {
   TeamModel,
   SeasonModel,
@@ -898,59 +899,69 @@ export const f1Service = {
     userId: string,
     config: import('@/types/career-wizard').NewGameConfig,
   ): Promise<TeamModel> {
+    // 1. Garantir que a sessão esteja fresca antes de criar a carreira
+    await refreshAuthSession()
+
+    // 2. Usar o ID do usuário atualmente autenticado no cliente compartilhado
+    const activeUserId = pb.authStore.record?.id || userId
+
     const isCustom = config.playerTeam.isCustom
     const managerName = config.manager.name || 'Chefe de Equipe'
 
     if (isCustom) {
-      // Criar equipe personalizada com dados do wizard
+      // Criar equipe personalizada com dados do wizard com retry resiliente
       const teamName = config.playerTeam.customName?.trim() || 'Minha Escuderia'
       const teamColor = config.playerTeam.customColor || '#00A6FB'
       const engineSupplier = this.normalizeEngineSupplier(config.playerTeam.customEngine)
 
-      const newTeam = await pb.collection('teams').create<TeamModel>({
-        name: teamName,
-        color: teamColor,
-        chassis_level: 45,
-        aero_level: 45,
-        strategy_level: 45,
-        budget: 135000000,
-        engine_supplier: engineSupplier,
-        strength: 35,
-        is_custom: true,
-        team_key: 'custom_12th',
-        user_id: userId,
-        manager_name: managerName,
-        manager_profile: {
-          profileId: config.managerProfile.id,
-          title: config.managerProfile.title,
-          archetype: config.managerProfile.archetype,
-          specialty: config.managerProfile.specialty,
-          style: config.managerProfile.style,
-          nationality: config.manager.nationality,
-          age: config.manager.age,
-          avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
-          bonuses: config.managerProfile.bonuses,
-          weakness: config.managerProfile.weakness,
-          baseAttributes: config.managerProfile.baseAttributes,
-        },
-        career_settings: config.careerSettings,
-        custom_grid_teams: config.selectedTeams.map((t) => ({
-          key: t.key,
-          name: t.name,
-          engine: this.normalizeEngineSupplier(t.engine),
-          strength: t.strength,
-          color: t.color,
-        })),
-        universe_type: config.universeType,
-      })
+      const newTeam = await withAuthRetry(() =>
+        pb.collection('teams').create<TeamModel>({
+          name: teamName,
+          color: teamColor,
+          chassis_level: 45,
+          aero_level: 45,
+          strategy_level: 45,
+          budget: 135000000,
+          engine_supplier: engineSupplier,
+          strength: 35,
+          is_custom: true,
+          team_key: 'custom_12th',
+          user_id: activeUserId,
+          manager_name: managerName,
+          manager_profile: {
+            profileId: config.managerProfile.id,
+            title: config.managerProfile.title,
+            archetype: config.managerProfile.archetype,
+            specialty: config.managerProfile.specialty,
+            style: config.managerProfile.style,
+            nationality: config.manager.nationality,
+            age: config.manager.age,
+            avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
+            bonuses: config.managerProfile.bonuses,
+            weakness: config.managerProfile.weakness,
+            baseAttributes: config.managerProfile.baseAttributes,
+          },
+          career_settings: config.careerSettings,
+          custom_grid_teams: config.selectedTeams.map((t) => ({
+            key: t.key,
+            name: t.name,
+            engine: this.normalizeEngineSupplier(t.engine),
+            strength: t.strength,
+            color: t.color,
+          })),
+          universe_type: config.universeType,
+        }),
+      )
 
       // Temporada 2026
-      await pb.collection('seasons').create({
-        year: 2026,
-        current_round: 1,
-        total_rounds: 24,
-        team_id: newTeam.id,
-      })
+      await withAuthRetry(() =>
+        pb.collection('seasons').create({
+          year: 2026,
+          current_round: 1,
+          total_rounds: 24,
+          team_id: newTeam.id,
+        }),
+      )
 
       // 6 Peças calibradas
       const partNames = [
@@ -962,32 +973,38 @@ export const f1Service = {
         'Aerodinâmica ativa',
       ]
       for (const pName of partNames) {
-        await pb.collection('parts').create({
-          name: pName,
-          level: 4,
-          condition: 100,
-          team_id: newTeam.id,
-        })
+        await withAuthRetry(() =>
+          pb.collection('parts').create({
+            name: pName,
+            level: 4,
+            condition: 100,
+            team_id: newTeam.id,
+          }),
+        )
       }
 
       // Patrocinador inicial
       const customSponsorPerRound = Math.round((215000000 / 24) * 0.7)
-      await pb.collection('sponsors').create({
-        name: 'Venture Capital Motorsport',
-        slot: 'laterais',
-        value_per_round: customSponsorPerRound,
-        requirement: 'Sem exigência',
-        status: 'ativo',
-        rounds_remaining: 24,
-        team_id: newTeam.id,
-      })
+      await withAuthRetry(() =>
+        pb.collection('sponsors').create({
+          name: 'Venture Capital Motorsport',
+          slot: 'laterais',
+          value_per_round: customSponsorPerRound,
+          requirement: 'Sem exigência',
+          status: 'ativo',
+          rounds_remaining: 24,
+          team_id: newTeam.id,
+        }),
+      )
 
       // Evento de boas-vindas
-      await pb.collection('events').create({
-        message: `Bem-vindo, ${managerName}! A nova ${teamName} foi homologada como a 12ª equipe do grid da F1 2026. Acesse a aba Equipe para contratar seus 2 pilotos titulares!`,
-        type: 'contrato',
-        team_id: newTeam.id,
-      })
+      await withAuthRetry(() =>
+        pb.collection('events').create({
+          message: `Bem-vindo, ${managerName}! A nova ${teamName} foi homologada como a 12ª equipe do grid da F1 2026. Acesse a aba Equipe para contratar seus 2 pilotos titulares!`,
+          type: 'contrato',
+          team_id: newTeam.id,
+        }),
+      )
 
       return newTeam
     } else {
@@ -1001,50 +1018,54 @@ export const f1Service = {
 
       const engineSupplier = this.normalizeEngineSupplier(teamDef.engine)
 
-      const newTeam = await pb.collection('teams').create<TeamModel>({
-        name: teamDef.name,
-        color: teamDef.color,
-        chassis_level: Math.round(teamDef.strength * 0.9),
-        aero_level: Math.round(teamDef.strength * 0.9),
-        strategy_level: Math.round(teamDef.strength * 0.88),
-        budget: teamDef.budget,
-        engine_supplier: engineSupplier,
-        strength: teamDef.strength,
-        is_custom: false,
-        team_key: teamDef.key,
-        user_id: userId,
-        manager_name: managerName,
-        manager_profile: {
-          profileId: config.managerProfile.id,
-          title: config.managerProfile.title,
-          archetype: config.managerProfile.archetype,
-          specialty: config.managerProfile.specialty,
-          style: config.managerProfile.style,
-          nationality: config.manager.nationality,
-          age: config.manager.age,
-          avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
-          bonuses: config.managerProfile.bonuses,
-          weakness: config.managerProfile.weakness,
-          baseAttributes: config.managerProfile.baseAttributes,
-        },
-        career_settings: config.careerSettings,
-        custom_grid_teams: config.selectedTeams.map((t) => ({
-          key: t.key,
-          name: t.name,
-          engine: this.normalizeEngineSupplier(t.engine),
-          strength: t.strength,
-          color: t.color,
-        })),
-        universe_type: config.universeType,
-      })
+      const newTeam = await withAuthRetry(() =>
+        pb.collection('teams').create<TeamModel>({
+          name: teamDef.name,
+          color: teamDef.color,
+          chassis_level: Math.round(teamDef.strength * 0.9),
+          aero_level: Math.round(teamDef.strength * 0.9),
+          strategy_level: Math.round(teamDef.strength * 0.88),
+          budget: teamDef.budget,
+          engine_supplier: engineSupplier,
+          strength: teamDef.strength,
+          is_custom: false,
+          team_key: teamDef.key,
+          user_id: activeUserId,
+          manager_name: managerName,
+          manager_profile: {
+            profileId: config.managerProfile.id,
+            title: config.managerProfile.title,
+            archetype: config.managerProfile.archetype,
+            specialty: config.managerProfile.specialty,
+            style: config.managerProfile.style,
+            nationality: config.manager.nationality,
+            age: config.manager.age,
+            avatarUrl: config.manager.avatarUrl || config.managerProfile.avatarUrl,
+            bonuses: config.managerProfile.bonuses,
+            weakness: config.managerProfile.weakness,
+            baseAttributes: config.managerProfile.baseAttributes,
+          },
+          career_settings: config.careerSettings,
+          custom_grid_teams: config.selectedTeams.map((t) => ({
+            key: t.key,
+            name: t.name,
+            engine: this.normalizeEngineSupplier(t.engine),
+            strength: t.strength,
+            color: t.color,
+          })),
+          universe_type: config.universeType,
+        }),
+      )
 
       // Temporada 2026
-      await pb.collection('seasons').create({
-        year: 2026,
-        current_round: 1,
-        total_rounds: 24,
-        team_id: newTeam.id,
-      })
+      await withAuthRetry(() =>
+        pb.collection('seasons').create({
+          year: 2026,
+          current_round: 1,
+          total_rounds: 24,
+          team_id: newTeam.id,
+        }),
+      )
 
       // 6 peças
       const initialPartLevel = Math.max(3, Math.min(10, Math.round(teamDef.strength / 11)))
@@ -1057,69 +1078,79 @@ export const f1Service = {
         'Aerodinâmica ativa',
       ]
       for (const pName of partNames) {
-        await pb.collection('parts').create({
-          name: pName,
-          level: initialPartLevel,
-          condition: 100,
-          team_id: newTeam.id,
-        })
+        await withAuthRetry(() =>
+          pb.collection('parts').create({
+            name: pName,
+            level: initialPartLevel,
+            condition: 100,
+            team_id: newTeam.id,
+          }),
+        )
       }
 
       // Patrocinador oficial
       const rating = teamDef.strengthRating ?? teamDef.strength / 10
       const sponsorRatio = 0.7 + ((rating - 3.0) / 7.0) * 0.2
       const sponsorVal = Math.round((215000000 / 24) * sponsorRatio)
-      await pb.collection('sponsors').create({
-        name: `${teamDef.name.split(' ')[0]} Global Partner`,
-        slot: 'laterais',
-        value_per_round: sponsorVal,
-        requirement: 'Top 10 no GP',
-        status: 'ativo',
-        rounds_remaining: 24,
-        team_id: newTeam.id,
-      })
+      await withAuthRetry(() =>
+        pb.collection('sponsors').create({
+          name: `${teamDef.name.split(' ')[0]} Global Partner`,
+          slot: 'laterais',
+          value_per_round: sponsorVal,
+          requirement: 'Top 10 no GP',
+          status: 'ativo',
+          rounds_remaining: 24,
+          team_id: newTeam.id,
+        }),
+      )
 
       // Evento de boas-vindas
-      await pb.collection('events').create({
-        message: `${managerName} assumiu o comando da lendária ${teamDef.name} para a temporada 2026!`,
-        type: 'contrato',
-        team_id: newTeam.id,
-      })
+      await withAuthRetry(() =>
+        pb.collection('events').create({
+          message: `${managerName} assumiu o comando da lendária ${teamDef.name} para a temporada 2026!`,
+          type: 'contrato',
+          team_id: newTeam.id,
+        }),
+      )
 
       // Atribuir pilotos titulares
       for (const d of [teamDef.driver1, teamDef.driver2]) {
         try {
           const existing = await pb.collection('drivers').getFirstListItem(`name = "${d.name}"`)
-          await pb.collection('drivers').update(existing.id, {
-            team_id: newTeam.id,
-            reserve_team_id: null,
-            role: 'titular',
-            category: 'f1',
-            salary: d.salary,
-            speed: d.speed,
-            consistency: d.consistency,
-            rain: d.rain,
-            defense: d.defense,
-            is_incapacitated: false,
-            incapacitated_rounds_left: 0,
-          })
+          await withAuthRetry(() =>
+            pb.collection('drivers').update(existing.id, {
+              team_id: newTeam.id,
+              reserve_team_id: null,
+              role: 'titular',
+              category: 'f1',
+              salary: d.salary,
+              speed: d.speed,
+              consistency: d.consistency,
+              rain: d.rain,
+              defense: d.defense,
+              is_incapacitated: false,
+              incapacitated_rounds_left: 0,
+            }),
+          )
         } catch (_) {
-          await pb.collection('drivers').create({
-            name: d.name,
-            nationality: d.nationality,
-            age: d.age,
-            speed: d.speed,
-            consistency: d.consistency,
-            rain: d.rain,
-            defense: d.defense,
-            salary: d.salary,
-            contract_end: 2027,
-            team_id: newTeam.id,
-            role: 'titular',
-            category: 'f1',
-            is_incapacitated: false,
-            incapacitated_rounds_left: 0,
-          })
+          await withAuthRetry(() =>
+            pb.collection('drivers').create({
+              name: d.name,
+              nationality: d.nationality,
+              age: d.age,
+              speed: d.speed,
+              consistency: d.consistency,
+              rain: d.rain,
+              defense: d.defense,
+              salary: d.salary,
+              contract_end: 2027,
+              team_id: newTeam.id,
+              role: 'titular',
+              category: 'f1',
+              is_incapacitated: false,
+              incapacitated_rounds_left: 0,
+            }),
+          )
         }
       }
 
@@ -1128,36 +1159,40 @@ export const f1Service = {
         const rd = teamDef.reserveDriver
         try {
           const existing = await pb.collection('drivers').getFirstListItem(`name = "${rd.name}"`)
-          await pb.collection('drivers').update(existing.id, {
-            reserve_team_id: newTeam.id,
-            team_id: null,
-            role: 'reserva',
-            category: 'f1',
-            salary: rd.salary,
-            speed: rd.speed,
-            consistency: rd.consistency,
-            rain: rd.rain,
-            defense: rd.defense,
-            fp_sessions_completed: 0,
-            fp_scheduled_rounds: [7, 13],
-          })
+          await withAuthRetry(() =>
+            pb.collection('drivers').update(existing.id, {
+              reserve_team_id: newTeam.id,
+              team_id: null,
+              role: 'reserva',
+              category: 'f1',
+              salary: rd.salary,
+              speed: rd.speed,
+              consistency: rd.consistency,
+              rain: rd.rain,
+              defense: rd.defense,
+              fp_sessions_completed: 0,
+              fp_scheduled_rounds: [7, 13],
+            }),
+          )
         } catch (_) {
-          await pb.collection('drivers').create({
-            name: rd.name,
-            nationality: rd.nationality,
-            age: rd.age,
-            speed: rd.speed,
-            consistency: rd.consistency,
-            rain: rd.rain,
-            defense: rd.defense,
-            salary: rd.salary,
-            contract_end: 2027,
-            reserve_team_id: newTeam.id,
-            role: 'reserva',
-            category: 'f1',
-            fp_sessions_completed: 0,
-            fp_scheduled_rounds: [7, 13],
-          })
+          await withAuthRetry(() =>
+            pb.collection('drivers').create({
+              name: rd.name,
+              nationality: rd.nationality,
+              age: rd.age,
+              speed: rd.speed,
+              consistency: rd.consistency,
+              rain: rd.rain,
+              defense: rd.defense,
+              salary: rd.salary,
+              contract_end: 2027,
+              reserve_team_id: newTeam.id,
+              role: 'reserva',
+              category: 'f1',
+              fp_sessions_completed: 0,
+              fp_scheduled_rounds: [7, 13],
+            }),
+          )
         }
       }
 

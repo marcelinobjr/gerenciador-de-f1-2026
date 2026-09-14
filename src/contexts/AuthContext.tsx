@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>
   register: (name: string, email: string, pass: string) => Promise<void>
   logout: () => void
+  ensureValidSession: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -61,9 +62,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (pb.authStore.isValid && pb.authStore.record?.id) {
-      loadUserData(pb.authStore.record.id).finally(() => {
-        setIsLoading(false)
-      })
+      // Renovar token preventivamente para manter a sessão válida ao iniciar o app
+      pb.collection('users')
+        .authRefresh()
+        .catch((err) => {
+          console.warn('[AuthProvider] authRefresh inicial falhou:', err)
+          pb.authStore.clear()
+        })
+        .finally(() => {
+          if (pb.authStore.record?.id) {
+            loadUserData(pb.authStore.record.id).finally(() => {
+              setIsLoading(false)
+            })
+          } else {
+            setIsLoading(false)
+          }
+        })
     } else {
       setIsLoading(false)
     }
@@ -114,6 +128,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSeason(null)
   }
 
+  const ensureValidSession = async (): Promise<boolean> => {
+    if (!pb.authStore.isValid || !pb.authStore.record) {
+      logout()
+      return false
+    }
+    try {
+      await pb.collection('users').authRefresh()
+      return true
+    } catch {
+      logout()
+      return false
+    }
+  }
+
   const logout = () => {
     pb.authStore.clear()
     setUser(null)
@@ -134,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         logout,
+        ensureValidSession,
       }}
     >
       {children}
