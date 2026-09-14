@@ -14,7 +14,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "preview": "vite preview",
-    "test": "vitest run scripts/qa_wizard_modes.test.ts",
+    "test": "vitest run scripts/test_pdf_structure.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

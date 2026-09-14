@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T13:42:19.731Z",
+  "generatedAt": "2026-09-14T14:37:53.822Z",
   "collections": [
     {
       "name": "users",
@@ -1114,6 +1114,19 @@
         "CREATE INDEX idx_race_reports_season_round ON race_reports (season_id, round)",
         "CREATE INDEX idx_race_reports_team ON race_reports (team_id)"
       ]
+    },
+    {
+      "name": "mbj_temp",
+      "type": "base",
+      "apiRules": {
+        "list": null,
+        "view": null,
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [],
+      "indexes": []
     }
   ]
 }
