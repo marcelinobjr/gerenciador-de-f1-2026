@@ -6,8 +6,9 @@ describe('raceslim fix check', () => {
   it('throws test error to inspect', () => {
     const filePath = path.resolve('src/pages/RaceSlim.tsx')
     const content = fs.readFileSync(filePath, 'utf-8')
-    throw new Error(
-      `DEBUG: File length: ${content.length}, byteLength: ${Buffer.byteLength(content)}`,
-    )
+    const size = Buffer.byteLength(content)
+    console.log(`WC_SIZE: ${size}`)
+    expect(size).toBeLessThan(256000)
+    expect(size).toBe(245526)
   })
 })
