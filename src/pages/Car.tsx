@@ -5,6 +5,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
 import { PartModel, SponsorModel } from '@/types/f1'
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
+import { managerEffectService } from '@/services/managerEffectService'
 import { CarBlueprint } from '@/components/CarBlueprint'
 import { RealisticCarHero } from '@/components/RealisticCarHero'
 import { AmbientBackground } from '@/components/AmbientBackground'
@@ -230,10 +231,12 @@ export default function CarPage() {
   const isOverEngineQuota = enginePoolUsed >= f1Service.MAX_ALLOWED_ENGINES
 
   // Upgrade part cost calculation — com bônus conservador de Fábrica P&D (até -12%)
+  // e bônus de technicalManagement do Manager (workshopEfficiencyBonus: 1% a 6%)
   const factoryDiscount = f1Service.getFactoryDiscountRate(team?.factory_level || 3)
+  const managerTechBonus = managerEffectService.getWorkshopDiscountModifier(team)
   const getUpgradeCost = (currentLevel: number) => {
     const raw = 4000000 + currentLevel * 1500000
-    return Math.round(raw * (1 - factoryDiscount))
+    return Math.round(raw * (1 - factoryDiscount) * (1 - managerTechBonus * 0.5))
   }
 
   // Estado para diálogo de estouro consciente do Teto de Gastos (Investigação FIA)
@@ -362,7 +365,7 @@ export default function CarPage() {
   // Executa o reparo de oficina (com ou sem estouro)
   const executeRepairPart = async (part: PartModel, breachCostCap: boolean = false) => {
     if (!team) return
-    const rawCost = f1Service.getPartRepairCost(part)
+    const rawCost = f1Service.getPartRepairCost(part, managerTechBonus)
     const cost = Math.round(rawCost * (1 - factoryDiscount))
 
     if (team.budget < cost) {
@@ -434,7 +437,7 @@ export default function CarPage() {
       return
     }
 
-    const rawCost = f1Service.getPartRepairCost(part)
+    const rawCost = f1Service.getPartRepairCost(part, managerTechBonus)
     const cost = Math.round(rawCost * (1 - factoryDiscount))
 
     // Cost Cap check: Opção de estourar teto conscientemente

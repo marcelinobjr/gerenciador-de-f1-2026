@@ -55,9 +55,9 @@ export interface CalculateStandingsParams {
 export interface GetTeamMoraleParams {
   teamPoints: number
   constructorRank: number
-  parts?: PartModel[]
+  parts?: Array<{ level?: number }>
+  managerMoraleBonus?: number
 }
-
 /**
  * Calcula os pontos FIA oficiais (25-18-15-12-10-8-6-4-2-1) sem bonificação de volta mais rápida.
  * Se o resultado persistido já possui `points > 0`, respeita o valor persistido.
@@ -76,7 +76,7 @@ export function calculatePointsForResults(
  * pontuação no campeonato de construtores e classificação atual.
  */
 export function getTeamMorale(params: GetTeamMoraleParams): number {
-  const { teamPoints, constructorRank, parts = [] } = params
+  const { teamPoints, constructorRank, parts = [], managerMoraleBonus = 0 } = params
   const avgParts =
     parts.length > 0 ? parts.reduce((acc, p) => acc + (p.level || 5), 0) / parts.length : 5
 
@@ -86,6 +86,14 @@ export function getTeamMorale(params: GetTeamMoraleParams): number {
   } else if (constructorRank <= 6) {
     calcMorale += 5
   }
+
+  // Modificador de moral do Team Principal (peopleManagement: -4% a +8%)
+  // Protege a moral da equipe em momentos difíceis e melhora coesão interna
+  const clampedBonus = Math.max(-0.04, Math.min(0.08, managerMoraleBonus))
+  if (clampedBonus !== 0) {
+    calcMorale = Math.round(calcMorale * (1 + clampedBonus))
+  }
+
   return Math.max(10, Math.min(100, calcMorale))
 }
 

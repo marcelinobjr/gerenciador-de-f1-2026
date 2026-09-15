@@ -276,6 +276,7 @@ export function calculatePitStopDuration(
   isPlayer: boolean,
   teamStrength = 75,
   pitstopCenterLevel?: number,
+  managerErrorReduction = 0,
 ): PitStopTimingResult {
   // Se for o jogador e não foi fornecido explicitamente, herda o nível atual configurado
   const effectiveLevel =
@@ -298,7 +299,10 @@ export function calculatePitStopDuration(
   let duration = Math.max(1.85, Number((bestBase + variance - pitCenterBonus).toFixed(2)))
 
   // Chance de erro / pit stop lento: 7% base, reduzida conforme o nível do Centro de Testes (até ~3.5% no Nível 5)
-  const errorProbability = Math.max(0.035, 0.07 - (effectiveLevel - 1) * 0.008)
+  // e mitigada de forma equilibrada pela raceManagement do Manager (pitStopErrorReduction: 1% a 4%)
+  const clampedManagerReduction = Math.max(-0.02, Math.min(0.04, managerErrorReduction))
+  const baseErrorProb = Math.max(0.035, 0.07 - (effectiveLevel - 1) * 0.008)
+  const errorProbability = Math.max(0.02, baseErrorProb - clampedManagerReduction)
   const errorRoll = Math.random()
   const isSlowPit = errorRoll < errorProbability
 

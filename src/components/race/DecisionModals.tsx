@@ -53,6 +53,7 @@ export interface DecisionModalsProps {
   rainDecisionWaitLaps: number
   setRainDecisionWaitLaps: (laps: number) => void
   tireStock: TireAllotment
+  team?: any
   formatTireName: (c?: TireCompound) => string
   onConfirmRainDecision: (
     decision: 'intermediario' | 'chuva_extrema' | 'macio' | 'medio' | 'duro' | 'aguardar',
@@ -108,6 +109,7 @@ export function DecisionModals({
   rainDecisionWaitLaps,
   setRainDecisionWaitLaps,
   tireStock,
+  team,
   formatTireName,
   onConfirmRainDecision,
 
@@ -261,7 +263,7 @@ export function DecisionModals({
               </strong>
             </div>
             <div>
-              <span className="text-[#8B95A7] block text-[11px]">Recomendação da Engenharia:</span>
+              <span className="text-[#8B95A7] block text-[11px]">Recomendação Estratégica:</span>
               <strong className="text-amber-400 font-semibold block mt-0.5">
                 {effectiveWeather === 'chuva_forte'
                   ? 'Colocar Chuva Extrema (Intermediário aquaplana +32% risco)'
@@ -269,6 +271,11 @@ export function DecisionModals({
                     ? 'Colocar Intermediários (Extrema sobreaquece e perde 2.7s)'
                     : 'Colocar Pneus Slicks (Médio / Duro)'}
               </strong>
+              {team?.manager_profile && (
+                <span className="text-[10px] text-cyan-400 block mt-0.5">
+                  Pit Wall: Gestão de Corrida refinada pelo Team Principal
+                </span>
+              )}
             </div>
           </div>
 

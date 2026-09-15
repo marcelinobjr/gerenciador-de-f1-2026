@@ -49,6 +49,8 @@ import { AmbientBackground } from '@/components/AmbientBackground'
 import { ProgressBar } from '@/components/ProgressBar'
 import { DevelopmentManagerModal } from '@/components/DevelopmentManagerModal'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
+import { managerEffectService } from '@/services/managerEffectService'
+import { MANAGER_DOMAINS } from '@/lib/manager-attribute-domains'
 import {
   Dialog,
   DialogContent,
@@ -1580,51 +1582,188 @@ export default function TeamPage() {
       )}
 
       {/* SUB-ABA: STAFF */}
-      {activeTab === 'staff' && (
-        <div className="space-y-6">
-          <Card className="bg-[#0B0E14] border-neutral-800/80">
-            <CardHeader className="border-b border-neutral-800">
-              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#E10600]" />
-                Corpo Técnico e Liderança Esportiva
-              </CardTitle>
-              <CardDescription className="text-xs text-neutral-400">
-                Engenheiros chefes e diretores responsáveis pelo projeto, estratégia de pit stop e
-                operações da equipe.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {staffMembers.map((st) => (
-                  <div
-                    key={st.name}
-                    className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex items-center justify-between gap-3 font-mono"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={st.photo}
-                        alt={st.name}
-                        className="w-12 h-12 rounded-full object-cover border-2 border-neutral-700"
-                      />
-                      <div>
-                        <span className="text-xs text-neutral-400 block">{st.role}</span>
-                        <strong className="text-sm text-white block">{st.name}</strong>
-                        <span className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
-                          {st.flag} {st.country}
+      {activeTab === 'staff' &&
+        (() => {
+          const managerEval = managerEffectService.evaluateManager(team)
+          return (
+            <div className="space-y-6">
+              {/* Bloco Canônico do Team Principal e seus 6 Domínios Operacionais */}
+              <Card className="bg-[#0B0E14] border-neutral-800/80">
+                <CardHeader className="border-b border-neutral-800 pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-amber-500" />
+                        Team Principal & Liderança: {managerEval.managerName}
+                      </CardTitle>
+                      <CardDescription className="text-xs text-neutral-400 mt-1">
+                        Arquétipo:{' '}
+                        <strong className="text-amber-400 font-bold">
+                          {managerEval.archetypeTitle}
+                        </strong>{' '}
+                        — {managerEval.specialty}
+                      </CardDescription>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="self-start sm:self-auto border-amber-500/40 text-amber-400 bg-amber-500/10 font-mono text-xs uppercase"
+                    >
+                      Atributos Derivados (Anti-Stacking Ativo)
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-5">
+                  {/* Grade dos 6 Domínios Canônicos */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 font-mono">
+                    {Object.entries(MANAGER_DOMAINS).map(([domKey, domMeta]) => {
+                      const score =
+                        managerEval.domainScores[domKey as keyof typeof managerEval.domainScores]
+                      const delta = score - 75
+                      return (
+                        <div
+                          key={domKey}
+                          className="p-3.5 rounded-xl bg-black/40 border border-neutral-800 flex flex-col justify-between"
+                        >
+                          <div>
+                            <span className="text-[10px] text-neutral-400 uppercase block tracking-wider truncate">
+                              {domMeta.name}
+                            </span>
+                            <span className="text-2xl font-black text-white block mt-1">
+                              {score}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-[10px]">
+                            <span className="text-neutral-500">Base 75</span>
+                            <span
+                              className={`font-bold ${
+                                delta > 0
+                                  ? 'text-emerald-400'
+                                  : delta < 0
+                                    ? 'text-rose-400'
+                                    : 'text-neutral-400'
+                              }`}
+                            >
+                              {delta > 0 ? `+${delta}` : `${delta}`}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Resumo de Efeitos Ativos e Balanceados */}
+                  <div className="p-4 rounded-xl bg-black/30 border border-neutral-800 text-xs font-mono space-y-2">
+                    <div className="text-[#8B95A7] font-bold uppercase text-[11px] flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-cyan-400" />
+                      Impactos Aplicados na Operação da Escuderia (Sem Alterar Física do Monoposto):
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-neutral-300 pt-1">
+                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
+                        <span className="text-neutral-500 block text-[10px]">Estratégia & SC:</span>
+                        <strong className="text-amber-400">
+                          {managerEval.modifiers.strategyDecisionBonus >= 0 ? '+' : ''}
+                          {(managerEval.modifiers.strategyDecisionBonus * 100).toFixed(1)}%
+                          confiança
+                        </strong>
+                      </div>
+                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
+                        <span className="text-neutral-500 block text-[10px]">
+                          Retenção de Moral:
                         </span>
+                        <strong className="text-emerald-400">
+                          {managerEval.modifiers.moraleRecoveryBonus >= 0 ? '+' : ''}
+                          {(managerEval.modifiers.moraleRecoveryBonus * 100).toFixed(1)}%
+                          amortecimento
+                        </strong>
+                      </div>
+                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
+                        <span className="text-neutral-500 block text-[10px]">
+                          Captação Comercial:
+                        </span>
+                        <strong className="text-purple-400">
+                          {managerEval.modifiers.sponsorValueBonus >= 0 ? '+' : ''}
+                          {(managerEval.modifiers.sponsorValueBonus * 100).toFixed(1)}% receita
+                        </strong>
+                      </div>
+                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
+                        <span className="text-neutral-500 block text-[10px]">
+                          Lapidação na Academia:
+                        </span>
+                        <strong className="text-pink-400">
+                          {managerEval.modifiers.academyDevelopmentBonus >= 0 ? '+' : ''}
+                          {(managerEval.modifiers.academyDevelopmentBonus * 100).toFixed(1)}%
+                          aprendizado
+                        </strong>
+                      </div>
+                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
+                        <span className="text-neutral-500 block text-[10px]">
+                          Oficina & Revisões:
+                        </span>
+                        <strong className="text-cyan-400">
+                          {managerEval.modifiers.workshopEfficiencyBonus >= 0 ? '+' : ''}
+                          {(managerEval.modifiers.workshopEfficiencyBonus * 100).toFixed(1)}%
+                          eficiência
+                        </strong>
+                      </div>
+                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
+                        <span className="text-neutral-500 block text-[10px]">
+                          Confiança do Conselho:
+                        </span>
+                        <strong className="text-blue-400">
+                          {managerEval.modifiers.boardTrustBonus >= 0 ? '+' : ''}
+                          {(managerEval.modifiers.boardTrustBonus * 100).toFixed(1)}% suporte
+                        </strong>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-lg font-black text-emerald-400">{st.rating}</span>
-                      <span className="text-[10px] text-neutral-500 block">RATING</span>
-                    </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                </CardContent>
+              </Card>
+
+              {/* Engenheiros chefes e Corpo Técnico existente */}
+              <Card className="bg-[#0B0E14] border-neutral-800/80">
+                <CardHeader className="border-b border-neutral-800">
+                  <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                    <Users className="w-5 h-5 text-[#E10600]" />
+                    Corpo Técnico e Engenharia de Pista
+                  </CardTitle>
+                  <CardDescription className="text-xs text-neutral-400">
+                    Engenheiros chefes e diretores responsáveis pelo projeto, estratégia de pit stop
+                    e operações da equipe.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {staffMembers.map((st) => (
+                      <div
+                        key={st.name}
+                        className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex items-center justify-between gap-3 font-mono"
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={st.photo}
+                            alt={st.name}
+                            className="w-12 h-12 rounded-full object-cover border-2 border-neutral-700"
+                          />
+                          <div>
+                            <span className="text-xs text-neutral-400 block">{st.role}</span>
+                            <strong className="text-sm text-white block">{st.name}</strong>
+                            <span className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
+                              {st.flag} {st.country}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-black text-emerald-400">{st.rating}</span>
+                          <span className="text-[10px] text-neutral-500 block">RATING</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )
+        })()}
 
       {/* SUB-ABA: CONTRATOS */}
       {activeTab === 'contratos' && (

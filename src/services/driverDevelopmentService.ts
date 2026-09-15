@@ -309,6 +309,12 @@ class DriverDevelopmentService {
     const techFeedback = driver.technical_feedback || 70
     const defense = driver.defense || 70
 
+    // Integração com ManagerEffectService (talentDevelopment do Manager — 2% a 8%)
+    // O Manager não ultrapassa o potencial nem quebra física: apenas acelera adaptação e qualidade da coleta
+    const { managerEffectService } = await import('@/services/managerEffectService')
+    const managerTalentMod = managerEffectService.getAcademyDevelopmentModifier(team)
+    const talentBonusPoints = Math.round(managerTalentMod * 25) // ~1 a 2 pontos na execução
+
     // Variação orgânica controlada (evitar RNG excessivo conforme regra 7)
     // Pequena variação entre -3 e +3
     const jitter = Math.random() * 6 - 3
@@ -334,7 +340,7 @@ class DriverDevelopmentService {
     // 4. Feedback técnico 15% (utilidade para setup/desenvolvimento)
     const scoreTechnicalFeedback = Math.min(
       100,
-      Math.max(40, Math.round(techFeedback + (Math.random() * 4 - 1))),
+      Math.max(40, Math.round(techFeedback + talentBonusPoints + (Math.random() * 4 - 1))),
     )
 
     // 5. Disciplina / Segurança 10% (incidentes)
@@ -537,10 +543,19 @@ class DriverDevelopmentService {
       }
     }
 
-    // Impacto no Piloto: feedback técnico evolui, f1_adaptation sobe
+    // Impacto no Piloto: feedback técnico evolui, f1_adaptation sobe (com bônus do Manager se houver)
+    const extraAdaptationFromManager = managerTalentMod > 0 ? 1 : 0
     const updatedDriver: Partial<DriverModel> = {
-      technical_feedback: Math.min(99, (driver.technical_feedback || 70) + technicalFeedbackGain),
-      f1_adaptation: Math.min(99, (driver.f1_adaptation || 60) + Math.round(km * 0.02)),
+      technical_feedback: Math.min(
+        99,
+        (driver.technical_feedback || 70) +
+          technicalFeedbackGain +
+          (managerTalentMod >= 0.05 ? 1 : 0),
+      ),
+      f1_adaptation: Math.min(
+        99,
+        (driver.f1_adaptation || 60) + Math.round(km * 0.02) + extraAdaptationFromManager,
+      ),
     }
 
     // Se conquistou licença no teste:

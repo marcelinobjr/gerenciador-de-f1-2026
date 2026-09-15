@@ -6,6 +6,7 @@ import { SponsorModel } from '@/types/f1'
 import { AVAILABLE_MARKET_SPONSORS } from '@/lib/f1-data'
 import { standingsService } from '@/services/standingsService'
 import { formatCurrency } from '@/lib/formatters'
+import { managerEffectService } from '@/services/managerEffectService'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { toast } from '@/hooks/use-toast'
 import {
@@ -88,10 +89,13 @@ export default function SponsorsPage() {
     const playerWins = standings.playerWins || 0
     const playerPodiums = standings.playerPodiums || 0
 
+    const managerCommercialBonus = managerEffectService.getSponsorModifier(team)
+
     const scale = f1Service.calculateSponsorMultiplier({
       constructorPos,
       wins: playerWins,
       podiums: playerPodiums,
+      managerCommercialBonus,
     })
 
     return {

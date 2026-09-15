@@ -554,16 +554,19 @@ export const f1Service = {
   },
 
   // Sponsors & Performance Scaling
-  // Multiplicador baseado na posição atual de construtores, vitórias e pódios:
+  // Multiplicador baseado na posição atual de construtores, vitórias, pódios e bônus do Team Principal (commercialManagement):
   // Líder (P1): ~x1.40 | Lanterna (P12): ~x0.70
+  // O Manager influencia de forma controlada (+1% a +8%), sem criar dinheiro automaticamente.
   calculateSponsorMultiplier(params: {
     constructorPos?: number
     wins?: number
     podiums?: number
+    managerCommercialBonus?: number
   }): { multiplier: number; explanation: string } {
     const pos = Math.max(1, Math.min(12, params.constructorPos ?? 6))
     const wins = Math.max(0, params.wins ?? 0)
     const podiums = Math.max(0, params.podiums ?? 0)
+    const managerBonus = Math.max(-0.05, Math.min(0.08, params.managerCommercialBonus ?? 0))
 
     // Base por posição de 1º a 12º (escala linear de 1.30 a 0.70)
     // P1: 1.30, P2: 1.245, ..., P12: 0.70
@@ -576,13 +579,16 @@ export const f1Service = {
     const nonWinPodiums = Math.max(0, podiums - wins)
     const podiumBonus = Math.min(0.05, nonWinPodiums * 0.01)
 
-    const rawMultiplier = baseByPos + winBonus + podiumBonus
-    // Teto de 1.45 e piso de 0.65
-    const multiplier = Math.round(Math.max(0.65, Math.min(1.45, rawMultiplier)) * 100) / 100
+    const rawMultiplier = (baseByPos + winBonus + podiumBonus) * (1 + managerBonus)
+    // Teto de 1.55 e piso de 0.60
+    const multiplier = Math.round(Math.max(0.6, Math.min(1.55, rawMultiplier)) * 100) / 100
 
     let explanation = `P${pos} nos construtores`
     if (wins > 0) explanation += ` + ${wins} vitórias`
     if (nonWinPodiums > 0) explanation += ` + ${nonWinPodiums} pódios`
+    if (managerBonus !== 0) {
+      explanation += ` (${managerBonus > 0 ? '+' : ''}${(managerBonus * 100).toFixed(1)}% Team Principal)`
+    }
 
     return { multiplier, explanation }
   },
@@ -616,13 +622,15 @@ export const f1Service = {
   },
 
   // Calculate repair cost based on part level (~R$ 800k - R$ 2.5M)
-  getPartRepairCost(part: PartModel): number {
+  // com desconto opcional derivado de technicalManagement do Manager (workshopEfficiencyBonus: 1% a 6%)
+  getPartRepairCost(part: PartModel, managerTechnicalDiscount = 0): number {
     const condition = part.condition ?? 100
     if (condition >= 100) return 0
     const wear = (100 - condition) / 100 // 0 to 1
     // Base cost for level 0 is 800k, scale up to ~2.5M at level 10
     const fullRestorationCost = 800000 + (part.level || 1) * 170000
-    return Math.round(fullRestorationCost * wear)
+    const clampedDiscount = Math.max(-0.04, Math.min(0.08, managerTechnicalDiscount))
+    return Math.round(fullRestorationCost * wear * (1 - clampedDiscount))
   },
 
   async repairPart(partId: string): Promise<PartModel> {
