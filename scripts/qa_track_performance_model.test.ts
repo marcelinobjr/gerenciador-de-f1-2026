@@ -14,7 +14,7 @@
  *    - Demonstração de inversão esportiva tecnicamente justificada
  *
  * C) Teste Estatístico e Validação de Dados:
- *    - Validação dos 23 circuitos da planilha canônica (soma 100 pesos exatos)
+ *    - Validação dos 24 circuitos da planilha canônica (soma 100 pesos exatos)
  *    - Frequência de inversões, consistência e confiabilidade probabilística
  *
  * D) Telemetria de Debug e Compatibilidade com Save Antigo.
@@ -45,11 +45,11 @@ import { TechnicalAttributesMap } from '@/types/car-technical-model'
 
 describe('FASE 0B — MODELO TÉCNICO DO CARRO APLICADO À PISTA', () => {
   // ============================================================================
-  // 1. VALIDAÇÃO CANÔNICA DOS 23 CIRCUITOS (PLANILHA OFICIAL)
+  // 1. VALIDAÇÃO CANÔNICA DOS 24 CIRCUITOS (PLANILHA OFICIAL)
   // ============================================================================
   describe('1. Validação dos Circuitos da Planilha Canônica', () => {
-    it('Exatamente 23 circuitos cadastrados com IDs circuit_01 a circuit_23', () => {
-      expect(CIRCUIT_PERFORMANCE_PROFILES).toHaveLength(23)
+    it('Exatamente 24 circuitos cadastrados com IDs circuit_01 a circuit_24', () => {
+      expect(CIRCUIT_PERFORMANCE_PROFILES).toHaveLength(24)
       CIRCUIT_PERFORMANCE_PROFILES.forEach((profile, index) => {
         const expectedId = `circuit_${String(index + 1).padStart(2, '0')}`
         expect(profile.id).toBe(expectedId)
@@ -85,10 +85,15 @@ describe('FASE 0B — MODELO TÉCNICO DO CARRO APLICADO À PISTA', () => {
       expect(suzuka.weights.aeroEfficiency).toBe(12)
       expect(suzuka.cluster).toBe('alta_carga_aero')
 
-      const lusail = getCircuitProfileById('circuit_22')!
+      const lusail = getCircuitProfileById('circuit_23')!
       expect(lusail.weights.tyreManagement).toBe(12)
       expect(lusail.weights.fastCorner).toBe(12)
       expect(lusail.cluster).toBe('pneus_endurance')
+
+      const yasMarina = getCircuitProfileById('circuit_24')!
+      expect(yasMarina.weights.topSpeed).toBe(10)
+      expect(yasMarina.weights.acceleration).toBe(10)
+      expect(yasMarina.cluster).toBe('balanceado')
     })
   })
 
@@ -114,7 +119,7 @@ describe('FASE 0B — MODELO TÉCNICO DO CARRO APLICADO À PISTA', () => {
     const monza = getCircuitProfileById('circuit_13')! // Retas
     const monaco = getCircuitProfileById('circuit_06')! // Travado
     const suzuka = getCircuitProfileById('circuit_03')! // Curvas Rápidas
-    const lusail = getCircuitProfileById('circuit_22')! // Pneus
+    const lusail = getCircuitProfileById('circuit_23')! // Pneus
 
     it('TESTE A: topSpeed +10 -> ganho expressivo em Monza, quase nulo em Mônaco', () => {
       const boostedTopSpeed: TechnicalAttributesMap = { ...baseAttributes, topSpeed: 80 }
