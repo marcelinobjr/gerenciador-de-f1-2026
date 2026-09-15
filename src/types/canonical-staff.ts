@@ -330,6 +330,7 @@ export interface TeamTechnicalOrganization {
   }
   collaborationFit: number // 20-100: sinergia interna entre diretores
   organizationalHealthScore: number // 20-100: resumo de estabilidade e liderança
+  organizationalKnowledgeScore?: number
   lastAuditedRound?: number
 }
 

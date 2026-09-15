@@ -645,7 +645,7 @@ export class TechnicalOrganizationService {
     teamId: string,
     seasonYear: number,
   ): Promise<TeamTechnicalOrganization> {
-    return this.getOrCreateTeamOrganization(teamId, seasonYear)
+    return this.getOrCreateTeamOrganization(teamId, { seasonYear })
   }
 
   public async advanceAdaptationAfterRace(
@@ -655,23 +655,21 @@ export class TechnicalOrganizationService {
     return org
   }
 
-  public async getStaffContracts(
-    teamId: string,
-    seasonYear: number,
-  ): Promise<any[]> {
+  public async getStaffContracts(teamId: string, seasonYear: number): Promise<any[]> {
     return []
   }
 
   public async updateOrganizationalKnowledge(
     teamId: string,
-    seasonYear: number,
-    lossPercent: number,
+    scoreOrYear: number,
+    lossOrReason?: number | string,
   ): Promise<void> {}
 
   public advanceRoundProgress(
     org: TeamTechnicalOrganization,
     round: number,
-  ): TeamTechnicalOrganization {    const updatedMembers = { ...org.members }
+  ): TeamTechnicalOrganization {
+    const updatedMembers = { ...org.members }
 
     for (const role of CANONICAL_STAFF_ROLES) {
       const member = updatedMembers[role]
@@ -711,7 +709,7 @@ export class TechnicalOrganizationService {
       ...org,
       members: updatedMembers,
       driverEngineerPairings: updatedPairings,
-      lastAuditedRound: _currentRound,
+      lastAuditedRound: round,
     }
   }
 

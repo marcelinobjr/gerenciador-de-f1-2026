@@ -16,10 +16,9 @@ import type { SimDriverEntry, SessionTimeResult } from '@/pages/race/types'
 import type { DriverStanding, TeamStanding } from '@/services/standingsService'
 import type { CanonicalDriverContract } from '@/types/canonical-driver-market'
 import type { StaffContract, TeamTechnicalOrganization } from '@/types/canonical-staff'
-import type {
-  CanonicalCarSponsorContract,
-  CanonicalSponsorSlot,
-} from '@/types/canonical-commercial'
+import type { SponsorshipContract, CanonicalSponsorSlot } from '@/types/canonical-commercial'
+
+export type CanonicalCarSponsorContract = SponsorshipContract
 import type { FinancialLedgerSnapshot } from '@/types/canonical-finances'
 
 // ==========================================

@@ -139,7 +139,10 @@ export class SeasonTransitionService {
         teamId,
         fromSeasonYear,
       )
-      staffContractsState = await technicalOrganizationService.getStaffContracts(teamId)
+      staffContractsState = await technicalOrganizationService.getStaffContracts(
+        teamId,
+        fromSeasonYear,
+      )
     } catch {
       // tolerância se inicial
     }

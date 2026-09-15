@@ -1,3 +1,5 @@
+import type { CanonicalDriverContract } from '@/types/canonical-driver-market'
+
 export type EngineSupplierName = 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
 
 export interface TeamModel {
@@ -163,6 +165,11 @@ export interface DriverModel {
   is_test_driver?: boolean
   technical_feedback?: number
   seat_security?: number
+  canonical_contract?: CanonicalDriverContract | null
+  future_contract?: CanonicalDriverContract | null
+  psychology_data?: any
+  academy_origin_team_id?: string | null
+  career_status?: string | null
   created?: string
   updated?: string
 }

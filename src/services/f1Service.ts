@@ -137,11 +137,11 @@ export const f1Service = {
 
   async getDrivers(): Promise<DriverModel[]> {
     return this.getAllDrivers()
-  }
+  },
 
   async getTeams(): Promise<TeamModel[]> {
     return this.getAllTeams()
-  }
+  },
 
   async getSeasons(): Promise<SeasonModel[]> {
     try {
@@ -149,7 +149,7 @@ export const f1Service = {
     } catch {
       return []
     }
-  }
+  },
 
   async getSponsors(teamId?: string): Promise<SponsorModel[]> {
     if (teamId) {
@@ -160,7 +160,7 @@ export const f1Service = {
     } catch {
       return []
     }
-  }
+  },
 
   async getAllTeams(): Promise<TeamModel[]> {
     try {

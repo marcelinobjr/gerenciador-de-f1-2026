@@ -39,8 +39,6 @@ import type {
   RadioHighlight,
 } from '@/types/canonical-season-transition'
 
-
-
 export interface SimulateWeekendOptions {
   team: TeamModel
   season: SeasonModel
