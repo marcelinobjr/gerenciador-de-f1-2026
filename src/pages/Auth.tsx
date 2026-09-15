@@ -92,7 +92,7 @@ export default function AuthPage() {
       const activeTeam = await login(email, password)
       // Navegação direta e imediata após login bem-sucedido:
       // se tem carreira ativa vai para Central (/), se não tem vai para Lobby (/lobby)
-      if (activeTeam) {
+      if (activeTeam && (activeTeam.id || activeTeam.name)) {
         navigate('/', { replace: true })
       } else {
         navigate('/lobby', { replace: true })
@@ -117,7 +117,7 @@ export default function AuthPage() {
     setIsSubmitting(true)
     try {
       const activeTeam = await register(name, email, password)
-      if (activeTeam) {
+      if (activeTeam && (activeTeam.id || activeTeam.name)) {
         navigate('/', { replace: true })
       } else {
         navigate('/lobby', { replace: true })
