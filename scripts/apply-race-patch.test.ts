@@ -257,6 +257,17 @@ describe('apply-race-patch', () => {
 
     fs.writeFileSync(filePath, content, 'utf8')
 
+    // PASSO 4: Divisores financeiros de rodada baseados em season?.total_rounds || 24
+    const targetDivisores = `      const driversCost = drivers.reduce((sum, d) => sum + Math.round(d.salary / 24), 0)\n      const engineCost = Math.round(currentEngine.costAnnual / 24)`
+    const replaceDivisores = `      const driversCost = drivers.reduce(\n        (sum, d) => sum + Math.round(d.salary / (season?.total_rounds || 24)),\n        0,\n      )\n      const engineCost = Math.round(currentEngine.costAnnual / (season?.total_rounds || 24))`
+
+    if (content.includes(targetDivisores)) {
+      applyReplace(targetDivisores, replaceDivisores, 'divisores financeiros por rodada')
+      fs.writeFileSync(filePath, content, 'utf8')
+    } else {
+      console.log('targetDivisores não encontrado no buffer inicial, verificando se já existe...')
+    }
+
     // Verificações finais
     const saved = fs.readFileSync(filePath, 'utf8')
     expect(saved).toContain('lapsCompleted: 0')
@@ -264,5 +275,6 @@ describe('apply-race-patch', () => {
     expect(saved).toContain('formatGap(exactGapSec, false, lapsBehind)')
     expect(saved).toContain('laps_completed: res.lapsCompleted ?? gpInfo.laps')
     expect(saved).toContain('accumulated_time_sec: res.accumulatedTimeSec')
+    expect(saved).toContain('season?.total_rounds || 24')
   })
 })

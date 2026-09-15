@@ -44,6 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { PageHeader } from '@/components/PageHeader'
 import { AmbientBackground } from '@/components/AmbientBackground'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { CANONICAL_FACILITIES_DEFINITIONS } from '@/types/canonical-facilities-data'
 import { FacilityDefinition } from '@/types/canonical-facilities'
 

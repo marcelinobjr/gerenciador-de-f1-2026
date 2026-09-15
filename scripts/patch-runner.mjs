@@ -244,5 +244,17 @@ applyReplace(
   'handleAdvanceRound createRaceResult',
 )
 
+// (e) patch divisores por round da temporada
+applyReplace(
+  `      const driversCost = drivers.reduce((sum, d) => sum + Math.round(d.salary / 24), 0)
+      const engineCost = Math.round(currentEngine.costAnnual / 24)`,
+  `      const driversCost = drivers.reduce(
+        (sum, d) => sum + Math.round(d.salary / (season?.total_rounds || 24)),
+        0,
+      )
+      const engineCost = Math.round(currentEngine.costAnnual / (season?.total_rounds || 24))`,
+  'round financial divisors',
+)
+
 fs.writeFileSync(filePath, content, 'utf8')
 console.log('PATCH APLICADO COM SUCESSO EM src/pages/RaceSlim.tsx')
