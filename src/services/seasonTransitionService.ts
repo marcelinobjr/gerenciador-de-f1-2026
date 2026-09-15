@@ -1016,6 +1016,74 @@ export class SeasonTransitionService {
       archivedAt: rec.archived_at || rec.created,
     }
   }
+
+  /**
+   * Rollback de segurança caso uma transição seja interrompida
+   * Restaura o estado anterior a partir do snapshot preservado
+   */
+  public async rollbackTransition(snapshot: SeasonTransitionSnapshot): Promise<boolean> {
+    try {
+      if (!snapshot) return false
+
+      // 1. Restaurar dados dos pilotos
+      if (Array.isArray(snapshot.driversState)) {
+        for (const drv of snapshot.driversState) {
+          try {
+            await pb.collection('drivers').update(drv.id, {
+              team_id: drv.team_id,
+              role: drv.role,
+              salary: drv.salary,
+              contract_end: drv.contract_end,
+              career_status: drv.career_status,
+              canonical_contract: drv.canonical_contract,
+              future_contract: drv.future_contract,
+              psychology_data: drv.psychology_data,
+              age: drv.age,
+            })
+          } catch {
+            // tolerância
+          }
+        }
+      }
+
+      // 2. Restaurar time
+      if (Array.isArray(snapshot.teamsState)) {
+        const originalTeam = snapshot.teamsState.find((t) => t.id === snapshot.teamId)
+        if (originalTeam) {
+          try {
+            await pb.collection('teams').update(originalTeam.id, {
+              budget: originalTeam.budget,
+              cost_cap_spent: originalTeam.cost_cap_spent,
+              active_engine_wear: originalTeam.active_engine_wear,
+            })
+          } catch {
+            // tolerância
+          }
+        }
+      }
+
+      // 3. Atualizar status na transição
+      try {
+        const existing = await pb
+          .collection('season_transitions')
+          .getFirstListItem(`transition_key="${snapshot.seasonTransitionId}"`)
+        if (existing) {
+          await pb.collection('season_transitions').update(existing.id, {
+            status: 'FAILED',
+            current_step: 'FAILED',
+            error_message: 'Transição cancelada e estado revertido via snapshot de rollback.',
+          })
+        }
+      } catch {
+        // tolerância
+      }
+
+      return true
+    } catch (err) {
+      console.error('Falha no rollback técnico da transição:', err)
+      return false
+    }
+  }
 }
 
 export const seasonTransitionService = new SeasonTransitionService()

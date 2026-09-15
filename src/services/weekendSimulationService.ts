@@ -62,7 +62,7 @@ export class WeekendSimulationService {
    * Retorna a grade oficial de sessões para o GP (dinâmico, sem hardcode)
    */
   public getScheduleForRound(round: number): WeekendSession[] {
-    // Ordem canônica do fim de semana F1 2026
+    // Ordem canônica do fim de semana F1 2026 (6 sessões completas)
     return ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race']
   }
 
@@ -267,6 +267,16 @@ export class WeekendSimulationService {
         }
       })
 
+      const sprintSummary = isSprint
+        ? playerResults.map((r, idx) => ({
+            position: idx + 1,
+            driverName: r.driverName,
+            teamName: team.name,
+            points: idx === 0 ? 8 : idx === 1 ? 7 : 0,
+            isPlayer: true,
+          }))
+        : undefined
+
       const report: WeekendSummaryReport = {
         runId,
         round: currentRound,
@@ -275,6 +285,7 @@ export class WeekendSimulationService {
         isSprintWeekend: isSprint,
         playerDriversResults: playerResults,
         qualifyingGrid: qualifyingSummary,
+        sprintResults: sprintSummary,
         strategicDecisions,
         incidents,
         championshipImpact: {
