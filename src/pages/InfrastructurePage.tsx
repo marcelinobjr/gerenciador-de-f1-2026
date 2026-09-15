@@ -67,8 +67,9 @@ export default function InfrastructurePage() {
 
   // Auditoria canônica completa através do InfrastructureCapabilityService
   const audit = useMemo(() => {
-    return infrastructureCapabilityService.auditInfrastructure(team)
-  }, [team])
+    const calendarRounds = season?.total_rounds || F1_2026_CALENDAR.length || 24
+    return infrastructureCapabilityService.auditInfrastructure(team, calendarRounds)
+  }, [team, season?.total_rounds])
 
   const facilityLevels = audit.facilityLevels
   const capabilities = audit.capabilities
@@ -312,7 +313,7 @@ export default function InfrastructurePage() {
               variant="outline"
               className="text-[10px] font-mono text-cyan-400 border-cyan-500/30 w-fit"
             >
-              Rodada {currentRound}/24
+              Rodada {currentRound}/{season?.total_rounds || F1_2026_CALENDAR.length || 24}
             </Badge>
           </div>
 

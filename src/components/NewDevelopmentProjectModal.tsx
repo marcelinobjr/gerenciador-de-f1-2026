@@ -158,7 +158,7 @@ export const NewDevelopmentProjectModal: React.FC<NewDevelopmentProjectModalProp
       const newBudget = (team.budget || 0) - estimatedCost
       const newSpentCap = (team.cost_cap_spent || 0) + estimatedCost
 
-      const { pb } = await import('@/lib/pocketbase/client')
+      const { default: pb } = await import('@/lib/pocketbase/client')
       const { f1Service } = await import('@/services/f1Service')
       const { financialLedgerService } = await import('@/services/financialLedgerService')
 

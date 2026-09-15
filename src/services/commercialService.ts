@@ -13,6 +13,7 @@ import { TeamModel, DriverModel } from '@/types/f1'
 import { managerEffectService } from '@/services/managerEffectService'
 import { OFFICIAL_SPONSOR_POOL, generateProceduralSponsor } from '@/lib/sponsor-database'
 import { FinancialTransaction } from '@/types/canonical-finances'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
 
 export interface AttractivenessCalculationParams {
   team: Partial<TeamModel>
@@ -262,7 +263,8 @@ export class CommercialService {
 
     // Arredonda para centenas de milhares (limpo)
     const annualValue = Math.round(rawAnnual / 50_000) * 50_000
-    const valuePerRound = Math.round(annualValue / 24)
+    const totalSeasonRounds = F1_2026_CALENDAR.length || 24
+    const valuePerRound = Math.round(annualValue / totalSeasonRounds)
 
     const explanation = `Base R$ ${(anchorBase / 1_000_000).toFixed(1)}M × Equipe ${attractiveness.commercialMultiplier.toFixed(2)}x × Fit ${fitInfo.fitMultiplier.toFixed(2)}x${isTitleSponsor ? ' × Title Sponsor (+25%)' : ''} = R$ ${(annualValue / 1_000_000).toFixed(1)}M/ano`
 
@@ -507,7 +509,8 @@ export class CommercialService {
     const finalOffer = negotiation.currentSponsorOffer
     const duration = finalOffer.durationYears || 2
     const fixedAnnualValue = finalOffer.fixedAnnualValue
-    const valuePerRound = Math.round(fixedAnnualValue / 24)
+    const totalSeasonRounds = F1_2026_CALENDAR.length || 24
+    const valuePerRound = Math.round(fixedAnnualValue / totalSeasonRounds)
 
     return {
       contractId: `cnt_${negotiation.sponsorId}_${Date.now()}`,

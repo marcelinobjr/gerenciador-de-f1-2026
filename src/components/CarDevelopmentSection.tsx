@@ -28,7 +28,7 @@ import {
 import { carDevelopmentService } from '@/services/carDevelopmentService'
 import { formatCurrency } from '@/lib/formatters'
 import { TeamModel, DriverModel, PartModel } from '@/types/f1'
-import { pb } from '@/lib/pocketbase/client'
+import pb from '@/lib/pocketbase/client'
 import { f1Service } from '@/services/f1Service'
 import { useToast } from '@/hooks/use-toast'
 import {

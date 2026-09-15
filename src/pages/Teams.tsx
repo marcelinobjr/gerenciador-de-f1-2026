@@ -4,7 +4,12 @@ import pb from '@/lib/pocketbase/client'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
-import { OFFICIAL_GRID_TEAMS, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
+import {
+  OFFICIAL_GRID_TEAMS,
+  getAICompetitors,
+  ENGINE_SUPPLIERS,
+  F1_2026_CALENDAR,
+} from '@/lib/f1-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { carTechnicalService } from '@/services/carTechnicalService'
@@ -840,7 +845,8 @@ export default function TeamsPage() {
               variant="outline"
               className="border-[#1F2733] bg-[#161D29] text-[#F5F7FA] text-xs font-medium"
             >
-              Rodada {season?.current_round || 1} de 24
+              Rodada {season?.current_round || 1} de{' '}
+              {season?.total_rounds || F1_2026_CALENDAR.length || 24}
             </Badge>
             <Badge
               variant="outline"

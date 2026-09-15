@@ -520,7 +520,7 @@ export function SponsorsPage() {
       category: whatIfCategory as any,
       currentTransactions: transactions,
       currentRound: season?.current_round || 1,
-      totalRounds: 24,
+      totalRounds: season?.total_rounds || 24,
     })
     setSimResult(res)
   }

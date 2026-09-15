@@ -379,7 +379,10 @@ export class InfrastructureCapabilityService {
    * Calcula o OPEX anual e por rodada das 9 instalações.
    * Níveis superiores possuem custos de manutenção e pessoal progressivos.
    */
-  public calculateOperatingExpense(facilityLevels: FacilityLevels): {
+  public calculateOperatingExpense(
+    facilityLevels: FacilityLevels,
+    calendarRounds?: number,
+  ): {
     totalAnnualOpex: number
     roundOpex: number
     opexBreakdown: Record<CanonicalFacilityId, number>
@@ -403,7 +406,8 @@ export class InfrastructureCapabilityService {
       totalAnnualOpex += facilityOpex
     }
 
-    const roundOpex = Math.round(totalAnnualOpex / 24)
+    const totalRounds = calendarRounds && calendarRounds > 0 ? calendarRounds : 24
+    const roundOpex = Math.round(totalAnnualOpex / totalRounds)
 
     return {
       totalAnnualOpex,
@@ -415,7 +419,10 @@ export class InfrastructureCapabilityService {
   /**
    * Gera auditoria completa de infraestrutura para telemetria, debug e UI.
    */
-  public auditInfrastructure(team?: Partial<TeamModel> | null): InfrastructureAuditResult {
+  public auditInfrastructure(
+    team?: Partial<TeamModel> | null,
+    calendarRounds?: number,
+  ): InfrastructureAuditResult {
     const facilityLevels = this.getFacilityLevels(team)
     const capabilities = this.calculateCapabilities(facilityLevels, team)
     const { bottlenecks, synergies, technicalBottleneckName, academyBottleneckName } =
@@ -424,7 +431,10 @@ export class InfrastructureCapabilityService {
     const sumLevels = Object.values(facilityLevels).reduce((acc, l) => acc + l, 0)
     const averageLevel = Number((sumLevels / 9).toFixed(1))
 
-    const { totalAnnualOpex, roundOpex } = this.calculateOperatingExpense(facilityLevels)
+    const { totalAnnualOpex, roundOpex } = this.calculateOperatingExpense(
+      facilityLevels,
+      calendarRounds,
+    )
 
     const managerEval = managerEffectService.evaluateManager(team)
     const managerTechnicalModifier = managerEval.modifiers.workshopEfficiencyBonus
