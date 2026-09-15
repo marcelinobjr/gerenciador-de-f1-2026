@@ -35,10 +35,11 @@ import type {
   WeekendSimulationRun,
   WeekendSummaryReport,
   WeekendSimulationStepProgress,
+  WeekendSimulationStatus,
   RadioHighlight,
 } from '@/types/canonical-season-transition'
 
-type WeekendSimulationStatus = 'idle' | 'simulating' | 'completed' | 'failed'
+
 
 export interface SimulateWeekendOptions {
   team: TeamModel
@@ -154,9 +155,12 @@ export class WeekendSimulationService {
 
     const stepProgressList: WeekendSimulationStepProgress[] = fullSchedule.map((s) => {
       const isAlreadyDone = alreadyCompletedSessions.includes(s)
+      const lbl = this.getSessionLabel(s)
       return {
         session: s,
-        label: this.getSessionLabel(s),
+        label: lbl,
+        message: lbl,
+        summaryText: lbl,
         status: isAlreadyDone ? 'completed' : 'pending',
         completedAt: isAlreadyDone ? new Date().toISOString() : undefined,
       }
@@ -192,6 +196,7 @@ export class WeekendSimulationService {
         const step = stepProgressList.find((st) => st.session === sessionKey)
         if (step) {
           step.status = 'in_progress'
+          step.message = `Executando ${step.label}...`
           onStepProgress?.(step)
         }
 
@@ -236,6 +241,7 @@ export class WeekendSimulationService {
         if (step) {
           step.status = 'completed'
           step.completedAt = new Date().toISOString()
+          step.message = `${step.label} concluído.`
           onStepProgress?.(step)
         }
         runRecord.sessionsCompleted.push(sessionKey)

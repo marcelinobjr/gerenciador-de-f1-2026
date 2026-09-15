@@ -26,6 +26,7 @@ import {
   CostCapClassification,
   TransactionType,
   TransactionDirection,
+  FinancialLedgerSnapshot,
 } from '@/types/canonical-finances'
 
 export const COST_CAP_ANNUAL_LIMIT = 215_000_000 // Teto oficial regulamentar FIA R$ 215M
@@ -517,6 +518,35 @@ export class FinancialLedgerService {
   /**
    * Gera Alertas Financeiros Inteligentes (Liquidez, Cost Cap, Breach, Commitments) — Item 21 e 65
    */
+  /**
+   * Snapshot consolidado do Ledger Financeiro
+   */
+  async getLedgerSnapshot(
+    teamId: string,
+    seasonYear: number,
+    round = 24,
+  ): Promise<FinancialLedgerSnapshot> {
+    const txs = await this.getTeamTransactions(teamId, seasonYear)
+    const activeTxs = txs.filter((t) => t.status === 'effective')
+    const cashBalance = activeTxs.reduce((sum, t) => sum + t.cash_impact, 0)
+    const costCapSpent = activeTxs.reduce((sum, t) => sum + t.cost_cap_impact, 0)
+    const remaining = Math.max(0, COST_CAP_ANNUAL_LIMIT - costCapSpent)
+
+    return {
+      teamId,
+      seasonYear,
+      round,
+      cashBalance: Math.round(cashBalance),
+      committedCash: 0,
+      availableCash: Math.round(cashBalance),
+      costCapSpent: Math.round(costCapSpent),
+      costCapRemaining: Math.round(remaining),
+      costCapLimit: COST_CAP_ANNUAL_LIMIT,
+      transactionCount: txs.length,
+      status: costCapSpent > COST_CAP_ANNUAL_LIMIT ? 'minor_breach' : 'compliant',
+    }
+  }
+
   generateFinancialAlerts(
     cashSummary: CashSummary,
     costCapSummary: CostCapSummary,
@@ -580,6 +610,45 @@ export class FinancialLedgerService {
   /**
    * Auditoria de Consistência e Integridade Financeira (QA auditFinancialIntegrity) — Item 83 & 84
    */
+  /**
+   * Adapter de compatibilidade canônica para registro simplificado de lançamentos (recordEntry)
+   */
+  async recordEntry(params: {
+    team_id: string
+    season_id: string
+    round: number
+    category: any
+    entry_type: 'revenue' | 'expense' | 'commitment' | 'reversal' | 'adjustment'
+    amount: number
+    cash_impact: number
+    cost_cap_impact: number
+    cost_cap_classification?: CostCapClassification | 'relevant'
+    idempotency_key: string
+    description: string
+  }): Promise<void> {
+    const direction: TransactionDirection = params.entry_type === 'revenue' ? 'inflow' : 'outflow'
+    const classification: CostCapClassification =
+      params.cost_cap_classification === 'relevant'
+        ? 'included'
+        : params.cost_cap_classification || (params.cost_cap_impact > 0 ? 'included' : 'excluded')
+
+    await this.postTransaction({
+      teamId: params.team_id,
+      seasonYear: parseInt(params.season_id, 10) || 2026,
+      round: params.round,
+      type: params.entry_type === 'revenue' ? 'revenue' : 'expense',
+      category: params.category === 'sponsorPayout' ? 'sponsorship' : params.category,
+      direction,
+      amount: params.amount,
+      costCapAmount: params.cost_cap_impact,
+      costCapClassification: classification,
+      sourceSystem: 'weekend_simulation',
+      sourceEntityId: `r${params.round}`,
+      idempotencyKey: params.idempotency_key,
+      description: params.description,
+    })
+  }
+
   async auditFinancialIntegrity(
     teamId: string,
     seasonYear: number,

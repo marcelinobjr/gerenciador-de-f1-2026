@@ -34,6 +34,7 @@ export interface WeekendSimulationStepProgress {
   status: 'pending' | 'in_progress' | 'completed' | 'skipped'
   completedAt?: string
   summaryText?: string
+  message?: string
 }
 
 export interface WeekendSimulationRun {

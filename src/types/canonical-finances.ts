@@ -184,6 +184,20 @@ export interface FinancialImpactSimulation {
 /**
  * Relatório de Auditoria de Integridade Financeira
  */
+export interface FinancialLedgerSnapshot {
+  teamId: string
+  seasonYear: number
+  round?: number
+  cashBalance: number
+  committedCash: number
+  availableCash: number
+  costCapSpent: number
+  costCapRemaining: number
+  costCapLimit: number
+  transactionCount: number
+  status: 'compliant' | 'minor_breach' | 'material_breach'
+}
+
 export interface FinancialIntegrityReport {
   teamId: string
   seasonYear: number

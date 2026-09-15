@@ -66,6 +66,8 @@ export interface ContractBuyoutClause {
 // 4. ENTIDADE PRINCIPAL — DriverContract
 // ============================================================================
 
+export type CanonicalDriverContract = DriverContract
+
 export interface DriverContract {
   contractId: string
   driverId: string

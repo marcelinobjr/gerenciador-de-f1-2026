@@ -135,6 +135,33 @@ export const f1Service = {
     }
   },
 
+  async getDrivers(): Promise<DriverModel[]> {
+    return this.getAllDrivers()
+  }
+
+  async getTeams(): Promise<TeamModel[]> {
+    return this.getAllTeams()
+  }
+
+  async getSeasons(): Promise<SeasonModel[]> {
+    try {
+      return await pb.collection('seasons').getFullList<SeasonModel>()
+    } catch {
+      return []
+    }
+  }
+
+  async getSponsors(teamId?: string): Promise<SponsorModel[]> {
+    if (teamId) {
+      return this.getTeamSponsors(teamId)
+    }
+    try {
+      return await pb.collection('sponsors').getFullList<SponsorModel>()
+    } catch {
+      return []
+    }
+  }
+
   async getAllTeams(): Promise<TeamModel[]> {
     try {
       const teams = await pb.collection('teams').getFullList<TeamModel>({

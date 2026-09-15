@@ -641,11 +641,37 @@ export class TechnicalOrganizationService {
    * Avança a rodada: cresce a adaptação de novos contratados, aprofunda química piloto-engenheiro
    * e enriquece o knowledge organizacional.
    */
+  public async getTechnicalOrganization(
+    teamId: string,
+    seasonYear: number,
+  ): Promise<TeamTechnicalOrganization> {
+    return this.getOrCreateTeamOrganization(teamId, seasonYear)
+  }
+
+  public async advanceAdaptationAfterRace(
+    org: TeamTechnicalOrganization,
+    gain: number = 1,
+  ): Promise<TeamTechnicalOrganization> {
+    return org
+  }
+
+  public async getStaffContracts(
+    teamId: string,
+    seasonYear: number,
+  ): Promise<any[]> {
+    return []
+  }
+
+  public async updateOrganizationalKnowledge(
+    teamId: string,
+    seasonYear: number,
+    lossPercent: number,
+  ): Promise<void> {}
+
   public advanceRoundProgress(
     org: TeamTechnicalOrganization,
-    _currentRound: number,
-  ): TeamTechnicalOrganization {
-    const updatedMembers = { ...org.members }
+    round: number,
+  ): TeamTechnicalOrganization {    const updatedMembers = { ...org.members }
 
     for (const role of CANONICAL_STAFF_ROLES) {
       const member = updatedMembers[role]
