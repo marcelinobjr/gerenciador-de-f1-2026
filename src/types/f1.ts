@@ -114,6 +114,10 @@ export interface DriverModel {
   helmet?: string | null
   next_team_id?: string | null
   next_contract_role?: 'titular' | 'reserva' | null
+  superlicense_points?: number
+  homologation_status?: 'formacao' | 'homologacao' | 'elegivel'
+  homologation_sessions_done?: number
+  f1_adaptation?: number
   created?: string
   updated?: string
 }

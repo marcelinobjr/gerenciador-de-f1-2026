@@ -285,12 +285,17 @@ export default function DriversPage() {
         potentialMin,
         potentialMax,
         f1RacesCompleted: f1Races,
-        superlicensePoints: superlicense,
+        superlicensePoints: d.superlicense_points ?? superlicense,
         isAcademyProspect: Boolean(isProspect),
         isPlayerDriver: isPlayer,
         nextTeamId: d.next_team_id,
         nextContractRole: d.next_contract_role,
         rawDbRecord: d,
+        adaptationF1:
+          d.f1_adaptation ??
+          f1aInfo?.adaptationF1 ??
+          mbjInfo?.adaptationF1 ??
+          (cat === 'f1' ? 90 : 60),
 
         // Campos completos MBJ / F1 Academy
         birthDate: f1aInfo?.birthDate || mbjInfo?.birthDate,

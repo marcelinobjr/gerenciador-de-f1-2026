@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T01:26:30.458Z",
+  "generatedAt": "2026-09-15T01:47:13.280Z",
   "collections": [
     {
       "name": "users",
@@ -521,6 +521,31 @@
           "required": false,
           "system": false,
           "selectValues": ["titular", "reserva"]
+        },
+        {
+          "name": "superlicense_points",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "homologation_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["formacao", "homologacao", "elegivel"]
+        },
+        {
+          "name": "homologation_sessions_done",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "f1_adaptation",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

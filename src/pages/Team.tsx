@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/formatters'
 import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
 import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { getCountryFlag } from '@/lib/country-flags'
+import { calcularElegibilidade } from '@/lib/superlicense'
 import { toast } from '@/hooks/use-toast'
 import {
   Users,
@@ -456,7 +457,7 @@ export default function TeamPage() {
       <div className="flex items-center gap-1.5 border-b border-neutral-800/80 pb-2 overflow-x-auto no-scrollbar">
         {[
           { id: 'visao_geral', label: 'Visão Geral' },
-          { id: 'pilotos', label: 'Pilotos' },
+          { id: 'pilotos', label: 'Pilotos & Homologação' },
           { id: 'staff', label: 'Staff' },
           { id: 'contratos', label: 'Contratos' },
           { id: 'academia', label: 'Academia' },
@@ -467,10 +468,6 @@ export default function TeamPage() {
             <button
               key={tab.id}
               onClick={() => {
-                if (tab.id === 'pilotos') {
-                  navigate('/pilotos')
-                  return
-                }
                 setActiveTab(tab.id as TeamSubTab)
               }}
               className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
@@ -910,7 +907,56 @@ export default function TeamPage() {
                           </div>
                         </div>
 
-                        <div className="pt-2 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
+                        {/* Status Regulamentar & Homologação FIA */}
+                        {(() => {
+                          const status =
+                            dr.homologation_status ||
+                            calcularElegibilidade(dr.age || 20, dr.superlicense_points || 0, 0)
+                          const isHomologation = status === 'homologacao'
+                          const sessionsDone = dr.homologation_sessions_done ?? 0
+                          const adaptation = dr.f1_adaptation ?? 0
+
+                          return (
+                            <div className="pt-1.5 border-t border-neutral-800/60 space-y-1 font-mono text-[9px]">
+                              <div className="flex items-center justify-between">
+                                <span className="text-neutral-400">FIA:</span>
+                                {status === 'formacao' && (
+                                  <span className="text-purple-400 font-bold">Formação</span>
+                                )}
+                                {status === 'homologacao' && (
+                                  <span className="text-amber-400 font-bold">Homologação</span>
+                                )}
+                                {status === 'elegivel' && (
+                                  <span className="text-emerald-400 font-bold">Elegível</span>
+                                )}
+                              </div>
+
+                              {isHomologation && (
+                                <div className="space-y-0.5">
+                                  <div className="flex justify-between text-[8px] text-amber-300">
+                                    <span>TL1 FIA</span>
+                                    <span>{sessionsDone}/2</span>
+                                  </div>
+                                  <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-amber-400 rounded-full"
+                                      style={{
+                                        width: `${Math.min(100, (sessionsDone / 2) * 100)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex justify-between text-neutral-400">
+                                <span>Adaptação:</span>
+                                <span className="text-cyan-400 font-bold">{adaptation}% / 80%</span>
+                              </div>
+                            </div>
+                          )
+                        })()}
+
+                        <div className="pt-1.5 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
                           <div>Contrato até {dr.contract_end || 2026}</div>
                           <div className="text-neutral-300 font-semibold truncate">
                             Salário: {formatCurrency(dr.salary || 1200000)}/ano
@@ -1201,6 +1247,207 @@ export default function TeamPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* SUB-ABA: PILOTOS & HOMOLOGAÇÃO */}
+      {activeTab === 'pilotos' && (
+        <div className="space-y-6">
+          <Card className="bg-[#0B0E14] border-neutral-800/80">
+            <CardHeader className="border-b border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-[#E10600]" />
+                  Quadro de Pilotos, Homologação & Adaptação F1
+                </CardTitle>
+                <CardDescription className="text-xs text-neutral-400">
+                  Gerenciamento de pilotos titulares, reservas e cumprimento das exigências de
+                  Superlicença FIA e Treinos Livres.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate('/pilotos')}
+                className="border-neutral-700 text-neutral-300 hover:text-white shrink-0"
+              >
+                Mercado Completo FIA →
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 font-mono">
+                {/* Pilotos Titulares */}
+                {titularDrivers.map((d, idx) => {
+                  const ovr = Math.round(((d.speed || 80) + (d.consistency || 80)) / 2)
+                  const adaptation = d.f1_adaptation ?? 80
+                  const status = d.homologation_status || 'elegivel'
+
+                  return (
+                    <div
+                      key={d.id}
+                      className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex flex-col justify-between space-y-4 shadow-lg"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-neutral-400 mb-2">
+                          <span className="font-bold text-white uppercase">Titular #{idx + 1}</span>
+                          <span className="text-sm">{getCountryFlag(d.nationality)}</span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <DriverPhotoAvatar name={d.name} teamColor="#E10600" size="md" />
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-white truncate">{d.name}</h3>
+                            <div className="text-xs text-neutral-400">
+                              Idade: {d.age || 25} anos • OVR:{' '}
+                              <strong className="text-white">{ovr}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status FIA & Adaptação F1 */}
+                      <div className="space-y-2 pt-2 border-t border-neutral-800/80 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-neutral-400">Status FIA:</span>
+                          <span className="text-emerald-400 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Superlicença Válida
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[11px] text-neutral-400">
+                            <span>Adaptação à F1</span>
+                            <span className="text-cyan-400 font-bold">
+                              {adaptation}% / meta 80%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-cyan-500 rounded-full transition-all"
+                              style={{ width: `${Math.min(100, (adaptation / 80) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-neutral-500 block">
+                            Ritmo em corrida F1 e adaptação aerodinâmica
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-neutral-800/60 text-[11px] text-neutral-400 flex justify-between">
+                        <span>Contrato até {d.contract_end || 2027}</span>
+                        <span className="text-white font-semibold">
+                          {formatCurrency(d.salary || 5000000)}/ano
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Piloto Reserva */}
+                {(() => {
+                  const rd = reserveDriver
+                  if (!rd) return null
+                  const ovrR = Math.round(((rd.speed || 78) + (rd.consistency || 77)) / 2)
+                  const status =
+                    rd.homologation_status ||
+                    calcularElegibilidade(rd.age || 21, rd.superlicense_points || 0, 0)
+                  const sessionsDone = rd.homologation_sessions_done ?? 0
+                  const adaptation = rd.f1_adaptation ?? 0
+                  const isHomologation = status === 'homologacao'
+
+                  return (
+                    <div className="p-4 rounded-xl bg-black/40 border border-amber-500/30 flex flex-col justify-between space-y-4 shadow-lg">
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-neutral-400 mb-2">
+                          <span className="font-bold text-amber-400 uppercase">Piloto Reserva</span>
+                          <span className="text-sm">{getCountryFlag(rd.nationality)}</span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <DriverPhotoAvatar name={rd.name} teamColor="#D97706" size="md" />
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-bold text-white truncate">{rd.name}</h3>
+                            <div className="text-xs text-neutral-400">
+                              Idade: {rd.age || 22} anos • OVR:{' '}
+                              <strong className="text-white">{ovrR}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status FIA & Homologação */}
+                      <div className="space-y-2.5 pt-2 border-t border-neutral-800/80 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-neutral-400">Status Regulamentar:</span>
+                          {status === 'formacao' && (
+                            <span className="text-purple-400 font-bold flex items-center gap-1">
+                              <GraduationCap className="w-3.5 h-3.5" /> Formação
+                            </span>
+                          )}
+                          {status === 'homologacao' && (
+                            <span className="text-amber-400 font-bold flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5" /> Em Homologação
+                            </span>
+                          )}
+                          {status === 'elegivel' && (
+                            <span className="text-emerald-400 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Elegível FIA
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Progresso de Homologação TL1 */}
+                        {isHomologation && (
+                          <div className="p-2.5 bg-amber-950/30 border border-amber-500/40 rounded-lg space-y-1.5">
+                            <div className="flex justify-between text-[11px] text-amber-300 font-bold">
+                              <span>Sessões TL1 (100 km):</span>
+                              <span>{sessionsDone}/2 sessões</span>
+                            </div>
+                            <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-amber-400 rounded-full transition-all"
+                                style={{ width: `${Math.min(100, (sessionsDone / 2) * 100)}%` }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-amber-200/80 leading-tight">
+                              Escale o piloto em treinos livres (TL1) para homologá-lo como titular
+                              da F1.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Adaptação à F1 */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[11px] text-neutral-400">
+                            <span>Adaptação à F1:</span>
+                            <span className="text-cyan-400 font-bold">
+                              {adaptation}% / meta 80%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-cyan-500 rounded-full transition-all"
+                              style={{ width: `${Math.min(100, (adaptation / 80) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-neutral-500 block">
+                            +8% por sessão TL1 disputada • +3,5% de bancada
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-neutral-800/60 text-[11px] text-neutral-400 flex justify-between">
+                        <span>Contrato até {rd.contract_end || 2026}</span>
+                        <span className="text-white font-semibold">
+                          {formatCurrency(rd.salary || 1200000)}/ano
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

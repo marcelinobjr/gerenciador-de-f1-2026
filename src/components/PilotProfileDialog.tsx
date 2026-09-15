@@ -113,6 +113,15 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   const isUserTeam = pilot.isPlayerDriver
   const canPreContract = currentRound >= 12
 
+  // Sistema de Homologação FIA
+  const rawHomologationStatus =
+    (pilot as any).rawDbRecord?.homologation_status || pilot.eligibilityStatus
+  const homologationSessions = (pilot as any).rawDbRecord?.homologation_sessions_done ?? 0
+  const isHomologation =
+    rawHomologationStatus === 'homologacao' ||
+    eligibility.status === 'homologacao' ||
+    ((pilot.f1RacesCompleted ?? 0) === 0 && (pilot.superlicensePoints ?? 0) < 40 && pilot.age >= 18)
+
   // Atributos P: Faixas parciais (ex.: 92-95) a menos que seja da equipe do usuário (V)
   const getAttrDisplay = (value: number) => {
     if (isUserTeam) {
@@ -463,19 +472,21 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             {/* Adaptações F1, Carro e Equipe */}
             <div className="grid grid-cols-3 gap-2.5 pt-1 text-xs">
               <div className="space-y-1">
-                <div className="flex justify-between text-[11px] text-zinc-400">
+                <div className="flex justify-between items-center text-[11px] text-zinc-400">
                   <span>Adaptação F1</span>
-                  <span className="font-mono text-zinc-200">
-                    {getAttrDisplay(pilot.adaptationF1 ?? 80).label}
+                  <span className="font-mono text-zinc-200 font-semibold">
+                    {(pilot.adaptationF1 ?? 0) > 0
+                      ? `${pilot.adaptationF1}% / meta 80%`
+                      : getAttrDisplay(pilot.adaptationF1 ?? 80).label}
                   </span>
                 </div>
-                <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                   <div
-                    className="bg-blue-500 h-full"
-                    style={{ width: `${pilot.adaptationF1 ?? 80}%` }}
+                    className="bg-blue-500 h-full transition-all"
+                    style={{ width: `${Math.min(100, ((pilot.adaptationF1 ?? 80) / 80) * 100)}%` }}
                   />
                 </div>
-              </div>
+              </div>{' '}
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px] text-zinc-400">
                   <span>Adaptação Carro</span>
@@ -673,30 +684,58 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 )}
               </div>
 
-              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800 space-y-1">
+              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800 space-y-1.5">
                 <span className="text-zinc-400 text-[11px]">
                   Status Regulamentar FIA / Elegibilidade MBJ:
                 </span>
                 <div className="flex items-center gap-1 font-bold text-white">
-                  {eligibility.status === 'academia' && (
+                  {isHomologation && (
+                    <span className="text-amber-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Exige Homologação FIA (TL1 100 km)
+                    </span>
+                  )}
+                  {!isHomologation && eligibility.status === 'academia' && (
                     <span className="text-purple-400 flex items-center gap-1">
                       <GraduationCap className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || eligibility.label}
                     </span>
                   )}
-                  {eligibility.status === 'homologacao' && (
+                  {!isHomologation && eligibility.status === 'homologacao' && (
                     <span className="text-amber-400 flex items-center gap-1">
                       <AlertTriangle className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || 'TESTE HOMOLOGAÇÃO MBJ'}
                     </span>
                   )}
-                  {eligibility.status === 'elegivel' && (
+                  {!isHomologation && eligibility.status === 'elegivel' && (
                     <span className="text-emerald-400 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || 'Superlicença Válida FIA'}
                     </span>
                   )}
                 </div>
+
+                {/* Barra de Progresso de Homologação FIA quando status='homologacao' */}
+                {isHomologation && (
+                  <div className="p-2 bg-amber-950/25 border border-amber-500/30 rounded-md space-y-1 my-1">
+                    <div className="flex items-center justify-between text-[11px] font-mono">
+                      <span className="text-amber-300 font-semibold">Homologação FIA:</span>
+                      <span className="text-amber-200 font-bold">
+                        {homologationSessions}/2 sessões TL1 (100 km)
+                      </span>
+                    </div>
+                    <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-amber-400 h-full rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (homologationSessions / 2) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-amber-200/80 leading-tight">
+                      Cumpra 2 treinos livres de sexta-feira oficiais (mín. 100 km) para homologar o
+                      piloto junto à FIA.
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-[11px] text-zinc-400">{eligibility.description}</div>
               </div>
             </div>

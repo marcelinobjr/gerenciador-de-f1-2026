@@ -1,5 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import { withAuthRetry, refreshAuthSession } from '@/lib/pocketbase/authHelper'
+import { getSuperlicensePointsGained, calcularElegibilidade } from '@/lib/superlicense'
 import {
   TeamModel,
   SeasonModel,
@@ -166,7 +167,38 @@ export const f1Service = {
   },
 
   async updateSeason(id: string, data: Partial<SeasonModel>): Promise<SeasonModel> {
-    return await pb.collection('seasons').update<SeasonModel>(id, data)
+    const updated = await pb.collection('seasons').update<SeasonModel>(id, data)
+
+    // Se a rodada acabou de ser avançada, processa automaticamente a progressão FIA/Adaptação
+    // para a equipe do jogador e do titular/reserva
+    if (typeof data.current_round === 'number' && typeof data.last_processed_round === 'number') {
+      try {
+        const teamId = updated.team_id
+        if (teamId) {
+          const teamDrivers = await this.getTeamDrivers(teamId)
+          const titulars = teamDrivers.filter((d) => d.role !== 'reserva' && d.team_id === teamId)
+          const reserve = teamDrivers.find(
+            (d) => d.role === 'reserva' || (d.reserve_team_id === teamId && d.team_id !== teamId),
+          )
+          // Se o reserva estava escalado para esta rodada em fp_scheduled_rounds, recebe crédito de TL1
+          const roundJustFinished = data.last_processed_round
+          const tp1DriverIds = titulars.map((t) => t.id)
+          if (reserve?.fp_scheduled_rounds?.includes(roundJustFinished)) {
+            tp1DriverIds.push(reserve.id)
+          }
+
+          await this.processRoundDriverProgression({
+            titularDrivers: titulars,
+            reserveDriver: reserve,
+            tp1ParticipatedDriverIds: tp1DriverIds,
+          })
+        }
+      } catch (progErr) {
+        console.warn('Processamento automático de progressão FIA/Adaptação:', progErr)
+      }
+    }
+
+    return updated
   },
 
   // Drivers
@@ -307,6 +339,97 @@ export const f1Service = {
 
   async updateDriver(id: string, data: Partial<DriverModel>): Promise<DriverModel> {
     return await pb.collection('drivers').update<DriverModel>(id, data)
+  },
+
+  /**
+   * Processa a sessão oficial de TL1 (Treino Livre 1) para homologação FIA e adaptação F1
+   * Regras:
+   * - Se piloto com status 'homologacao' participou do TL1 -> incrementa homologation_sessions_done
+   * - Ao atingir 2 sessões -> status 'elegivel'
+   * - Incremento de f1_adaptation:
+   *   * Titular: +14% (teto 80)
+   *   * Reserva com TL1: +8% (teto 80)
+   *   * Reserva de bancada (sem TL1): +3.5% (teto 80)
+   */
+  async processRoundDriverProgression(params: {
+    titularDrivers: DriverModel[]
+    reserveDriver?: DriverModel | null
+    tp1ParticipatedDriverIds?: string[]
+  }): Promise<void> {
+    const { titularDrivers, reserveDriver, tp1ParticipatedDriverIds = [] } = params
+    const TARGET_ADAPTATION = 80
+
+    // 1. Processar Titulares (+14% de adaptação)
+    for (const d of titularDrivers) {
+      const currentAdaptation = d.f1_adaptation ?? 0
+      const newAdaptation = Math.min(
+        TARGET_ADAPTATION,
+        Number((currentAdaptation + 14.0).toFixed(1)),
+      )
+
+      const updates: Partial<DriverModel> = {}
+      if (newAdaptation !== currentAdaptation) {
+        updates.f1_adaptation = newAdaptation
+      }
+
+      // Se porventura um titular estivesse em homologação e fez TL1
+      const isHomologation = d.homologation_status === 'homologacao'
+      const didFp = tp1ParticipatedDriverIds.includes(d.id)
+      if (isHomologation && didFp) {
+        const nextDone = (d.homologation_sessions_done ?? 0) + 1
+        updates.homologation_sessions_done = nextDone
+        if (nextDone >= 2) {
+          updates.homologation_status = 'elegivel'
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        try {
+          await this.updateDriver(d.id, updates)
+        } catch (e) {
+          console.warn(`Erro ao atualizar progressão do titular ${d.name}:`, e)
+        }
+      }
+    }
+
+    // 2. Processar Reserva (+8% se participou do TL1, +3.5% se ficou na bancada)
+    if (reserveDriver) {
+      const rd = reserveDriver
+      const didFp = tp1ParticipatedDriverIds.includes(rd.id)
+      const currentAdaptation = rd.f1_adaptation ?? 0
+      const rate = didFp ? 8.0 : 3.5
+      const newAdaptation = Math.min(
+        TARGET_ADAPTATION,
+        Number((currentAdaptation + rate).toFixed(1)),
+      )
+
+      const updates: Partial<DriverModel> = {}
+      if (newAdaptation !== currentAdaptation) {
+        updates.f1_adaptation = newAdaptation
+      }
+
+      const isHomologation = rd.homologation_status === 'homologacao'
+      if (didFp) {
+        const currentFpSessions = (rd.fp_sessions_completed ?? 0) + 1
+        updates.fp_sessions_completed = currentFpSessions
+
+        if (isHomologation) {
+          const nextDone = (rd.homologation_sessions_done ?? 0) + 1
+          updates.homologation_sessions_done = nextDone
+          if (nextDone >= 2) {
+            updates.homologation_status = 'elegivel'
+          }
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        try {
+          await this.updateDriver(rd.id, updates)
+        } catch (e) {
+          console.warn(`Erro ao atualizar progressão do reserva ${rd.name}:`, e)
+        }
+      }
+    }
   },
 
   // Schedule FP (Free Practice) session for reserve
@@ -2312,12 +2435,58 @@ export const f1Service = {
               targetMorale = 65
             }
 
+            const currentAge = typeof d.age === 'number' ? d.age : 20
+            const newAge = currentAge + 1
+
+            // Conceder pontos de superlicença com base na categoria e posição simulada/real
+            // Pilotos de categorias de acesso: f2, f3, indycar, formula_e, f1_academy
+            let addedPoints = 0
+            const cat = String(d.category || '').toLowerCase()
+            if (['f2', 'f3', 'indycar', 'formula_e', 'f1_academy'].includes(cat)) {
+              // Posiciona pilotos de acordo com seu speed/habilidade relativa no escalão
+              // Pilotos com maior speed alcançam melhores posições no top 10
+              const spd = d.speed ?? 75
+              let simulatedPos = 12
+              if (spd >= 88) simulatedPos = 1
+              else if (spd >= 86) simulatedPos = 2
+              else if (spd >= 84) simulatedPos = 3
+              else if (spd >= 82) simulatedPos = 4
+              else if (spd >= 80) simulatedPos = 5
+              else if (spd >= 78) simulatedPos = 6
+              else if (spd >= 76) simulatedPos = 7
+              else if (spd >= 74) simulatedPos = 8
+              else if (spd >= 72) simulatedPos = 9
+              else if (spd >= 70) simulatedPos = 10
+
+              addedPoints = getSuperlicensePointsGained(cat, simulatedPos)
+            }
+
+            const currentSlPoints = d.superlicense_points ?? 0
+            const updatedSlPoints = currentSlPoints + addedPoints
+
+            // Recalcular elegibilidade/homologação com nova idade e novos pontos
+            // Quem completa 18 sai da trava de Academia ('formacao')
+            const racesF1 = d.category === 'f1' || Boolean(d.team_id) ? 24 : 0
+            let newHomologationStatus = calcularElegibilidade(newAge, updatedSlPoints, racesF1)
+
+            // Se o piloto já cumpriu as sessões de homologação ou já era elegível, mantém elegível
+            if (
+              d.homologation_status === 'elegivel' ||
+              (d.homologation_sessions_done ?? 0) >= 2 ||
+              (newAge >= 18 && updatedSlPoints >= 40)
+            ) {
+              newHomologationStatus = 'elegivel'
+            }
+
             await pb.collection('drivers').update(d.id, {
               physical_condition: 100,
               morale: targetMorale,
               is_incapacitated: false,
               incapacitated_rounds_left: 0,
               incapacitated_reason: '',
+              age: newAge,
+              superlicense_points: updatedSlPoints,
+              homologation_status: newHomologationStatus,
             })
           } catch (drvErr: any) {
             console.error(`Erro ao resetar física e moral de ${d.name}:`, drvErr)
