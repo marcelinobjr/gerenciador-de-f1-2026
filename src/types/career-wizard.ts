@@ -68,6 +68,15 @@ export interface GridTeamDefinition {
   historySummary: string
   currentSituation: string
   logoUrl?: string
+  headquarters?: string
+  category?: string
+  specialTraits?: string[]
+  carRating?: number // 0 a 10 ou 0 a 100
+  engineeringRating?: number // 0 a 100
+  operationsRating?: number // 0 a 100
+  prestigeRating?: number // 0 a 100
+  cultureRating?: number // 0 a 100
+  potentialRating?: number // 0 a 100
   driver1: {
     name: string
     nationality: string

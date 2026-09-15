@@ -9,6 +9,8 @@ import { DriverModel, TeamModel, RaceResultModel, PartModel } from '@/types/f1'
 import { ALL_GRID_TEAMS_DATABASE, OFFICIAL_2026_GRID_KEYS } from '@/lib/grid-teams-database'
 import { getCountryFlag } from '@/lib/country-flags'
 import { formatCurrency } from '@/lib/formatters'
+import { getTeamLogoUrl } from '@/lib/lobby-assets'
+import { getCarroPorEquipeImage } from '@/assets/carroPorEquipe'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { PageHeader } from '@/components/PageHeader'
@@ -40,6 +42,7 @@ import {
   CheckCircle2,
   Calendar,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react'
 
 export interface PaddockTeamItem {
@@ -59,14 +62,29 @@ export interface PaddockTeamItem {
   historySummary: string
   currentSituation: string
   isUserTeam: boolean
-  driver1: {
+  inCurrentGrid: boolean // true = no campeonato atual de 2026; false = fora do grid
+  headquarters: string
+  category: string
+  difficulty: string
+  boardPressure: string
+  carRating: number
+  engineeringRating: number
+  infrastructureRating: number
+  operationsRating: number
+  financesRating: number
+  prestigeRating: number
+  cultureRating: number
+  potentialRating: number
+  specialTraits: string[]
+  carImageUrl: string
+  driver1?: {
     name: string
     flag: string
     speed: number
     consistency: number
     nationality: string
   }
-  driver2: {
+  driver2?: {
     name: string
     flag: string
     speed: number
@@ -223,76 +241,107 @@ export default function PaddockPage() {
           t.name.toLowerCase().trim() === struct.name.toLowerCase().trim(),
       )
 
-      // Standings calculadas
-      const standing = standingByTeamName.get(struct.name.toLowerCase().trim()) ||
-        standingByTeamName.get(struct.shortName.toLowerCase().trim()) ||
-        (isPlayer && team?.id ? standingByTeamName.get(team.name.toLowerCase().trim()) : null) || {
-          rank: 0,
-          points: 0,
-          wins: 0,
-        }
+      // Determinação estruturada: participa do campeonato atual de 2026?
+      // Uma equipe participa se:
+      // 1. É a equipe do jogador (isPlayer)
+      // 2. Existe no banco de dados vinculada à temporada ativa (dbMatch)
+      // 3. Sua chave faz parte da lista oficial OFFICIAL_2026_GRID_KEYS (12 equipes de 2026)
+      const inCurrentGrid = isPlayer || !!dbMatch || OFFICIAL_2026_GRID_KEYS.includes(struct.key)
 
-      // Pilotos da equipe: se for do jogador, pega do dbDrivers
-      const teamDrivers = isPlayer
-        ? dbDrivers.filter((d) => d.team_id === team?.id && d.role === 'titular')
-        : dbDrivers.filter((d) => d.team_id === dbMatch?.id && d.role === 'titular')
+      // Standings calculadas (válido apenas se estiver no grid atual)
+      const standing = inCurrentGrid
+        ? standingByTeamName.get(struct.name.toLowerCase().trim()) ||
+          standingByTeamName.get(struct.shortName.toLowerCase().trim()) ||
+          (isPlayer && team?.id
+            ? standingByTeamName.get(team.name.toLowerCase().trim())
+            : null) || {
+            rank: 0,
+            points: 0,
+            wins: 0,
+          }
+        : { rank: 0, points: 0, wins: 0 }
 
-      const d1 = teamDrivers[0]
-        ? {
+      // Pilotos: APENAS para equipes ativas no campeonato atual
+      // NUNCA associar pilotos a equipes fora do campeonato.
+      let d1: PaddockTeamItem['driver1'] = undefined
+      let d2: PaddockTeamItem['driver2'] = undefined
+      let reserveData: PaddockTeamItem['reserveDriver'] = undefined
+
+      if (inCurrentGrid) {
+        const teamDrivers = isPlayer
+          ? dbDrivers.filter((d) => d.team_id === team?.id && d.role === 'titular')
+          : dbDrivers.filter((d) => d.team_id === dbMatch?.id && d.role === 'titular')
+
+        // Piloto 1
+        if (teamDrivers[0]) {
+          d1 = {
             name: teamDrivers[0].name,
             flag: getCountryFlag(teamDrivers[0].nationality),
             speed: teamDrivers[0].speed,
             consistency: teamDrivers[0].consistency,
             nationality: teamDrivers[0].nationality,
           }
-        : {
+        } else if (struct.driver1) {
+          d1 = {
             name: struct.driver1.name,
             flag: struct.driver1.flag,
             speed: struct.driver1.speed,
             consistency: struct.driver1.consistency,
             nationality: struct.driver1.nationality,
           }
+        }
 
-      const d2 = teamDrivers[1]
-        ? {
+        // Piloto 2
+        if (teamDrivers[1]) {
+          d2 = {
             name: teamDrivers[1].name,
             flag: getCountryFlag(teamDrivers[1].nationality),
             speed: teamDrivers[1].speed,
             consistency: teamDrivers[1].consistency,
             nationality: teamDrivers[1].nationality,
           }
-        : {
+        } else if (struct.driver2) {
+          d2 = {
             name: struct.driver2.name,
             flag: struct.driver2.flag,
             speed: struct.driver2.speed,
             consistency: struct.driver2.consistency,
             nationality: struct.driver2.nationality,
           }
+        }
 
-      const reserveD = isPlayer
-        ? dbDrivers.find(
-            (d) =>
-              (d.team_id === team?.id || d.reserve_team_id === team?.id) && d.role === 'reserva',
-          )
-        : undefined
+        // Piloto Reserva
+        const reserveD = isPlayer
+          ? dbDrivers.find(
+              (d) =>
+                (d.team_id === team?.id || d.reserve_team_id === team?.id) && d.role === 'reserva',
+            )
+          : dbDrivers.find((d) => d.team_id === dbMatch?.id && d.role === 'reserva')
 
-      const reserveData = reserveD
-        ? {
+        if (reserveD) {
+          reserveData = {
             name: reserveD.name,
             flag: getCountryFlag(reserveD.nationality),
             speed: reserveD.speed,
             consistency: reserveD.consistency,
             nationality: reserveD.nationality,
           }
-        : struct.reserveDriver
-          ? {
-              name: struct.reserveDriver.name,
-              flag: struct.reserveDriver.flag,
-              speed: struct.reserveDriver.speed,
-              consistency: struct.reserveDriver.consistency,
-              nationality: struct.reserveDriver.nationality,
-            }
-          : undefined
+        } else if (struct.reserveDriver) {
+          reserveData = {
+            name: struct.reserveDriver.name,
+            flag: struct.reserveDriver.flag,
+            speed: struct.reserveDriver.speed,
+            consistency: struct.reserveDriver.consistency,
+            nationality: struct.reserveDriver.nationality,
+          }
+        }
+      }
+
+      // Imagem do carro pelo sistema de assets estruturado por teamKey
+      const carImageUrl = getCarroPorEquipeImage(struct.key)
+
+      // Logo url pelo sistema de assets oficial ou fallback
+      const resolvedLogo = struct.logoUrl || getTeamLogoUrl(struct.key)
 
       list.push({
         id: dbMatch?.id || struct.key,
@@ -303,9 +352,9 @@ export default function PaddockPage() {
         engine: isPlayer ? (team?.engine_supplier as any) || struct.engine : struct.engine,
         country: struct.country,
         flag: struct.flag,
-        position: standing.rank,
-        points: standing.points,
-        wins: standing.wins,
+        position: inCurrentGrid ? standing.rank : 0,
+        points: inCurrentGrid ? standing.points : 0,
+        wins: inCurrentGrid ? standing.wins : 0,
         strengthRating:
           isPlayer && team?.strength
             ? Number((team.strength / 10).toFixed(1))
@@ -314,10 +363,26 @@ export default function PaddockPage() {
         historySummary: struct.historySummary,
         currentSituation: struct.currentSituation,
         isUserTeam: isPlayer,
+        inCurrentGrid,
+        headquarters: struct.headquarters || 'Sede institucional não cadastrada',
+        category:
+          struct.category || (inCurrentGrid ? 'Grid Oficial F1 2026' : 'Fora do grid atual'),
+        difficulty: struct.difficulty || 'Média',
+        boardPressure: struct.boardPressure || 'Média',
+        carRating: struct.carRating ?? Math.round(struct.strengthRating * 10),
+        engineeringRating: struct.engineeringRating ?? Math.round(struct.strengthRating * 10),
+        infrastructureRating: struct.infrastructureRating || 3,
+        operationsRating: struct.operationsRating ?? Math.round(struct.strengthRating * 10),
+        financesRating: struct.financesRating || 3,
+        prestigeRating: struct.prestigeRating ?? Math.round(struct.strengthRating * 10),
+        cultureRating: struct.cultureRating ?? Math.round(struct.strengthRating * 10),
+        potentialRating: struct.potentialRating ?? Math.round(struct.strengthRating * 10),
+        specialTraits: struct.specialTraits || [struct.competitivenessVerdict],
+        carImageUrl,
         driver1: d1,
         driver2: d2,
         reserveDriver: reserveData,
-        logoUrl: struct.logoUrl,
+        logoUrl: resolvedLogo,
       })
     })
 
@@ -352,29 +417,56 @@ export default function PaddockPage() {
           historySummary: 'Equipe customizada ativa na temporada de 2026.',
           currentSituation: 'Competindo no grid mundial.',
           isUserTeam: isPlayer,
-          driver1: {
-            name: tDrivers[0]?.name || 'Piloto 1',
-            flag: getCountryFlag(tDrivers[0]?.nationality || 'Brasil'),
-            speed: tDrivers[0]?.speed || 80,
-            consistency: tDrivers[0]?.consistency || 80,
-            nationality: tDrivers[0]?.nationality || 'Brasil',
-          },
-          driver2: {
-            name: tDrivers[1]?.name || 'Piloto 2',
-            flag: getCountryFlag(tDrivers[1]?.nationality || 'Brasil'),
-            speed: tDrivers[1]?.speed || 79,
-            consistency: tDrivers[1]?.consistency || 78,
-            nationality: tDrivers[1]?.nationality || 'Brasil',
-          },
+          inCurrentGrid: true,
+          headquarters: 'São Paulo, Brasil',
+          category: 'Equipe Customizada no Grid',
+          difficulty: 'Média',
+          boardPressure: 'Média',
+          carRating: t.strength || 50,
+          engineeringRating: t.strength || 50,
+          infrastructureRating: 3,
+          operationsRating: t.strength || 50,
+          financesRating: 3,
+          prestigeRating: t.strength || 50,
+          cultureRating: 75,
+          potentialRating: 80,
+          specialTraits: ['Nova Equipe no Campeonato'],
+          carImageUrl: getCarroPorEquipeImage(t.team_key || t.id, true),
+          driver1: tDrivers[0]
+            ? {
+                name: tDrivers[0].name,
+                flag: getCountryFlag(tDrivers[0].nationality || 'Brasil'),
+                speed: tDrivers[0].speed || 80,
+                consistency: tDrivers[0].consistency || 80,
+                nationality: tDrivers[0].nationality || 'Brasil',
+              }
+            : undefined,
+          driver2: tDrivers[1]
+            ? {
+                name: tDrivers[1].name,
+                flag: getCountryFlag(tDrivers[1].nationality || 'Brasil'),
+                speed: tDrivers[1].speed || 79,
+                consistency: tDrivers[1].consistency || 78,
+                nationality: tDrivers[1].nationality || 'Brasil',
+              }
+            : undefined,
+          logoUrl: getTeamLogoUrl(t.team_key || t.id),
         })
       }
     })
 
-    // Ordenação: Equipes com pontos/posição no campeonato primeiro, depois por força
+    // Ordenação:
+    // 1. Equipes do grid atual primeiro (ordenadas por pontos/posição no campeonato, depois força)
+    // 2. Equipes fora do grid depois (ordenadas por força)
     return list.sort((a, b) => {
-      if (a.position > 0 && b.position > 0) return a.position - b.position
-      if (a.position > 0) return -1
-      if (b.position > 0) return 1
+      if (a.inCurrentGrid && !b.inCurrentGrid) return -1
+      if (!a.inCurrentGrid && b.inCurrentGrid) return 1
+      if (a.inCurrentGrid && b.inCurrentGrid) {
+        if (a.position > 0 && b.position > 0) return a.position - b.position
+        if (a.position > 0) return -1
+        if (b.position > 0) return 1
+        return b.strengthRating - a.strengthRating
+      }
       return b.strengthRating - a.strengthRating
     })
   }, [standingsCalculated, dbTeams, dbDrivers, team])
@@ -495,10 +587,12 @@ export default function PaddockPage() {
       const matchesSearch =
         q === '' ||
         t.name.toLowerCase().includes(q) ||
+        t.shortName.toLowerCase().includes(q) ||
         t.engine.toLowerCase().includes(q) ||
-        t.driver1.name.toLowerCase().includes(q) ||
-        t.driver2.name.toLowerCase().includes(q) ||
-        t.country.toLowerCase().includes(q)
+        (t.driver1 && t.driver1.name.toLowerCase().includes(q)) ||
+        (t.driver2 && t.driver2.name.toLowerCase().includes(q)) ||
+        t.country.toLowerCase().includes(q) ||
+        (t.headquarters && t.headquarters.toLowerCase().includes(q))
 
       const matchesEngine =
         engineFilter === 'todos' || t.engine.toLowerCase() === engineFilter.toLowerCase()
@@ -760,34 +854,80 @@ export default function PaddockPage() {
                   />
 
                   <div className="space-y-3">
-                    {/* Topo do Card: Logo/Identidade + Nome + Badge */}
+                    {/* Topo do Card: Logo/Identidade + Nome + Badge de Status */}
                     <div className="flex items-start gap-3 pt-1">
                       {t.logoUrl ? (
-                        <div className="w-10 h-10 rounded-xl bg-[#090D14] border border-[#1C2330] p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+                        <div className="w-11 h-11 rounded-xl bg-[#090D14] border border-[#1C2330] p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
                           <img
                             src={t.logoUrl}
                             alt={t.name}
                             className="w-full h-full object-contain"
+                            onError={(e) => {
+                              // Fallback gracioso se a imagem não carregar
+                              e.currentTarget.style.display = 'none'
+                              if (e.currentTarget.parentElement) {
+                                e.currentTarget.parentElement.innerHTML = `<span class="font-mono font-black text-xs text-white">${t.shortName.substring(0, 2).toUpperCase()}</span>`
+                              }
+                            }}
                           />
                         </div>
                       ) : (
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm text-white shrink-0 shadow-md font-mono"
-                          style={{ backgroundColor: t.color }}
+                          className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-sm text-white shrink-0 shadow-md font-mono border"
+                          style={{
+                            backgroundColor:
+                              t.key === 'cadillac'
+                                ? '#1B170B'
+                                : t.key === 'toyota'
+                                  ? '#200709'
+                                  : '#11161F',
+                            borderColor:
+                              t.key === 'cadillac'
+                                ? '#D4AF37'
+                                : t.key === 'toyota'
+                                  ? '#EB0A1E'
+                                  : t.color,
+                            color:
+                              t.key === 'cadillac'
+                                ? '#D4AF37'
+                                : t.key === 'toyota'
+                                  ? '#EB0A1E'
+                                  : '#FFFFFF',
+                          }}
                         >
                           {t.shortName.substring(0, 2).toUpperCase()}
                         </div>
                       )}
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm shrink-0">{t.flag}</span>
-                          <h3 className="font-bold text-sm text-white truncate group-hover:text-cyan-400 transition-colors">
-                            {t.name}
-                          </h3>
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-sm shrink-0">{t.flag}</span>
+                            <h3 className="font-bold text-sm text-white truncate group-hover:text-cyan-400 transition-colors">
+                              {t.name}
+                            </h3>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-0.5 text-[11px] font-mono text-[#8B95A7]">
+                        {/* Status no campeonato atual */}
+                        <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                          {t.inCurrentGrid ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[9px] font-mono px-1.5 py-0">
+                              No Grid 2026
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-mono px-1.5 py-0">
+                              Fora do grid atual
+                            </Badge>
+                          )}
+                          {t.isUserTeam && (
+                            <Badge className="bg-[#E10600] text-white text-[9px] font-mono px-1.5 py-0">
+                              Sua Equipe
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1 text-[11px] font-mono text-[#8B95A7]">
                           <span>
                             Motor <strong className="text-cyan-400">{t.engine}</strong>
                           </span>
@@ -797,50 +937,79 @@ export default function PaddockPage() {
                       </div>
                     </div>
 
-                    {/* Resumo de Campeonato: Posição + Pontos */}
-                    <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-[#090D14] border border-[#1A222F] text-center font-mono">
-                      <div>
-                        <span className="text-[9px] text-[#64748B] uppercase block">Posição</span>
-                        <strong className="text-xs text-white font-bold">
-                          {t.position > 0 ? `${t.position}º` : '—'}
-                        </strong>
+                    {/* Resumo de Campeonato: Apenas se estiver no campeonato */}
+                    {t.inCurrentGrid ? (
+                      <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-[#090D14] border border-[#1A222F] text-center font-mono">
+                        <div>
+                          <span className="text-[9px] text-[#64748B] uppercase block">Posição</span>
+                          <strong className="text-xs text-white font-bold">
+                            {t.position > 0 ? `${t.position}º` : '—'}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-[#64748B] uppercase block">Pontos</span>
+                          <strong className="text-xs text-cyan-400 font-bold">
+                            {t.points} pts
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-[#64748B] uppercase block">
+                            Vitórias
+                          </span>
+                          <strong className="text-xs text-amber-400 font-bold">{t.wins}</strong>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[9px] text-[#64748B] uppercase block">Pontos</span>
-                        <strong className="text-xs text-cyan-400 font-bold">{t.points} pts</strong>
+                    ) : (
+                      <div className="p-2 rounded-xl bg-[#090D14]/70 border border-[#1A222F] text-center font-mono">
+                        <span className="text-[10px] text-amber-400/90 font-medium block">
+                          Sem participação no campeonato 2026
+                        </span>
+                        <span className="text-[9px] text-[#64748B] block">
+                          {t.category || 'Escuderia Convidada / Reserva FIA'}
+                        </span>
                       </div>
-                      <div>
-                        <span className="text-[9px] text-[#64748B] uppercase block">Vitórias</span>
-                        <strong className="text-xs text-amber-400 font-bold">{t.wins}</strong>
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Pilotos Titulares */}
-                    <div className="space-y-1 font-mono text-xs">
-                      <span className="text-[9px] text-[#64748B] uppercase block font-bold">
-                        Pilotos Titulares
-                      </span>
-                      <div className="p-2 rounded-lg bg-[#090D14] border border-[#1A222F] space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="flex items-center gap-1 text-white truncate max-w-[130px]">
-                            <span>{t.driver1.flag}</span>
-                            <span className="truncate">{t.driver1.name}</span>
-                          </span>
-                          <span className="text-emerald-400 font-bold text-[10px]">
-                            {t.driver1.speed} VEL
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="flex items-center gap-1 text-white truncate max-w-[130px]">
-                            <span>{t.driver2.flag}</span>
-                            <span className="truncate">{t.driver2.name}</span>
-                          </span>
-                          <span className="text-emerald-400 font-bold text-[10px]">
-                            {t.driver2.speed} VEL
-                          </span>
+                    {/* Pilotos Titulares: Apenas para equipes no campeonato */}
+                    {t.inCurrentGrid ? (
+                      <div className="space-y-1 font-mono text-xs">
+                        <span className="text-[9px] text-[#64748B] uppercase block font-bold">
+                          Pilotos Titulares
+                        </span>
+                        <div className="p-2 rounded-lg bg-[#090D14] border border-[#1A222F] space-y-1">
+                          {t.driver1 ? (
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="flex items-center gap-1 text-white truncate max-w-[130px]">
+                                <span>{t.driver1.flag}</span>
+                                <span className="truncate">{t.driver1.name}</span>
+                              </span>
+                              <span className="text-emerald-400 font-bold text-[10px]">
+                                {t.driver1.speed} VEL
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-[#64748B] italic">Sem piloto 1</div>
+                          )}
+                          {t.driver2 ? (
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="flex items-center gap-1 text-white truncate max-w-[130px]">
+                                <span>{t.driver2.flag}</span>
+                                <span className="truncate">{t.driver2.name}</span>
+                              </span>
+                              <span className="text-emerald-400 font-bold text-[10px]">
+                                {t.driver2.speed} VEL
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-[#64748B] italic">Sem piloto 2</div>
+                          )}
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-[#090D14]/50 border border-[#1A222F] text-[11px] font-mono text-[#64748B] italic text-center">
+                        Sem pilotos vinculados à temporada
+                      </div>
+                    )}
                   </div>
 
                   {/* Rodapé com Botão Ver Detalhes */}
@@ -1230,15 +1399,29 @@ export default function PaddockPage() {
                       </strong>
                     </div>
                     <div className="flex justify-between p-2 rounded bg-[#11161F]">
+                      <span className="text-[#8B95A7]">Status no Campeonato:</span>
+                      <strong
+                        className={
+                          teamComparisonA.inCurrentGrid ? 'text-emerald-400' : 'text-amber-400'
+                        }
+                      >
+                        {teamComparisonA.inCurrentGrid ? 'Grid F1 2026' : 'Fora do grid atual'}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-[#11161F]">
                       <span className="text-[#8B95A7]">Piloto Titular #1:</span>
                       <strong className="text-white">
-                        {teamComparisonA.driver1.name} ({teamComparisonA.driver1.speed})
+                        {teamComparisonA.driver1
+                          ? `${teamComparisonA.driver1.name} (${teamComparisonA.driver1.speed})`
+                          : 'Sem pilotos associados'}
                       </strong>
                     </div>
                     <div className="flex justify-between p-2 rounded bg-[#11161F]">
                       <span className="text-[#8B95A7]">Piloto Titular #2:</span>
                       <strong className="text-white">
-                        {teamComparisonA.driver2.name} ({teamComparisonA.driver2.speed})
+                        {teamComparisonA.driver2
+                          ? `${teamComparisonA.driver2.name} (${teamComparisonA.driver2.speed})`
+                          : 'Sem pilotos associados'}
                       </strong>
                     </div>
                   </div>
@@ -1288,15 +1471,29 @@ export default function PaddockPage() {
                       </strong>
                     </div>
                     <div className="flex justify-between p-2 rounded bg-[#11161F]">
+                      <span className="text-[#8B95A7]">Status no Campeonato:</span>
+                      <strong
+                        className={
+                          teamComparisonB.inCurrentGrid ? 'text-emerald-400' : 'text-amber-400'
+                        }
+                      >
+                        {teamComparisonB.inCurrentGrid ? 'Grid F1 2026' : 'Fora do grid atual'}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-[#11161F]">
                       <span className="text-[#8B95A7]">Piloto Titular #1:</span>
                       <strong className="text-white">
-                        {teamComparisonB.driver1.name} ({teamComparisonB.driver1.speed})
+                        {teamComparisonB.driver1
+                          ? `${teamComparisonB.driver1.name} (${teamComparisonB.driver1.speed})`
+                          : 'Sem pilotos associados'}
                       </strong>
                     </div>
                     <div className="flex justify-between p-2 rounded bg-[#11161F]">
                       <span className="text-[#8B95A7]">Piloto Titular #2:</span>
                       <strong className="text-white">
-                        {teamComparisonB.driver2.name} ({teamComparisonB.driver2.speed})
+                        {teamComparisonB.driver2
+                          ? `${teamComparisonB.driver2.name} (${teamComparisonB.driver2.speed})`
+                          : 'Sem pilotos associados'}
                       </strong>
                     </div>
                   </div>
@@ -1475,65 +1672,353 @@ export default function PaddockPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL SIMPLES: DETALHE DA EQUIPE                                          */}
+      {/* MODAL COMPLETO: FICHA TÉCNICA E INSTITUCIONAL DA EQUIPE                   */}
       {/* ========================================================================= */}
       <Dialog
         open={!!selectedTeamDetail}
         onOpenChange={(open) => !open && setSelectedTeamDetail(null)}
       >
-        <DialogContent className="bg-[#0F141C] border-[#1F2733] text-[#F5F7FA] max-w-lg">
+        <DialogContent className="bg-[#0B0F17] border-[#1F2733] text-[#F5F7FA] max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
           {selectedTeamDetail && (
-            <div className="space-y-4">
-              <DialogHeader>
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white font-mono shadow-md"
-                    style={{ backgroundColor: selectedTeamDetail.color }}
-                  >
-                    {selectedTeamDetail.shortName.substring(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-mono text-[#8B95A7] uppercase font-bold">
-                      FICHA TÉCNICA // CONSTRUTORA
+            <div className="space-y-6">
+              {/* Header com Logo, Nome, Sede e Status */}
+              <DialogHeader className="space-y-3 pb-3 border-b border-[#1C2330]">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    {selectedTeamDetail.logoUrl ? (
+                      <div className="w-14 h-14 rounded-2xl bg-[#090D14] border border-[#1F2733] p-1.5 flex items-center justify-center shrink-0 shadow-lg overflow-hidden">
+                        <img
+                          src={selectedTeamDetail.logoUrl}
+                          alt={selectedTeamDetail.name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            if (e.currentTarget.parentElement) {
+                              e.currentTarget.parentElement.innerHTML = `<span class="font-mono font-black text-base text-white">${selectedTeamDetail.shortName.substring(0, 2).toUpperCase()}</span>`
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg text-white font-mono shrink-0 shadow-lg border"
+                        style={{
+                          backgroundColor:
+                            selectedTeamDetail.key === 'cadillac'
+                              ? '#1B170B'
+                              : selectedTeamDetail.key === 'toyota'
+                                ? '#200709'
+                                : '#11161F',
+                          borderColor:
+                            selectedTeamDetail.key === 'cadillac'
+                              ? '#D4AF37'
+                              : selectedTeamDetail.key === 'toyota'
+                                ? '#EB0A1E'
+                                : selectedTeamDetail.color,
+                          color:
+                            selectedTeamDetail.key === 'cadillac'
+                              ? '#D4AF37'
+                              : selectedTeamDetail.key === 'toyota'
+                                ? '#EB0A1E'
+                                : '#FFFFFF',
+                        }}
+                      >
+                        {selectedTeamDetail.shortName.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-[10px] font-mono text-[#8B95A7] uppercase font-bold tracking-wider">
+                        FICHA TÉCNICA OFICIAL // CONSTRUTORA
+                      </div>
+                      <DialogTitle className="text-xl font-black text-white flex items-center gap-2">
+                        <span>{selectedTeamDetail.name}</span>
+                        {selectedTeamDetail.isUserTeam && (
+                          <Badge className="bg-[#E10600] text-white text-[9px] font-mono">
+                            SUA EQUIPE
+                          </Badge>
+                        )}
+                      </DialogTitle>
+                      <div className="flex items-center gap-2 pt-0.5 text-xs text-[#8B95A7] font-mono">
+                        <span>
+                          {selectedTeamDetail.country} {selectedTeamDetail.flag}
+                        </span>
+                        <span>•</span>
+                        <span className="text-cyan-400">{selectedTeamDetail.category}</span>
+                      </div>
                     </div>
-                    <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-                      <span>{selectedTeamDetail.name}</span>
-                      {selectedTeamDetail.isUserTeam && (
-                        <Badge className="bg-[#E10600] text-white text-[9px] font-mono">
-                          SUA EQUIPE
-                        </Badge>
-                      )}
-                    </DialogTitle>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    {selectedTeamDetail.inCurrentGrid ? (
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-mono px-2 py-0.5">
+                        No Grid 2026
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-slate-800 text-slate-300 border border-slate-700 text-xs font-mono px-2 py-0.5">
+                        Fora do grid atual
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </DialogHeader>
 
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#1A222F]">
-                  <span className="text-[10px] text-[#64748B] block">Fornecedor de Motor</span>
-                  <strong className="text-cyan-400 text-sm">{selectedTeamDetail.engine}</strong>
+              {/* Imagem do Carro Correspondente */}
+              <div className="relative rounded-2xl bg-[#070A0F] border border-[#1A222F] p-4 overflow-hidden group">
+                <div
+                  className="absolute top-0 left-0 right-0 h-1"
+                  style={{ backgroundColor: selectedTeamDetail.color }}
+                />
+                <div className="flex items-center justify-between pb-2">
+                  <span className="text-[10px] font-mono uppercase text-[#8B95A7] font-bold tracking-wider">
+                    Carro Oficial 2026 // Aerodinâmica Regulamento Ativo
+                  </span>
+                  <span className="text-[10px] font-mono text-cyan-400">
+                    Motor {selectedTeamDetail.engine}
+                  </span>
                 </div>
-                <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#1A222F]">
-                  <span className="text-[10px] text-[#64748B] block">País de Origem</span>
-                  <strong className="text-white text-sm">
-                    {selectedTeamDetail.country} {selectedTeamDetail.flag}
+                <div className="w-full h-44 sm:h-52 flex items-center justify-center p-2">
+                  <img
+                    src={selectedTeamDetail.carImageUrl}
+                    alt={`Carro ${selectedTeamDetail.name}`}
+                    className="max-h-full max-w-full object-contain filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] transition-transform duration-300 group-hover:scale-105"
+                  />
+                </div>
+              </div>
+
+              {/* Informações Institucionais Primárias */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono">
+                <div className="p-3 rounded-xl bg-[#090D14] border border-[#1A222F]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">Motor</span>
+                  <strong className="text-cyan-400 text-sm font-bold block truncate">
+                    {selectedTeamDetail.engine}
                   </strong>
                 </div>
-                <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#1A222F]">
-                  <span className="text-[10px] text-[#64748B] block">Pontos na Temporada</span>
-                  <strong className="text-emerald-400 text-sm">
-                    {selectedTeamDetail.points} pts
+                <div className="p-3 rounded-xl bg-[#090D14] border border-[#1A222F]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">Força Geral</span>
+                  <strong className="text-amber-400 text-sm font-bold block">
+                    {selectedTeamDetail.strengthRating.toFixed(1)} / 10
                   </strong>
                 </div>
-                <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#1A222F]">
-                  <span className="text-[10px] text-[#64748B] block">Orçamento Estimado</span>
-                  <strong className="text-white text-sm">
+                <div className="p-3 rounded-xl bg-[#090D14] border border-[#1A222F]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">Dificuldade</span>
+                  <strong className="text-white text-sm font-bold block truncate">
+                    {selectedTeamDetail.difficulty}
+                  </strong>
+                </div>
+                <div className="p-3 rounded-xl bg-[#090D14] border border-[#1A222F]">
+                  <span className="text-[10px] text-[#64748B] uppercase block">
+                    Orçamento / Caixa
+                  </span>
+                  <strong className="text-emerald-400 text-sm font-bold block truncate">
                     {formatCurrency(selectedTeamDetail.budget)}
                   </strong>
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-[#090D14] border border-[#1A222F] text-xs space-y-1">
+              {/* Sede e Categoria */}
+              <div className="p-3 rounded-xl bg-[#090D14] border border-[#1A222F] text-xs font-mono space-y-1">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                  <span className="text-[#8B95A7]">Sede da Fábrica:</span>
+                  <strong className="text-white">{selectedTeamDetail.headquarters}</strong>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                  <span className="text-[#8B95A7]">Categoria da Equipe:</span>
+                  <strong className="text-cyan-400">{selectedTeamDetail.category}</strong>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                  <span className="text-[#8B95A7]">Pressão da Diretoria:</span>
+                  <strong className="text-amber-400">{selectedTeamDetail.boardPressure}</strong>
+                </div>
+              </div>
+
+              {/* Barras de Atributos Técnicos e Institucionais */}
+              <div className="p-4 rounded-xl bg-[#090D14] border border-[#1A222F] space-y-3">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-white font-bold uppercase tracking-wider text-[11px]">
+                    Atributos Técnicos & Estruturais
+                  </span>
+                  <span className="text-[10px] text-[#64748B] font-mono">Índice 0 a 100</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                  <ProgressBar
+                    value={selectedTeamDetail.carRating}
+                    label="CARRO (DESEMPENHO)"
+                    size="sm"
+                    valueFormatter={(v) => `${v}`}
+                  />
+                  <ProgressBar
+                    value={selectedTeamDetail.engineeringRating}
+                    label="ENGENHARIA"
+                    size="sm"
+                    valueFormatter={(v) => `${v}`}
+                  />
+                  <ProgressBar
+                    value={Math.round((selectedTeamDetail.infrastructureRating / 5) * 100)}
+                    label="INFRAESTRUTURA"
+                    size="sm"
+                    valueFormatter={(v) => `${selectedTeamDetail.infrastructureRating}/5 (${v}%)`}
+                  />
+                  <ProgressBar
+                    value={selectedTeamDetail.operationsRating}
+                    label="OPERAÇÕES"
+                    size="sm"
+                    valueFormatter={(v) => `${v}`}
+                  />
+                  <ProgressBar
+                    value={Math.round((selectedTeamDetail.financesRating / 5) * 100)}
+                    label="FINANÇAS"
+                    size="sm"
+                    valueFormatter={(v) => `${selectedTeamDetail.financesRating}/5 (${v}%)`}
+                  />
+                  <ProgressBar
+                    value={selectedTeamDetail.prestigeRating}
+                    label="PRESTÍGIO"
+                    size="sm"
+                    valueFormatter={(v) => `${v}`}
+                  />
+                  <ProgressBar
+                    value={selectedTeamDetail.cultureRating}
+                    label="CULTURA"
+                    size="sm"
+                    valueFormatter={(v) => `${v}`}
+                  />
+                  <ProgressBar
+                    value={selectedTeamDetail.potentialRating}
+                    label="POTENCIAL"
+                    size="sm"
+                    valueFormatter={(v) => `${v}`}
+                  />
+                </div>
+              </div>
+
+              {/* Traços Especiais */}
+              {selectedTeamDetail.specialTraits && selectedTeamDetail.specialTraits.length > 0 && (
+                <div className="p-3.5 rounded-xl bg-[#090D14] border border-[#1A222F] space-y-2">
+                  <span className="text-[10px] font-mono uppercase text-[#8B95A7] font-bold tracking-wider block">
+                    Traços Especiais da Equipe
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedTeamDetail.specialTraits.map((trait, idx) => (
+                      <Badge
+                        key={idx}
+                        variant="outline"
+                        className="bg-[#141B26] text-cyan-300 border-cyan-500/30 text-xs font-mono px-2 py-0.5"
+                      >
+                        {trait}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Seção Condicional do Campeonato: Posição, Pontos, Vitórias e Pilotos */}
+              {selectedTeamDetail.inCurrentGrid ? (
+                <div className="p-4 rounded-xl bg-[#090D14] border border-[#1A222F] space-y-3">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-white font-bold uppercase tracking-wider text-[11px]">
+                      Campeonato F1 {season?.year || 2026}
+                    </span>
+                    <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono">
+                      Pontuação Ativa
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                    <div className="p-2 rounded-lg bg-[#11161F]">
+                      <span className="text-[9px] text-[#64748B] uppercase block">Posição</span>
+                      <strong className="text-white text-sm font-bold">
+                        {selectedTeamDetail.position > 0
+                          ? `${selectedTeamDetail.position}º Lugar`
+                          : '—'}
+                      </strong>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[#11161F]">
+                      <span className="text-[9px] text-[#64748B] uppercase block">Pontos</span>
+                      <strong className="text-cyan-400 text-sm font-bold">
+                        {selectedTeamDetail.points} pts
+                      </strong>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[#11161F]">
+                      <span className="text-[9px] text-[#64748B] uppercase block">Vitórias</span>
+                      <strong className="text-amber-400 text-sm font-bold">
+                        {selectedTeamDetail.wins}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Pilotos Titulares e Reserva do Campeonato */}
+                  <div className="space-y-2 pt-1 font-mono text-xs">
+                    <span className="text-[10px] text-[#8B95A7] uppercase font-bold block">
+                      Pilotos Titulares Oficiais
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedTeamDetail.driver1 && (
+                        <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span>{selectedTeamDetail.driver1.flag}</span>
+                            <span className="text-white font-bold truncate">
+                              {selectedTeamDetail.driver1.name}
+                            </span>
+                          </div>
+                          <span className="text-emerald-400 font-bold text-[11px] shrink-0">
+                            {selectedTeamDetail.driver1.speed} VEL
+                          </span>
+                        </div>
+                      )}
+                      {selectedTeamDetail.driver2 && (
+                        <div className="p-2.5 rounded-lg bg-[#11161F] border border-[#1F2733] flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span>{selectedTeamDetail.driver2.flag}</span>
+                            <span className="text-white font-bold truncate">
+                              {selectedTeamDetail.driver2.name}
+                            </span>
+                          </div>
+                          <span className="text-emerald-400 font-bold text-[11px] shrink-0">
+                            {selectedTeamDetail.driver2.speed} VEL
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedTeamDetail.reserveDriver && (
+                      <div className="pt-1">
+                        <span className="text-[10px] text-[#8B95A7] uppercase font-bold block">
+                          Piloto Reserva
+                        </span>
+                        <div className="p-2 rounded-lg bg-[#11161F] border border-[#1F2733] flex items-center justify-between mt-1">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span>{selectedTeamDetail.reserveDriver.flag}</span>
+                            <span className="text-white truncate">
+                              {selectedTeamDetail.reserveDriver.name}
+                            </span>
+                          </div>
+                          <span className="text-amber-400 text-[11px] shrink-0">
+                            {selectedTeamDetail.reserveDriver.speed} VEL
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-[#090D14]/70 border border-[#1A222F] text-xs font-mono space-y-1">
+                  <div className="flex items-center gap-2 text-amber-400">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span className="font-bold uppercase text-[11px]">
+                      Status: Fora do grid atual
+                    </span>
+                  </div>
+                  <p className="text-[#8B95A7] leading-relaxed text-[11px]">
+                    Esta escuderia pertence ao acervo histórico/reserva da Fórmula 1 e não está
+                    inscrita na temporada de 2026. Por isso, não pontua no campeonato e não possui
+                    pilotos titulares associados.
+                  </p>
+                </div>
+              )}
+
+              {/* Situação Atual e Histórico */}
+              <div className="p-3.5 rounded-xl bg-[#090D14] border border-[#1A222F] text-xs space-y-2">
                 <span className="text-[10px] font-mono uppercase text-[#64748B] font-bold block">
                   Situação e Histórico
                 </span>
@@ -1541,7 +2026,7 @@ export default function PaddockPage() {
                   {selectedTeamDetail.currentSituation}
                 </p>
                 {selectedTeamDetail.historySummary && (
-                  <p className="text-[11px] text-[#8B95A7] pt-1 border-t border-[#1C2330]">
+                  <p className="text-[11px] text-[#8B95A7] pt-2 border-t border-[#1C2330]">
                     {selectedTeamDetail.historySummary}
                   </p>
                 )}
