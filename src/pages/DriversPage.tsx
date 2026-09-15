@@ -351,7 +351,6 @@ export default function DriversPage() {
           d.physical_condition || f1aInfo?.condition || mbjInfo?.physicalCondition || 100,
         stress: f1aInfo?.stress ?? mbjInfo?.stress ?? 25,
         adaptability: f1aInfo?.adaptability ?? mbjInfo?.adaptability ?? 80,
-        adaptationF1: f1aInfo?.adaptationF1 ?? mbjInfo?.adaptationF1 ?? (cat === 'f1' ? 90 : 60),
         adaptationCar: f1aInfo?.carAdaptation ?? mbjInfo?.adaptationCar ?? 80,
         adaptationTeam: f1aInfo?.teamAdaptation ?? mbjInfo?.adaptationTeam ?? 80,
         revealedTraits: f1aInfo

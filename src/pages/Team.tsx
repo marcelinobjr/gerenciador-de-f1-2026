@@ -16,6 +16,8 @@ import {
   Sliders,
   Shield,
   CheckCircle,
+  CheckCircle2,
+  GraduationCap,
   XCircle,
   Calendar,
   Sparkles,
@@ -830,6 +832,8 @@ export default function TeamPage() {
                   {/* Piloto Reserva */}
                   {(() => {
                     const dr = reserveDriver || {
+                      id: 'fallback-reserve',
+                      team_id: team?.id || '',
                       name: 'Zane Maloney',
                       nationality: 'Barbados',
                       speed: 78,
@@ -839,6 +843,11 @@ export default function TeamPage() {
                       fatigue: 18,
                       contract_end: 2026,
                       salary: 1200000,
+                      age: 20,
+                      superlicense_points: 38,
+                      homologation_status: 'homologacao' as const,
+                      homologation_sessions_done: 0,
+                      f1_adaptation: 45,
                     }
                     const overallR = Math.round(((dr.speed || 78) + (dr.consistency || 77)) / 2)
                     return (
@@ -910,11 +919,17 @@ export default function TeamPage() {
                         {/* Status Regulamentar & Homologação FIA */}
                         {(() => {
                           const status =
-                            dr.homologation_status ||
-                            calcularElegibilidade(dr.age || 20, dr.superlicense_points || 0, 0)
+                            ('homologation_status' in dr && dr.homologation_status) ||
+                            calcularElegibilidade(
+                              ('age' in dr && dr.age) || 20,
+                              ('superlicense_points' in dr && dr.superlicense_points) || 0,
+                              0,
+                            )
                           const isHomologation = status === 'homologacao'
-                          const sessionsDone = dr.homologation_sessions_done ?? 0
-                          const adaptation = dr.f1_adaptation ?? 0
+                          const sessionsDone =
+                            ('homologation_sessions_done' in dr && dr.homologation_sessions_done) ??
+                            0
+                          const adaptation = ('f1_adaptation' in dr && dr.f1_adaptation) ?? 0
 
                           return (
                             <div className="pt-1.5 border-t border-neutral-800/60 space-y-1 font-mono text-[9px]">

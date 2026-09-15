@@ -694,19 +694,19 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                       <AlertTriangle className="w-3.5 h-3.5" /> Exige Homologação FIA (TL1 100 km)
                     </span>
                   )}
-                  {!isHomologation && eligibility.status === 'academia' && (
+                  {!isHomologation && (eligibility.status as string) === 'academia' && (
                     <span className="text-purple-400 flex items-center gap-1">
                       <GraduationCap className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || eligibility.label}
                     </span>
                   )}
-                  {!isHomologation && eligibility.status === 'homologacao' && (
+                  {!isHomologation && (eligibility.status as string) === 'homologacao' && (
                     <span className="text-amber-400 flex items-center gap-1">
                       <AlertTriangle className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || 'TESTE HOMOLOGAÇÃO MBJ'}
                     </span>
                   )}
-                  {!isHomologation && eligibility.status === 'elegivel' && (
+                  {!isHomologation && (eligibility.status as string) === 'elegivel' && (
                     <span className="text-emerald-400 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || 'Superlicença Válida FIA'}
