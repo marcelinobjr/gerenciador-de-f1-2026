@@ -261,6 +261,18 @@ describe('apply-race-patch', () => {
     const targetDivisores = `      const driversCost = drivers.reduce((sum, d) => sum + Math.round(d.salary / 24), 0)\n      const engineCost = Math.round(currentEngine.costAnnual / 24)`
     const replaceDivisores = `      const driversCost = drivers.reduce(\n        (sum, d) => sum + Math.round(d.salary / (season?.total_rounds || 24)),\n        0,\n      )\n      const engineCost = Math.round(currentEngine.costAnnual / (season?.total_rounds || 24))`
 
+    console.log('CHECKING TARGET DIVISORES. Included?', content.includes(targetDivisores))
+    if (!content.includes(targetDivisores)) {
+      console.log('CHECKING TARGET WITH CRLF OR OTHER:')
+      const match = content.indexOf('const driversCost = drivers.reduce')
+      console.log(
+        'MATCH AT:',
+        match,
+        'SUBSTRING:',
+        JSON.stringify(content.substring(match, match + 150)),
+      )
+    }
+
     if (content.includes(targetDivisores)) {
       applyReplace(targetDivisores, replaceDivisores, 'divisores financeiros por rodada')
       fs.writeFileSync(filePath, content, 'utf8')
@@ -270,6 +282,7 @@ describe('apply-race-patch', () => {
 
     // Verificações finais
     const saved = fs.readFileSync(filePath, 'utf8')
+    expect(saved).toContain('THIS_ASSERTION_MUST_FAIL_IF_TEST_RAN')
     expect(saved).toContain('lapsCompleted: 0')
     expect(saved).toContain('carAhead.accumulatedTimeSec - 0.051')
     expect(saved).toContain('formatGap(exactGapSec, false, lapsBehind)')
