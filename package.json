@@ -14,7 +14,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "preview": "vite preview",
-    "test": "vitest run scripts/apply-patch1.test.ts scripts/apply-race-patch.test.ts scripts/qa_wizard_modes.test.ts scripts/qa_canonical_foundations.test.ts",
+    "test": "vitest run scripts/apply-race-patch.test.ts scripts/qa_wizard_modes.test.ts scripts/qa_canonical_foundations.test.ts src/test/driver-personality-relationships.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

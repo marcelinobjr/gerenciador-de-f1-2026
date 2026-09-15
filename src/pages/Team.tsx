@@ -2529,6 +2529,57 @@ export default function TeamPage() {
                   </span>
                 </div>
               </div>
+
+              {/* PAINEL PSICOLÓGICO DOS PILOTOS (Implementação Nº 6A) */}
+              <div className="pt-4 border-t border-neutral-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-purple-400" /> Clima Interno dos Pilotos & Tensão
+                    entre Teammates
+                  </h4>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] border-purple-700/50 text-purple-300"
+                  >
+                    6A Personalidade & Relações
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {titularDrivers.map((drv) => {
+                    return (
+                      <div
+                        key={drv.id}
+                        className="p-3 rounded-lg bg-neutral-900/60 border border-neutral-800 text-xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white text-sm">{drv.name}</span>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-neutral-700 text-neutral-300 font-mono"
+                          >
+                            Segurança: {drv.seat_security ?? 80}%
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-400">
+                          <div>
+                            Confiança no TP: <strong className="text-emerald-400">Alta</strong>
+                          </div>
+                          <div>
+                            Pertencimento: <strong className="text-blue-400">Satisfeito</strong>
+                          </div>
+                          <div>
+                            Desejo de Ficar: <strong className="text-amber-300">Positivo</strong>
+                          </div>
+                          <div>
+                            Risco de Conflito: <strong className="text-neutral-300">Baixo</strong>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

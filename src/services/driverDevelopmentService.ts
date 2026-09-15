@@ -727,6 +727,26 @@ class DriverDevelopmentService {
           morale: newMorale,
         })
 
+        // Integração Implementação Nº 6A: driverRelationshipService - Avaliação de ameaça da academia
+        try {
+          const { driverRelationshipService } = await import('@/services/driverRelationshipService')
+          driverRelationshipService.processDomainEvent({
+            driver: targetTitular,
+            eventType: 'contract_threat_academy',
+            season: 2026,
+            round: 3,
+            team: team,
+            sourceEventId: `academy_test_threat_${driver.id}_${testResult.id}`,
+            description: `Jovem piloto ${driver.name} teve desempenho impressionante em teste oficial de pista.`,
+            eventContext: {
+              youngsterDriverName: driver.name,
+              youngsterLicense: driver.license_status,
+            },
+          })
+        } catch (psyErr) {
+          console.warn('Erro ao disparar evento psicológico de ameaça:', psyErr)
+        }
+
         // Evento de notícia relevante
         newsEvent = {
           title: `Destaque em Teste: ${driver.name} impressiona a engenharia da ${team.name}`,

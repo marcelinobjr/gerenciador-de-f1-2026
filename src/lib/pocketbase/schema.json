@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T18:08:06.455Z",
+  "generatedAt": "2026-09-15T18:27:18.770Z",
   "collections": [
     {
       "name": "users",
@@ -758,6 +758,12 @@
         },
         {
           "name": "procedural_data",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "psychology_data",
           "type": "json",
           "required": false,
           "system": false

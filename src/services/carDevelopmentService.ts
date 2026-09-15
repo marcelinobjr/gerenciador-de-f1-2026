@@ -809,6 +809,50 @@ export class CarDevelopmentService {
 
     const targetCars = targetCar === 'both' ? ['car1', 'car2'] : [targetCar]
 
+    // Integração com DriverRelationshipService (Implementação Nº 6A - Prioridade de Upgrades)
+    // Se a peça for única e instalada em apenas um carro ('car1' ou 'car2'), dispara eventos psicológicos
+    if (targetCar === 'car1' || targetCar === 'car2') {
+      try {
+        import('@/services/driverRelationshipService').then(({ driverRelationshipService }) => {
+          import('@/services/f1Service').then(async ({ f1Service }) => {
+            const drivers = await f1Service.getTeamDrivers(teamId)
+            const titulars = drivers.filter((d) => d.role !== 'reserva')
+            if (titulars.length >= 2) {
+              const car1Driver = titulars[0]
+              const car2Driver = titulars[1]
+              const favoredDriver = targetCar === 'car1' ? car1Driver : car2Driver
+              const unfavoredDriver = targetCar === 'car1' ? car2Driver : car1Driver
+              const sourceKey = `install_${spec.specId}_${targetCar}_${Date.now()}`
+
+              // Piloto favorecido recebe memória de prioridade
+              driverRelationshipService.processDomainEvent({
+                driver: favoredDriver,
+                eventType: 'upgrade_received_priority',
+                season: 2026,
+                round: 3,
+                sourceEventId: `${sourceKey}_favored`,
+                description: `Recebeu novo componente (${spec.specName}) com prioridade de instalação.`,
+                teammate: unfavoredDriver,
+              })
+
+              // Piloto preterido avalia e gera memória de prioridade negada
+              driverRelationshipService.processDomainEvent({
+                driver: unfavoredDriver,
+                eventType: 'upgrade_denied_priority',
+                season: 2026,
+                round: 3,
+                sourceEventId: `${sourceKey}_unfavored`,
+                description: `Companheiro (${favoredDriver.name}) recebeu prioridade de nova peça (${spec.specName}).`,
+                teammate: favoredDriver,
+              })
+            }
+          })
+        })
+      } catch (err) {
+        console.warn('Psychology integration notification skipped:', err)
+      }
+    }
+
     for (const car of targetCars) {
       // Localiza a peça física atual instalada no carro
       const existingPartIndex = updatedParts.findIndex(

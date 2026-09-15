@@ -238,6 +238,17 @@ export const f1Service = {
             reserveDriver: reserve,
             tp1ParticipatedDriverIds: tp1DriverIds,
           })
+
+          // Integração Implementação Nº 6A: DriverRelationshipService - Processa decay de memórias e baseline regression
+          try {
+            const { driverRelationshipService } =
+              await import('@/services/driverRelationshipService')
+            for (const d of teamDrivers) {
+              driverRelationshipService.processRoundDecayAndBaselineRegression(d.id)
+            }
+          } catch (decayErr) {
+            console.warn('Processamento de decay psicológico:', decayErr)
+          }
         } catch (progErr) {
           console.warn('Processamento automático de progressão FIA/Adaptação:', progErr)
         }
@@ -508,22 +519,42 @@ export const f1Service = {
     teamId: string,
     role: 'titular' | 'reserva' = 'titular',
   ): Promise<DriverModel> {
+    const oldDriver = await pb
+      .collection('drivers')
+      .getOne<DriverModel>(driverId)
+      .catch(() => null)
+    const oldTeamId = oldDriver?.team_id || oldDriver?.reserve_team_id || ''
+
+    let updatedDriver: DriverModel
     if (role === 'reserva') {
-      return await pb.collection('drivers').update<DriverModel>(driverId, {
+      updatedDriver = await pb.collection('drivers').update<DriverModel>(driverId, {
         reserve_team_id: teamId,
         team_id: null,
         role: 'reserva',
         fp_sessions_completed: 0,
         fp_scheduled_rounds: [7, 13],
       })
+    } else {
+      updatedDriver = await pb.collection('drivers').update<DriverModel>(driverId, {
+        team_id: teamId,
+        reserve_team_id: null,
+        role: 'titular',
+        is_incapacitated: false,
+        incapacitated_rounds_left: 0,
+      })
     }
-    return await pb.collection('drivers').update<DriverModel>(driverId, {
-      team_id: teamId,
-      reserve_team_id: null,
-      role: 'titular',
-      is_incapacitated: false,
-      incapacitated_rounds_left: 0,
-    })
+
+    // Integração Implementação Nº 6A: Transferência de equipe preserva memória do universo
+    if (oldTeamId && oldTeamId !== teamId) {
+      try {
+        const { driverRelationshipService } = await import('@/services/driverRelationshipService')
+        driverRelationshipService.handleTeamTransfer(driverId, oldTeamId, teamId)
+      } catch (transErr) {
+        console.warn('Erro ao processar transferência psicológica:', transErr)
+      }
+    }
+
+    return updatedDriver
   },
 
   async fireDriver(driverId: string): Promise<DriverModel> {

@@ -34,8 +34,18 @@ import {
   Smile,
   Compass,
   Sparkles,
+  Brain,
+  Handshake,
+  Clock,
+  HelpCircle,
 } from 'lucide-react'
 import type { UnifiedDriverItem } from '@/pages/DriversPage'
+import { driverRelationshipService } from '@/services/driverRelationshipService'
+import {
+  getDriverPersonalityTraits,
+  getPersonalityDescriptors,
+  formatQualitativeState,
+} from '@/lib/driver-psychology-utils'
 
 export interface PilotProfileDialogProps {
   pilot: UnifiedDriverItem | null
@@ -107,12 +117,28 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   onOpenContractModal,
   currentRound = 1,
 }) => {
-  if (!pilot) return null
+  // Implementação Nº 6A — Recupera Auditoria e Bundle Psicológico (incondicional no topo)
+  const psychAudit = React.useMemo(() => {
+    if (!pilot) return null
+    return driverRelationshipService.auditDriverPsychology({
+      id: pilot.id,
+      name: pilot.name,
+      morale: pilot.moraleState ?? 75,
+      speed: pilot.speed,
+      consistency: pilot.consistency,
+      seat_security: (pilot as any).rawDbRecord?.seat_security ?? (pilot as any).seatSecurity ?? 80,
+    })
+  }, [pilot])
+
+  if (!pilot || !psychAudit) return null
 
   const ovr = getOverallRating(pilot)
   const eligibility = checkEligibility(pilot)
   const isUserTeam = pilot.isPlayerDriver
   const canPreContract = currentRound >= 12
+
+  const canonicalTraits = psychAudit.personalityTraits
+  const descriptors = getPersonalityDescriptors(canonicalTraits)
 
   // Sistema de Homologação FIA
   const rawHomologationStatus =
@@ -519,95 +545,215 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             </div>
           </div>
 
-          {/* Seção 3: Perfil, Personalidade & Popularidades */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-              <Smile className="w-3.5 h-3.5 text-purple-400" />
-              Personalidade & Imagem Comercial
-            </h4>
-
-            {/* 4 Métricas de Personalidade P (faixas) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-              {personalityP.map((p) => (
-                <div
-                  key={p.label}
-                  className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800 space-y-1"
-                >
-                  <div className="flex justify-between text-[11px] text-zinc-400">
-                    <span>{p.label}</span>
-                    <span className="font-mono font-bold text-zinc-200">
-                      {getAttrDisplay(p.val).label}
-                    </span>
-                  </div>
-                  <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
-                    <div className="bg-purple-500 h-full" style={{ width: `${p.val}%` }} />
-                  </div>
-                </div>
-              ))}
+          {/* Seção 3: Personalidade Canônica, Relações e Memórias (Implementação Nº 6A) */}
+          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-4">
+            <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                <Brain className="w-3.5 h-3.5 text-purple-400" />
+                Personalidade Canônica & Estado Psicológico
+              </h4>
+              <Badge
+                variant="outline"
+                className="text-[10px] font-mono border-purple-700/50 text-purple-300 bg-purple-950/30"
+              >
+                Trait ≠ State (6A)
+              </Badge>
             </div>
 
-            {/* Reputação e Popularidades V (exatos do PDF) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
-              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
-                  Reputação (V)
-                </span>
-                <span className="font-mono font-bold text-amber-300">
-                  {pilot.reputation ?? pilot.speed} pts
-                </span>
-              </div>
-              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
-                  Pop. Global (V)
-                </span>
-                <span className="font-mono font-bold text-blue-300">
-                  {pilot.globalPopularity ?? Math.max(30, pilot.speed - 5)}%
-                </span>
-              </div>
-              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
-                  Pop. Local (V)
-                </span>
-                <span className="font-mono font-bold text-emerald-300">
-                  {pilot.localPopularity ?? Math.min(100, pilot.speed + 10)}%
-                </span>
-              </div>
-              <div className="p-2 bg-zinc-950/40 rounded border border-zinc-800/60">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block">
-                  Mercado Chave (V)
-                </span>
-                <span className="font-mono font-bold text-white">
-                  {pilot.localMarket || pilot.nationality.substring(0, 2).toUpperCase()}
-                </span>
-              </div>
-            </div>
-
-            {/* Traços revelados por nome */}
-            <div className="pt-2">
-              <span className="text-[11px] font-mono text-zinc-400 block mb-1.5 uppercase font-semibold">
-                Traços Revelados
+            {/* Tags Qualitativas da Personalidade */}
+            <div>
+              <span className="text-[10px] font-mono uppercase text-zinc-400 block mb-1.5 font-semibold">
+                Perfil de Personalidade (Traits Canônicos)
               </span>
-              <div className="flex flex-wrap gap-2">
-                {traits.map((t) => (
+              <div className="flex flex-wrap gap-1.5">
+                {descriptors.map((desc) => (
                   <Badge
-                    key={t}
-                    variant="outline"
-                    className="bg-zinc-800/80 border-zinc-700 text-zinc-200 text-xs py-1 px-2.5"
+                    key={desc}
+                    className="bg-purple-950/70 border border-purple-700 text-purple-200 text-xs py-0.5 px-2.5 font-medium"
                   >
-                    {t}
+                    {desc}
                   </Badge>
                 ))}
               </div>
             </div>
 
-            {/* Parâmetros Ocultos O (sem números, apenas regra descritiva) */}
-            <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
-              <Lock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-              <span>
-                Parâmetros Ocultos MBJ (Temperamento, 14 Tetos de Habilidade, Curva de Declínio,
-                Horizonte de Aposentadoria e Pesos Negociais) operam restritos à simulação interna.
-              </span>
+            {/* Estado Psicológico Atual (Qualitativo) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
+                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+                  Satisfação
+                </span>
+                <span className="font-semibold text-emerald-400">
+                  {psychAudit.qualitativeState.satisfaction}
+                </span>
+              </div>
+              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
+                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+                  Confiança
+                </span>
+                <span className="font-semibold text-blue-400">
+                  {psychAudit.qualitativeState.confidence}
+                </span>
+              </div>
+              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
+                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+                  Pressão Sentida
+                </span>
+                <span className="font-semibold text-amber-400">
+                  {psychAudit.qualitativeState.pressure}
+                </span>
+              </div>
+              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
+                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+                  Frustração
+                </span>
+                <span className="font-semibold text-rose-400">
+                  {psychAudit.qualitativeState.frustration}
+                </span>
+              </div>
             </div>
+
+            {/* Relações Tridimensionais (Team Principal, Equipe, Companheiro) */}
+            <div className="pt-2 border-t border-zinc-800/80 space-y-2">
+              <span className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold flex items-center gap-1.5">
+                <Handshake className="w-3 h-3 text-cyan-400" /> Vínculos & Relações Internas
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                {/* Relação com Team Principal */}
+                <div className="p-2.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-1">
+                  <div className="font-semibold text-zinc-200 flex items-center justify-between">
+                    <span>Team Principal</span>
+                    <span className="font-mono text-[10px] text-zinc-400">
+                      {isUserTeam
+                        ? `${psychAudit.relationships.teamPrincipal.trust}% Confiança`
+                        : 'Vínculo Ativo'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Confiança:{' '}
+                    <strong className="text-white">
+                      {formatQualitativeState(
+                        psychAudit.relationships.teamPrincipal.trust,
+                        'trust',
+                      )}
+                    </strong>
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Respeito:{' '}
+                    <strong className="text-zinc-300">
+                      {formatQualitativeState(
+                        psychAudit.relationships.teamPrincipal.respect,
+                        'confidence',
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Relação com a Equipe / Fábrica */}
+                <div className="p-2.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-1">
+                  <div className="font-semibold text-zinc-200 flex items-center justify-between">
+                    <span>Equipe / Fábrica</span>
+                    <span className="font-mono text-[10px] text-zinc-400">
+                      {isUserTeam
+                        ? `${psychAudit.relationships.team.technicalTrust}% Técnico`
+                        : 'Vínculo'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Pertencimento:{' '}
+                    <strong className="text-white">
+                      {formatQualitativeState(
+                        psychAudit.relationships.team.belonging,
+                        'satisfaction',
+                      )}
+                    </strong>
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Desejo de Ficar:{' '}
+                    <strong className="text-amber-300">
+                      {formatQualitativeState(psychAudit.derivedDesireToStay, 'trust')}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Relação com Companheiro */}
+                <div className="p-2.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-1">
+                  <div className="font-semibold text-zinc-200 flex items-center justify-between">
+                    <span>Companheiro</span>
+                    {psychAudit.relationships.teammate && (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] py-0 border-zinc-700 text-zinc-300 font-mono"
+                      >
+                        {psychAudit.relationships.teammate.status}
+                      </Badge>
+                    )}
+                  </div>
+                  {psychAudit.relationships.teammate ? (
+                    <>
+                      <div className="text-[11px] text-zinc-400 truncate">
+                        {psychAudit.relationships.teammate.teammateName}
+                      </div>
+                      <div className="text-[11px] text-zinc-400">
+                        Respeito Mútuo:{' '}
+                        <strong className="text-white">
+                          {formatQualitativeState(
+                            psychAudit.relationships.teammate.respect,
+                            'confidence',
+                          )}
+                        </strong>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-[11px] text-zinc-500 italic">Sem disputa direta ativa</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Memórias Relevantes Ativas */}
+            {psychAudit.topActiveMemories.length > 0 && (
+              <div className="pt-2 border-t border-zinc-800/80 space-y-1.5">
+                <span className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-400" /> Memórias Recentes Relevantes
+                </span>
+                <div className="space-y-1.5">
+                  {psychAudit.topActiveMemories.map((mem) => (
+                    <div
+                      key={mem.memoryId}
+                      className="text-xs p-2 rounded bg-zinc-950/50 border border-zinc-800/70 flex items-start justify-between gap-2"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="text-zinc-200 font-medium">{mem.description}</div>
+                        <div className="text-[10px] text-zinc-400">{mem.contextExplanation}</div>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={`text-[9px] uppercase shrink-0 py-0 ${
+                          mem.polarity === 'positive'
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            : mem.polarity === 'negative'
+                              ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                              : 'bg-zinc-800 text-zinc-300'
+                        }`}
+                      >
+                        {mem.persistenceClass}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Parâmetros Ocultos O (sem números, apenas regra descritiva) */}
+          <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
+            <Lock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+            <span>
+              Parâmetros Ocultos MBJ (Temperamento, 14 Tetos de Habilidade, Curva de Declínio,
+              Horizonte de Aposentadoria e Pesos Negociais) operam restritos à simulação interna.
+            </span>
           </div>
 
           {/* Seção 4: Carreira & Histórico (V) */}
