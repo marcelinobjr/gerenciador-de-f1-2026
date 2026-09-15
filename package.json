@@ -2,14 +2,11 @@
   "name": "skip-react-template",
   "description": "A frontend React Vite TypeScript Shadcn UI template for Skip projects",
   "private": true,
-  "version": "0.0.209",
+  "version": "0.0.210",
   "type": "module",
   "scripts": {
     "start": "vite dev",
     "dev": "vite",
-    "prebuild": "node scripts/apply-raceslim-fix.mjs",
-    "pretest": "node scripts/apply-raceslim-fix.mjs",
-    "prelint": "node scripts/apply-raceslim-fix.mjs",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "oxlint src",
@@ -17,7 +14,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "preview": "vite preview",
-    "test": "vitest run scripts/apply-race-patch.test.ts scripts/qa_wizard_modes.test.ts scripts/qa_canonical_foundations.test.ts src/test/driver-personality-relationships.test.ts src/test/weekend-simulation-canonical-8a.test.ts",
+    "test": "vitest run scripts/qa_wizard_modes.test.ts scripts/qa_canonical_foundations.test.ts src/test/driver-personality-relationships.test.ts src/test/weekend-simulation-canonical-8a.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
