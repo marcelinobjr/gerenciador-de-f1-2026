@@ -48,6 +48,8 @@ export interface MBJPilotData {
   originSchema?: string
   statusScenario?: string
   biography?: string
+  operatingTeam?: string
+  supporterBrand?: string
 
   // 14 Atributos Esportivos P
   qualifying?: number

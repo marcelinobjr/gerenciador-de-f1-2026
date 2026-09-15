@@ -6,6 +6,7 @@ import { DriverPoster } from '@/components/DriverPoster'
 import { PilotProfileDialog, formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { getCountryFlag } from '@/lib/country-flags'
 import { MBJ_2026_PILOTS, checkEligibility, getOverallRating } from '@/lib/mbj-drivers-data'
+import { OFFICIAL_F1_ACADEMY_MBJ_2026 } from '@/lib/f1-academy-official-data'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -99,6 +100,8 @@ export interface UnifiedDriverItem {
   preferredNumber?: number
   eligibilityStatus?: string
   biography?: string
+  operatingTeam?: string
+  supporterBrand?: string
   qualifying?: number
   racePace?: number
   start?: number
@@ -189,10 +192,16 @@ export default function DriversPage() {
 
   // Normalização unificada unindo banco PocketBase + dados catalogados do MBJ
   const unifiedDrivers: UnifiedDriverItem[] = useMemo(() => {
-    // Mapa auxiliar do MBJ por nome normalizado
+    // Mapa auxiliar do MBJ geral por nome normalizado
     const mbjMap = new Map<string, (typeof MBJ_2026_PILOTS)[number]>()
     for (const pilot of MBJ_2026_PILOTS) {
       mbjMap.set(pilot.name.toLowerCase().trim(), pilot)
+    }
+
+    // Mapa auxiliar F1 Academy oficial do PDF MBJ 2026
+    const f1AcademyMap = new Map<string, (typeof OFFICIAL_F1_ACADEMY_MBJ_2026)[number]>()
+    for (const pilot of OFFICIAL_F1_ACADEMY_MBJ_2026) {
+      f1AcademyMap.set(pilot.name.toLowerCase().trim(), pilot)
     }
 
     // Mapa auxiliar de equipes do banco por ID e por team_key
@@ -210,36 +219,46 @@ export default function DriversPage() {
       visitedNames.add(normName)
 
       const mbjInfo = mbjMap.get(normName)
+      const f1aInfo = f1AcademyMap.get(normName)
       const associatedTeamId = d.team_id || d.reserve_team_id || null
       const associatedTeam = associatedTeamId ? teamById.get(associatedTeamId) : null
 
       const isPlayer = Boolean(team?.id && (d.team_id === team.id || d.reserve_team_id === team.id))
 
+      // Categoria
+      const cat = (d.category ||
+        (f1aInfo ? 'f1_academy' : mbjInfo?.category || 'f1')) as UnifiedDriverItem['category']
+
       // Salário sempre em US$
-      // Se vier com valor inflado histórico (ex: > 100M que era em reais antigos), normaliza para US$
-      const rawSalary = d.salary || (mbjInfo ? mbjInfo.salaryUsd : 3000000)
+      const rawSalary =
+        d.salary || (f1aInfo ? f1aInfo.referenceAnnualUsd : mbjInfo ? mbjInfo.salaryUsd : 3000000)
       const salaryUsd = rawSalary > 100000000 ? Math.round(rawSalary / 5.75) : rawSalary
 
-      // Equipe
+      // Equipe / Equipe Operadora e Apoiadora (F1 Academy)
       const teamName =
-        associatedTeam?.name || (mbjInfo?.teamName ?? (associatedTeamId ? 'Equipe F1' : null))
-      const teamColor = associatedTeam?.color || '#E10600'
+        associatedTeam?.name ||
+        (f1aInfo
+          ? `${f1aInfo.operatingTeam} (${f1aInfo.supporterBrand})`
+          : (mbjInfo?.teamName ?? (associatedTeamId ? 'Equipe F1' : null)))
+      const teamColor = associatedTeam?.color || (f1aInfo ? '#EC4899' : '#E10600')
       const teamKey = associatedTeam?.team_key || mbjInfo?.teamKey || null
 
-      // Categoria
-      const cat = (d.category || mbjInfo?.category || 'f1') as UnifiedDriverItem['category']
-
       // Métricas operacionais
-      const speed = d.speed || mbjInfo?.speed || 75
-      const consistency = d.consistency || mbjInfo?.consistency || 75
-      const rain = d.rain || mbjInfo?.rain || 75
-      const defense = d.defense || mbjInfo?.defense || 75
+      const speed = d.speed || f1aInfo?.speed || mbjInfo?.speed || 75
+      const consistency = d.consistency || f1aInfo?.consistency || mbjInfo?.consistency || 75
+      const rain = d.rain || f1aInfo?.rain || mbjInfo?.rain || 75
+      const defense = d.defense || f1aInfo?.defense || mbjInfo?.defense || 75
 
       // Projeções P
-      const potentialMin = mbjInfo?.potentialMin ?? Math.max(70, speed - 2)
-      const potentialMax = mbjInfo?.potentialMax ?? Math.min(99, speed + 6)
+      const potentialMin = f1aInfo
+        ? Math.round((f1aInfo.ceilings.speed + f1aInfo.ceilings.racePace) / 2) - 4
+        : (mbjInfo?.potentialMin ?? Math.max(70, speed - 2))
+      const potentialMax = f1aInfo
+        ? Math.round((f1aInfo.ceilings.speed + f1aInfo.ceilings.racePace) / 2) + 3
+        : (mbjInfo?.potentialMax ?? Math.min(99, speed + 6))
       const f1Races = mbjInfo?.f1RacesCompleted ?? (cat === 'f1' ? 20 : 0)
-      const superlicense = mbjInfo?.superlicensePoints ?? (cat === 'f1' ? 50 : 35)
+      const superlicense =
+        mbjInfo?.superlicensePoints ?? (cat === 'f1' ? 50 : cat === 'f1_academy' ? 10 : 35)
       const isProspect =
         mbjInfo?.isAcademyProspect ||
         cat === 'f2' ||
@@ -273,40 +292,66 @@ export default function DriversPage() {
         nextContractRole: d.next_contract_role,
         rawDbRecord: d,
 
-        // Campos completos MBJ
-        birthDate: mbjInfo?.birthDate,
-        preferredNumber: mbjInfo?.preferredNumber,
-        eligibilityStatus: mbjInfo?.eligibilityStatus,
-        biography: mbjInfo?.biography,
+        // Campos completos MBJ / F1 Academy
+        birthDate: f1aInfo?.birthDate || mbjInfo?.birthDate,
+        preferredNumber: f1aInfo?.academyNumber || mbjInfo?.preferredNumber,
+        eligibilityStatus: f1aInfo
+          ? 'F1 ACADEMY — BOLSA DE DESENVOLVIMENTO'
+          : mbjInfo?.eligibilityStatus,
+        biography: f1aInfo?.biography || mbjInfo?.biography,
+        operatingTeam: f1aInfo?.operatingTeam,
+        supporterBrand: f1aInfo?.supporterBrand,
         qualifying:
-          mbjInfo?.qualifying ?? Math.min(99, Math.max(50, speed + (speed > 85 ? 1 : -1))),
+          f1aInfo?.qualifying ??
+          mbjInfo?.qualifying ??
+          Math.min(99, Math.max(50, speed + (speed > 85 ? 1 : -1))),
         racePace:
-          mbjInfo?.racePace ?? Math.min(99, Math.max(50, Math.round((speed + consistency) / 2))),
-        start: mbjInfo?.start ?? Math.min(99, Math.max(50, defense - 2)),
-        overtake: mbjInfo?.overtake ?? Math.min(99, Math.max(50, speed - 1)),
-        tireManagement: mbjInfo?.tireManagement ?? Math.min(99, Math.max(50, consistency)),
-        energyManagement: mbjInfo?.energyManagement ?? Math.min(99, Math.max(50, consistency - 1)),
-        feedback: mbjInfo?.feedback ?? Math.min(99, Math.max(50, consistency + 2)),
-        pressure: mbjInfo?.pressure ?? Math.min(99, Math.max(50, speed - 2)),
-        concentration: mbjInfo?.concentration ?? Math.min(99, Math.max(50, consistency)),
-        resilience: mbjInfo?.resilience ?? Math.min(99, Math.max(50, defense)),
-        aggressiveness: mbjInfo?.aggressiveness ?? 70,
-        ambition: mbjInfo?.ambition ?? 80,
-        loyalty: mbjInfo?.loyalty ?? 75,
-        professionalism: mbjInfo?.professionalism ?? 85,
-        reputation: mbjInfo?.reputation ?? Math.min(99, Math.max(50, speed)),
-        globalPopularity: mbjInfo?.globalPopularity ?? Math.min(99, Math.max(40, speed - 5)),
-        localPopularity: mbjInfo?.localPopularity ?? Math.min(100, Math.max(60, speed + 10)),
-        localMarket: mbjInfo?.localMarket,
-        moraleState: d.morale || mbjInfo?.moraleState || 75,
-        confidence: mbjInfo?.confidence ?? 75,
-        physicalCondition: d.physical_condition || mbjInfo?.physicalCondition || 100,
-        stress: mbjInfo?.stress ?? 25,
-        adaptability: mbjInfo?.adaptability ?? 80,
-        adaptationF1: mbjInfo?.adaptationF1 ?? (cat === 'f1' ? 90 : 60),
-        adaptationCar: mbjInfo?.adaptationCar ?? 80,
-        adaptationTeam: mbjInfo?.adaptationTeam ?? 80,
-        revealedTraits: mbjInfo?.revealedTraits,
+          f1aInfo?.racePace ??
+          mbjInfo?.racePace ??
+          Math.min(99, Math.max(50, Math.round((speed + consistency) / 2))),
+        start: f1aInfo?.start ?? mbjInfo?.start ?? Math.min(99, Math.max(50, defense - 2)),
+        overtake: f1aInfo?.overtake ?? mbjInfo?.overtake ?? Math.min(99, Math.max(50, speed - 1)),
+        tireManagement:
+          f1aInfo?.tires ?? mbjInfo?.tireManagement ?? Math.min(99, Math.max(50, consistency)),
+        energyManagement:
+          f1aInfo?.energy ??
+          mbjInfo?.energyManagement ??
+          Math.min(99, Math.max(50, consistency - 1)),
+        feedback:
+          f1aInfo?.feedback ?? mbjInfo?.feedback ?? Math.min(99, Math.max(50, consistency + 2)),
+        pressure: f1aInfo?.pressure ?? mbjInfo?.pressure ?? Math.min(99, Math.max(50, speed - 2)),
+        concentration:
+          f1aInfo?.concentration ??
+          mbjInfo?.concentration ??
+          Math.min(99, Math.max(50, consistency)),
+        resilience:
+          f1aInfo?.resilience ?? mbjInfo?.resilience ?? Math.min(99, Math.max(50, defense)),
+        aggressiveness: f1aInfo?.aggressiveness ?? mbjInfo?.aggressiveness ?? 70,
+        ambition: f1aInfo?.ambition ?? mbjInfo?.ambition ?? 80,
+        loyalty: f1aInfo?.loyalty ?? mbjInfo?.loyalty ?? 75,
+        professionalism: f1aInfo?.professionalism ?? mbjInfo?.professionalism ?? 85,
+        reputation: f1aInfo?.reputation ?? mbjInfo?.reputation ?? Math.min(99, Math.max(50, speed)),
+        globalPopularity:
+          f1aInfo?.globalPopularity ??
+          mbjInfo?.globalPopularity ??
+          Math.min(99, Math.max(40, speed - 5)),
+        localPopularity:
+          f1aInfo?.localPopularity ??
+          mbjInfo?.localPopularity ??
+          Math.min(100, Math.max(60, speed + 10)),
+        localMarket: f1aInfo?.localMarket || mbjInfo?.localMarket,
+        moraleState: d.morale || f1aInfo?.morale || mbjInfo?.moraleState || 75,
+        confidence: f1aInfo?.confidence ?? mbjInfo?.confidence ?? 75,
+        physicalCondition:
+          d.physical_condition || f1aInfo?.condition || mbjInfo?.physicalCondition || 100,
+        stress: f1aInfo?.stress ?? mbjInfo?.stress ?? 25,
+        adaptability: f1aInfo?.adaptability ?? mbjInfo?.adaptability ?? 80,
+        adaptationF1: f1aInfo?.adaptationF1 ?? mbjInfo?.adaptationF1 ?? (cat === 'f1' ? 90 : 60),
+        adaptationCar: f1aInfo?.carAdaptation ?? mbjInfo?.adaptationCar ?? 80,
+        adaptationTeam: f1aInfo?.teamAdaptation ?? mbjInfo?.adaptationTeam ?? 80,
+        revealedTraits: f1aInfo
+          ? f1aInfo.traits.map((t) => `${t.name} (${t.code}) - ${t.revealedStatus}`)
+          : mbjInfo?.revealedTraits,
         exitClauseUsd: mbjInfo?.exitClauseUsd ?? Math.round(salaryUsd * 2.5),
         winBonusUsd: mbjInfo?.winBonusUsd ?? Math.round(salaryUsd * 0.08),
       })
@@ -636,6 +681,7 @@ export default function DriversPage() {
 
   // Renderizador unificado do card do piloto
   const renderPilotCard = (pilot: UnifiedDriverItem, showContractButton = true) => {
+    const isAcademy = pilot.category === 'f1_academy'
     const ovr = getOverallRating(pilot)
     const eligibility = checkEligibility(pilot)
 
@@ -663,7 +709,7 @@ export default function DriversPage() {
 
             {/* Dados do Piloto com Grid sem sobreposição e largura ampla */}
             <div className="flex-1 min-w-0 flex flex-col justify-between">
-              {/* Linha superior: País à esquerda, OVR sempre visível à direita */}
+              {/* Linha superior: País à esquerda, OVR sempre visível à direita (ou Regra R03 Sem Overall para F1 Academy) */}
               <div className="flex items-center justify-between gap-1.5 mb-1">
                 <Badge
                   variant="outline"
@@ -676,19 +722,28 @@ export default function DriversPage() {
 
                 <div className="flex items-center gap-1 shrink-0 ml-auto">
                   <span className="text-[10px] text-zinc-400 font-mono font-semibold uppercase">
-                    OVR
+                    {isAcademy ? 'F1A' : 'OVR'}
                   </span>
-                  <Badge
-                    className={`font-mono font-bold text-xs px-1.5 py-0.5 ${
-                      ovr >= 90
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                        : ovr >= 82
-                          ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                          : 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                    }`}
-                  >
-                    {ovr}
-                  </Badge>
+                  {isAcademy ? (
+                    <Badge
+                      title="Regra MBJ R03: Sem overall derivado na F1 Academy"
+                      className="font-mono font-medium text-[11px] px-1.5 py-0.5 bg-pink-950/40 text-pink-300 border-pink-700/50"
+                    >
+                      {pilot.speed}–{pilot.consistency}
+                    </Badge>
+                  ) : (
+                    <Badge
+                      className={`font-mono font-bold text-xs px-1.5 py-0.5 ${
+                        ovr >= 90
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : ovr >= 82
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                            : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                      }`}
+                    >
+                      {ovr}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -720,7 +775,9 @@ export default function DriversPage() {
               {/* Equipe em linha própria com tooltip nativo, sem cortar palavra-chave */}
               <div
                 title={formattedTeamName}
-                className="text-xs text-zinc-300 font-medium truncate mt-0.5 block"
+                className={`text-xs font-medium truncate mt-0.5 block ${
+                  isAcademy ? 'text-pink-300/90' : 'text-zinc-300'
+                }`}
               >
                 {formattedTeamName}
               </div>
@@ -1054,12 +1111,20 @@ export default function DriversPage() {
 
           {/* ABA 5: F1 ACADEMY */}
           <TabsContent value="f1_academy" className="space-y-4">
-            <div className="bg-zinc-900/60 p-3 rounded-md border border-pink-900/40 text-xs text-zinc-400 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-pink-400" />
-              <span>
-                Categoria oficial FIA F1 Academy: jovens promessas femininas acelerando nos
-                monopostos com suporte técnico de equipes oficiais da F1.
-              </span>
+            <div className="bg-zinc-900/60 p-3.5 rounded-lg border border-pink-900/40 text-xs text-zinc-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-pink-400 shrink-0" />
+                <span>
+                  Banco Oficial MBJ 2026 • 17 pilotas com suporte de construtoras F1 e marcas
+                  globais. Regra R03: sem OVR derivado (valores exibidos por faixa esportiva).
+                </span>
+              </div>
+              <Badge
+                variant="outline"
+                className="font-mono text-[10px] text-pink-300 border-pink-800 bg-pink-950/40 w-fit shrink-0"
+              >
+                17 Pilotas Fixas • Idades em 01/03/2026
+              </Badge>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {f1AcademyPilots.map((pilot) => renderPilotCard(pilot, true))}

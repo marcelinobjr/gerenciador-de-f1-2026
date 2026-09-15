@@ -321,22 +321,33 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 )}
               </DialogDescription>
 
-              {/* Destaque OVR / Reputação e Salário de Referência V */}
+              {/* Destaque OVR / Reputação e Salário de Referência V (Regra R03 sem OVR na F1 Academy) */}
               <div className="mt-3.5 flex flex-wrap items-center justify-center sm:justify-start gap-3">
                 <div className="flex items-center gap-2 bg-zinc-900/90 px-3 py-1.5 rounded-lg border border-zinc-800">
                   <span className="text-[11px] font-mono uppercase text-zinc-400 font-semibold">
-                    Overall
+                    {pilot.category === 'f1_academy' ? 'Perfil MBJ' : 'Overall'}
                   </span>
                   <span
                     className={`font-black font-mono text-sm px-1.5 py-0.5 rounded ${
-                      ovr >= 90
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                        : ovr >= 82
-                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                          : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                      pilot.category === 'f1_academy'
+                        ? 'bg-pink-950/40 text-pink-300 border border-pink-700/50'
+                        : ovr >= 90
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : ovr >= 82
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                            : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
                     }`}
+                    title={
+                      pilot.category === 'f1_academy'
+                        ? 'Regra MBJ R03: Sem overall derivado nem média universal para F1 Academy'
+                        : undefined
+                    }
                   >
-                    {isUserTeam ? ovr : `${Math.max(50, ovr - 2)}–${Math.min(99, ovr + 2)}`}
+                    {pilot.category === 'f1_academy'
+                      ? 'Faixas P'
+                      : isUserTeam
+                        ? ovr
+                        : `${Math.max(50, ovr - 2)}–${Math.min(99, ovr + 2)}`}
                   </span>
                 </div>
 
@@ -612,9 +623,26 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   </span>
                 </>
               )}
+              {pilot.operatingTeam && (
+                <>
+                  <span>•</span>
+                  <span>
+                    Equipe Operadora:{' '}
+                    <strong className="text-pink-400">{pilot.operatingTeam}</strong>
+                  </span>
+                </>
+              )}
+              {pilot.supporterBrand && (
+                <>
+                  <span>•</span>
+                  <span>
+                    Apoiadora de Marca:{' '}
+                    <strong className="text-purple-400">{pilot.supporterBrand}</strong>
+                  </span>
+                </>
+              )}
             </div>
           </div>
-
           {/* Seção 5: Situação Contratual & Elegibilidade MBJ */}
           <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
