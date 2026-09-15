@@ -99,6 +99,9 @@ import { RaceResultsTable, RaceResultEntry } from '@/components/race/RaceResults
 import { DecisionModals } from '@/components/race/DecisionModals'
 import { SillySeasonModal } from '@/components/race/SillySeasonModal'
 import { TeamRadioDialog } from '@/components/TeamRadioDialog'
+import { TireStockCard } from '@/pages/race/TireStockCard'
+import { WeatherRadarCard } from '@/pages/race/WeatherRadarCard'
+import { TrackInfoPanel } from '@/pages/race/TrackInfoPanel'
 import { getCountryFlag } from '@/lib/country-flags'
 import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
 import {
@@ -4741,8 +4744,8 @@ export default function RacePage() {
         }
       }
 
-      const driversCost = drivers.reduce((sum, d) => sum + Math.round(d.salary / 24), 0)
-      const engineCost = Math.round(currentEngine.costAnnual / 24)
+      const driversCost = drivers.reduce((sum, d) => sum + Math.round(d.salary / totalRounds), 0)
+      const engineCost = Math.round(currentEngine.costAnnual / totalRounds)
       const netCashflow = totalSponsorIncome - driversCost - engineCost
       const updatedBudget = Math.max(0, team.budget + netCashflow)
 
@@ -4984,265 +4987,16 @@ export default function RacePage() {
         }
       />
 
-      {/* PAINEL TÉCNICO DO CIRCUITO: IMAGEM HOMOLOGADA / BLUEPRINT + VOLTAS TOTAIS (EDIT 4) */}
-      {(() => {
-        const activeCircuitDb = circuits.find((c) => c.round === currentRound)
-        const uploadedPhotoUrl = activeCircuitDb?.photo
-          ? pb.files.getUrl(activeCircuitDb, activeCircuitDb.photo)
-          : null
-        const defaultAsset = currentRound === 1 ? defaultAustraliaMap : null
-        const activeCircuitImage = uploadedPhotoUrl || defaultAsset
+      <TrackInfoPanel
+        currentRound={currentRound}
+        gpInfo={gpInfo}
+        circuits={circuits}
+        defaultAustraliaMap={defaultAustraliaMap}
+        puPoolStatus={puPoolStatus}
+        team={team}
+      />
 
-        return (
-          <>
-            {/* ITEM 5: BANNER DE POOL DE MOTORES COMPROMETIDO */}
-            {puPoolStatus.isCompromised && (
-              <div className="p-4 rounded-xl bg-amber-950/40 border-2 border-amber-500/70 shadow-lg space-y-2 animate-pulse">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                  <h4 className="text-sm font-extrabold text-amber-300 uppercase tracking-wider">
-                    ⚠️ ALERTA FIA: POOL DE MOTORES COMPROMETIDO
-                  </h4>
-                </div>
-                <p className="text-xs text-amber-100 font-mono leading-relaxed">
-                  ⚠️ Todos os motores estão comprometidos (&gt;65% de desgaste) e sua equipe não
-                  possui margem financeira ou de teto de gastos para introduzir uma nova PU. Você
-                  larga obrigatoriamente com o motor menos desgastado (PU #
-                  {puPoolStatus.leastWornPu.id} com {puPoolStatus.leastWear}% de desgaste).
-                  Desempenho reduzido: penalidade de ritmo de +
-                  {puPoolStatus.pacePenaltySec.toFixed(2)}s/volta (+0,03s por % acima de 65%).
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="relative z-10 lg:col-span-1">
-                {' '}
-                <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] overflow-hidden flex flex-col justify-between h-full shadow-xl">
-                  <div className="relative w-full aspect-[16/9] max-h-72 bg-[#080B10] overflow-hidden border-b border-[#1F2733]/80 group flex items-center justify-center">
-                    {activeCircuitImage ? (
-                      <div className="w-full h-full relative bg-[#0B0E14] overflow-hidden flex items-center justify-center p-2">
-                        <CircuitTrackImage
-                          src={activeCircuitImage}
-                          alt={`Traçado do ${gpInfo.circuit}`}
-                          className="w-full h-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
-                        />
-                        {/* Gradiente escuro para legibilidade */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14]/90 via-[#0B0E14]/40 to-black/20 pointer-events-none" />
-
-                        {/* Badge superior com Rodada e Circuito */}
-                        <div className="absolute top-2.5 left-2.5 z-10">
-                          <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
-                            R{currentRound}/24 • {gpInfo.circuit}
-                          </Badge>
-                        </div>
-
-                        {/* Nome do GP sobreposto */}
-                        <div className="absolute bottom-2.5 left-3 right-3 z-10">
-                          <span className="text-[10px] font-mono font-bold tracking-wider text-cyan-400 uppercase block drop-shadow">
-                            {uploadedPhotoUrl ? 'Traçado Homologado' : 'Mapa Oficial FIA'}
-                          </span>
-                          <h4 className="text-sm font-extrabold text-white truncate drop-shadow-md">
-                            {gpInfo.name}
-                          </h4>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="w-full h-full relative">
-                        <CircuitBlueprint
-                          round={currentRound}
-                          circuitName={gpInfo.circuit}
-                          laps={gpInfo.laps}
-                          lengthKm={gpInfo.circuitLengthKm}
-                          className="h-full border-none rounded-none !p-3"
-                        />
-                        <div className="absolute top-2.5 left-2.5 z-10">
-                          <Badge className="bg-[#0B0E14]/85 text-[#F5F7FA] border border-[#1F2733] font-mono text-xs font-bold shadow-md">
-                            R{currentRound}/24 • {gpInfo.circuit}
-                          </Badge>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-3 bg-[#080C14]/80 border-t border-[#1A2333] flex items-center justify-between text-xs font-mono">
-                    <span className="text-[#8B95A7]">Extensão:</span>
-                    <span className="text-cyan-400 font-bold">{gpInfo.circuitLengthKm} km</span>
-                    <span className="text-[#8B95A7] ml-2">Voltas:</span>
-                    <span className="text-white font-bold">{gpInfo.laps}</span>
-                  </div>
-                </Card>
-              </div>
-
-              <div className="relative z-10 lg:col-span-2 space-y-4">
-                <Card className="bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 h-full flex flex-col justify-between shadow-xl">
-                  <div>
-                    <div className="flex items-center justify-between border-b border-[#1A2333] pb-2 mb-3">
-                      <div>
-                        <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-                          DIRETRIZES DO AUTÓDROMO
-                        </span>
-                        <span className="text-xs font-mono font-black text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
-                          <Flag className="w-4 h-4 text-[#E10600]" /> Parâmetros de Prova & Extensão
-                          Oficial
-                        </span>
-                      </div>
-                      <Badge className="bg-[#00A6FB]/20 text-[#00A6FB] border-[#00A6FB]/40 font-mono text-xs">
-                        {gpInfo.laps} Voltas Programadas
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">
-                          Total de Voltas
-                        </span>
-                        <strong className="text-base text-white font-bold">
-                          {gpInfo.laps} voltas
-                        </strong>
-                        <span className="text-[10px] text-emerald-400 block mt-0.5">
-                          Distância ~305 km
-                        </span>
-                      </div>
-
-                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">
-                          Comprimento da Pista
-                        </span>
-                        <strong className="text-base text-cyan-400 font-bold">
-                          {gpInfo.circuitLengthKm} km
-                        </strong>
-                        <span className="text-[10px] text-[#8B95A7] block mt-0.5">Por volta</span>
-                      </div>
-
-                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">
-                          Carga Aerodinâmica
-                        </span>
-                        <strong className="text-base text-amber-400 font-bold">
-                          {gpInfo.downforceIdeal}/10
-                        </strong>
-                        <span className="text-[10px] text-[#8B95A7] block mt-0.5">
-                          Ideal recomendada
-                        </span>
-                      </div>
-
-                      <div className="p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333]">
-                        <span className="text-[10px] text-[#8B95A7] block uppercase">
-                          Rigidez Suspensão
-                        </span>
-                        <strong className="text-base text-emerald-400 font-bold">
-                          {gpInfo.suspensionIdeal}/10
-                        </strong>
-                        <span className="text-[10px] text-[#8B95A7] block mt-0.5">
-                          Trabalho de zebras
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 p-3 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-xs">
-                      <span className="text-[#8B95A7] font-mono block text-[11px]">
-                        Característica Central:
-                      </span>
-                      <p className="text-white font-medium mt-0.5 leading-relaxed">
-                        {gpInfo.characteristic}
-                      </p>
-                    </div>
-                  </div>
-
-                  {(team?.engine_pool_used ?? 1) > 4 && (
-                    <div className="mt-3 p-2.5 rounded-lg bg-red-950/40 border border-red-500/50 flex items-center gap-2 text-xs font-mono text-red-300">
-                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                      <span>
-                        Penalidade FIA no Grid: Equipe excedeu a cota de 4 motores da temporada (PU
-                        #{team?.engine_pool_used}). Seus pilotos largarão com penalização de
-                        posições!
-                      </span>
-                    </div>
-                  )}
-                </Card>
-              </div>
-            </div>
-          </>
-        )
-      })()}
-
-      {/* PAINEL DE PREVISÃO METEOROLÓGICA OFICIAL DA FIA 2026 */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
-                forecast.probability >= 50
-                  ? 'bg-sky-500/10 border-sky-500/40 text-sky-400'
-                  : 'bg-amber-500/10 border-amber-500/40 text-amber-400'
-              }`}
-            >
-              {forecast.probability >= 50 ? (
-                <CloudRain className="w-6 h-6 animate-pulse" />
-              ) : (
-                <Sun className="w-6 h-6" />
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-cyan-400">
-                  RADAR METEOROLÓGICO OFICIAL
-                </span>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] font-mono px-1.5 py-0 ${
-                    forecast.probability >= 60
-                      ? 'border-red-500/40 text-red-400 bg-red-500/10'
-                      : forecast.probability >= 30
-                        ? 'border-amber-500/40 text-amber-400 bg-amber-500/10'
-                        : 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
-                  }`}
-                >
-                  {forecast.probability}% Risco de Chuva
-                </Badge>
-              </div>
-              <h3 className="text-base font-black text-white mt-0.5">
-                Previsão para o GP: {forecast.expectedCondition}
-              </h3>
-              <p className="text-xs text-[#8B95A7] font-mono">
-                {forecast.probability >= 35 && forecast.rainLapStart
-                  ? `Alerta de Radar: Nuvem densa se aproximando com chuva prevista por volta da volta ${forecast.rainLapStart}.`
-                  : 'Condições meteorológicas estáveis previstas durante o evento.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 text-xs font-mono">
-            <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
-              <span className="text-[10px] text-[#8B95A7] block">Temp. Ar</span>
-              <strong className="text-sm text-[#F5F7FA]">{forecast.airTemp}°C</strong>
-            </div>
-            <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
-              <span className="text-[10px] text-[#8B95A7] block">Temp. Asfalto</span>
-              <strong className="text-sm text-amber-400">{forecast.trackTemp}°C</strong>
-            </div>
-            <div className="p-2.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
-              <span className="text-[10px] text-[#8B95A7] block">Clima Atual</span>
-              <strong
-                className={`text-sm ${
-                  weather === 'chuva_forte'
-                    ? 'text-blue-400 font-bold'
-                    : weather === 'chuva_fraca'
-                      ? 'text-sky-400'
-                      : 'text-emerald-400'
-                }`}
-              >
-                {weather === 'chuva_forte'
-                  ? '⛈️ Chuva Forte'
-                  : weather === 'chuva_fraca'
-                    ? '🌧️ Chuva Fraca'
-                    : '☀️ Seco'}
-              </strong>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <WeatherRadarCard forecast={forecast} weather={weather} />
 
       {/* Season Completed Banner if R24 */}
       {seasonCompleted && (
@@ -5276,102 +5030,7 @@ export default function RacePage() {
         </Card>
       )}
 
-      {/* TIRE ALLOTMENT STATUS BAR (FIA 2026 Regulation) */}
-      <Card className="relative z-10 bg-[#090D15]/80 backdrop-blur-md border border-[#1A2333] p-4 shadow-xl">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-              GERENCIAMENTO DE COMPOSTOS PIRELLI
-            </span>
-            <h3 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
-              <Disc className="w-4 h-4 text-[#E10600]" />
-              Estoque Oficial de Pneus do Piloto (Regulamento FIA 2026)
-            </h3>
-            <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
-              Alocação oficial: 2 Duros, 3 Médios, 3 Macios, 4 Intermediários, 3 Chuva Extrema.
-              Paradas nos boxes reutilizam jogos usados com desgaste proporcional!
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs font-mono">
-            {/* Hard */}
-            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-white ring-1 ring-slate-400" />
-                <span className="text-[#8B95A7] text-[10px]">DURO (+0.60s)</span>
-              </div>
-              <strong
-                className={`text-sm block mt-0.5 ${tireStock.duro === 0 ? 'text-red-400' : 'text-[#F5F7FA]'}`}
-              >
-                {tireStock.duro} jogos
-              </strong>
-              <span className="text-[10px] text-emerald-400 font-mono block mt-0.5">
-                ~{calculateCompoundLaps('duro')} voltas
-              </span>
-            </div>
-
-            {/* Medium */}
-            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 ring-1 ring-yellow-500" />
-                <span className="text-[#8B95A7] text-[10px]">MÉDIO (Ref 0.0s)</span>
-              </div>
-              <strong
-                className={`text-sm block mt-0.5 ${tireStock.medio === 0 ? 'text-red-400' : 'text-[#F5F7FA]'}`}
-              >
-                {tireStock.medio} jogos
-              </strong>
-              <span className="text-[10px] text-amber-400 font-mono block mt-0.5">
-                ~{calculateCompoundLaps('medio')} voltas
-              </span>
-            </div>
-
-            {/* Soft */}
-            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 ring-1 ring-red-600" />
-                <span className="text-[#8B95A7] text-[10px]">MACIO (-0.75s)</span>
-              </div>
-              <strong
-                className={`text-sm block mt-0.5 ${tireStock.macio === 0 ? 'text-red-400' : 'text-[#F5F7FA]'}`}
-              >
-                {tireStock.macio} jogos
-              </strong>
-              <span className="text-[10px] text-rose-400 font-mono block mt-0.5">
-                ~{calculateCompoundLaps('macio')} voltas
-              </span>
-            </div>
-
-            {/* Intermediate */}
-            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1 ring-emerald-600" />
-                <span className="text-[#8B95A7] text-[10px]">INTERMEDIÁRIO</span>
-              </div>
-              <strong
-                className={`text-sm block mt-0.5 ${tireStock.intermediario === 0 ? 'text-red-400' : 'text-[#F5F7FA]'}`}
-              >
-                {tireStock.intermediario} jogos
-              </strong>
-              <span className="text-[10px] text-sky-400 font-mono block mt-0.5">Chuva Fraca</span>
-            </div>
-
-            {/* Wet */}
-            <div className="p-2 rounded-lg bg-[#080C14]/80 border border-[#1A2333] text-center col-span-2 sm:col-span-1">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-1 ring-blue-600" />
-                <span className="text-[#8B95A7] text-[10px]">CHUVA EXT.</span>
-              </div>
-              <strong
-                className={`text-sm block mt-0.5 ${tireStock.chuva_extrema === 0 ? 'text-red-400' : 'text-[#F5F7FA]'}`}
-              >
-                {tireStock.chuva_extrema} jogos
-              </strong>
-              <span className="text-[10px] text-blue-400 font-mono block mt-0.5">Chuva Forte</span>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <TireStockCard tireStock={tireStock} calculateCompoundLaps={calculateCompoundLaps} />
 
       {/* WEEKEND TABS: TP1, TP2, Q1, Q2, Q3, CORRIDA */}
       <Tabs
