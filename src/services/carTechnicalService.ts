@@ -35,6 +35,7 @@ export class CarTechnicalService {
   public calculateAttributesFromComponents(
     components: ComponentRatingsMap,
     puSupplier?: string,
+    options?: { includePuBonus?: boolean },
   ): TechnicalAttributesMap {
     const attributeIds = Object.keys(TECHNICAL_ATTRIBUTE_METAS) as TechnicalAttributeId[]
     const attributes: Partial<TechnicalAttributesMap> = {}
@@ -53,11 +54,14 @@ export class CarTechnicalService {
         }
       }
 
-      // Normalização caso os pesos da linha não somem exatamente 1.0
+      // Cálculo base: média ponderada exata dos 8 componentes segundo a matriz (Aba 3 da Planilha)
       let rawAttrScore = totalWeight > 0 ? weightedSum / totalWeight : 50
 
-      // Pequena contribuição da Power Unit em velocidade, aceleração e confiabilidade
-      if (puSupplier && OFFICIAL_POWER_UNITS[puSupplier]) {
+      // Conforme itens 3 e 4 da especificação:
+      // O Power Unit fica FORA dos 8 componentes como subsistema separado.
+      // O cálculo central que reproduz a aba 5_Carro_Final deriva estritamente dos componentRatings + pesos.
+      // A contribuição opcional de PU só entra se explicitamente solicitada via includePuBonus.
+      if (options?.includePuBonus && puSupplier && OFFICIAL_POWER_UNITS[puSupplier]) {
         const pu = OFFICIAL_POWER_UNITS[puSupplier]
         if (attrId === 'topSpeed') {
           // 85% aero/chassi + 15% potência do motor
@@ -81,13 +85,43 @@ export class CarTechnicalService {
    * 2. Calcula o Car Overall final a partir dos 12 atributos técnicos e seus pesos (Aba 5).
    * Pesos: 12/12/12/10/8/8/8/8/8/5/4/5 (soma 100%).
    */
-  public calculateCarOverall(attributes: TechnicalAttributesMap): number {
+  public calculateCarOverall(
+    attributes: TechnicalAttributesMap,
+    options?: { round?: boolean },
+  ): number {
     let overall = 0
     for (const [attrId, weight] of Object.entries(TECHNICAL_ATTRIBUTE_WEIGHTS)) {
       const val = attributes[attrId as TechnicalAttributeId] ?? 50
       overall += val * weight
     }
-    return Number(overall.toFixed(2))
+    return options?.round ? Math.round(overall) : Number(overall.toFixed(2))
+  }
+
+  /**
+   * Avalia o delta de balanceamento conforme a Aba 6 da Planilha:
+   * Deltas maiores que ~1,5 são marcados para REVISAR (registra sem alterar por conta própria).
+   */
+  public evaluateBalanceStatus(
+    macroRating: number,
+    calculatedRating: number,
+  ): {
+    delta: number
+    status: 'EQUILIBRADO' | 'REVISAR'
+    needsReview: boolean
+    message: string
+  } {
+    const delta = Number((macroRating - calculatedRating).toFixed(2))
+    const absDelta = Math.abs(delta)
+    const needsReview = absDelta > 1.5
+
+    return {
+      delta,
+      status: needsReview ? 'REVISAR' : 'EQUILIBRADO',
+      needsReview,
+      message: needsReview
+        ? `Delta de balanceamento (${delta > 0 ? '+' : ''}${delta}) superior ao limiar de 1,5 (Aba 6: REVISAR).`
+        : `Delta de balanceamento (${delta > 0 ? '+' : ''}${delta}) dentro dos parâmetros aceitáveis.`,
+    }
   }
 
   /**

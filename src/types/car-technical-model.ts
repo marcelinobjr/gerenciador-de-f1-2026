@@ -298,3 +298,44 @@ export interface CarComparisonData {
   }
   differences: Partial<Record<TechnicalAttributeId, number>>
 }
+
+// 5. Preparação Estrutural para Desenvolvimento Futuro (Fase 3D - Item 7)
+// Modelo de dados de Desenvolvimento preparado para specs, projetos, trade-offs, CFD, túnel e correlação, sem o pipeline completo
+export interface DevelopmentTradeOff {
+  attributeGained: TechnicalAttributeId
+  gainAmount: number
+  attributeSacrificed: TechnicalAttributeId
+  sacrificeAmount: number
+  rationale: string
+}
+
+export interface CfdWindTunnelAllocation {
+  cfdHoursUsed: number
+  cfdHoursMax: number
+  windTunnelRunsUsed: number
+  windTunnelRunsMax: number
+  aeroEfficiencyBonus: number // Bônus gerado pela alocação no período ATR (Aerodynamic Testing Restrictions)
+}
+
+export interface CorrelationAnalysis {
+  correlationRate: number // 0-100% (taxa de correlação túnel de vento vs pista real)
+  simulatorFacilityLevel: number
+  windTunnelFacilityLevel: number
+  unforeseenAeroLossRisk: number // Risco de perda de correlação / porpoising imprevisto
+}
+
+export interface DevelopmentProjectBlueprint {
+  projectId: string
+  teamId: string
+  targetComponent: TechnicalComponentId
+  targetGeneration: number
+  specName: string
+  status: 'concepcao' | 'cfd_tunel' | 'fabricacao' | 'homologado' | 'cancelado'
+  tradeOffs: DevelopmentTradeOff[]
+  testingAllocation: CfdWindTunnelAllocation
+  correlation: CorrelationAnalysis
+  costUsd: number
+  durationRounds: number
+  roundsRemaining: number
+  expectedDeltaRatings: Partial<Record<TechnicalComponentId, number>>
+}

@@ -18,6 +18,11 @@ export interface TeamModel {
   photo?: string // Foto lateral do carro / banner da equipe
   carImage?: string // Foto lateral personalizada do carro do jogador
   cost_cap_spent?: number // Total gasto na temporada sujeito ao teto FIA (R$ 215M)
+  // Modelo Técnico Estrutural (Fase 3D) - Campos aditivos opcionais para compatibilidade
+  technical_attributes?: Record<string, number> // 12 atributos calculados
+  calculated_overall?: number // Overall técnico calculado
+  component_ratings?: Record<string, number> // Ratings dos 8 componentes
+  technical_balance_delta?: number // Delta macro vs calculado
   engine_pool_used?: number // Motores introduzidos no pool (limite regulamentar 4 antes de penalidades)
   active_engine_wear?: number // Desgaste 0-100% da unidade de potência atualmente instalada no carro
   factory_level?: number // Nível 1 a 5 da Fábrica de P&D
@@ -181,6 +186,12 @@ export interface PartModel {
   name: string
   level: number // 0-10
   condition?: number // 0-100 (% de integridade mecânica/estrutural)
+  // Campos aditivos para arquitetura Fase 3D: separação Design (Spec) vs Unidade Física
+  spec_id?: string // Referência à especificação de engenharia (Gen/Spec)
+  spec_generation?: number // Geração do projeto (1, 2, 3...)
+  component_id?: string // ID estável: frontWing, rearWing, floor, diffuser, sidepods, chassis, suspension, brakes
+  car_assignment?: 'car1' | 'car2' | 'stock' // Atribuição: Carro 1, Carro 2 ou Estoque
+  mileage_km?: number // Quilometragem percorrida pela unidade física
   team_id: string
   created?: string
   updated?: string
