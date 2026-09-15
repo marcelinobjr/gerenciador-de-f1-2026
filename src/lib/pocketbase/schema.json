@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T18:38:31.315Z",
+  "generatedAt": "2026-09-15T19:01:51.199Z",
   "collections": [
     {
       "name": "users",
@@ -400,6 +400,24 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "driver_shortlist",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active_driver_negotiations",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "driver_contract_preferences",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_teams_user ON teams (user_id)"]
@@ -463,6 +481,18 @@
         {
           "name": "last_processed_round",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "silly_season_board",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "confidential_market_events",
+          "type": "json",
           "required": false,
           "system": false
         }
@@ -764,6 +794,36 @@
         },
         {
           "name": "psychology_data",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "canonical_contract",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "future_contract",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "career_intent_state",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contract_role",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "estimated_market_value",
           "type": "json",
           "required": false,
           "system": false

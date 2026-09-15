@@ -298,6 +298,10 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
       ? `Até o fim de ${pilot.contractEnd}`
       : 'Sem vínculo vigente'
 
+  const canonicalContract =
+    (pilot as any).rawDbRecord?.canonical_contract || (pilot as any).canonical_contract
+  const careerIntentState = (pilot as any).rawDbRecord?.career_intent_state || 'CONTENT'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-zinc-950 border border-zinc-800 text-zinc-100 p-0 overflow-hidden max-h-[92vh] flex flex-col shadow-2xl">
@@ -813,11 +817,24 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 <span className="text-zinc-400 text-[11px]">Vínculo Atual:</span>
                 <div className="font-bold text-white">{currentTeamDisplay}</div>
                 <div className="text-[11px] text-zinc-400">{contractTermDisplay}</div>
+                <div className="text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/60 mt-1 flex justify-between items-center">
+                  <span>Papel Contratual:</span>
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-[10px] border-zinc-700 text-zinc-300"
+                  >
+                    {canonicalContract?.role ||
+                      (pilot.role === 'titular' ? 'EQUAL_STATUS' : 'RESERVE')}
+                  </Badge>
+                </div>
                 {pilot.exitClauseUsd && (
-                  <div className="text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/60 mt-1 flex justify-between">
+                  <div className="text-[11px] text-zinc-400 flex justify-between">
                     <span>Multa Rescisória (P):</span>
                     <span className="font-mono font-bold text-zinc-300">
-                      {formatUsdCurrency(pilot.exitClauseUsd, 'full')}
+                      {formatUsdCurrency(
+                        canonicalContract?.buyoutClause?.buyoutAmount || pilot.exitClauseUsd,
+                        'full',
+                      )}
                     </span>
                   </div>
                 )}

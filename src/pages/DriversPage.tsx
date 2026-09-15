@@ -5,6 +5,11 @@ import { AmbientBackground } from '@/components/AmbientBackground'
 import { DriverPoster } from '@/components/DriverPoster'
 import { PilotProfileDialog, formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { getCountryFlag } from '@/lib/country-flags'
+import { DriverNegotiationModal } from '@/components/commercial/DriverNegotiationModal'
+import { SillySeasonBoard } from '@/components/commercial/SillySeasonBoard'
+import { sillySeasonService } from '@/services/sillySeasonService'
+import { driverContractService } from '@/services/driverContractService'
+import { GridSeatStatus, SillySeasonRumor } from '@/types/canonical-driver-market'
 import { MBJ_2026_PILOTS, checkEligibility, getOverallRating } from '@/lib/mbj-drivers-data'
 import { OFFICIAL_F1_ACADEMY_MBJ_2026 } from '@/lib/f1-academy-official-data'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
@@ -56,6 +61,7 @@ import {
   Building2,
   Loader2,
   Eye,
+  Radio,
 } from 'lucide-react'
 import { DriverModel, TeamModel } from '@/types/f1'
 
@@ -153,9 +159,12 @@ export default function DriversPage() {
     null,
   )
 
-  // Modal de Contratação
+  // Modal de Contratação e Negociação 7A
   const [isContractingModalOpen, setIsContractingModalOpen] = useState<boolean>(false)
   const [selectedPilotForContract, setSelectedPilotForContract] =
+    useState<UnifiedDriverItem | null>(null)
+  const [isNegotiationModalOpen, setIsNegotiationModalOpen] = useState<boolean>(false)
+  const [selectedPilotForNegotiation, setSelectedPilotForNegotiation] =
     useState<UnifiedDriverItem | null>(null)
   const [contractRole, setContractRole] = useState<'titular' | 'reserva'>('titular')
   const [contractMode, setContractMode] = useState<'immediate' | 'precontract'>('immediate')
@@ -719,6 +728,13 @@ export default function DriversPage() {
       ? pilot.teamName.replace(/F1Team/i, 'F1 Team').trim()
       : 'Agente Livre'
 
+    const careerIntent = driverContractService.deriveCareerIntent(
+      pilot as any,
+      team,
+      team?.strength || 70,
+    )
+    const marketRange = driverContractService.estimateMarketValueRange(pilot as any)
+
     return (
       <Card
         key={pilot.id}
@@ -878,18 +894,16 @@ export default function DriversPage() {
           <div className="flex items-center justify-between text-xs mt-3 pt-2 border-t border-zinc-800">
             <span className="text-zinc-400 flex items-center gap-1">
               <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-              Salário de Referência:
+              Faixa de Mercado:
             </span>
-            <span className="font-semibold font-mono text-emerald-300">
-              {formatUsdCurrency(pilot.salaryUsd, 'compact')}
+            <span className="font-semibold font-mono text-emerald-300 text-[11px]">
+              {marketRange.displayRange}
             </span>
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
-            <span>Potencial Projetado:</span>
-            <span className="text-zinc-200 font-mono font-semibold">
-              {pilot.potentialMin} – {pilot.potentialMax}
-            </span>
+            <span>Career Intent:</span>
+            <span className="text-cyan-400 font-mono font-semibold">{careerIntent.state}</span>
           </div>
 
           {pilot.nextTeamId && (
@@ -928,11 +942,12 @@ export default function DriversPage() {
               <Button
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleOpenContractModal(pilot)
+                  setSelectedPilotForNegotiation(pilot)
+                  setIsNegotiationModalOpen(true)
                 }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium flex items-center justify-center gap-1 text-xs transition-colors shadow"
               >
-                <UserPlus className="w-3.5 h-3.5" /> Contratar
+                <Briefcase className="w-3.5 h-3.5" /> Negociar
               </Button>
             </div>
           ) : (
@@ -1065,6 +1080,13 @@ export default function DriversPage() {
                 <Sparkles className="w-4 h-4 shrink-0 text-pink-400" />
                 <span>F1 Academy ({f1AcademyPilots.length})</span>
               </TabsTrigger>
+              <TabsTrigger
+                value="silly_season"
+                className="flex items-center gap-2 py-2 px-3 sm:px-4 shrink-0 whitespace-nowrap data-[state=active]:bg-amber-600 data-[state=active]:text-white font-medium"
+              >
+                <Radio className="w-4 h-4 shrink-0 text-amber-300" />
+                <span>Silly Season Board</span>
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -1159,6 +1181,39 @@ export default function DriversPage() {
               {f1AcademyPilots.map((pilot) => renderPilotCard(pilot, true))}
             </div>
           </TabsContent>
+
+          {/* ABA 6: SILLY SEASON BOARD */}
+          <TabsContent value="silly_season" className="space-y-4">
+            <SillySeasonBoard
+              gridStatus={sillySeasonService.buildGridSeatStatus(dbTeams, dbDrivers, 2026, true)}
+              rumors={[
+                {
+                  id: 'rumor_audi_1',
+                  driverName: 'Gabriel Bortoleto',
+                  targetTeamName: 'Audi F1 Team',
+                  credibility: 'strong',
+                  headline: 'Audi inicia conversas para extensão de longo prazo com Bortoleto',
+                  details:
+                    'A diretoria da escuderia de Hinwil considera o piloto brasileiro pilar central do projeto de motores 2026.',
+                  roundReported: currentRound,
+                  isConfidentialLeak: false,
+                },
+                {
+                  id: 'rumor_ferrari_1',
+                  driverName: 'Carlos Sainz',
+                  targetTeamName: 'Williams Racing',
+                  credibility: 'credible',
+                  headline: 'Williams busca blindar liderança de Sainz com nova cláusula de saída',
+                  details:
+                    'Equipes rivais sondaram o staff de Sainz visando eventuais vagas abertas para 2027.',
+                  roundReported: currentRound,
+                  isConfidentialLeak: false,
+                },
+              ]}
+              seasonYear={2026}
+              isPublicView={true}
+            />
+          </TabsContent>
         </Tabs>
       )}
 
@@ -1170,6 +1225,21 @@ export default function DriversPage() {
         onOpenContractModal={(pilot) => handleOpenContractModal(pilot)}
         currentRound={currentRound}
       />
+
+      {/* MODAL CANÔNICO DE NEGOCIAÇÃO DE CONTRATO */}
+      {selectedPilotForNegotiation && team && (
+        <DriverNegotiationModal
+          open={isNegotiationModalOpen}
+          onOpenChange={setIsNegotiationModalOpen}
+          driver={selectedPilotForNegotiation}
+          playerTeam={team}
+          currentRound={currentRound}
+          seasonYear={2026}
+          onContractSigned={async () => {
+            await Promise.all([loadDatabaseData(), refreshTeamAndSeason?.()])
+          }}
+        />
+      )}
 
       {/* MODAL DE FORMALIZAÇÃO DE CONTRATO */}
       <Dialog open={isContractingModalOpen} onOpenChange={setIsContractingModalOpen}>
