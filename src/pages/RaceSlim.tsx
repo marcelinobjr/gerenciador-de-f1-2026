@@ -104,6 +104,14 @@ import { WeatherRadarCard } from '@/pages/race/WeatherRadarCard'
 import { TrackInfoPanel } from '@/pages/race/TrackInfoPanel'
 import { PreRaceDriverBriefingCard } from '@/components/race/PreRaceDriverBriefingCard'
 import { PitWallRadioDialog } from '@/components/race/PitWallRadioDialog'
+import { SimulateWeekendModal } from '@/components/race/SimulateWeekendModal'
+import { SimulationStepTracker } from '@/components/race/SimulationStepTracker'
+import { WeekendSummaryModal } from '@/components/race/WeekendSummaryModal'
+import { weekendSimulationService } from '@/services/weekendSimulationService'
+import type {
+  WeekendSimulationStepProgress,
+  WeekendSummaryReport,
+} from '@/types/canonical-season-transition'
 import { driverRaceInteractionService } from '@/services/driverRaceInteractionService'
 import { getCountryFlag } from '@/lib/country-flags'
 import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
@@ -338,6 +346,16 @@ export default function RacePage() {
   const [isProcessingSillySeason, setIsProcessingSillySeason] = useState(false)
   const [isStartingNewSeason, setIsStartingNewSeason] = useState(false)
 
+  // Simulation Weekend (8A Canonical Integration)
+  const [simulateWeekendModalOpen, setSimulateWeekendModalOpen] = useState(false)
+  const [weekendSummaryModalOpen, setWeekendSummaryModalOpen] = useState(false)
+  const [weekendSimulationReport, setWeekendSummaryReport] = useState<WeekendSummaryReport | null>(
+    null,
+  )
+  const [simulationSteps, setSimulationSteps] = useState<WeekendSimulationStepProgress[]>([])
+  const [simulationStepMessage, setSimulationStepMessage] = useState('')
+  const [isSimulatingWeekend, setIsSimulatingWeekend] = useState(false)
+
   // Race final results
   const [raceResults, setRaceResults] = useState<SimDriverEntry[] | null>(null)
   const [isFinishing, setIsFinishing] = useState(false)
@@ -425,6 +443,86 @@ export default function RacePage() {
   const [playerPaceOrders, setPlayerPaceOrders] = useState<Record<string, LivePaceOrder>>({})
   const playerPaceOrdersRef = useRef<Record<string, LivePaceOrder>>({})
   const activePaceOrdersInLoopRef = useRef<Record<string, LivePaceOrder>>({})
+
+  // Rótulo textual das sessões restantes para o WeekendHeader
+  const remainingSessionsList = (
+    ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race'] as WeekendSession[]
+  ).filter((s) => !completedSessions.includes(s))
+  const remainingSessionsLabel = remainingSessionsList
+    .map((s) => {
+      const m: Record<WeekendSession, string> = {
+        tp1: 'Treino 1',
+        tp2: 'Treino 2',
+        q1: 'Classificação (Q1)',
+        q2: 'Q2',
+        q3: 'Q3',
+        race: 'Corrida',
+      }
+      return m[s] || s
+    })
+    .join(' · ')
+
+  const handleStartSimulateWeekend = async () => {
+    if (!team || !season) return
+    setSimulateWeekendModalOpen(false)
+    setIsSimulatingWeekend(true)
+    setSimulationSteps([])
+    setSimulationStepMessage('Iniciando simulação de fim de semana...')
+
+    try {
+      const res = await weekendSimulationService.simulateRemainingWeekend({
+        team,
+        season,
+        drivers,
+        parts,
+        sponsors,
+        currentRound,
+        alreadyCompletedSessions: completedSessions,
+        onStepProgress: (progress) => {
+          setSimulationSteps((prev) => {
+            const next = [...prev.filter((p) => p.session !== progress.session), progress]
+            return next
+          })
+          setSimulationStepMessage(progress.message)
+        },
+      })
+
+      // Atualizar sessões completadas
+      const allSess: WeekendSession[] = ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race']
+      setCompletedSessions(allSess)
+      setHasRaceFinished(true)
+      setHasQualyFinished(true)
+      setPracticeDone(true)
+
+      setWeekendSummaryReport(res.report)
+      setWeekendSummaryModalOpen(true)
+
+      // Atualizar dados de equipe e temporada do banco
+      await refreshTeamAndSeason()
+      toast({
+        title: 'Fim de Semana Simulado com Sucesso!',
+        description: `GP ${gpInfo.name} finalizado via operações automáticas da equipe.`,
+      })
+    } catch (err: any) {
+      console.error('Erro ao simular restante do fim de semana:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Falha na Simulação do Fim de Semana',
+        description: err?.message || 'Ocorreu um erro durante a simulação.',
+      })
+    } finally {
+      setIsSimulatingWeekend(false)
+    }
+  }
+
+  const handleContinueAfterSummary = () => {
+    setWeekendSummaryModalOpen(false)
+    if (currentRound >= 24) {
+      navigate('/season-end')
+    } else {
+      handleAdvanceRound()
+    }
+  }
 
   // Sincroniza refs de táticas e ritmo com o estado do jogador
   useEffect(() => {

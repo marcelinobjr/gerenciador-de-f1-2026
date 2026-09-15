@@ -23,10 +23,14 @@ export interface WeekendHeaderProps {
   hasRaceFinished: boolean
   hasQualyFinished: boolean
   practiceDone: boolean
+  completedSessions?: string[]
+  remainingSessionsLabel?: string
   onRunSession: () => void
   onAdvanceRound: () => void
   onQuickSimRace?: () => void
   onResetWeekend?: () => void
+  onOpenSimulateModal?: () => void
+  onOpenSummaryModal?: () => void
 }
 
 export function WeekendHeader({
@@ -37,10 +41,14 @@ export function WeekendHeader({
   hasRaceFinished,
   hasQualyFinished,
   practiceDone,
+  completedSessions = [],
+  remainingSessionsLabel,
   onRunSession,
   onAdvanceRound,
   onQuickSimRace,
   onResetWeekend,
+  onOpenSimulateModal,
+  onOpenSummaryModal,
 }: WeekendHeaderProps) {
   const getSessionBadgeColor = () => {
     switch (weekendSession) {
@@ -103,16 +111,55 @@ export function WeekendHeader({
           >
             {getSessionLabel()}
           </Badge>
-          <span className="text-xs font-mono text-[#8B95A7]">Etapa {currentRound} de 24</span>
+          <span className="text-xs font-mono text-[#8B95A7]">
+            {gpInfo.name.toUpperCase()} — ROUND {currentRound}/24
+          </span>
         </div>
         <PageHeader
           title={gpInfo.name}
-          eyebrow="FIM DE SEMANA DE GP"
-          description={`Fim de semana oficial da Fórmula 1 em ${gpInfo.circuit}`}
+          eyebrow={`GP DA ${gpInfo.circuit.toUpperCase()} — ROUND ${currentRound}/24`}
+          description={
+            hasRaceFinished
+              ? `Fim de semana oficial da Fórmula 1 em ${gpInfo.circuit} • Concluído`
+              : `Fim de semana oficial da Fórmula 1 em ${gpInfo.circuit} • Restante: ${
+                  remainingSessionsLabel || 'Classificação · Corrida'
+                }`
+          }
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* BOTÃO INTEGRADO DE SIMULAÇÃO DE FIM DE SEMANA */}
+        {hasRaceFinished ? (
+          <div className="flex items-center gap-2">
+            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-xs px-3 py-1 font-bold">
+              ✓ Fim de semana concluído
+            </Badge>
+            {onOpenSummaryModal && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onOpenSummaryModal}
+                className="border-[#1F2733] text-white hover:bg-[#11161F] font-mono text-xs"
+              >
+                Ver Resumo do Fim de Semana
+              </Button>
+            )}
+          </div>
+        ) : (
+          onOpenSimulateModal && (
+            <Button
+              onClick={onOpenSimulateModal}
+              disabled={isSimulating}
+              className="bg-[#00A6FB] hover:bg-[#0092DC] text-[#0B0E14] font-mono font-extrabold shadow-lg shadow-cyan-950/40 text-xs px-3 py-1.5 flex items-center gap-1.5"
+            >
+              <FastForward className="w-3.5 h-3.5" />
+              {completedSessions.length === 0
+                ? 'SIMULAR FIM DE SEMANA'
+                : 'SIMULAR RESTANTE DO FIM DE SEMANA'}
+            </Button>
+          )
+        )}
         {weekendSession === 'pos_corrida' && (
           <Button
             onClick={onAdvanceRound}

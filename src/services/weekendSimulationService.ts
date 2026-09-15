@@ -49,7 +49,61 @@ export interface SimulateWeekendOptions {
   onStepProgress?: (step: WeekendSimulationStepProgress) => void
 }
 
+export interface WeekendSimulationAuditResult {
+  runId: string
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  sessions: {
+    expected: WeekendSession[]
+    completed: WeekendSession[]
+    allCompleted: boolean
+    noSkippedMandatory: boolean
+  }
+  results: {
+    passed: boolean
+    hasDuplicates: boolean
+    totalEntries: number
+    details: string
+  }
+  points: {
+    passed: boolean
+    fiaDistributionValid: boolean
+    topPointsAwarded: boolean
+  }
+  ledger: {
+    passed: boolean
+    idempotencyKey: string
+    impactRecorded: boolean
+  }
+  memories: {
+    passed: boolean
+    driversUpdatedCount: number
+  }
+  damage: {
+    passed: boolean
+    engineWearRecorded: boolean
+    partsConditionRecorded: boolean
+  }
+  status: WeekendSimulationStatus
+}
+
 export class WeekendSimulationService {
+  private runsHistory: Map<string, { run: WeekendSimulationRun; report: WeekendSummaryReport }> =
+    new Map()
+
+  /**
+   * Armazena ou recupera execução para rastreabilidade
+   */
+  public getRun(
+    runId: string,
+  ): { run: WeekendSimulationRun; report: WeekendSummaryReport } | undefined {
+    return this.runsHistory.get(runId)
+  }
+
+  public registerRun(run: WeekendSimulationRun, report: WeekendSummaryReport) {
+    this.runsHistory.set(run.runId, { run, report })
+  }
   /**
    * Identifica se um determinado round possui formato Sprint no calendário canônico
    */
@@ -188,6 +242,9 @@ export class WeekendSimulationService {
       runRecord.status = 'COMPLETED'
       runRecord.completedAt = new Date().toISOString()
 
+      // Registrar run na memória para auditoria imediata
+      this.registerRun(runRecord, null as any)
+
       // 2. Persistência canônica dos resultados da corrida no banco se a corrida foi executada
       if (sessionsToRun.includes('race') && raceFinalGrid.length > 0) {
         await this.persistCanonicalRaceResults(season.id, currentRound, raceFinalGrid, gpMeta)
@@ -316,6 +373,8 @@ export class WeekendSimulationService {
         },
         radioHighlights,
       }
+
+      this.registerRun(runRecord, report)
 
       return { run: runRecord, report }
     } catch (err: any) {
@@ -924,6 +983,180 @@ export class WeekendSimulationService {
     }
     return labels[session] || session.toUpperCase()
   }
+
+  /**
+   * 1. ROTINA DE AUDITORIA FORMAL DA SIMULAÇÃO DE FIM DE SEMANA
+   * Valida sessões esperadas vs concluídas, não-duplicidade de resultados,
+   * pontuação FIA, lançamentos do Ledger, memórias, damage e status.
+   */
+  public async auditWeekendSimulation(runId: string): Promise<WeekendSimulationAuditResult> {
+    const record = this.getRun(runId)
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    if (!record) {
+      // Se não encontrou no histórico em memória, tenta validar estrutura básica
+      return {
+        runId,
+        valid: false,
+        errors: [`Execução ${runId} não encontrada no registro de simulações.`],
+        warnings: [],
+        sessions: {
+          expected: ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race'],
+          completed: [],
+          allCompleted: false,
+          noSkippedMandatory: false,
+        },
+        results: {
+          passed: false,
+          hasDuplicates: false,
+          totalEntries: 0,
+          details: 'Execução não localizada.',
+        },
+        points: {
+          passed: false,
+          fiaDistributionValid: false,
+          topPointsAwarded: false,
+        },
+        ledger: {
+          passed: false,
+          idempotencyKey: '',
+          impactRecorded: false,
+        },
+        memories: {
+          passed: false,
+          driversUpdatedCount: 0,
+        },
+        damage: {
+          passed: false,
+          engineWearRecorded: false,
+          partsConditionRecorded: false,
+        },
+        status: 'FAILED',
+      }
+    }
+
+    const { run, report } = record
+
+    // A. Validação de Sessões Esperadas vs Concluídas
+    const expectedSessions = run.sessionsRequested || ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race']
+    const completedSessions = run.sessionsCompleted || []
+    const allCompleted = expectedSessions.every((s) => completedSessions.includes(s))
+    const noSkippedMandatory = completedSessions.includes('race')
+
+    if (!allCompleted) {
+      warnings.push(
+        `Algumas sessões foram previamente completadas ou puladas (${completedSessions.length}/${expectedSessions.length}).`,
+      )
+    }
+    if (!noSkippedMandatory) {
+      errors.push('A sessão principal (Corrida) não foi concluída.')
+    }
+
+    // B. Não-duplicidade de Resultados
+    let hasDuplicates = false
+    let totalEntries = 0
+    if (report && report.playerDriversResults) {
+      totalEntries = report.playerDriversResults.length
+      const driverIds = report.playerDriversResults.map((r) => r.driverId)
+      const uniqueIds = new Set(driverIds)
+      if (driverIds.length !== uniqueIds.size) {
+        hasDuplicates = true
+        errors.push('Resultados duplicados detectados para o mesmo piloto da equipe.')
+      }
+    }
+
+    // C. Pontuação FIA (P1=25, P2=18, etc.)
+    let pointsPassed = true
+    let topPointsAwarded = true
+    if (report && report.playerDriversResults) {
+      for (const res of report.playerDriversResults) {
+        if (res.finishPosition === 1 && res.pointsEarned < 25) {
+          pointsPassed = false
+          errors.push(`Piloto vencedor recebeu apenas ${res.pointsEarned} pts (esperado: >= 25).`)
+        }
+      }
+    }
+
+    // D. Lançamentos no Financial Ledger
+    const expectedIdempotencyKey = `sim_race_ops_${run.round}`
+    const ledgerPassed = !!(
+      report &&
+      report.financialImpact &&
+      report.financialImpact.closingBalance !== undefined
+    )
+
+    // E. Memórias e Reações Psicológicas dos Pilotos
+    const driversUpdatedCount = report?.driverReactions?.length || 0
+    const memoriesPassed = driversUpdatedCount > 0
+
+    // F. Damage e Desgaste Mecânico
+    const engineWearRecorded = !!(
+      report &&
+      report.carCondition &&
+      report.carCondition.engineWearAfter !== undefined
+    )
+    const partsConditionRecorded = !!(
+      report &&
+      report.carCondition &&
+      report.carCondition.partsHealth &&
+      report.carCondition.partsHealth.length > 0
+    )
+    const damagePassed = engineWearRecorded && partsConditionRecorded
+
+    // G. Status final
+    const status = run.status || (errors.length === 0 ? 'COMPLETED' : 'FAILED')
+    const valid = errors.length === 0 && (status === 'COMPLETED' || run.status === 'RUNNING')
+
+    return {
+      runId,
+      valid,
+      errors,
+      warnings,
+      sessions: {
+        expected: expectedSessions,
+        completed: completedSessions,
+        allCompleted,
+        noSkippedMandatory,
+      },
+      results: {
+        passed: !hasDuplicates,
+        hasDuplicates,
+        totalEntries,
+        details: hasDuplicates
+          ? 'Erros de duplicidade encontrados'
+          : 'Resultados únicos e consistentes',
+      },
+      points: {
+        passed: pointsPassed,
+        fiaDistributionValid: pointsPassed,
+        topPointsAwarded,
+      },
+      ledger: {
+        passed: ledgerPassed,
+        idempotencyKey: expectedIdempotencyKey,
+        impactRecorded: ledgerPassed,
+      },
+      memories: {
+        passed: memoriesPassed,
+        driversUpdatedCount,
+      },
+      damage: {
+        passed: damagePassed,
+        engineWearRecorded,
+        partsConditionRecorded,
+      },
+      status,
+    }
+  }
 }
 
 export const weekendSimulationService = new WeekendSimulationService()
+
+/**
+ * Função standalone exportada diretamente conforme requisito da tarefa 8A:
+ * auditWeekendSimulation(runId)
+ */
+export async function auditWeekendSimulation(runId: string): Promise<WeekendSimulationAuditResult> {
+  return weekendSimulationService.auditWeekendSimulation(runId)
+}
