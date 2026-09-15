@@ -219,6 +219,24 @@ export interface SponsorModel {
   team_id: string
   created?: string
   updated?: string
+  // Campos aditivos Fase 5B
+  sponsor_key?: string
+  sector?: string
+  country?: string
+  fixed_annual_value?: number
+  contract_start_year?: number
+  contract_end_year?: number
+  satisfaction?: number
+  renewal_interest?: number
+  is_title_sponsor?: boolean
+  title_name_suffix?: string
+  exclusivity_sector?: string
+  partnership_type?: string
+  package_slots?: string[]
+  bonuses?: any[]
+  objectives?: any[]
+  clauses?: Record<string, any>
+  contract_id?: string
 }
 
 export interface PartModel {

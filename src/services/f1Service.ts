@@ -573,11 +573,38 @@ export const f1Service = {
   // Sponsors
   async getTeamSponsors(teamId: string): Promise<SponsorModel[]> {
     try {
-      const records = await pb.collection('sponsors').getFullList<SponsorModel>({
+      const records = await pb.collection('sponsors').getFullList<any>({
         filter: `team_id = "${teamId}"`,
         sort: '-created',
       })
-      return records
+
+      // Mapeamento compatível para contratos da Fase 5B
+      const mapped = records.map((r: any) => {
+        // Se já tiver slot canônico 5B gravado, mantém; senão mapeia slot legado
+        let canonicalSlot = r.slot
+        if (canonicalSlot === 'laterais') canonicalSlot = 'sidepod'
+        else if (canonicalSlot === 'asa_traseira') canonicalSlot = 'rear_wing'
+        else if (canonicalSlot === 'bico') canonicalSlot = 'nose'
+        else if (
+          canonicalSlot === 'halo' ||
+          canonicalSlot === 'macacao' ||
+          canonicalSlot === 'retrovisores'
+        ) {
+          // Mantém identificador legado
+        }
+
+        const fixedAnnual = r.fixed_annual_value || (r.value_per_round ? r.value_per_round * 24 : 0)
+
+        return {
+          ...r,
+          slot: canonicalSlot,
+          fixed_annual_value: fixedAnnual,
+          satisfaction: r.satisfaction ?? 80,
+          renewal_interest: r.renewal_interest ?? 70,
+        }
+      })
+
+      return mapped
     } catch (e) {
       console.error('Error fetching sponsors:', e)
       return []

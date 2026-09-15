@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T13:17:38.244Z",
+  "generatedAt": "2026-09-15T13:45:26.281Z",
   "collections": [
     {
       "name": "users",
@@ -379,6 +379,24 @@
         },
         {
           "name": "opening_balances",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "commercial_proposals",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active_negotiations",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "commercial_history",
           "type": "json",
           "required": false,
           "system": false
@@ -900,6 +918,114 @@
         },
         {
           "name": "slot",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sponsor_key",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sector",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "country",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fixed_annual_value",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contract_start_year",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contract_end_year",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "satisfaction",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "renewal_interest",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_title_sponsor",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "title_name_suffix",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "exclusivity_sector",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "partnership_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "package_slots",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "bonuses",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "objectives",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "clauses",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "negotiation_history",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contract_id",
           "type": "text",
           "required": false,
           "system": false
