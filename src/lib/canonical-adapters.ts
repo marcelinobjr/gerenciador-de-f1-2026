@@ -75,7 +75,7 @@ export const canonicalCarRatingsAdapter = {
     // 2. Extrair componentes e atributos técnicos se persistidos
     let componentRatings: ComponentRatingsMap
     if (team?.component_ratings && Object.keys(team.component_ratings).length === 8) {
-      componentRatings = team.component_ratings as ComponentRatingsMap
+      componentRatings = { ...(team.component_ratings as ComponentRatingsMap) }
     } else if (officialProfile) {
       componentRatings = { ...officialProfile.initialComponents }
     } else {
@@ -220,12 +220,17 @@ export const canonicalComponentAdapter = {
     const activeCar2Unit = physicalUnits.find((u) => u.carAssignment === 'car2') || physicalUnits[1]
     const stockUnits = physicalUnits.filter((u) => u.carAssignment === 'stock')
 
+    // Se a peça instalada no carro tiver um spec_id e rating correspondente, reflete
+    const effectiveRating = activeCar1Unit?.condition
+      ? Math.max(50, Math.min(99, fallbackRating))
+      : fallbackRating
+
     const resolvedSpec: ComponentSpecification = spec || {
-      specId: `spec_${compId}_gen1`,
+      specId: activeCar1Unit?.specId || `spec_${compId}_gen1`,
       componentId: compId,
       generation: 1,
       specName: `Spec 1.0 - ${CANONICAL_COMPONENT_DISPLAY_NAMES[compId]}`,
-      baseRating: fallbackRating,
+      baseRating: effectiveRating,
       characteristics: {},
       costUsd: 2500000,
       rdLeadTimeRounds: 3,

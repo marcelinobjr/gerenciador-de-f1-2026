@@ -203,7 +203,8 @@ export const f1Service = {
 
     // Se a rodada acabou de ser avançada, processa:
     // 1. Obras de infraestrutura concluídas na rodada (Fase 4A)
-    // 2. Progressão FIA/Adaptação para pilotos da equipe
+    // 2. P&D do carro e manufatura de componentes (Fase 4B)
+    // 3. Progressão FIA/Adaptação para pilotos da equipe
     if (typeof data.current_round === 'number' && typeof data.last_processed_round === 'number') {
       const teamId = updated.team_id
       if (teamId) {
@@ -211,6 +212,12 @@ export const f1Service = {
           await this.processInfrastructureOnRoundAdvance(teamId, data.current_round)
         } catch (infraErr) {
           console.warn('Processamento automático de obras de infraestrutura:', infraErr)
+        }
+
+        try {
+          await this.processCarDevelopmentOnRoundAdvance(teamId, data.current_round)
+        } catch (devErr) {
+          console.warn('Processamento automático de P&D de peças:', devErr)
         }
 
         try {
@@ -3033,6 +3040,59 @@ export const f1Service = {
    * Se um projeto atingir completionRound <= newRound, a instalação é formalmente concluída
    * e o nível da equipe é atualizado no banco.
    */
+  /**
+   * Processa o progresso de P&D de componentes (Fase 4B) e manufatura na virada de rodada.
+   */
+  async processCarDevelopmentOnRoundAdvance(
+    teamId: string,
+    newRound: number,
+    userId?: string,
+  ): Promise<{
+    completedProjectsCount: number
+    completedOrdersCount: number
+  }> {
+    const team = await this.getTeam(teamId)
+    if (!team) return { completedProjectsCount: 0, completedOrdersCount: 0 }
+
+    const drivers = await this.getTeamDrivers(teamId)
+    const { carDevelopmentService } = await import('@/services/carDevelopmentService')
+
+    const result = carDevelopmentService.advanceDevelopmentOnRound(team, newRound, drivers)
+
+    if (result.completedProjects.length > 0 || result.completedOrders.length > 0) {
+      await pb.collection('teams').update(teamId, {
+        development_projects: result.updatedProjects,
+        component_specs: result.updatedSpecs,
+        manufacturing_orders: result.updatedOrders,
+        technical_knowledge: result.updatedKnowledge,
+      })
+
+      for (const n of result.notifications) {
+        await this.addEvent(teamId, `🔬 P&D: ${n.message}`, 'desenvolvimento')
+        if (userId) {
+          try {
+            await pb.collection('notifications').create({
+              user_id: userId,
+              type: 'sistema',
+              title: n.title,
+              message: n.message,
+              round: newRound,
+              read: false,
+              link: '/carro',
+            })
+          } catch {
+            /* ignored */
+          }
+        }
+      }
+    }
+
+    return {
+      completedProjectsCount: result.completedProjects.length,
+      completedOrdersCount: result.completedOrders.length,
+    }
+  },
+
   async processInfrastructureOnRoundAdvance(
     teamId: string,
     newRound: number,

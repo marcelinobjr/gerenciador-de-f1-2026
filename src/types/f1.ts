@@ -56,6 +56,10 @@ export interface TeamModel {
     status: 'em_construcao' | 'concluido'
     isCapexPaid: boolean
   }>
+  development_projects?: import('@/types/car-development').DevelopmentProject[]
+  component_specs?: import('@/types/car-development').CanonicalComponentSpec[]
+  manufacturing_orders?: import('@/types/car-development').ManufacturingOrder[]
+  technical_knowledge?: import('@/types/car-development').TeamTechnicalKnowledge
   cost_cap_penalties?: Array<{
     id: string
     timestamp: string
