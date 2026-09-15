@@ -10,8 +10,15 @@ export interface DriverPaceAttributes {
   physicalCondition?: number
 }
 
+import { TechnicalAttributesMap, TechnicalComponentId } from '@/types/car-technical-model'
+import {
+  CircuitPerformanceProfile,
+  resolveCircuitProfile,
+} from '@/data/circuit-performance-profiles'
+import { calculateTrackFit, calculateCarPerformance } from './car-session-performance-engine'
+
 export interface PaceCalculationParams {
-  teamStrength: number // 3.0 a 10.0 (ou 30 a 100)
+  teamStrength: number // 3.0 a 10.0 (ou 30 a 100) - Fallback de compatibilidade
   carLevel?: number // 0 a 100
   driver: DriverPaceAttributes
   weather?: TrackWeatherState
@@ -25,6 +32,14 @@ export interface PaceCalculationParams {
   poolPenalty?: number
   noise?: number // ruído aleatório ±0.3 a ±0.6s
   isQualifying?: boolean
+  // Integração Canônica Fase 0B:
+  technicalAttributes?: TechnicalAttributesMap
+  circuit?: CircuitPerformanceProfile | { round?: number; circuitId?: string; circuitName?: string }
+  chassisRating?: number
+  powerUnitRating?: number
+  carPerformanceRating?: number
+  componentConditions?: Partial<Record<TechnicalComponentId, number>>
+  hasFrontWingDamage?: boolean
 }
 
 export interface PaceResult {
@@ -35,6 +50,8 @@ export interface PaceResult {
   driverFactor: number // Contribuição do piloto (0-100)
   combinedPerformance: number // 0-100 (65-75% carro + 25-35% piloto)
   paceVerdict: string
+  trackFitScore?: number
+  auditLog?: string
 }
 
 /**
@@ -110,12 +127,49 @@ export function calculateCombinedPace(params: PaceCalculationParams): PaceResult
 
   const normCarStrength = normalizeCarStrength(teamStrength)
   const effectiveCarLevel = carLevel !== undefined ? carLevel : normCarStrength
-  const carFactor = effectiveCarLevel * 0.6 + normCarStrength * 0.4
+
+  // INTEGRAÇÃO FASE 0B: Se atributos técnicos e perfil de circuito forem providos,
+  // consome o Modelo Técnico do Carro (Track Fit + Car Performance).
+  // Caso contrário, usa o carFactor legado como fallback seguro de compatibilidade.
+  let carFactor: number
+  let calculatedTrackFit: number | undefined
+
+  if (params.technicalAttributes && params.circuit) {
+    const profile =
+      'weights' in params.circuit
+        ? params.circuit
+        : resolveCircuitProfile({
+            circuitId: (params.circuit as any).circuitId,
+            round: (params.circuit as any).round,
+            circuitName: (params.circuit as any).circuitName,
+          })
+
+    const { trackFitScore } = calculateTrackFit(params.technicalAttributes, profile)
+    calculatedTrackFit = trackFitScore
+
+    const carPerf = calculateCarPerformance({
+      chassisRating: params.chassisRating ?? effectiveCarLevel,
+      powerUnitRating: params.powerUnitRating ?? 85,
+      carPerformanceRating: params.carPerformanceRating,
+      legacyTeamStrength: normCarStrength,
+    })
+
+    // Carro efetivo na pista = 55% qualidade intrínseca + 45% adequação ao traçado
+    carFactor = carPerf * 0.55 + trackFitScore * 0.45
+
+    // Penalidade física de danos/fadiga se especificada
+    if (params.hasFrontWingDamage) {
+      carFactor -= 3.5
+    }
+  } else {
+    // Fallback legado seguro
+    carFactor = effectiveCarLevel * 0.6 + normCarStrength * 0.4
+  }
 
   const driverFactor = calculateDriverSkillScore(driver, weather)
 
   // Combinação Carro (70%) + Piloto (30%)
-  const combinedPerformance = carFactor * 0.7 + driverFactor * 0.3
+  const combinedPerformance = Math.max(25, Math.min(100, carFactor * 0.7 + driverFactor * 0.3))
 
   // Base de tempo por volta em circuito padrão (ex: 74.0s para carro/piloto perfeitos 100)
   // Escala de tempo:
@@ -207,5 +261,6 @@ export function calculateCombinedPace(params: PaceCalculationParams): PaceResult
     driverFactor: Number(driverFactor.toFixed(1)),
     combinedPerformance: Number(combinedPerformance.toFixed(1)),
     paceVerdict,
+    trackFitScore: calculatedTrackFit,
   }
 }

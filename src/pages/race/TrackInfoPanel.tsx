@@ -6,6 +6,7 @@ import { CircuitBlueprint } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import pb from '@/lib/pocketbase/client'
 import type { CircuitModel, TeamModel } from '@/types/f1'
+import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 
 export interface TrackInfoPanelProps {
   currentRound: number
@@ -43,6 +44,12 @@ export function TrackInfoPanel({
     : null
   const defaultAsset = currentRound === 1 ? defaultAustraliaMap : null
   const activeCircuitImage = uploadedPhotoUrl || defaultAsset
+
+  // Perfil Técnico Canônico da Fase 0B
+  const technicalProfile = resolveCircuitProfile({
+    round: currentRound,
+    circuitName: `${gpInfo.name} ${gpInfo.circuit}`,
+  })
 
   return (
     <>
@@ -188,6 +195,49 @@ export function TrackInfoPanel({
                   {gpInfo.characteristic}
                 </p>
               </div>
+
+              {/* PERFIL TÉCNICO CANÔNICO FASE 0B (Cluster & Pesos Chave) */}
+              {technicalProfile && (
+                <div className="mt-3 p-3 rounded-lg bg-[#080C14]/90 border border-cyan-900/40 text-xs font-mono space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400">
+                      Perfil Técnico 2026 // {technicalProfile.clusterLabel}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] bg-cyan-950/60 border-cyan-500/40 text-cyan-300"
+                    >
+                      {technicalProfile.trackType.toUpperCase().replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+                    <div className="p-1.5 rounded bg-[#0D131F] border border-[#1A2333]">
+                      <span className="text-[#8B95A7] block text-[9px]">Severidade Pneus</span>
+                      <span className="font-bold text-amber-400">
+                        {technicalProfile.auxiliary.tyreSeverity}/100
+                      </span>
+                    </div>
+                    <div className="p-1.5 rounded bg-[#0D131F] border border-[#1A2333]">
+                      <span className="text-[#8B95A7] block text-[9px]">Dif. Ultrapassagem</span>
+                      <span className="font-bold text-red-400">
+                        {technicalProfile.auxiliary.overtakingDifficulty}/100
+                      </span>
+                    </div>
+                    <div className="p-1.5 rounded bg-[#0D131F] border border-[#1A2333]">
+                      <span className="text-[#8B95A7] block text-[9px]">Desafio Piloto</span>
+                      <span className="font-bold text-cyan-300">
+                        {technicalProfile.auxiliary.driverChallenge}/100
+                      </span>
+                    </div>
+                    <div className="p-1.5 rounded bg-[#0D131F] border border-[#1A2333]">
+                      <span className="text-[#8B95A7] block text-[9px]">Prob. Safety Car</span>
+                      <span className="font-bold text-emerald-400">
+                        {technicalProfile.auxiliary.safetyCarProbability}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {(team?.engine_pool_used ?? 1) > 4 && (

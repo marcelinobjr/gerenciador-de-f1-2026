@@ -1,5 +1,7 @@
 import { getAICompetitors, OFFICIAL_GRID_TEAMS } from './f1-data'
 import { calculateCombinedPace } from './f1-pace-model'
+import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
+import { carTechnicalService } from '@/services/carTechnicalService'
 
 /**
  * Tabela oficial de pontuação FIA para Fórmula 1 (Top 10):
@@ -92,8 +94,10 @@ export function simulateAiGridFiaStandings(
     return { driverStandingsMap: dMap, teamStandingsMap: tMap }
   }
 
-  // Para cada rodada passada, computar uma ordem realista com pesos de piloto + carro + semente determinística
+  // Para cada rodada passada, computar uma ordem realista com pesos de piloto + carro + perfil canônico do circuito
   for (let r = 1; r <= pastRounds; r++) {
+    const circuitProfile = resolveCircuitProfile({ round: r })
+
     const roundScores: Array<{
       driverKey: string
       teamId: string
@@ -101,11 +105,20 @@ export function simulateAiGridFiaStandings(
     }> = []
 
     aiGrid.forEach((aiTeam, teamIdx) => {
-      // Driver 1 - Modelo combinado (70% Carro, 30% Piloto)
+      const teamTech = carTechnicalService.getOrCreateTeamTechnicalData(
+        aiTeam.id,
+        aiTeam.strength,
+        aiTeam.engine,
+      )
+
+      // Driver 1 - Modelo técnico Fase 0B
       const pseudoLuck1 = Math.sin(r * 12.9898 + teamIdx * 78.233) * 0.35
       const pace1 = calculateCombinedPace({
         teamStrength: aiTeam.strengthRating,
         carLevel: aiTeam.carLevel,
+        technicalAttributes: teamTech.attributes,
+        circuit: circuitProfile,
+        chassisRating: teamTech.calculatedOverall,
         driver: {
           speed: aiTeam.driver1.speed,
           consistency: aiTeam.driver1.consistency,
@@ -121,11 +134,14 @@ export function simulateAiGridFiaStandings(
         score: pace1.lapScore,
       })
 
-      // Driver 2 - Modelo combinado (70% Carro, 30% Piloto)
+      // Driver 2 - Modelo técnico Fase 0B
       const pseudoLuck2 = Math.cos(r * 39.346 + teamIdx * 11.135) * 0.35
       const pace2 = calculateCombinedPace({
         teamStrength: aiTeam.strengthRating,
         carLevel: aiTeam.carLevel,
+        technicalAttributes: teamTech.attributes,
+        circuit: circuitProfile,
+        chassisRating: teamTech.calculatedOverall,
         driver: {
           speed: aiTeam.driver2.speed,
           consistency: aiTeam.driver2.consistency,
@@ -134,7 +150,6 @@ export function simulateAiGridFiaStandings(
         },
         noise: pseudoLuck2,
       })
-
       roundScores.push({
         driverKey: `${aiTeam.id}_d2`,
         teamId: aiTeam.id,

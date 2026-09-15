@@ -6,14 +6,26 @@ import {
   TireCliffStatus,
 } from './f1-tire-system'
 import { calculateCombinedPace } from './f1-pace-model'
+import { TechnicalAttributesMap, TechnicalComponentId } from '@/types/car-technical-model'
+import {
+  CircuitPerformanceProfile,
+  resolveCircuitProfile,
+} from '@/data/circuit-performance-profiles'
 
 /**
- * Fator de facilidade de ultrapassagem por circuito (especificação 2026):
- * - Retas longas (Monza, Spa, Baku, Las Vegas, Red Bull Ring): 0.75 - 0.90
- * - Médios (Interlagos, Silverstone, Bahrein, Montreal, Miami, COTA, Jeddah, etc.): 0.55 - 0.65
- * - Travados (Mônaco, Hungaroring, Zandvoort, Marina Bay): 0.15 - 0.25
+ * Fator de facilidade de ultrapassagem por circuito (0.15 a 0.95):
+ * Na Fase 0B, é derivado preferencialmente do perfil canônico (overtakingDifficulty, escala 0-100 invertida),
+ * mantendo o mapa nominal como fallback gracioso.
  */
 export function getCircuitOvertakeFactor(circuitName: string, circuitTrack?: string): number {
+  // 1. Tentar resolver perfil canônico via data-driven
+  const profile = resolveCircuitProfile({ circuitName: `${circuitName} ${circuitTrack || ''}` })
+  if (profile?.auxiliary?.overtakingDifficulty) {
+    // Escala 0-100 de dificuldade para fator 0.15 a 0.95 (100 = muito difícil = ~0.15; 40 = Monza = 0.90)
+    const factor = 1.05 - (profile.auxiliary.overtakingDifficulty / 100) * 0.9
+    return Number(Math.max(0.15, Math.min(0.92, factor)).toFixed(2))
+  }
+
   const cName = (circuitName + ' ' + (circuitTrack || '')).toLowerCase()
 
   // Travados (0.15 - 0.25)
@@ -44,7 +56,7 @@ export function getCircuitOvertakeFactor(circuitName: string, circuitTrack?: str
     return 0.82
   }
   if (cName.includes('madri') || cName.includes('madrid') || cName.includes('madring')) {
-    return 0.8 // Circuito Madring: reta longa de 1,3 km favorável ao modo overtake 2026
+    return 0.8
   }
   if (cName.includes('red bull ring') || cName.includes('spielberg')) {
     return 0.78
@@ -61,7 +73,12 @@ export function getCircuitOvertakeFactor(circuitName: string, circuitTrack?: str
   if (cName.includes('silverstone')) {
     return 0.6
   }
-  if (cName.includes('bahrein') || cName.includes('bahrain') || cName.includes('sakhir')) {
+  if (
+    cName.includes('bahrein') ||
+    cName.includes('bahrain') ||
+    cName.includes('sakhir') ||
+    cName.includes('sepang')
+  ) {
     return 0.65
   }
   if (cName.includes('montreal') || cName.includes('gilles villeneuve')) {
@@ -77,7 +94,6 @@ export function getCircuitOvertakeFactor(circuitName: string, circuitTrack?: str
     return 0.58
   }
 
-  // Padrão geral para outros circuitos (Catalunha, Suzuka, Lusail, Yas Marina, Melbourne, etc.)
   return 0.55
 }
 
@@ -134,6 +150,11 @@ export interface SimDriverLapState {
   lapsInDirtyAir?: number
   carStrength?: number
   driverSkill?: number
+  technicalAttributes?: TechnicalAttributesMap
+  trackFitScore?: number
+  chassisRating?: number
+  powerUnitRating?: number
+  carPerformanceRating?: number
 }
 
 export interface FreePaceParams {
@@ -160,6 +181,13 @@ export interface FreePaceParams {
   tacticalMode?: 'attack' | 'preserve' | 'stay_out'
   trackTemp?: number
   noise?: number // ±0.15s
+  // Extensão Técnica Fase 0B:
+  technicalAttributes?: TechnicalAttributesMap
+  circuit?: CircuitPerformanceProfile | { round?: number; circuitId?: string; circuitName?: string }
+  chassisRating?: number
+  powerUnitRating?: number
+  carPerformanceRating?: number
+  componentConditions?: Partial<Record<TechnicalComponentId, number>>
 }
 
 /**
@@ -168,6 +196,7 @@ export interface FreePaceParams {
 export function calculateFreeLapPaceSec(params: FreePaceParams): {
   freeLapSec: number
   cliffStatus: TireCliffStatus
+  trackFitScore?: number
 } {
   const {
     teamStrength,
@@ -186,6 +215,12 @@ export function calculateFreeLapPaceSec(params: FreePaceParams): {
     tacticalMode,
     trackTemp = 35,
     noise = (Math.random() - 0.5) * 0.3, // ±0.15s
+    technicalAttributes,
+    circuit,
+    chassisRating,
+    powerUnitRating,
+    carPerformanceRating,
+    componentConditions,
   } = params
 
   const paceResult = calculateCombinedPace({
@@ -202,6 +237,13 @@ export function calculateFreeLapPaceSec(params: FreePaceParams): {
     engineWearPenalty,
     poolPenalty,
     noise,
+    technicalAttributes,
+    circuit,
+    chassisRating,
+    powerUnitRating,
+    carPerformanceRating,
+    componentConditions,
+    hasFrontWingDamage: hasWingDamage,
   })
 
   let lapSec = paceResult.lapTimeSec
@@ -233,6 +275,7 @@ export function calculateFreeLapPaceSec(params: FreePaceParams): {
   return {
     freeLapSec: Number(lapSec.toFixed(3)),
     cliffStatus: refinedCliff,
+    trackFitScore: paceResult.trackFitScore,
   }
 }
 

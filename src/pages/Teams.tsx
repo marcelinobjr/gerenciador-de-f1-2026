@@ -6,6 +6,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { OFFICIAL_GRID_TEAMS, getAICompetitors, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
+import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
+import { carTechnicalService } from '@/services/carTechnicalService'
 import {
   simulateAiGridFiaStandings,
   normalizeEntityName,
@@ -430,11 +432,23 @@ export default function TeamsPage() {
   const allDisplayTeams = useMemo<GridDisplayTeam[]>(() => {
     const list: GridDisplayTeam[] = []
 
+    // Resolução de perfil de circuito para a rodada atual
+    const currentCircuitProfile = resolveCircuitProfile({ round: season?.current_round || 1 })
+
     // Equipe customizada do jogador
     if (isCustomTeam && team) {
+      const customTech = carTechnicalService.getOrCreateTeamTechnicalData(
+        team.id || 'user_custom',
+        team.strength || 58,
+        team.engine_supplier || 'Mercedes',
+      )
+
       const paceD1 = calculateCombinedPace({
         teamStrength: team.strength || 58,
         carLevel: playerCarLevel,
+        technicalAttributes: customTech.attributes,
+        circuit: currentCircuitProfile,
+        chassisRating: customTech.calculatedOverall,
         driver: {
           speed: playerTitular1?.speed || 80,
           consistency: playerTitular1?.consistency || 80,
@@ -443,6 +457,9 @@ export default function TeamsPage() {
       const paceD2 = calculateCombinedPace({
         teamStrength: team.strength || 58,
         carLevel: playerCarLevel,
+        technicalAttributes: customTech.attributes,
+        circuit: currentCircuitProfile,
+        chassisRating: customTech.calculatedOverall,
         driver: {
           speed: playerTitular2?.speed || 79,
           consistency: playerTitular2?.consistency || 78,
@@ -564,14 +581,26 @@ export default function TeamsPage() {
             }
           : official.reserveDriver
 
+      const officialTech = carTechnicalService.getOrCreateTeamTechnicalData(
+        official.key,
+        effStrengthRating * 10,
+        official.engine,
+      )
+
       const paceD1 = calculateCombinedPace({
         teamStrength: effStrengthRating * 10,
         carLevel: effCarLevel,
+        technicalAttributes: officialTech.attributes,
+        circuit: currentCircuitProfile,
+        chassisRating: officialTech.calculatedOverall,
         driver: { speed: d1.speed, consistency: d1.consistency },
       })
       const paceD2 = calculateCombinedPace({
         teamStrength: effStrengthRating * 10,
         carLevel: effCarLevel,
+        technicalAttributes: officialTech.attributes,
+        circuit: currentCircuitProfile,
+        chassisRating: officialTech.calculatedOverall,
         driver: { speed: d2.speed, consistency: d2.consistency },
       })
       const avgPace = Number(
