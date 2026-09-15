@@ -14,6 +14,8 @@ import {
   ShieldCheck,
   RefreshCw,
   BarChart3,
+  TrendingUp,
+  Sparkles,
 } from 'lucide-react'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { seasonTransitionService } from '@/services/seasonTransitionService'
@@ -280,6 +282,91 @@ export default function SeasonEndPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* BLOCO: DESENVOLVIMENTO & DECLÍNIO DE PILOTOS (8B - Regra 99) */}
+      <Card className="bg-[#090D15]/80 border border-[#1F2733] p-5">
+        <div className="flex items-center justify-between mb-3 border-b border-[#1F2733] pb-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-white">
+              Relatório Anual de Desenvolvimento & Declínio de Pilotos (8B)
+            </h3>
+          </div>
+          <Badge
+            variant="outline"
+            className="text-[10px] font-mono border-cyan-700/60 text-cyan-300"
+          >
+            Evolução Consolidada
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono">
+          <div className="p-3 rounded-lg bg-[#11161F] border border-[#1F2733] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white">Gabriel Bortoleto (Audi F1)</span>
+              <Badge className="bg-emerald-950 text-emerald-300 border border-emerald-700 text-[10px]">
+                Evoluindo Acelerado
+              </Badge>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Evolução notável em consistência de corrida, feedback técnico e maturidade no
+              gerenciamento de compostos.
+            </p>
+            <div className="text-[10px] text-emerald-400 font-semibold">
+              Consistência ↑ | Ritmo ↑ | Feedback Técnico ↑
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg bg-[#11161F] border border-[#1F2733] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white">Daniel Ricciardo (Audi F1)</span>
+              <Badge className="bg-amber-950 text-amber-300 border border-amber-700 text-[10px]">
+                Veterano Estável
+              </Badge>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Maturidade no setup e telemetria permanecem de elite; ritmo de classificação em platô
+              natural da carreira.
+            </p>
+            <div className="text-[10px] text-amber-300 font-semibold">
+              Feedback Técnico ★ | Consistência → | Ritmo Puro ↘
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* BLOCO: NOVA GERAÇÃO DE PILOTOS DE BASE (8B - Regra 100) */}
+      <Card className="bg-[#090D15]/80 border border-[#1F2733] p-5">
+        <div className="flex items-center justify-between mb-3 border-b border-[#1F2733] pb-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-purple-300">
+              Nova Classe de Pilotos de Base (New Generation 8B)
+            </h3>
+          </div>
+          <Badge
+            variant="outline"
+            className="text-[10px] font-mono border-purple-700/60 text-purple-300"
+          >
+            Scouting Pool Aberto
+          </Badge>
+        </div>
+
+        <div className="p-3 rounded-lg bg-[#11161F] border border-[#1F2733] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono">
+          <div className="space-y-1 text-center sm:text-left">
+            <span className="font-bold text-white block">
+              12 Novos Prospectos Internacionais Disponíveis
+            </span>
+            <p className="text-[11px] text-[#8B95A7]">
+              Jovens pilotos de karting, Fórmula 4 e F3 Regional integraram o radar de olheiros para
+              a nova temporada.
+            </p>
+          </div>
+          <Badge className="bg-purple-900/40 text-purple-300 border border-purple-600 shrink-0 text-xs py-1 px-3">
+            Avaliação na Academia Disponível
+          </Badge>
+        </div>
+      </Card>
 
       {/* Auditoria FIA de Transição de Temporada */}
       {transitionAudit && (

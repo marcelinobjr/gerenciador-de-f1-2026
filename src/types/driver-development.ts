@@ -269,3 +269,115 @@ export interface DriverAffiliationModel {
   // Homologação ativa vinculada
   homologationProgram?: DriverHomologationProgram
 }
+
+// ==========================================
+// IMPLEMENTAÇÃO Nº 8B — TIPOS CANÔNICOS DE ENVELHECIMENTO, PROGRESSÃO, DECLÍNIO E APOSENTADORIA
+// ==========================================
+
+export type DevelopmentCurveArchetype =
+  | 'EARLY_BLOOMER' // Evolui cedo, atinge pico antecipado
+  | 'NORMAL' // Curva tradicional balanceada
+  | 'LATE_BLOOMER' // Evolução lenta no início, pico tardio
+  | 'HIGH_VARIANCE' // Progresso irregular com oscilações
+  | 'LONG_PRIME' // Pico prolongado, declínio lento
+
+export type CareerStage =
+  | 'EARLY_DEVELOPMENT' // Jovem em formação / desenvolvimento acelerado
+  | 'DEVELOPMENT' // Em ascensão técnica
+  | 'PEAK' // No auge / prime
+  | 'STABLE' // Estável pós-pico
+  | 'EARLY_DECLINE' // Início de declínio sutil
+  | 'DECLINING' // Declínio ativo
+  | 'VETERAN_STABLE' // Veterano resiliente focado em experiência/consistência
+  | 'RETIRED' // Aposentado
+
+export interface PeakWindow {
+  startAge: number // ex: 26
+  endAge: number // ex: 31
+}
+
+export interface DeclineProfile {
+  paceDeclineRate: number // Declínio moderado de velocidade pura (0.3 - 1.2)
+  consistencyDeclineRate: number // Declínio de consistência (0.1 - 0.6)
+  physicalDeclineRate: number // Declínio de condicionamento físico (0.4 - 1.5)
+  experienceRetentionFactor: number // Retenção/compensação por experiência (0.8 - 1.0)
+  technicalFeedbackStability: number // Estabilidade do feedback técnico com a idade (0.9 - 1.0)
+}
+
+/**
+ * Perfil de Desenvolvimento Individual e Persistente do Piloto (Regra 5 da 8B)
+ */
+export interface DriverDevelopmentProfile {
+  driverId: string
+  archetype: DevelopmentCurveArchetype
+  growthRate: number // 0.6 a 1.4
+  peakWindow: PeakWindow
+  declineProfile: DeclineProfile
+  adaptationRate: number // 0.5 a 1.5
+  experienceModifier: number // Acumulador de experiência efetiva
+  volatility: number // Variância controlada (-2 a +2)
+  longevity: number // 0.5 a 1.5 (prolonga o prime e suaviza declínio)
+  learningCeilingMultiplier: number // Modulador da capacidade de aproximação do ceiling
+  // Histórico de temporadas para explicabilidade e UI
+  currentStage: CareerStage
+}
+
+export type RetirementIntentState =
+  | 'NO_THOUGHTS' // Sem pensamentos de aposentadoria
+  | 'CONSIDERING' // Considerando o futuro / avaliando opções
+  | 'LIKELY' // Provável aposentadoria ao término do contrato
+  | 'ANNOUNCED' // Aposentadoria anunciada publicamente
+  | 'RETIRED' // Efetivamente aposentado
+
+export interface RetirementEvaluation {
+  driverId: string
+  driverName: string
+  age: number
+  currentState: RetirementIntentState
+  score: number // 0 a 100 de propensão
+  primaryFactors: string[] // ex: ["Idade avançada", "Sem vaga titular", "Declínio de ritmo"]
+  announcedSeason?: number
+  effectiveSeason?: number
+}
+
+export interface AttributeGainLoss {
+  initial: number
+  delta: number
+  final: number
+}
+
+export interface DriverDevelopmentSeasonLedger {
+  seasonYear: number
+  driverId: string
+  driverName: string
+  age: number
+  stage: CareerStage
+  archetype: DevelopmentCurveArchetype
+  attributes: {
+    speed: AttributeGainLoss
+    consistency: AttributeGainLoss
+    rain: AttributeGainLoss
+    defense: AttributeGainLoss
+    technicalFeedback: AttributeGainLoss
+  }
+  experienceGained: number
+  trackTimeHours: number
+  primaryFactors: string[] // Explicabilidade (Regra 33)
+  evolutionNarrative: string
+}
+
+export interface UniverseEcologyReport {
+  seasonYear: number
+  totalActiveDrivers: number
+  titularDriversCount: number
+  reserveDriversCount: number
+  academyDriversCount: number
+  freeAgentsCount: number
+  retiredCount: number
+  newGenerationsCount: number
+  averageAge: number
+  averageSpeed: number
+  averageConsistency: number
+  starsCount: number
+  generationalCount: number
+}

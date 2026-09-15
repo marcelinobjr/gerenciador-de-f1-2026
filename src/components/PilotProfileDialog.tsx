@@ -38,6 +38,8 @@ import {
   Handshake,
   Clock,
   HelpCircle,
+  TrendingUp,
+  History,
 } from 'lucide-react'
 import type { UnifiedDriverItem } from '@/pages/DriversPage'
 import { driverRelationshipService } from '@/services/driverRelationshipService'
@@ -759,6 +761,126 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
               Horizonte de Aposentadoria e Pesos Negociais) operam restritos à simulação interna.
             </span>
           </div>
+
+          {/* Seção 3.5: CARREIRA & DESENVOLVIMENTO (Implementação Nº 8B - Regras 93, 94, 95, 96) */}
+          {(() => {
+            const rawDev =
+              (pilot as any).rawDbRecord?.development_profile || (pilot as any).development_profile
+            const devHist =
+              (pilot as any).rawDbRecord?.development_history ||
+              (pilot as any).development_history ||
+              []
+            const retIntent =
+              (pilot as any).rawDbRecord?.retirement_intent ||
+              (pilot as any).retirement_intent ||
+              'NO_THOUGHTS'
+            const age = pilot.age || 25
+
+            let stageLabel = 'Desenvolvendo'
+            let stageBadgeClass = 'bg-blue-950/70 border-blue-700 text-blue-300'
+
+            if (age <= 21) {
+              stageLabel = 'Desenvolvimento Rápido (Jovem)'
+              stageBadgeClass = 'bg-emerald-950/70 border-emerald-700 text-emerald-300'
+            } else if (age <= 26) {
+              stageLabel = 'Em Ascensão Técnica'
+              stageBadgeClass = 'bg-cyan-950/70 border-cyan-700 text-cyan-300'
+            } else if (age <= 31) {
+              stageLabel = 'No Ápice de Carreira (Prime)'
+              stageBadgeClass = 'bg-purple-950/70 border-purple-700 text-purple-300'
+            } else if (age <= 34) {
+              stageLabel = 'Estável / Pós-Pico'
+              stageBadgeClass = 'bg-indigo-950/70 border-indigo-700 text-indigo-300'
+            } else if (age <= 37) {
+              stageLabel = 'Declínio Inicial / Veterano'
+              stageBadgeClass = 'bg-amber-950/70 border-amber-700 text-amber-300'
+            } else {
+              stageLabel = 'Veterano Experiente'
+              stageBadgeClass = 'bg-rose-950/70 border-rose-700 text-rose-300'
+            }
+
+            // Exibir Retirement Intent qualitativo somente se houver sinais (Regra 96)
+            let retirementAlert: string | null = null
+            if (retIntent === 'ANNOUNCED') {
+              retirementAlert =
+                '🏁 Aposentadoria oficial anunciada: última temporada como piloto profissional.'
+            } else if (retIntent === 'LIKELY') {
+              retirementAlert =
+                '⚠️ Sinais de transição: piloto avalia que o ciclo profissional se aproxima da conclusão.'
+            } else if (retIntent === 'CONSIDERING' && age >= 35) {
+              retirementAlert =
+                '⏳ Reflexão sobre o futuro: avaliando mercado e planos pós-automobilismo.'
+            }
+
+            return (
+              <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+                    Carreira & Desenvolvimento (8B)
+                  </h4>
+                  <Badge variant="outline" className={`text-[10px] font-mono ${stageBadgeClass}`}>
+                    {stageLabel}
+                  </Badge>
+                </div>
+
+                {retirementAlert && (
+                  <div className="p-2.5 rounded-lg bg-amber-950/50 border border-amber-800/80 text-xs text-amber-300 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                    <span>{retirementAlert}</span>
+                  </div>
+                )}
+
+                {/* Tendência dos atributos qualitativa (Regra 94) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
+                    <span className="text-[10px] uppercase text-zinc-500 block">Ritmo Puro</span>
+                    <span className="font-bold text-zinc-200">
+                      {age <= 24
+                        ? 'Pace ↑ (Em alta)'
+                        : age <= 33
+                          ? 'Pace → (Estável)'
+                          : 'Pace ↘ (Declínio gradual)'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
+                    <span className="text-[10px] uppercase text-zinc-500 block">Consistência</span>
+                    <span className="font-bold text-zinc-200">
+                      {age <= 30 ? 'Consistência ↑' : 'Consistência → (Forte)'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
+                    <span className="text-[10px] uppercase text-zinc-500 block">
+                      Feedback Técnico
+                    </span>
+                    <span className="font-bold text-emerald-400">
+                      {age >= 32 ? 'Feedback ★ (Elite)' : 'Feedback ↑ (Em expansão)'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
+                    <span className="text-[10px] uppercase text-zinc-500 block">
+                      Gestão de Pneus
+                    </span>
+                    <span className="font-bold text-cyan-400">
+                      {age >= 26 ? 'Gestão ↑ (Maturidade)' : 'Gestão → (Aprendizado)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Histórico recente de desenvolvimento se disponível */}
+                {devHist.length > 0 && (
+                  <div className="pt-1 text-[11px] text-zinc-400 space-y-1">
+                    <div className="flex items-center gap-1 font-semibold text-zinc-300">
+                      <History className="w-3 h-3 text-zinc-400" /> Evolução Recente Auditada:
+                    </div>
+                    <p className="italic text-zinc-300 leading-relaxed bg-zinc-950/40 p-2 rounded border border-zinc-800/60">
+                      "{devHist[0]?.evolutionNarrative || 'Performance técnica consolidada.'}"
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Seção 4: Carreira & Histórico (V) */}
           <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-2">

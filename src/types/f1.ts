@@ -170,6 +170,28 @@ export interface DriverModel {
   psychology_data?: any
   academy_origin_team_id?: string | null
   career_status?: string | null
+  birth_date?: string | null
+  development_profile?: any
+  retirement_intent?:
+    | 'NO_THOUGHTS'
+    | 'CONSIDERING'
+    | 'LIKELY'
+    | 'ANNOUNCED'
+    | 'RETIRED'
+    | string
+    | null
+  development_history?: any[]
+  true_potential?: number
+  perceived_potential?: number
+  evaluation_confidence?: number
+  career_records?: {
+    starts: number
+    wins: number
+    podiums: number
+    poles: number
+    championships: number
+    points: number
+  } | null
   created?: string
   updated?: string
 }

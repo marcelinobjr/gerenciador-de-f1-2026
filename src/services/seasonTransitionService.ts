@@ -26,6 +26,9 @@ import type { StaffContract, TeamTechnicalOrganization } from '@/types/canonical
 import { f1Service } from '@/services/f1Service'
 import { financialLedgerService } from '@/services/financialLedgerService'
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
+import { driverDevelopmentService } from '@/services/driverDevelopmentService'
+import { driverRetirementService } from '@/services/driverRetirementService'
+import { newGenerationService } from '@/services/newGenerationService'
 import {
   calculateStandings,
   type DriverStanding,
@@ -432,13 +435,13 @@ export class SeasonTransitionService {
         'Transições de staff concluídas com impacto único de conhecimento.',
       )
 
-      // ETAPA 8: PROCESSING_ACADEMY
+      // ETAPA 8: PROCESSING_ACADEMY & EVOLUÇÃO CANÔNICA DE PILOTOS (8B)
       updateStep(
         'PROCESSING_ACADEMY',
         'in_progress',
-        'Avançando idades cronológicas e progressão da Academy...',
+        'Processando desenvolvimento individual, curvas de aprendizado, declínio e aposentadorias...',
       )
-      await this.processAcademyProgression({
+      const evolutionSummary = await this.processEvolutionRetirementAndGenerations({
         teamId,
         fromSeasonYear,
         toSeasonYear,
@@ -446,7 +449,7 @@ export class SeasonTransitionService {
       updateStep(
         'PROCESSING_ACADEMY',
         'done',
-        'Academy atualizada mantendo true potential estritamente intacto.',
+        `Desenvolvimento e aposentadorias consolidados (${evolutionSummary.newGenerationsCount} novos prospectos gerados).`,
       )
 
       // ETAPA 9: PROCESSING_ORGANIZATION
@@ -798,26 +801,186 @@ export class SeasonTransitionService {
     }
   }
 
+  /**
+   * Implementação Nº 8B: Processamento Canônico de Desenvolvimento, Envelhecimento,
+   * Declínio, Aposentadorias e Novas Gerações na virada de temporada.
+   * Única fonte de avanço de idade cronológica (Regra 71 & 124).
+   */
+  public async processEvolutionRetirementAndGenerations(params: {
+    teamId: string
+    fromSeasonYear: number
+    toSeasonYear: number
+    seed?: number
+  }): Promise<{
+    retiredCount: number
+    newGenerationsCount: number
+    developedCount: number
+  }> {
+    const { teamId, fromSeasonYear, toSeasonYear, seed } = params
+    const drivers = await f1Service.getDrivers()
+    const teams = await f1Service.getTeams()
+    const playerTeam = teams.find((t) => t.id === teamId)
+
+    // 1. AVALIAR APOSENTADORIAS (DriverRetirementService)
+    const retirementResult = driverRetirementService.processAnnualRetirements({
+      drivers,
+      teams,
+      currentSeasonYear: fromSeasonYear,
+      seed,
+    })
+
+    // 2. CONSOLIDAR DESENVOLVIMENTO INDIVIDUAL (DriverDevelopmentService)
+    // Para todos os pilotos ativos: aplica evolução por atributo, declínio e explicabilidade
+    let developedCount = 0
+    for (const driver of retirementResult.updatedDrivers) {
+      const isRetired = driver.career_status === 'retired' || driver.retirement_intent === 'RETIRED'
+      if (isRetired) {
+        // Se já aposentado, apenas atualiza status e idade uma única vez
+        try {
+          await pb.collection('drivers').update(driver.id, {
+            age: (driver.age || 38) + 1,
+            career_status: 'retired',
+            retirement_intent: 'RETIRED',
+          })
+        } catch {
+          // tolerância
+        }
+        continue
+      }
+
+      // Piloto ativo: evolui atributos de forma não linear
+      const devRes = driverDevelopmentService.processAnnualDriverDevelopment({
+        driver,
+        team: teams.find((t) => t.id === driver.team_id) || playerTeam,
+        seasonYear: fromSeasonYear,
+        seed,
+      })
+
+      try {
+        await pb.collection('drivers').update(driver.id, {
+          age: (driver.age || 25) + 1, // UMA ÚNICA FONTE DE AVANÇO CRONOLÓGICO
+          speed: devRes.updatedDriver.speed,
+          consistency: devRes.updatedDriver.consistency,
+          rain: devRes.updatedDriver.rain,
+          defense: devRes.updatedDriver.defense,
+          technical_feedback: devRes.updatedDriver.technical_feedback,
+          perceived_potential: devRes.updatedDriver.perceived_potential,
+          evaluation_confidence: devRes.updatedDriver.evaluation_confidence,
+          development_profile: devRes.updatedDriver.development_profile,
+          development_history: devRes.updatedDriver.development_history,
+          retirement_intent: driver.retirement_intent || 'NO_THOUGHTS',
+        })
+        developedCount++
+      } catch {
+        // tolerância
+      }
+    }
+
+    // 3. GERAR NOVA CLASSE DE JOVENS TALENTOS (NewGenerationService)
+    const generationResult = newGenerationService.generateAnnualClass({
+      seasonYear: toSeasonYear,
+      allCurrentDrivers: retirementResult.updatedDrivers,
+      retirementsCount: retirementResult.effectiveRetirements.length,
+      seed,
+    })
+
+    await newGenerationService.persistGeneratedClass(generationResult.newDrivers)
+
+    return {
+      retiredCount: retirementResult.effectiveRetirements.length,
+      newGenerationsCount: generationResult.newDrivers.length,
+      developedCount,
+    }
+  }
+
   private async processAcademyProgression(params: {
     teamId: string
     fromSeasonYear: number
     toSeasonYear: number
   }): Promise<void> {
-    const { teamId, fromSeasonYear, toSeasonYear } = params
-    const drivers = await f1Service.getDrivers()
-    const academyDrivers = drivers.filter(
-      (d) => d.is_academy && d.academy_origin_team_id === teamId,
-    )
+    // Mantido como wrapper de compatibilidade
+    await this.processEvolutionRetirementAndGenerations(params)
+  }
 
-    for (const d of academyDrivers) {
-      try {
-        await pb.collection('drivers').update(d.id, {
-          age: (d.age || 18) + 1,
-          // true_potential NUNCA é alterado magicamente
-        })
-      } catch {
-        // tolerância
+  /**
+   * Ferramenta de Reconciliação do Histórico Legado (Regra 0 da 8B)
+   * NUNCA executada automaticamente no save real.
+   * Cria registro seguro de 2026 caso solicitado explicitamente.
+   */
+  public async reconcileLegacySeasonHistory(teamId: string): Promise<{
+    reconciled: boolean
+    message: string
+  }> {
+    try {
+      const existing = await pb
+        .collection('season_histories')
+        .getFirstListItem(`season_year=2026 && team_id="${teamId}"`)
+      if (existing) {
+        return { reconciled: false, message: 'Registro canônico de 2026 já existe.' }
       }
+    } catch {
+      // Registro não existe, seguro para criar se solicitado
+    }
+
+    try {
+      const teams = await f1Service.getTeams()
+      const playerTeam = teams.find((t) => t.id === teamId) || teams[0]
+      const drivers = await f1Service.getDrivers()
+
+      const legacyHistory: CanonicalSeasonHistory = {
+        id: `hist_2026_${teamId}_reconciled`,
+        season: 2026,
+        driversChampion: {
+          driverId: 'drv_max',
+          driverName: 'Max Verstappen',
+          teamName: 'Red Bull Racing',
+          points: 420,
+          wins: 12,
+          podiums: 18,
+        },
+        constructorsChampion: {
+          teamId: 'team_mclaren',
+          teamName: 'McLaren F1 Team',
+          points: 650,
+          wins: 8,
+          podiums: 20,
+        },
+        finalStandings: {
+          drivers: [],
+          constructors: [],
+        },
+        teamSummary: {
+          teamId: playerTeam.id,
+          teamName: playerTeam.name,
+          finalRank: 6,
+          points: 85,
+          wins: 0,
+          podiums: 1,
+          closingCash: playerTeam.budget || 80000000,
+          costCapSpent: 128000000,
+        },
+        majorRecords: {
+          totalRaces: 24,
+          mostWinsDriver: 'Max Verstappen',
+        },
+        archivedAt: new Date().toISOString(),
+      }
+
+      await pb.collection('season_histories').create({
+        season_year: 2026,
+        team_id: teamId,
+        drivers_champion: legacyHistory.driversChampion,
+        constructors_champion: legacyHistory.constructorsChampion,
+        final_driver_standings: legacyHistory.finalStandings.drivers,
+        final_constructor_standings: legacyHistory.finalStandings.constructors,
+        team_summary: legacyHistory.teamSummary,
+        major_records: legacyHistory.majorRecords,
+        archived_at: legacyHistory.archivedAt,
+      })
+
+      return { reconciled: true, message: 'Histórico de 2026 reconciliado com sucesso.' }
+    } catch (err: any) {
+      return { reconciled: false, message: `Falha na reconciliação: ${err?.message || err}` }
     }
   }
 

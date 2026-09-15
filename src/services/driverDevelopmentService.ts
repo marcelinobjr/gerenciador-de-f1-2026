@@ -25,6 +25,11 @@ import {
   HOMOLOGATION_CONFIG,
   DRIVER_TEST_TYPES_CONFIG,
   HomologationPhase,
+  DriverDevelopmentProfile,
+  DevelopmentCurveArchetype,
+  CareerStage,
+  DriverDevelopmentSeasonLedger,
+  AttributeGainLoss,
 } from '@/types/driver-development'
 
 export interface TestExecutionParams {
@@ -857,6 +862,432 @@ class DriverDevelopmentService {
    * 6. RATIFICAÇÃO / RECONFIRMAÇÃO PÚBLICA DO TITULAR
    * Se a equipe confirma publicamente o titular: Seat Security +, jovem pode ficar frustrado (Regra 10).
    */
+  /**
+   * =========================================================================
+   * PARTE 8B: SISTEMA DE DESENVOLVIMENTO, ENVELHECIMENTO, DECLÍNIO E PERFIS
+   * =========================================================================
+   */
+
+  /**
+   * Gera ou recupera o DriverDevelopmentProfile persistente de um piloto.
+   * Totalmente determinístico baseado em seed/driverId quando gerado pela primeira vez.
+   */
+  public getOrInitializeProfile(driver: DriverModel, seed?: number): DriverDevelopmentProfile {
+    if (driver.development_profile) {
+      return driver.development_profile as DriverDevelopmentProfile
+    }
+
+    // Criar perfil determinístico baseado no id do piloto
+    const hash = this.hashString(driver.id + (seed !== undefined ? `_${seed}` : ''))
+    const archetypes: DevelopmentCurveArchetype[] = [
+      'NORMAL',
+      'NORMAL',
+      'EARLY_BLOOMER',
+      'LATE_BLOOMER',
+      'HIGH_VARIANCE',
+      'LONG_PRIME',
+    ]
+    const archetype = archetypes[hash % archetypes.length]
+
+    // Janela de pico variável por arquétipo e indivíduo
+    let peakStart = 26 + (hash % 3)
+    let peakEnd = 31 + ((hash >> 2) % 4)
+
+    if (archetype === 'EARLY_BLOOMER') {
+      peakStart = 23 + (hash % 3)
+      peakEnd = 28 + (hash % 3)
+    } else if (archetype === 'LATE_BLOOMER') {
+      peakStart = 28 + (hash % 3)
+      peakEnd = 33 + (hash % 3)
+    } else if (archetype === 'LONG_PRIME') {
+      peakStart = 25 + (hash % 3)
+      peakEnd = 35 + ((hash >> 2) % 3)
+    }
+
+    const longevity = 0.8 + (hash % 40) / 100 // 0.8 a 1.2
+    const growthRate = 0.85 + ((hash >> 3) % 35) / 100 // 0.85 a 1.20
+    const adaptationRate = 0.8 + ((hash >> 5) % 40) / 100
+    const volatility = -1 + (hash % 21) / 10 // -1.0 a +1.0
+
+    const declineProfile = {
+      paceDeclineRate: 0.5 + (hash % 50) / 100, // 0.5 a 1.0
+      consistencyDeclineRate: 0.2 + (hash % 30) / 100, // 0.2 a 0.5
+      physicalDeclineRate: 0.6 + (hash % 60) / 100,
+      experienceRetentionFactor: 0.85 + (hash % 15) / 100,
+      technicalFeedbackStability: 0.95,
+    }
+
+    const currentAge = driver.age || 25
+    const stage = this.determineCareerStage(currentAge, peakStart, peakEnd, driver.career_status)
+
+    const profile: DriverDevelopmentProfile = {
+      driverId: driver.id,
+      archetype,
+      growthRate,
+      peakWindow: { startAge: peakStart, endAge: peakEnd },
+      declineProfile,
+      adaptationRate,
+      experienceModifier: 1.0,
+      volatility,
+      longevity,
+      learningCeilingMultiplier: 1.0,
+      currentStage: stage,
+    }
+
+    return profile
+  }
+
+  /**
+   * Determina o estágio de carreira qualitativo com base na idade individual e janela de pico
+   */
+  public determineCareerStage(
+    age: number,
+    peakStart: number,
+    peakEnd: number,
+    status?: string | null,
+  ): CareerStage {
+    if (status === 'retired') return 'RETIRED'
+    if (age < peakStart - 3) return 'EARLY_DEVELOPMENT'
+    if (age < peakStart) return 'DEVELOPMENT'
+    if (age >= peakStart && age <= peakEnd) return 'PEAK'
+    if (age <= peakEnd + 2) return 'STABLE'
+    if (age <= peakEnd + 4) return 'EARLY_DECLINE'
+    if (age >= 36 && age <= peakEnd + 6) return 'VETERAN_STABLE'
+    return 'DECLINING'
+  }
+
+  /**
+   * Helper hash determinístico para seeds estáveis
+   */
+  private hashString(str: string): number {
+    let hash = 5381
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) + hash + str.charCodeAt(i)
+      hash = hash & hash
+    }
+    return Math.abs(hash)
+  }
+
+  /**
+   * Processa o ciclo anual de desenvolvimento individual (Regras 5 a 35 da 8B).
+   * Não incrementa idade (idade é gerida canonicamente pelo seasonTransitionService).
+   * Calcula progressão por atributo não-linear, respeita oportunidades e gera explicabilidade.
+   */
+  public processAnnualDriverDevelopment(params: {
+    driver: DriverModel
+    team?: TeamModel | null
+    seasonYear: number
+    seed?: number
+    trackOpportunityFactor?: number // 1.0 = titular pleno, 0.5 = reserva/testes, 0.25 = sem atividade
+    facilityLevel?: number // 1 a 5 (youth_academy_level / simulator_level)
+    directorModifier?: number // Bônus moderado da equipe técnica
+  }): {
+    updatedDriver: DriverModel
+    profile: DriverDevelopmentProfile
+    ledger: DriverDevelopmentSeasonLedger
+    narrative: string
+  } {
+    const { driver, team, seasonYear, seed } = params
+    const profile = this.getOrInitializeProfile(driver, seed)
+    const age = driver.age || 25
+    const stage = this.determineCareerStage(
+      age,
+      profile.peakWindow.startAge,
+      profile.peakWindow.endAge,
+      driver.career_status,
+    )
+    profile.currentStage = stage
+
+    // Fator de oportunidade de pista
+    let oppFactor = params.trackOpportunityFactor ?? 1.0
+    if (driver.role === 'reserva') oppFactor = 0.5
+    else if (driver.is_test_driver) oppFactor = 0.65
+    else if (driver.is_academy) oppFactor = 0.6
+    else if (!driver.team_id) oppFactor = 0.25 // Free agent sem assento
+
+    // Infraestrutura e Gargalos (Regra 17)
+    // Ex: Academy nível 5 vs nível 1
+    const facilityLvl =
+      params.facilityLevel || team?.youth_academy_level || team?.simulator_level || 3
+    const facilityMod = 0.65 + (facilityLvl / 5) * 0.45 // 0.74 a 1.10
+
+    // Personalidade e Psicologia (Regras 18 e 19)
+    const psych =
+      (driver as any).psychology_data || (driver as any).procedural_data?.psychology || {}
+    const professionalism = psych.professionalism || 75
+    const adaptability = psych.adaptability || 75
+    const resilience = psych.resilience || 75
+    const ambition = psych.ambition || 75
+
+    const psychMod = 0.85 + professionalism * 0.001 + adaptability * 0.001
+
+    // True Potential Latente (Regra 8)
+    const rawProc = (driver as any).procedural_data
+    const truePot =
+      driver.true_potential ||
+      rawProc?.truePotential ||
+      (driver as any).truePotential ||
+      Math.min(99, Math.max(driver.speed, 85))
+
+    const currentSpeed = driver.speed || 75
+    const currentConsistency = driver.consistency || 75
+    const currentRain = driver.rain || 75
+    const currentDefense = driver.defense || 75
+    const currentFeedback = driver.technical_feedback || 70
+
+    // Cálculo Determinístico por Seed
+    const seedVal = seed !== undefined ? seed : this.hashString(`${driver.id}_${seasonYear}`)
+    const rng = (offset: number) => {
+      const x = Math.sin(seedVal + offset) * 10000
+      return x - Math.floor(x)
+    }
+
+    const primaryFactors: string[] = []
+    let speedDelta = 0
+    let consistencyDelta = 0
+    let rainDelta = 0
+    let defenseDelta = 0
+    let feedbackDelta = 0
+
+    // 1. FASE DE DESENVOLVIMENTO (Jovens e Ascensão)
+    if (stage === 'EARLY_DEVELOPMENT' || stage === 'DEVELOPMENT') {
+      primaryFactors.push(
+        oppFactor >= 0.8 ? 'Tempo de pista abundante' : 'Oportunidades de pista limitadas',
+      )
+      if (facilityLvl >= 4) primaryFactors.push('Excelente infraestrutura de simulador e academia')
+      if (professionalism >= 80) primaryFactors.push('Elevado profissionalismo do piloto')
+
+      // Distância até o teto
+      const speedHeadroom = Math.max(0, truePot - currentSpeed)
+      const consistHeadroom = Math.max(0, truePot - currentConsistency)
+
+      // Variância controlada: Platô ou Breakthrough (Regras 36 e 37)
+      const varianceRoll = rng(1)
+      let growthMultiplier = profile.growthRate * facilityMod * psychMod * oppFactor
+
+      if (varianceRoll < 0.12 && speedHeadroom >= 4 && oppFactor >= 0.7) {
+        // Breakthrough season (raro salto técnico)
+        growthMultiplier *= 1.6
+        primaryFactors.push('Temporada de salto técnico e quebra de paradigma (Breakthrough)')
+      } else if (varianceRoll > 0.82) {
+        // Estagnação temporária (Regra 36)
+        growthMultiplier *= 0.35
+        primaryFactors.push('Ano de adaptação complexa e estagnação técnica')
+      }
+
+      // Atributos evoluem com curvas diferentes (Regras 12 e 13)
+      speedDelta = Math.round((speedHeadroom * 0.14 + rng(2) * 1.5) * growthMultiplier)
+      consistencyDelta = Math.round((consistHeadroom * 0.18 + rng(3) * 1.8) * growthMultiplier)
+      rainDelta = Math.round(rng(4) * 2.0 * (stage === 'EARLY_DEVELOPMENT' ? 1.2 : 0.8))
+      defenseDelta = Math.round(rng(5) * 2.2 * (stage === 'EARLY_DEVELOPMENT' ? 1.2 : 0.8))
+      feedbackDelta = Math.round(1 + (facilityLvl >= 4 ? 1 : 0) + (oppFactor >= 0.8 ? 1 : 0))
+
+      // Limites por temporada
+      speedDelta = Math.min(5, Math.max(0, speedDelta))
+      consistencyDelta = Math.min(6, Math.max(0, consistencyDelta))
+    }
+    // 2. FASE DE PICO / ESTABILIDADE
+    else if (stage === 'PEAK' || stage === 'STABLE') {
+      primaryFactors.push('Piloto no auge técnico (Janela de Pico / Prime)')
+      // No prime, variações são mínimas (-1 a +1)
+      const fluctuation = rng(6)
+      speedDelta = fluctuation > 0.7 ? 1 : fluctuation < 0.3 ? -1 : 0
+      consistencyDelta = fluctuation > 0.5 ? 1 : 0
+      defenseDelta = 0
+      rainDelta = 0
+      feedbackDelta = rng(7) > 0.6 ? 1 : 0
+    }
+    // 3. FASE DE DECLÍNIO (Regras 25 a 28 — Sem Cliff Universal!)
+    else {
+      primaryFactors.push('Fase madura de carreira (Declínio natural de reflexos)')
+      const longevityFactor = profile.longevity // Maior longevidade suaviza declínio
+
+      // Velocidade pura cai primeiro, mas lentamente e de forma variável
+      const declineSpeedRate = profile.declineProfile.paceDeclineRate / longevityFactor
+      const rawSpeedLoss = rng(8) * 1.4 + declineSpeedRate * 0.8
+
+      // Regra 28: Veterano não vira inútil! Consistência e feedback permanecem fortes
+      speedDelta = -Math.min(3, Math.max(0, Math.round(rawSpeedLoss)))
+      consistencyDelta = rng(9) > 0.65 ? -1 : 0 // Cai muito mais devagar
+      defenseDelta = rng(10) > 0.8 ? -1 : 0
+      feedbackDelta = rng(11) > 0.85 ? 0 : 0 // Feedback técnico quase não se perde!
+      rainDelta = rng(12) > 0.75 ? -1 : 0
+
+      // Se piloto tiver alta longevidade e for VETERAN_STABLE, raw pace pode não cair nada no ano
+      if (stage === 'VETERAN_STABLE' && rng(13) > 0.5) {
+        speedDelta = 0
+        primaryFactors.push('Longevidade excepcional mantém ritmo de elite')
+      }
+      primaryFactors.push('Feedback técnico e experiência mantêm o valor do veterano elevado')
+    }
+
+    // Novos atributos respeitando limites matemáticos
+    const finalSpeed = Math.min(truePot, Math.max(50, currentSpeed + speedDelta))
+    const finalConsistency = Math.min(truePot, Math.max(50, currentConsistency + consistencyDelta))
+    const finalRain = Math.min(99, Math.max(50, currentRain + rainDelta))
+    const finalDefense = Math.min(99, Math.max(50, currentDefense + defenseDelta))
+    const finalFeedback = Math.min(99, Math.max(50, currentFeedback + feedbackDelta))
+
+    // Reavaliação e Convergência de perceivedPotential (Regra 40)
+    // Conforme o piloto disputa mais temporadas, perceivedPotential se aproxima do truePot
+    let perceivedPot = driver.perceived_potential || (driver as any).perceivedPotential || truePot
+    let confidence = driver.evaluation_confidence || (driver as any).evaluationConfidence || 60
+    if (confidence < 95) {
+      confidence = Math.min(95, confidence + (oppFactor >= 0.7 ? 8 : 4))
+      const error = (truePot - perceivedPot) * 0.25
+      perceivedPot = Math.round(perceivedPot + error)
+    }
+
+    const narrative = this.buildEvolutionNarrative({
+      driverName: driver.name,
+      stage,
+      speedDelta,
+      consistencyDelta,
+      feedbackDelta,
+      primaryFactors,
+    })
+
+    const ledger: DriverDevelopmentSeasonLedger = {
+      seasonYear,
+      driverId: driver.id,
+      driverName: driver.name,
+      age,
+      stage,
+      archetype: profile.archetype,
+      attributes: {
+        speed: { initial: currentSpeed, delta: finalSpeed - currentSpeed, final: finalSpeed },
+        consistency: {
+          initial: currentConsistency,
+          delta: finalConsistency - currentConsistency,
+          final: finalConsistency,
+        },
+        rain: { initial: currentRain, delta: finalRain - currentRain, final: finalRain },
+        defense: {
+          initial: currentDefense,
+          delta: finalDefense - currentDefense,
+          final: finalDefense,
+        },
+        technicalFeedback: {
+          initial: currentFeedback,
+          delta: finalFeedback - currentFeedback,
+          final: finalFeedback,
+        },
+      },
+      experienceGained: Math.round(15 * oppFactor),
+      trackTimeHours: Math.round(120 * oppFactor),
+      primaryFactors,
+      evolutionNarrative: narrative,
+    }
+
+    // Monta driver atualizado (sem mexer em age, truePotential ou personalidade)
+    const existingHistory = (driver.development_history as DriverDevelopmentSeasonLedger[]) || []
+    const updatedHistory = [ledger, ...existingHistory].slice(0, 10)
+
+    const updatedDriver: DriverModel = {
+      ...driver,
+      speed: finalSpeed,
+      consistency: finalConsistency,
+      rain: finalRain,
+      defense: finalDefense,
+      technical_feedback: finalFeedback,
+      perceived_potential: perceivedPot,
+      evaluation_confidence: confidence,
+      development_profile: profile,
+      development_history: updatedHistory,
+    }
+
+    return {
+      updatedDriver,
+      profile,
+      ledger,
+      narrative,
+    }
+  }
+
+  /**
+   * Constrói narrativa qualitativa explicável sem expor fórmulas nem truePotential (Regra 33)
+   */
+  private buildEvolutionNarrative(params: {
+    driverName: string
+    stage: CareerStage
+    speedDelta: number
+    consistencyDelta: number
+    feedbackDelta: number
+    primaryFactors: string[]
+  }): string {
+    const { driverName, stage, speedDelta, consistencyDelta, primaryFactors } = params
+    if (stage === 'EARLY_DEVELOPMENT' || stage === 'DEVELOPMENT') {
+      if (speedDelta > 0 || consistencyDelta > 0) {
+        return `${driverName} demonstrou sólida evolução técnica ao longo da temporada, refinando especialmente consistência de corrida e gestão de pneus (${primaryFactors.join(', ')}).`
+      }
+      return `${driverName} atravessou um ano de consolidação e desafios, mantendo ritmo estável e aprendizado contínuo.`
+    }
+    if (stage === 'PEAK' || stage === 'STABLE') {
+      return `${driverName} manteve performance consistente em sua janela de ápice competitivo, exibindo controle e velocidade refinados.`
+    }
+    // Declínio
+    if (speedDelta < 0) {
+      return `${driverName} sentiu uma perda sutil de velocidade pura em voltas rápidas, mas sua experiência e feedback aos engenheiros continuam sendo ativos inestimáveis.`
+    }
+    return `${driverName} manteve excelente competitividade técnica, utilizando sua vasta rodagem para compensar qualquer desgaste natural da idade.`
+  }
+
+  /**
+   * Explicabilidade formal do desenvolvimento de um piloto em determinada temporada (Regra 102 & 103)
+   */
+  public explainDriverDevelopment(
+    driver: DriverModel,
+    seasonYear: number,
+  ): {
+    headline: string
+    careerStage: string
+    stageSummary: string
+    factors: string[]
+    resultsSummary: string
+  } {
+    const history = (driver.development_history as DriverDevelopmentSeasonLedger[]) || []
+    const entry = history.find((h) => h.seasonYear === seasonYear) || history[0]
+
+    const stageNames: Record<CareerStage, string> = {
+      EARLY_DEVELOPMENT: 'Desenvolvimento Acelerado (Rookie / Jovem)',
+      DEVELOPMENT: 'Em Ascensão Técnica',
+      PEAK: 'Ápice de Carreira (Prime)',
+      STABLE: 'Estável no Topo',
+      EARLY_DECLINE: 'Transição / Declínio Sutil',
+      DECLINING: 'Declínio Natural de Velocidade',
+      VETERAN_STABLE: 'Veterano Resiliente (Foco em Experiência)',
+      RETIRED: 'Aposentado das Pistas',
+    }
+
+    if (!entry) {
+      const profile = this.getOrInitializeProfile(driver)
+      return {
+        headline: `${driver.name} — Temporada ${seasonYear}`,
+        careerStage: stageNames[profile.currentStage] || 'Ativo',
+        stageSummary: 'Piloto pronto para consolidação no campeonato.',
+        factors: ['Quilometragem regular', 'Adaptação à equipe'],
+        resultsSummary: 'Atributos mantidos em patamar consistente.',
+      }
+    }
+
+    const speedChange =
+      entry.attributes.speed.delta > 0
+        ? `+${entry.attributes.speed.delta}`
+        : `${entry.attributes.speed.delta}`
+    const consistChange =
+      entry.attributes.consistency.delta > 0
+        ? `+${entry.attributes.consistency.delta}`
+        : `${entry.attributes.consistency.delta}`
+
+    return {
+      headline: `${driver.name} — Temporada ${entry.seasonYear}`,
+      careerStage: stageNames[entry.stage] || entry.stage,
+      stageSummary: entry.evolutionNarrative,
+      factors: entry.primaryFactors,
+      resultsSummary: `Ritmo: ${speedChange} | Consistência: ${consistChange} | Feedback: +${entry.attributes.technicalFeedback.delta}`,
+    }
+  }
+
   async confirmTitularPublicly(
     team: TeamModel,
     titular: DriverModel,
