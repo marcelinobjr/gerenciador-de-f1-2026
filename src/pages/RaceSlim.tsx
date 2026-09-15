@@ -102,6 +102,9 @@ import { TeamRadioDialog } from '@/components/TeamRadioDialog'
 import { TireStockCard } from '@/pages/race/TireStockCard'
 import { WeatherRadarCard } from '@/pages/race/WeatherRadarCard'
 import { TrackInfoPanel } from '@/pages/race/TrackInfoPanel'
+import { PreRaceDriverBriefingCard } from '@/components/race/PreRaceDriverBriefingCard'
+import { PitWallRadioDialog } from '@/components/race/PitWallRadioDialog'
+import { driverRaceInteractionService } from '@/services/driverRaceInteractionService'
 import { getCountryFlag } from '@/lib/country-flags'
 import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
 import {
@@ -313,6 +316,10 @@ export default function RacePage() {
 
   // Force Pit Stop Modal state
   const [forcePitModalOpen, setForcePitModalOpen] = useState(false)
+  const [pitWallRadioOpen, setPitWallRadioOpen] = useState(false)
+  const [pitWallRadioDriverId, setPitWallRadioDriverId] = useState('')
+  const [pendingDriverRequest, setPendingDriverRequest] = useState<any>(null)
+  const [activeFollowUpState, setActiveFollowUpState] = useState<any>(null)
   const [forcePitSelectedDriverId, setForcePitSelectedDriverId] = useState<string>('')
   const [forcePitSelectedSetId, setForcePitSelectedSetId] = useState<string>('')
   const wasPausedBeforeForcePitRef = useRef<boolean>(false)
@@ -4998,6 +5005,14 @@ export default function RacePage() {
 
       <WeatherRadarCard forecast={forecast} weather={weather} />
 
+      <PreRaceDriverBriefingCard
+        drivers={drivers}
+        team={team}
+        round={currentRound}
+        seasonYear={season?.year || 2026}
+        circuitName={gpInfo.name}
+      />
+
       {/* Season Completed Banner if R24 */}
       {seasonCompleted && (
         <Card className="relative z-10 bg-gradient-to-r from-[#090D15]/95 via-[#131A26]/90 to-[#090D15]/95 backdrop-blur-md border-2 border-amber-500/60 p-6 shadow-2xl">
@@ -6071,6 +6086,204 @@ export default function RacePage() {
             currentTireCompound={activeRadioDriver?.tireCompound || 'medio'}
             currentTireWear={activeRadioDriver?.tireWear ?? 50}
             onRespond={handleRadioResponse}
+          />
+        )
+      })()}
+
+      {/* 8. Modal de Rádio do Pit Wall e Ordens de Equipe Estruturadas (6B) */}
+      {(() => {
+        const targetDriver =
+          liveRaceState?.grid?.find((g) => g.driverId === pitWallRadioDriverId) ||
+          liveRaceState?.grid?.find((g) => g.isPlayer) ||
+          null
+        const teammateDriver = liveRaceState?.grid?.find(
+          (g) => g.isPlayer && g.driverId !== targetDriver?.driverId,
+        )
+
+        return (
+          <PitWallRadioDialog
+            open={pitWallRadioOpen}
+            onClose={() => setPitWallRadioOpen(false)}
+            currentLap={liveRaceState?.currentLap || 1}
+            driverName={targetDriver?.driverName || 'Piloto'}
+            driverId={targetDriver?.driverId || ''}
+            teammateName={teammateDriver?.driverName}
+            teammateId={teammateDriver?.driverId}
+            gapToTeammateSec={
+              targetDriver && teammateDriver
+                ? Math.abs(
+                    (targetDriver.accumulatedTimeSec || 0) -
+                      (teammateDriver.accumulatedTimeSec || 0),
+                  )
+                : undefined
+            }
+            isTeammateAhead={
+              targetDriver && teammateDriver
+                ? (teammateDriver.position || 0) < (targetDriver.position || 0)
+                : false
+            }
+            currentTireCompound={targetDriver?.tireCompound || 'medio'}
+            currentTireWear={targetDriver?.tireWear || 50}
+            pendingRequest={pendingDriverRequest}
+            activeFollowUp={activeFollowUpState}
+            onSendTeamOrder={(orderType, reason) => {
+              if (!targetDriver) return
+              const targetDriverModel = drivers.find((d) => d.id === targetDriver.driverId) || {
+                id: targetDriver.driverId,
+                name: targetDriver.driverName,
+              }
+              const teammateModel = teammateDriver
+                ? drivers.find((d) => d.id === teammateDriver.driverId)
+                : null
+
+              const evalResult = driverRaceInteractionService.evaluateTeamOrder(
+                {
+                  orderId: `ord_${Date.now()}_${targetDriver.driverId}`,
+                  orderType,
+                  targetDriverId: targetDriver.driverId,
+                  teammateId: teammateDriver?.driverId,
+                  reason,
+                  lap: liveRaceState?.currentLap || 1,
+                  round: currentRound,
+                  season: season?.year || 2026,
+                },
+                {
+                  driverId: targetDriver.driverId,
+                  driverName: targetDriver.driverName,
+                  teamId: team?.id || '',
+                  teamName: team?.name || '',
+                  isPlayerTeam: true,
+                  round: currentRound,
+                  season: season?.year || 2026,
+                  circuitId: gpInfo.circuit,
+                  currentLap: liveRaceState?.currentLap || 1,
+                  totalLaps: gpInfo.laps,
+                  position: targetDriver.position || 1,
+                  gridTotal: liveRaceState?.grid?.length || 20,
+                  tireCompound: targetDriver.tireCompound || 'medio',
+                  tireWear: targetDriver.tireWear || 50,
+                  isInCliff: (targetDriver.cliffStatus?.isCliffReached ?? 0) > 0,
+                  weatherState: liveRaceState?.weather || weather,
+                },
+                targetDriverModel,
+                team,
+                teammateModel,
+              )
+
+              if (evalResult.followUpAllowed) {
+                setActiveFollowUpState({
+                  orderType,
+                  originalReaction: evalResult.reactionType,
+                  driverMessage: evalResult.radioMessageText,
+                })
+              } else {
+                setActiveFollowUpState(null)
+              }
+
+              const nowStr = new Date().toLocaleTimeString('pt-BR')
+              setLiveEvents((prev) => [
+                {
+                  id: `ev_order_${Date.now()}`,
+                  lap: liveRaceState?.currentLap || 1,
+                  type: 'team_radio',
+                  message: `📻 PIT WALL: [${orderType}] ➔ ${targetDriver.driverName}: "${evalResult.radioMessageText}" (${evalResult.reactionType})`,
+                  driverName: targetDriver.driverName,
+                  teamColor: targetDriver.teamColor,
+                  isPlayer: true,
+                  timestamp: nowStr,
+                },
+                ...prev,
+              ])
+
+              toast({
+                title: `📻 Rádio: ${evalResult.reactionType}`,
+                description: `${targetDriver.driverName}: "${evalResult.radioMessageText}"`,
+              })
+            }}
+            onRespondToRequest={(action) => {
+              if (!targetDriver || !pendingDriverRequest) return
+              const targetDriverModel = drivers.find((d) => d.id === targetDriver.driverId) || {
+                id: targetDriver.driverId,
+                name: targetDriver.driverName,
+              }
+              const responseOut = driverRaceInteractionService.respondToDriverRequest(
+                pendingDriverRequest,
+                action,
+                {
+                  driverId: targetDriver.driverId,
+                  driverName: targetDriver.driverName,
+                  teamId: team?.id || '',
+                  teamName: team?.name || '',
+                  isPlayerTeam: true,
+                  round: currentRound,
+                  season: season?.year || 2026,
+                  circuitId: gpInfo.circuit,
+                  currentLap: liveRaceState?.currentLap || 1,
+                  totalLaps: gpInfo.laps,
+                  position: targetDriver.position || 1,
+                  gridTotal: liveRaceState?.grid?.length || 20,
+                  tireCompound: targetDriver.tireCompound || 'medio',
+                  tireWear: targetDriver.tireWear || 50,
+                  isInCliff: (targetDriver.cliffStatus?.isCliffReached ?? 0) > 0,
+                  weatherState: liveRaceState?.weather || weather,
+                },
+                targetDriverModel,
+                team,
+              )
+
+              setPendingDriverRequest(null)
+              toast({
+                title: '📻 Resposta Pit Wall Enviada',
+                description: responseOut.radioResponseText,
+              })
+            }}
+            onSendFollowUp={(reason) => {
+              if (!targetDriver || !activeFollowUpState) return
+              const targetDriverModel = drivers.find((d) => d.id === targetDriver.driverId) || {
+                id: targetDriver.driverId,
+                name: targetDriver.driverName,
+              }
+              const followUpResult = driverRaceInteractionService.evaluateFollowUp(
+                {
+                  orderId: `ord_fu_${Date.now()}_${targetDriver.driverId}`,
+                  orderType: activeFollowUpState.orderType,
+                  targetDriverId: targetDriver.driverId,
+                  teammateId: teammateDriver?.driverId,
+                  reason,
+                  lap: liveRaceState?.currentLap || 1,
+                  round: currentRound,
+                  season: season?.year || 2026,
+                  isFollowUp: true,
+                },
+                {
+                  driverId: targetDriver.driverId,
+                  driverName: targetDriver.driverName,
+                  teamId: team?.id || '',
+                  teamName: team?.name || '',
+                  isPlayerTeam: true,
+                  round: currentRound,
+                  season: season?.year || 2026,
+                  circuitId: gpInfo.circuit,
+                  currentLap: liveRaceState?.currentLap || 1,
+                  totalLaps: gpInfo.laps,
+                  position: targetDriver.position || 1,
+                  gridTotal: liveRaceState?.grid?.length || 20,
+                  tireCompound: targetDriver.tireCompound || 'medio',
+                  tireWear: targetDriver.tireWear || 50,
+                  isInCliff: (targetDriver.cliffStatus?.isCliffReached ?? 0) > 0,
+                  weatherState: liveRaceState?.weather || weather,
+                },
+                targetDriverModel,
+                team,
+                teammateDriver ? drivers.find((d) => d.id === teammateDriver.driverId) : null,
+              )
+
+              setActiveFollowUpState(null)
+              toast({
+                title: `📻 Resposta do Piloto após Follow-up: ${followUpResult.reactionType}`,
+                description: `${targetDriver.driverName}: "${followUpResult.radioMessageText}"`,
+              })
+            }}
           />
         )
       })()}

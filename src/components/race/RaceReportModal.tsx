@@ -404,6 +404,44 @@ export function RaceReportModal({
             </div>
           )}
 
+          {/* 3.2 DECLARAÇÕES E FEEDBACK PÓS-CORRIDA (6B) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-[#1F2733] pb-2">
+              <span className="eyebrow text-[#8B95A7] text-[11px] flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Declarações Pós-Corrida &
+                Psicologia
+              </span>
+              <span className="text-[11px] font-mono text-cyan-400">Debriefing dos Pilotos</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-xs">
+              {report.teamDrivers.map((driver) => {
+                const isUnderperformed = (driver.finalPosition || 10) > 10
+                const isPodium = (driver.finalPosition || 10) <= 3
+                return (
+                  <div
+                    key={driver.driverId}
+                    className="p-3.5 rounded-xl bg-[#0e1420] border border-[#1F2733] space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">{driver.driverName}</span>
+                      <Badge className="bg-[#161D29] text-slate-300 text-[10px]">
+                        P{driver.finalPosition || '-'}
+                      </Badge>
+                    </div>
+                    <p className="text-cyan-200 italic font-sans text-xs">
+                      {isPodium
+                        ? `"${driver.driverName.split(' ')[0]}: Um resultado fantástico para a equipe! O ritmo do carro correspondeu perfeitamente ao plano traçado no pit wall."`
+                        : isUnderperformed
+                          ? `"${driver.driverName.split(' ')[0]}: Não foi o resultado que queríamos. Sofremos com a degradação e temos muito trabalho de análise pela frente."`
+                          : `"${driver.driverName.split(' ')[0]}: Corrida sólida e pontos importantes somados. A comunicação pelo rádio funcionou bem e executamos o melhor que o carro oferecia."`}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
           {/* 4. MELHORES RÁDIOS DA CORRIDA */}
           <div className="space-y-3">
             <div className="flex items-center justify-between border-b border-[#1F2733] pb-2">

@@ -432,6 +432,63 @@ export class DriverRelationshipService {
         break
       }
 
+      case 'teammate_incident_collision': {
+        polarity = 'negative'
+        baseImpact = -6
+        rawIntensity = 7
+        persistence = 'Relevant'
+        stateDelta.frustration = 8
+        stateDelta.emotionalTension = 10
+        tpDelta.confidence = -4
+        tmDelta.tension = 12
+        tmDelta.rivalry = 8
+        tmDelta.respect = -6
+        tmDelta.cooperation = -8
+        break
+      }
+
+      case 'teammate_favoritism_felt': {
+        polarity = 'negative'
+        baseImpact = -7
+        rawIntensity = 7
+        persistence = 'Relevant'
+        const egoFactor = ((traits.ego - 50) / 50) * 2.5
+        stateDelta.frustration = Math.round(7 + egoFactor)
+        stateDelta.satisfaction = -Math.round(6 + egoFactor)
+        stateDelta.emotionalTension = 6
+        tpDelta.trust = -Math.round(8 + egoFactor)
+        teamDelta.belonging = -5
+        tmDelta.tension = 8
+        tmDelta.rivalry = 6
+        break
+      }
+
+      case 'strategy_blunder_team': {
+        polarity = 'negative'
+        baseImpact = -8
+        rawIntensity = 8
+        persistence = 'Major'
+        stateDelta.frustration = 10
+        stateDelta.confidence = -5
+        teamDelta.technicalTrust = -10
+        teamDelta.sportingTrust = -12
+        tpDelta.trust = -8
+        break
+      }
+
+      case 'strategy_masterclass_team': {
+        polarity = 'positive'
+        baseImpact = 7
+        rawIntensity = 7
+        persistence = 'Relevant'
+        stateDelta.satisfaction = 8
+        stateDelta.confidence = 7
+        teamDelta.sportingTrust = 10
+        teamDelta.technicalTrust = 6
+        tpDelta.respect = 8
+        break
+      }
+
       default: {
         polarity = 'neutral'
         baseImpact = 1
