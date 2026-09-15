@@ -1,6 +1,9 @@
 import pb from '@/lib/pocketbase/client'
 import { withAuthRetry, refreshAuthSession } from '@/lib/pocketbase/authHelper'
 import { getSuperlicensePointsGained, calcularElegibilidade } from '@/lib/superlicense'
+import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
+import { carTechnicalService } from '@/services/carTechnicalService'
+import { generateDefaultComponentsFromMacro } from '@/lib/car-technical-data'
 import {
   TeamModel,
   SeasonModel,
@@ -110,7 +113,21 @@ export const f1Service = {
       const records = await pb.collection('teams').getList<TeamModel>(1, 1, {
         filter: `user_id = "${safeUserId}"`,
       })
-      return records.items[0] || null
+      const team = records.items[0] || null
+      if (team) {
+        // Enriquecimento transparente de dados técnicos (fallback defensivo sem sobrescrever banco)
+        const enriched = carTechnicalService.ensureTechnicalData(team)
+        if (!team.technical_attributes || !team.calculated_overall) {
+          team.technical_attributes = enriched.technical_attributes
+          team.calculated_overall = enriched.calculated_overall
+          team.balance_delta = enriched.balance_delta
+          team.technical_balance_delta = enriched.balance_delta
+          team.component_ratings = enriched.component_ratings
+        } else if (team.balance_delta === undefined && team.technical_balance_delta !== undefined) {
+          team.balance_delta = team.technical_balance_delta
+        }
+      }
+      return team
     } catch (e) {
       console.error('Error fetching player team:', e)
       return null
@@ -119,8 +136,22 @@ export const f1Service = {
 
   async getAllTeams(): Promise<TeamModel[]> {
     try {
-      return await pb.collection('teams').getFullList<TeamModel>({
+      const teams = await pb.collection('teams').getFullList<TeamModel>({
         sort: 'name',
+      })
+      // Enriquecimento seguro com fallback técnico para saves antigos sem mutação destrutiva
+      return teams.map((team) => {
+        const enriched = carTechnicalService.ensureTechnicalData(team)
+        if (!team.technical_attributes || !team.calculated_overall) {
+          team.technical_attributes = enriched.technical_attributes
+          team.calculated_overall = enriched.calculated_overall
+          team.balance_delta = enriched.balance_delta
+          team.technical_balance_delta = enriched.balance_delta
+          team.component_ratings = enriched.component_ratings
+        } else if (team.balance_delta === undefined && team.technical_balance_delta !== undefined) {
+          team.balance_delta = team.technical_balance_delta
+        }
+        return team
       })
     } catch (e) {
       console.error('Error fetching all teams:', e)
@@ -208,7 +239,16 @@ export const f1Service = {
         sort: '-speed',
         expand: 'team_id,reserve_team_id',
       })
-      return records
+      // Enriquecimento seguro com fallback canônico de homologação
+      return records.map((d) => {
+        if (!d.license_status) {
+          const view = canonicalHomologationAdapter.toCanonicalView(d)
+          d.license_status = view.licenseStatus
+          d.seat_security = d.seat_security ?? view.seatSecurity
+          d.technical_feedback = d.technical_feedback ?? view.technicalFeedback
+        }
+        return d
+      })
     } catch (e) {
       console.error('Error fetching all drivers:', e)
       return []
@@ -221,7 +261,16 @@ export const f1Service = {
         filter: `team_id = "${teamId}" || reserve_team_id = "${teamId}"`,
         sort: 'name',
       })
-      return records
+      // Enriquecimento seguro com fallback canônico de homologação
+      return records.map((d) => {
+        if (!d.license_status) {
+          const view = canonicalHomologationAdapter.toCanonicalView(d)
+          d.license_status = view.licenseStatus
+          d.seat_security = d.seat_security ?? view.seatSecurity
+          d.technical_feedback = d.technical_feedback ?? view.technicalFeedback
+        }
+        return d
+      })
     } catch (e) {
       console.error('Error fetching team drivers:', e)
       return []
@@ -1041,6 +1090,16 @@ export const f1Service = {
       const teamColor = config.playerTeam.customColor || '#00A6FB'
       const engineSupplier = this.normalizeEngineSupplier(config.playerTeam.customEngine)
 
+      // População canônica de campos técnicos para novas carreiras personalizadas
+      const customMacro = 35
+      const customComponents = generateDefaultComponentsFromMacro(customMacro)
+      const customTechProfile = carTechnicalService.evaluateCarTechnicalProfile(
+        'custom_12th',
+        customComponents,
+        customMacro,
+        engineSupplier,
+      )
+
       const newTeam = await withAuthRetry(() =>
         pb.collection('teams').create<TeamModel>({
           name: teamName,
@@ -1050,10 +1109,14 @@ export const f1Service = {
           strategy_level: 45,
           budget: 135000000,
           engine_supplier: engineSupplier,
-          strength: 35,
+          strength: customMacro,
           is_custom: true,
           team_key: 'custom_12th',
           user_id: activeUserId,
+          technical_attributes: customTechProfile.attributes,
+          calculated_overall: customTechProfile.calculatedOverall,
+          balance_delta: customTechProfile.balanceDelta,
+          component_ratings: customComponents,
           manager_name: managerName,
           manager_profile: {
             profileId: config.managerProfile.id,
@@ -1145,6 +1208,13 @@ export const f1Service = {
 
       const engineSupplier = this.normalizeEngineSupplier(teamDef.engine)
 
+      // População canônica de campos técnicos para novas carreiras com equipe oficial
+      const officialTechData = carTechnicalService.getOrCreateTeamTechnicalData(
+        teamDef.key,
+        teamDef.strength,
+        engineSupplier,
+      )
+
       const newTeam = await withAuthRetry(() =>
         pb.collection('teams').create<TeamModel>({
           name: teamDef.name,
@@ -1158,6 +1228,10 @@ export const f1Service = {
           is_custom: false,
           team_key: teamDef.key,
           user_id: activeUserId,
+          technical_attributes: officialTechData.attributes,
+          calculated_overall: officialTechData.calculatedOverall,
+          balance_delta: officialTechData.balanceDelta,
+          component_ratings: officialTechData.componentRatings,
           manager_name: managerName,
           manager_profile: {
             profileId: config.managerProfile.id,
@@ -1370,6 +1444,13 @@ export const f1Service = {
       }
     },
   ): Promise<TeamModel> {
+    // População canônica de campos técnicos
+    const officialTech = carTechnicalService.getOrCreateTeamTechnicalData(
+      teamKey,
+      officialData.strength,
+      officialData.engine,
+    )
+
     // 1. Create team
     const newTeam = await pb.collection('teams').create<TeamModel>({
       name: officialData.name,
@@ -1383,6 +1464,10 @@ export const f1Service = {
       is_custom: false,
       team_key: teamKey,
       user_id: userId,
+      technical_attributes: officialTech.attributes,
+      calculated_overall: officialTech.calculatedOverall,
+      balance_delta: officialTech.balanceDelta,
+      component_ratings: officialTech.componentRatings,
     })
 
     // 2. Create season 2026
@@ -1522,6 +1607,15 @@ export const f1Service = {
     const initialStrength = 55
     const initialBudget = 130000000
 
+    const customMacro = 35
+    const customComponents = generateDefaultComponentsFromMacro(customMacro)
+    const customTech = carTechnicalService.evaluateCarTechnicalProfile(
+      'custom_12th',
+      customComponents,
+      customMacro,
+      engineSupplier,
+    )
+
     const newTeam = await pb.collection('teams').create<TeamModel>({
       name: teamName,
       color: teamColor,
@@ -1530,10 +1624,14 @@ export const f1Service = {
       strategy_level: 45,
       budget: 135000000,
       engine_supplier: engineSupplier,
-      strength: 35,
+      strength: customMacro,
       is_custom: true,
       team_key: 'custom_12th',
       user_id: userId,
+      technical_attributes: customTech.attributes,
+      calculated_overall: customTech.calculatedOverall,
+      balance_delta: customTech.balanceDelta,
+      component_ratings: customComponents,
     })
 
     // 2. Create season 2026

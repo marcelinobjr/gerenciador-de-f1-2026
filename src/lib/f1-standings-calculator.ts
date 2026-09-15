@@ -55,6 +55,11 @@ export interface TeamStandingItem {
  * Os 10 primeiros recebem exatamente os pontos oficiais FIA (pontos do 1º ao 10º lugar, sem bonificação por volta mais rápida).
  * P1 recebe +1 vitória e +1 pódio; P2 e P3 recebem +1 pódio.
  */
+/**
+ * @deprecated Use standingsService.calculateStandings como fonte canônica consolidada do campeonato.
+ * simulateAiGridFiaStandings permanece ativo e exportado exclusivamente para simulação determinística
+ * de rodadas passadas sem resultados gravados e para compatibilidade com Teams.tsx.
+ */
 export function simulateAiGridFiaStandings(
   playerTeamKey?: string,
   isCustomTeam: boolean = true,

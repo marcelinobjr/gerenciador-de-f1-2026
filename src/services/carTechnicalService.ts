@@ -251,6 +251,47 @@ export class CarTechnicalService {
   public getComponentMeta(id: TechnicalComponentId) {
     return TECHNICAL_COMPONENT_METAS[id]
   }
+
+  /**
+   * 7. Enriquecimento de segurança e fallback transparente para saves antigos
+   * Garante que technical_attributes, calculated_overall e balance_delta sejam
+   * providos em memória se não existirem no registro do banco.
+   */
+  public ensureTechnicalData(team: any): {
+    technical_attributes: TechnicalAttributesMap
+    calculated_overall: number
+    balance_delta: number
+    component_ratings: ComponentRatingsMap
+  } {
+    if (
+      team?.technical_attributes &&
+      typeof team.calculated_overall === 'number' &&
+      team.calculated_overall > 0
+    ) {
+      const bDelta = team.balance_delta ?? team.technical_balance_delta ?? 0
+      return {
+        technical_attributes: team.technical_attributes,
+        calculated_overall: team.calculated_overall,
+        balance_delta: bDelta,
+        component_ratings:
+          team.component_ratings ||
+          generateDefaultComponentsFromMacro(team.strength ?? team.calculated_overall ?? 70),
+      }
+    }
+
+    const profile = this.getOrCreateTeamTechnicalData(
+      team?.team_key,
+      team?.strength,
+      team?.engine_supplier,
+    )
+
+    return {
+      technical_attributes: profile.attributes,
+      calculated_overall: profile.calculatedOverall,
+      balance_delta: profile.balanceDelta,
+      component_ratings: profile.componentRatings,
+    }
+  }
 }
 
 export const carTechnicalService = new CarTechnicalService()

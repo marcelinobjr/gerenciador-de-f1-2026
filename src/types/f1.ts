@@ -32,7 +32,8 @@ export interface TeamModel {
   technical_attributes?: Record<string, number> // 12 atributos calculados
   calculated_overall?: number // Overall técnico calculado
   component_ratings?: Record<string, number> // Ratings dos 8 componentes
-  technical_balance_delta?: number // Delta macro vs calculado
+  balance_delta?: number // Nomenclatura canônica única: delta macro vs calculado
+  technical_balance_delta?: number // Alias legado mantido para compatibilidade
   engine_pool_used?: number // Motores introduzidos no pool (limite regulamentar 4 antes de penalidades)
   active_engine_wear?: number // Desgaste 0-100% da unidade de potência atualmente instalada no carro
   factory_level?: number // Nível 1 a 5 da Fábrica de P&D

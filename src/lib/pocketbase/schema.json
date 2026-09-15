@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T02:58:29.297Z",
+  "generatedAt": "2026-09-15T10:57:51.320Z",
   "collections": [
     {
       "name": "users",
@@ -295,6 +295,12 @@
         },
         {
           "name": "academy_development_data",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "component_ratings",
           "type": "json",
           "required": false,
           "system": false

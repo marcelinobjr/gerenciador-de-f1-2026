@@ -10,6 +10,13 @@ export interface SuperlicensePointsCategoryTable {
 }
 
 // Tabela Oficial de Pontos FIA para concessão de Superlicença
+/**
+ * @deprecated Sistema legado de cálculo de pontos de Super Licença.
+ * O sistema canônico oficial da Fase 0A em diante é o driverDevelopmentService
+ * e o canonicalHomologationAdapter, baseado em license_status ('nivel_c' | 'nivel_b' | 'nivel_a'),
+ * testes em pista privada e relatórios da FIA.
+ * Esta tabela e funções são preservadas estritamente para compatibilidade com saves antigos.
+ */
 export const FIA_SUPERLICENSE_POINTS_TABLE: Record<string, SuperlicensePointsCategoryTable> = {
   f2: {
     1: 40,
