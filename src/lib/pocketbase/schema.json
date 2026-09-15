@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T01:47:13.280Z",
+  "generatedAt": "2026-09-15T02:12:23.156Z",
   "collections": [
     {
       "name": "users",
@@ -266,6 +266,30 @@
         {
           "name": "youth_academy_level",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "technical_attributes",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "calculated_overall",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "balance_delta",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "car_specifications",
+          "type": "json",
           "required": false,
           "system": false
         }
@@ -756,6 +780,43 @@
         },
         {
           "name": "condition",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "component_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "spec_generation",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "car_assignment",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["car1", "car2", "stock"]
+        },
+        {
+          "name": "mileage_km",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "wear_percentage",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "damage_percentage",
           "type": "number",
           "required": false,
           "system": false
