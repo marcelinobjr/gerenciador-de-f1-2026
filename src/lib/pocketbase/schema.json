@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T12:37:13.270Z",
+  "generatedAt": "2026-09-15T12:58:21.712Z",
   "collections": [
     {
       "name": "users",
@@ -671,6 +671,58 @@
         {
           "name": "seat_security",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "origin_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["real", "procedural"]
+        },
+        {
+          "name": "true_potential",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "perceived_potential",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "evaluation_confidence",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "academy_origin_team_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "career_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "prospect",
+            "academy",
+            "test_driver",
+            "reserve",
+            "f1_driver",
+            "free_agent",
+            "retired"
+          ]
+        },
+        {
+          "name": "procedural_data",
+          "type": "json",
           "required": false,
           "system": false
         }

@@ -97,12 +97,39 @@ class DriverDevelopmentService {
     // Atualiza driver: marca is_academy=true, preserva role se for reserva ou titular
     const updates: Partial<DriverModel> = {
       is_academy: true,
+      team_id: team.id,
     }
     if (!driver.license_status) {
       updates.license_status = 'nivel_c'
     }
     if (!driver.technical_feedback) {
       updates.technical_feedback = driver.consistency ? Math.round(driver.consistency * 0.9) : 65
+    }
+
+    // Se for piloto procedural, atualiza metadados e marco
+    const rawProc = (driver as any).procedural_data
+    if (rawProc) {
+      const updatedMeta = {
+        ...rawProc,
+        currentAcademyTeamId: team.id,
+        careerStatus: 'academy',
+        academyOriginTeamId: rawProc.academyOriginTeamId || team.id,
+        milestones: [
+          ...(rawProc.milestones || []),
+          {
+            date: new Date().toISOString().split('T')[0],
+            type: 'entrada_academia',
+            teamId: team.id,
+            teamName: team.name,
+            description: `Ingressou oficialmente na Academia de Pilotos da ${team.name}.`,
+          },
+        ],
+      }
+      ;(updates as any).procedural_data = updatedMeta
+      ;(updates as any).career_status = 'academy'
+      if (!(updates as any).academy_origin_team_id) {
+        ;(updates as any).academy_origin_team_id = rawProc.academyOriginTeamId || team.id
+      }
     }
 
     await pb.collection('drivers').update(driver.id, updates)
@@ -199,6 +226,73 @@ class DriverDevelopmentService {
     })
 
     return { success: true, message: 'Piloto dispensado da função de Test Driver.' }
+  }
+
+  /**
+   * 3.1 LIBERAR PILOTO DA ACADEMIA (REGRA CENTRAL: LIBERAR ≠ DELETAR)
+   * O piloto desvincula da equipe, mas PERMANECE PERMANENTEMENTE NO SAVE,
+   * ficando livre no mercado para ser contratado por outras equipes ou rivais.
+   */
+  async releaseDriverFromAcademy(
+    team: TeamModel,
+    driver: DriverModel,
+  ): Promise<{ success: boolean; message: string }> {
+    const data = this.getAcademyData(team)
+    const updatedAcademy = data.academyDrivers.filter((id) => id !== driver.id)
+    const updatedTestDrivers = data.testDrivers.filter((id) => id !== driver.id)
+
+    await pb.collection('teams').update(team.id, {
+      academy_development_data: {
+        ...data,
+        academyDrivers: updatedAcademy,
+        testDrivers: updatedTestDrivers,
+      },
+    })
+
+    const updates: Partial<DriverModel> = {
+      is_academy: false,
+      is_test_driver: false,
+      team_id: null,
+      role: null,
+    }
+
+    const rawProc = (driver as any).procedural_data
+    if (rawProc) {
+      const updatedMeta = {
+        ...rawProc,
+        currentAcademyTeamId: undefined,
+        careerStatus: 'free_agent',
+        milestones: [
+          ...(rawProc.milestones || []),
+          {
+            date: new Date().toISOString().split('T')[0],
+            type: 'dispensado',
+            teamId: team.id,
+            teamName: team.name,
+            description: `Liberado do programa da ${team.name}. Disponível no mercado como agente livre.`,
+          },
+        ],
+      }
+      ;(updates as any).procedural_data = updatedMeta
+      ;(updates as any).career_status = 'free_agent'
+    }
+
+    await pb.collection('drivers').update(driver.id, updates)
+
+    try {
+      await pb.collection('events').create({
+        team_id: team.id,
+        message: `${driver.name} foi liberado da Academia da ${team.name} e está disponível no mercado.`,
+        type: 'contrato',
+      })
+    } catch {
+      /* intentionally ignored */
+    }
+
+    return {
+      success: true,
+      message: `${driver.name} foi liberado da Academia. A entidade do piloto permanece ativa no mercado.`,
+    }
   }
 
   /**
@@ -645,6 +739,27 @@ class DriverDevelopmentService {
         })
       } catch {
         /* intentionally ignored */
+      }
+
+      // Adiciona milestone procedural se for piloto procedural
+      const rawProc = (driver as any).procedural_data
+      if (rawProc) {
+        const updatedMeta = {
+          ...rawProc,
+          milestones: [
+            ...(rawProc.milestones || []),
+            {
+              date: new Date().toISOString().split('T')[0],
+              type: 'homologacao_conquistada',
+              teamId: team.id,
+              teamName: team.name,
+              description: `Conquistou a Super Licença FIA Nível A após ${updatedProgram.completedValidTests} testes válidos.`,
+            },
+          ],
+        }
+        await pb.collection('drivers').update(driver.id, {
+          procedural_data: updatedMeta,
+        })
       }
     }
 

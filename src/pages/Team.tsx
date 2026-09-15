@@ -38,7 +38,11 @@ import {
   AlertCircle,
   Info,
   Flame,
+  Search,
+  Gauge,
+  RefreshCw,
 } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -48,6 +52,11 @@ import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { ProgressBar } from '@/components/ProgressBar'
 import { DevelopmentManagerModal } from '@/components/DevelopmentManagerModal'
+import { ProspectCard } from '@/components/ProspectCard'
+import { ProspectDebugAuditModal } from '@/components/ProspectDebugAuditModal'
+import { driverScoutingService } from '@/services/driverScoutingService'
+import { proceduralDriverProgressService } from '@/services/proceduralDriverProgressService'
+import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
 import { managerEffectService } from '@/services/managerEffectService'
 import { MANAGER_DOMAINS } from '@/lib/manager-attribute-domains'
@@ -86,9 +95,15 @@ export default function TeamPage() {
   const [selectedFpRounds, setSelectedFpRounds] = useState<number[]>([7, 13])
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // Sistema de Homologação, Academia e Test Drivers (FASE DESENVOLVIMENTO)
+  // Sistema de Homologação, Academia e Test Drivers (FASE DESENVOLVIMENTO & 4C)
   const [devManagerOpen, setDevManagerOpen] = useState(false)
+  const [isDebugModalOpen, setIsDebugModalOpen] = useState(false)
+  const [academySubArea, setAcademySubArea] = useState<
+    'programa' | 'scouting' | 'desenvolvimento' | 'caminho_f1' | 'historico'
+  >('programa')
   const [allGridDrivers, setAllGridDrivers] = useState<DriverModel[]>([])
+  const [scoutingCandidates, setScoutingCandidates] = useState<DriverModel[]>([])
+  const [isGeneratingScout, setIsGeneratingScout] = useState(false)
 
   const isCustomTeam = team?.is_custom ?? false
   const teamStrength = team?.strength ?? 52
@@ -253,6 +268,190 @@ export default function TeamPage() {
       current: 65,
     },
   ]
+
+  // Histórico de ex-pilotos que passaram pela academia
+  const academyAlumni = useMemo(() => {
+    return allGridDrivers.filter((d) => {
+      const p = (d as any).procedural_data
+      const isAlumni =
+        p?.academyOriginTeamId === team?.id || (d as any).academy_origin_team_id === team?.id
+      const isNotCurrentlyInAcademy = !teamAcademyPilots.some((tp) => tp.id === d.id)
+      return isAlumni && isNotCurrentlyInAcademy
+    })
+  }, [allGridDrivers, team?.id, teamAcademyPilots])
+
+  // Gerar novos candidatos de scouting conforme capacidade da equipe
+  const handleGenerateScoutBatch = async () => {
+    if (!team) return
+    setIsGeneratingScout(true)
+    try {
+      const existingIds = allGridDrivers.map((d) => d.id)
+      const newBatch = driverScoutingService.generateScoutingBatch(team, existingIds, 4)
+      const newDrivers = newBatch.map((b) => b.driver)
+      setScoutingCandidates((prev) => [...newDrivers, ...prev])
+      toast({
+        title: 'Nova Janela de Scouting Concluída',
+        description: `${newDrivers.length} novos prospectos foram catalogados pelo departamento de base.`,
+      })
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Scouting',
+        description: 'Não foi possível gerar novos relatórios de prospecção.',
+      })
+    } finally {
+      setIsGeneratingScout(false)
+    }
+  }
+
+  // Contratar prospect para a academia (cria registro no PocketBase se ainda não salvo)
+  const handleHireProspectToAcademy = async (prospectDriverId: string) => {
+    if (!team) return
+    const candidate = scoutingCandidates.find((c) => c.id === prospectDriverId)
+    setIsProcessing(true)
+    try {
+      let driverInDb: DriverModel | undefined = allGridDrivers.find(
+        (d) => d.id === prospectDriverId,
+      )
+      if (!driverInDb && candidate) {
+        // Persiste a entidade permanentemente no banco
+        driverInDb = await pb.collection('drivers').create({
+          name: candidate.name,
+          nationality: candidate.nationality,
+          age: candidate.age,
+          speed: candidate.speed,
+          consistency: candidate.consistency,
+          rain: candidate.rain,
+          defense: candidate.defense,
+          salary: candidate.salary,
+          contract_end: 2027,
+          team_id: team.id,
+          role: null,
+          category: candidate.category || 'mercado',
+          superlicense_points: candidate.superlicense_points || 5,
+          homologation_status: 'formacao',
+          f1_adaptation: candidate.f1_adaptation || 50,
+          license_status: 'nivel_c',
+          is_academy: true,
+          is_test_driver: false,
+          technical_feedback: candidate.technical_feedback || 60,
+          seat_security: 80,
+          origin_type: 'procedural',
+          true_potential: (candidate as any).true_potential,
+          perceived_potential: (candidate as any).perceived_potential,
+          evaluation_confidence: (candidate as any).evaluation_confidence,
+          academy_origin_team_id: team.id,
+          career_status: 'academy',
+          procedural_data: (candidate as any).procedural_data,
+        })
+      }
+
+      if (driverInDb) {
+        await driverDevelopmentService.addDriverToAcademy(team, driverInDb)
+        toast({
+          title: 'Novo Talento Contratado!',
+          description: `${driverInDb.name} ingressou na Academia de Pilotos da ${team.name}.`,
+        })
+        setScoutingCandidates((prev) => prev.filter((c) => c.id !== prospectDriverId))
+        await refreshTeamAndSeason()
+        await loadData()
+      }
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao contratar prospect',
+        description: err?.message || 'Falha ao vincular jovem à academia.',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Reavaliar um prospect (eleva confiança e reduz erro sem alterar o piloto)
+  const handleReevaluateProspect = (driverId: string) => {
+    if (!team) return
+    const candidate =
+      scoutingCandidates.find((c) => c.id === driverId) ||
+      allGridDrivers.find((d) => d.id === driverId)
+    if (!candidate) return
+
+    const { updatedDriver, evaluationGainText } = driverScoutingService.evaluateProspectAgain(
+      candidate,
+      team,
+    )
+    setScoutingCandidates((prev) => prev.map((c) => (c.id === driverId ? updatedDriver : c)))
+    toast({
+      title: 'Scouting Aprofundado',
+      description: evaluationGainText,
+    })
+  }
+
+  // Liberar piloto da Academia (LIBERAR ≠ DELETAR: permanece livre no mercado)
+  const handleReleaseAcademyDriver = async (driver: DriverModel) => {
+    if (!team) return
+    setIsProcessing(true)
+    try {
+      const res = await driverDevelopmentService.releaseDriverFromAcademy(team, driver)
+      toast({
+        title: 'Piloto Liberado da Academia',
+        description: res.message,
+      })
+      await refreshTeamAndSeason()
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao liberar piloto',
+        description: err?.message || 'Falha ao processar rescisão da academia.',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Simular avanço de temporada para desenvolvimento da base
+  const handleAdvanceAcademySeason = async () => {
+    if (!team || teamAcademyPilots.length === 0) {
+      toast({
+        title: 'Nenhum Piloto na Academia',
+        description: 'Contrate jovens talentos antes de avançar a temporada de desenvolvimento.',
+      })
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      for (const d of teamAcademyPilots) {
+        const prog = proceduralDriverProgressService.advanceSeasonForJuniorDriver(d, team, 2026)
+        await pb.collection('drivers').update(d.id, {
+          age: prog.updatedDriver.age,
+          speed: prog.updatedDriver.speed,
+          consistency: prog.updatedDriver.consistency,
+          rain: prog.updatedDriver.rain,
+          defense: prog.updatedDriver.defense,
+          technical_feedback: prog.updatedDriver.technical_feedback,
+          superlicense_points: prog.updatedDriver.superlicense_points,
+          category: prog.updatedDriver.category,
+          procedural_data: prog.updatedMetadata,
+        })
+      }
+
+      toast({
+        title: 'Ciclo de Desenvolvimento da Academia Concluído!',
+        description: `${teamAcademyPilots.length} jovens evoluíram tecnicamente com base no suporte e testes da equipe.`,
+      })
+      await refreshTeamAndSeason()
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro no avanço',
+        description: err?.message || 'Falha ao simular desenvolvimento.',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   // Action needed alerts
   const attentionItems = [
@@ -1825,63 +2024,420 @@ export default function TeamPage() {
         </div>
       )}
 
-      {/* SUB-ABA: ACADEMIA */}
+      {/* SUB-ABA: ACADEMIA (EVOLUÇÃO 4C COM SUB-ÁREAS E FOG-OF-WAR) */}
       {activeTab === 'academia' && (
         <div className="space-y-6">
-          <Card className="bg-[#0B0E14] border-neutral-800/80">
-            <CardHeader className="border-b border-neutral-800">
-              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-cyan-400" />
-                Programa de Desenvolvimento e Jovens Pilotos
-              </CardTitle>
-              <CardDescription className="text-xs text-neutral-400">
-                Acompanhamento e suporte a pilotos promissores competindo na Fórmula 2 e Fórmula 3.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {academyDrivers.map((ac) => (
-                  <div
-                    key={ac.name}
-                    className="p-5 rounded-2xl bg-black/40 border border-neutral-800 font-mono space-y-3"
+          {/* Subnavegação da Academia */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 pb-3">
+            <div className="flex flex-wrap gap-1 bg-neutral-900/60 p-1 rounded-xl border border-neutral-800">
+              <Button
+                size="sm"
+                variant={academySubArea === 'programa' ? 'default' : 'ghost'}
+                onClick={() => setAcademySubArea('programa')}
+                className={`text-xs ${
+                  academySubArea === 'programa'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 mr-1.5" />
+                Programa ({teamAcademyPilots.length})
+              </Button>
+
+              <Button
+                size="sm"
+                variant={academySubArea === 'scouting' ? 'default' : 'ghost'}
+                onClick={() => setAcademySubArea('scouting')}
+                className={`text-xs ${
+                  academySubArea === 'scouting'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5 mr-1.5" />
+                Scouting ({scoutingCandidates.length})
+              </Button>
+
+              <Button
+                size="sm"
+                variant={academySubArea === 'desenvolvimento' ? 'default' : 'ghost'}
+                onClick={() => setAcademySubArea('desenvolvimento')}
+                className={`text-xs ${
+                  academySubArea === 'desenvolvimento'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
+                Desenvolvimento
+              </Button>
+
+              <Button
+                size="sm"
+                variant={academySubArea === 'caminho_f1' ? 'default' : 'ghost'}
+                onClick={() => setAcademySubArea('caminho_f1')}
+                className={`text-xs ${
+                  academySubArea === 'caminho_f1'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Gauge className="w-3.5 h-3.5 mr-1.5" />
+                Caminho F1 & Testes
+              </Button>
+
+              <Button
+                size="sm"
+                variant={academySubArea === 'historico' ? 'default' : 'ghost'}
+                onClick={() => setAcademySubArea('historico')}
+                className={`text-xs ${
+                  academySubArea === 'historico'
+                    ? 'bg-cyan-600 text-white'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5 mr-1.5" />
+                Histórico & Ex-Pilotos ({academyAlumni.length})
+              </Button>
+            </div>
+
+            {/* Ferramenta de Auditoria Técnica e Debug */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsDebugModalOpen(true)}
+              className="text-xs border-amber-800/60 bg-amber-950/20 text-amber-300 hover:bg-amber-900/40"
+            >
+              <Cpu className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
+              Prospect Debug (Engenharia)
+            </Button>
+          </div>
+
+          {/* 1. SUB-ÁREA: PROGRAMA DE JOVENS ATUAIS */}
+          {academySubArea === 'programa' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-neutral-900/40 p-3 rounded-xl border border-neutral-800">
+                <div className="text-xs text-neutral-300">
+                  <span className="font-bold text-white">Pilotos Vinculados:</span>{' '}
+                  {teamAcademyPilots.length} de{' '}
+                  {Math.max(3, Math.min(6, (team?.youth_academy_level || 3) + 1))} vagas suportadas
+                  com máxima atenção técnica.
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setDevManagerOpen(true)}
+                  className="text-xs bg-red-600 hover:bg-red-500 text-white"
+                >
+                  <Sliders className="w-3.5 h-3.5 mr-1.5" />
+                  Gerenciar Pistas & Licenças
+                </Button>
+              </div>
+
+              {teamAcademyPilots.length === 0 ? (
+                <div className="p-8 text-center bg-black/40 border border-neutral-800 rounded-2xl space-y-3">
+                  <Sparkles className="w-8 h-8 text-cyan-400 mx-auto" />
+                  <h3 className="text-sm font-bold text-white">
+                    Nenhum piloto no programa no momento
+                  </h3>
+                  <p className="text-xs text-neutral-400 max-w-md mx-auto">
+                    Inicie uma janela de observação na aba{' '}
+                    <strong className="text-white">Scouting</strong> para descobrir candidatos
+                    internacionais e convidá-los para a academia.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setAcademySubArea('scouting')
+                      if (scoutingCandidates.length === 0) handleGenerateScoutBatch()
+                    }}
+                    className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-bold text-white">{ac.name}</h3>
-                          <span className="text-sm">{ac.flag}</span>
-                          <Badge className="bg-neutral-800 text-cyan-400 text-xs">
-                            {ac.series}
-                          </Badge>
+                    <Search className="w-3.5 h-3.5 mr-1.5" />
+                    Abrir Janela de Prospecção
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {teamAcademyPilots.map((pilot) => {
+                    const scoutView = driverScoutingService.createScoutingViewModel(pilot, team?.id)
+                    return (
+                      <div key={pilot.id} className="relative">
+                        <ProspectCard
+                          prospect={scoutView}
+                          onRunTest={() => setDevManagerOpen(true)}
+                          onEvaluateAgain={handleReevaluateProspect}
+                        />
+                        <div className="mt-2 flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleReleaseAcademyDriver(pilot)}
+                            disabled={isProcessing}
+                            className="w-full text-[11px] h-7 bg-red-950 hover:bg-red-900 text-red-200 border border-red-800/60"
+                          >
+                            Liberar da Academia (Agente Livre)
+                          </Button>
                         </div>
-                        <span className="text-xs text-neutral-400">Idade: {ac.age} anos</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. SUB-ÁREA: SCOUTING & CANDIDATOS */}
+          {academySubArea === 'scouting' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-neutral-900/40 p-4 rounded-xl border border-neutral-800">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Search className="w-4 h-4 text-cyan-400" />
+                    Janela Ativa de Prospecção de Base
+                  </h3>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    Prospectos identificados pelas capacidades de scouting e rede da equipe.
+                    Informação parcial coberta por Fog of War.
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={handleGenerateScoutBatch}
+                  disabled={isGeneratingScout || isProcessing}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white shrink-0"
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 mr-1.5 ${isGeneratingScout ? 'animate-spin' : ''}`}
+                  />
+                  {isGeneratingScout ? 'Buscando Jovens...' : 'Nova Janela de Scouting'}
+                </Button>
+              </div>
+
+              {scoutingCandidates.length === 0 ? (
+                <div className="p-8 text-center bg-black/40 border border-neutral-800 rounded-2xl space-y-3">
+                  <Search className="w-8 h-8 text-neutral-500 mx-auto" />
+                  <h3 className="text-sm font-bold text-white">
+                    Nenhum candidato na janela no momento
+                  </h3>
+                  <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                    Envie os olheiros para observar campeonatos de F4, Fórmula Regional e Karting
+                    internacional.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={handleGenerateScoutBatch}
+                    className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
+                  >
+                    Iniciar Varredura de Base
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {scoutingCandidates.map((c) => {
+                    const scoutView = driverScoutingService.createScoutingViewModel(c, team?.id)
+                    return (
+                      <ProspectCard
+                        key={c.id}
+                        prospect={scoutView}
+                        onEvaluateAgain={handleReevaluateProspect}
+                        onInviteToAcademy={handleHireProspectToAcademy}
+                        onRunTest={() => setDevManagerOpen(true)}
+                        isProcessing={isProcessing}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 3. SUB-ÁREA: DESENVOLVIMENTO & PLANOS ANUAIS */}
+          {academySubArea === 'desenvolvimento' && (
+            <div className="space-y-5">
+              <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800 flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    Plano de Progressão e Temporadas de Base
+                  </h3>
+                  <p className="text-xs text-neutral-400">
+                    O desenvolvimento não é fixo (+1 por nível é proibido): depende de idade, testes
+                    em pista, teto real e infraestrutura.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleAdvanceAcademySeason}
+                  disabled={isProcessing}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                >
+                  <Zap className="w-3.5 h-3.5 mr-1.5" />
+                  Simular Temporada Júnior
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {teamAcademyPilots.map((pilot) => {
+                  const meta = (pilot as any).procedural_data as any
+                  const latestHistory = meta?.seasonsHistory?.[0]
+                  return (
+                    <div
+                      key={pilot.id}
+                      className="p-4 rounded-xl bg-black/40 border border-neutral-800 space-y-3 font-mono"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-sm font-bold text-white">{pilot.name}</h4>
+                          <span className="text-xs text-neutral-400">
+                            {pilot.age} anos • {meta?.juniorCategory?.toUpperCase() || 'F4'} •{' '}
+                            {pilot.nationality}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-xs border-cyan-800 text-cyan-300">
+                          Ritmo Atual: {pilot.speed}
+                        </Badge>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-xl font-black text-white">{ac.current}</span>
-                        <span className="text-xs text-cyan-400 block">
-                          Potencial {ac.potential}
-                        </span>
+                      {latestHistory && (
+                        <div className="p-2.5 rounded bg-neutral-900/70 border border-neutral-800 text-xs space-y-1">
+                          <span className="text-neutral-400 block font-bold">
+                            Última Temporada Júnior:
+                          </span>
+                          <div className="text-neutral-200">
+                            Posição: <strong>{latestHistory.championshipPosition}º lugar</strong> (
+                            {latestHistory.wins} vitórias, {latestHistory.podiums} pódios)
+                          </div>
+                          <div className="text-[11px] text-neutral-400 italic">
+                            "{latestHistory.notes}"
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDevManagerOpen(true)}
+                          className="flex-1 text-xs border-neutral-700 hover:bg-neutral-800 text-cyan-300"
+                        >
+                          Designar Testes em Pista
+                        </Button>
                       </div>
                     </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs text-neutral-400">
-                        <span>Evolução</span>
-                        <span>{Math.round((ac.current / ac.potential) * 100)}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-cyan-500 rounded-full"
-                          style={{ width: `${(ac.current / ac.potential) * 100}%` }}
-                        />
-                      </div>
+          {/* 4. SUB-ÁREA: CAMINHO F1 & HOMOLOGAÇÃO */}
+          {academySubArea === 'caminho_f1' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800 flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Gauge className="w-4 h-4 text-cyan-400" />
+                    Trilha Oficial de Acesso à Fórmula 1
+                  </h3>
+                  <p className="text-xs text-neutral-400">
+                    Academia → Piloto de Desenvolvimento → Homologação FIA (C/B/A) → Reserva →
+                    Titular.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setDevManagerOpen(true)}
+                  className="text-xs bg-red-600 hover:bg-red-500 text-white"
+                >
+                  Abrir Central de Homologação FIA
+                </Button>
+              </div>
+
+              <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-xs space-y-3 font-mono text-neutral-300">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 rounded bg-neutral-900/60 border border-neutral-800">
+                    <strong className="text-white block mb-1">1. Test Drivers Atuais</strong>
+                    <div className="text-neutral-400">
+                      {testDrivers.length > 0
+                        ? testDrivers.map((t) => t.name).join(', ')
+                        : 'Nenhum piloto de testes ativo.'}
                     </div>
                   </div>
-                ))}
+                  <div className="p-3 rounded bg-neutral-900/60 border border-neutral-800">
+                    <strong className="text-white block mb-1">2. Piloto Reserva</strong>
+                    <div className="text-neutral-400">
+                      {reserveDriver ? reserveDriver.name : 'Vaga de reserva em aberto.'}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded bg-neutral-900/60 border border-neutral-800">
+                    <strong className="text-white block mb-1">3. Titulares Atuais</strong>
+                    <div className="text-neutral-400">
+                      {titularDrivers.map((t) => t.name).join(' & ')}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
+
+          {/* 5. SUB-ÁREA: HISTÓRICO & EX-PILOTOS (ALUMNI) */}
+          {academySubArea === 'historico' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Award className="w-4 h-4 text-amber-400" />
+                  Legado da Academia: Ex-Pilotos e Carreira no Paddock
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Pilotos que foram descobertos ou formados pela academia e hoje competem no grid,
+                  em equipes rivais ou como agentes livres.
+                </p>
+              </div>
+
+              {academyAlumni.length === 0 ? (
+                <div className="p-8 text-center bg-black/40 border border-neutral-800 rounded-2xl">
+                  <p className="text-xs text-neutral-400">
+                    Nenhum ex-piloto registrado ainda. Conforme jovens forem promovidos ou liberados
+                    para o mercado, seu legado será registrado aqui permanentemente.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {academyAlumni.map((alumnus) => (
+                    <div
+                      key={alumnus.id}
+                      className="p-4 rounded-xl bg-black/40 border border-neutral-800 font-mono text-xs space-y-2"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-white text-sm">{alumnus.name}</h4>
+                          <span className="text-neutral-400 text-[11px]">
+                            {alumnus.nationality} • {alumnus.age} anos
+                          </span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] border-amber-800 text-amber-300"
+                        >
+                          {alumnus.team_id ? 'Contratado por Rival' : 'Agente Livre'}
+                        </Badge>
+                      </div>
+
+                      <div className="text-[11px] text-neutral-300">
+                        Situação Atual:{' '}
+                        <strong className="text-white">
+                          {alumnus.team_id
+                            ? `Titular/Piloto da Equipe ${alumnus.team_id}`
+                            : 'Disponível no Mercado'}
+                        </strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2089,6 +2645,21 @@ export default function TeamPage() {
             await refreshTeamAndSeason()
             await loadData()
           }}
+        />
+      )}
+
+      {/* MODAL INTERNO DE AUDITORIA & DEBUG PROSPECT (4C) */}
+      {team && (
+        <ProspectDebugAuditModal
+          open={isDebugModalOpen}
+          onOpenChange={setIsDebugModalOpen}
+          team={team}
+          drivers={[
+            ...teamAcademyPilots,
+            ...scoutingCandidates,
+            ...titularDrivers,
+            ...allGridDrivers,
+          ].filter((v, i, a) => a.findIndex((t) => t.id === v.id) === i)}
         />
       )}
     </div>

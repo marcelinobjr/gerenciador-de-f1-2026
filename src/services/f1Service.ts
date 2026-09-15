@@ -527,11 +527,27 @@ export const f1Service = {
   },
 
   async fireDriver(driverId: string): Promise<DriverModel> {
-    return await pb.collection('drivers').update<DriverModel>(driverId, {
+    const updated = await pb.collection('drivers').update<DriverModel>(driverId, {
       team_id: null,
       reserve_team_id: null,
       role: null,
+      is_academy: false,
+      is_test_driver: false,
     })
+
+    // Se for procedural, atualiza metadados para agente livre
+    const rawProc = (updated as any).procedural_data
+    if (rawProc) {
+      await pb.collection('drivers').update(driverId, {
+        career_status: 'free_agent',
+        procedural_data: {
+          ...rawProc,
+          currentAcademyTeamId: undefined,
+          careerStatus: 'free_agent',
+        },
+      })
+    }
+    return updated
   },
 
   async switchDriverRole(
