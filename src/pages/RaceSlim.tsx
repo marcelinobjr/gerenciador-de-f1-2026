@@ -490,9 +490,6 @@ export default function RacePage() {
       // Atualizar sessões completadas
       const allSess: WeekendSession[] = ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race']
       setCompletedSessions(allSess)
-      setHasRaceFinished(true)
-      setHasQualyFinished(true)
-      setPracticeDone(true)
 
       setWeekendSummaryReport(res.report)
       setWeekendSummaryModalOpen(true)

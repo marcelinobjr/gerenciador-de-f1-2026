@@ -25,6 +25,22 @@ const orphanReplacement = `      // Atualizar sessões completadas
 if (content.includes(orphanTarget)) {
   content = content.replace(orphanTarget, orphanReplacement)
   console.log('✓ Substituição 0 realizada: remoção das 3 chamadas órfãs')
+} else if (
+  content.includes('setHasRaceFinished(true)') ||
+  content.includes('setHasQualyFinished(true)') ||
+  content.includes('setPracticeDone(true)')
+) {
+  content = content.replace(/\r\n/g, '\n')
+  content = content.replace(
+    orphanTarget.replace(/\r\n/g, '\n'),
+    orphanReplacement.replace(/\r\n/g, '\n'),
+  )
+  // Fallback regex se houver variação de espaçamento
+  content = content.replace(
+    /setCompletedSessions\(allSess\)\s+setHasRaceFinished\(true\)\s+setHasQualyFinished\(true\)\s+setPracticeDone\(true\)/g,
+    'setCompletedSessions(allSess)',
+  )
+  console.log('✓ Substituição 0 realizada via regex fallback')
 }
 
 // 1. Linha ~4744: Math.round(d.salary / 24) -> Math.round(d.salary / totalRounds)
