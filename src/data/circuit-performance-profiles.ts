@@ -53,7 +53,7 @@ export interface CircuitAuxiliaryParams {
   overtakingDifficulty: number
 
   /**
-   * Severidade térmica e mecânica sobre os pneus (0-100, 100 = altíssima como Lusail 90, Sepang 85, Mônaco 45).
+   * Severidade térmica e mecânica sobre os pneus (0-100, 100 = altíssima como Lusail 90, Sakhir 90, Mônaco 45).
    * STATUS: ATIVO AGORA (integração com f1-tire-system e tyreManagement).
    */
   tyreSeverity: number
@@ -78,8 +78,8 @@ export interface CircuitAuxiliaryParams {
 }
 
 export interface CircuitPerformanceProfile {
-  id: string // circuit_01 ... circuit_23
-  round: number // 1 a 23
+  id: string // circuit_01 ... circuit_24
+  round: number // 1 a 24
   country: string
   grandPrixName: string
   circuitName: string
@@ -96,7 +96,7 @@ export interface CircuitPerformanceProfile {
 }
 
 /**
- * 23 CIRCUITOS CANÔNICOS DO CALENDÁRIO 2026 CONFORME PLANILHA OFICIAL
+ * 24 CIRCUITOS CANÔNICOS DO CALENDÁRIO 2026 CONFORME PLANILHA OFICIAL FIA
  */
 export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
   // Round 1 - Australia
@@ -210,10 +210,86 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 4 - United States (Miami)
+  // Round 4 - Bahrain (Sakhir)
   {
     id: 'circuit_04',
     round: 4,
+    country: 'Bahrain',
+    grandPrixName: 'Bahrain GP',
+    circuitName: 'Bahrain International Circuit, Sakhir',
+    locationName: 'Sakhir',
+    startDate: '10/04/2026',
+    endDate: '12/04/2026',
+    hasSprint: false,
+    trackType: 'permanente',
+    cluster: 'alta_velocidade_reta',
+    clusterLabel: 'Frenagem pesada / tração',
+    weights: {
+      slowCorner: 9,
+      mediumCorner: 6,
+      fastCorner: 5,
+      topSpeed: 12,
+      acceleration: 11,
+      braking: 12,
+      traction: 11,
+      tyreManagement: 11,
+      aeroEfficiency: 7,
+      cooling: 8,
+      weight: 6,
+      reliability: 8,
+    },
+    auxiliary: {
+      overtakingDifficulty: 50,
+      tyreSeverity: 90,
+      safetyCarProbability: 45,
+      rainSensitivity: 15,
+      driverChallenge: 65,
+    },
+    sourceNotes:
+      'Circuito no deserto de Sakhir com 4 longas retas, frenagens violentas e alta abrasividade.',
+  },
+  // Round 5 - Saudi Arabia (Jeddah)
+  {
+    id: 'circuit_05',
+    round: 5,
+    country: 'Saudi Arabia',
+    grandPrixName: 'Saudi Arabian GP',
+    circuitName: 'Jeddah Corniche Circuit',
+    locationName: 'Jeddah',
+    startDate: '17/04/2026',
+    endDate: '19/04/2026',
+    hasSprint: false,
+    trackType: 'urbana',
+    cluster: 'alta_velocidade_reta',
+    clusterLabel: 'Rua de altíssima velocidade',
+    weights: {
+      slowCorner: 4,
+      mediumCorner: 9,
+      fastCorner: 12,
+      topSpeed: 12,
+      acceleration: 10,
+      braking: 8,
+      traction: 7,
+      tyreManagement: 7,
+      aeroEfficiency: 11,
+      cooling: 8,
+      weight: 5,
+      reliability: 7,
+    },
+    auxiliary: {
+      overtakingDifficulty: 60,
+      tyreSeverity: 55,
+      safetyCarProbability: 80,
+      rainSensitivity: 20,
+      driverChallenge: 80,
+    },
+    sourceNotes:
+      'Circuito de rua mais veloz do mundo às margens do Mar Vermelho, média superior a 250 km/h.',
+  },
+  // Round 6 - United States (Miami)
+  {
+    id: 'circuit_06',
+    round: 6,
     country: 'United States',
     grandPrixName: 'Miami GP',
     circuitName: 'Miami International Autodrome',
@@ -247,10 +323,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 5 - Canada
+  // Round 7 - Canada
   {
-    id: 'circuit_05',
-    round: 5,
+    id: 'circuit_07',
+    round: 7,
     country: 'Canada',
     grandPrixName: 'Canadian GP',
     circuitName: 'Circuit Gilles-Villeneuve, Montréal',
@@ -284,10 +360,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 6 - Monaco
+  // Round 8 - Monaco
   {
-    id: 'circuit_06',
-    round: 6,
+    id: 'circuit_08',
+    round: 8,
     country: 'Monaco',
     grandPrixName: 'Monaco GP',
     circuitName: 'Circuit de Monaco',
@@ -321,10 +397,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 7 - Spain (Barcelona)
+  // Round 9 - Spain (Barcelona)
   {
-    id: 'circuit_07',
-    round: 7,
+    id: 'circuit_09',
+    round: 9,
     country: 'Spain',
     grandPrixName: 'Barcelona-Catalunya GP',
     circuitName: 'Circuit de Barcelona-Catalunya',
@@ -358,10 +434,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 8 - Austria
+  // Round 10 - Austria
   {
-    id: 'circuit_08',
-    round: 8,
+    id: 'circuit_10',
+    round: 10,
     country: 'Austria',
     grandPrixName: 'Austrian GP',
     circuitName: 'Red Bull Ring, Spielberg',
@@ -395,10 +471,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 9 - United Kingdom
+  // Round 11 - United Kingdom
   {
-    id: 'circuit_09',
-    round: 9,
+    id: 'circuit_11',
+    round: 11,
     country: 'United Kingdom',
     grandPrixName: 'British GP',
     circuitName: 'Silverstone Circuit',
@@ -432,10 +508,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 10 - Belgium
+  // Round 12 - Belgium
   {
-    id: 'circuit_10',
-    round: 10,
+    id: 'circuit_12',
+    round: 12,
     country: 'Belgium',
     grandPrixName: 'Belgian GP',
     circuitName: 'Circuit de Spa-Francorchamps',
@@ -469,10 +545,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 11 - Hungary
+  // Round 13 - Hungary
   {
-    id: 'circuit_11',
-    round: 11,
+    id: 'circuit_13',
+    round: 13,
     country: 'Hungary',
     grandPrixName: 'Hungarian GP',
     circuitName: 'Hungaroring, Budapest',
@@ -506,10 +582,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 12 - Netherlands
+  // Round 14 - Netherlands
   {
-    id: 'circuit_12',
-    round: 12,
+    id: 'circuit_14',
+    round: 14,
     country: 'Netherlands',
     grandPrixName: 'Dutch GP',
     circuitName: 'Circuit Zandvoort',
@@ -543,10 +619,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 13 - Italy
+  // Round 15 - Italy
   {
-    id: 'circuit_13',
-    round: 13,
+    id: 'circuit_15',
+    round: 15,
     country: 'Italy',
     grandPrixName: 'Italian GP',
     circuitName: 'Autodromo Nazionale Monza',
@@ -580,10 +656,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 14 - Spain (Madrid)
+  // Round 16 - Spain (Madrid)
   {
-    id: 'circuit_14',
-    round: 14,
+    id: 'circuit_16',
+    round: 16,
     country: 'Spain',
     grandPrixName: 'Spanish GP (Madrid)',
     circuitName: 'Madrid Street Circuit',
@@ -617,10 +693,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 15 - Azerbaijan
+  // Round 17 - Azerbaijan
   {
-    id: 'circuit_15',
-    round: 15,
+    id: 'circuit_17',
+    round: 17,
     country: 'Azerbaijan',
     grandPrixName: 'Azerbaijan GP',
     circuitName: 'Baku City Circuit',
@@ -654,47 +730,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 16 - Malaysia (Sepang - Bahrain GP realocado)
+  // Round 18 - Singapore
   {
-    id: 'circuit_16',
-    round: 16,
-    country: 'Malaysia',
-    grandPrixName: 'Bahrain GP in Malaysia',
-    circuitName: 'Sepang International Circuit',
-    locationName: 'Sepang',
-    startDate: '02/10/2026',
-    endDate: '04/10/2026',
-    hasSprint: false,
-    trackType: 'permanente',
-    cluster: 'pneus_endurance',
-    clusterLabel: 'Alta carga térmica / balanceado',
-    weights: {
-      slowCorner: 5,
-      mediumCorner: 8,
-      fastCorner: 10,
-      topSpeed: 10,
-      acceleration: 8,
-      braking: 7,
-      traction: 7,
-      tyreManagement: 11,
-      aeroEfficiency: 9,
-      cooling: 11,
-      weight: 6,
-      reliability: 8,
-    },
-    auxiliary: {
-      overtakingDifficulty: 55,
-      tyreSeverity: 85,
-      safetyCarProbability: 55,
-      rainSensitivity: 90,
-      driverChallenge: 75,
-    },
-    sourceNotes: 'Bahrain GP realocado para Sepang - formula1.com/en/latest/article/...',
-  },
-  // Round 17 - Singapore
-  {
-    id: 'circuit_17',
-    round: 17,
+    id: 'circuit_18',
+    round: 18,
     country: 'Singapore',
     grandPrixName: 'Singapore GP',
     circuitName: 'Marina Bay Street Circuit',
@@ -728,10 +767,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 18 - United States (Austin - COTA)
+  // Round 19 - United States (Austin - COTA)
   {
-    id: 'circuit_18',
-    round: 18,
+    id: 'circuit_19',
+    round: 19,
     country: 'United States',
     grandPrixName: 'United States GP',
     circuitName: 'Circuit of the Americas, Austin',
@@ -765,10 +804,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 19 - Mexico
+  // Round 20 - Mexico
   {
-    id: 'circuit_19',
-    round: 19,
+    id: 'circuit_20',
+    round: 20,
     country: 'Mexico',
     grandPrixName: 'Mexico City GP',
     circuitName: 'Autódromo Hermanos Rodríguez',
@@ -802,10 +841,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 20 - Brazil
+  // Round 21 - Brazil
   {
-    id: 'circuit_20',
-    round: 20,
+    id: 'circuit_21',
+    round: 21,
     country: 'Brazil',
     grandPrixName: 'São Paulo GP',
     circuitName: 'Autódromo José Carlos Pace, Interlagos',
@@ -839,10 +878,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 21 - United States (Las Vegas)
+  // Round 22 - United States (Las Vegas)
   {
-    id: 'circuit_21',
-    round: 21,
+    id: 'circuit_22',
+    round: 22,
     country: 'United States',
     grandPrixName: 'Las Vegas GP',
     circuitName: 'Las Vegas Strip Circuit',
@@ -876,10 +915,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 22 - Qatar
+  // Round 23 - Qatar
   {
-    id: 'circuit_22',
-    round: 22,
+    id: 'circuit_23',
+    round: 23,
     country: 'Qatar',
     grandPrixName: 'Qatar GP',
     circuitName: 'Lusail International Circuit',
@@ -913,10 +952,10 @@ export const CIRCUIT_PERFORMANCE_PROFILES: CircuitPerformanceProfile[] = [
     },
     sourceNotes: 'Estimativa de game design MBJ/OpenAI - formula1.com/en/racing/2026',
   },
-  // Round 23 - United Arab Emirates
+  // Round 24 - United Arab Emirates
   {
-    id: 'circuit_23',
-    round: 23,
+    id: 'circuit_24',
+    round: 24,
     country: 'United Arab Emirates',
     grandPrixName: 'Abu Dhabi GP',
     circuitName: 'Yas Marina Circuit',
@@ -1052,27 +1091,93 @@ if (!_initialValidation.valid) {
 // ============================================================================
 
 /**
- * Busca perfil de circuito por ID estável ('circuit_01' a 'circuit_23')
+ * Mapeamento canônico de aliases legados e históricos para os circuitIds oficiais.
+ */
+export const CIRCUIT_LEGACY_ALIASES: Record<string, string> = {
+  // Sepang / Malásia historicamente associado a Sakhir/Bahrein no calendário de transição
+  sepang: 'circuit_04',
+  malaysia: 'circuit_04',
+  malasia: 'circuit_04',
+  'sepang international circuit': 'circuit_04',
+  'bahrain gp in malaysia': 'circuit_04',
+  // Sakhir / Bahrein
+  sakhir: 'circuit_04',
+  bahrain: 'circuit_04',
+  bahrein: 'circuit_04',
+  'bahrain international circuit': 'circuit_04',
+  'grande prêmio do bahrein': 'circuit_04',
+  'bahrain gp': 'circuit_04',
+  // Jeddah / Saudi Arabia
+  jeddah: 'circuit_05',
+  'saudi arabia': 'circuit_05',
+  'arabia saudita': 'circuit_05',
+  'jeddah corniche circuit': 'circuit_05',
+  'saudi arabian gp': 'circuit_05',
+  // Italian GP / Monza
+  monza: 'circuit_15',
+  'italian gp': 'circuit_15',
+  'italian grand prix': 'circuit_15',
+  'grande prêmio da itália': 'circuit_15',
+  'autodromo nazionale monza': 'circuit_15',
+  // Silverstone / British GP
+  silverstone: 'circuit_11',
+  'british gp': 'circuit_11',
+  'british grand prix': 'circuit_11',
+  'grande prêmio da grã-bretanha': 'circuit_11',
+  // Spa / Belgian GP
+  spa: 'circuit_12',
+  'spa-francorchamps': 'circuit_12',
+  'belgian gp': 'circuit_12',
+  'belgian grand prix': 'circuit_12',
+  // Monaco
+  monaco: 'circuit_08',
+  'monaco gp': 'circuit_08',
+  'monaco grand prix': 'circuit_08',
+  // Interlagos / São Paulo GP
+  interlagos: 'circuit_21',
+  'são paulo gp': 'circuit_21',
+  'sao paulo gp': 'circuit_21',
+  'brazilian gp': 'circuit_21',
+  // Abu Dhabi / Yas Marina
+  'yas marina': 'circuit_24',
+  'abu dhabi': 'circuit_24',
+  'abu dhabi gp': 'circuit_24',
+}
+
+/**
+ * Busca perfil de circuito por ID estável ('circuit_01' a 'circuit_24')
  */
 export function getCircuitProfileById(id?: string): CircuitPerformanceProfile | undefined {
   if (!id) return undefined
-  return CIRCUIT_PERFORMANCE_PROFILES.find((c) => c.id === id)
+  // Suporte a alias direto no ID
+  const normalizedId = id.trim().toLowerCase()
+  const aliasedId = CIRCUIT_LEGACY_ALIASES[normalizedId] || id
+  return CIRCUIT_PERFORMANCE_PROFILES.find((c) => c.id === aliasedId)
 }
 
 /**
- * Busca perfil de circuito por Round do calendário (1 a 23)
+ * Busca perfil de circuito por Round do calendário (1 a 24).
+ * Sem fallback silencioso: se o round for inválido, lança erro explícito.
  */
 export function getCircuitProfileByRound(round?: number): CircuitPerformanceProfile {
-  if (!round || round < 1) return CIRCUIT_PERFORMANCE_PROFILES[0]
+  if (typeof round !== 'number' || round < 1 || round > CIRCUIT_PERFORMANCE_PROFILES.length) {
+    throw new Error(
+      `[getCircuitProfileByRound] Round inválido: ${round}. O calendário canônico possui exatamente ${CIRCUIT_PERFORMANCE_PROFILES.length} rounds.`,
+    )
+  }
   const found = CIRCUIT_PERFORMANCE_PROFILES.find((c) => c.round === round)
-  return found || CIRCUIT_PERFORMANCE_PROFILES[0]
+  if (!found) {
+    throw new Error(`[getCircuitProfileByRound] Perfil não encontrado para o round ${round}.`)
+  }
+  return found
 }
 
 /**
- * Resolve o perfil do circuito de maneira data-driven e tolerante a partir de:
- * 1. circuit_id explícito
- * 2. round numérico
- * 3. correspondência por texto de nome/país/local
+ * Resolve o perfil do circuito de maneira data-driven e explícita:
+ * 1. circuitId explícito (ou alias legado)
+ * 2. round numérico (1..24)
+ * 3. correspondência por texto de nome/país/local/alias
+ * ATENÇÃO: Se não resolver, LANÇA ERRO EXPLÍCITO (falha alto). Nunca faz fallback para Albert Park!
  */
 export function resolveCircuitProfile(query?: {
   circuitId?: string
@@ -1080,22 +1185,43 @@ export function resolveCircuitProfile(query?: {
   circuitName?: string
   country?: string
 }): CircuitPerformanceProfile {
-  if (query?.circuitId) {
-    const p = getCircuitProfileById(query.circuitId)
-    if (p) return p
+  if (!query) {
+    throw new Error(
+      '[resolveCircuitProfile] Nenhuma informação fornecida para resolução do circuito.',
+    )
   }
 
-  if (
-    typeof query?.round === 'number' &&
-    query.round >= 1 &&
-    query.round <= CIRCUIT_PERFORMANCE_PROFILES.length
-  ) {
-    const p = getCircuitProfileByRound(query.round)
+  // 1. Por circuitId
+  if (query.circuitId) {
+    const rawId = query.circuitId.trim()
+    const p = getCircuitProfileById(rawId)
     if (p) return p
+    const aliasTarget = CIRCUIT_LEGACY_ALIASES[rawId.toLowerCase()]
+    if (aliasTarget) {
+      const aliased = getCircuitProfileById(aliasTarget)
+      if (aliased) return aliased
+    }
   }
 
-  if (query?.circuitName) {
-    const q = query.circuitName.toLowerCase()
+  // 2. Por round numérico
+  if (typeof query.round === 'number') {
+    if (query.round >= 1 && query.round <= CIRCUIT_PERFORMANCE_PROFILES.length) {
+      return getCircuitProfileByRound(query.round)
+    }
+    throw new Error(
+      `[resolveCircuitProfile] Round fora do intervalo do calendário canônico: ${query.round} (esperado 1..${CIRCUIT_PERFORMANCE_PROFILES.length}).`,
+    )
+  }
+
+  // 3. Por alias em circuitName
+  if (query.circuitName) {
+    const q = query.circuitName.trim().toLowerCase()
+    const aliasedId = CIRCUIT_LEGACY_ALIASES[q]
+    if (aliasedId) {
+      const p = getCircuitProfileById(aliasedId)
+      if (p) return p
+    }
+
     const found = CIRCUIT_PERFORMANCE_PROFILES.find((c) => {
       const matchName =
         c.circuitName.toLowerCase().includes(q) || q.includes(c.circuitName.toLowerCase())
@@ -1108,12 +1234,20 @@ export function resolveCircuitProfile(query?: {
     if (found) return found
   }
 
-  if (query?.country) {
-    const cLower = query.country.toLowerCase()
+  // 4. Por país (ou alias em country)
+  if (query.country) {
+    const cLower = query.country.trim().toLowerCase()
+    const aliasedId = CIRCUIT_LEGACY_ALIASES[cLower]
+    if (aliasedId) {
+      const p = getCircuitProfileById(aliasedId)
+      if (p) return p
+    }
     const found = CIRCUIT_PERFORMANCE_PROFILES.find((c) => c.country.toLowerCase() === cLower)
     if (found) return found
   }
 
-  // Fallback seguro: primeiro circuito (Albert Park)
-  return CIRCUIT_PERFORMANCE_PROFILES[0]
+  // Não foi encontrado: FALHA ALTO
+  throw new Error(
+    `[resolveCircuitProfile] Circuito não identificado para a consulta: ${JSON.stringify(query)}. Fallback silencioso proibido pelas regras canônicas de F1 2026.`,
+  )
 }
