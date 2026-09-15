@@ -4,6 +4,7 @@ import { getSuperlicensePointsGained, calcularElegibilidade } from '@/lib/superl
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import { carTechnicalService } from '@/services/carTechnicalService'
 import { generateDefaultComponentsFromMacro } from '@/lib/car-technical-data'
+import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
 import {
   TeamModel,
   SeasonModel,
@@ -200,12 +201,19 @@ export const f1Service = {
   async updateSeason(id: string, data: Partial<SeasonModel>): Promise<SeasonModel> {
     const updated = await pb.collection('seasons').update<SeasonModel>(id, data)
 
-    // Se a rodada acabou de ser avançada, processa automaticamente a progressão FIA/Adaptação
-    // para a equipe do jogador e do titular/reserva
+    // Se a rodada acabou de ser avançada, processa:
+    // 1. Obras de infraestrutura concluídas na rodada (Fase 4A)
+    // 2. Progressão FIA/Adaptação para pilotos da equipe
     if (typeof data.current_round === 'number' && typeof data.last_processed_round === 'number') {
-      try {
-        const teamId = updated.team_id
-        if (teamId) {
+      const teamId = updated.team_id
+      if (teamId) {
+        try {
+          await this.processInfrastructureOnRoundAdvance(teamId, data.current_round)
+        } catch (infraErr) {
+          console.warn('Processamento automático de obras de infraestrutura:', infraErr)
+        }
+
+        try {
           const teamDrivers = await this.getTeamDrivers(teamId)
           const titulars = teamDrivers.filter((d) => d.role !== 'reserva' && d.team_id === teamId)
           const reserve = teamDrivers.find(
@@ -223,9 +231,9 @@ export const f1Service = {
             reserveDriver: reserve,
             tp1ParticipatedDriverIds: tp1DriverIds,
           })
+        } catch (progErr) {
+          console.warn('Processamento automático de progressão FIA/Adaptação:', progErr)
         }
-      } catch (progErr) {
-        console.warn('Processamento automático de progressão FIA/Adaptação:', progErr)
       }
     }
 
@@ -1098,7 +1106,7 @@ export const f1Service = {
       const teamColor = config.playerTeam.customColor || '#00A6FB'
       const engineSupplier = this.normalizeEngineSupplier(config.playerTeam.customEngine)
 
-      // População canônica de campos técnicos para novas carreiras personalizadas
+      // População canônica de campos técnicos e infraestrutura inicial (Fase 4A)
       const customMacro = 35
       const customComponents = generateDefaultComponentsFromMacro(customMacro)
       const customTechProfile = carTechnicalService.evaluateCarTechnicalProfile(
@@ -1107,6 +1115,7 @@ export const f1Service = {
         customMacro,
         engineSupplier,
       )
+      const customFacilities = getInitialTeamFacilities('custom_12th')
 
       const newTeam = await withAuthRetry(() =>
         pb.collection('teams').create<TeamModel>({
@@ -1125,6 +1134,15 @@ export const f1Service = {
           calculated_overall: customTechProfile.calculatedOverall,
           balance_delta: customTechProfile.balanceDelta,
           component_ratings: customComponents,
+          factory_level: customFacilities.factory,
+          design_centre_level: customFacilities.design_centre,
+          cfd_level: customFacilities.cfd,
+          wind_tunnel_level: customFacilities.wind_tunnel,
+          manufacturing_level: customFacilities.manufacturing,
+          simulator_level: customFacilities.simulator,
+          operations_centre_level: customFacilities.operations_centre,
+          pitstop_center_level: customFacilities.pitstop_center,
+          youth_academy_level: customFacilities.youth_academy,
           manager_name: managerName,
           manager_profile: {
             profileId: config.managerProfile.id,
@@ -1222,6 +1240,7 @@ export const f1Service = {
         teamDef.strength,
         engineSupplier,
       )
+      const officialFacilities = getInitialTeamFacilities(teamDef.key)
 
       const newTeam = await withAuthRetry(() =>
         pb.collection('teams').create<TeamModel>({
@@ -1240,6 +1259,15 @@ export const f1Service = {
           calculated_overall: officialTechData.calculatedOverall,
           balance_delta: officialTechData.balanceDelta,
           component_ratings: officialTechData.componentRatings,
+          factory_level: officialFacilities.factory,
+          design_centre_level: officialFacilities.design_centre,
+          cfd_level: officialFacilities.cfd,
+          wind_tunnel_level: officialFacilities.wind_tunnel,
+          manufacturing_level: officialFacilities.manufacturing,
+          simulator_level: officialFacilities.simulator,
+          operations_centre_level: officialFacilities.operations_centre,
+          pitstop_center_level: officialFacilities.pitstop_center,
+          youth_academy_level: officialFacilities.youth_academy,
           manager_name: managerName,
           manager_profile: {
             profileId: config.managerProfile.id,
@@ -2786,38 +2814,74 @@ export const f1Service = {
   },
 
   // ==========================================
-  // MÓDULO DE INFRAESTRUTURA (FASE 3D)
+  // MÓDULO DE INFRAESTRUTURA TÉCNICA (FASE 4A)
   // ==========================================
 
   /**
-   * Obtém os níveis das 4 instalações com fallback seguro (1 a 5).
+   * Obtém os níveis das 9 instalações canônicas com fallback seguro.
    */
-  getFacilityLevels(team: TeamModel | null | undefined): {
-    factory: number
-    simulator: number
-    pitstop_center: number
-    youth_academy: number
-  } {
-    const rawFactory = team?.factory_level
-    const rawSim = team?.simulator_level
-    const rawPit = team?.pitstop_center_level
-    const rawAcademy = team?.youth_academy_level
-
-    const sanitize = (val: number | undefined) => {
-      if (typeof val !== 'number' || isNaN(val) || val <= 0) return 3
+  getFacilityLevels(team: Partial<TeamModel> | null | undefined) {
+    const sanitize = (val: any, fallback = 3) => {
+      if (typeof val !== 'number' || isNaN(val) || val <= 0) return fallback
       return Math.max(1, Math.min(5, Math.round(val)))
     }
 
+    const baseFactory = sanitize(team?.factory_level, 3)
+    const baseSim = sanitize(team?.simulator_level, 3)
+    const basePit = sanitize(team?.pitstop_center_level, 3)
+    const baseAcademy = sanitize(team?.youth_academy_level, 3)
+
     return {
-      factory: sanitize(rawFactory),
-      simulator: sanitize(rawSim),
-      pitstop_center: sanitize(rawPit),
-      youth_academy: sanitize(rawAcademy),
+      factory: baseFactory,
+      design_centre: sanitize(team?.design_centre_level, baseFactory),
+      cfd: sanitize(team?.cfd_level, baseFactory),
+      wind_tunnel: sanitize(team?.wind_tunnel_level, baseFactory),
+      manufacturing: sanitize(team?.manufacturing_level, baseFactory),
+      simulator: baseSim,
+      operations_centre: sanitize(team?.operations_centre_level, baseSim),
+      pitstop_center: basePit,
+      youth_academy: baseAcademy,
     }
   },
 
   /**
-   * Calcula o custo de upgrade de uma instalação para o próximo nível.
+   * Retorna os projetos de obras de expansão ativos da equipe.
+   */
+  getFacilityProjects(team: Partial<TeamModel> | null | undefined): Array<{
+    facilityId: string
+    fromLevel: number
+    targetLevel: number
+    capexCost: number
+    startedAtRound: number
+    completionRound: number
+    status: 'em_construcao' | 'concluido'
+    isCapexPaid: boolean
+  }> {
+    if (!team?.facility_projects || !Array.isArray(team.facility_projects)) return []
+    return team.facility_projects
+  },
+
+  /**
+   * Verifica se uma determinada instalação já possui uma obra em andamento.
+   */
+  isFacilityUnderConstruction(
+    team: Partial<TeamModel> | null | undefined,
+    facilityId: string,
+  ): boolean {
+    const projects = this.getFacilityProjects(team)
+    return projects.some((p) => p.facilityId === facilityId && p.status === 'em_construcao')
+  },
+
+  /**
+   * Retorna o projeto ativo de uma instalação, se houver.
+   */
+  getActiveFacilityProject(team: Partial<TeamModel> | null | undefined, facilityId: string) {
+    const projects = this.getFacilityProjects(team)
+    return projects.find((p) => p.facilityId === facilityId && p.status === 'em_construcao')
+  },
+
+  /**
+   * Calcula o custo de upgrade e duração de uma instalação para o próximo nível.
    * Níveis 2..5.
    */
   getFacilityUpgradeCost(targetLevel: number): number {
@@ -2830,6 +2894,16 @@ export const f1Service = {
     return table[targetLevel] || 15000000
   },
 
+  getFacilityUpgradeDuration(targetLevel: number): number {
+    const table: Record<number, number> = {
+      2: 2, // 2 rodadas
+      3: 3, // 3 rodadas
+      4: 4, // 4 rodadas
+      5: 5, // 5 rodadas
+    }
+    return table[targetLevel] || 3
+  },
+
   /**
    * Desconto percentual proporcionado pelo nível da Fábrica em P&D e reparos de peças (0% a 12%).
    */
@@ -2839,26 +2913,27 @@ export const f1Service = {
   },
 
   /**
-   * Executa a expansão de uma instalação:
-   * - Atualiza campo em teams (ex: factory_level)
-   * - Debita custo do orçamento
-   * - Incrementa cost_cap_spent respeitando teto de gastos
-   * - Registra evento na timeline e notificação no sistema
+   * Inicia um projeto de obra/upgrade de uma instalação:
+   * - Valida se a instalação já não está em nível máximo ou em obra
+   * - Debita o CAPEX do orçamento
+   * - Incrementa cost_cap_spent
+   * - Registra o projeto com completionRound = currentRound + duration
+   * - Salva em teams.facility_projects
+   * - O efeito da instalação NÃO é ativado antecipadamente: só é entregue quando atingir completionRound
    */
-  async upgradeFacility(
+  async startFacilityUpgrade(
     team: TeamModel,
-    facilityField:
-      | 'factory_level'
-      | 'simulator_level'
-      | 'pitstop_center_level'
-      | 'youth_academy_level',
+    facilityId: string,
+    facilityField: string,
     facilityName: string,
     currentRound: number = 1,
     userId?: string,
   ): Promise<{
     team: TeamModel
-    newLevel: number
-    cost: number
+    targetLevel: number
+    capexCost: number
+    completionRound: number
+    durationRounds: number
     overspendAmount: number
   }> {
     const currentLevel = Math.max(1, Math.min(5, (team as any)[facilityField] || 1))
@@ -2866,12 +2941,18 @@ export const f1Service = {
       throw new Error(`A instalação ${facilityName} já atingiu o nível máximo (Nível 5).`)
     }
 
+    if (this.isFacilityUnderConstruction(team, facilityId)) {
+      throw new Error(`A instalação ${facilityName} já possui uma obra de expansão em andamento.`)
+    }
+
     const nextLevel = currentLevel + 1
     const cost = this.getFacilityUpgradeCost(nextLevel)
+    const duration = this.getFacilityUpgradeDuration(nextLevel)
+    const completionRound = currentRound + duration
 
     if (team.budget < cost) {
       throw new Error(
-        `Orçamento insuficiente. Custo de expansão: R$ ${(cost / 1000000).toFixed(1)}M. Saldo atual: R$ ${(team.budget / 1000000).toFixed(1)}M.`,
+        `Orçamento insuficiente. Custo de investimento CAPEX: R$ ${(cost / 1000000).toFixed(1)}M. Saldo em caixa: R$ ${(team.budget / 1000000).toFixed(1)}M.`,
       )
     }
 
@@ -2881,56 +2962,212 @@ export const f1Service = {
     const isBreach = newSpentCap > this.COST_CAP_LIMIT
     const overspendAmount = Math.max(0, newSpentCap - this.COST_CAP_LIMIT)
 
+    const existingProjects = this.getFacilityProjects(team)
+    const newProject = {
+      facilityId,
+      fromLevel: currentLevel,
+      targetLevel: nextLevel,
+      capexCost: cost,
+      startedAtRound: currentRound,
+      completionRound,
+      status: 'em_construcao' as const,
+      isCapexPaid: true,
+    }
+    const updatedProjects = [...existingProjects, newProject]
+
     const updatePayload: Partial<TeamModel> = {
-      [facilityField]: nextLevel,
       budget: newBudget,
       cost_cap_spent: newSpentCap,
+      facility_projects: updatedProjects,
     }
 
     let updatedTeam: TeamModel
     if (isBreach) {
-      const breachRes = await this.applyCostCapBreach(
+      await this.applyCostCapBreach(
         team,
         cost,
-        `Expansão da instalação ${facilityName} para o Nível ${nextLevel}`,
+        `Início de obras do complexo ${facilityName} para Nível ${nextLevel}`,
       )
-      // Atualizar o campo da instalação sobre a equipe retornada
       updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
-        [facilityField]: nextLevel,
+        facility_projects: updatedProjects,
       })
     } else {
       updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, updatePayload)
       await this.addEvent(
         team.id,
-        `🏗️ INFRAESTRUTURA: ${facilityName} expandida para o Nível ${nextLevel}/5! Investimento de R$ ${(cost / 1000000).toFixed(1)}M contabilizado no orçamento operacional.`,
+        `🏗️ INFRAESTRUTURA: Obras iniciadas em ${facilityName}! Investimento CAPEX de R$ ${(cost / 1000000).toFixed(1)}M. Conclusão prevista para a Rodada ${completionRound}.`,
         'desenvolvimento',
       )
     }
 
-    // Registrar notificação oficial
+    // Notificação oficial de início de obra
     if (userId) {
-      const title = `Instalação Concluída: ${facilityName}`
-      const msg = `As obras da sua ${facilityName} foram finalizadas com sucesso, alcançando o Nível ${nextLevel}/5.`
       try {
         await pb.collection('notifications').create({
           user_id: userId,
           type: 'sistema',
-          title,
-          message: msg,
+          title: `Obras Iniciadas: ${facilityName}`,
+          message: `O canteiro de obras para expansão da sua ${facilityName} (Nível ${nextLevel}) foi instalado. Previsão de entrega: Rodada ${completionRound}.`,
           round: currentRound,
           read: false,
           link: '/infraestrutura',
         })
       } catch (notifErr) {
-        console.warn('Erro ao criar notificação de infraestrutura:', notifErr)
+        console.warn('Erro ao criar notificação de início de obra:', notifErr)
       }
     }
 
     return {
       team: updatedTeam,
-      newLevel: nextLevel,
-      cost,
+      targetLevel: nextLevel,
+      capexCost: cost,
+      completionRound,
+      durationRounds: duration,
       overspendAmount,
+    }
+  },
+
+  /**
+   * Processa o progresso de obras de infraestrutura e debita o OPEX ao avançar rodada.
+   * Chamado quando o campeonato avança para newRound.
+   * Se um projeto atingir completionRound <= newRound, a instalação é formalmente concluída
+   * e o nível da equipe é atualizado no banco.
+   */
+  async processInfrastructureOnRoundAdvance(
+    teamId: string,
+    newRound: number,
+    userId?: string,
+  ): Promise<{
+    completedCount: number
+    completedNames: string[]
+    opexDebited: number
+  }> {
+    const team = await this.getTeam(teamId)
+    if (!team) return { completedCount: 0, completedNames: [], opexDebited: 0 }
+
+    const projects = this.getFacilityProjects(team)
+    if (projects.length === 0) return { completedCount: 0, completedNames: [], opexDebited: 0 }
+
+    let completedCount = 0
+    const completedNames: string[] = []
+    const updatedPayload: Partial<TeamModel> = {}
+    const remainingProjects: typeof projects = []
+
+    const fieldMap: Record<string, string> = {
+      factory: 'factory_level',
+      design_centre: 'design_centre_level',
+      cfd: 'cfd_level',
+      wind_tunnel: 'wind_tunnel_level',
+      manufacturing: 'manufacturing_level',
+      simulator: 'simulator_level',
+      operations_centre: 'operations_centre_level',
+      pitstop_center: 'pitstop_center_level',
+      youth_academy: 'youth_academy_level',
+    }
+
+    const nameMap: Record<string, string> = {
+      factory: 'Fábrica & Sede',
+      design_centre: 'Centro de Design',
+      cfd: 'Cluster CFD',
+      wind_tunnel: 'Túnel de Vento',
+      manufacturing: 'Manufatura de Peças',
+      simulator: 'Simulador Dinâmico',
+      operations_centre: 'Centro de Operações',
+      pitstop_center: 'Centro de Pit Stop',
+      youth_academy: 'Academia de Pilotos',
+    }
+
+    for (const proj of projects) {
+      if (proj.status === 'em_construcao' && proj.completionRound <= newRound) {
+        // Concluir obra
+        const fieldName = fieldMap[proj.facilityId] || `${proj.facilityId}_level`
+        const displayName = nameMap[proj.facilityId] || proj.facilityId
+        ;(updatedPayload as any)[fieldName] = proj.targetLevel
+        completedCount++
+        completedNames.push(displayName)
+
+        await this.addEvent(
+          teamId,
+          `🏁 OBRA CONCLUÍDA: A expansão de ${displayName} foi finalizada! Nova capacidade Nível ${proj.targetLevel}/5 operacional.`,
+          'desenvolvimento',
+        )
+
+        if (userId) {
+          try {
+            await pb.collection('notifications').create({
+              user_id: userId,
+              type: 'sistema',
+              title: `Instalação Inaugurada: ${displayName}`,
+              message: `As obras de expansão de ${displayName} foram homologadas e o Nível ${proj.targetLevel}/5 está agora plenamente ativo!`,
+              round: newRound,
+              read: false,
+              link: '/infraestrutura',
+            })
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } else {
+        remainingProjects.push(proj)
+      }
+    }
+
+    if (completedCount > 0) {
+      updatedPayload.facility_projects = remainingProjects
+      await pb.collection('teams').update(teamId, updatedPayload)
+    }
+
+    return {
+      completedCount,
+      completedNames,
+      opexDebited: 0,
+    }
+  },
+
+  /**
+   * Método de compatibilidade para páginas legadas que invocam upgradeFacility.
+   * Converte a chamada para a nova arquitetura com obras no tempo e persistência de projetos.
+   */
+  async upgradeFacility(
+    team: TeamModel,
+    facilityField: any,
+    facilityName: string,
+    currentRound: number = 1,
+    userId?: string,
+  ): Promise<{
+    team: TeamModel
+    newLevel: number
+    cost: number
+    overspendAmount: number
+  }> {
+    // Localiza a chave de instalação a partir do field
+    const reverseMap: Record<string, string> = {
+      factory_level: 'factory',
+      design_centre_level: 'design_centre',
+      cfd_level: 'cfd',
+      wind_tunnel_level: 'wind_tunnel',
+      manufacturing_level: 'manufacturing',
+      simulator_level: 'simulator',
+      operations_centre_level: 'operations_centre',
+      pitstop_center_level: 'pitstop_center',
+      youth_academy_level: 'youth_academy',
+    }
+    const facilityId = reverseMap[facilityField] || 'factory'
+
+    const res = await this.startFacilityUpgrade(
+      team,
+      facilityId,
+      facilityField,
+      facilityName,
+      currentRound,
+      userId,
+    )
+
+    return {
+      team: res.team,
+      newLevel: res.targetLevel,
+      cost: res.capexCost,
+      overspendAmount: res.overspendAmount,
     }
   },
 

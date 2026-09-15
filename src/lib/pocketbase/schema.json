@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T11:51:37.529Z",
+  "generatedAt": "2026-09-15T12:16:12.938Z",
   "collections": [
     {
       "name": "users",
@@ -301,6 +301,42 @@
         },
         {
           "name": "component_ratings",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "design_centre_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cfd_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "wind_tunnel_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "manufacturing_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "operations_centre_level",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "facility_projects",
           "type": "json",
           "required": false,
           "system": false

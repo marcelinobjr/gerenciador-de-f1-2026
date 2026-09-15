@@ -28,6 +28,7 @@ import {
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { CAR_MODEL_ASSETS } from '@/lib/lobby-assets'
 import { GridTeamDefinition, PlayerChosenTeam } from '@/types/career-wizard'
+import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
 
 interface StepCustomGridProps {
   availableDatabaseTeams: GridTeamDefinition[]
@@ -69,6 +70,9 @@ export function StepCustomGrid({
   const [selectedCarModel, setSelectedCarModel] = useState<string>(
     playerTeam.customCarDesign || 'Carro1',
   )
+  const [customFacilityPreset, setCustomFacilityPreset] = useState<
+    'balanceada' | 'aerodinamica' | 'fabrica'
+  >('balanceada')
 
   const isCustomValid = customName.trim().length >= 3
 

@@ -36,10 +36,26 @@ export interface TeamModel {
   technical_balance_delta?: number // Alias legado mantido para compatibilidade
   engine_pool_used?: number // Motores introduzidos no pool (limite regulamentar 4 antes de penalidades)
   active_engine_wear?: number // Desgaste 0-100% da unidade de potência atualmente instalada no carro
-  factory_level?: number // Nível 1 a 5 da Fábrica de P&D
+  // As 9 Instalações Canônicas de Infraestrutura (Fase 4A)
+  factory_level?: number // Nível 1 a 5 da Fábrica de P&D & Sede
+  design_centre_level?: number // Nível 1 a 5 do Centro de Design
+  cfd_level?: number // Nível 1 a 5 do Cluster de CFD
+  wind_tunnel_level?: number // Nível 1 a 5 do Túnel de Vento 60%
+  manufacturing_level?: number // Nível 1 a 5 da Manufatura de Peças
   simulator_level?: number // Nível 1 a 5 do Simulador de Pilotos
+  operations_centre_level?: number // Nível 1 a 5 do Centro de Operações
   pitstop_center_level?: number // Nível 1 a 5 do Centro de Testes de Pit Stop
   youth_academy_level?: number // Nível 1 a 5 da Academia de Jovens Pilotos
+  facility_projects?: Array<{
+    facilityId: string
+    fromLevel: number
+    targetLevel: number
+    capexCost: number
+    startedAtRound: number
+    completionRound: number
+    status: 'em_construcao' | 'concluido'
+    isCapexPaid: boolean
+  }>
   cost_cap_penalties?: Array<{
     id: string
     timestamp: string
