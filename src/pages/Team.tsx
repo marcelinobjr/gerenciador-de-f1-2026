@@ -59,6 +59,7 @@ import { proceduralDriverProgressService } from '@/services/proceduralDriverProg
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
 import { managerEffectService } from '@/services/managerEffectService'
+import { TechnicalOrganizationSection } from '@/components/TechnicalOrganizationSection'
 import { MANAGER_DOMAINS } from '@/lib/manager-attribute-domains'
 import {
   Dialog,
@@ -1826,7 +1827,7 @@ export default function TeamPage() {
         </div>
       )}
 
-      {/* SUB-ABA: STAFF */}
+      {/* SUB-ABA: STAFF & ORGANIZAÇÃO TÉCNICA (IMPLEMENTAÇÃO 7B) */}
       {activeTab === 'staff' &&
         (() => {
           const managerEval = managerEffectService.evaluateManager(team)
@@ -1964,48 +1965,13 @@ export default function TeamPage() {
                 </CardContent>
               </Card>
 
-              {/* Engenheiros chefes e Corpo Técnico existente */}
-              <Card className="bg-[#0B0E14] border-neutral-800/80">
-                <CardHeader className="border-b border-neutral-800">
-                  <CardTitle className="text-xl font-black text-white flex items-center gap-2">
-                    <Users className="w-5 h-5 text-[#E10600]" />
-                    Corpo Técnico e Engenharia de Pista
-                  </CardTitle>
-                  <CardDescription className="text-xs text-neutral-400">
-                    Engenheiros chefes e diretores responsáveis pelo projeto, estratégia de pit stop
-                    e operações da equipe.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {staffMembers.map((st) => (
-                      <div
-                        key={st.name}
-                        className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex items-center justify-between gap-3 font-mono"
-                      >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={st.photo}
-                            alt={st.name}
-                            className="w-12 h-12 rounded-full object-cover border-2 border-neutral-700"
-                          />
-                          <div>
-                            <span className="text-xs text-neutral-400 block">{st.role}</span>
-                            <strong className="text-sm text-white block">{st.name}</strong>
-                            <span className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
-                              {st.flag} {st.country}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-lg font-black text-emerald-400">{st.rating}</span>
-                          <span className="text-[10px] text-neutral-500 block">RATING</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Seção Canônica Completa de Staff e Organização Técnica (7B) */}
+              <TechnicalOrganizationSection
+                team={team}
+                onOrganizationUpdated={(_updatedOrg) => {
+                  if (refreshTeamAndSeason) refreshTeamAndSeason()
+                }}
+              />
             </div>
           )
         })()}

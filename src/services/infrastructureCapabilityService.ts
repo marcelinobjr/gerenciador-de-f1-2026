@@ -24,6 +24,8 @@ import {
 } from '@/types/canonical-facilities'
 import { CANONICAL_FACILITIES_DEFINITIONS } from '@/types/canonical-facilities-data'
 import { managerEffectService } from './managerEffectService'
+import { technicalOrganizationService } from './technicalOrganizationService'
+import { TeamTechnicalOrganization } from '@/types/canonical-staff'
 
 export class InfrastructureCapabilityService {
   /**
@@ -278,6 +280,47 @@ export class InfrastructureCapabilityService {
     // raceManagement mod: -2% a +4% na taxa de erro de box
     const managerPitMod = managerEval.modifiers.pitStopErrorReduction
 
+    // Modulação Técnica do Staff (Implementação 7B)
+    // Se a equipe possuir organização técnica estruturada, calcular multiplicadores orgânicos por cargo
+    let staffAeroFactor = 1.0
+    let staffDesignFactor = 1.0
+    let staffOpsFactor = 1.0
+    let staffAcademyFactor = 1.0
+    let staffThroughputFactor = 1.0
+
+    if (team) {
+      const teamOrg = (team as { technical_organization?: TeamTechnicalOrganization })
+        .technical_organization
+      if (teamOrg && teamOrg.members) {
+        const hoaEff = technicalOrganizationService.calculateStaffEffectiveness(
+          teamOrg.members.HEAD_OF_AERODYNAMICS,
+          'HEAD_OF_AERODYNAMICS',
+        )
+        const cdEff = technicalOrganizationService.calculateStaffEffectiveness(
+          teamOrg.members.CHIEF_DESIGNER,
+          'CHIEF_DESIGNER',
+        )
+        const tdEff = technicalOrganizationService.calculateStaffEffectiveness(
+          teamOrg.members.TECHNICAL_DIRECTOR,
+          'TECHNICAL_DIRECTOR',
+        )
+        const sdEff = technicalOrganizationService.calculateStaffEffectiveness(
+          teamOrg.members.SPORTING_DIRECTOR,
+          'SPORTING_DIRECTOR',
+        )
+        const adEff = technicalOrganizationService.calculateStaffEffectiveness(
+          teamOrg.members.ACADEMY_DIRECTOR,
+          'ACADEMY_DIRECTOR',
+        )
+
+        staffAeroFactor = 0.8 + (hoaEff / 100) * 0.35 // 0.8 a 1.15
+        staffDesignFactor = 0.8 + (cdEff / 100) * 0.35
+        staffThroughputFactor = 0.8 + (tdEff / 100) * 0.35
+        staffOpsFactor = 0.8 + (sdEff / 100) * 0.35
+        staffAcademyFactor = 0.8 + (adEff / 100) * 0.35
+      }
+    }
+
     // 1. P&D / Engenharia
     // designCapacity: 70% Design Centre + 20% Factory + 10% CFD
     let rawDesignCap = scores.design_centre * 0.7 + scores.factory * 0.2 + scores.cfd * 0.1
@@ -291,14 +334,14 @@ export class InfrastructureCapabilityService {
     let rawAeroCorrelation = scores.wind_tunnel * 0.6 + scores.cfd * 0.3 + scores.simulator * 0.1
     if (aeroBottleneck) rawAeroCorrelation *= 1 - aeroBottleneck.penaltyPercent / 100
     if (aeroSynergy) rawAeroCorrelation *= 1 + aeroSynergy.bonusPercent / 100
-    rawAeroCorrelation *= 1 + managerTechMod * 0.3
+    rawAeroCorrelation *= (1 + managerTechMod * 0.3) * staffAeroFactor
 
     // developmentThroughput: 45% Factory + 30% Design + 25% Manufacturing
     let rawThroughput =
       scores.factory * 0.45 + scores.design_centre * 0.3 + scores.manufacturing * 0.25
     if (mfgBottleneck) rawThroughput *= 1 - mfgBottleneck.penaltyPercent / 100
     if (mfgSynergy) rawThroughput *= 1 + mfgSynergy.bonusPercent / 100
-    rawThroughput *= 1 + managerTechMod * 0.6
+    rawThroughput *= (1 + managerTechMod * 0.6) * staffThroughputFactor
 
     // 2. Fabricação & Produção Física (Design -> Physical Part)
     // manufacturingCapacity: 75% Manufacturing + 25% Factory
@@ -321,6 +364,7 @@ export class InfrastructureCapabilityService {
     let rawRaceOps = scores.operations_centre * 0.7 + scores.simulator * 0.3
     if (opsBottleneck) rawRaceOps *= 1 - opsBottleneck.penaltyPercent / 100
     if (opsSynergy) rawRaceOps *= 1 + opsSynergy.bonusPercent / 100
+    rawRaceOps *= staffOpsFactor
 
     // pitCrewPerformance: 85% Pitstop Center + 15% Factory
     let rawPitCrew = scores.pitstop_center * 0.85 + scores.factory * 0.15
@@ -344,7 +388,7 @@ export class InfrastructureCapabilityService {
     let rawTalentDev = scores.youth_academy * 0.6 + scores.simulator * 0.4
     if (academyBottleneck) rawTalentDev *= 1 - academyBottleneck.penaltyPercent / 100
     if (academySynergy) rawTalentDev *= 1 + academySynergy.bonusPercent / 100
-    rawTalentDev *= 1 + managerTalentMod * 0.8
+    rawTalentDev *= (1 + managerTalentMod * 0.8) * staffAcademyFactor
 
     // academySupportQuality: 50% Youth Academy + 30% Simulator + 20% Factory
     let rawSupport = scores.youth_academy * 0.5 + scores.simulator * 0.3 + scores.factory * 0.2

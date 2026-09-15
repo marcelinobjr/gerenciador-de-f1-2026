@@ -271,11 +271,41 @@ export function DecisionModals({
                     ? 'Colocar Intermediários (Extrema sobreaquece e perde 2.7s)'
                     : 'Colocar Pneus Slicks (Médio / Duro)'}
               </strong>
-              {team?.manager_profile && (
-                <span className="text-[10px] text-cyan-400 block mt-0.5">
-                  Pit Wall: Gestão de Corrida refinada pelo Team Principal
-                </span>
-              )}
+              {(() => {
+                const teamOrg = (
+                  team as {
+                    technical_organization?: {
+                      members?: {
+                        HEAD_OF_STRATEGY?: {
+                          name: string
+                          attributes: { technicalAbility: number; pressureHandling: number }
+                        }
+                      }
+                    }
+                  }
+                )?.technical_organization
+                const hos = teamOrg?.members?.HEAD_OF_STRATEGY
+                return (
+                  <div className="mt-1 space-y-0.5">
+                    {hos ? (
+                      <span className="text-[10px] text-sky-400 block font-semibold">
+                        📻 Parecer do Chefe de Estratégia ({hos.name}): Precisão tática calibrada
+                        (Technical: {hos.attributes.technicalAbility}).
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-400/80 block italic">
+                        ⚠️ Alerta Pit Wall: Cargo de Chefe de Estratégia interino/vago — risco de
+                        ruído na janela de troca.
+                      </span>
+                    )}
+                    {team?.manager_profile && (
+                      <span className="text-[10px] text-cyan-400 block">
+                        Pit Wall: Gestão de Corrida supervisionada pelo Team Principal
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           </div>
 
