@@ -11,7 +11,16 @@ export interface MBJPilotData {
   name: string
   nationality: string
   age: number
-  category: 'f1' | 'f2' | 'indycar' | 'indynxt' | 'formula_e' | 'nascar' | 'prototipos' | 'mercado'
+  category:
+    | 'f1'
+    | 'f2'
+    | 'indycar'
+    | 'indynxt'
+    | 'formula_e'
+    | 'nascar'
+    | 'prototipos'
+    | 'mercado'
+    | 'f1_academy'
   role?: 'titular' | 'reserva'
   teamKey?: string
   teamName?: string

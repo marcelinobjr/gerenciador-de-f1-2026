@@ -1,7 +1,17 @@
-# Pasta public/pilotos/
+# Pasta public/pilotos/ e CDN de Fotos Oficiais
 
-Este diretório armazena os pôsteres e fotos locais dos pilotos com nomes canônicos e numeração oficial da F1 / universo MBJ 2026.
-O resolvedor de fotos (`src/lib/pilot-posters.ts` e `src/lib/driver-photos.ts`) busca PRIMEIRO nesta pasta pública antes de recorrer a qualquer contingência externa ou avatar de iniciais da equipe.
+Este diretório armazena os pôsteres e fotos dos pilotos com nomes canônicos e numeração oficial da F1 / universo MBJ 2026.
+O resolvedor de fotos (`src/lib/pilot-posters.ts`, `src/lib/driver-photos.ts` e `src/lib/drive-storage-photos.ts`) está 100% calibrado para:
+1. Buscar arquivos locais em `public/pilotos/`
+2. Servir instantaneamente as fotos oficiais de alta resolução (`=s0`) diretamente dos 77 links públicos de CDN `https://lh3.googleusercontent.com/drive-storage/...=s0` extraídos das 4 pastas públicas do Google Drive sem exigência de autenticação
+3. Prover fallback de contingência e avatares
+
+### Status de Cobertura das 4 Pastas Públicas do Google Drive:
+- **Pasta 1** (`1XdTHER8FxlD7RoqE_aodxR8cOzIILoVf`): 25 arquivos mapeados e ativos via CDN de alta resolução
+- **Pasta 2** (`1yYCmMiVj148m6FZphNqSIwnr9tD3tW4Y`): 22 arquivos mapeados e ativos via CDN de alta resolução
+- **Pasta 3** (`1C5YPJWK_SSafxd_d30MskEZsdxopmVOY`): 18 arquivos mapeados e ativos via CDN de alta resolução
+- **Pasta 4** (`1OOq_nfbBoI46Ve1p0SLcMnIaA8ICJJzU`): 12 arquivos mapeados e ativos via CDN de alta resolução
+- **Total de Pilotos com Fotos de Alta Resolução Mapeadas:** 77 arquivos canônicos
 
 ---
 

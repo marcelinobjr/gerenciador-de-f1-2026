@@ -74,7 +74,16 @@ export interface UnifiedDriverItem {
   teamName?: string | null
   teamColor?: string | null
   role?: 'titular' | 'reserva' | null
-  category: 'f1' | 'f2' | 'indycar' | 'indynxt' | 'formula_e' | 'nascar' | 'prototipos' | 'mercado'
+  category:
+    | 'f1'
+    | 'f2'
+    | 'indycar'
+    | 'indynxt'
+    | 'formula_e'
+    | 'nascar'
+    | 'prototipos'
+    | 'mercado'
+    | 'f1_academy'
   potentialMin: number
   potentialMax: number
   f1RacesCompleted: number
@@ -231,7 +240,11 @@ export default function DriversPage() {
       const potentialMax = mbjInfo?.potentialMax ?? Math.min(99, speed + 6)
       const f1Races = mbjInfo?.f1RacesCompleted ?? (cat === 'f1' ? 20 : 0)
       const superlicense = mbjInfo?.superlicensePoints ?? (cat === 'f1' ? 50 : 35)
-      const isProspect = mbjInfo?.isAcademyProspect || cat === 'f2' || (d.age < 22 && f1Races === 0)
+      const isProspect =
+        mbjInfo?.isAcademyProspect ||
+        cat === 'f2' ||
+        cat === 'f1_academy' ||
+        (d.age < 22 && f1Races === 0)
 
       result.push({
         id: d.id,
@@ -428,20 +441,26 @@ export default function DriversPage() {
     return filteredDrivers.filter((p) => !p.teamId && !p.teamKey)
   }, [filteredDrivers])
 
-  // 3. Mercado & Contratação: listagem geral com elegibilidade dinâmica, rodadas >= 12 pré-contrato
+  // 3. Mercado & Contratação (Mercado Global): listagem geral sem piloto do player, garantindo ampla visibilidade (agentes livres, Barrichello, Nelson Piquet Jr, etc.)
   const marketPilots = useMemo(() => {
     return filteredDrivers.filter((p) => !p.isPlayerDriver)
   }, [filteredDrivers])
 
-  // 4. Prospectos & Academia: Jovens talentos (Fórmula 2 / Fórmula 3 / Indynxt) com potencial/overall, idade < 23
+  // 4. Prospectos & Academia: Jovens talentos (Fórmula 2 / F1 Academy / Indynxt) com potencial/overall, idade < 23
   const prospectPilots = useMemo(() => {
     return filteredDrivers.filter(
       (p) =>
         p.isAcademyProspect ||
         p.category === 'f2' ||
+        p.category === 'f1_academy' ||
         p.category === 'indynxt' ||
         (p.age <= 22 && p.f1RacesCompleted === 0),
     )
+  }, [filteredDrivers])
+
+  // 5. F1 Academy: Categoria 100% dedicada
+  const f1AcademyPilots = useMemo(() => {
+    return filteredDrivers.filter((p) => p.category === 'f1_academy')
   }, [filteredDrivers])
 
   // Abertura do perfil do piloto ao clicar no card
@@ -896,6 +915,7 @@ export default function DriversPage() {
               <SelectItem value="formula_e">Fórmula E</SelectItem>
               <SelectItem value="prototipos">WEC / Protótipos</SelectItem>
               <SelectItem value="mercado">Mercado Geral</SelectItem>
+              <SelectItem value="f1_academy">F1 Academy</SelectItem>
             </SelectContent>
           </Select>
 
@@ -951,6 +971,13 @@ export default function DriversPage() {
               >
                 <GraduationCap className="w-4 h-4 shrink-0" />
                 <span>Prospectos & Academia ({prospectPilots.length})</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="f1_academy"
+                className="flex items-center gap-2 py-2 px-3 sm:px-4 shrink-0 whitespace-nowrap data-[state=active]:bg-red-600 data-[state=active]:text-white font-medium"
+              >
+                <Sparkles className="w-4 h-4 shrink-0 text-pink-400" />
+                <span>F1 Academy ({f1AcademyPilots.length})</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1015,12 +1042,27 @@ export default function DriversPage() {
             <div className="bg-zinc-900/60 p-3 rounded-md border border-zinc-800 text-xs text-zinc-400 flex items-center gap-2">
               <GraduationCap className="w-4 h-4 text-purple-400" />
               <span>
-                Jovens talentos e pilotos em formação da Fórmula 2, Fórmula 3 e Indy NXT. Atletas
-                menores de 18 anos exigem evolução na academia antes de assumir titularidade.
+                Jovens talentos e pilotos em formação da Fórmula 2, F1 Academy, Fórmula 3 e Indy
+                NXT. Atletas menores de 18 anos exigem evolução na academia antes de assumir
+                titularidade.
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {prospectPilots.map((pilot) => renderPilotCard(pilot, true))}
+            </div>
+          </TabsContent>
+
+          {/* ABA 5: F1 ACADEMY */}
+          <TabsContent value="f1_academy" className="space-y-4">
+            <div className="bg-zinc-900/60 p-3 rounded-md border border-pink-900/40 text-xs text-zinc-400 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-pink-400" />
+              <span>
+                Categoria oficial FIA F1 Academy: jovens promessas femininas acelerando nos
+                monopostos com suporte técnico de equipes oficiais da F1.
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {f1AcademyPilots.map((pilot) => renderPilotCard(pilot, true))}
             </div>
           </TabsContent>
         </Tabs>

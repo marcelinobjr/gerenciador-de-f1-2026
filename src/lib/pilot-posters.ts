@@ -5,6 +5,7 @@
  * "11-Sergio_Pérez.png", "5-Gabriel_Bortoleto.png", "77-Walteri_Botas.jpg").
  */
 import { getDriverPhotoSources, normalizeSurname } from '@/lib/driver-photos'
+import { getDriveStoragePhotoUrl, DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
 
 export function normalizeDriverSurname(fullName: string): string {
   if (!fullName) return ''
@@ -133,16 +134,34 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
   if (mappedFiles && Array.isArray(mappedFiles)) {
     for (const file of mappedFiles) {
       addCandidate(`/pilotos/${file}`)
+      // CDN Direta do Google Photos em alta resolução (lh3 =s0)
+      const cdnUrl = getDriveStoragePhotoUrl(file)
+      if (cdnUrl) addCandidate(cdnUrl)
     }
+  }
+
+  // 2.1 Busca direta no CDN do Google Photos por chave de sobrenome ou nome completo
+  const cdnDirect =
+    getDriveStoragePhotoUrl(sources.normalizedKey) ||
+    getDriveStoragePhotoUrl(surname) ||
+    (norm ? getDriveStoragePhotoUrl(norm.replace(/\s+/g, '_')) : null)
+  if (cdnDirect) {
+    addCandidate(cdnDirect)
   }
 
   // 3. Arquivo registrado na lista canônica DRIVER_PHOTOS
   if (sources.filename) {
     addCandidate(`/pilotos/${sources.filename}`)
+    const cdnFile = getDriveStoragePhotoUrl(sources.filename)
+    if (cdnFile) addCandidate(cdnFile)
     if (sources.filename.endsWith('.png')) {
-      addCandidate(`/pilotos/${sources.filename.replace('.png', '.jpg')}`)
+      const jpg = sources.filename.replace('.png', '.jpg')
+      addCandidate(`/pilotos/${jpg}`)
+      const cdnJpg = getDriveStoragePhotoUrl(jpg)
+      if (cdnJpg) addCandidate(cdnJpg)
     } else if (sources.filename.endsWith('.jpg')) {
-      addCandidate(`/pilotos/${sources.filename.replace('.jpg', '.png')}`)
+      const png = sources.filename.replace('.jpg', '.png')
+      addCandidate(`/pilotos/${png}`)
     }
   }
 

@@ -100,6 +100,7 @@ export interface DriverModel {
     | 'nascar'
     | 'prototipos'
     | 'mercado'
+    | 'f1_academy'
     | null
   reserve_team_id?: string | null
   fp_sessions_completed?: number // 0, 1 ou 2

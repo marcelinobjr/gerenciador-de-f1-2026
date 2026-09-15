@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T22:24:39.806Z",
+  "generatedAt": "2026-09-15T01:09:39.023Z",
   "collections": [
     {
       "name": "users",
@@ -443,7 +443,8 @@
             "formula_e",
             "nascar",
             "prototipos",
-            "mercado"
+            "mercado",
+            "f1_academy"
           ]
         },
         {

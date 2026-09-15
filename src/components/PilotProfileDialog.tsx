@@ -67,6 +67,7 @@ function getDriverBiography(pilot: UnifiedDriverItem): string {
     nascar: 'NASCAR Cup Series',
     prototipos: 'Mundial de Endurance (WEC)',
     mercado: 'Mercado Internacional',
+    f1_academy: 'F1 Academy',
   }
   const cat = catNames[pilot.category] || 'Monomarcas Internacionais'
 
