@@ -89,7 +89,7 @@ export interface PaddockDriverItem {
   nationality: string
   flag: string
   age: number
-  role: 'titular' | 'reserva' | 'livre'
+  role: 'titular' | 'reserva' | 'livre' | 'test_driver' | 'academia'
   teamName: string
   teamColor: string
   teamId?: string
@@ -104,6 +104,12 @@ export interface PaddockDriverItem {
   podiums: number
   position: number
   isUserDriver: boolean
+  licenseStatus?: 'nivel_c' | 'nivel_b' | 'nivel_a'
+  isAcademy?: boolean
+  isTestDriver?: boolean
+  homologationStatus?: string
+  technicalFeedback?: number
+  seatSecurity?: number
 }
 
 export default function PaddockPage() {
@@ -120,10 +126,21 @@ export default function PaddockPage() {
   const [dbTeams, setDbTeams] = useState<TeamModel[]>([])
   const [dbRaceResults, setDbRaceResults] = useState<RaceResultModel[]>([])
 
-  // Busca e Filtros
+  // Busca e Filtros - Filtros da Regra 13 do PDF:
+  // Titular, Reserva, Piloto de Teste, Academia, Em Homologação, Licença Provisória, Super Licença, Agente Livre
   const [searchQuery, setSearchQuery] = useState('')
   const [engineFilter, setEngineFilter] = useState('todos')
-  const [roleFilter, setRoleFilter] = useState<'todos' | 'titular' | 'reserva' | 'livre'>('todos')
+  const [roleFilter, setRoleFilter] = useState<
+    | 'todos'
+    | 'titular'
+    | 'reserva'
+    | 'test_driver'
+    | 'academia'
+    | 'homologacao'
+    | 'licenca_provisoria'
+    | 'super_licenca'
+    | 'livre'
+  >('todos')
 
   // Modais de detalhe simples
   const [selectedTeamDetail, setSelectedTeamDetail] = useState<PaddockTeamItem | null>(null)
@@ -421,12 +438,16 @@ export default function PaddockPage() {
           podiums: raceAggMap.get(driver.id)?.podiums || 0,
         }
 
-      const roleNormalized: 'titular' | 'reserva' | 'livre' =
+      let roleNormalized: 'titular' | 'reserva' | 'livre' | 'test_driver' | 'academia' =
         driver.role === 'titular' && (driver.team_id || isUserDriver)
           ? 'titular'
           : driver.role === 'reserva' || driver.reserve_team_id
             ? 'reserva'
-            : 'livre'
+            : driver.is_test_driver
+              ? 'test_driver'
+              : driver.is_academy
+                ? 'academia'
+                : 'livre'
 
       list.push({
         id: driver.id,
@@ -449,6 +470,12 @@ export default function PaddockPage() {
         podiums: stat.podiums,
         position: stat.rank,
         isUserDriver: !!isUserDriver,
+        licenseStatus: driver.license_status,
+        isAcademy: driver.is_academy,
+        isTestDriver: driver.is_test_driver,
+        homologationStatus: driver.homologation_status,
+        technicalFeedback: driver.technical_feedback,
+        seatSecurity: driver.seat_security,
       })
     })
 
@@ -490,7 +517,16 @@ export default function PaddockPage() {
         d.nationality.toLowerCase().includes(q) ||
         d.teamName.toLowerCase().includes(q)
 
-      const matchesRole = roleFilter === 'todos' || d.role === roleFilter
+      let matchesRole = true
+      if (roleFilter === 'titular') matchesRole = d.role === 'titular'
+      else if (roleFilter === 'reserva') matchesRole = d.role === 'reserva'
+      else if (roleFilter === 'test_driver')
+        matchesRole = !!d.isTestDriver || d.role === 'test_driver'
+      else if (roleFilter === 'academia') matchesRole = !!d.isAcademy || d.role === 'academia'
+      else if (roleFilter === 'homologacao') matchesRole = d.homologationStatus === 'homologacao'
+      else if (roleFilter === 'licenca_provisoria') matchesRole = d.licenseStatus === 'nivel_b'
+      else if (roleFilter === 'super_licenca') matchesRole = d.licenseStatus === 'nivel_a'
+      else if (roleFilter === 'livre') matchesRole = d.role === 'livre'
 
       return matchesSearch && matchesRole
     })
@@ -831,20 +867,25 @@ export default function PaddockPage() {
       {/* ========================================================================= */}
       {activeTab === 'pilotos' && (
         <div className="space-y-4">
-          {/* Filtros de Papel */}
+          {/* Filtros de Papel & Licença (Regra 13 do PDF) */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-mono">
-            <span className="text-[#8B95A7] text-[11px] shrink-0 font-bold uppercase">Papel:</span>
+            <span className="text-[#8B95A7] text-[11px] shrink-0 font-bold uppercase">Filtro:</span>
             {[
-              { id: 'todos', label: 'Todos os Pilotos' },
-              { id: 'titular', label: 'Titulares' },
-              { id: 'reserva', label: 'Reservas' },
-              { id: 'livre', label: 'Agentes Livres' },
+              { id: 'todos', label: 'Todos' },
+              { id: 'titular', label: 'Titular' },
+              { id: 'reserva', label: 'Reserva' },
+              { id: 'test_driver', label: 'Piloto de Teste' },
+              { id: 'academia', label: 'Academia' },
+              { id: 'homologacao', label: 'Em Homologação' },
+              { id: 'licenca_provisoria', label: 'Licença Provisória' },
+              { id: 'super_licenca', label: 'Super Licença' },
+              { id: 'livre', label: 'Agente Livre' },
             ].map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => setRoleFilter(r.id as any)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                   roleFilter === r.id
                     ? 'bg-[#18202E] text-white border border-cyan-500/40 font-bold'
                     : 'bg-[#0E131B] text-[#8B95A7] hover:text-white border border-[#1C2330]'
@@ -853,8 +894,8 @@ export default function PaddockPage() {
                 {r.label}
               </button>
             ))}
-            <span className="ml-auto text-xs text-[#8B95A7] font-mono shrink-0">
-              {filteredDrivers.length} pilotos exibidos
+            <span className="ml-auto text-xs text-[#8B95A7] font-mono shrink-0 whitespace-nowrap">
+              {filteredDrivers.length} pilotos
             </span>
           </div>
 
@@ -906,7 +947,7 @@ export default function PaddockPage() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-1 font-mono text-[10px]">
+                        <div className="flex items-center gap-1.5 pt-1 font-mono text-[10px] flex-wrap">
                           <Badge
                             variant="outline"
                             className={`px-1.5 py-0 border ${
@@ -914,10 +955,28 @@ export default function PaddockPage() {
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                                 : d.role === 'reserva'
                                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                                  : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                                  : d.role === 'test_driver'
+                                    ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
+                                    : d.role === 'academia'
+                                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                                      : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                             }`}
                           >
-                            {d.role.toUpperCase()}
+                            {d.role === 'test_driver'
+                              ? 'TEST DRIVER'
+                              : d.role === 'academia'
+                                ? 'ACADEMIA'
+                                : d.role.toUpperCase()}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] px-1 py-0 border-[#2A3444] text-slate-300"
+                          >
+                            {d.licenseStatus === 'nivel_a'
+                              ? 'Super Licença'
+                              : d.licenseStatus === 'nivel_b'
+                                ? 'Licença B'
+                                : 'Licença C'}
                           </Badge>
                           <span className="text-[#64748B]">{d.age} anos</span>
                         </div>

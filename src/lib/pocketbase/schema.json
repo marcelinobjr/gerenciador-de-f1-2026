@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T02:14:24.927Z",
+  "generatedAt": "2026-09-15T02:47:48.115Z",
   "collections": [
     {
       "name": "users",
@@ -292,6 +292,12 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "academy_development_data",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_teams_user ON teams (user_id)"]
@@ -567,6 +573,37 @@
         },
         {
           "name": "f1_adaptation",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "license_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["nivel_c", "nivel_b", "nivel_a"]
+        },
+        {
+          "name": "is_academy",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_test_driver",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "technical_feedback",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "seat_security",
           "type": "number",
           "required": false,
           "system": false
@@ -1214,6 +1251,150 @@
       },
       "fields": [],
       "indexes": []
+    },
+    {
+      "name": "driver_tests",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "driver_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "drivers"
+        },
+        {
+          "name": "test_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "desenvolvimento",
+            "avaliacao",
+            "homologacao",
+            "preparacao",
+            "rookie_test",
+            "comparativo"
+          ]
+        },
+        {
+          "name": "circuit",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "date",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "km",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cost",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "is_valid_homologation",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "score_pace",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "score_consistency",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "score_car_control",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "score_technical_feedback",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "score_discipline_safety",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "final_score",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "best_lap_time",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "second_driver_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "drivers"
+        },
+        {
+          "name": "details",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_driver_tests_team ON driver_tests (team_id)",
+        "CREATE INDEX idx_driver_tests_driver ON driver_tests (driver_id)"
+      ]
     }
   ]
 }

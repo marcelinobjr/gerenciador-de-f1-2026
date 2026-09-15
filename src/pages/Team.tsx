@@ -47,6 +47,8 @@ import { DriverHelmet } from '@/components/DriverHelmet'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { ProgressBar } from '@/components/ProgressBar'
+import { DevelopmentManagerModal } from '@/components/DevelopmentManagerModal'
+import driverDevelopmentService from '@/services/driverDevelopmentService'
 import {
   Dialog,
   DialogContent,
@@ -82,6 +84,10 @@ export default function TeamPage() {
   const [selectedFpRounds, setSelectedFpRounds] = useState<number[]>([7, 13])
   const [isProcessing, setIsProcessing] = useState(false)
 
+  // Sistema de Homologação, Academia e Test Drivers (FASE DESENVOLVIMENTO)
+  const [devManagerOpen, setDevManagerOpen] = useState(false)
+  const [allGridDrivers, setAllGridDrivers] = useState<DriverModel[]>([])
+
   const isCustomTeam = team?.is_custom ?? false
   const teamStrength = team?.strength ?? 52
 
@@ -103,6 +109,9 @@ export default function TeamPage() {
     try {
       const tDrivers = await f1Service.getTeamDrivers(team.id)
       setTeamDrivers(tDrivers)
+      // Carrega pilotos livres e categorias para gestão de talentos
+      const allD = await f1Service.getAllDrivers()
+      setAllGridDrivers(allD || [])
     } catch (err) {
       console.error('Error loading team page data:', err)
     } finally {
@@ -136,6 +145,32 @@ export default function TeamPage() {
     () => titularDrivers.find((d) => d.is_incapacitated),
     [titularDrivers],
   )
+
+  // Pilotos de Teste e Academia vinculados à equipe
+  const academyDevData = useMemo(() => driverDevelopmentService.getAcademyData(team), [team])
+
+  const testDrivers = useMemo(() => {
+    return allGridDrivers.filter(
+      (d) => academyDevData.testDrivers.includes(d.id) || d.is_test_driver,
+    )
+  }, [allGridDrivers, academyDevData.testDrivers])
+
+  const teamAcademyPilots = useMemo(() => {
+    return allGridDrivers.filter(
+      (d) => academyDevData.academyDrivers.includes(d.id) || d.is_academy,
+    )
+  }, [allGridDrivers, academyDevData.academyDrivers])
+
+  // Candidatos externos (sem time ou F1 Academy)
+  const availableTalents = useMemo(() => {
+    return allGridDrivers.filter(
+      (d) =>
+        (!d.team_id || d.team_id === '') &&
+        !academyDevData.academyDrivers.includes(d.id) &&
+        !academyDevData.testDrivers.includes(d.id) &&
+        d.id !== reserveDriver?.id,
+    )
+  }, [allGridDrivers, academyDevData, reserveDriver])
 
   // Team identity details
   const teamName = team?.name || 'Audi F1 Team'
@@ -981,6 +1016,84 @@ export default function TeamPage() {
                     )
                   })()}
                 </div>
+
+                {/* SEÇÃO COMPACTA ACADEMIA & DESENVOLVIMENTO (Regra 2 do PDF) */}
+                <div className="mt-4 pt-3.5 border-t border-neutral-800/80">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="text-[11px] font-black uppercase tracking-wider text-indigo-300 font-mono">
+                        ACADEMIA & DESENVOLVIMENTO
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setDevManagerOpen(true)}
+                      className="h-6 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white font-mono px-2.5"
+                    >
+                      Gerenciar Desenvolvimento →
+                    </Button>
+                  </div>
+
+                  {testDrivers.length === 0 && teamAcademyPilots.length === 0 ? (
+                    <div className="p-2.5 rounded-lg bg-black/30 border border-dashed border-neutral-800 text-center text-xs text-neutral-400">
+                      Nenhum piloto de testes ou jovem designado no momento.{' '}
+                      <button
+                        onClick={() => setDevManagerOpen(true)}
+                        className="text-indigo-400 underline font-semibold ml-1 cursor-pointer"
+                      >
+                        Abrir Gestão
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        ...testDrivers,
+                        ...teamAcademyPilots.filter((a) => !testDrivers.some((t) => t.id === a.id)),
+                      ]
+                        .slice(0, 3)
+                        .map((driver) => {
+                          const isTest = testDrivers.some((t) => t.id === driver.id)
+                          const licenseLabel =
+                            driver.license_status === 'nivel_a'
+                              ? 'Super Licença'
+                              : driver.license_status === 'nivel_b'
+                                ? 'Licença B (Provisória)'
+                                : 'Autorização Teste (Nível C)'
+                          const ovr = Math.round(
+                            ((driver.speed || 74) + (driver.consistency || 73)) / 2,
+                          )
+                          const prog = academyDevData.homologationPrograms[driver.id]
+
+                          return (
+                            <div
+                              key={driver.id}
+                              onClick={() => setDevManagerOpen(true)}
+                              className="p-2 rounded-lg bg-neutral-900/70 border border-neutral-800 hover:border-indigo-600/60 transition-colors cursor-pointer text-left font-mono space-y-1"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-white truncate max-w-[85px]">
+                                  {driver.name}
+                                </span>
+                                <span className="text-[10px]">
+                                  {getCountryFlag(driver.nationality)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-[9px] text-neutral-400">
+                                <span>{isTest ? 'Test Driver' : 'Academia'}</span>
+                                <span className="text-amber-400 font-bold">{ovr} GER</span>
+                              </div>
+                              <div className="text-[8px] truncate text-indigo-300">
+                                {prog
+                                  ? `Homolog: ${prog.completedValidTests}/4 tests`
+                                  : licenseLabel}
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1821,6 +1934,24 @@ export default function TeamPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL OFICIAL: GERENCIAR DESENVOLVIMENTO, TESTES E HOMOLOGAÇÃO FIA */}
+      {team && (
+        <DevelopmentManagerModal
+          open={devManagerOpen}
+          onOpenChange={setDevManagerOpen}
+          team={team}
+          titularDrivers={titularDrivers}
+          reserveDriver={reserveDriver}
+          testDrivers={testDrivers}
+          academyDrivers={teamAcademyPilots}
+          availableTalents={availableTalents}
+          onDataChanged={async () => {
+            await refreshTeamAndSeason()
+            await loadData()
+          }}
+        />
+      )}
     </div>
   )
 }

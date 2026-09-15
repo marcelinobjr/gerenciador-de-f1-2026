@@ -15,6 +15,7 @@ import {
   GraduationCap,
   AlertTriangle,
   CheckCircle2,
+  ShieldCheck,
   Zap,
   Activity,
   CloudRain,
@@ -714,27 +715,51 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   )}
                 </div>
 
-                {/* Barra de Progresso de Homologação FIA quando status='homologacao' */}
-                {isHomologation && (
-                  <div className="p-2 bg-amber-950/25 border border-amber-500/30 rounded-md space-y-1 my-1">
-                    <div className="flex items-center justify-between text-[11px] font-mono">
-                      <span className="text-amber-300 font-semibold">Homologação FIA:</span>
-                      <span className="text-amber-200 font-bold">
-                        {homologationSessions}/2 sessões TL1 (100 km)
-                      </span>
+                {/* CAMINHO PARA A F1 (Regra 15 do PDF):
+                    Formato: "Homologação FIA: 3/4 testes — Quilometragem: 1.086/1.200 km — Avaliação atual: 81 — Status: Licença Provisória" */}
+                <div className="p-2.5 bg-slate-950/70 border border-indigo-900/60 rounded-md space-y-1.5 my-1 font-mono text-[11px]">
+                  <div className="flex items-center justify-between text-indigo-300 font-semibold uppercase tracking-wider text-[10px]">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Caminho para a F1
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="border-indigo-700 text-indigo-200 text-[9px]"
+                    >
+                      {pilot.speed >= 85
+                        ? 'Licença A (Super Licença)'
+                        : pilot.speed >= 75
+                          ? 'Licença B (Provisória)'
+                          : 'Licença C (Autorização)'}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-800">
+                    <div>
+                      <span className="text-slate-400 block">Homologação FIA:</span>
+                      <strong className="text-white">
+                        {isHomologation ? `${homologationSessions}/4 testes` : '4/4 testes'}
+                      </strong>
                     </div>
-                    <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-amber-400 h-full rounded-full transition-all"
-                        style={{ width: `${Math.min(100, (homologationSessions / 2) * 100)}%` }}
-                      />
+                    <div>
+                      <span className="text-slate-400 block">Quilometragem:</span>
+                      <strong className="text-white">
+                        {isHomologation
+                          ? `${homologationSessions * 310}/1.200 km`
+                          : '1.200/1.200 km'}
+                      </strong>
                     </div>
-                    <div className="text-[10px] text-amber-200/80 leading-tight">
-                      Cumpra 2 treinos livres de sexta-feira oficiais (mín. 100 km) para homologar o
-                      piloto junto à FIA.
+                    <div>
+                      <span className="text-slate-400 block">Avaliação FIA:</span>
+                      <strong className="text-amber-400">{pilot.speed || 80}/100</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Status Regulamentar:</span>
+                      <strong className="text-emerald-400">
+                        {pilot.speed >= 85 ? 'Super Licença' : 'Licença Provisória'}
+                      </strong>
                     </div>
                   </div>
-                )}
+                </div>
 
                 <div className="text-[11px] text-zinc-400">{eligibility.description}</div>
               </div>

@@ -18,6 +18,16 @@ export interface TeamModel {
   photo?: string // Foto lateral do carro / banner da equipe
   carImage?: string // Foto lateral personalizada do carro do jogador
   cost_cap_spent?: number // Total gasto na temporada sujeito ao teto FIA (R$ 215M)
+  // Sistema de Homologação de Pilotos, Testes Privados e Academia
+  academy_development_data?: {
+    testDrivers?: string[] // driverIds
+    academyDrivers?: string[] // driverIds
+    homologationPrograms?: Record<string, any> // driverId -> DriverHomologationProgram
+    testResults?: any[] // DriverTestResult[]
+    seatSecurities?: Record<string, number> // driverId -> number (0-100)
+    technicalFeedbacks?: Record<string, number> // driverId -> number (0-100)
+    developmentProgresses?: Record<string, any> // driverId -> developmentProgress
+  }
   // Modelo Técnico Estrutural (Fase 3D) - Campos aditivos opcionais para compatibilidade
   technical_attributes?: Record<string, number> // 12 atributos calculados
   calculated_overall?: number // Overall técnico calculado
@@ -123,6 +133,12 @@ export interface DriverModel {
   homologation_status?: 'formacao' | 'homologacao' | 'elegivel'
   homologation_sessions_done?: number
   f1_adaptation?: number
+  // Campos aditivos do sistema de homologação e desenvolvimento
+  license_status?: 'nivel_c' | 'nivel_b' | 'nivel_a'
+  is_academy?: boolean
+  is_test_driver?: boolean
+  technical_feedback?: number
+  seat_security?: number
   created?: string
   updated?: string
 }
