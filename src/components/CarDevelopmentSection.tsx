@@ -20,7 +20,7 @@ import {
   ManufacturingOrder,
 } from '@/types/car-development'
 import {
-  CANONICAL_COMPONENT_METAS,
+  TECHNICAL_COMPONENT_METAS,
   TECHNICAL_ATTRIBUTE_METAS,
   TechnicalComponentId,
   TechnicalAttributeId,
@@ -207,7 +207,7 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
         existingRatings as any,
         (team.engine_supplier || 'Audi') as any,
       )
-      const newOverall = carTechnicalService.calculateChassisRating(newAttributes)
+      const newOverall = carTechnicalService.calculateCarOverall(newAttributes)
 
       // Atualiza o time
       await pb.collection('teams').update(team.id, {
@@ -303,7 +303,7 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeProjects.map((p) => {
-              const compMeta = CANONICAL_COMPONENT_METAS[p.componentId]
+              const compMeta = TECHNICAL_COMPONENT_METAS[p.componentId]
               const primMeta = TECHNICAL_ATTRIBUTE_METAS[p.primaryObjective]
               return (
                 <Card
@@ -383,7 +383,7 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {orders.map((ord) => {
-              const compMeta = CANONICAL_COMPONENT_METAS[ord.componentId]
+              const compMeta = TECHNICAL_COMPONENT_METAS[ord.componentId]
               const isCompleted = ord.status === 'completed'
               return (
                 <div
@@ -445,7 +445,7 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {specs.map((s) => {
-              const compMeta = CANONICAL_COMPONENT_METAS[s.componentId]
+              const compMeta = TECHNICAL_COMPONENT_METAS[s.componentId]
               return (
                 <Card
                   key={s.specId}

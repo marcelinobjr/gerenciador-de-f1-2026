@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
-import { PartModel, SponsorModel } from '@/types/f1'
+import { PartModel, SponsorModel, DriverModel } from '@/types/f1'
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { managerEffectService } from '@/services/managerEffectService'
 import { CarBlueprint } from '@/components/CarBlueprint'
@@ -27,6 +27,7 @@ import {
   Sliders,
   Activity,
   DollarSign,
+  FlaskConical,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,12 +46,15 @@ import { notificationService } from '@/services/notificationService'
 import { PageHeader } from '@/components/PageHeader'
 import { ProgressBar } from '@/components/ProgressBar'
 import { StatCard } from '@/components/StatCard'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { CarDevelopmentSection } from '@/components/CarDevelopmentSection'
 
 export default function CarPage() {
   const { user, team, season, refreshTeamAndSeason } = useAuth()
 
   const [parts, setParts] = useState<PartModel[]>([])
   const [sponsors, setSponsors] = useState<SponsorModel[]>([])
+  const [drivers, setDrivers] = useState<DriverModel[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null)
   const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null)
@@ -59,6 +63,7 @@ export default function CarPage() {
   const [repairingPartId, setRepairingPartId] = useState<string | null>(null)
   const [activeCarDisplay, setActiveCarDisplay] = useState<'realistic' | 'blueprint'>('realistic')
   const [isUploadingCarImage, setIsUploadingCarImage] = useState(false)
+  const [activeTab, setActiveTab] = useState<'overview' | 'development'>('overview')
 
   const loadParts = async () => {
     if (!team) {
@@ -66,12 +71,14 @@ export default function CarPage() {
       return
     }
     try {
-      const [pList, spList] = await Promise.all([
+      const [pList, spList, drList] = await Promise.all([
         f1Service.getTeamParts(team.id),
         f1Service.getTeamSponsors(team.id),
+        f1Service.getTeamDrivers(team.id),
       ])
       setParts(pList)
       setSponsors(spList)
+      setDrivers(drList)
 
       // Auto-select first part if none selected
       if (!selectedPartId && pList.length > 0) {
@@ -749,762 +756,828 @@ export default function CarPage() {
         }
       />
 
-      {/* PAINEL ELEVADO: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card Cost Cap */}
-        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
-                TETO DE GASTOS FIA (COST CAP 2026)
-              </span>
-            </div>
-            <span className="font-num text-xs font-bold text-[#F5F7FA]">
-              {Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}%
-            </span>
-          </div>
-
-          <div className="space-y-2 mt-2">
-            <ProgressBar
-              value={Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}
-              size="md"
-            />
-            <div className="flex items-center justify-between text-xs font-mono text-[#8B95A7]">
-              <span>
-                Gasto em P&D / Reparos:{' '}
-                <strong className="text-white font-num">
-                  {formatCurrency(currentCostCapSpent)}
-                </strong>
-              </span>
-              <span>
-                Limite:{' '}
-                <strong className="text-white font-num">{formatCurrency(COST_CAP_LIMIT)}</strong>
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-[#1F2733]">
-              <span className="text-[#8B95A7]">Margem Restante no Teto:</span>
-              <strong
-                className={`font-num font-bold ${remainingCostCap < 20000000 ? 'text-amber-400' : 'text-emerald-400'}`}
-              >
-                {formatCurrency(remainingCostCap)}
-              </strong>
-            </div>
-            <p className="text-[10px] text-[#8B95A7] leading-relaxed">
-              Regulamento Financeiro FIA: limite de R$ 215M. Violações ativam investigação com perda
-              de pontos.
-            </p>
-          </div>
-        </div>
-
-        {/* Card Pool de Motores & Desgaste */}
-        <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
-            <div className="flex items-center gap-2">
-              <Flame className="w-4 h-4 text-[#E10600]" />
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
-                SAÚDE DA UNIDADE DE POTÊNCIA
-              </span>
-            </div>
-            <Badge
-              variant="outline"
-              className={`font-mono text-xs ${
-                enginePoolUsed > 4
-                  ? 'border-red-500 text-red-400 bg-red-500/10'
-                  : 'border-[#1F2733] bg-[#0B0E14] text-[#F5F7FA]'
-              }`}
-            >
-              PU #{enginePoolUsed} de 4
-            </Badge>
-          </div>
-
-          <div className="space-y-3 mt-1 text-xs font-mono">
-            <div>
-              <ProgressBar
-                value={Math.max(0, 100 - activeEngineWear)}
-                label="CONDIÇÃO MECÂNICA DA PU"
-                size="md"
-                valueFormatter={(val) =>
-                  `${Math.round(val)}% integridade (${activeEngineWear}% uso)`
-                }
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#1F2733]">
-              <div>
-                <span className="text-[#8B95A7] block text-[10px]">Cota Sem Penalidade</span>
-                <strong className="text-white font-num">
-                  {remainingEnginesInQuota > 0
-                    ? `${remainingEnginesInQuota} unidade(s) livre(s)`
-                    : 'COTA ESGOTADA!'}
-                </strong>
-              </div>
-              <div>
-                <span className="text-[#8B95A7] block text-[10px]">Próxima Troca Excedente</span>
-                <span className={enginePoolUsed >= 4 ? 'text-red-400 font-bold' : 'text-[#8B95A7]'}>
-                  {enginePoolUsed < 4
-                    ? 'Sem punição'
-                    : enginePoolUsed === 4
-                      ? '-10 posições grid'
-                      : '-5 posições grid'}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 flex items-center justify-between gap-2 border-t border-[#1F2733]">
-              <span className="text-[10px] text-[#8B95A7]">
-                {activeEngineWear >= 60
-                  ? 'Alta degradação térmica e risco de quebra.'
-                  : 'Unidade em faixa térmica estável.'}
-              </span>
-              <Button
-                size="sm"
-                onClick={handleIntroduceNewEngine}
-                disabled={
-                  introducingEngine ||
-                  team?.budget! < 15000000 ||
-                  currentCostCapSpent + 15000000 > COST_CAP_LIMIT
-                }
-                className="bg-[#0B0E14] hover:bg-[#161D29] text-[#F5F7FA] border border-[#1F2733] font-bold text-xs h-7 px-3 shrink-0"
-              >
-                {introducingEngine ? 'Ativando...' : 'Introduzir Nova PU (R$ 15M)'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* SELETOR DE MODO DE APRESENTAÇÃO DO MONOPOSTO */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733]">
-        <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setActiveCarDisplay('realistic')}
-            className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
-              activeCarDisplay === 'realistic'
-                ? 'bg-[#E10600] text-white font-bold shadow-[0_0_12px_rgba(225,6,0,0.4)]'
-                : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]'
-            }`}
+      {/* ABAS: VISÃO GERAL / OFICINA VS P&D / ENGENHARIA */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(val) => setActiveTab(val as 'overview' | 'development')}
+        className="relative z-10 space-y-6"
+      >
+        <TabsList className="grid w-full grid-cols-2 bg-[#090D15]/85 border border-[#1F2733] p-1 h-12 rounded-xl">
+          <TabsTrigger
+            value="overview"
+            className="font-mono text-xs font-bold data-[state=active]:bg-[#161D29] data-[state=active]:text-white data-[state=active]:shadow-md flex items-center justify-center gap-2"
           >
-            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-            <span>Monoposto 2026 (Foto Lateral Oficial)</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setActiveCarDisplay('blueprint')}
-            className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
-              activeCarDisplay === 'blueprint'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(0,166,251,0.3)] font-bold'
-                : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]'
-            }`}
+            <Wrench className="w-4 h-4 text-cyan-400" />
+            <span>Visão Geral & Oficina Mecânica</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="development"
+            className="font-mono text-xs font-bold data-[state=active]:bg-[#161D29] data-[state=active]:text-white data-[state=active]:shadow-md flex items-center justify-center gap-2"
           >
-            <Layers className="w-3.5 h-3.5 mr-1.5" />
-            <span>Blueprint Técnico FIA (CAD 2D)</span>
-          </Button>
-        </div>
-
-        <span className="text-[11px] font-mono text-[#8B95A7] hidden sm:inline px-2">
-          {activeCarDisplay === 'realistic'
-            ? 'Visual lateral com pintura da equipe, patrocinadores e hotspots'
-            : 'Vistas técnica, lateral e superior com cotas milimétricas'}
-        </span>
-      </div>
-
-      {/* RENDERIZAÇÃO DO CARRO: REALISTA OU BLUEPRINT */}
-      {activeCarDisplay === 'realistic' ? (
-        <RealisticCarHero
-          teamColor={team?.color || '#E10600'}
-          teamName={team?.name || 'Sua Escuderia'}
-          teamKey={team?.team_key}
-          isCustomTeam={isCustomTeam}
-          sponsors={sponsors}
-          carLevel={overallLevel}
-          parts={parts}
-          selectedPartId={selectedPartId}
-          customCarImage={customCarImageUrl}
-          isUploadingImage={isUploadingCarImage}
-          onUploadCarImage={handleUploadCarImage}
-          onResetCarImage={handleResetCarImage}
-          onSelectPart={(id) => setSelectedPartId(id)}
-          onOpenBlueprint={() => setActiveCarDisplay('blueprint')}
-        />
-      ) : (
-        <CarBlueprint
-          teamColor={team?.color || '#E10600'}
-          teamName={team?.name || 'Sua Escuderia'}
-          sponsors={sponsors}
-          carLevel={overallLevel}
-          parts={parts}
-          selectedPartId={selectedPartId}
-          onSelectPart={(id) => setSelectedPartId(id)}
-        />
-      )}
-
-      {/* GRID DENSO: CARDS DAS 6 PEÇAS HOMOLOGADAS FIA */}
-      <div className="relative z-10 space-y-3">
-        <div className="flex items-center justify-between pb-1 border-b border-[#1F2733]">
-          <div>
-            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-              COMPONENTES DO MONOPOSTO // ESPECIFICAÇÃO 2026
-            </span>
-            <h3 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
-              <Layers className="w-4 h-4 text-cyan-400" />
-              Peças Homologadas & Níveis de P&D ({parts.length}/6)
-            </h3>
-          </div>
-          <span className="text-xs font-mono text-[#8B95A7]">
-            Clique em qualquer peça para selecionar e inspecionar
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {parts.map((p) => {
-            const isSelected = selectedPartId === p.id
-            const cond = p.condition ?? 100
-            const condInfo = getConditionInfo(cond)
-            const upCost = getUpgradeCost(p.level)
-            const repCost = f1Service.getPartRepairCost(p)
-            const isMax = p.level >= 10
-
-            return (
-              <div
-                key={p.id}
-                onClick={() => setSelectedPartId(p.id)}
-                className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
-                  isSelected
-                    ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
-                    : 'bg-[#090D15]/85 backdrop-blur-md border-[#1F2733] hover:border-[#2C3849]'
-                }`}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-sm text-[#F5F7FA]">{p.name}</h4>
-                        {isSelected && (
-                          <Badge className="bg-cyan-500 text-slate-950 text-[9px] font-mono font-bold h-4 px-1.5">
-                            Ativa
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="text-[10px] font-mono text-[#8B95A7]">
-                        FIA Spec 2026 • Componente #{p.id.slice(-4).toUpperCase()}
-                      </span>
-                    </div>
-
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] font-mono font-bold shrink-0 ${condInfo.bg}`}
-                    >
-                      {cond}%
-                    </Badge>
-                  </div>
-
-                  {/* Barras de Nível e Condição */}
-                  <div className="space-y-2 pt-1 font-mono text-xs">
-                    <ProgressBar
-                      value={p.level}
-                      max={10}
-                      label="NÍVEL"
-                      size="sm"
-                      valueFormatter={(v) => `${v}/10`}
-                    />
-                    <ProgressBar
-                      value={cond}
-                      max={100}
-                      label="INTEGRIDADE"
-                      size="sm"
-                      valueFormatter={(v) => `${v}%`}
-                    />
-                  </div>
-                </div>
-
-                {/* Rodapé do Card com Valores e Ações Rápidas */}
-                <div className="pt-2 border-t border-[#1F2733] flex items-center justify-between text-xs font-mono">
-                  <div>
-                    <span className="text-[#8B95A7] text-[10px] block">Upgrade N{p.level + 1}</span>
-                    <strong className="text-[#F5F7FA] text-xs">
-                      {isMax ? 'Máx FIA' : formatCurrency(upCost)}
-                    </strong>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {cond < 100 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRepairPart(p)
-                        }}
-                        disabled={repairingPartId === p.id}
-                        className="h-6 text-[10px] px-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20"
-                      >
-                        {repairingPartId === p.id ? 'Revisando...' : 'Oficina'}
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleUpgradePart(p)
-                      }}
-                      disabled={isMax || upgradingPartId === p.id}
-                      className="h-6 text-[10px] px-2 border-[#1F2733] text-cyan-400 hover:bg-cyan-500/20"
-                    >
-                      {upgradingPartId === p.id ? '...' : isMax ? 'Máx' : '+1 Nível'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* PAINEL DE INSPEÇÃO DA PEÇA SELECIONADA + RESUMO DE PERFORMANCE */}
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Card: Painel de Inspeção da Peça Clicada */}
-        <Card className="lg:col-span-2 bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-bl-full pointer-events-none" />
-
-          <CardHeader className="pb-3 border-b border-[#1F2733]">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <span className="text-[10px] font-mono text-[#E10600] font-black uppercase tracking-widest block">
-                  TELEMETRIA & DIAGNÓSTICO DE OFICINA
-                </span>
-                <CardTitle className="text-xl font-black text-white flex items-center gap-2.5 mt-0.5">
-                  <Wrench className="w-5 h-5 text-[#E10600]" />
-                  {selectedPart ? selectedPart.name : 'Selecione uma peça'}
-                </CardTitle>
-              </div>
-
-              {selectedPart && selectedCondInfo && (
-                <Badge variant="outline" className={`font-mono text-xs ${selectedCondInfo.bg}`}>
-                  {selectedCondInfo.status}
+            <FlaskConical className="w-4 h-4 text-[#E10600]" />
+            <span>P&D do Carro & Engenharia Canônica</span>
+            {team?.development_projects &&
+              team.development_projects.filter((p) => p.status === 'in_progress').length > 0 && (
+                <Badge className="ml-1.5 bg-[#E10600] text-white text-[10px] h-4 px-1.5 font-mono">
+                  {team.development_projects.filter((p) => p.status === 'in_progress').length}
                 </Badge>
               )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="development" className="space-y-6 mt-0">
+          {team && (
+            <CarDevelopmentSection
+              team={team}
+              currentRound={season?.current_round ?? 1}
+              seasonYear={season?.year ?? 2026}
+              parts={parts}
+              drivers={drivers}
+              onRefresh={() => {
+                refreshTeamAndSeason()
+                loadParts()
+              }}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="overview" className="space-y-8 mt-0">
+          {/* PAINEL ELEVADO: TETO DE GASTOS (COST CAP) & POOL DE MOTORES */}
+          <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Card Cost Cap */}
+            <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+                    TETO DE GASTOS FIA (COST CAP 2026)
+                  </span>
+                </div>
+                <span className="font-num text-xs font-bold text-[#F5F7FA]">
+                  {Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}%
+                </span>
+              </div>
+
+              <div className="space-y-2 mt-2">
+                <ProgressBar
+                  value={Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100))}
+                  size="md"
+                />
+                <div className="flex items-center justify-between text-xs font-mono text-[#8B95A7]">
+                  <span>
+                    Gasto em P&D / Reparos:{' '}
+                    <strong className="text-white font-num">
+                      {formatCurrency(currentCostCapSpent)}
+                    </strong>
+                  </span>
+                  <span>
+                    Limite:{' '}
+                    <strong className="text-white font-num">
+                      {formatCurrency(COST_CAP_LIMIT)}
+                    </strong>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-mono pt-1 border-t border-[#1F2733]">
+                  <span className="text-[#8B95A7]">Margem Restante no Teto:</span>
+                  <strong
+                    className={`font-num font-bold ${remainingCostCap < 20000000 ? 'text-amber-400' : 'text-emerald-400'}`}
+                  >
+                    {formatCurrency(remainingCostCap)}
+                  </strong>
+                </div>
+                <p className="text-[10px] text-[#8B95A7] leading-relaxed">
+                  Regulamento Financeiro FIA: limite de R$ 215M. Violações ativam investigação com
+                  perda de pontos.
+                </p>
+              </div>
             </div>
-            <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-              Inspecione a fadiga metálica acumulada após as corridas e decida entre desenvolver um
-              novo nível ou revisar a peça na oficina.
-            </CardDescription>
-          </CardHeader>
 
-          <CardContent className="pt-5 space-y-6">
-            {selectedPart && selectedCondInfo ? (
-              <>
-                {/* Métricas: Nível + Condição */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Bloco 1: Nível & Potencial Técnico via ProgressBar */}
-                  <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-3">
-                    <ProgressBar
-                      value={selectedPart.level}
-                      max={10}
-                      label="NÍVEL HOMOLOGADO FIA"
-                      size="md"
-                      valueFormatter={(v, m) => `NÍVEL ${v} / ${m}`}
+            {/* Card Pool de Motores & Desgaste */}
+            <div className="rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#1F2733]">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-[#E10600]" />
+                  <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600]">
+                    SAÚDE DA UNIDADE DE POTÊNCIA
+                  </span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`font-mono text-xs ${
+                    enginePoolUsed > 4
+                      ? 'border-red-500 text-red-400 bg-red-500/10'
+                      : 'border-[#1F2733] bg-[#0B0E14] text-[#F5F7FA]'
+                  }`}
+                >
+                  PU #{enginePoolUsed} de 4
+                </Badge>
+              </div>
+
+              <div className="space-y-3 mt-1 text-xs font-mono">
+                <div>
+                  <ProgressBar
+                    value={Math.max(0, 100 - activeEngineWear)}
+                    label="CONDIÇÃO MECÂNICA DA PU"
+                    size="md"
+                    valueFormatter={(val) =>
+                      `${Math.round(val)}% integridade (${activeEngineWear}% uso)`
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#1F2733]">
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">Cota Sem Penalidade</span>
+                    <strong className="text-white font-num">
+                      {remainingEnginesInQuota > 0
+                        ? `${remainingEnginesInQuota} unidade(s) livre(s)`
+                        : 'COTA ESGOTADA!'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[#8B95A7] block text-[10px]">
+                      Próxima Troca Excedente
+                    </span>
+                    <span
+                      className={enginePoolUsed >= 4 ? 'text-red-400 font-bold' : 'text-[#8B95A7]'}
+                    >
+                      {enginePoolUsed < 4
+                        ? 'Sem punição'
+                        : enginePoolUsed === 4
+                          ? '-10 posições grid'
+                          : '-5 posições grid'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between gap-2 border-t border-[#1F2733]">
+                  <span className="text-[10px] text-[#8B95A7]">
+                    {activeEngineWear >= 60
+                      ? 'Alta degradação térmica e risco de quebra.'
+                      : 'Unidade em faixa térmica estável.'}
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleIntroduceNewEngine}
+                    disabled={
+                      introducingEngine ||
+                      team?.budget! < 15000000 ||
+                      currentCostCapSpent + 15000000 > COST_CAP_LIMIT
+                    }
+                    className="bg-[#0B0E14] hover:bg-[#161D29] text-[#F5F7FA] border border-[#1F2733] font-bold text-xs h-7 px-3 shrink-0"
+                  >
+                    {introducingEngine ? 'Ativando...' : 'Introduzir Nova PU (R$ 15M)'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SELETOR DE MODO DE APRESENTAÇÃO DO MONOPOSTO */}
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733]">
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveCarDisplay('realistic')}
+                className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
+                  activeCarDisplay === 'realistic'
+                    ? 'bg-[#E10600] text-white font-bold shadow-[0_0_12px_rgba(225,6,0,0.4)]'
+                    : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                <span>Monoposto 2026 (Foto Lateral Oficial)</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveCarDisplay('blueprint')}
+                className={`font-mono text-xs px-3 py-1.5 h-8 rounded-lg transition-all ${
+                  activeCarDisplay === 'blueprint'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(0,166,251,0.3)] font-bold'
+                    : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 mr-1.5" />
+                <span>Blueprint Técnico FIA (CAD 2D)</span>
+              </Button>
+            </div>
+
+            <span className="text-[11px] font-mono text-[#8B95A7] hidden sm:inline px-2">
+              {activeCarDisplay === 'realistic'
+                ? 'Visual lateral com pintura da equipe, patrocinadores e hotspots'
+                : 'Vistas técnica, lateral e superior com cotas milimétricas'}
+            </span>
+          </div>
+
+          {/* RENDERIZAÇÃO DO CARRO: REALISTA OU BLUEPRINT */}
+          {activeCarDisplay === 'realistic' ? (
+            <RealisticCarHero
+              teamColor={team?.color || '#E10600'}
+              teamName={team?.name || 'Sua Escuderia'}
+              teamKey={team?.team_key}
+              isCustomTeam={isCustomTeam}
+              sponsors={sponsors}
+              carLevel={overallLevel}
+              parts={parts}
+              selectedPartId={selectedPartId}
+              customCarImage={customCarImageUrl}
+              isUploadingImage={isUploadingCarImage}
+              onUploadCarImage={handleUploadCarImage}
+              onResetCarImage={handleResetCarImage}
+              onSelectPart={(id) => setSelectedPartId(id)}
+              onOpenBlueprint={() => setActiveCarDisplay('blueprint')}
+            />
+          ) : (
+            <CarBlueprint
+              teamColor={team?.color || '#E10600'}
+              teamName={team?.name || 'Sua Escuderia'}
+              sponsors={sponsors}
+              carLevel={overallLevel}
+              parts={parts}
+              selectedPartId={selectedPartId}
+              onSelectPart={(id) => setSelectedPartId(id)}
+            />
+          )}
+
+          {/* GRID DENSO: CARDS DAS 6 PEÇAS HOMOLOGADAS FIA */}
+          <div className="relative z-10 space-y-3">
+            <div className="flex items-center justify-between pb-1 border-b border-[#1F2733]">
+              <div>
+                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                  COMPONENTES DO MONOPOSTO // ESPECIFICAÇÃO 2026
+                </span>
+                <h3 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
+                  <Layers className="w-4 h-4 text-cyan-400" />
+                  Peças Homologadas & Níveis de P&D ({parts.length}/6)
+                </h3>
+              </div>
+              <span className="text-xs font-mono text-[#8B95A7]">
+                Clique em qualquer peça para selecionar e inspecionar
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {parts.map((p) => {
+                const isSelected = selectedPartId === p.id
+                const cond = p.condition ?? 100
+                const condInfo = getConditionInfo(cond)
+                const upCost = getUpgradeCost(p.level)
+                const repCost = f1Service.getPartRepairCost(p)
+                const isMax = p.level >= 10
+
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => setSelectedPartId(p.id)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                      isSelected
+                        ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
+                        : 'bg-[#090D15]/85 backdrop-blur-md border-[#1F2733] hover:border-[#2C3849]'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="font-bold text-sm text-[#F5F7FA]">{p.name}</h4>
+                            {isSelected && (
+                              <Badge className="bg-cyan-500 text-slate-950 text-[9px] font-mono font-bold h-4 px-1.5">
+                                Ativa
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-mono text-[#8B95A7]">
+                            FIA Spec 2026 • Componente #{p.id.slice(-4).toUpperCase()}
+                          </span>
+                        </div>
+
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-mono font-bold shrink-0 ${condInfo.bg}`}
+                        >
+                          {cond}%
+                        </Badge>
+                      </div>
+
+                      {/* Barras de Nível e Condição */}
+                      <div className="space-y-2 pt-1 font-mono text-xs">
+                        <ProgressBar
+                          value={p.level}
+                          max={10}
+                          label="NÍVEL"
+                          size="sm"
+                          valueFormatter={(v) => `${v}/10`}
+                        />
+                        <ProgressBar
+                          value={cond}
+                          max={100}
+                          label="INTEGRIDADE"
+                          size="sm"
+                          valueFormatter={(v) => `${v}%`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Rodapé do Card com Valores e Ações Rápidas */}
+                    <div className="pt-2 border-t border-[#1F2733] flex items-center justify-between text-xs font-mono">
+                      <div>
+                        <span className="text-[#8B95A7] text-[10px] block">
+                          Upgrade N{p.level + 1}
+                        </span>
+                        <strong className="text-[#F5F7FA] text-xs">
+                          {isMax ? 'Máx FIA' : formatCurrency(upCost)}
+                        </strong>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {cond < 100 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRepairPart(p)
+                            }}
+                            disabled={repairingPartId === p.id}
+                            className="h-6 text-[10px] px-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/20"
+                          >
+                            {repairingPartId === p.id ? 'Revisando...' : 'Oficina'}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleUpgradePart(p)
+                          }}
+                          disabled={isMax || upgradingPartId === p.id}
+                          className="h-6 text-[10px] px-2 border-[#1F2733] text-cyan-400 hover:bg-cyan-500/20"
+                        >
+                          {upgradingPartId === p.id ? '...' : isMax ? 'Máx' : '+1 Nível'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* PAINEL DE INSPEÇÃO DA PEÇA SELECIONADA + RESUMO DE PERFORMANCE */}
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Card: Painel de Inspeção da Peça Clicada */}
+            <Card className="lg:col-span-2 bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-bl-full pointer-events-none" />
+
+              <CardHeader className="pb-3 border-b border-[#1F2733]">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-mono text-[#E10600] font-black uppercase tracking-widest block">
+                      TELEMETRIA & DIAGNÓSTICO DE OFICINA
+                    </span>
+                    <CardTitle className="text-xl font-black text-white flex items-center gap-2.5 mt-0.5">
+                      <Wrench className="w-5 h-5 text-[#E10600]" />
+                      {selectedPart ? selectedPart.name : 'Selecione uma peça'}
+                    </CardTitle>
+                  </div>
+
+                  {selectedPart && selectedCondInfo && (
+                    <Badge variant="outline" className={`font-mono text-xs ${selectedCondInfo.bg}`}>
+                      {selectedCondInfo.status}
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
+                  Inspecione a fadiga metálica acumulada após as corridas e decida entre desenvolver
+                  um novo nível ou revisar a peça na oficina.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="pt-5 space-y-6">
+                {selectedPart && selectedCondInfo ? (
+                  <>
+                    {/* Métricas: Nível + Condição */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Bloco 1: Nível & Potencial Técnico via ProgressBar */}
+                      <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-3">
+                        <ProgressBar
+                          value={selectedPart.level}
+                          max={10}
+                          label="NÍVEL HOMOLOGADO FIA"
+                          size="md"
+                          valueFormatter={(v, m) => `NÍVEL ${v} / ${m}`}
+                        />
+
+                        <p className="text-[11px] text-[#8B95A7] leading-relaxed">
+                          Contribuição aerodinâmica/mecânica direta: cada nível adiciona{' '}
+                          <strong className="text-[#F5F7FA] font-num">+1,0 pt</strong> ao índice
+                          geral de competitividade nas 24 etapas.
+                        </p>
+                      </div>
+
+                      {/* Bloco 2: Condição / Desgaste Físico via ProgressBar */}
+                      <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-3">
+                        <ProgressBar
+                          value={selectedPart.condition ?? 100}
+                          max={100}
+                          label="INTEGRIDADE ESTRUTURAL"
+                          size="md"
+                        />
+
+                        <div className="flex items-start gap-1.5 text-[11px] font-mono">
+                          <AlertTriangle
+                            className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                              (selectedPart.condition ?? 100) < 60
+                                ? 'text-red-400'
+                                : 'text-[#8B95A7]'
+                            }`}
+                          />
+                          <span className="text-[#8B95A7] leading-relaxed">
+                            {selectedCondInfo.risk}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bloco de Ações: Desenvolver Nova Peça vs Reparar/Revisar */}
+                    <div className="p-4 rounded-xl bg-[#080C14]/90 border border-cyan-500/20 space-y-4">
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4" />
+                          Ações de Engenharia para {selectedPart.name}
+                        </span>
+                        <span className="text-[#8B95A7]">
+                          Orçamento Disponível:{' '}
+                          <strong className="text-emerald-400">
+                            {formatCurrency(team?.budget ?? 0)}
+                          </strong>
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {/* Ação 1: Desenvolver Nova Peça (Subir Nível) */}
+                        <div className="p-3.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] flex flex-col justify-between space-y-3">
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm text-[#F5F7FA]">
+                                Desenvolver Nova Peça
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono border-[#1F2733]"
+                              >
+                                {isSelectedMax ? 'Máx 10' : `Nív.${selectedPart.level + 1}`}
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-[#8B95A7] mt-1">
+                              Investimento em CFD, túnel de vento e fabricação de nova
+                              especificação.
+                            </p>
+                            <div className="mt-2 text-xs font-mono">
+                              <span className="text-[#8B95A7] block text-[10px]">
+                                Custo de P&D:
+                              </span>
+                              <strong className="text-[#F5F7FA] text-sm">
+                                {isSelectedMax ? 'Homologado' : formatCurrency(selectedUpgradeCost)}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <Button
+                            disabled={isSelectedMax || upgradingPartId === selectedPart.id}
+                            onClick={() => handleUpgradePart(selectedPart)}
+                            className={`w-full font-semibold text-xs h-9 ${
+                              isSelectedMax
+                                ? 'bg-[#1F2733] text-[#8B95A7]'
+                                : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/20'
+                            }`}
+                          >
+                            {upgradingPartId === selectedPart.id
+                              ? 'Desenvolvendo...'
+                              : isSelectedMax
+                                ? 'Nível Máximo Homologado'
+                                : `Desenvolver (+1 Nível)`}
+                          </Button>
+                        </div>
+
+                        {/* Ação 2: Reparar / Revisar Peça (Restaurar para 100%) */}
+                        <div className="p-3.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] flex flex-col justify-between space-y-3">
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm text-[#F5F7FA]">
+                                Revisar / Reparar Oficina
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] font-mono ${
+                                  (selectedPart.condition ?? 100) >= 100
+                                    ? 'border-emerald-500/40 text-emerald-400'
+                                    : 'border-amber-500/40 text-amber-400'
+                                }`}
+                              >
+                                {(selectedPart.condition ?? 100) >= 100
+                                  ? '100% Ok'
+                                  : 'Necessita Oficina'}
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-[#8B95A7] mt-1">
+                              Testes de ultrassom, substituição de fibras de carbono e revisão
+                              mecânica.
+                            </p>
+                            <div className="mt-2 text-xs font-mono">
+                              <span className="text-[#8B95A7] block text-[10px]">
+                                Custo da Oficina:
+                              </span>
+                              <strong className="text-emerald-400 text-sm">
+                                {(selectedPart.condition ?? 100) >= 100
+                                  ? 'Sem Custo (100%)'
+                                  : formatCurrency(selectedRepairCost)}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <Button
+                            disabled={
+                              (selectedPart.condition ?? 100) >= 100 ||
+                              repairingPartId === selectedPart.id
+                            }
+                            onClick={() => handleRepairPart(selectedPart)}
+                            className={`w-full font-semibold text-xs h-9 ${
+                              (selectedPart.condition ?? 100) >= 100
+                                ? 'bg-[#1F2733] text-[#8B95A7]'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
+                            }`}
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                            {repairingPartId === selectedPart.id
+                              ? 'Revisando na Oficina...'
+                              : (selectedPart.condition ?? 100) >= 100
+                                ? 'Totalmente Revisada'
+                                : 'Reparar para 100%'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-8 text-center text-slate-400 font-mono text-xs">
+                    Selecione um componente no blueprint para abrir o diagnóstico.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Card Resumo: Nível Geral do Carro + Impacto de Desgaste */}
+            <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] flex flex-col justify-between shadow-xl">
+              <CardHeader className="pb-2 border-b border-[#1F2733]">
+                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                  PERFORMANCE GERAL
+                </span>
+                <CardTitle className="text-base font-black text-white flex items-center gap-2 mt-0.5">
+                  <Gauge className="w-5 h-5 text-[#E10600]" />
+                  Índice de Competitividade
+                </CardTitle>
+                <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
+                  Média ponderada do pacote de peças (60%) + potência da UP (40%).
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-5 pt-4">
+                <div className="text-center p-5 rounded-2xl bg-[#0B0E14] border border-[#1F2733] relative overflow-hidden">
+                  <div className="text-5xl font-extrabold font-mono text-[#F5F7FA] tracking-tight">
+                    {overallLevel}
+                    <span className="text-xs text-[#8B95A7] font-normal block mt-1">
+                      / 100 Índice de Ritmo
+                    </span>
+                  </div>
+                  <div className="mt-3 w-full bg-[#161D29] h-2.5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-[#E10600] transition-all duration-500"
+                      style={{ width: `${overallLevel}%` }}
                     />
+                  </div>
 
-                    <p className="text-[11px] text-[#8B95A7] leading-relaxed">
-                      Contribuição aerodinâmica/mecânica direta: cada nível adiciona{' '}
-                      <strong className="text-[#F5F7FA] font-num">+1,0 pt</strong> ao índice geral
-                      de competitividade nas 24 etapas.
+                  {averageCondition < 60 && (
+                    <div className="mt-3 p-2 rounded bg-red-950/40 border border-red-500/40 text-[10px] font-mono text-red-300 flex items-center gap-1.5 justify-center">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span>Penalidade ativa de ritmo devido a desgaste médio (&lt;60%)</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2.5 text-xs font-mono">
+                  <div className="flex justify-between text-[#8B95A7] pb-1 border-b border-[#1F2733]">
+                    <span>Média das 6 Peças:</span>
+                    <strong className="text-[#F5F7FA]">{partsAverage} / 10</strong>
+                  </div>
+                  <div className="flex justify-between text-[#8B95A7] pb-1 border-b border-[#1F2733]">
+                    <span>Integridade Estrutural:</span>
+                    <strong
+                      className={
+                        averageCondition >= 80
+                          ? 'text-emerald-400'
+                          : averageCondition >= 60
+                            ? 'text-amber-400'
+                            : 'text-red-400'
+                      }
+                    >
+                      {averageCondition}%
+                    </strong>
+                  </div>
+                  <div className="flex justify-between text-[#8B95A7] pb-1 border-b border-[#1F2733]">
+                    <span>UP ({currentEngine.name}):</span>
+                    <strong className="text-cyan-400">{currentEngine.power} / 100</strong>
+                  </div>
+                  <div className="flex justify-between text-[#8B95A7]">
+                    <span>Confiabilidade da UP:</span>
+                    <strong className="text-emerald-400">{currentEngine.reliability}%</strong>
+                  </div>
+                </div>
+
+                {/* Quick explanation about wear impact */}
+                <div className="p-3 rounded-xl bg-[#090D16] border border-[#1F2733] text-[11px] text-[#8B95A7] space-y-1">
+                  <div className="flex items-center gap-1.5 text-cyan-300 font-bold font-mono text-[10px]">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Impacto de Desgaste nas Corridas</span>
+                  </div>
+                  <p className="text-[10px] leading-relaxed">
+                    Após cada GP, as peças perdem de <strong>8% a 18%</strong> de integridade.
+                    Mantenha a média acima de 60% para não perder ritmo e repare peças críticas
+                    (&lt;30%) para evitar DNF.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* BLOCO FIXO EXPLICATIVO: REGRAS TÉCNICAS F1 2026 */}
+          <div className="relative z-10 rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl relative overflow-hidden">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-[#E10600]/10 text-[#E10600] flex items-center justify-center shrink-0 mt-0.5 border border-[#E10600]/30">
+                <Info className="w-5 h-5" />
+              </div>
+              <div className="space-y-3 flex-1">
+                <div>
+                  <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                    DIRETRIZES TÉCNICAS HOMOLOGADAS
+                  </span>
+                  <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2 mt-0.5">
+                    Novo Regulamento Técnico FIA — Fórmula 1 2026
+                    <Badge className="bg-[#E10600] text-white font-mono text-[10px] font-bold">
+                      Oficial
+                    </Badge>
+                  </h2>
+                  <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
+                    A temporada 2026 introduz a maior revolução na arquitetura veicular e no trem de
+                    força da história da F1:
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[#E10600]">
+                      <Zap className="w-4 h-4" />
+                      <span>Unidade de Potência 50/50</span>
+                    </div>
+                    <p className="text-[#8B95A7] text-[11px] leading-relaxed">
+                      Eliminação do MGU-H. O motor elétrico MGU-K salta para{' '}
+                      <strong className="text-[#F5F7FA]">350 kW (~475 cv)</strong>, dividindo a
+                      tração de forma igual com o motor V6 Turbo (100% combustível sustentável).
                     </p>
                   </div>
 
-                  {/* Bloco 2: Condição / Desgaste Físico via ProgressBar */}
-                  <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-3">
-                    <ProgressBar
-                      value={selectedPart.condition ?? 100}
-                      max={100}
-                      label="INTEGRIDADE ESTRUTURAL"
-                      size="md"
-                    />
-
-                    <div className="flex items-start gap-1.5 text-[11px] font-mono">
-                      <AlertTriangle
-                        className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
-                          (selectedPart.condition ?? 100) < 60 ? 'text-red-400' : 'text-[#8B95A7]'
-                        }`}
-                      />
-                      <span className="text-[#8B95A7] leading-relaxed">
-                        {selectedCondInfo.risk}
-                      </span>
+                  <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-cyan-400">
+                      <Layers className="w-4 h-4" />
+                      <span>Aerodinâmica Ativa</span>
                     </div>
+                    <p className="text-[#8B95A7] text-[11px] leading-relaxed">
+                      O DRS foi extinto. As asas dianteira e traseira possuem 2 estados:{' '}
+                      <strong className="text-[#F5F7FA]">Z-Mode</strong> (alta sustentação em
+                      curvas) e <strong className="text-[#F5F7FA]">X-Mode / Straight Mode</strong>{' '}
+                      (baixo arrasto em retas).
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                      <Flame className="w-4 h-4" />
+                      <span>Modo Overtake & 768 kg</span>
+                    </div>
+                    <p className="text-[#8B95A7] text-[11px] leading-relaxed">
+                      Quando o carro está a &lt;1s do rival, o piloto aciona o{' '}
+                      <strong className="text-[#F5F7FA]">Modo Overtake</strong> com energia extra na
+                      bateria para ultrapassagem. O peso mínimo caiu para{' '}
+                      <strong className="text-[#F5F7FA]">768 kg</strong>.
+                    </p>
                   </div>
                 </div>
-
-                {/* Bloco de Ações: Desenvolver Nova Peça vs Reparar/Revisar */}
-                <div className="p-4 rounded-xl bg-[#080C14]/90 border border-cyan-500/20 space-y-4">
-                  <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4" />
-                      Ações de Engenharia para {selectedPart.name}
-                    </span>
-                    <span className="text-[#8B95A7]">
-                      Orçamento Disponível:{' '}
-                      <strong className="text-emerald-400">
-                        {formatCurrency(team?.budget ?? 0)}
-                      </strong>
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    {/* Ação 1: Desenvolver Nova Peça (Subir Nível) */}
-                    <div className="p-3.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-sm text-[#F5F7FA]">
-                            Desenvolver Nova Peça
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-mono border-[#1F2733]"
-                          >
-                            {isSelectedMax ? 'Máx 10' : `Nív.${selectedPart.level + 1}`}
-                          </Badge>
-                        </div>
-                        <p className="text-[11px] text-[#8B95A7] mt-1">
-                          Investimento em CFD, túnel de vento e fabricação de nova especificação.
-                        </p>
-                        <div className="mt-2 text-xs font-mono">
-                          <span className="text-[#8B95A7] block text-[10px]">Custo de P&D:</span>
-                          <strong className="text-[#F5F7FA] text-sm">
-                            {isSelectedMax ? 'Homologado' : formatCurrency(selectedUpgradeCost)}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <Button
-                        disabled={isSelectedMax || upgradingPartId === selectedPart.id}
-                        onClick={() => handleUpgradePart(selectedPart)}
-                        className={`w-full font-semibold text-xs h-9 ${
-                          isSelectedMax
-                            ? 'bg-[#1F2733] text-[#8B95A7]'
-                            : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/20'
-                        }`}
-                      >
-                        {upgradingPartId === selectedPart.id
-                          ? 'Desenvolvendo...'
-                          : isSelectedMax
-                            ? 'Nível Máximo Homologado'
-                            : `Desenvolver (+1 Nível)`}
-                      </Button>
-                    </div>
-
-                    {/* Ação 2: Reparar / Revisar Peça (Restaurar para 100%) */}
-                    <div className="p-3.5 rounded-lg bg-[#080C14]/80 border border-[#1A2333] flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-sm text-[#F5F7FA]">
-                            Revisar / Reparar Oficina
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-mono ${
-                              (selectedPart.condition ?? 100) >= 100
-                                ? 'border-emerald-500/40 text-emerald-400'
-                                : 'border-amber-500/40 text-amber-400'
-                            }`}
-                          >
-                            {(selectedPart.condition ?? 100) >= 100
-                              ? '100% Ok'
-                              : 'Necessita Oficina'}
-                          </Badge>
-                        </div>
-                        <p className="text-[11px] text-[#8B95A7] mt-1">
-                          Testes de ultrassom, substituição de fibras de carbono e revisão mecânica.
-                        </p>
-                        <div className="mt-2 text-xs font-mono">
-                          <span className="text-[#8B95A7] block text-[10px]">
-                            Custo da Oficina:
-                          </span>
-                          <strong className="text-emerald-400 text-sm">
-                            {(selectedPart.condition ?? 100) >= 100
-                              ? 'Sem Custo (100%)'
-                              : formatCurrency(selectedRepairCost)}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <Button
-                        disabled={
-                          (selectedPart.condition ?? 100) >= 100 ||
-                          repairingPartId === selectedPart.id
-                        }
-                        onClick={() => handleRepairPart(selectedPart)}
-                        className={`w-full font-semibold text-xs h-9 ${
-                          (selectedPart.condition ?? 100) >= 100
-                            ? 'bg-[#1F2733] text-[#8B95A7]'
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
-                        }`}
-                      >
-                        <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                        {repairingPartId === selectedPart.id
-                          ? 'Revisando na Oficina...'
-                          : (selectedPart.condition ?? 100) >= 100
-                            ? 'Totalmente Revisada'
-                            : 'Reparar para 100%'}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="p-8 text-center text-slate-400 font-mono text-xs">
-                Selecione um componente no blueprint para abrir o diagnóstico.
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
 
-        {/* Card Resumo: Nível Geral do Carro + Impacto de Desgaste */}
-        <Card className="bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] flex flex-col justify-between shadow-xl">
-          <CardHeader className="pb-2 border-b border-[#1F2733]">
-            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-              PERFORMANCE GERAL
-            </span>
-            <CardTitle className="text-base font-black text-white flex items-center gap-2 mt-0.5">
-              <Gauge className="w-5 h-5 text-[#E10600]" />
-              Índice de Competitividade
-            </CardTitle>
-            <CardDescription className="text-xs text-[#8B95A7] font-mono mt-0.5">
-              Média ponderada do pacote de peças (60%) + potência da UP (40%).
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-5 pt-4">
-            <div className="text-center p-5 rounded-2xl bg-[#0B0E14] border border-[#1F2733] relative overflow-hidden">
-              <div className="text-5xl font-extrabold font-mono text-[#F5F7FA] tracking-tight">
-                {overallLevel}
-                <span className="text-xs text-[#8B95A7] font-normal block mt-1">
-                  / 100 Índice de Ritmo
+          {/* Fornecedores de Unidade de Potência 2026 */}
+          <div className="relative z-10 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
+                  MERCADO DE FORNECEDORES
                 </span>
+                <h2 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
+                  <Cpu className="w-5 h-5 text-[#00A6FB]" />
+                  Fornecedores de Unidade de Potência 2026
+                </h2>
               </div>
-              <div className="mt-3 w-full bg-[#161D29] h-2.5 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-[#E10600] transition-all duration-500"
-                  style={{ width: `${overallLevel}%` }}
-                />
-              </div>
-
-              {averageCondition < 60 && (
-                <div className="mt-3 p-2 rounded bg-red-950/40 border border-red-500/40 text-[10px] font-mono text-red-300 flex items-center gap-1.5 justify-center">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                  <span>Penalidade ativa de ritmo devido a desgaste médio (&lt;60%)</span>
-                </div>
-              )}
+              <span className="text-xs font-mono text-[#8B95A7]">5 fabricantes homologados</span>
             </div>
 
-            <div className="space-y-2.5 text-xs font-mono">
-              <div className="flex justify-between text-[#8B95A7] pb-1 border-b border-[#1F2733]">
-                <span>Média das 6 Peças:</span>
-                <strong className="text-[#F5F7FA]">{partsAverage} / 10</strong>
-              </div>
-              <div className="flex justify-between text-[#8B95A7] pb-1 border-b border-[#1F2733]">
-                <span>Integridade Estrutural:</span>
-                <strong
-                  className={
-                    averageCondition >= 80
-                      ? 'text-emerald-400'
-                      : averageCondition >= 60
-                        ? 'text-amber-400'
-                        : 'text-red-400'
-                  }
-                >
-                  {averageCondition}%
-                </strong>
-              </div>
-              <div className="flex justify-between text-[#8B95A7] pb-1 border-b border-[#1F2733]">
-                <span>UP ({currentEngine.name}):</span>
-                <strong className="text-cyan-400">{currentEngine.power} / 100</strong>
-              </div>
-              <div className="flex justify-between text-[#8B95A7]">
-                <span>Confiabilidade da UP:</span>
-                <strong className="text-emerald-400">{currentEngine.reliability}%</strong>
-              </div>
-            </div>
-
-            {/* Quick explanation about wear impact */}
-            <div className="p-3 rounded-xl bg-[#090D16] border border-[#1F2733] text-[11px] text-[#8B95A7] space-y-1">
-              <div className="flex items-center gap-1.5 text-cyan-300 font-bold font-mono text-[10px]">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Impacto de Desgaste nas Corridas</span>
-              </div>
-              <p className="text-[10px] leading-relaxed">
-                Após cada GP, as peças perdem de <strong>8% a 18%</strong> de integridade. Mantenha
-                a média acima de 60% para não perder ritmo e repare peças críticas (&lt;30%) para
-                evitar DNF.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* BLOCO FIXO EXPLICATIVO: REGRAS TÉCNICAS F1 2026 */}
-      <div className="relative z-10 rounded-2xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] p-5 shadow-xl relative overflow-hidden">
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#E10600]/10 text-[#E10600] flex items-center justify-center shrink-0 mt-0.5 border border-[#E10600]/30">
-            <Info className="w-5 h-5" />
-          </div>
-          <div className="space-y-3 flex-1">
-            <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-                DIRETRIZES TÉCNICAS HOMOLOGADAS
-              </span>
-              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2 mt-0.5">
-                Novo Regulamento Técnico FIA — Fórmula 1 2026
-                <Badge className="bg-[#E10600] text-white font-mono text-[10px] font-bold">
-                  Oficial
-                </Badge>
-              </h2>
-              <p className="text-xs text-[#8B95A7] font-mono mt-0.5">
-                A temporada 2026 introduz a maior revolução na arquitetura veicular e no trem de
-                força da história da F1:
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-[#E10600]">
-                  <Zap className="w-4 h-4" />
-                  <span>Unidade de Potência 50/50</span>
-                </div>
-                <p className="text-[#8B95A7] text-[11px] leading-relaxed">
-                  Eliminação do MGU-H. O motor elétrico MGU-K salta para{' '}
-                  <strong className="text-[#F5F7FA]">350 kW (~475 cv)</strong>, dividindo a tração
-                  de forma igual com o motor V6 Turbo (100% combustível sustentável).
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-cyan-400">
-                  <Layers className="w-4 h-4" />
-                  <span>Aerodinâmica Ativa</span>
-                </div>
-                <p className="text-[#8B95A7] text-[11px] leading-relaxed">
-                  O DRS foi extinto. As asas dianteira e traseira possuem 2 estados:{' '}
-                  <strong className="text-[#F5F7FA]">Z-Mode</strong> (alta sustentação em curvas) e{' '}
-                  <strong className="text-[#F5F7FA]">X-Mode / Straight Mode</strong> (baixo arrasto
-                  em retas).
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-amber-400">
-                  <Flame className="w-4 h-4" />
-                  <span>Modo Overtake & 768 kg</span>
-                </div>
-                <p className="text-[#8B95A7] text-[11px] leading-relaxed">
-                  Quando o carro está a &lt;1s do rival, o piloto aciona o{' '}
-                  <strong className="text-[#F5F7FA]">Modo Overtake</strong> com energia extra na
-                  bateria para ultrapassagem. O peso mínimo caiu para{' '}
-                  <strong className="text-[#F5F7FA]">768 kg</strong>.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Fornecedores de Unidade de Potência 2026 */}
-      <div className="relative z-10 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#E10600] block">
-              MERCADO DE FORNECEDORES
-            </span>
-            <h2 className="text-base font-black text-white flex items-center gap-2 mt-0.5">
-              <Cpu className="w-5 h-5 text-[#00A6FB]" />
-              Fornecedores de Unidade de Potência 2026
-            </h2>
-          </div>
-          <span className="text-xs font-mono text-[#8B95A7]">5 fabricantes homologados</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {ENGINE_SUPPLIERS.map((sup) => {
-            const isCurrent = (team?.engine_supplier || 'Mercedes') === sup.name
-            return (
-              <div
-                key={sup.name}
-                className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
-                  isCurrent
-                    ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
-                    : 'bg-[#090D15]/85 backdrop-blur-md border-[#1F2733] hover:border-[#2C3849]'
-                }`}
-              >
-                <div>
-                  <div className="flex items-start justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {ENGINE_SUPPLIERS.map((sup) => {
+                const isCurrent = (team?.engine_supplier || 'Mercedes') === sup.name
+                return (
+                  <div
+                    key={sup.name}
+                    className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
+                      isCurrent
+                        ? 'bg-[#161D29] border-cyan-500 shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500'
+                        : 'bg-[#090D15]/85 backdrop-blur-md border-[#1F2733] hover:border-[#2C3849]'
+                    }`}
+                  >
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-base text-[#F5F7FA]">{sup.name}</h3>
-                        {isCurrent && (
-                          <Badge className="bg-cyan-500 text-slate-950 text-[10px] font-mono font-bold">
-                            Atual
-                          </Badge>
-                        )}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-base text-[#F5F7FA]">{sup.name}</h3>
+                            {isCurrent && (
+                              <Badge className="bg-cyan-500 text-slate-950 text-[10px] font-mono font-bold">
+                                Atual
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-mono text-cyan-400 mt-0.5">
+                            {sup.techBadge}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-[10px] font-mono text-cyan-400 mt-0.5">{sup.techBadge}</p>
+
+                      <p className="text-[11px] text-[#8B95A7] mt-2 line-clamp-2 leading-relaxed">
+                        {sup.description}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-[#1F2733] text-xs font-mono">
+                        <div className="p-1.5 rounded bg-[#0B0E14] border border-[#1F2733]">
+                          <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
+                            <Zap className="w-3 h-3 text-cyan-400" /> Potência
+                          </span>
+                          <strong className="text-[#F5F7FA] text-sm">{sup.power}/100</strong>
+                        </div>
+                        <div className="p-1.5 rounded bg-[#0B0E14] border border-[#1F2733]">
+                          <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-emerald-400" /> Confiab.
+                          </span>
+                          <strong className="text-emerald-400 text-sm">{sup.reliability}%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#1F2733]">
+                      <div>
+                        <span className="text-[10px] text-[#8B95A7] block font-mono">
+                          Custo anual
+                        </span>
+                        <strong className="text-xs font-mono text-[#F5F7FA]">
+                          {formatCurrency(sup.costAnnual)}
+                        </strong>
+                      </div>
+
+                      {isCurrent ? (
+                        <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5" /> Equipado
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedSupplier(sup)}
+                          className="border-[#1F2733] text-xs h-7 px-3 text-cyan-400 hover:text-white hover:bg-cyan-600/20"
+                        >
+                          Trocar Fornecedor
+                        </Button>
+                      )}
                     </div>
                   </div>
-
-                  <p className="text-[11px] text-[#8B95A7] mt-2 line-clamp-2 leading-relaxed">
-                    {sup.description}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-[#1F2733] text-xs font-mono">
-                    <div className="p-1.5 rounded bg-[#0B0E14] border border-[#1F2733]">
-                      <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
-                        <Zap className="w-3 h-3 text-cyan-400" /> Potência
-                      </span>
-                      <strong className="text-[#F5F7FA] text-sm">{sup.power}/100</strong>
-                    </div>
-                    <div className="p-1.5 rounded bg-[#0B0E14] border border-[#1F2733]">
-                      <span className="text-[#8B95A7] block text-[10px] flex items-center gap-1">
-                        <ShieldCheck className="w-3 h-3 text-emerald-400" /> Confiab.
-                      </span>
-                      <strong className="text-emerald-400 text-sm">{sup.reliability}%</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#1F2733]">
-                  <div>
-                    <span className="text-[10px] text-[#8B95A7] block font-mono">Custo anual</span>
-                    <strong className="text-xs font-mono text-[#F5F7FA]">
-                      {formatCurrency(sup.costAnnual)}
-                    </strong>
-                  </div>
-
-                  {isCurrent ? (
-                    <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5" /> Equipado
-                    </span>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setSelectedSupplier(sup)}
-                      className="border-[#1F2733] text-xs h-7 px-3 text-cyan-400 hover:text-white hover:bg-cyan-600/20"
-                    >
-                      Trocar Fornecedor
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+                )
+              })}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* DIÁLOGO DE CONFIRMAÇÃO: ESTOURO CONSCIENTE DO TETO DE GASTOS (INVESTIGAÇÃO FIA) */}
       <Dialog

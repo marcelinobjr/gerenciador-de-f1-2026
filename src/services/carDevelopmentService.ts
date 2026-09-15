@@ -24,7 +24,7 @@ import {
 import {
   TechnicalAttributeId,
   TechnicalComponentId,
-  CANONICAL_COMPONENT_METAS,
+  TECHNICAL_COMPONENT_METAS,
   TECHNICAL_ATTRIBUTE_METAS,
   ComponentRatingsMap,
   TechnicalAttributesMap,
@@ -133,7 +133,8 @@ export class CarDevelopmentService {
     canStartNewProject: boolean
     explanation: string
   } {
-    const capabilities = infrastructureCapabilityService.calculateCapabilities(team)
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
     // Throughput determina slots simultâneos: 1 a 3 projetos recomendados
     const maxConcurrentProjects = Math.max(
       1,
@@ -191,7 +192,8 @@ export class CarDevelopmentService {
     drivers?: DriverModel[]
   }): DevelopmentPrediction {
     const { team, componentId, primaryObjective, secondaryObjectives = [], scope } = params
-    const capabilities = infrastructureCapabilityService.calculateCapabilities(team)
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
     const managerEval = managerEffectService.evaluateManager(team)
 
     // Avaliação de feedback dos pilotos
@@ -358,7 +360,8 @@ export class CarDevelopmentService {
     team: TeamModel,
     drivers: DriverModel[] = [],
   ): { actualResult: DevelopmentActualResult; telemetry: DevelopmentQATelemetry } {
-    const capabilities = infrastructureCapabilityService.calculateCapabilities(team)
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
     const managerEval = managerEffectService.evaluateManager(team)
     const knowledge = this.getOrCreateTechnicalKnowledge(team)
     const compKnowledge = knowledge[project.componentId] || { experienceLevel: 30 }
@@ -606,7 +609,7 @@ export class CarDevelopmentService {
       attributeBiases[a] = Number(((attributeBiases[a] || 0) + (loss || 0)).toFixed(2))
     }
 
-    const compMeta = CANONICAL_COMPONENT_METAS[project.componentId]
+    const compMeta = TECHNICAL_COMPONENT_METAS[project.componentId]
     const specName = `${compMeta?.name || project.componentId} Spec 2026-${letter}`
 
     const spec: CanonicalComponentSpec = {
@@ -646,7 +649,8 @@ export class CarDevelopmentService {
     targetCarAssignment: 'car1' | 'car2' | 'stock' | 'both_split'
   }): ManufacturingOrder {
     const { team, spec, quantity, currentRound, targetCarAssignment } = params
-    const capabilities = infrastructureCapabilityService.calculateCapabilities(team)
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
 
     // Prazo de manufatura depende da capacidade de fabricação
     let leadTime = spec.manufacturingLeadTimeRounds
@@ -751,7 +755,7 @@ export class CarDevelopmentService {
 
         notifications.push({
           title: `Projeto Concluído: ${newSpec.specName}`,
-          message: `O desenvolvimento de ${CANONICAL_COMPONENT_METAS[proj.componentId]?.name} foi finalizado. Resultado: ${actualResult.rationale} Spec pronta para ordem de fabricação.`,
+          message: `O desenvolvimento de ${TECHNICAL_COMPONENT_METAS[proj.componentId]?.name} foi finalizado. Resultado: ${actualResult.rationale} Spec pronta para ordem de fabricação.`,
           type: 'desenvolvimento',
         })
       }
@@ -768,7 +772,7 @@ export class CarDevelopmentService {
         completedOrders.push(ord)
 
         const relatedSpec = specs.find((s) => s.specId === ord.specId)
-        const compName = CANONICAL_COMPONENT_METAS[ord.componentId]?.name || ord.componentId
+        const compName = TECHNICAL_COMPONENT_METAS[ord.componentId]?.name || ord.componentId
 
         notifications.push({
           title: `Manufatura Concluída: ${relatedSpec?.specName || compName}`,

@@ -19,9 +19,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import {
-  TechnicalComponentId,
   TechnicalAttributeId,
-  CANONICAL_COMPONENT_METAS,
+  TechnicalComponentId,
+  TECHNICAL_COMPONENT_METAS,
   TECHNICAL_ATTRIBUTE_METAS,
 } from '@/types/car-technical-model'
 import { DevelopmentScope } from '@/types/car-development'
@@ -169,7 +169,7 @@ export const NewDevelopmentProjectModal: React.FC<NewDevelopmentProjectModalProp
 
       await f1Service.addEvent(
         team.id,
-        `🔬 P&D INICIADO: Novo projeto de ${CANONICAL_COMPONENT_METAS[selectedComponent]?.name} focado em ${TECHNICAL_ATTRIBUTE_METAS[primaryGoal]?.name}. Investimento: ${formatCurrency(estimatedCost)}. Conclusão prevista: Rodada ${newProj.roundCompletedTarget}.`,
+        `🔬 P&D INICIADO: Novo projeto de ${TECHNICAL_COMPONENT_METAS[selectedComponent]?.name} focado em ${TECHNICAL_ATTRIBUTE_METAS[primaryGoal]?.name}. Investimento: ${formatCurrency(estimatedCost)}. Conclusão prevista: Rodada ${newProj.roundCompletedTarget}.`,
         'desenvolvimento',
       )
 
@@ -211,7 +211,7 @@ export const NewDevelopmentProjectModal: React.FC<NewDevelopmentProjectModalProp
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {ALL_COMPONENTS.map((compId) => {
-                const meta = CANONICAL_COMPONENT_METAS[compId]
+                const meta = TECHNICAL_COMPONENT_METAS[compId]
                 const isSelected = selectedComponent === compId
                 return (
                   <button
