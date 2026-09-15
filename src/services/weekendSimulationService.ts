@@ -38,6 +38,8 @@ import type {
   RadioHighlight,
 } from '@/types/canonical-season-transition'
 
+type WeekendSimulationStatus = 'idle' | 'simulating' | 'completed' | 'failed'
+
 export interface SimulateWeekendOptions {
   team: TeamModel
   season: SeasonModel
@@ -698,10 +700,10 @@ export class WeekendSimulationService {
         const orderResult = driverRaceInteractionService.evaluateTeamOrder(
           {
             orderId: `ord_sim_${Date.now()}`,
-            orderType: 'swap_positions',
+            orderType: 'ceder_posicao' as any,
             targetDriverId: g2.driverId,
             teammateId: g1.driverId,
-            reason: 'faster_car_behind',
+            reason: 'ritmo_superior' as any,
             lap: Math.round(totalLaps * 0.5),
             round: currentRound,
             season: season.year || 2026,

@@ -15,7 +15,8 @@ import TeamPage from './pages/Team'
 import TeamsPage from './pages/Teams'
 import CarPage from './pages/Car'
 import SponsorsPage from './pages/Sponsors'
-import RacePage from './pages/RaceSlim'
+import RacePage from './pages/RaceSlimWrapper'
+import SeasonEndPage from './pages/SeasonEndPage'
 import StandingsPage from './pages/Standings'
 import CalendarPage from './pages/CalendarPage'
 import HistoryPage from './pages/History'
@@ -55,6 +56,7 @@ const App = () => (
               <Route path="/infraestrutura" element={<InfrastructurePage />} />
               <Route path="/sponsors" element={<SponsorsPage />} />
               <Route path="/race" element={<RacePage />} />
+              <Route path="/season-end" element={<SeasonEndPage />} />
               <Route path="/standings" element={<StandingsPage />} />
               <Route path="/paddock" element={<PaddockPage />} />
               <Route path="/historico" element={<HistoryPage />} />
