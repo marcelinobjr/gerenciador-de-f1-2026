@@ -392,9 +392,11 @@ export default function TeamPage() {
     setIsProcessing(true)
     try {
       const res = await driverDevelopmentService.releaseDriverFromAcademy(team, driver)
+
+      // Regra 72: Liberar piloto não devolve custos históricos nem gera receita fictícia
       toast({
         title: 'Piloto Liberado da Academia',
-        description: res.message,
+        description: `${res.message} (Custos históricos de formação permanecem registrados no livro contábil).`,
       })
       await refreshTeamAndSeason()
       await loadData()
@@ -508,6 +510,28 @@ export default function TeamPage() {
       const newBudget = team.budget - ENGINE_SWITCH_FEE
       const newSpentCap = currentCostCapSpent + ENGINE_SWITCH_FEE
 
+      // Registro Canônico no Financial Ledger (Troca de Fornecedor de Motor)
+      try {
+        const { financialLedgerService } = await import('@/services/financialLedgerService')
+        await financialLedgerService.postTransaction({
+          teamId: team.id,
+          seasonYear: season?.year || 2026,
+          round: season?.current_round || 1,
+          type: 'expense',
+          category: 'development',
+          subcategory: 'engine_switch_fee',
+          direction: 'outflow',
+          amount: ENGINE_SWITCH_FEE,
+          costCapClassification: 'included',
+          sourceSystem: 'engine_supplier_switch',
+          sourceEntityId: `switch_to_${selectedSupplier.name}`,
+          idempotencyKey: `engine_switch_${team.id}_${selectedSupplier.name}_${Date.now()}`,
+          description: `Taxa de rescisão e adaptação de chassi para unidade ${selectedSupplier.name}`,
+        })
+      } catch (finErr) {
+        console.warn('Erro ao lançar troca de motor no FinancialLedger:', finErr)
+      }
+
       await f1Service.updateTeam(team.id, {
         engine_supplier: selectedSupplier.name,
         budget: newBudget,
@@ -590,6 +614,28 @@ export default function TeamPage() {
         })
         setIsProcessing(false)
         return
+      }
+
+      // Registro Canônico no Financial Ledger (Multa Rescisória de Piloto)
+      try {
+        const { financialLedgerService } = await import('@/services/financialLedgerService')
+        await financialLedgerService.postTransaction({
+          teamId: team.id,
+          seasonYear: season?.year || 2026,
+          round: season?.current_round || 1,
+          type: 'expense',
+          category: 'penalties',
+          subcategory: 'driver_contract_termination',
+          direction: 'outflow',
+          amount: penaltyCost,
+          costCapClassification: 'excluded', // Multas rescisórias de pilotos são excluídas do Cost Cap
+          sourceSystem: 'driver_termination',
+          sourceEntityId: fireDriver.id,
+          idempotencyKey: `fire_driver_${fireDriver.id}_${Date.now()}`,
+          description: `Multa rescisória de 50% pela dispensa de ${fireDriver.name}`,
+        })
+      } catch (finErr) {
+        console.warn('Erro ao lançar rescisão no FinancialLedger:', finErr)
       }
 
       const updatedBudget = team.budget - penaltyCost

@@ -641,6 +641,31 @@ export default function DriversPage() {
 
       // 3. Descontar as luvas do orçamento do save do usuário de forma segura (em US$)
       const updatedBudget = Math.max(0, (team.budget || 0) - proratedSigningFeeUsd)
+
+      // Registro Canônico no Financial Ledger (Luvas / Taxa de Assinatura de Piloto)
+      if (proratedSigningFeeUsd > 0) {
+        try {
+          const { financialLedgerService } = await import('@/services/financialLedgerService')
+          await financialLedgerService.postTransaction({
+            teamId: team.id,
+            seasonYear: 2026,
+            round: 1,
+            type: 'expense',
+            category: 'driverSalaries',
+            subcategory: 'driver_signing_bonus',
+            direction: 'outflow',
+            amount: proratedSigningFeeUsd,
+            costCapClassification: 'excluded', // Salários e luvas de pilotos são excluídos do Cost Cap FIA
+            sourceSystem: 'driver_contract_signing',
+            sourceEntityId: targetDriverId,
+            idempotencyKey: `signing_fee_${targetDriverId}_${Date.now()}`,
+            description: `Luvas contratuais de assinatura de contrato: ${selectedPilotForContract.name} (${contractRole})`,
+          })
+        } catch (finErr) {
+          console.warn('Erro ao lançar luvas no FinancialLedger:', finErr)
+        }
+      }
+
       await pb.collection('teams').update(team.id, {
         budget: updatedBudget,
       })

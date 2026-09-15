@@ -160,6 +160,24 @@ export const NewDevelopmentProjectModal: React.FC<NewDevelopmentProjectModalProp
 
       const { pb } = await import('@/lib/pocketbase/client')
       const { f1Service } = await import('@/services/f1Service')
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+
+      // Registro Canônico no Financial Ledger
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: seasonYear || 2026,
+        round: currentRound,
+        type: 'expense',
+        category: 'development',
+        subcategory: `rd_${selectedComponent}`,
+        direction: 'outflow',
+        amount: estimatedCost,
+        costCapClassification: 'included',
+        sourceSystem: 'car_development',
+        sourceEntityId: newProj.id,
+        idempotencyKey: `dev_project_${newProj.id}`,
+        description: `P&D: Desenvolvimento de ${TECHNICAL_COMPONENT_METAS[selectedComponent]?.name || selectedComponent} (${scope})`,
+      })
 
       await pb.collection('teams').update(team.id, {
         development_projects: updatedProjects,

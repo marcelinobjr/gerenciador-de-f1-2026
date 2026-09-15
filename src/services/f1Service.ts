@@ -664,10 +664,34 @@ export const f1Service = {
     return Math.round(fullRestorationCost * wear * (1 - clampedDiscount))
   },
 
-  async repairPart(partId: string): Promise<PartModel> {
-    return await pb.collection('parts').update<PartModel>(partId, {
+  async repairPart(partId: string, team?: TeamModel, repairCost?: number): Promise<PartModel> {
+    const updated = await pb.collection('parts').update<PartModel>(partId, {
       condition: 100,
     })
+
+    if (team && repairCost && repairCost > 0) {
+      try {
+        const { financialLedgerService } = await import('@/services/financialLedgerService')
+        await financialLedgerService.postTransaction({
+          teamId: team.id,
+          seasonYear: 2026,
+          round: 1,
+          type: 'expense',
+          category: 'repairs',
+          direction: 'outflow',
+          amount: repairCost,
+          costCapClassification: 'included',
+          sourceSystem: 'part_repair',
+          sourceEntityId: partId,
+          idempotencyKey: `part_repair_${partId}_${Date.now()}`,
+          description: `Reparo e restauração estrutural de componente (${updated.name || partId})`,
+        })
+      } catch (finErr) {
+        console.warn('Erro ao lançar despesa de reparo no FinancialLedger:', finErr)
+      }
+    }
+
+    return updated
   },
 
   // Events
@@ -1838,6 +1862,28 @@ export const f1Service = {
     const currentRdLeft = team.rd_penalty_rounds_left || 0
     const newRdLeft = Math.max(currentRdLeft, rdPenaltyRounds)
 
+    // Registro Canônico no Financial Ledger (Penalidade / Multa FIA)
+    try {
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: 2026,
+        round: 1,
+        type: 'expense',
+        category: 'penalties',
+        subcategory: 'cost_cap_breach_penalty',
+        direction: 'outflow',
+        amount: cost,
+        costCapClassification: 'excluded', // Multas não contam no teto operacional
+        sourceSystem: 'fia_cost_cap_breach',
+        sourceEntityId: `breach_${Date.now()}`,
+        idempotencyKey: `cc_penalty_${team.id}_${Date.now()}`,
+        description: `Penalidade FIA por violação do teto: ${reason}`,
+      })
+    } catch (finErr) {
+      console.warn('Erro ao lançar penalidade no FinancialLedger:', finErr)
+    }
+
     const updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
       budget: newBudget,
       cost_cap_spent: newSpent,
@@ -1900,6 +1946,28 @@ export const f1Service = {
       supplier: team.engine_supplier || 'Mercedes',
       introducedRound: 1, // atualizado dinamicamente pelo chamador se disponível
     })
+
+    // Registro Canônico no Financial Ledger (Compra de nova unidade de potência)
+    try {
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: 2026,
+        round: 1,
+        type: 'expense',
+        category: 'development',
+        subcategory: 'engine_pool_purchase',
+        direction: 'outflow',
+        amount: cost,
+        costCapClassification: 'included',
+        sourceSystem: 'engine_pool',
+        sourceEntityId: `pu_${newPoolNumber}`,
+        idempotencyKey: `new_pu_${team.id}_engine_${newPoolNumber}`,
+        description: `Aquisição de nova Unidade de Potência #${newPoolNumber} (${team.engine_supplier || 'Mercedes'})`,
+      })
+    } catch (finErr) {
+      console.warn('Erro ao lançar compra de motor no FinancialLedger:', finErr)
+    }
 
     const updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
       budget: newBudget,
@@ -2936,6 +3004,79 @@ export const f1Service = {
   },
 
   /**
+   * Processa financeiramente os repasses e despesas de uma rodada de forma idempotente e canônica
+   */
+  async processRoundFinances(params: {
+    team: TeamModel
+    seasonYear: number
+    round: number
+    gpName: string
+    sponsorIncome: number
+    driversCost: number
+    engineCost: number
+  }): Promise<{ netCashflow: number }> {
+    const { financialLedgerService } = await import('@/services/financialLedgerService')
+    const { team, seasonYear, round, gpName, sponsorIncome, driversCost, engineCost } = params
+
+    // 1. Receita de Patrocinadores
+    if (sponsorIncome > 0) {
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear,
+        round,
+        type: 'revenue',
+        category: 'sponsorship',
+        direction: 'inflow',
+        amount: sponsorIncome,
+        costCapClassification: 'excluded',
+        sourceSystem: 'race_advance_sponsor_payout',
+        sourceEntityId: `round_${round}_sponsors`,
+        idempotencyKey: `sponsor_income_${team.id}_y${seasonYear}_r${round}`,
+        description: `Repasse comercial de patrocínios da Rodada ${round} (${gpName})`,
+      })
+    }
+
+    // 2. Salários de Pilotos
+    if (driversCost > 0) {
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear,
+        round,
+        type: 'expense',
+        category: 'driverSalaries',
+        direction: 'outflow',
+        amount: driversCost,
+        costCapClassification: 'excluded',
+        sourceSystem: 'race_advance_driver_salaries',
+        sourceEntityId: `round_${round}_drivers`,
+        idempotencyKey: `driver_salaries_${team.id}_y${seasonYear}_r${round}`,
+        description: `Folha salarial dos pilotos na Rodada ${round}`,
+      })
+    }
+
+    // 3. Unidade de Potência / Operações
+    if (engineCost > 0) {
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear,
+        round,
+        type: 'expense',
+        category: 'raceOperations',
+        direction: 'outflow',
+        amount: engineCost,
+        costCapClassification: 'included',
+        sourceSystem: 'race_advance_engine_leasing',
+        sourceEntityId: `round_${round}_engine`,
+        idempotencyKey: `engine_leasing_${team.id}_y${seasonYear}_r${round}`,
+        description: `Cota de fornecimento de unidade de potência (${team.engine_supplier || 'Audi'}) na Rodada ${round}`,
+      })
+    }
+
+    const netCashflow = sponsorIncome - driversCost - engineCost
+    return { netCashflow }
+  },
+
+  /**
    * Inicia um projeto de obra/upgrade de uma instalação:
    * - Valida se a instalação já não está em nível máximo ou em obra
    * - Debita o CAPEX do orçamento
@@ -2997,6 +3138,28 @@ export const f1Service = {
       isCapexPaid: true,
     }
     const updatedProjects = [...existingProjects, newProject]
+
+    // Registro Canônico no Financial Ledger (CAPEX de Infraestrutura)
+    try {
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: 2026,
+        round: currentRound,
+        type: 'expense',
+        category: 'infrastructureCapex',
+        subcategory: `upgrade_${facilityId}`,
+        direction: 'outflow',
+        amount: cost,
+        costCapClassification: 'excluded', // CAPEX estrutural predial FIA é excluído do teto operacional
+        sourceSystem: 'facility_upgrade',
+        sourceEntityId: `${facilityId}_lvl_${nextLevel}`,
+        idempotencyKey: `facility_capex_${team.id}_${facilityId}_lvl_${nextLevel}`,
+        description: `CAPEX Infraestrutura: Expansão de ${facilityName} para Nível ${nextLevel}`,
+      })
+    } catch (finErr) {
+      console.warn('Erro ao lançar CAPEX no FinancialLedger:', finErr)
+    }
 
     const updatePayload: Partial<TeamModel> = {
       budget: newBudget,

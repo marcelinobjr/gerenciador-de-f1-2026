@@ -143,6 +143,24 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
       const newBudget = (team.budget || 0) - totalCost
       const newSpentCap = (team.cost_cap_spent || 0) + totalCost
 
+      // Registro Canônico no Financial Ledger (Idempotência e rastreabilidade)
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: seasonYear || 2026,
+        round: currentRound,
+        type: 'expense',
+        category: 'manufacturing',
+        subcategory: `manufacture_${spec.componentId}`,
+        direction: 'outflow',
+        amount: totalCost,
+        costCapClassification: 'included',
+        sourceSystem: 'manufacturing_order',
+        sourceEntityId: order.orderId,
+        idempotencyKey: `mfg_order_${order.orderId}`,
+        description: `Manufatura de ${quantity}x ${spec.specName} (${targetCar})`,
+      })
+
       await pb.collection('teams').update(team.id, {
         manufacturing_orders: updatedOrders,
         budget: newBudget,

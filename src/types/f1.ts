@@ -86,6 +86,9 @@ export interface TeamModel {
   hero_title?: string
   hero_tagline?: string
   hero_car_model?: string
+  financial_commitments?: any[]
+  budget_allocations?: Record<string, number>
+  opening_balances?: Record<string, any>
   created?: string
   updated?: string
 }

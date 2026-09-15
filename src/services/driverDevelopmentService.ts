@@ -348,6 +348,28 @@ class DriverDevelopmentService {
     // Deduz do orçamento
     const newBudget = Math.max(0, (team.budget || 0) - fee)
 
+    // Lançamento Canônico no Financial Ledger (Taxa de abertura homologação FIA)
+    try {
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: 2026,
+        round: 1,
+        type: 'expense',
+        category: 'academy',
+        subcategory: 'homologation_fee',
+        direction: 'outflow',
+        amount: fee,
+        costCapClassification: 'excluded',
+        sourceSystem: 'driver_homologation_opening',
+        sourceEntityId: `homolog_${driver.id}_${Date.now()}`,
+        idempotencyKey: `homolog_fee_${driver.id}_${targetLicense}`,
+        description: `Taxa regulamentar de abertura de Homologação FIA (${driver.name})`,
+      })
+    } catch (finErr) {
+      console.warn('Erro ao lançar taxa de homologação no FinancialLedger:', finErr)
+    }
+
     await pb.collection('teams').update(team.id, {
       budget: newBudget,
       academy_development_data: {
@@ -770,6 +792,28 @@ class DriverDevelopmentService {
       ...(updatedProgram ? { [driver.id]: updatedProgram } : {}),
     }
     const updatedResults = [testResult, ...(data.testResults || [])].slice(0, 50)
+
+    // Lançamento Canônico no Financial Ledger (Idempotência e rastreabilidade de Teste/Homologação)
+    try {
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: 2026,
+        round: 1,
+        type: 'expense',
+        category: 'testing',
+        subcategory: `test_${params.testType}`,
+        direction: 'outflow',
+        amount: cost,
+        costCapClassification: 'included',
+        sourceSystem: 'driver_development_test',
+        sourceEntityId: testResult.id,
+        idempotencyKey: `driver_test_${testResult.id}`,
+        description: `Teste de ${config.name} (${driver.name}) em ${params.circuit} (${km} km)`,
+      })
+    } catch (finErr) {
+      console.warn('Erro ao lançar teste no FinancialLedger:', finErr)
+    }
 
     await pb.collection('teams').update(team.id, {
       budget: newTeamBudget,

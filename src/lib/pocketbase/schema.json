@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T12:58:21.712Z",
+  "generatedAt": "2026-09-15T13:17:38.244Z",
   "collections": [
     {
       "name": "users",
@@ -361,6 +361,24 @@
         },
         {
           "name": "technical_knowledge",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "budget_allocations",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "financial_commitments",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "opening_balances",
           "type": "json",
           "required": false,
           "system": false
@@ -1512,6 +1530,184 @@
       "indexes": [
         "CREATE INDEX idx_driver_tests_team ON driver_tests (team_id)",
         "CREATE INDEX idx_driver_tests_driver ON driver_tests (driver_id)"
+      ]
+    },
+    {
+      "name": "financial_ledger",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "season_year",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "date_display",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "revenue",
+            "expense",
+            "commitment",
+            "reversal",
+            "adjustment",
+            "opening_balance"
+          ]
+        },
+        {
+          "name": "category",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "prizeMoney",
+            "sponsorship",
+            "commercial",
+            "driverRelated",
+            "ownerFunding",
+            "otherRevenue",
+            "development",
+            "manufacturing",
+            "repairs",
+            "infrastructureCapex",
+            "infrastructureOpex",
+            "driverSalaries",
+            "staff",
+            "academy",
+            "scouting",
+            "testing",
+            "raceOperations",
+            "penalties",
+            "otherExpense"
+          ]
+        },
+        {
+          "name": "subcategory",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "direction",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["inflow", "outflow", "neutral"]
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cash_impact",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cost_cap_impact",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cost_cap_classification",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["included", "excluded", "partial", "pending"]
+        },
+        {
+          "name": "source_system",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "source_entity_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "idempotency_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["committed", "effective", "reversed", "cancelled"]
+        },
+        {
+          "name": "effective_date",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_financial_ledger_idempotency ON financial_ledger (idempotency_key)",
+        "CREATE INDEX idx_financial_ledger_team_season ON financial_ledger (team_id, season_year, round)"
       ]
     }
   ]
