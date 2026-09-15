@@ -5,7 +5,7 @@
  * REGRA CRÍTICA DE VALIDAÇÃO:
  * - Cada circuito deve somar EXATAMENTE 100 pontos percentuais nos 12 pesos técnicos.
  * - Se não somar 100, a função de validação dispara um erro explícito (nunca normaliza silenciosamente).
- * - IDs estáveis de circuito: circuit_01 a circuit_23.
+ * - IDs estáveis de circuito: circuit_01 a circuit_24.
  * - Lógica estritamente data-driven: sem condicionais hardcoded do tipo "if circuit === 'Monza'".
  * - Preparado para calendários futuros (novo circuito = novo perfil cadastrado).
  *
