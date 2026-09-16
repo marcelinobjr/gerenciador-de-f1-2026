@@ -136,7 +136,6 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
     const driversCost = drivers.reduce((sum, d) => sum + Math.round(d.salary / totalRounds), 0)
     const engineCost = Math.round(currentEngine.costAnnual / totalRounds)
     const netCashflow = totalSponsorIncome - driversCost - engineCost
-    const updatedBudget = Math.max(0, team.budget + netCashflow)
 
     // -------------------------------------------------------------
     // Atualização de Moral, Condição Física, Lesões e Recuperação ao Avançar Rodada
