@@ -28,6 +28,7 @@ import {
   Activity,
   DollarSign,
   FlaskConical,
+  ShieldAlert,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,9 @@ import { ProgressBar } from '@/components/ProgressBar'
 import { StatCard } from '@/components/StatCard'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { CarDevelopmentSection } from '@/components/CarDevelopmentSection'
+import { RegulationSection } from '@/components/RegulationSection'
+import { regulationTimelineService } from '@/services/regulationService'
+import type { RegulationTimelineState } from '@/types/canonical-regulations'
 
 export default function CarPage() {
   const { user, team, season, refreshTeamAndSeason } = useAuth()
@@ -63,7 +67,8 @@ export default function CarPage() {
   const [repairingPartId, setRepairingPartId] = useState<string | null>(null)
   const [activeCarDisplay, setActiveCarDisplay] = useState<'realistic' | 'blueprint'>('realistic')
   const [isUploadingCarImage, setIsUploadingCarImage] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'development'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'development' | 'regulations'>('overview')
+  const [timelineState, setTimelineState] = useState<RegulationTimelineState | null>(null)
 
   const loadParts = async () => {
     if (!team) {
@@ -83,6 +88,13 @@ export default function CarPage() {
       // Auto-select first part if none selected
       if (!selectedPartId && pList.length > 0) {
         setSelectedPartId(pList[0].id)
+      }
+
+      try {
+        const tState = await regulationTimelineService.getTimeline(team.id, season?.year || 2026)
+        setTimelineState(tState)
+      } catch {
+        // tolerância
       }
     } catch (err) {
       console.error('Error loading parts:', err)
@@ -756,26 +768,26 @@ export default function CarPage() {
         }
       />
 
-      {/* ABAS: VISÃO GERAL / OFICINA VS P&D / ENGENHARIA */}
+      {/* ABAS: VISÃO GERAL / OFICINA VS P&D / ENGENHARIA VS REGULAMENTOS FIA */}
       <Tabs
         value={activeTab}
-        onValueChange={(val) => setActiveTab(val as 'overview' | 'development')}
+        onValueChange={(val) => setActiveTab(val as 'overview' | 'development' | 'regulations')}
         className="relative z-10 space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-2 bg-[#090D15]/85 border border-[#1F2733] p-1 h-12 rounded-xl">
+        <TabsList className="grid w-full grid-cols-3 bg-[#090D15]/85 border border-[#1F2733] p-1 h-12 rounded-xl">
           <TabsTrigger
             value="overview"
             className="font-mono text-xs font-bold data-[state=active]:bg-[#161D29] data-[state=active]:text-white data-[state=active]:shadow-md flex items-center justify-center gap-2"
           >
             <Wrench className="w-4 h-4 text-cyan-400" />
-            <span>Visão Geral & Oficina Mecânica</span>
+            <span>Visão Geral & Oficina</span>
           </TabsTrigger>
           <TabsTrigger
             value="development"
             className="font-mono text-xs font-bold data-[state=active]:bg-[#161D29] data-[state=active]:text-white data-[state=active]:shadow-md flex items-center justify-center gap-2"
           >
             <FlaskConical className="w-4 h-4 text-[#E10600]" />
-            <span>P&D do Carro & Engenharia Canônica</span>
+            <span>P&D do Carro & Engenharia</span>
             {team?.development_projects &&
               team.development_projects.filter((p) => p.status === 'in_progress').length > 0 && (
                 <Badge className="ml-1.5 bg-[#E10600] text-white text-[10px] h-4 px-1.5 font-mono">
@@ -783,7 +795,30 @@ export default function CarPage() {
                 </Badge>
               )}
           </TabsTrigger>
+          <TabsTrigger
+            value="regulations"
+            className="font-mono text-xs font-bold data-[state=active]:bg-[#161D29] data-[state=active]:text-white data-[state=active]:shadow-md flex items-center justify-center gap-2"
+          >
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>Regulamentos Técnicos FIA</span>
+            {timelineState &&
+              regulationTimelineService.getAnnouncedRegulations(timelineState).length > 0 && (
+                <Badge className="ml-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] h-4 px-1.5 font-mono">
+                  {regulationTimelineService.getAnnouncedRegulations(timelineState).length}
+                </Badge>
+              )}
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="regulations" className="space-y-6 mt-0">
+          {timelineState && (
+            <RegulationSection
+              timeline={timelineState}
+              currentSeasonYear={season?.year ?? 2026}
+              onTimelineChange={(updated) => setTimelineState(updated)}
+            />
+          )}
+        </TabsContent>
 
         <TabsContent value="development" className="space-y-6 mt-0">
           {team && (

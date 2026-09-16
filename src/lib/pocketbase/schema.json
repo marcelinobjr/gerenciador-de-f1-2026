@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T22:08:48.892Z",
+  "generatedAt": "2026-09-16T00:32:44.793Z",
   "collections": [
     {
       "name": "users",
@@ -436,6 +436,12 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "regulation_timeline_state",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_teams_user ON teams (user_id)"]
@@ -534,6 +540,12 @@
         },
         {
           "name": "archived_history_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "technical_era_id",
           "type": "text",
           "required": false,
           "system": false
@@ -2035,6 +2047,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "technical_era_id",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

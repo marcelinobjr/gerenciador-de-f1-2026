@@ -185,6 +185,25 @@ export const notificationGenerator = {
       })
     }
 
+    // 9. Anúncio de Regulamento Técnico FIA (8C.1: Notificação e evento real no Paddock)
+    try {
+      const { regulationTimelineService } = await import('@/services/regulationService')
+      const tState = await regulationTimelineService.getTimeline(team.id, season.year || 2026)
+      const futureRegs = regulationTimelineService.getFutureRegulations(tState, season.year || 2026)
+      if (futureRegs.length > 0) {
+        const primary = futureRegs[0]
+        notificationsToCreate.push({
+          type: 'fia',
+          title: `🏛️ Regulamento FIA Confirmado para ${primary.effectiveSeason}`,
+          message: `Novo regulamento técnico "${primary.name}" confirmado pela FIA com vigência para a temporada ${primary.effectiveSeason}. Consulte a linha do tempo técnica.`,
+          round: currentRound,
+          link: '/car',
+        })
+      }
+    } catch {
+      // tolerância
+    }
+
     // Limitar a no máximo 8-10 notificações novas por rodada, filtrando duplicatas
     const toDispatch = notificationsToCreate.slice(0, 10)
     for (const n of toDispatch) {

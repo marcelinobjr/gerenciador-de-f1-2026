@@ -29,6 +29,7 @@ import { technicalOrganizationService } from '@/services/technicalOrganizationSe
 import { driverDevelopmentService } from '@/services/driverDevelopmentService'
 import { driverRetirementService } from '@/services/driverRetirementService'
 import { newGenerationService } from '@/services/newGenerationService'
+import { regulationTimelineService, regulationService } from '@/services/regulationService'
 import {
   calculateStandings,
   type DriverStanding,
@@ -288,6 +289,40 @@ export class SeasonTransitionService {
       // Não existe registro anterior, prosseguir normalmente
     }
 
+    // 8C.1: Consultar e reconhecer future regulation que entra em vigor em toSeasonYear
+    let activatedFutureRegulationInfo: {
+      regulationId: string
+      category: string
+      effectiveSeason: number
+    } | null = null
+    try {
+      const currentTimeline = await regulationTimelineService.getTimeline(teamId, fromSeasonYear)
+      const futureRegs = regulationTimelineService.getFutureRegulations(
+        currentTimeline,
+        fromSeasonYear,
+      )
+      const targetFutureReg = futureRegs.find((r) => r.effectiveSeason === toSeasonYear)
+      if (targetFutureReg) {
+        // Ativar de forma canônica na timeline (sem gerar novo carro - Regra 22)
+        const actRes = regulationService.activateRegulation({
+          timeline: currentTimeline,
+          regulationId: targetFutureReg.regulationId,
+          seasonYear: toSeasonYear,
+          sourceEventId: `trans_act_${targetFutureReg.regulationId}_${transitionKey}`,
+        })
+        if (actRes.activated) {
+          await regulationTimelineService.persistTimeline(teamId, actRes.updatedTimeline)
+          activatedFutureRegulationInfo = {
+            regulationId: targetFutureReg.regulationId,
+            category: targetFutureReg.category,
+            effectiveSeason: targetFutureReg.effectiveSeason,
+          }
+        }
+      }
+    } catch {
+      // tolerância: sistema resiliente
+    }
+
     // Criar Snapshot Técnico de Segurança
     const snapshot = await this.createTransitionSnapshot(teamId, fromSeasonYear, toSeasonYear)
 
@@ -474,6 +509,9 @@ export class SeasonTransitionService {
         teamId,
         toSeasonYear,
         fromSeasonId: currentSeason.id,
+        technicalEraId: activatedFutureRegulationInfo?.regulationId
+          ? `era_${toSeasonYear}_${activatedFutureRegulationInfo.category.toLowerCase()}`
+          : (currentSeason as any).technical_era_id || 'era_2026_active_aerodynamics',
       })
       updateStep(
         'CREATING_NEXT_SEASON',
@@ -491,6 +529,7 @@ export class SeasonTransitionService {
       const historyRecordData: CanonicalSeasonHistory = {
         id: `hist_${fromSeasonYear}_${teamId}`,
         season: fromSeasonYear,
+        technicalEraId: (currentSeason as any).technical_era_id || 'era_2026_active_aerodynamics',
         driversChampion: {
           driverId: driversChampion.id,
           driverName: driversChampion.name,
@@ -532,6 +571,7 @@ export class SeasonTransitionService {
         await pb.collection('season_histories').create({
           season_year: fromSeasonYear,
           team_id: teamId,
+          technical_era_id: historyRecordData.technicalEraId || 'era_2026_active_aerodynamics',
           drivers_champion: historyRecordData.driversChampion,
           constructors_champion: historyRecordData.constructorsChampion,
           final_driver_standings: historyRecordData.finalStandings.drivers,
@@ -988,8 +1028,9 @@ export class SeasonTransitionService {
     teamId: string
     toSeasonYear: number
     fromSeasonId: string
+    technicalEraId?: string
   }): Promise<SeasonModel> {
-    const { teamId, toSeasonYear } = params
+    const { teamId, toSeasonYear, technicalEraId } = params
 
     // Criar nova temporada com 24 rounds e round inicial = 1
     const newSeason = await pb.collection('seasons').create<SeasonModel>({
@@ -998,6 +1039,7 @@ export class SeasonTransitionService {
       total_rounds: 24,
       team_id: teamId,
       is_completed: false,
+      technical_era_id: technicalEraId || 'era_2026_active_aerodynamics',
     })
 
     return newSeason
@@ -1081,6 +1123,26 @@ export class SeasonTransitionService {
 
     const isSuccess = errors.length === 0
 
+    // 8C.1: Consultar estado do regulamento para o audit report
+    let activeRegId = 'reg_2026_baseline'
+    let activatedFutReg: any = null
+    try {
+      const tState = await regulationTimelineService.getTimeline(teamId, toSeason)
+      const act = regulationTimelineService.getActiveRegulation(tState)
+      if (act) activeRegId = act.regulationId
+      const announced = regulationTimelineService.getAnnouncedRegulations(tState)
+      const targetAnn = announced.find((r) => r.effectiveSeason === toSeason)
+      if (targetAnn) {
+        activatedFutReg = {
+          regulationId: targetAnn.regulationId,
+          category: targetAnn.category,
+          effectiveSeason: targetAnn.effectiveSeason,
+        }
+      }
+    } catch {
+      // tolerância
+    }
+
     return {
       transitionId: transitionKey,
       fromSeason,
@@ -1088,6 +1150,8 @@ export class SeasonTransitionService {
       success: isSuccess,
       errors,
       warnings,
+      activeRegulationId: activeRegId,
+      activatedFutureRegulation: activatedFutReg,
       audits: {
         championship: {
           passed: championshipPassed,

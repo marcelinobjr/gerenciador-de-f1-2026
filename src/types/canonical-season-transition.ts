@@ -218,6 +218,7 @@ export interface FinalFinancialCloseReport {
 export interface CanonicalSeasonHistory {
   id: string
   season: number
+  technicalEraId?: string
   driversChampion: {
     driverId: string
     driverName: string
@@ -262,6 +263,12 @@ export interface SeasonTransitionAuditReport {
   success: boolean
   errors: string[]
   warnings: string[]
+  activeRegulationId?: string
+  activatedFutureRegulation?: {
+    regulationId: string
+    category: string
+    effectiveSeason: number
+  } | null
   audits: {
     championship: {
       passed: boolean

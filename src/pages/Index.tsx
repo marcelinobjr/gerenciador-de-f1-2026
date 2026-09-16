@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { standingsService } from '@/services/standingsService'
+import { regulationTimelineService } from '@/services/regulationService'
+import type { TechnicalRegulation } from '@/types/canonical-regulations'
 import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { getCountryFlag } from '@/lib/country-flags'
@@ -39,6 +41,7 @@ import {
   Newspaper,
   CheckSquare,
   Shield,
+  ShieldAlert,
   Gauge,
   Zap,
   Play,
@@ -88,6 +91,8 @@ export default function IndexPage() {
   const [totalGridTeams, setTotalGridTeams] = useState(11)
   const [allConstructorStandings, setAllConstructorStandings] = useState<any[]>([])
   const [allDriverStandings, setAllDriverStandings] = useState<any[]>([])
+  const [upcomingAnnouncedRegulation, setUpcomingAnnouncedRegulation] =
+    useState<TechnicalRegulation | null>(null)
 
   // Ações de desenvolvimento pendentes e adiadas
   const [deferredDecisions, setDeferredDecisions] = useState<Record<string, boolean>>({})
@@ -150,6 +155,24 @@ export default function IndexPage() {
           setTotalGridTeams(standingsResult.constructorStandings?.length || 11)
           setAllConstructorStandings(standingsResult.constructorStandings || [])
           setAllDriverStandings(standingsResult.driverStandings || [])
+        }
+
+        if (team?.id) {
+          try {
+            const tState = await regulationTimelineService.getTimeline(
+              team.id,
+              season?.year || 2026,
+            )
+            const futureRegs = regulationTimelineService.getFutureRegulations(
+              tState,
+              season?.year || 2026,
+            )
+            if (futureRegs.length > 0) {
+              setUpcomingAnnouncedRegulation(futureRegs[0])
+            }
+          } catch {
+            // tolerância
+          }
         }
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err)
@@ -777,6 +800,54 @@ export default function IndexPage() {
           </div>
         </div>
       </section>
+
+      {/* CARD DE ANÚNCIO DE NOVO REGULAMENTO TÉCNICO (REGRA 26) */}
+      {upcomingAnnouncedRegulation && (
+        <section className="rounded-xl bg-gradient-to-r from-[#171206] via-[#1F1709] to-[#0E0C06] border border-amber-500/50 p-3.5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
+              <ShieldAlert className="w-5 h-5 text-amber-400" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-mono font-black uppercase text-amber-400 tracking-wider">
+                  NOVO REGULAMENTO TÉCNICO CONFIRMADO
+                </span>
+                <span className="text-zinc-500">•</span>
+                <span className="text-[10px] font-mono text-zinc-300">
+                  Entrada em Vigor: <strong>{upcomingAnnouncedRegulation.effectiveSeason}</strong>
+                </span>
+                <span className="text-zinc-500">•</span>
+                <span className="text-[10px] font-mono text-amber-300">
+                  Impacto: <strong>{upcomingAnnouncedRegulation.severity}</strong>
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-white leading-tight">
+                {upcomingAnnouncedRegulation.name}
+              </h4>
+              <p className="text-xs text-[#94A3B8] leading-snug">
+                Principais áreas afetadas:{' '}
+                <span className="text-zinc-200 font-medium">
+                  {upcomingAnnouncedRegulation.affectedDomains
+                    .slice(0, 4)
+                    .map((d) => d.toUpperCase())
+                    .join(' / ')}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 flex items-center justify-end">
+            <Link
+              to="/car"
+              className="text-xs font-mono font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <span>Ver Linha do Tempo</span>
+              <span>→</span>
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* ========================================================================= */}
       {/* LINHA 2: DECISÃO EM ABERTO + OBJETIVOS + SITUAÇÃO NO CAMPEONATO           */}
