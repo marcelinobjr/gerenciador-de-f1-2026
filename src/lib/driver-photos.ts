@@ -1,7 +1,7 @@
 // Service for driver photos mapping and URLs
 // Public Dropbox direct URLs for 32 drivers with dl=1
 import bortoletoBundledImg from '@/assets/05-gabrielbortoleto-ed602.png'
-import ricciardoBundledImg from '@/assets/image-73c41.png'
+import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
 
 export interface DriverPhotoInfo {
   filename: string

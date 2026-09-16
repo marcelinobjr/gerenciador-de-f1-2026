@@ -6,7 +6,7 @@
  */
 import { getDriverPhotoSources, normalizeSurname } from '@/lib/driver-photos'
 import { getDriveStoragePhotoUrl, DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
-import ricciardoBundledPoster from '@/assets/image-73c41.png'
+import ricciardoBundledPoster from '@/assets/3-danielricciardo-4d208.jpg'
 
 export function normalizeDriverSurname(fullName: string): string {
   if (!fullName) return ''

@@ -85,7 +85,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
         loading="eager"
         className={cn(
           'w-full h-full object-cover transition-transform duration-300 hover:scale-105',
-          name.toLowerCase().includes('ricciardo') ? 'object-[50%_16%]' : 'object-top',
+          name.toLowerCase().includes('ricciardo') ? 'object-[50%_12%]' : 'object-top',
           imgClassName,
         )}
       />{' '}

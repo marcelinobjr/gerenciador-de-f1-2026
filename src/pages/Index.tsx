@@ -11,8 +11,8 @@ import { getCountryFlag } from '@/lib/country-flags'
 import { formatCurrency } from '@/lib/formatters'
 import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
 import audiCarImg from '@/assets/audi-13288.png'
-import audiGarageHeroImg from '@/assets/image-cd908.png'
-import ricciardoBundledImg from '@/assets/image-73c41.png'
+import audiGarageHeroImg from '@/assets/audi-e9cff.jpg'
+import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
 import { DRIVE_STORAGE_PHOTOS, getDriveStoragePhotoUrl } from '@/lib/drive-storage-photos'
 import { TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
@@ -780,7 +780,7 @@ export default function IndexPage() {
                             className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
                             imgClassName={`w-full h-full object-cover ${
                               driver.name.toLowerCase().includes('ricciardo')
-                                ? 'object-[50%_16%]'
+                                ? 'object-[50%_12%]'
                                 : 'object-top'
                             }`}
                           />
