@@ -801,48 +801,71 @@ export default function IndexPage() {
         </div>
       </section>
 
-      {/* CARD DE ANÚNCIO DE NOVO REGULAMENTO TÉCNICO (REGRA 26) */}
+      {/* CARD DE ANÚNCIO DE NOVO REGULAMENTO TÉCNICO & PREPARAÇÃO 8C.2 */}
       {upcomingAnnouncedRegulation && (
-        <section className="rounded-xl bg-gradient-to-r from-[#171206] via-[#1F1709] to-[#0E0C06] border border-amber-500/50 p-3.5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <section className="rounded-xl bg-gradient-to-r from-[#171206] via-[#1F1709] to-[#0E0C06] border border-amber-500/50 p-3.5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
               <ShieldAlert className="w-5 h-5 text-amber-400" />
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-mono font-black uppercase text-amber-400 tracking-wider">
-                  NOVO REGULAMENTO TÉCNICO CONFIRMADO
+                  REGULAMENTO {upcomingAnnouncedRegulation.effectiveSeason}
                 </span>
                 <span className="text-zinc-500">•</span>
                 <span className="text-[10px] font-mono text-zinc-300">
-                  Entrada em Vigor: <strong>{upcomingAnnouncedRegulation.effectiveSeason}</strong>
+                  Entrada: <strong>{upcomingAnnouncedRegulation.effectiveSeason}</strong>
                 </span>
                 <span className="text-zinc-500">•</span>
                 <span className="text-[10px] font-mono text-amber-300">
                   Impacto: <strong>{upcomingAnnouncedRegulation.severity}</strong>
                 </span>
+                <span className="text-zinc-500">•</span>
+                <span className="text-[10px] font-mono text-cyan-300">
+                  Tempo Restante:{' '}
+                  <strong>
+                    {Math.max(
+                      1,
+                      (upcomingAnnouncedRegulation.effectiveSeason - seasonYear) * 24 -
+                        (currentRound - 1),
+                    )}{' '}
+                    GPs
+                  </strong>
+                </span>
               </div>
               <h4 className="text-sm font-bold text-white leading-tight">
                 {upcomingAnnouncedRegulation.name}
               </h4>
-              <p className="text-xs text-[#94A3B8] leading-snug">
-                Principais áreas afetadas:{' '}
-                <span className="text-zinc-200 font-medium">
-                  {upcomingAnnouncedRegulation.affectedDomains
-                    .slice(0, 4)
-                    .map((d) => d.toUpperCase())
-                    .join(' / ')}
+              <div className="flex flex-wrap items-center gap-3 text-xs text-[#94A3B8]">
+                <span>
+                  Alocação P&D:{' '}
+                  <strong className="text-white">
+                    {(team as any)?.regulation_development_allocation?.currentCarShare ?? 75}% Carro
+                    /{' '}
+                    {(team as any)?.regulation_development_allocation?.futureRegulationShare ?? 25}%
+                    Futuro
+                  </strong>
                 </span>
-              </p>
+                <span>•</span>
+                <span>
+                  Preparação Técnica:{' '}
+                  <strong className="text-amber-300">
+                    {(team as any)?.regulation_preparations?.[
+                      upcomingAnnouncedRegulation.regulationId
+                    ]?.status || 'MINIMAL'}
+                  </strong>
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="shrink-0 flex items-center justify-end">
+          <div className="shrink-0 flex items-center gap-2 justify-end">
             <Link
               to="/car"
-              className="text-xs font-mono font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              className="text-xs font-mono font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"
             >
-              <span>Ver Linha do Tempo</span>
+              <span>Gerenciar Alocação & Pesquisa</span>
               <span>→</span>
             </Link>
           </div>

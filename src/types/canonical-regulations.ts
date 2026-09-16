@@ -328,6 +328,121 @@ export interface ResearchTargetMetadata {
     | 'HEAD_OF_VEHICLE_PERFORMANCE'
 }
 
+export const CANONICAL_RESEARCH_TARGETS: Record<ResearchTargetDomain, ResearchTargetMetadata> = {
+  AERO_CONCEPT: {
+    id: 'AERO_CONCEPT',
+    name: 'Conceito Aerodinâmico Superior',
+    mappedDomain: 'aerodynamics',
+    description:
+      'Estudo fundamental de vórtices frontais, esteira de asa e direcionamento de fluxo superior para a nova era.',
+    baseCostUsd: 2_400_000,
+    baseDurationRounds: 4,
+    requiredFacilities: [
+      { facility: 'cfd', minLevel: 2, weight: 0.5 },
+      { facility: 'wind_tunnel', minLevel: 2, weight: 0.5 },
+    ],
+    requiredStaffRole: 'HEAD_OF_AERODYNAMICS',
+  },
+  FLOOR_PHILOSOPHY: {
+    id: 'FLOOR_PHILOSOPHY',
+    name: 'Filosofia de Assoalho & Efeito Solo',
+    mappedDomain: 'floorGroundEffect',
+    description:
+      'Exploração de túneis Venturi, alturas críticas de selagem e controle de porpoising para o novo regulamento.',
+    baseCostUsd: 2_800_000,
+    baseDurationRounds: 4,
+    requiredFacilities: [
+      { facility: 'wind_tunnel', minLevel: 2, weight: 0.6 },
+      { facility: 'cfd', minLevel: 2, weight: 0.4 },
+    ],
+    requiredStaffRole: 'HEAD_OF_AERODYNAMICS',
+  },
+  COOLING_ARCHITECTURE: {
+    id: 'COOLING_ARCHITECTURE',
+    name: 'Arquitetura de Arrefecimento & Packaging',
+    mappedDomain: 'cooling',
+    description:
+      'Disposição de radiadores, intercoolers e canais internos de dissipação térmica segundo o volume regulamentar.',
+    baseCostUsd: 1_600_000,
+    baseDurationRounds: 3,
+    requiredFacilities: [
+      { facility: 'design_centre', minLevel: 2, weight: 0.6 },
+      { facility: 'manufacturing', minLevel: 1, weight: 0.4 },
+    ],
+    requiredStaffRole: 'CHIEF_DESIGNER',
+  },
+  SUSPENSION_ARCHITECTURE: {
+    id: 'SUSPENSION_ARCHITECTURE',
+    name: 'Cinemática & Geometria de Suspensão',
+    mappedDomain: 'suspension',
+    description:
+      'Estudo de arranjos push/pull rod, controle de anti-dive/anti-squat e estabilização de atitude dinâmica.',
+    baseCostUsd: 1_900_000,
+    baseDurationRounds: 3,
+    requiredFacilities: [
+      { facility: 'design_centre', minLevel: 2, weight: 0.5 },
+      { facility: 'simulator', minLevel: 2, weight: 0.5 },
+    ],
+    requiredStaffRole: 'CHIEF_DESIGNER',
+  },
+  WEIGHT_INTEGRATION: {
+    id: 'WEIGHT_INTEGRATION',
+    name: 'Integração Estrutural & Lastro',
+    mappedDomain: 'weightManagement',
+    description:
+      'Otimização de lâminas de fibra de carbono do monocoque e distribuição de peso ante as metas de peso mínimo.',
+    baseCostUsd: 1_500_000,
+    baseDurationRounds: 3,
+    requiredFacilities: [
+      { facility: 'manufacturing', minLevel: 2, weight: 0.6 },
+      { facility: 'design_centre', minLevel: 2, weight: 0.4 },
+    ],
+    requiredStaffRole: 'CHIEF_DESIGNER',
+  },
+  SIMULATION_CORRELATION: {
+    id: 'SIMULATION_CORRELATION',
+    name: 'Modelos de Simulação & Correlação',
+    mappedDomain: 'simulation',
+    description:
+      'Calibração de algoritmos computacionais e correlação simulador-pista para prever escoamentos sem dados históricos.',
+    baseCostUsd: 2_100_000,
+    baseDurationRounds: 3,
+    requiredFacilities: [
+      { facility: 'cfd', minLevel: 2, weight: 0.4 },
+      { facility: 'simulator', minLevel: 2, weight: 0.6 },
+    ],
+    requiredStaffRole: 'HEAD_OF_VEHICLE_PERFORMANCE',
+  },
+  VEHICLE_DYNAMICS: {
+    id: 'VEHICLE_DYNAMICS',
+    name: 'Balanço & Dinâmica Veicular',
+    mappedDomain: 'vehicleDynamics',
+    description:
+      'Análise de sensibilidade à guinada, transferência de carga transitória e equilíbrio aeromecânico da nova geração.',
+    baseCostUsd: 1_800_000,
+    baseDurationRounds: 3,
+    requiredFacilities: [
+      { facility: 'simulator', minLevel: 2, weight: 0.6 },
+      { facility: 'operations_centre', minLevel: 1, weight: 0.4 },
+    ],
+    requiredStaffRole: 'HEAD_OF_VEHICLE_PERFORMANCE',
+  },
+  PU_INTEGRATION: {
+    id: 'PU_INTEGRATION',
+    name: 'Integração de Monocoque & Powertrain',
+    mappedDomain: 'powerUnitIntegration',
+    description:
+      'Acoplamento estrutural da unidade de potência, caixa de transmissão e subsistemas híbridos ao chassi de nova especificação.',
+    baseCostUsd: 2_200_000,
+    baseDurationRounds: 4,
+    requiredFacilities: [
+      { facility: 'design_centre', minLevel: 2, weight: 0.5 },
+      { facility: 'factory', minLevel: 2, weight: 0.5 },
+    ],
+    requiredStaffRole: 'TECHNICAL_DIRECTOR',
+  },
+}
+
 export interface NextRegulationResearchProject {
   id: string
   teamId: string

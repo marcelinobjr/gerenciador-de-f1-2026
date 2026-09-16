@@ -32,15 +32,19 @@ import {
   Sliders,
 } from 'lucide-react'
 
+import { TeamModel } from '@/types/f1'
+
 interface RegulationSectionProps {
   timeline: RegulationTimelineState
   currentSeasonYear: number
+  team?: TeamModel
   onTimelineChange?: (updatedTimeline: RegulationTimelineState) => void
 }
 
 export const RegulationSection: React.FC<RegulationSectionProps> = ({
   timeline,
   currentSeasonYear,
+  team,
 }) => {
   const [selectedRegulation, setSelectedRegulation] = useState<TechnicalRegulation | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -312,6 +316,37 @@ export const RegulationSection: React.FC<RegulationSectionProps> = ({
                   <span className="text-[10px] text-[#8B98A5] block">INCERTEZA</span>
                   <strong className="text-cyan-400 text-sm block">
                     {selectedRegulation.uncertainty}
+                  </strong>
+                </div>
+              </div>
+
+              {/* STATUS DE PREPARAÇÃO DA EQUIPE (8C.2) */}
+              <div className="p-3.5 rounded-xl bg-[#0F172A] border border-cyan-500/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+                <div>
+                  <span className="text-[10px] text-[#94A3B8] block uppercase">
+                    Preparação da Escuderia
+                  </span>
+                  <strong className="text-amber-300 text-sm">
+                    {(team as any)?.regulation_preparations?.[selectedRegulation.regulationId]
+                      ?.status || 'MINIMAL'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#94A3B8] block uppercase">
+                    Alocação P&D Futuro
+                  </span>
+                  <strong className="text-cyan-300 text-sm">
+                    {(team as any)?.regulation_development_allocation?.futureRegulationShare ?? 25}%
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#94A3B8] block uppercase">
+                    Pesquisas Concluídas
+                  </span>
+                  <strong className="text-white text-sm">
+                    {(team as any)?.regulation_preparations?.[selectedRegulation.regulationId]
+                      ?.completedProjects?.length || 0}{' '}
+                    de 8 targets
                   </strong>
                 </div>
               </div>

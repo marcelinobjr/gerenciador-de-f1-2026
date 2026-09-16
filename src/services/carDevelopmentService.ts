@@ -126,23 +126,40 @@ export class CarDevelopmentService {
    */
   public getEngineeringCapacityStatus(team: TeamModel): {
     totalCapacityPoints: number
+    currentCarCapacityPoints: number
+    futureRegulationCapacityPoints: number
     occupiedCapacityPoints: number
     availableCapacityPoints: number
     maxConcurrentProjects: number
     activeProjectsCount: number
     canStartNewProject: boolean
+    allocation: { currentCarShare: number; futureRegulationShare: number }
     explanation: string
   } {
     const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
     const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
-    // Throughput determina slots simultâneos: 1 a 3 projetos recomendados
+    // Throughput determina slots simultâneos: 1 a 4 projetos
     const maxConcurrentProjects = Math.max(
       1,
       Math.min(4, Math.round(capabilities.developmentThroughput / 25)),
     )
-    // Total de pontos de capacidade (ex: 100 base)
+    // Total de pontos de capacidade de projeto da equipe (ex: ~120-150)
     const totalCapacityPoints = Math.round(capabilities.designCapacity * 1.5)
 
+    // Alocação 8C.2: Por padrão 100% carro atual se não houver regulamento futuro anunciado
+    const allocRecord = (team as any)?.regulation_development_allocation
+    const currentCarShare =
+      typeof allocRecord?.currentCarShare === 'number' ? allocRecord.currentCarShare : 100
+    const futureRegulationShare =
+      typeof allocRecord?.futureRegulationShare === 'number'
+        ? allocRecord.futureRegulationShare
+        : 100 - currentCarShare
+
+    // A capacidade do carro atual é proporcional ao currentCarShare
+    const currentCarCapacityPoints = Math.round((totalCapacityPoints * currentCarShare) / 100)
+    const futureRegulationCapacityPoints = totalCapacityPoints - currentCarCapacityPoints
+
+    // Projetos ativos do carro atual
     const activeProjects = (team.development_projects || []).filter(
       (p) => p.status === 'in_progress',
     )
@@ -150,27 +167,34 @@ export class CarDevelopmentService {
       (acc, p) => acc + (p.engineeringResourceCost || 25),
       0,
     )
-    const availableCapacityPoints = Math.max(0, totalCapacityPoints - occupiedCapacityPoints)
+    const availableCapacityPoints = Math.max(0, currentCarCapacityPoints - occupiedCapacityPoints)
 
     const canStartNewProject =
       activeProjects.length < maxConcurrentProjects && availableCapacityPoints >= 20
 
-    let explanation = `Slots: ${activeProjects.length}/${maxConcurrentProjects} ativos. `
+    let explanation = `Slots: ${activeProjects.length}/${maxConcurrentProjects} ativos. Alocação Carro Atual: ${currentCarShare}%. `
     if (activeProjects.length >= maxConcurrentProjects) {
       explanation += `Capacidade de projetos simultâneos atingida pelo Centro de Design/Fábrica.`
     } else if (availableCapacityPoints < 20) {
-      explanation += `Recursos de engenharia esgotados por projetos concorrentes.`
+      if (currentCarShare < 50) {
+        explanation += `Capacidade para o carro atual restrita pela divisão de foco com o regulamento futuro (${currentCarShare}% alocado).`
+      } else {
+        explanation += `Recursos de engenharia esgotados por projetos concorrentes.`
+      }
     } else {
       explanation += `Capacidade livre para novos conceitos técnicos.`
     }
 
     return {
       totalCapacityPoints,
+      currentCarCapacityPoints,
+      futureRegulationCapacityPoints,
       occupiedCapacityPoints,
       availableCapacityPoints,
       maxConcurrentProjects,
       activeProjectsCount: activeProjects.length,
       canStartNewProject,
+      allocation: { currentCarShare, futureRegulationShare },
       explanation,
     }
   }

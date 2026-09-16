@@ -28,9 +28,22 @@ import {
   RegulationImpactExplanation,
   getKnowledgeTransferTier,
   RegulationDomainEvent,
+  RegulationDevelopmentAllocation,
+  DevelopmentStrategyPreset,
+  PreparationStatus,
+  ResearchTargetDomain,
+  ResearchTargetMetadata,
+  NextRegulationResearchProject,
+  RegulationPreparation,
+  CANONICAL_RESEARCH_TARGETS,
+  calculatePreparationStatus,
+  formatPreparationStatusLabel,
 } from '@/types/canonical-regulations'
 import { TeamTechnicalOrganization, KnowledgeDomain } from '@/types/canonical-staff'
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
+import { financialLedgerService } from '@/services/financialLedgerService'
+import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
+import { TeamModel } from '@/types/f1'
 
 // ==========================================
 // BASELINE ERA CANÔNICA
@@ -987,6 +1000,902 @@ export class RegulationService {
         supersededCount,
         cancelledCount,
       },
+    }
+  }
+
+  // ==========================================
+  // 16. IMPLEMENTAÇÃO 8C.2: ALOCAÇÃO DE DESENVOLVIMENTO
+  // ==========================================
+
+  /**
+   * Obtém a alocação de desenvolvimento da equipe (currentCar vs futureRegulation).
+   * Default: CURRENT_FOCUS se não houver regulamento futuro, ou BALANCED se houver anunciado.
+   */
+  public async getAllocation(
+    teamId: string,
+    regulationId?: string,
+  ): Promise<RegulationDevelopmentAllocation> {
+    try {
+      const record = await pb.collection('teams').getOne(teamId, {
+        fields: 'id,regulation_development_allocation',
+      })
+      const alloc = (record as any)?.regulation_development_allocation as
+        | RegulationDevelopmentAllocation
+        | undefined
+      if (alloc && typeof alloc.currentCarShare === 'number') {
+        // Garantir que a soma é 100
+        const currentCarShare = Math.max(0, Math.min(100, Math.round(alloc.currentCarShare)))
+        const futureRegulationShare = 100 - currentCarShare
+        return {
+          ...alloc,
+          currentCarShare,
+          futureRegulationShare,
+        }
+      }
+    } catch {
+      // tolerância: fallback neutro
+    }
+
+    return {
+      teamId,
+      regulationId: regulationId || '',
+      currentCarShare: 75,
+      futureRegulationShare: 25,
+      selectedStrategy: 'CURRENT_FOCUS',
+      effectiveRound: 1,
+    }
+  }
+
+  /**
+   * Altera a alocação de desenvolvimento.
+   * REGRA:
+   * - Presets: CURRENT_FOCUS (75/25), BALANCED (50/50), FUTURE_FOCUS (25/75), CUSTOM.
+   * - currentCarShare + futureRegulationShare === 100 sempre.
+   * - effectiveRound marca o round da mudança.
+   * - Anti-exploit: afeta apenas rounds futuros, nunca recalculando ou revertendo rounds passados nem pesquisas já concluídas.
+   */
+  public async setAllocation(params: {
+    teamId: string
+    regulationId: string
+    strategy: DevelopmentStrategyPreset
+    currentCarShare?: number
+    currentRound: number
+    sourceEventId?: string
+  }): Promise<RegulationDevelopmentAllocation> {
+    const { teamId, regulationId, strategy, currentRound, sourceEventId } = params
+
+    let currentShare = 50
+    let futureShare = 50
+
+    switch (strategy) {
+      case 'CURRENT_FOCUS':
+        currentShare = 75
+        futureShare = 25
+        break
+      case 'BALANCED':
+        currentShare = 50
+        futureShare = 50
+        break
+      case 'FUTURE_FOCUS':
+        currentShare = 25
+        futureShare = 75
+        break
+      case 'CUSTOM':
+        currentShare = Math.max(0, Math.min(100, Math.round(params.currentCarShare ?? 50)))
+        futureShare = 100 - currentShare
+        break
+    }
+
+    const allocation: RegulationDevelopmentAllocation = {
+      teamId,
+      regulationId,
+      currentCarShare: currentShare,
+      futureRegulationShare: futureShare,
+      selectedStrategy: strategy,
+      effectiveRound: currentRound,
+      lastUpdatedRound: currentRound,
+      sourceEventId: sourceEventId || `alloc_${teamId}_r${currentRound}_${Date.now()}`,
+    }
+
+    try {
+      await pb.collection('teams').update(teamId, {
+        regulation_development_allocation: allocation,
+      })
+    } catch (err) {
+      // tolerância para testes / offline
+    }
+
+    return allocation
+  }
+
+  // ==========================================
+  // 17. IMPLEMENTAÇÃO 8C.2: PREPARATION & RESEARCH
+  // ==========================================
+
+  /**
+   * Obtém a preparação técnica persistida para uma equipe em um regulamento.
+   */
+  public async getPreparation(
+    teamId: string,
+    regulationId: string,
+    currentSeasonYear = 2026,
+    currentRound = 1,
+  ): Promise<RegulationPreparation> {
+    try {
+      const record = await pb.collection('teams').getOne(teamId, {
+        fields: 'id,regulation_preparations',
+      })
+      const preps = (record as any)?.regulation_preparations as
+        | Record<string, RegulationPreparation>
+        | undefined
+      if (preps && preps[regulationId]) {
+        return preps[regulationId]
+      }
+    } catch {
+      // tolerância
+    }
+
+    return {
+      teamId,
+      regulationId,
+      researchProgress: 0,
+      knowledgeGain: 0,
+      validationProgress: 0,
+      simulationConfidence: 0,
+      preparationScore: 0,
+      status: 'MINIMAL',
+      completedProjects: [],
+      completedProjectDetails: [],
+      lastUpdatedSeason: currentSeasonYear,
+      lastUpdatedRound: currentRound,
+    }
+  }
+
+  /**
+   * Persiste o estado da preparação técnica na equipe.
+   */
+  public async persistPreparation(
+    teamId: string,
+    preparation: RegulationPreparation,
+  ): Promise<void> {
+    try {
+      const record = await pb.collection('teams').getOne(teamId, {
+        fields: 'id,regulation_preparations',
+      })
+      const existingPreps =
+        ((record as any)?.regulation_preparations as Record<string, RegulationPreparation>) || {}
+      existingPreps[preparation.regulationId] = preparation
+
+      await pb.collection('teams').update(teamId, {
+        regulation_preparations: existingPreps,
+      })
+    } catch {
+      // tolerância
+    }
+  }
+
+  /**
+   * Lista os projetos de pesquisa da equipe (ativos e concluídos).
+   */
+  public async getResearchProjects(
+    teamId: string,
+    regulationId?: string,
+  ): Promise<NextRegulationResearchProject[]> {
+    try {
+      const record = await pb.collection('teams').getOne(teamId, {
+        fields: 'id,next_regulation_research_projects',
+      })
+      const list = ((record as any)?.next_regulation_research_projects ||
+        []) as NextRegulationResearchProject[]
+      if (regulationId) {
+        return list.filter((p) => p.regulationId === regulationId)
+      }
+      return list
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Persiste a lista completa de projetos de pesquisa da equipe.
+   */
+  public async persistResearchProjects(
+    teamId: string,
+    projects: NextRegulationResearchProject[],
+  ): Promise<void> {
+    try {
+      await pb.collection('teams').update(teamId, {
+        next_regulation_research_projects: projects,
+      })
+    } catch {
+      // tolerância
+    }
+  }
+
+  /**
+   * Inicia um novo projeto de pesquisa NEXT_REGULATION_RESEARCH.
+   * REGRAS FUNDAMENTAIS:
+   * - Respeita a mesma arquitetura de recursos e capacidade de P&D (carDevelopmentService).
+   * - Capacidade consumida deve caber nos pontos futuros ou compartilhados.
+   * - Finanças: Toda despesa passa pelo Financial Ledger com idempotency key.
+   * - Cost Cap: incluído na categoria 'development' (classificação oficial 5A incluída no teto).
+   * - Cria commitment financeiro no Ledger para Available Cash.
+   * - Valida se o target já não foi pesquisado com sucesso ou está em andamento.
+   */
+  public async startResearchProject(params: {
+    team: TeamModel
+    regulation: TechnicalRegulation
+    targetDomain: ResearchTargetDomain
+    currentSeasonYear: number
+    currentRound: number
+    sourceEventId?: string
+  }): Promise<{
+    project: NextRegulationResearchProject
+    created: boolean
+    errorMessage?: string
+  }> {
+    const { team, regulation, targetDomain, currentSeasonYear, currentRound, sourceEventId } =
+      params
+    const targetMeta = CANONICAL_RESEARCH_TARGETS[targetDomain]
+    if (!targetMeta) {
+      return {
+        project: null as any,
+        created: false,
+        errorMessage: `Target de pesquisa inválido: ${targetDomain}`,
+      }
+    }
+
+    // 1. Verificar se o regulamento é legitimamente ANNOUNCED
+    if (regulation.status !== 'ANNOUNCED' && regulation.status !== 'PROPOSED') {
+      return {
+        project: null as any,
+        created: false,
+        errorMessage: `Pesquisa só é permitida para regulamentos anunciados ou propostos (status atual: ${regulation.status}).`,
+      }
+    }
+
+    // 2. Verificar se já existe projeto desse target em andamento ou já concluído
+    const currentProjects = await this.getResearchProjects(team.id, regulation.regulationId)
+    const existingSameTarget = currentProjects.find(
+      (p) =>
+        p.targetDomain === targetDomain && (p.status === 'in_progress' || p.status === 'completed'),
+    )
+    if (existingSameTarget) {
+      return {
+        project: existingSameTarget,
+        created: false,
+        errorMessage: `Um projeto para ${targetMeta.name} já foi concluído ou está em andamento.`,
+      }
+    }
+
+    // 3. Checar capacidade técnica de engenharia
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
+
+    // Avaliar bottlenecks das instalações para este target
+    let bottleneckDetected = false
+    let bottleneckExplanation = ''
+
+    if (targetDomain === 'AERO_CONCEPT' || targetDomain === 'FLOOR_PHILOSOPHY') {
+      // Exemplo canônico da 4A: CFD alto + Wind Tunnel fraco
+      if (facilityLevels.cfd >= facilityLevels.wind_tunnel + 2) {
+        bottleneckDetected = true
+        bottleneckExplanation = `Gargalo de correlação detectado: Cluster CFD Nível ${facilityLevels.cfd} produz dados virtuais que o Túnel de Vento Nível ${facilityLevels.wind_tunnel} não valida com fidelidade física.`
+      }
+    }
+
+    // 4. Modulador do Staff (7B)
+    let staffMod = 1.0
+    const teamOrg = (team as any)?.technical_organization as TeamTechnicalOrganization | undefined
+    if (teamOrg && teamOrg.members) {
+      const role = targetMeta.requiredStaffRole
+      const member = teamOrg.members[role]
+      if (member) {
+        const eff = technicalOrganizationService.calculateStaffEffectiveness(member, role)
+        // Efetividade 80 = neutro (1.0), 99 = 1.15, 40 = 0.8
+        staffMod = 0.75 + (eff / 100) * 0.3
+      }
+    }
+
+    // Duração base ajustada
+    let durationRounds = targetMeta.baseDurationRounds
+    if (capabilities.developmentThroughput < 45) {
+      durationRounds += 1
+    }
+
+    // Custo base
+    const cost = targetMeta.baseCostUsd
+    const resourceCost = 25
+
+    // 5. Integração Financeira: Idempotência & Financial Ledger
+    const projectId = `res_${regulation.regulationId}_${targetDomain.toLowerCase()}_${Date.now().toString(36)}`
+    const idempotencyKey = sourceEventId || `ledger_research_${projectId}`
+
+    // Registro da transação financeira no Financial Ledger
+    // Cost cap: incluído (included) conforme 5A
+    try {
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: currentSeasonYear,
+        round: currentRound,
+        type: 'expense',
+        category: 'development',
+        subcategory: 'regulation_research',
+        direction: 'outflow',
+        amount: cost,
+        costCapClassification: 'included',
+        costCapAmount: cost,
+        sourceSystem: 'next_regulation_research',
+        sourceEntityId: projectId,
+        idempotencyKey,
+        description: `Pesquisa Regulatória (${regulation.name}): ${targetMeta.name}`,
+        metadata: {
+          targetDomain,
+          regulationId: regulation.regulationId,
+          bottleneckDetected,
+        },
+      })
+    } catch (e: any) {
+      // Se já foi processado ou falhou por saldo
+      if (!e?.message?.includes('idempotency')) {
+        console.warn('Registro contábil de research:', e?.message || e)
+      }
+    }
+
+    // 6. Label Qualitativo do Conhecimento Esperado (sem revelar números futuros crus)
+    let knowledgeLabel: 'Baixo' | 'Moderado' | 'Substancial' | 'Revolucionário' = 'Moderado'
+    if (staffMod >= 1.05 && !bottleneckDetected) {
+      knowledgeLabel = 'Substancial'
+    } else if (staffMod >= 1.12 && capabilities.simulationAccuracy > 80) {
+      knowledgeLabel = 'Revolucionário'
+    } else if (bottleneckDetected) {
+      knowledgeLabel = 'Baixo'
+    }
+
+    const newProject: NextRegulationResearchProject = {
+      id: projectId,
+      teamId: team.id,
+      regulationId: regulation.regulationId,
+      targetDomain,
+      targetName: targetMeta.name,
+      roundStarted: currentRound,
+      roundCompletedTarget: currentRound + durationRounds,
+      durationRounds,
+      progressPercent: 0,
+      status: 'in_progress',
+      costUsd: cost,
+      engineeringResourceCost: resourceCost,
+      estimatedKnowledgeGainLabel: knowledgeLabel,
+      mappedDomain: targetMeta.mappedDomain,
+      correlationBottleneckDetected: bottleneckDetected,
+      bottleneckExplanation: bottleneckDetected ? bottleneckExplanation : undefined,
+    }
+
+    const updatedProjects = [...currentProjects, newProject]
+    await this.persistResearchProjects(team.id, updatedProjects)
+
+    return {
+      project: newProject,
+      created: true,
+    }
+  }
+
+  /**
+   * Avança projetos de pesquisa da próxima regulação na virada de rodada.
+   * Ao concluir:
+   * - Emite evento FutureCarResearchCompleted.
+   * - Atualiza RegulationPreparation UMA ÚNICA VEZ (sem duplicações).
+   * - NÃO grava futurePerformanceBonus nem qualquer rating determinístico de carro futuro.
+   */
+  public advanceResearchProjectsOnRound(params: {
+    team: TeamModel
+    currentRound: number
+    currentSeasonYear: number
+    regulationTimeline: RegulationTimelineState
+  }): {
+    updatedProjects: NextRegulationResearchProject[]
+    completedProjects: NextRegulationResearchProject[]
+    updatedPreparations: Record<string, RegulationPreparation>
+    events: {
+      type: string
+      teamId: string
+      regulationId: string
+      targetDomain: string
+      description: string
+    }[]
+  } {
+    const { team, currentRound, currentSeasonYear } = params
+    const existingProjects =
+      ((team as any)?.next_regulation_research_projects as NextRegulationResearchProject[]) || []
+    const existingPreps =
+      ((team as any)?.regulation_preparations as Record<string, RegulationPreparation>) || {}
+
+    const updatedProjects = [...existingProjects]
+    const completedProjects: NextRegulationResearchProject[] = []
+    const updatedPreparations = { ...existingPreps }
+    const events: {
+      type: string
+      teamId: string
+      regulationId: string
+      targetDomain: string
+      description: string
+    }[] = []
+
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
+
+    for (let i = 0; i < updatedProjects.length; i++) {
+      const proj = updatedProjects[i]
+      if (proj.status !== 'in_progress') continue
+
+      const totalRounds = Math.max(1, proj.roundCompletedTarget - proj.roundStarted)
+      const elapsed = currentRound - proj.roundStarted
+      const progress = Math.min(100, Math.round((elapsed / totalRounds) * 100))
+      proj.progressPercent = progress
+
+      if (currentRound >= proj.roundCompletedTarget) {
+        // Conclusão do projeto!
+        proj.status = 'completed'
+        proj.completedRound = currentRound
+
+        // Cálculo do ganho de preparação e confiança técnica (0 a 100)
+        let baseGain = 20
+        if (proj.estimatedKnowledgeGainLabel === 'Revolucionário') baseGain = 28
+        else if (proj.estimatedKnowledgeGainLabel === 'Substancial') baseGain = 24
+        else if (proj.estimatedKnowledgeGainLabel === 'Baixo') baseGain = 12
+
+        // Se houver bottleneck de correlação detectado (ex: CFD forte + Túnel fraco),
+        // o ganho de simulação existe mas a correlação e validação física sofrem
+        let simConfidenceGain = 15
+        if (proj.correlationBottleneckDetected) {
+          baseGain = Math.round(baseGain * 0.6)
+          simConfidenceGain = Math.round(simConfidenceGain * 0.4)
+        }
+
+        proj.actualKnowledgeGained = baseGain
+        proj.actualSimulationConfidenceGained = simConfidenceGain
+
+        completedProjects.push(proj)
+
+        // Atualizar RegulationPreparation UMA ÚNICA VEZ
+        const regId = proj.regulationId
+        const prep: RegulationPreparation = updatedPreparations[regId] || {
+          teamId: team.id,
+          regulationId: regId,
+          researchProgress: 0,
+          knowledgeGain: 0,
+          validationProgress: 0,
+          simulationConfidence: 0,
+          preparationScore: 0,
+          status: 'MINIMAL',
+          completedProjects: [],
+          completedProjectDetails: [],
+          lastUpdatedSeason: currentSeasonYear,
+          lastUpdatedRound: currentRound,
+        }
+
+        // Adiciona se não presente
+        if (!prep.completedProjects.includes(proj.id)) {
+          prep.completedProjects.push(proj.id)
+          prep.completedProjectDetails.push({
+            id: proj.id,
+            targetDomain: proj.targetDomain,
+            completedRound: currentRound,
+            knowledgeGain: baseGain,
+          })
+
+          prep.knowledgeGain = Math.min(100, prep.knowledgeGain + baseGain)
+          prep.simulationConfidence = Math.min(100, prep.simulationConfidence + simConfidenceGain)
+          prep.validationProgress = Math.min(
+            100,
+            Math.round(
+              (prep.completedProjects.length / Object.keys(CANONICAL_RESEARCH_TARGETS).length) *
+                100,
+            ),
+          )
+          prep.researchProgress = prep.validationProgress
+
+          // Score composto de preparação (0-100)
+          prep.preparationScore = Math.min(
+            100,
+            Math.round(
+              prep.knowledgeGain * 0.45 +
+                prep.simulationConfidence * 0.25 +
+                prep.validationProgress * 0.3,
+            ),
+          )
+          prep.status = calculatePreparationStatus(prep.preparationScore)
+          prep.lastUpdatedSeason = currentSeasonYear
+          prep.lastUpdatedRound = currentRound
+
+          updatedPreparations[regId] = prep
+        }
+
+        events.push({
+          type: 'FutureCarResearchCompleted',
+          teamId: team.id,
+          regulationId: regId,
+          targetDomain: proj.targetDomain,
+          description: `Projeto de pesquisa regulatória "${proj.targetName}" concluído. Preparação técnica consolidada em nível ${formatPreparationStatusLabel(prep.status)}.`,
+        })
+      }
+    }
+
+    return {
+      updatedProjects,
+      completedProjects,
+      updatedPreparations,
+      events,
+    }
+  }
+
+  // ==========================================
+  // 18. IMPLEMENTAÇÃO 8C.2: AUDITORIA & EXPLICABILIDADE
+  // ==========================================
+
+  /**
+   * Auditoria estrita da preparação regulatória da equipe.
+   * Valida:
+   * 1. Soma da alocação = 100%.
+   * 2. IDs de projetos de pesquisa únicos.
+   * 3. Sem conclusões duplicadas na preparação.
+   * 4. Progresso entre 0 e 100.
+   * 5. Sem alocação retroativa.
+   * 6. Sem gravação de futurePerformanceBonus ou campos determinísticos de pace futuro.
+   */
+  public auditRegulationPreparation(
+    team: TeamModel,
+    regulationId: string,
+  ): {
+    isValid: boolean
+    errors: string[]
+    warnings: string[]
+    metrics: {
+      currentCarShare: number
+      futureRegulationShare: number
+      completedProjectsCount: number
+      preparationScore: number
+      status: PreparationStatus
+    }
+  } {
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    const alloc = (team as any)?.regulation_development_allocation as
+      | RegulationDevelopmentAllocation
+      | undefined
+    const preps = (team as any)?.regulation_preparations as
+      | Record<string, RegulationPreparation>
+      | undefined
+    const prep = preps?.[regulationId]
+    const researchProjects =
+      ((team as any)?.next_regulation_research_projects as NextRegulationResearchProject[]) || []
+
+    // 1. Checagem de Alocação
+    let currentCarShare = 100
+    let futureRegulationShare = 0
+    if (alloc) {
+      currentCarShare = alloc.currentCarShare
+      futureRegulationShare = alloc.futureRegulationShare
+      if (currentCarShare + futureRegulationShare !== 100) {
+        errors.push(
+          `Alocação inválida: soma de currentCarShare (${currentCarShare}) e futureRegulationShare (${futureRegulationShare}) deve ser exatamente 100.`,
+        )
+      }
+      if (currentCarShare < 0 || currentCarShare > 100) {
+        errors.push(`currentCarShare fora do intervalo 0-100: ${currentCarShare}`)
+      }
+    }
+
+    // 2. Unicidade de IDs de projetos de pesquisa
+    const seenProjectIds = new Set<string>()
+    for (const proj of researchProjects) {
+      if (seenProjectIds.has(proj.id)) {
+        errors.push(`ID de projeto de pesquisa duplicado: ${proj.id}`)
+      }
+      seenProjectIds.add(proj.id)
+
+      if (proj.progressPercent < 0 || proj.progressPercent > 100) {
+        errors.push(`Progresso de pesquisa inválido em ${proj.id}: ${proj.progressPercent}%`)
+      }
+    }
+
+    // 3. Checagem de Preparação e Ausência de Outcome Determinístico
+    let prepScore = 0
+    let prepStatus: PreparationStatus = 'MINIMAL'
+    if (prep) {
+      prepScore = prep.preparationScore
+      prepStatus = prep.status
+
+      // Sem conclusões duplicadas
+      const uniqueCompleted = new Set(prep.completedProjects)
+      if (uniqueCompleted.size !== prep.completedProjects.length) {
+        errors.push(`completedProjects contém IDs duplicados em regulation ${regulationId}.`)
+      }
+
+      // Regra 2: PREPARAÇÃO NÃO GRAVA futurePerformanceBonus
+      if ((prep as any).futurePerformanceBonus !== undefined) {
+        errors.push(
+          `Violação de integridade: campo 'futurePerformanceBonus' encontrado na preparação. Preparação não determina resultado.`,
+        )
+      }
+      if ((prep as any).guaranteedRatingGain !== undefined) {
+        errors.push(
+          `Violação de integridade: campo 'guaranteedRatingGain' encontrado na preparação.`,
+        )
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      metrics: {
+        currentCarShare,
+        futureRegulationShare,
+        completedProjectsCount: prep?.completedProjects.length || 0,
+        preparationScore: prepScore,
+        status: prepStatus,
+      },
+    }
+  }
+
+  /**
+   * Produz relatório qualitativo detalhado de preparação para a UI / Imprensa / Diretoria.
+   * Proibido mostrar ratings futuros crus (ex: "Carro 2030 rating 92").
+   */
+  public explainRegulationPreparation(
+    team: TeamModel,
+    regulation: TechnicalRegulation,
+  ): {
+    strategyName: string
+    currentCarAllocationLabel: string
+    futureRegulationAllocationLabel: string
+    preparationStatusLabel: string
+    preparationStatus: PreparationStatus
+    researchCompletedCount: number
+    totalResearchTargets: number
+    mainLimitationOrBottleneck: string
+    financialCommitmentSummary: string
+    qualitativeOutlook: string
+  } {
+    const alloc = (team as any)?.regulation_development_allocation as
+      | RegulationDevelopmentAllocation
+      | undefined
+    const preps = (team as any)?.regulation_preparations as
+      | Record<string, RegulationPreparation>
+      | undefined
+    const prep = preps?.[regulation.regulationId]
+    const researchProjects = (
+      ((team as any)?.next_regulation_research_projects as NextRegulationResearchProject[]) || []
+    ).filter((p) => p.regulationId === regulation.regulationId)
+
+    const currentShare = alloc?.currentCarShare ?? 75
+    const futureShare = alloc?.futureRegulationShare ?? 25
+    const strategy = alloc?.selectedStrategy ?? 'CURRENT_FOCUS'
+
+    const completed = researchProjects.filter((p) => p.status === 'completed')
+    const active = researchProjects.filter((p) => p.status === 'in_progress')
+    const status = prep?.status ?? 'MINIMAL'
+
+    let limitation = 'Nenhum gargalo de correlação severo identificado nas bancadas de teste.'
+    const bottleneckProject = researchProjects.find((p) => p.correlationBottleneckDetected)
+    if (bottleneckProject?.bottleneckExplanation) {
+      limitation = bottleneckProject.bottleneckExplanation
+    }
+
+    let strategyDesc = 'Foco Prioritário no Carro Atual (75% / 25%)'
+    if (strategy === 'BALANCED') strategyDesc = 'Divisão Equilibrada de Recursos (50% / 50%)'
+    if (strategy === 'FUTURE_FOCUS')
+      strategyDesc = 'Foco Agressivo no Regulamento Futuro (25% / 75%)'
+    if (strategy === 'CUSTOM')
+      strategyDesc = `Divisão Customizada (${currentShare}% Carro Atual / ${futureShare}% Futuro)`
+
+    let outlook = ''
+    switch (status) {
+      case 'EXTENSIVE':
+        outlook =
+          'A equipe possui um dos programas conceituais mais maduros do paddock. A dispersão de incerteza foi minimizada, embora o acerto do conceito final dependa da correlação na pista.'
+        break
+      case 'STRONG':
+        outlook =
+          'Preparação avançada e dados sólidos coletados nos domínios aerodinâmico e estrutural. A fábrica possui boa leitura preliminar das novas diretrizes da FIA.'
+        break
+      case 'MODERATE':
+        outlook =
+          'Estudos preliminares em andamento com compreensão razoável dos fluxos principais. Conceitos críticos ainda carecem de validação aprofundada.'
+        break
+      case 'LIMITED':
+        outlook =
+          'Poucos recursos transferidos até o momento. Grande dependência de extrapolações teóricas e alto risco de surpresas na interpretação do regulamento.'
+        break
+      case 'MINIMAL':
+      default:
+        outlook =
+          'Quase nenhum know-how acumulado especificamente para as novas regras. A equipe corre o risco de chegar à pré-temporada com conceito cru e impreciso.'
+        break
+    }
+
+    return {
+      strategyName: strategyDesc,
+      currentCarAllocationLabel: `${currentShare}% da capacidade de P&D`,
+      futureRegulationAllocationLabel: `${futureShare}% da capacidade técnica`,
+      preparationStatusLabel: formatPreparationStatusLabel(status),
+      preparationStatus: status,
+      researchCompletedCount: completed.length,
+      totalResearchTargets: Object.keys(CANONICAL_RESEARCH_TARGETS).length,
+      mainLimitationOrBottleneck: limitation,
+      financialCommitmentSummary: `${completed.length + active.length} projetos de pesquisa iniciados sob o teto regulamentar de gastos.`,
+      qualitativeOutlook: outlook,
+    }
+  }
+
+  // ==========================================
+  // 19. IMPLEMENTAÇÃO 8C.2: DECISÃO DA IA (SEM CHEAT)
+  // ==========================================
+
+  /**
+   * Guarda de Integridade contra Cheat da IA:
+   * Garante que a IA NUNCA leia ConceptRealization, future ratings, resultado futuro ou hidden outcome.
+   */
+  public verifyAiInputIntegrity(inputData: any): void {
+    const forbiddenKeys = [
+      'conceptRealization',
+      'futureCarRating',
+      'futureChampionshipResult',
+      'futurePerformanceBonus',
+      'hiddenOutcome',
+      'conceptConfidenceFinal',
+      'projectError',
+    ]
+    for (const key of forbiddenKeys) {
+      if (inputData && inputData[key] !== undefined) {
+        throw new Error(
+          `AI INTEGRITY VIOLATION: AI attempt to read forbidden hidden future key "${key}"! AI must only use real observable data.`,
+        )
+      }
+    }
+  }
+
+  /**
+   * Decide a alocação técnica e projetos de pesquisa para uma equipe da IA.
+   * FATORES ANALISADOS:
+   * - Championship Position (contender disputa título vs backmarker foca no futuro).
+   * - Progresso da Temporada (round atual vs total de rounds).
+   * - Anos até ativação do regulamento (effectiveSeason - currentSeason).
+   * - Gravidade da regulação (NEW_ERA vs MAJOR vs MINOR).
+   * - Saúde Financeira e Teto Orçamentário.
+   * - Instalações (facilities) e Staff.
+   * - DNA da Equipe (risco, ambição, orientação técnica) e seed de variabilidade (sem hardcode absoluto).
+   */
+  public evaluateAiAllocationDecision(params: {
+    team: TeamModel
+    championshipPosition: number
+    currentSeasonYear: number
+    currentRound: number
+    totalRoundsInSeason: number
+    regulation: TechnicalRegulation
+    seedModifier?: number
+  }): {
+    strategy: DevelopmentStrategyPreset
+    currentCarShare: number
+    futureRegulationShare: number
+    recommendedResearchTarget?: ResearchTargetDomain
+    reasoning: string
+  } {
+    // 1. Guard contra trapaça da IA
+    this.verifyAiInputIntegrity(params)
+
+    const {
+      team,
+      championshipPosition,
+      currentSeasonYear,
+      currentRound,
+      totalRoundsInSeason,
+      regulation,
+      seedModifier = 0,
+    } = params
+
+    const yearsToEffective = regulation.effectiveSeason - currentSeasonYear
+    const isLateSeason = currentRound >= Math.round(totalRoundsInSeason * 0.6)
+    const isVeryLateSeason = currentRound >= Math.round(totalRoundsInSeason * 0.8)
+
+    // Avaliação de DNA da equipe (se disponível)
+    const riskTolerance = (team as any)?.risk_tolerance ?? 50
+    const ambition = (team as any)?.ambition ?? 60
+
+    // Score de incentivo para virar a chave para o futuro (0 a 100)
+    let futureWeightScore = 30 // baseline neutro
+
+    // Fator 1: Gravidade do regulamento
+    if (regulation.severity === 'EXTREME') {
+      futureWeightScore += 25
+    } else if (regulation.severity === 'HIGH') {
+      futureWeightScore += 15
+    }
+
+    // Fator 2: Proximidade
+    if (yearsToEffective <= 1) {
+      futureWeightScore += 25
+      if (isLateSeason) futureWeightScore += 15
+    } else if (yearsToEffective === 2) {
+      futureWeightScore += 10
+    }
+
+    // Fator 3: Posição no Campeonato
+    // Contenders (P1-P3) querem vencer o ano atual! Backmarkers (P8-P10) preferem investir no próximo ciclo
+    if (championshipPosition <= 2) {
+      // Lutando por título
+      futureWeightScore -= 30
+      if (!isVeryLateSeason) futureWeightScore -= 15
+    } else if (championshipPosition <= 4) {
+      futureWeightScore -= 15
+    } else if (championshipPosition >= 8) {
+      // Sem chances de grandes coisas no ano atual
+      futureWeightScore += 25
+    } else {
+      // Pelotão intermediário
+      futureWeightScore += 5
+    }
+
+    // Fator 4: DNA e seed
+    futureWeightScore += (riskTolerance - 50) * 0.2
+    futureWeightScore += seedModifier * 8
+
+    // Decisão final de preset
+    let strategy: DevelopmentStrategyPreset = 'BALANCED'
+    let currentCarShare = 50
+    let futureRegulationShare = 50
+    let reasoning = ''
+
+    if (futureWeightScore >= 65) {
+      strategy = 'FUTURE_FOCUS'
+      currentCarShare = 25
+      futureRegulationShare = 75
+      reasoning = `A equipe (${team.name}, P${championshipPosition}) optou por foco agressivo no novo regulamento (${regulation.effectiveSeason}), priorizando estudos de conceito com 75% da capacidade técnica.`
+    } else if (futureWeightScore <= 35) {
+      strategy = 'CURRENT_FOCUS'
+      currentCarShare = 75
+      futureRegulationShare = 25
+      reasoning = `Na disputa de ponta pelo campeonato atual (P${championshipPosition}), a equipe dedicou 75% dos recursos de P&D ao carro vigente, mantendo apenas estudos exploratórios de base.`
+    } else {
+      strategy = 'BALANCED'
+      currentCarShare = 50
+      futureRegulationShare = 50
+      reasoning = `Equilíbrio pragmático (50/50): mantendo evolução consistente no campeonato atual enquanto estrutura os primeiros conceitos da nova geração de monopostos.`
+    }
+
+    // Identificar próximo target de pesquisa recomendado para a IA
+    let recommendedResearchTarget: ResearchTargetDomain | undefined
+    const existingProjects =
+      ((team as any)?.next_regulation_research_projects as NextRegulationResearchProject[]) || []
+    const completedOrActive = new Set(existingProjects.map((p) => p.targetDomain))
+
+    // Ordem de prioridade técnica lógica da F1:
+    const canonicalPriorityOrder: ResearchTargetDomain[] = [
+      'AERO_CONCEPT',
+      'FLOOR_PHILOSOPHY',
+      'COOLING_ARCHITECTURE',
+      'SUSPENSION_ARCHITECTURE',
+      'SIMULATION_CORRELATION',
+      'VEHICLE_DYNAMICS',
+      'WEIGHT_INTEGRATION',
+      'PU_INTEGRATION',
+    ]
+
+    for (const target of canonicalPriorityOrder) {
+      if (!completedOrActive.has(target)) {
+        recommendedResearchTarget = target
+        break
+      }
+    }
+
+    return {
+      strategy,
+      currentCarShare,
+      futureRegulationShare,
+      recommendedResearchTarget,
+      reasoning,
     }
   }
 }

@@ -815,6 +815,7 @@ export default function CarPage() {
             <RegulationSection
               timeline={timelineState}
               currentSeasonYear={season?.year ?? 2026}
+              team={team || undefined}
               onTimelineChange={(updated) => setTimelineState(updated)}
             />
           )}

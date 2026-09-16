@@ -45,6 +45,7 @@ import {
   Car,
 } from 'lucide-react'
 import { NewDevelopmentProjectModal } from './NewDevelopmentProjectModal'
+import { RegulationDevelopmentAllocationPanel } from '@/components/RegulationDevelopmentAllocationPanel'
 
 interface CarDevelopmentSectionProps {
   team: TeamModel
@@ -68,6 +69,28 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
   const [isProcessing, setIsProcessing] = useState(false)
 
   // Status de capacidade de engenharia da equipe
+  // Carregamento de regulamento futuro para alocação 8C.2
+  const [futureRegulation, setFutureRegulation] = React.useState<any | null>(null)
+  React.useEffect(() => {
+    let mounted = true
+    const checkRegs = async () => {
+      try {
+        const { regulationTimelineService } = await import('@/services/regulationService')
+        const tState = await regulationTimelineService.getTimeline(team.id, seasonYear)
+        const futureRegs = regulationTimelineService.getFutureRegulations(tState, seasonYear)
+        if (mounted && futureRegs.length > 0) {
+          setFutureRegulation(futureRegs[0])
+        }
+      } catch {
+        // tolerância
+      }
+    }
+    checkRegs()
+    return () => {
+      mounted = false
+    }
+  }, [team.id, seasonYear])
+
   const capacityStatus = carDevelopmentService.getEngineeringCapacityStatus(team)
 
   const projects: DevelopmentProject[] = team.development_projects || []
@@ -259,6 +282,17 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* PAINEL DE ALOCAÇÃO DE DESENVOLVIMENTO 8C.2 (CARRO ATUAL VS PRÓXIMO REGULAMENTO) */}
+      {futureRegulation && (
+        <RegulationDevelopmentAllocationPanel
+          team={team}
+          currentRound={currentRound}
+          seasonYear={seasonYear}
+          futureRegulation={futureRegulation}
+          onAllocationChanged={onRefresh}
+        />
+      )}
+
       {/* HEADER DA SEÇÃO & CONTROLE DE CAPACIDADE DE ENGENHARIA */}
       <div className="p-4 rounded-xl bg-[#090D15]/85 backdrop-blur-md border border-[#1F2733] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
