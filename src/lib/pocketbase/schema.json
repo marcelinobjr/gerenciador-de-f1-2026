@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T01:16:14.909Z",
+  "generatedAt": "2026-09-16T01:56:21.262Z",
   "collections": [
     {
       "name": "users",
@@ -51,7 +51,7 @@
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
         "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && (user_id = @request.auth.id || user_id = '' || @request.auth.role = 'admin')",
         "delete": "@request.auth.id != '' && user_id = @request.auth.id"
       },
       "fields": [
@@ -1800,11 +1800,11 @@
       "name": "financial_ledger",
       "type": "base",
       "apiRules": {
-        "list": "",
-        "view": "",
-        "create": "",
-        "update": "",
-        "delete": ""
+        "list": "@request.auth.id != '' && team_id.user_id = @request.auth.id",
+        "view": "@request.auth.id != '' && team_id.user_id = @request.auth.id",
+        "create": "@request.auth.id != '' && team_id.user_id = @request.auth.id",
+        "update": null,
+        "delete": null
       },
       "fields": [
         {
@@ -1901,7 +1901,7 @@
         {
           "name": "cost_cap_impact",
           "type": "number",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
