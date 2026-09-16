@@ -47,6 +47,9 @@ import {
   formatTireName,
 } from '@/lib/f1-tire-system'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
+import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
+import { carTechnicalService } from '@/services/carTechnicalService'
+import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import {
   getCircuitOvertakeFactor,
   calculateFreeLapPaceSec,
@@ -1014,7 +1017,7 @@ export default function RacePage() {
     }, 1200)
   }
 
-  // Motor Físico das Sessões de Treino Livre e Qualificação
+  // Motor Físico das Sessões de Treino Livre e Qualificação (Fase 1B.1 Canônica)
   const runPracticeQualySession = (
     session: WeekendSession,
     setup: SessionSetupModel,
@@ -1023,6 +1026,23 @@ export default function RacePage() {
     const playerDrivers = drivers.filter((d) => d.team_id === team?.id && d.role !== 'reserva')
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
+    const isQualifyingSession = session.startsWith('q')
+
+    // 1. Resolução canônica de circuito para a rodada atual
+    const circuitProfile = resolveCircuitProfile({ round: currentRound })
+
+    // 2. Resolução canônica dos dados técnicos do carro do jogador
+    const playerEnrichedTech = carTechnicalService.ensureTechnicalData(team)
+    const playerTechAttributes = playerEnrichedTech.technical_attributes
+    const playerChassisRating = playerEnrichedTech.calculated_overall || playerTeamStrength
+    const playerPuSupplier = team?.engine_supplier || 'Audi'
+    const playerPu = OFFICIAL_POWER_UNITS[playerPuSupplier] || OFFICIAL_POWER_UNITS.Audi
+    const playerPuRating = Number(
+      (playerPu.powerRating * 0.6 + playerPu.reliabilityRating * 0.4).toFixed(1),
+    )
+    const playerCarPerfRating = Number(
+      (playerChassisRating * 0.7 + playerPuRating * 0.3).toFixed(1),
+    )
 
     // Avaliar penalidade ou bônus de setup
     const downforcePenalty = Math.abs((setup.wing_level || 6) - (gpInfo.downforceIdeal || 6)) * 0.12
@@ -1038,50 +1058,69 @@ export default function RacePage() {
     const circuitBaseSec = gpInfo.lengthKm * 15.2
 
     // Competidores IA - contrato AICompetitor (strength, carLevel, driver1, driver2)
-    const aiEntries: (SessionTimeResult & { lapTimeSec: number })[] = competitors.flatMap(
-      (ai, aiIdx) => {
-        const driversInTeam = [
-          { d: ai.driver1, slot: 1 },
-          { d: ai.driver2, slot: 2 },
-        ]
-        return driversInTeam.map(({ d, slot }) => {
-          const paceResult = calculateCombinedPace({
-            teamStrength: ai.strengthRating || ai.strength || 75,
-            carLevel: ai.carLevel,
-            driver: {
-              speed: d.speed,
-              consistency: d.consistency,
-              defense: d.defense,
-              rain: d.rain,
-            },
-            weather: 'seco',
-            tireCompound: (session.startsWith('q') ? 'macio' : 'medio') as TireCompound,
-            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
-          })
-          const lapTimeSec =
-            circuitBaseSec - (paceResult.lapScore / 100) * 3.5 + (Math.random() * 0.5 - 0.25)
-          const tireUsed = (session.startsWith('q') ? 'macio' : 'medio') as TireCompound
-          return {
-            position: 0,
-            driverId: `${ai.id}_d${slot}`,
-            driverName: d.name,
-            teamName: ai.name,
-            teamColor: ai.color,
-            isPlayer: false,
-            lapTime: formatLapTime(lapTimeSec),
-            lapTimeSec,
-            gap: '',
-            tire: tireUsed,
-          }
+    const aiEntries: (SessionTimeResult & { lapTimeSec: number })[] = competitors.flatMap((ai) => {
+      const driversInTeam = [
+        { d: ai.driver1, slot: 1 },
+        { d: ai.driver2, slot: 2 },
+      ]
+
+      // Resolução canônica dos atributos técnicos e PU de cada equipe rival IA
+      const aiCleanKey = ai.id.replace('ai_', '')
+      const aiTechData = carTechnicalService.getOrCreateTeamTechnicalData(
+        aiCleanKey,
+        ai.strengthRating || ai.strength || 75,
+        ai.engine,
+      )
+      const aiChassisRating = aiTechData.calculatedOverall
+      const aiSupplier = ai.engine || 'Ferrari'
+      const aiPu = OFFICIAL_POWER_UNITS[aiSupplier] || OFFICIAL_POWER_UNITS.Ferrari
+      const aiPuRating = Number((aiPu.powerRating * 0.6 + aiPu.reliabilityRating * 0.4).toFixed(1))
+      const aiCarPerfRating = Number((aiChassisRating * 0.7 + aiPuRating * 0.3).toFixed(1))
+
+      return driversInTeam.map(({ d, slot }) => {
+        const paceResult = calculateCombinedPace({
+          teamStrength: ai.strengthRating || ai.strength || 75,
+          carLevel: ai.carLevel,
+          driver: {
+            speed: d.speed,
+            consistency: d.consistency,
+            defense: d.defense,
+            rain: d.rain,
+          },
+          weather: 'seco',
+          tireCompound: (isQualifyingSession ? 'macio' : 'medio') as TireCompound,
+          trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+          isQualifying: isQualifyingSession,
+          technicalAttributes: aiTechData.attributes,
+          circuit: circuitProfile,
+          chassisRating: aiChassisRating,
+          powerUnitRating: aiPuRating,
+          carPerformanceRating: aiCarPerfRating,
         })
-      },
-    )
+        const lapTimeSec =
+          circuitBaseSec - (paceResult.lapScore / 100) * 3.5 + (Math.random() * 0.5 - 0.25)
+        const tireUsed = (isQualifyingSession ? 'macio' : 'medio') as TireCompound
+        return {
+          position: 0,
+          driverId: `${ai.id}_d${slot}`,
+          driverName: d.name,
+          teamName: ai.name,
+          teamColor: ai.color,
+          isPlayer: false,
+          lapTime: formatLapTime(lapTimeSec),
+          lapTimeSec,
+          gap: '',
+          tire: tireUsed,
+        }
+      })
+    })
 
     // Pilotos do Jogador
     const playerEntries: (SessionTimeResult & { lapTimeSec: number })[] = playerDrivers.map(
       (pd) => {
         const paceResult = calculateCombinedPace({
-          teamStrength: playerTeamStrength,
+          teamStrength: playerChassisRating,
+          carLevel: team?.chassis_level ?? playerChassisRating,
           driver: {
             speed: pd.speed,
             consistency: pd.consistency,
@@ -1092,6 +1131,12 @@ export default function RacePage() {
           weather: 'seco',
           tireCompound: (setup.tire_compound || 'macio') as TireCompound,
           trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+          isQualifying: isQualifyingSession,
+          technicalAttributes: playerTechAttributes,
+          circuit: circuitProfile,
+          chassisRating: playerChassisRating,
+          powerUnitRating: playerPuRating,
+          carPerformanceRating: playerCarPerfRating,
         })
         const lapTimeSec =
           circuitBaseSec -
