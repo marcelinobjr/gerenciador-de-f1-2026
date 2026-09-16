@@ -55,6 +55,7 @@ import type { RegulationTimelineState } from '@/types/canonical-regulations'
 
 export default function CarPage() {
   const { user, team, season, refreshTeamAndSeason } = useAuth()
+  const currentRound = season?.current_round || 1
 
   const [parts, setParts] = useState<PartModel[]>([])
   const [sponsors, setSponsors] = useState<SponsorModel[]>([])
@@ -650,7 +651,7 @@ export default function CarPage() {
 
         await f1Service.addEvent(
           team.id,
-          `Fornecedor de unidade de potência trocado para ${supplier.name} (Custo: ${formatCurrency(penaltyFee)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
+          `Fornecedor de unidade de potência trocado para ${supplier.name} (Custo: ${formatCurrency(penaltyFee)} | Cost Cap: ${formatCurrency(currentCostCapSpent + penaltyFee)}/${formatCurrency(COST_CAP_LIMIT)}).`,
           'desenvolvimento',
         )
 

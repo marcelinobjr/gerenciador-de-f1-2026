@@ -346,6 +346,23 @@ export interface TireOverheatStatus {
   warning?: string
 }
 
+export function formatTireName(compound?: TireCompound): string {
+  switch (compound) {
+    case 'macio':
+      return 'Macio (C4/Vermelho)'
+    case 'medio':
+      return 'Médio (C3/Amarelo)'
+    case 'duro':
+      return 'Duro (C1/Branco)'
+    case 'intermediario':
+      return 'Intermediário (Verde)'
+    case 'chuva_extrema':
+      return 'Chuva Extrema (Azul)'
+    default:
+      return 'Médio (C3/Amarelo)'
+  }
+}
+
 export interface TireCliffStatus {
   isCliffReached: number // 0 = dentro da janela, > 0 = voltas além do cliff
   isCriticalWindow: boolean // Pneu perto ou após o cliff
