@@ -528,9 +528,10 @@ export default function TeamPage() {
   const { constructorRank, constructorTotalPoints } = useMemo(() => {
     try {
       const standingsResult = standingsService.calculateStandings({
-        currentRound: season?.current_round || 1,
-        seasonYear: season?.year || 2026,
-        userTeamId: team?.id || '',
+        raceResults: [],
+        playerDrivers: titularDrivers,
+        team,
+        season,
       })
       if (standingsResult) {
         return {
@@ -545,7 +546,7 @@ export default function TeamPage() {
       constructorRank: 3,
       constructorTotalPoints: 65,
     }
-  }, [season?.current_round, season?.year, team?.id])
+  }, [titularDrivers, team, season])
 
   // Capacidade Organizacional departamental (Aerodinâmica 72, Engenharia 84, Operações 88, Comercial 79)
   const orgCapacities: DepartmentCapacity = useMemo(() => {
@@ -992,7 +993,7 @@ export default function TeamPage() {
                 bgImage={audiGarageHeroImg}
                 constructorPosition={constructorRank}
                 constructorPoints={constructorTotalPoints}
-                reputation={team?.prestige_rating || 88}
+                reputation={(team as any)?.prestige_rating || (team as any)?.strength || 88}
                 seasonTarget="Top 4"
                 pointsProgress={{ current: constructorTotalPoints, target: 120 }}
                 onOpenDetails={() => setIsAboutModalOpen(true)}
@@ -2299,10 +2300,11 @@ export default function TeamPage() {
             setIsPilotProfileModalOpen(open)
             if (!open) setSelectedPilotForProfile(null)
           }}
-          team={team}
-          onPromoteToReserve={handlePromoteToReserve}
-          onPromoteToTitular={handlePromoteToTitular}
-          onOpenContractModal={(driver) => handleOpenContractModal(driver)}
+          onOpenContractModal={(_pilot) => {
+            setIsPilotProfileModalOpen(false)
+            navigate('/pilotos')
+          }}
+          currentRound={season?.current_round || 1}
         />
       )}
     </div>

@@ -34,7 +34,11 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
   driverId,
   onOpenDriver,
 }) => {
-  const photoUrl = bundledImg || getDriverPhotoSources(driverName).primary
+  const photoUrl =
+    bundledImg ||
+    getDriverPhotoSources(driverName).bundledImg ||
+    getDriverPhotoSources(driverName).localCandidates[0] ||
+    getDriverPhotoSources(driverName).localPath
 
   return (
     <Card className="bg-white border-neutral-200/80 shadow-sm rounded-2xl p-5 overflow-hidden flex flex-col justify-between">
