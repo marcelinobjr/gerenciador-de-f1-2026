@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  Map,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -50,15 +51,16 @@ export interface SidebarNavGroup {
  * 1. Central (/)
  * 2. Equipe (/team)
  * 3. Carro (/car)
- * 4. Desenvolvimento (/car?tab=pd — P&D, peças, engenharia)
- * 5. Infraestrutura (/car — fábrica, simulador, túnel de vento, aviso modal elegante)
- * 6. Comercial & Finanças (/sponsors — patrocinadores, receitas, despesas, teto)
+ * 4. Pistas (/pistas — 24 circuitos canônicos, perfis técnicos, Track Fit)
+ * 5. Desenvolvimento (/car?tab=pd — P&D, peças, engenharia)
+ * 6. Infraestrutura (/infraestrutura — fábrica, simulador, túnel de vento)
+ * 7. Comercial & Finanças (/sponsors — patrocinadores, receitas, despesas, teto)
  *
  * SEÇÃO COMPETIÇÃO:
- * 7. Fim de Semana (/race — treinos, qualy, sprint, corrida)
- * 8. Campeonato (/standings — calendário, classificação, resultados)
- * 9. Paddock (/paddock — todas as equipes, pilotos, staff, mercado, rumores, comparação)
- * 10. Histórico (/historico — temporadas passadas, recordes, títulos, arquivo)
+ * 8. Fim de Semana (/race — treinos, qualy, sprint, corrida)
+ * 9. Campeonato (/standings — calendário, classificação, resultados)
+ * 10. Paddock (/paddock — todas as equipes, pilotos, staff, mercado, rumores, comparação)
+ * 11. Histórico (/historico — temporadas passadas, recordes, títulos, arquivo)
  */
 
 export interface NavSection {
@@ -82,6 +84,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
       { name: 'Equipe', path: '/team', icon: Users },
       { name: 'Pilotos', path: '/pilotos', icon: Users2 },
       { name: 'Carro', path: '/car', icon: Wrench },
+      { name: 'Pistas', path: '/pistas', icon: Map },
       {
         name: 'Desenvolvimento',
         path: '/car',
@@ -109,7 +112,6 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
     ],
   },
 ]
-
 // Lista plana para compatibilidade de rotas
 export const CAREER_NAV_ITEMS = CAREER_NAV_SECTIONS.flatMap((s) => s.items)
 
@@ -118,6 +120,7 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/team': 'Equipe',
   '/pilotos': 'Pilotos da Temporada',
   '/car': 'Carro e Peças',
+  '/pistas': 'Circuitos da Temporada',
   '/infraestrutura': 'Infraestrutura & Instalações',
   '/sponsors': 'Comercial & Finanças',
   '/race': 'Fim de Semana',
