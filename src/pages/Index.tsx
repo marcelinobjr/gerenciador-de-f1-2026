@@ -11,7 +11,9 @@ import { getCountryFlag } from '@/lib/country-flags'
 import { formatCurrency } from '@/lib/formatters'
 import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
 import audiCarImg from '@/assets/audi-13288.png'
-import { DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
+import audiGarageHeroImg from '@/assets/image-cd908.png'
+import ricciardoBundledImg from '@/assets/image-73c41.png'
+import { DRIVE_STORAGE_PHOTOS, getDriveStoragePhotoUrl } from '@/lib/drive-storage-photos'
 import { TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
@@ -19,19 +21,13 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import {
   Wrench,
-  AlertTriangle,
   ChevronRight,
   TrendingUp,
   CloudRain,
   Thermometer,
-  Calendar,
   Users,
   DollarSign,
   Briefcase,
-  CheckCircle2,
-  Clock,
-  Sparkles,
-  ArrowUpRight,
   FileText,
   Shield,
   Loader2,
@@ -202,6 +198,7 @@ export default function IndexPage() {
         consistency: 85,
         morale: 88,
         physical_condition: 92,
+        bundledImg: ricciardoBundledImg,
       },
       {
         id: 'driver-bortoleto',
@@ -438,18 +435,18 @@ export default function IndexPage() {
       {/* ========================================================================= */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* HERO: EQUIPE (Col 8) */}
-        <div className="lg:col-span-8 relative rounded-xl bg-[#11161C] border border-[#E2E8F0]/20 shadow-md overflow-hidden min-h-[220px] sm:min-h-[240px] flex flex-col justify-between text-white">
-          {/* Imagem de Fundo Oficial do Monoposto Audi */}
+        <div className="lg:col-span-8 relative rounded-xl bg-[#0B0E14] border border-[#E2E8F0]/20 shadow-md overflow-hidden min-h-[220px] sm:min-h-[240px] flex flex-col justify-between text-white">
+          {/* Imagem de Fundo Oficial da Garagem Audi Sport F1 Team */}
           <div
-            className="absolute inset-0 bg-cover bg-right sm:bg-[center_right_15%] pointer-events-none opacity-90 transition-transform duration-700"
+            className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_10%] pointer-events-none opacity-85 transition-transform duration-700"
             style={{
-              backgroundImage: `url(${heroCarImage})`,
+              backgroundImage: `url(${audiGarageHeroImg})`,
             }}
           />
 
-          {/* Gradiente escuro da esquerda para a direita para legibilidade */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0C1016] via-[#11161C]/90 to-transparent pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0C1016]/80 via-transparent to-transparent pointer-events-none" />
+          {/* Gradiente escuro lateral da esquerda para a direita para legibilidade dos textos executivos */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#080B10] via-[#0B0E14]/90 sm:via-[#0B0E14]/80 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#080B10]/90 via-transparent to-transparent pointer-events-none" />
 
           {/* Conteúdo sobreposto */}
           <div className="relative z-10 p-5 sm:p-6 space-y-3 max-w-xl">
@@ -781,7 +778,11 @@ export default function IndexPage() {
                             name={driver.name}
                             teamColor={team?.color}
                             className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
-                            imgClassName="w-full h-full object-cover object-top"
+                            imgClassName={`w-full h-full object-cover ${
+                              driver.name.toLowerCase().includes('ricciardo')
+                                ? 'object-[50%_16%]'
+                                : 'object-top'
+                            }`}
                           />
                           <span className="absolute -bottom-1 -right-1 text-xs">{flag}</span>
                         </div>
@@ -1085,29 +1086,82 @@ export default function IndexPage() {
               </Link>
             </div>
 
-            {/* Lista com Miniaturas e Textos Curtos (themed images) */}
+            {/* Lista com Miniaturas Temáticas e Textos Curtos */}
             <div className="space-y-2.5">
               {paddockNews.map((news) => {
-                const isCar =
-                  news.tag === 'CARRO' || news.tag.includes('AERO') || news.tag.includes('TECH')
-                const isDriver = news.tag === 'PILOTO' || news.tag.includes('DRIV')
-                const thumbSrc = isCar
-                  ? audiCarImg
-                  : isDriver
-                    ? DRIVE_STORAGE_PHOTOS['05-Gabriel_Bortoleto.jpg'] ||
-                      DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.png']
-                    : DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.png'] || audiCarImg
+                const textLower = `${news.title} ${news.snippet} ${news.tag}`.toLowerCase()
+
+                // Mapeamento temático conforme especificações do catálogo de estruturas (Drive):
+                // 1. Aerodinâmica / peças -> Asa_Dianteira.jpg, Asa_Traseira.jpg ou Assoalho.jpg
+                // 2. Pit stop / operação de corrida -> Centro_de_Pit_stop.jpg ou Centro_de_operações.jpg
+                // 3. Fábrica / desenvolvimento do carro / túnel / cfd -> Fabrica.jpg, Túnel_de_vento.jpg ou Cluster_CFD.jpg
+                // 4. Piloto / academia -> Academia_de_pilotos.jpg ou foto do piloto
+                let thumbKey = 'Fabrica.jpg'
+
+                if (
+                  textLower.includes('asa') ||
+                  textLower.includes('aerodinâmica') ||
+                  textLower.includes('aero') ||
+                  textLower.includes('peça')
+                ) {
+                  thumbKey = 'Asa_Dianteira.jpg'
+                } else if (
+                  textLower.includes('assoalho') ||
+                  textLower.includes('downforce') ||
+                  textLower.includes('fluxo')
+                ) {
+                  thumbKey = 'Assoalho.jpg'
+                } else if (
+                  textLower.includes('pit') ||
+                  textLower.includes('parada') ||
+                  textLower.includes('operação') ||
+                  textLower.includes('estratégia')
+                ) {
+                  thumbKey = 'Centro_de_Pit_stop.jpg'
+                } else if (textLower.includes('simulador') || textLower.includes('telemetria')) {
+                  thumbKey = 'Simulador.jpg'
+                } else if (
+                  textLower.includes('túnel') ||
+                  textLower.includes('vento') ||
+                  textLower.includes('cfd')
+                ) {
+                  thumbKey = 'Túnel_de_vento.jpg'
+                } else if (
+                  textLower.includes('piloto') ||
+                  textLower.includes('treino') ||
+                  textLower.includes('bortoleto') ||
+                  textLower.includes('ricciardo')
+                ) {
+                  thumbKey = 'Academia_de_pilotos.jpg'
+                } else if (
+                  textLower.includes('fábrica') ||
+                  textLower.includes('longo prazo') ||
+                  textLower.includes('infraestrutura') ||
+                  textLower.includes('equipe')
+                ) {
+                  thumbKey = 'Fabrica.jpg'
+                }
+
+                const thumbSrc =
+                  getDriveStoragePhotoUrl(thumbKey) || DRIVE_STORAGE_PHOTOS[thumbKey] || audiCarImg
 
                 return (
                   <div
                     key={news.id}
                     className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-3 hover:bg-neutral-100 transition-colors cursor-pointer"
                   >
-                    <div className="w-12 h-12 rounded-md bg-neutral-900 border border-[#CBD5E1] shrink-0 overflow-hidden flex items-center justify-center p-0.5">
+                    <div className="w-12 h-12 rounded-md bg-neutral-900 border border-[#CBD5E1] shrink-0 overflow-hidden flex items-center justify-center p-0">
                       <img
                         src={thumbSrc}
-                        alt="Paddock Thumbnail"
-                        className="w-12 h-12 rounded-md object-cover bg-neutral-900"
+                        alt={news.title}
+                        onError={(e) => {
+                          // Fallback neutro sem quebrar o layout
+                          const target = e.currentTarget
+                          if (target.src !== audiCarImg) {
+                            target.src = audiCarImg
+                          }
+                        }}
+                        className="w-full h-full object-cover object-center bg-neutral-900"
                       />
                     </div>
 

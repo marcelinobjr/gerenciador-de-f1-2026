@@ -6,6 +6,7 @@
  */
 import { getDriverPhotoSources, normalizeSurname } from '@/lib/driver-photos'
 import { getDriveStoragePhotoUrl, DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
+import ricciardoBundledPoster from '@/assets/image-73c41.png'
 
 export function normalizeDriverSurname(fullName: string): string {
   if (!fullName) return ''
@@ -123,12 +124,15 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
     }
   }
 
-  // 1. Links hi-res do Google Drive mapeados diretamente (prioridade máxima e uniforme antes de caminhos locais)
+  // 1. Pôster vertical do Daniel Ricciardo registrado como PRIMEIRO candidato absoluto
   if (
     surname === 'ricciardo' ||
     sources.normalizedKey === 'ricciardo' ||
     norm.includes('ricciardo')
   ) {
+    // 1º candidato: asset local importado do bundle
+    addCandidate(ricciardoBundledPoster)
+    // Fallbacks subsequentes: URLs hi-res do Drive
     addCandidate(
       getDriveStoragePhotoUrl('3-Daniel_Ricciardo.png') ||
         DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.png'],
