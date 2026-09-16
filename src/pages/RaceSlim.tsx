@@ -474,24 +474,21 @@ export default function RacePage() {
         parts,
         sponsors,
         currentRound,
-        gpInfo,
-        completedSessions,
-        setups,
-        currentEngine,
-        onProgress: (step) => {
+        alreadyCompletedSessions: completedSessions,
+        onStepProgress: (step) => {
           setSimulationSteps((prev) => [...prev, step])
           setSimulationStepMessage(step.message)
         },
       })
 
-      if (res.success) {
+      if (res && res.report) {
         setWeekendSummaryReport(res.report)
         setWeekendSummaryModalOpen(true)
         await refreshTeamAndSeason()
       } else {
         toast({
           title: 'Erro na Simulação',
-          description: res.error || 'Não foi possível completar a simulação do fim de semana.',
+          description: 'Não foi possível completar a simulação do fim de semana.',
           variant: 'destructive',
         })
       }
@@ -639,9 +636,9 @@ export default function RacePage() {
     try {
       const [d, p, s, c] = await Promise.all([
         f1Service.getDrivers(),
-        f1Service.getParts(),
+        team?.id ? f1Service.getTeamParts(team.id) : Promise.resolve([]),
         f1Service.getSponsors(),
-        f1Service.getCircuits(),
+        f1Service.getAllCircuits(),
       ])
       setDrivers(d)
       setParts(p)
@@ -671,22 +668,18 @@ export default function RacePage() {
   const gpInfo = useMemo(() => {
     const calendarItem = F1_2026_CALENDAR.find((c) => c.round === currentRound)
     if (calendarItem) {
-      const matchedCircuit = circuits.find(
-        (c) =>
-          c.name.toLowerCase().includes(calendarItem.circuit.toLowerCase()) ||
-          calendarItem.circuit.toLowerCase().includes(c.name.toLowerCase()),
-      )
       return {
-        name: calendarItem.gpName,
+        name: calendarItem.name,
         country: calendarItem.country,
         flag: calendarItem.flag,
         circuit: calendarItem.circuit,
         laps: calendarItem.laps || 53,
-        weather: calendarItem.weather || 'seco',
-        downforceIdeal: matchedCircuit?.downforce_level || 6,
-        suspensionIdeal: matchedCircuit?.suspension_stiffness_level || 6,
-        tireAbrasiveness: matchedCircuit?.tire_wear_factor || 6,
-        lengthKm: matchedCircuit?.length_km || 5.2,
+        circuitLengthKm: calendarItem.circuitLengthKm || 5.2,
+        characteristic: calendarItem.characteristic || 'Misto veloz com curvas técnicas',
+        downforceIdeal: calendarItem.downforceIdeal ?? 6,
+        suspensionIdeal: calendarItem.suspensionIdeal ?? 6,
+        tireAbrasiveness: calendarItem.tireAbrasiveness ?? 6,
+        lengthKm: calendarItem.circuitLengthKm || 5.2,
       }
     }
     return {
@@ -695,43 +688,43 @@ export default function RacePage() {
       flag: '🏁',
       circuit: 'Autódromo Internacional',
       laps: 53,
-      weather: 'seco',
+      circuitLengthKm: 5.2,
+      characteristic: 'Circuito misto de alta e média velocidade',
       downforceIdeal: 6,
       suspensionIdeal: 6,
       tireAbrasiveness: 6,
       lengthKm: 5.2,
     }
-  }, [currentRound, circuits])
+  }, [currentRound])
 
   // Gerador Procedural de Previsão do Tempo Dinâmica
   const forecast: WeatherForecast = useMemo(() => {
     const seed = currentRound * 17 + (season?.year || 2026)
     const prob = Math.round(((Math.sin(seed) + 1) / 2) * 100)
-    let condition: 'seco' | 'nublado' | 'chuva_fraca' | 'chuva_forte' = 'seco'
+    let expectedCondition: WeatherForecast['expectedCondition'] = 'Ensolarado'
     let rainStart: number | undefined = undefined
 
     if (prob > 70) {
-      condition = 'chuva_forte'
+      expectedCondition = 'Tempestade'
       rainStart = Math.max(3, Math.floor(gpInfo.laps * 0.25))
-    } else if (prob >= 35) {
-      condition = 'chuva_fraca'
+    } else if (prob >= 50) {
+      expectedCondition = 'Chuva Iminente'
       rainStart = Math.max(5, Math.floor(gpInfo.laps * 0.4))
+    } else if (prob >= 35) {
+      expectedCondition = 'Nublado com risco de chuva'
+      rainStart = Math.max(8, Math.floor(gpInfo.laps * 0.5))
     } else if (prob >= 20) {
-      condition = 'nublado'
+      expectedCondition = 'Parcialmente Nublado'
     }
 
     return {
-      round: currentRound,
-      gpName: gpInfo.name,
-      condition,
+      expectedCondition,
       probability: prob,
       airTemp: Math.round(21 + ((Math.cos(seed) + 1) / 2) * 12),
       trackTemp: Math.round(28 + ((Math.sin(seed * 2) + 1) / 2) * 18),
-      humidity: Math.round(40 + prob * 0.55),
-      windSpeedKmH: Math.round(8 + ((Math.sin(seed * 3) + 1) / 2) * 22),
       rainLapStart: rainStart,
     }
-  }, [currentRound, season?.year, gpInfo.laps, gpInfo.name])
+  }, [currentRound, season?.year, gpInfo.laps])
 
   const weather: TrackWeatherState = useMemo(() => {
     if (forecast.probability > 70) return 'chuva_forte'
@@ -759,22 +752,20 @@ export default function RacePage() {
   // Feedback do Conselheiro de Engenharia de Pista
   const setupFeedback = useMemo(() => {
     const cur = setups[activeSession]
-    return analyzeSetupEngineering(
-      {
-        wing_level: cur.wing_level,
-        suspension_stiffness: cur.suspension_stiffness,
-        pu_electric_ratio: cur.pu_electric_ratio,
-        tire_compound: cur.tire_compound,
-      },
-      {
-        name: gpInfo.circuit,
-        downforce_level: gpInfo.downforceIdeal,
-        suspension_stiffness_level: gpInfo.suspensionIdeal,
-        tire_wear_factor: gpInfo.tireAbrasiveness,
-      },
-      weather,
-    )
-  }, [setups, activeSession, gpInfo, weather])
+    return analyzeSetupEngineering(cur, {
+      round: currentRound,
+      name: gpInfo.name,
+      circuit: gpInfo.circuit,
+      country: gpInfo.country,
+      flag: gpInfo.flag,
+      laps: gpInfo.laps,
+      circuitLengthKm: gpInfo.lengthKm,
+      characteristic: gpInfo.characteristic,
+      downforceIdeal: gpInfo.downforceIdeal,
+      suspensionIdeal: gpInfo.suspensionIdeal,
+      tireAbrasiveness: gpInfo.tireAbrasiveness,
+    })
+  }, [setups, activeSession, gpInfo, currentRound])
 
   // Carga de combustível inicial na corrida (90% a 110%)
   const [raceInitialFuelPct, setRaceInitialFuelPct] = useState<number>(100)
