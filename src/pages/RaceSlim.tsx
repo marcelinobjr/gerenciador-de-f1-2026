@@ -1456,6 +1456,58 @@ export default function RacePage() {
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
 
+    // 1. Resolução canônica de circuito para a corrida ao vivo (Fase 1B.2 Canônica)
+    const circuitProfile = resolveCircuitProfile({ round: currentRound })
+
+    // 2. Pré-computação técnica canônica única antes do loop de voltas:
+    // Jogador:
+    const playerEnrichedTech = carTechnicalService.ensureTechnicalData(team)
+    const playerTechAttributes = playerEnrichedTech.technical_attributes
+    const playerChassisRating = playerEnrichedTech.calculated_overall || playerTeamStrength
+    const playerPuSupplier = team?.engine_supplier || 'Audi'
+    const playerPu = OFFICIAL_POWER_UNITS[playerPuSupplier] || OFFICIAL_POWER_UNITS.Audi
+    const playerPuRating = Number(
+      (playerPu.powerRating * 0.6 + playerPu.reliabilityRating * 0.4).toFixed(1),
+    )
+    const playerCarPerfRating = Number(
+      (playerChassisRating * 0.7 + playerPuRating * 0.3).toFixed(1),
+    )
+
+    // Rivais IA (mapa por teamId computado uma única vez fora do loop):
+    const aiTechMap = new Map<
+      string,
+      {
+        techAttributes: typeof playerTechAttributes
+        chassisRating: number
+        puRating: number
+        carPerfRating: number
+      }
+    >()
+
+    const competitorsList = getAICompetitors()
+    competitorsList.forEach((ai) => {
+      const aiCleanKey = ai.id.replace('ai_', '')
+      const aiTechData = carTechnicalService.getOrCreateTeamTechnicalData(
+        aiCleanKey,
+        ai.strengthRating || ai.strength || 75,
+        ai.engine,
+      )
+      const aiChassisRating = aiTechData.calculatedOverall
+      const aiSupplier = ai.engine || 'Ferrari'
+      const aiPu = OFFICIAL_POWER_UNITS[aiSupplier] || OFFICIAL_POWER_UNITS.Ferrari
+      const aiPuRating = Number((aiPu.powerRating * 0.6 + aiPu.reliabilityRating * 0.4).toFixed(1))
+      const aiCarPerfRating = Number((aiChassisRating * 0.7 + aiPuRating * 0.3).toFixed(1))
+
+      const entry = {
+        techAttributes: aiTechData.attributes,
+        chassisRating: aiChassisRating,
+        puRating: aiPuRating,
+        carPerfRating: aiCarPerfRating,
+      }
+      aiTechMap.set(ai.id, entry)
+      aiTechMap.set(aiCleanKey, entry)
+    })
+
     const rainLap =
       initialWeather === 'seco' && forecast.probability >= 35
         ? forecast.rainLapStart || Math.round(totalLaps * 0.38)
@@ -1832,57 +1884,6 @@ export default function RacePage() {
         entry.lapsOnCurrentTire = (entry.lapsOnCurrentTire || 0) + 1
         entry.fuelRemaining = updatedFuelRemaining
 
-        const basePaceScoreResult = calculateCombinedPace({
-          teamStrength,
-          carLevel: teamStrength,
-          driver: {
-            speed: entry.score,
-            morale: entry.morale,
-            physicalCondition: entry.physicalCondition,
-          },
-          weather: currentWeather,
-          tireCompound: entry.tireCompound || 'medio',
-          lapsOnTire: entry.lapsOnCurrentTire || 0,
-          wearPercent: currentWear,
-          wearMultiplier: entry.wearMultiplier || 1.0,
-          trackAbrasiveness: abrasiveness,
-        })
-        const basePaceScore = basePaceScoreResult.lapScore
-
-        // Aplica modificadores táticos ao score de ritmo da volta:
-        // - Ataque: +3.5 pts de ritmo
-        // - Economizar: -2.5 pts de ritmo
-        // - Ordem de rádio temporária: 'attack' (+3.5), 'preserve' (-2.5)
-        // - Ordem de ritmo ao vivo: 'empurrar' (+2.8 pts), 'segurar' (-2.8 pts)
-        let tacticScoreDelta = 0
-        if (entry.isPlayer) {
-          if (isModActive && tacticalMod.mode === 'attack') {
-            tacticScoreDelta = 3.5
-          } else if (
-            isModActive &&
-            (tacticalMod.mode === 'preserve' || tacticalMod.mode === 'save_fuel')
-          ) {
-            tacticScoreDelta = -2.5
-          } else if (playerTacticThisLap === 'attack') {
-            tacticScoreDelta = 3.5
-          } else if (playerTacticThisLap === 'save_fuel') {
-            tacticScoreDelta = -2.5
-          }
-
-          if (playerPaceOrderThisLap === 'empurrar') {
-            tacticScoreDelta += 2.8
-          } else if (playerPaceOrderThisLap === 'segurar') {
-            tacticScoreDelta -= 2.8
-          }
-        }
-
-        // Bônus/penalidade do perfil de IA
-        let aiProfileDelta = 0
-        if (!entry.isPlayer && entry.aiStrategyProfile) {
-          if (entry.aiStrategyProfile.type === 'agressiva') aiProfileDelta = 1.8
-          else if (entry.aiStrategyProfile.type === 'conservadora') aiProfileDelta = -1.2
-        }
-
         // Modificador de ordem de equipe ativa (FIAÇÃO PARTE 1 - d)
         let teamOrderDeltaSec = 0
         const activeOrderMod = teamOrderPaceModifierRef.current.get(entry.driverId)
@@ -1895,26 +1896,26 @@ export default function RacePage() {
         // Modificador de falha mecânica leve (FIAÇÃO PARTE 1 - b)
         const lightIssuePacePenalty = lightPenaltyMap.get(entry.driverId) || 0
 
-        const finalLapScore = Math.max(
-          10,
-          Math.min(100, basePaceScore + tacticScoreDelta + aiProfileDelta),
-        )
+        // Resolução técnica canônica para o participante (Jogador vs IA)
+        const aiCleanKey = (entry.teamId || '').replace('team_ai_', '').replace('ai_', '')
+        const aiResolved = aiTechMap.get(entry.teamId || '') ||
+          aiTechMap.get(aiCleanKey) || {
+            techAttributes: undefined,
+            chassisRating: 75,
+            puRating: 90,
+            carPerfRating: 79.5,
+          }
 
-        // Delta de degradação térmica e mecânica do pneu
-        const tirePerfDelta = calculateLapPerformanceScoreDelta(
-          entry.tireCompound || 'medio',
-          currentWear,
-          currentWeather,
-          entry.lapsOnCurrentTire || 0,
-          entry.wearMultiplier || 1.0,
-          abrasiveness,
-          currentTrackTemp,
-          playerTacticThisLap === 'attack',
-        )
+        const activeChassisRating = entry.isPlayer ? playerChassisRating : aiResolved.chassisRating
+        const activePuRating = entry.isPlayer ? playerPuRating : aiResolved.puRating
+        const activeCarPerfRating = entry.isPlayer ? playerCarPerfRating : aiResolved.carPerfRating
+        const activeTechAttributes = entry.isPlayer
+          ? playerTechAttributes
+          : aiResolved.techAttributes
 
         const freeLapResult = calculateFreeLapPaceSec({
-          teamStrength,
-          carLevel: teamStrength,
+          teamStrength: activeChassisRating,
+          carLevel: activeChassisRating,
           driver: {
             speed: entry.score,
             morale: entry.morale,
@@ -1934,6 +1935,11 @@ export default function RacePage() {
               : playerTacticThisLap === 'save_fuel'
                 ? 'preserve'
                 : undefined,
+          technicalAttributes: activeTechAttributes,
+          circuit: circuitProfile,
+          chassisRating: activeChassisRating,
+          powerUnitRating: activePuRating,
+          carPerformanceRating: activeCarPerfRating,
         })
 
         const freeLapSec = freeLapResult.freeLapSec + teamOrderDeltaSec + lightIssuePacePenalty
