@@ -509,4 +509,97 @@ describe('Implementação Nº 5A — Finanças, Orçamento, Projeções e Cost C
     const cashSummaryAfterRetry = service.calculateCashSummary(transactionsAfterRetry)
     expect(cashSummaryAfterRetry.cashBalance).toBe(84_035_627 + expectedNet)
   })
+
+  // (83) FLUXO DE CONTRATAÇÃO DE PILOTO EM DriversPage.tsx: postTransaction + syncTeamBudgetCache com chave idempotente
+  it('(83) Micro-Patch 1A.3A: Contratação de piloto registra luvas no Ledger com chave determinística e idempotente sem escrita direta', async () => {
+    const fakeStore = new Map<string, any>()
+    vi.spyOn(service, 'getTransactionByIdempotencyKey').mockImplementation(async (key: string) => {
+      return fakeStore.get(key) || null
+    })
+    vi.spyOn(service, 'getTeamTransactions').mockImplementation(async () => {
+      return Array.from(fakeStore.values())
+    })
+
+    const teamId = 'team_player_audi'
+    const targetDriverId = 'driver_gabriel_bortoleto'
+    const seasonYear = 2026
+    const round = 1
+    const contractMode = 'immediate'
+    const contractRole = 'titular'
+    const proratedSigningFeeUsd = 1_250_000 // 25% de 5M
+
+    // Saldo inicial no Ledger
+    const openingTx = {
+      id: 'tx_opening_2026',
+      team_id: teamId,
+      season_year: seasonYear,
+      round: 0,
+      type: 'opening_balance' as const,
+      category: 'ownerFunding' as const,
+      direction: 'inflow' as const,
+      amount: 50_000_000,
+      cash_impact: 50_000_000,
+      cost_cap_impact: 0,
+      cost_cap_classification: 'excluded' as const,
+      source_system: 'season_opening',
+      idempotency_key: `opening_balance_${teamId}_${seasonYear}`,
+      description: 'Saldo de Abertura 2026',
+      status: 'effective' as const,
+    }
+    fakeStore.set(openingTx.idempotency_key, openingTx)
+
+    // Chave determinística canônica usada em DriversPage.tsx
+    const idempotencyKey = `driver_signing_fee_${teamId}_${targetDriverId}_${seasonYear}_${contractMode}_${contractRole}`
+
+    const executeDriverSigningTransaction = async () => {
+      const postRes = await service.postTransaction({
+        teamId,
+        seasonYear,
+        round,
+        type: 'expense',
+        category: 'driverSalaries',
+        subcategory: 'driver_signing_bonus',
+        direction: 'outflow',
+        amount: proratedSigningFeeUsd,
+        costCapClassification: 'excluded', // Pilotos são excluídos do teto FIA
+        sourceSystem: 'driver_contract_signing',
+        sourceEntityId: targetDriverId,
+        idempotencyKey,
+        description: `Luvas contratuais de assinatura de contrato: Gabriel Bortoleto (${contractRole})`,
+      })
+
+      if (!fakeStore.has(postRes.transaction.idempotency_key)) {
+        fakeStore.set(postRes.transaction.idempotency_key, postRes.transaction)
+      }
+
+      return postRes
+    }
+
+    // 1ª execução (contratação inicial)
+    const firstRun = await executeDriverSigningTransaction()
+    expect(firstRun.wasAlreadyProcessed).toBe(false)
+    expect(firstRun.transaction.amount).toBe(1_250_000)
+    expect(firstRun.transaction.cost_cap_classification).toBe('excluded')
+    expect(firstRun.transaction.cost_cap_impact).toBe(0) // Luvas excluídas do teto FIA
+    expect(firstRun.transaction.cash_impact).toBe(-1_250_000)
+    expect(fakeStore.size).toBe(2) // opening + signing_fee
+
+    // Verifica saldo via Ledger após 1ª execução
+    const txList1 = Array.from(fakeStore.values())
+    const cashSummary1 = service.calculateCashSummary(txList1)
+    expect(cashSummary1.cashBalance).toBe(50_000_000 - 1_250_000) // 48.750.000
+
+    // O cost cap operacional NÃO é impactado por salários/luvas de pilotos
+    const capSummary1 = service.calculateCostCapSummary(txList1)
+    expect(capSummary1.used).toBe(0)
+
+    // 2ª execução (duplo clique / retry na UI de DriversPage.tsx): DEVE SER IDEMPOTENTE
+    const retryRun = await executeDriverSigningTransaction()
+    expect(retryRun.wasAlreadyProcessed).toBe(true)
+    expect(fakeStore.size).toBe(2) // Não criou transação duplicada
+
+    const txList2 = Array.from(fakeStore.values())
+    const cashSummary2 = service.calculateCashSummary(txList2)
+    expect(cashSummary2.cashBalance).toBe(48_750_000) // Saldo estritamente preservado
+  })
 })

@@ -9,6 +9,7 @@ import { DriverNegotiationModal } from '@/components/commercial/DriverNegotiatio
 import { SillySeasonBoard } from '@/components/commercial/SillySeasonBoard'
 import { sillySeasonService } from '@/services/sillySeasonService'
 import { driverContractService } from '@/services/driverContractService'
+import { financialLedgerService } from '@/services/financialLedgerService'
 import { GridSeatStatus, SillySeasonRumor } from '@/types/canonical-driver-market'
 import { MBJ_2026_PILOTS, checkEligibility, getOverallRating } from '@/lib/mbj-drivers-data'
 import { OFFICIAL_F1_ACADEMY_MBJ_2026 } from '@/lib/f1-academy-official-data'
@@ -648,17 +649,17 @@ export default function DriversPage() {
         }
       }
 
-      // 3. Descontar as luvas do orçamento do save do usuário de forma segura (em US$)
-      const updatedBudget = Math.max(0, (team.budget || 0) - proratedSigningFeeUsd)
-
-      // Registro Canônico no Financial Ledger (Luvas / Taxa de Assinatura de Piloto)
+      // 3. Registro Canônico no Financial Ledger (Luvas / Taxa de Assinatura de Piloto)
+      // O Ledger é a única fonte de verdade contábil.
+      // A chave idempotente é determinística por piloto, equipe, temporada e modo/vaga.
+      // O syncTeamBudgetCache reconcilia o espelho/cache team.budget canonicamente.
+      const seasonYear = season?.year || 2026
       if (proratedSigningFeeUsd > 0) {
         try {
-          const { financialLedgerService } = await import('@/services/financialLedgerService')
           await financialLedgerService.postTransaction({
             teamId: team.id,
-            seasonYear: 2026,
-            round: 1,
+            seasonYear,
+            round: currentRound,
             type: 'expense',
             category: 'driverSalaries',
             subcategory: 'driver_signing_bonus',
@@ -667,7 +668,7 @@ export default function DriversPage() {
             costCapClassification: 'excluded', // Salários e luvas de pilotos são excluídos do Cost Cap FIA
             sourceSystem: 'driver_contract_signing',
             sourceEntityId: targetDriverId,
-            idempotencyKey: `signing_fee_${targetDriverId}_${Date.now()}`,
+            idempotencyKey: `driver_signing_fee_${team.id}_${targetDriverId}_${seasonYear}_${contractMode}_${contractRole}`,
             description: `Luvas contratuais de assinatura de contrato: ${selectedPilotForContract.name} (${contractRole})`,
           })
         } catch (finErr) {
@@ -675,9 +676,8 @@ export default function DriversPage() {
         }
       }
 
-      await pb.collection('teams').update(team.id, {
-        budget: updatedBudget,
-      })
+      // Reconciliação canônica do espelho de caixa em team.budget a partir do Ledger
+      await financialLedgerService.syncTeamBudgetCache(team.id, seasonYear)
 
       // 4. Registra evento financeiro/contratual na equipe
       try {
