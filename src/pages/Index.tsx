@@ -376,12 +376,25 @@ export default function IndexPage() {
     setIsProcessingDecision(true)
     try {
       const newLevel = part.level + 1
-      const newBudget = team.budget - cost
-      const newCostCap = (team.cost_cap_spent || 0) + cost
+      const { financialLedgerService } = await import('@/services/financialLedgerService')
+      await financialLedgerService.postTransaction({
+        teamId: team.id,
+        seasonYear: season?.year || 2026,
+        round: currentRound || 1,
+        type: 'expense',
+        category: 'development',
+        subcategory: `decision_upgrade_${part.id}`,
+        direction: 'outflow',
+        amount: cost,
+        costCapClassification: 'included',
+        sourceSystem: 'paddock_decision_upgrade',
+        sourceEntityId: part.id,
+        idempotencyKey: `paddock_decision_${team.id}_${part.id}_lvl_${newLevel}`,
+        description: `Decisão de Diretoria: Produção e evolução de ${part.name} para Spec ${newLevel}.0`,
+      })
 
       await Promise.all([
         f1Service.updatePart(part.id, { level: newLevel }),
-        f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newCostCap }),
         f1Service.addEvent(
           team.id,
           `Decisão aprovada: ${part.name} evoluiu para Spec ${newLevel}.0 por ${formatCurrency(cost)}.`,

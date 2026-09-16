@@ -314,15 +314,28 @@ export default function CarPage() {
           description: `Estouro de ${formatCurrency(breachResult.overspendAmount)} no teto! Punição: -${breachResult.pointsDeducted} pts de construtores e ${breachResult.rdPenaltyRounds} corridas com P&D reduzido.`,
         })
       } else {
-        const newBudget = team.budget - cost
-        const newSpentCap = currentCostCapSpent + cost
+        const { financialLedgerService } = await import('@/services/financialLedgerService')
+        await financialLedgerService.postTransaction({
+          teamId: team.id,
+          seasonYear: season?.year || 2026,
+          round: currentRound || 1,
+          type: 'expense',
+          category: 'development',
+          subcategory: `upgrade_${part.id}`,
+          direction: 'outflow',
+          amount: cost,
+          costCapClassification: 'included',
+          sourceSystem: 'car_rd_upgrade',
+          sourceEntityId: part.id,
+          idempotencyKey: `rd_upgrade_${team.id}_${part.id}_lvl_${newLevel}`,
+          description: `P&D: Aprimoramento de ${part.name} para Nível ${newLevel}`,
+        })
 
         await Promise.all([
           f1Service.updatePart(part.id, { level: newLevel }),
-          f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
           f1Service.addEvent(
             team.id,
-            `P&D: ${part.name} aprimorado para o Nível ${newLevel} por ${formatCurrency(cost)} (Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
+            `P&D: ${part.name} aprimorado para o Nível ${newLevel} por ${formatCurrency(cost)}.`,
             'desenvolvimento',
           ),
         ])
@@ -412,15 +425,28 @@ export default function CarPage() {
           description: `Reparo efetuado violando o teto! Excedente: ${formatCurrency(breachResult.overspendAmount)}. Punição: -${breachResult.pointsDeducted} pontos nos construtores.`,
         })
       } else {
-        const newBudget = team.budget - cost
-        const newSpentCap = currentCostCapSpent + cost
+        const { financialLedgerService } = await import('@/services/financialLedgerService')
+        await financialLedgerService.postTransaction({
+          teamId: team.id,
+          seasonYear: season?.year || 2026,
+          round: currentRound || 1,
+          type: 'expense',
+          category: 'repairs',
+          subcategory: `repair_${part.id}`,
+          direction: 'outflow',
+          amount: cost,
+          costCapClassification: 'included',
+          sourceSystem: 'car_workshop_repair',
+          sourceEntityId: part.id,
+          idempotencyKey: `workshop_repair_${team.id}_${part.id}_${Date.now()}`,
+          description: `Oficina: Revisão e restauração estrutural de ${part.name} a 100%`,
+        })
 
         await Promise.all([
           f1Service.repairPart(part.id),
-          f1Service.updateTeam(team.id, { budget: newBudget, cost_cap_spent: newSpentCap }),
           f1Service.addEvent(
             team.id,
-            `Oficina: ${part.name} restaurada a 100% (Custo: ${formatCurrency(cost)} | Cost Cap: ${formatCurrency(newSpentCap)}/${formatCurrency(COST_CAP_LIMIT)}).`,
+            `Oficina: ${part.name} restaurada a 100% (Custo: ${formatCurrency(cost)}).`,
             'desenvolvimento',
           ),
         ])
@@ -600,13 +626,25 @@ export default function CarPage() {
           description: `Troca de fornecedor acima do teto! Excedente: ${formatCurrency(breachResult.overspendAmount)}. Punição: -${breachResult.pointsDeducted} pontos nos construtores e restrição de P&D por ${breachResult.rdPenaltyRounds} corridas.`,
         })
       } else {
-        const newBudget = team.budget - penaltyFee
-        const newSpentCap = currentCostCapSpent + penaltyFee
+        const { financialLedgerService } = await import('@/services/financialLedgerService')
+        await financialLedgerService.postTransaction({
+          teamId: team.id,
+          seasonYear: season?.year || 2026,
+          round: currentRound || 1,
+          type: 'expense',
+          category: 'development',
+          subcategory: 'engine_supplier_switch',
+          direction: 'outflow',
+          amount: penaltyFee,
+          costCapClassification: 'included',
+          sourceSystem: 'engine_supplier_switch',
+          sourceEntityId: supplier.name,
+          idempotencyKey: `switch_supplier_${team.id}_${supplier.name}_${season?.year || 2026}_${currentRound || 1}`,
+          description: `Troca de fornecedor de motor para ${supplier.name} e adaptação de chassi`,
+        })
 
         await f1Service.updateTeam(team.id, {
           engine_supplier: supplier.name,
-          budget: newBudget,
-          cost_cap_spent: newSpentCap,
         })
 
         await f1Service.addEvent(

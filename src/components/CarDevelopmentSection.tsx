@@ -163,10 +163,8 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
       })
 
       const updatedOrders = [...(team.manufacturing_orders || []), order]
-      const newBudget = (team.budget || 0) - totalCost
-      const newSpentCap = (team.cost_cap_spent || 0) + totalCost
 
-      // Registro Canônico no Financial Ledger (Idempotência e rastreabilidade)
+      // Registro Canônico no Financial Ledger (Idempotência e rastreabilidade — syncTeamBudgetCache atualiza o cache)
       const { financialLedgerService } = await import('@/services/financialLedgerService')
       await financialLedgerService.postTransaction({
         teamId: team.id,
@@ -184,10 +182,9 @@ export const CarDevelopmentSection: React.FC<CarDevelopmentSectionProps> = ({
         description: `Manufatura de ${quantity}x ${spec.specName} (${targetCar})`,
       })
 
+      // Atualiza ordens de manufatura na equipe (o budget e cost_cap_spent foram sincronizados canonicamente pelo ledger)
       await pb.collection('teams').update(team.id, {
         manufacturing_orders: updatedOrders,
-        budget: newBudget,
-        cost_cap_spent: newSpentCap,
       })
 
       await f1Service.addEvent(
