@@ -59,6 +59,7 @@ import { proceduralDriverProgressService } from '@/services/proceduralDriverProg
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
 import { managerEffectService } from '@/services/managerEffectService'
+import { financialLedgerService } from '@/services/financialLedgerService'
 import { TechnicalOrganizationSection } from '@/components/TechnicalOrganizationSection'
 import { MANAGER_DOMAINS } from '@/lib/manager-attribute-domains'
 import {
@@ -617,30 +618,37 @@ export default function TeamPage() {
         return
       }
 
-      // Registro Canônico no Financial Ledger (Multa Rescisória de Piloto)
-      try {
-        const { financialLedgerService } = await import('@/services/financialLedgerService')
-        await financialLedgerService.postTransaction({
-          teamId: team.id,
-          seasonYear: season?.year || 2026,
-          round: season?.current_round || 1,
-          type: 'expense',
-          category: 'penalties',
-          subcategory: 'driver_contract_termination',
-          direction: 'outflow',
-          amount: penaltyCost,
-          costCapClassification: 'excluded', // Multas rescisórias de pilotos são excluídas do Cost Cap
-          sourceSystem: 'driver_termination',
-          sourceEntityId: fireDriver.id,
-          idempotencyKey: `fire_driver_${fireDriver.id}_${Date.now()}`,
-          description: `Multa rescisória de 50% pela dispensa de ${fireDriver.name}`,
-        })
-      } catch (finErr) {
-        console.warn('Erro ao lançar rescisão no FinancialLedger:', finErr)
+      const seasonYear = season?.year || 2026
+      const currentRound = season?.current_round || 1
+
+      // 1. Registro Canônico no Financial Ledger (Multa Rescisória de Piloto)
+      // O Ledger é a única fonte de verdade contábil.
+      // A chave idempotente é determinística por equipe, piloto, temporada e rodada.
+      // O syncTeamBudgetCache reconcilia o espelho/cache team.budget canonicamente — sem escrita direta.
+      if (penaltyCost > 0) {
+        try {
+          await financialLedgerService.postTransaction({
+            teamId: team.id,
+            seasonYear,
+            round: currentRound,
+            type: 'expense',
+            category: 'penalties',
+            subcategory: 'driver_contract_termination',
+            direction: 'outflow',
+            amount: penaltyCost,
+            costCapClassification: 'excluded', // Multas rescisórias de pilotos são excluídas do Cost Cap FIA
+            sourceSystem: 'driver_termination',
+            sourceEntityId: fireDriver.id,
+            idempotencyKey: `driver_termination_fee_${team.id}_${fireDriver.id}_${seasonYear}_r${currentRound}`,
+            description: `Multa rescisória de 50% pela dispensa de ${fireDriver.name}`,
+          })
+        } catch (finErr) {
+          console.warn('Erro ao lançar rescisão no FinancialLedger:', finErr)
+        }
       }
 
-      const updatedBudget = team.budget - penaltyCost
-      await f1Service.updateTeam(team.id, { budget: updatedBudget })
+      // Reconciliação canônica do espelho de caixa em team.budget a partir do Ledger (sem escrita direta)
+      await financialLedgerService.syncTeamBudgetCache(team.id, seasonYear)
       await f1Service.fireDriver(fireDriver.id)
 
       await f1Service.addEvent(
@@ -655,8 +663,8 @@ export default function TeamPage() {
       })
 
       setFireDriver(null)
-      refreshTeamAndSeason()
-      loadData()
+      await refreshTeamAndSeason()
+      await loadData()
     } catch (err: any) {
       toast({
         variant: 'destructive',

@@ -602,4 +602,97 @@ describe('Implementação Nº 5A — Finanças, Orçamento, Projeções e Cost C
     const cashSummary2 = service.calculateCashSummary(txList2)
     expect(cashSummary2.cashBalance).toBe(48_750_000) // Saldo estritamente preservado
   })
+
+  // (84) FLUXO DE DISPENSA/RESCISÃO DE PILOTO EM Team.tsx: postTransaction + syncTeamBudgetCache com chave idempotente
+  it('(84) Micro-Patch 1A.3B: Dispensa de piloto registra multa rescisória no Ledger com chave determinística e idempotente sem escrita direta', async () => {
+    const fakeStore = new Map<string, any>()
+    vi.spyOn(service, 'getTransactionByIdempotencyKey').mockImplementation(async (key: string) => {
+      return fakeStore.get(key) || null
+    })
+    vi.spyOn(service, 'getTeamTransactions').mockImplementation(async () => {
+      return Array.from(fakeStore.values())
+    })
+
+    const teamId = 'team_player_audi'
+    const firedDriverId = 'driver_valtteribottas'
+    const seasonYear = 2026
+    const round = 1
+    const penaltyCost = 3_750_000 // 50% de 7.5M
+
+    // Saldo inicial no Ledger
+    const openingTx = {
+      id: 'tx_opening_2026',
+      team_id: teamId,
+      season_year: seasonYear,
+      round: 0,
+      type: 'opening_balance' as const,
+      category: 'ownerFunding' as const,
+      direction: 'inflow' as const,
+      amount: 50_000_000,
+      cash_impact: 50_000_000,
+      cost_cap_impact: 0,
+      cost_cap_classification: 'excluded' as const,
+      source_system: 'season_opening',
+      idempotency_key: `opening_balance_${teamId}_${seasonYear}`,
+      description: 'Saldo de Abertura 2026',
+      status: 'effective' as const,
+    }
+    fakeStore.set(openingTx.idempotency_key, openingTx)
+
+    // Chave determinística canônica usada em Team.tsx
+    const idempotencyKey = `driver_termination_fee_${teamId}_${firedDriverId}_${seasonYear}_r${round}`
+
+    const executeDriverTerminationTransaction = async () => {
+      const postRes = await service.postTransaction({
+        teamId,
+        seasonYear,
+        round,
+        type: 'expense',
+        category: 'penalties',
+        subcategory: 'driver_contract_termination',
+        direction: 'outflow',
+        amount: penaltyCost,
+        costCapClassification: 'excluded', // Multas rescisórias de pilotos são excluídas do Cost Cap FIA
+        sourceSystem: 'driver_termination',
+        sourceEntityId: firedDriverId,
+        idempotencyKey,
+        description: 'Multa rescisória de 50% pela dispensa de Valtteri Bottas',
+      })
+
+      if (!fakeStore.has(postRes.transaction.idempotency_key)) {
+        fakeStore.set(postRes.transaction.idempotency_key, postRes.transaction)
+      }
+
+      return postRes
+    }
+
+    // 1ª execução (dispensa inicial)
+    const firstRun = await executeDriverTerminationTransaction()
+    expect(firstRun.wasAlreadyProcessed).toBe(false)
+    expect(firstRun.transaction.amount).toBe(3_750_000)
+    expect(firstRun.transaction.category).toBe('penalties')
+    expect(firstRun.transaction.subcategory).toBe('driver_contract_termination')
+    expect(firstRun.transaction.cost_cap_classification).toBe('excluded')
+    expect(firstRun.transaction.cost_cap_impact).toBe(0) // Multas de pilotos excluídas do Cost Cap FIA
+    expect(firstRun.transaction.cash_impact).toBe(-3_750_000)
+    expect(fakeStore.size).toBe(2) // opening + termination_fee
+
+    // Verifica saldo via Ledger após 1ª execução
+    const txList1 = Array.from(fakeStore.values())
+    const cashSummary1 = service.calculateCashSummary(txList1)
+    expect(cashSummary1.cashBalance).toBe(50_000_000 - 3_750_000) // 46.250.000
+
+    // O cost cap operacional NÃO é impactado por penalidades de rescisão de piloto
+    const capSummary1 = service.calculateCostCapSummary(txList1)
+    expect(capSummary1.used).toBe(0)
+
+    // 2ª execução (duplo clique / retry na UI de Team.tsx): DEVE SER IDEMPOTENTE
+    const retryRun = await executeDriverTerminationTransaction()
+    expect(retryRun.wasAlreadyProcessed).toBe(true)
+    expect(fakeStore.size).toBe(2) // Não criou transação duplicada
+
+    const txList2 = Array.from(fakeStore.values())
+    const cashSummary2 = service.calculateCashSummary(txList2)
+    expect(cashSummary2.cashBalance).toBe(46_250_000) // Saldo estritamente preservado
+  })
 })
