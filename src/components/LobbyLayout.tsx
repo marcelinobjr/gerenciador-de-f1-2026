@@ -159,7 +159,7 @@ export function LobbyLayout() {
 
       {/* Rodapé do Lobby */}
       <footer className="border-t border-[#1F2733] bg-[#11161F]/60 py-3 px-6 text-center text-xs font-mono text-[#8B95A7] flex flex-col sm:flex-row items-center justify-between gap-2">
-        <span>F1 MANAGER 2026 • Fase 2 (Wizard de Criação de Carreira) • v0.0.143</span>
+        <span>APEX GP Manager • Temporada 2026</span>
         <span>FIA Formula 1 World Championship™ Simulation • Skip Cloud</span>
       </footer>
 

@@ -52,7 +52,7 @@ export function SettingsModal({
         {/* Header do Modal */}
         <div className="p-5 border-b border-[#1F2733] bg-[#0E131B]">
           <DialogHeader>
-            <div className="eyebrow text-[#8B95A7]">Sistema de Gestão F1 2026</div>
+            <div className="eyebrow text-[#8B95A7]">APEX GP Manager</div>
             <DialogTitle className="text-xl font-bold tracking-tight text-[#F5F7FA]">
               Configurações
             </DialogTitle>

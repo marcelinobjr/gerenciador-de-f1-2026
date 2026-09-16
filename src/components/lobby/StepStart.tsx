@@ -51,7 +51,7 @@ export function StepStart({
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-[#F5F7FA]">
-          F1 MANAGER <span className="text-[#E10600]">2026</span>
+          APEX GP <span className="text-[#E10600]">Manager</span>
         </h1>
 
         <p className="text-base sm:text-lg text-[#8B95A7] max-w-2xl mx-auto leading-relaxed">

@@ -181,13 +181,11 @@ export default function AuthPage() {
           <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#E10600] text-white mb-1 shadow-md shadow-[#E10600]/20">
             <Flag className="w-5 h-5" />
           </div>
-          <div className="eyebrow text-[#8B95A7]">RACE OPERATIONS // ACESSO</div>
+          <div className="eyebrow text-[#8B95A7]">APEX GP MANAGER // ACESSO</div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[#F5F7FA]">
-            F1 Manager 2026
+            APEX GP Manager
           </h1>
-          <p className="text-xs text-[#8B95A7]">
-            Temporada de nova era • Unidade 50/50 & aero ativa
-          </p>
+          <p className="text-xs text-[#8B95A7]">Gestão Executiva de Motorsport • Temporada 2026</p>
         </div>
 
         {/* Seed credential alert banner */}
@@ -377,7 +375,7 @@ export default function AuthPage() {
 
         {/* Footer info */}
         <div className="mt-6 text-center text-xs text-[#8B95A7]">
-          <p>FIA Formula One World Championship™ 2026 Management</p>
+          <p>APEX GP Manager • Gestão Profissional de Motorsport</p>
         </div>
       </div>
     </div>

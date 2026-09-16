@@ -30,6 +30,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import apexLogoImg from '@/assets/apex-gp-manager-logo-3bf8a.jpg'
 
 export interface SidebarNavGroup {
   id: string
@@ -78,13 +79,17 @@ export interface NavSection {
 
 export const CAREER_NAV_SECTIONS: NavSection[] = [
   {
-    title: 'GESTÃO',
+    title: 'PRINCIPAL',
     items: [
       { name: 'Central', path: '/', icon: LayoutDashboard },
       { name: 'Equipe', path: '/team', icon: Users },
       { name: 'Pilotos', path: '/pilotos', icon: Users2 },
       { name: 'Carro', path: '/car', icon: Wrench },
-      { name: 'Pistas', path: '/pistas', icon: Map },
+    ],
+  },
+  {
+    title: 'PERFORMANCE',
+    items: [
       {
         name: 'Desenvolvimento',
         path: '/car',
@@ -92,22 +97,23 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
         isNotice: true,
         noticeTitle: 'Desenvolvimento (P&D & Engenharia)',
         noticeDesc:
-          'O fluxo de engenharia aeronáutica, CFD e fabricação rápida é operado através do painel de Carro & Peças. Você pode aprimorar qualquer componente do monoposto.',
+          'O fluxo de engenharia aerodinâmica, CFD e fabricação rápida é operado através do painel de Carro & Peças. Você pode aprimorar qualquer componente do monoposto.',
       },
       {
         name: 'Infraestrutura',
         path: '/infraestrutura',
         icon: Building2,
       },
-      { name: 'Comercial & Finanças', path: '/sponsors', icon: DollarSign },
+      { name: 'Fim de Semana', path: '/race', icon: Flag },
+      { name: 'Pistas', path: '/pistas', icon: Map },
     ],
   },
   {
-    title: 'COMPETIÇÃO',
+    title: 'GESTÃO',
     items: [
-      { name: 'Fim de Semana', path: '/race', icon: Flag },
-      { name: 'Campeonato', path: '/standings', icon: Trophy },
+      { name: 'Comercial & Finanças', path: '/sponsors', icon: DollarSign },
       { name: 'Paddock', path: '/paddock', icon: Users },
+      { name: 'Campeonato', path: '/standings', icon: Trophy },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
     ],
   },
@@ -185,33 +191,34 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'h-screen flex flex-col bg-[#0A0D12] border-r border-[#1C2330] select-none transition-[width] duration-200 ease-in-out text-[#F5F7FA]',
-        collapsed ? 'w-16' : 'w-[240px]',
+        'h-screen flex flex-col bg-[#11161C] border-r border-[#1F2732] select-none transition-[width] duration-200 ease-in-out text-[#F5F7FA]',
+        collapsed ? 'w-16' : 'w-[244px]',
         className,
       )}
     >
-      {/* Topo da Sidebar: Identidade Audi F1 dark theme */}
-      <div className="h-14 px-3.5 border-b border-[#1C2330] flex items-center justify-between shrink-0 bg-[#0E1218]">
+      {/* Topo da Sidebar: Logo oficial APEX GP Manager */}
+      <div className="h-16 px-3.5 border-b border-[#1F2732] flex items-center justify-between shrink-0 bg-[#0D1117]">
         <NavLink
           to="/"
           onClick={onItemClick}
           className="flex items-center gap-2.5 overflow-hidden group focus:outline-none min-w-0"
-          title={`${teamName} • F1 ${season?.year || 2026}`}
+          title="APEX GP Manager"
         >
-          {/* Badge / Logo estilizado F1 */}
           <div className="relative shrink-0 flex items-center justify-center">
-            <div className="w-8 h-8 rounded-md bg-[#161D29] border border-[#232D3F] flex items-center justify-center font-black text-xs text-[#E10600] tracking-tighter">
-              <span className="font-mono">F1</span>
-            </div>
+            <img
+              src={apexLogoImg}
+              alt="APEX GP Manager Logo"
+              className="w-9 h-9 rounded-lg object-cover border border-[#2A3442] shadow-sm"
+            />
           </div>
 
           {!collapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-[11px] font-black tracking-wider text-white uppercase truncate font-mono">
-                {teamName}
+              <span className="text-xs font-black tracking-tight text-white uppercase truncate">
+                APEX <span className="text-[#E10600]">GP</span>
               </span>
-              <span className="text-[9px] font-mono tracking-widest text-[#E10600] font-bold">
-                {season?.year || 2026} OPERATIONS
+              <span className="text-[10px] font-mono tracking-wider text-[#94A3B8] font-semibold truncate">
+                MANAGER
               </span>
             </div>
           )}
@@ -273,19 +280,19 @@ export function Sidebar({
                       'relative flex items-center gap-2.5 rounded-lg text-xs font-semibold transition-all duration-150',
                       collapsed ? 'justify-center h-9 w-9 mx-auto px-0' : 'px-2.5 py-2 w-full',
                       isActive
-                        ? 'bg-[#E10600]/15 text-white shadow-sm border border-[#E10600]/30'
-                        : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#121822]',
+                        ? 'bg-[#E10600] text-white shadow-md font-bold'
+                        : 'text-[#94A3B8] hover:text-white hover:bg-[#1A222C]',
                     )}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-[#E10600]" />
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-[3.5px] rounded-r-full bg-white" />
                     )}
 
                     <Icon
                       className={cn(
                         'shrink-0 transition-colors',
                         collapsed ? 'w-4 h-4' : 'w-4 h-4',
-                        isActive ? 'text-[#E10600]' : 'text-[#8B95A7]',
+                        isActive ? 'text-white' : 'text-[#8B95A7]',
                       )}
                     />
 

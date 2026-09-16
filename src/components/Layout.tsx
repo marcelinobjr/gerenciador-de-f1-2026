@@ -64,7 +64,7 @@ export default function Layout() {
   const seasonYear = season?.year || 2026
 
   return (
-    <div className="min-h-screen flex bg-[#07090D] text-[#F5F7FA]">
+    <div className="min-h-screen flex bg-[#F4F5F7] text-[#0F172A]">
       {/* 1. Sidebar desktop fixa à esquerda (≥ lg) */}
       <div className="hidden lg:block shrink-0 sticky top-0 h-screen z-40">
         <Sidebar
@@ -81,10 +81,10 @@ export default function Layout() {
       <Sheet open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
         <SheetContent
           side="left"
-          className="p-0 w-[270px] bg-[#0A0D12] border-[#1C2330] text-[#F5F7FA] sm:max-w-[280px]"
+          className="p-0 w-[270px] bg-[#11161C] border-[#1F2732] text-[#F5F7FA] sm:max-w-[280px]"
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Menu de Navegação F1 Manager</SheetTitle>
+            <SheetTitle>Menu de Navegação APEX GP Manager</SheetTitle>
           </SheetHeader>
           <Sidebar
             collapsed={false}
@@ -102,7 +102,7 @@ export default function Layout() {
       </Sheet>
 
       {/* 3. Coluna Principal: Topbar fixa + Conteúdo + Rodapé */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#07090D]">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-[#F4F5F7]">
         {/* Topbar Fina com métricas em tempo real */}
         <Topbar
           onOpenMobileMenu={() => setMobileDrawerOpen(true)}
@@ -116,7 +116,7 @@ export default function Layout() {
         <main
           className={`flex-1 w-full ${
             location.pathname === '/'
-              ? 'w-full px-2.5 sm:px-4 lg:px-5 py-2.5 sm:py-3'
+              ? 'w-full px-3 sm:px-5 lg:px-6 py-4 sm:py-5 max-w-[1760px] mx-auto'
               : isFullWidthPage
                 ? 'max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-6'
                 : 'max-w-[1200px] mx-auto px-4 sm:px-6 py-6 md:py-8'
@@ -125,17 +125,21 @@ export default function Layout() {
           <Outlet />
         </main>
 
-        {/* Rodapé aprovado: "Audi F1 Team | Temporada 2026" à esquerda, "FASTER. SMARTER. TOGETHER." à direita */}
-        <footer className="w-full border-t border-[#1C2330] bg-[#090C12] py-4 text-xs text-[#8B95A7] mt-auto">
-          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono">
+        {/* Rodapé: APEX GP Manager */}
+        <footer className="w-full border-t border-[#E2E8F0] bg-white py-3.5 text-xs text-[#64748B] mt-auto">
+          <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-white tracking-wider uppercase">{teamName}</span>
-              <span className="text-[#334155]">|</span>
-              <span className="text-[#94A3B8]">Temporada {seasonYear}</span>
+              <span className="font-bold text-[#0F172A] tracking-tight uppercase">
+                APEX GP MANAGER
+              </span>
+              <span className="text-[#CBD5E1]">|</span>
+              <span className="font-medium text-[#475569]">{teamName}</span>
+              <span className="text-[#CBD5E1]">|</span>
+              <span className="text-[#64748B]">Temporada {seasonYear}</span>
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-[#8B95A7]">
-              <span>FASTER, SMARTER, TOGETHER.</span>
+            <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-[#64748B] uppercase">
+              <span>EXECUTIVE MOTORSPORT OPERATIONS</span>
             </div>
           </div>
         </footer>
