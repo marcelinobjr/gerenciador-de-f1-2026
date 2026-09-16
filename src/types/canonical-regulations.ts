@@ -507,3 +507,109 @@ export function formatPreparationStatusLabel(status: PreparationStatus): string 
       return 'MÍNIMA (Minimal)'
   }
 }
+
+// ==========================================
+// 16. IMPLEMENTAÇÃO 8C.3 — CONCEPT REALIZATION, NOVO CARRO & ERRO DE PROJETO
+// ==========================================
+
+export type ConceptApproach = 'CONSERVATIVE' | 'BALANCED' | 'AGGRESSIVE'
+export type ConceptConfidenceLevel = 'LOW' | 'MODERATE' | 'HIGH'
+export type FutureCarStatusStage =
+  | 'CONCEPT_EXPLORATION'
+  | 'VALIDATION'
+  | 'ARCHITECTURE_DEFINED'
+  | 'CONCEPT_LOCKED'
+  | 'FINAL_PREPARATION'
+
+export type RealityCheckStage =
+  | 'PRE_SEASON'
+  | 'GP1_FIRST_SIGNAL'
+  | 'GP2_GP3_EVALUATION'
+  | 'FULL_REVELATION'
+
+/**
+ * ConceptRealization: estado oculto por teamId + regulationId.
+ * NUNCA mostrar valor numérico ao jogador (Regra 2).
+ */
+export interface ConceptRealization {
+  teamId: string
+  regulationId: string
+  seed: number
+  approach: ConceptApproach
+  realizationScore: number // 0-100 oculto (qualidade da interpretação conceitual)
+  structuralPotential: number // baseline derivado de capacidade + staff + infra
+  stochasticDeviation: number // desvio controlado (approach + uncertainty)
+  realizationQualityTier: 'FLAWED' | 'SUBPAR' | 'COMPETITIVE' | 'STRONG' | 'INSPIRATIONAL'
+  confidenceLevel: ConceptConfidenceLevel
+  perceivedRealization: number // estimativa interna da equipe antes da pista
+  correlationGap: number // perceived - realizationScore (se > 12, correlação enganosa)
+  correlationProblemDetected: boolean
+  correlationProblemAcknowledged: boolean
+  stage: FutureCarStatusStage
+  realityCheckStage: RealityCheckStage
+  revealedConfidenceBand: { min: number; max: number }
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface NewCarBaselineResult {
+  teamId: string
+  regulationId: string
+  seasonYear: number
+  chassisRating: number // Derivado dos 12 atributos e pesos
+  powerUnitRating: number // Adaptado da PU
+  carPerformanceRating: number // 70% chassis + 30% PU
+  attributes: Record<string, number> // 12 atributos canônicos
+  powerUnitAdaptation: {
+    supplier: string
+    baselineRating: number
+    reliabilityModifier: number
+    integrationFactor: number // -5 a +5
+  }
+  conceptRealizationSummary: {
+    approach: ConceptApproach
+    confidenceLevel: ConceptConfidenceLevel
+    realityCheckStage: RealityCheckStage
+    correlationProblemDetected: boolean
+  }
+  generatedAt: string
+}
+
+export interface ConceptPivotState {
+  teamId: string
+  regulationId: string
+  seasonYear: number
+  pivotActive: boolean
+  pivotRoundStarted?: number
+  pivotTargetRoundCompleted?: number
+  costUsd: number
+  engineeringCapacitySacrifice: number // 0-100% de perda temporária
+  sunkCostUsd: number
+  potentialRecoveryAmount: number // ganho gradual de realization
+  recoveredAmount: number
+  pivotApproach: ConceptApproach
+  status: 'idle' | 'in_progress' | 'completed'
+}
+
+export interface ExplainNewCarConceptResult {
+  teamId: string
+  regulationId: string
+  seasonYear: number
+  approach: ConceptApproach
+  confidenceLevel: ConceptConfidenceLevel
+  realityCheckStage: RealityCheckStage
+  applicableKnowledgeAverage: number
+  preparationScore: number
+  staffRatingAverage: number
+  infrastructureCapabilityAverage: number
+  simulationAccuracy: number
+  aeroCorrelation: number
+  structuralPotential: number
+  stochasticDeviation: number
+  realizationScoreHidden: number
+  correlationProblemDetected: boolean
+  baselineChassisRating: number
+  baselinePuRating: number
+  baselineCarPerformanceRating: number
+  attributes12: Record<string, number>
+}

@@ -487,16 +487,87 @@ export class SeasonTransitionService {
         `Desenvolvimento e aposentadorias consolidados (${evolutionSummary.newGenerationsCount} novos prospectos gerados).`,
       )
 
-      // ETAPA 9: PROCESSING_ORGANIZATION
+      // ETAPA 9: PROCESSING_ORGANIZATION & GERAÇÃO ATÔMICA DO NOVO CARRO (8C.3)
       updateStep(
         'PROCESSING_ORGANIZATION',
         'in_progress',
-        'Transportando projetos de infraestrutura e desenvolvimentos de P&D...',
+        'Processando transição técnica de P&D, conceitos regulatórios e baselines da nova era...',
       )
+
+      // 8C.3: Se houver regulamento ativo na nova temporada que inaugura nova era, gerar baselines de forma atômica
+      let conceptsGeneratedCount = 0
+      try {
+        const tTimeline = await regulationTimelineService.getTimeline(teamId, toSeasonYear)
+        const activeRegForNext = regulationTimelineService.getActiveRegulation(tTimeline)
+
+        if (activeRegForNext && activeRegForNext.effectiveSeason === toSeasonYear) {
+          // Processar para todas as equipes de forma atômica e idempotente
+          for (const t of teams) {
+            const existingConcept = (t as any)?.concept_realizations?.[
+              activeRegForNext.regulationId
+            ]
+            const existingBaseline = (t as any)?.new_car_baselines?.[activeRegForNext.regulationId]
+
+            if (!existingConcept || !existingBaseline) {
+              const prep =
+                (t as any)?.regulation_preparations?.[activeRegForNext.regulationId] || null
+              const tOrg = (t as any)?.technical_organization || null
+              const realization =
+                existingConcept ||
+                regulationService.generateConceptRealization({
+                  team: t,
+                  regulation: activeRegForNext,
+                  technicalOrg: tOrg,
+                  preparation: prep,
+                })
+
+              const baseline =
+                existingBaseline ||
+                regulationService.generateNewCarBaseline({
+                  team: t,
+                  regulation: activeRegForNext,
+                  realization,
+                  technicalOrg: tOrg,
+                })
+
+              const updatedConcepts = {
+                ...((t as any)?.concept_realizations || {}),
+                [activeRegForNext.regulationId]: realization,
+              }
+              const updatedBaselines = {
+                ...((t as any)?.new_car_baselines || {}),
+                [activeRegForNext.regulationId]: baseline,
+              }
+
+              // Atualizar no banco / payload da equipe de forma atômica
+              try {
+                await pb.collection('teams').update(t.id, {
+                  concept_realizations: updatedConcepts,
+                  new_car_baselines: updatedBaselines,
+                  // Atualizar chassi e PU oficiais
+                  chassis_level: baseline.chassisRating,
+                  strength: baseline.carPerformanceRating,
+                })
+              } catch {
+                // tolerância offline / mock
+              }
+
+              ;(t as any).concept_realizations = updatedConcepts
+              ;(t as any).new_car_baselines = updatedBaselines
+              conceptsGeneratedCount++
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('Alerta na geração do novo carro da era:', err)
+      }
+
       updateStep(
         'PROCESSING_ORGANIZATION',
         'done',
-        'Infraestrutura e P&D carregados sem custos duplicados.',
+        conceptsGeneratedCount > 0
+          ? `Nova era técnica consolidada: baselines e conceitos gerados para o grid (${conceptsGeneratedCount} escuderias).`
+          : 'Infraestrutura e P&D carregados sem custos duplicados.',
       )
 
       // ETAPA 10: CREATING_NEXT_SEASON

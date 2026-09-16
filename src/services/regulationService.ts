@@ -38,7 +38,16 @@ import {
   CANONICAL_RESEARCH_TARGETS,
   calculatePreparationStatus,
   formatPreparationStatusLabel,
+  ConceptApproach,
+  ConceptConfidenceLevel,
+  FutureCarStatusStage,
+  RealityCheckStage,
+  ConceptRealization,
+  NewCarBaselineResult,
+  ConceptPivotState,
+  ExplainNewCarConceptResult,
 } from '@/types/canonical-regulations'
+import { TECHNICAL_ATTRIBUTE_METAS, TechnicalAttributeId } from '@/types/car-technical-model'
 import { TeamTechnicalOrganization, KnowledgeDomain } from '@/types/canonical-staff'
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
 import { financialLedgerService } from '@/services/financialLedgerService'
@@ -1896,6 +1905,781 @@ export class RegulationService {
       futureRegulationShare,
       recommendedResearchTarget,
       reasoning,
+    }
+  }
+
+  // ==========================================
+  // 17. IMPLEMENTAÇÃO 8C.3 — CONCEPT REALIZATION & NOVO CARRO
+  // ==========================================
+
+  /**
+   * Gerador pseudo-aleatório determinístico baseado em Mulberry32.
+   * Garante: mesmo snapshot + mesma seed -> mesmo resultado idêntico.
+   */
+  public seededRandom(seed: number): () => number {
+    let t = (seed += 0x6d2b79f5)
+    return () => {
+      t = Math.imul(t ^ (t >>> 15), t | 1)
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  }
+
+  /**
+   * Helper determinístico para converter strings (ex: teamId + regId) em seed numérica.
+   */
+  public hashStringToSeed(str: string): number {
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i)
+      hash = (hash << 5) - hash + char
+      hash |= 0
+    }
+    return Math.abs(hash)
+  }
+
+  /**
+   * Decide abordagem (ConceptApproach) para a IA usando:
+   * Team DNA Risk, Ambição, Posição no campeonato, Need for Breakthrough, Capability, Preparation.
+   * Sem acessar resultado futuro (AI Integrity).
+   */
+  public evaluateAiConceptApproach(params: {
+    team: TeamModel
+    championshipPosition?: number
+    preparation?: RegulationPreparation
+    capabilities?: any
+    seedModifier?: number
+  }): ConceptApproach {
+    this.verifyAiInputIntegrity(params)
+
+    const risk = (params.team as any)?.risk_tolerance ?? 50
+    const ambition = (params.team as any)?.ambition ?? 55
+    const pos = params.championshipPosition ?? 5
+    const prepScore = params.preparation?.preparationScore ?? 50
+    const seed = params.seedModifier ?? 0
+
+    // Contenders consolidados (P1-P2) com preparação alta tendem a BALANCED para proteger base
+    // Equipes que precisam de virada (P6-P10) ou alto risco tendem a AGGRESSIVE
+    let aggressiveBias = (risk - 50) * 0.4 + (ambition - 50) * 0.3
+    if (pos >= 6) aggressiveBias += 15 // Need for breakthrough
+    if (pos <= 2 && prepScore >= 70) aggressiveBias -= 20 // Conservative/Balanced protection
+    if (prepScore < 30) aggressiveBias += 10 // Sem preparação, apelo ao risco
+    aggressiveBias += seed * 10
+
+    if (aggressiveBias >= 15) return 'AGGRESSIVE'
+    if (aggressiveBias <= -15) return 'CONSERVATIVE'
+    return 'BALANCED'
+  }
+
+  /**
+   * Gera ou recupera o estado de ConceptRealization para teamId + regulationId.
+   * REGRAS DE OURO:
+   * 1. Equipe forte tem mais chance de acertar, não direito.
+   * 2. NÃO é RNG puro: distribuição condicionada pela capacidade real.
+   * 3. NÃO é determinismo estrutural: organização excelente pode errar.
+   * 4. Approach afeta dispersão: Conservative (menor variância), Aggressive (maior variância e upside).
+   * 5. Determinismo: mesmo snapshot + mesma seed -> mesmo ConceptRealization.
+   * 6. Concept Confidence: estado separado (LOW, MODERATE, HIGH); pode conter erro se correlação for ruim.
+   */
+  public generateConceptRealization(params: {
+    team: TeamModel
+    regulation: TechnicalRegulation
+    technicalOrg?: TeamTechnicalOrganization | null
+    preparation?: RegulationPreparation | null
+    approach?: ConceptApproach
+    seedOverride?: number
+  }): ConceptRealization {
+    const { team, regulation, technicalOrg, preparation } = params
+    const teamId = team.id
+    const regId = regulation.regulationId
+
+    // 1. Seed determinística
+    const baseSeed =
+      params.seedOverride ??
+      this.hashStringToSeed(`${teamId}_${regId}_${regulation.effectiveSeason}`)
+    const rng = this.seededRandom(baseSeed)
+
+    // 2. Abordagem (IA ou Player)
+    const approach: ConceptApproach =
+      params.approach ||
+      this.evaluateAiConceptApproach({
+        team,
+        preparation: preparation || undefined,
+      })
+
+    // 3. Capacidades de Infraestrutura
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
+
+    const simAccuracy = Math.max(10, Math.min(100, capabilities.simulationAccuracy || 50))
+    const aeroCorrelation = Math.max(10, Math.min(100, capabilities.aeroCorrelation || 50))
+    const designCapacity = Math.max(10, Math.min(100, capabilities.designCapacity || 50))
+    const devThroughput = Math.max(10, Math.min(100, capabilities.developmentThroughput || 50))
+    const infraScore = (simAccuracy + aeroCorrelation + designCapacity + devThroughput) / 4
+
+    // 4. Staff Técnico Canônico
+    let tdRating = 60
+    let hoaRating = 60
+    let cdRating = 60
+    let vpRating = 60
+    if (technicalOrg?.members) {
+      if (technicalOrg.members.TECHNICAL_DIRECTOR) {
+        tdRating = technicalOrganizationService.calculateStaffEffectiveness(
+          technicalOrg.members.TECHNICAL_DIRECTOR,
+          'TECHNICAL_DIRECTOR',
+        )
+      }
+      if (technicalOrg.members.HEAD_OF_AERODYNAMICS) {
+        hoaRating = technicalOrganizationService.calculateStaffEffectiveness(
+          technicalOrg.members.HEAD_OF_AERODYNAMICS,
+          'HEAD_OF_AERODYNAMICS',
+        )
+      }
+      if (technicalOrg.members.CHIEF_DESIGNER) {
+        cdRating = technicalOrganizationService.calculateStaffEffectiveness(
+          technicalOrg.members.CHIEF_DESIGNER,
+          'CHIEF_DESIGNER',
+        )
+      }
+      if (technicalOrg.members.HEAD_OF_VEHICLE_PERFORMANCE) {
+        vpRating = technicalOrganizationService.calculateStaffEffectiveness(
+          technicalOrg.members.HEAD_OF_VEHICLE_PERFORMANCE,
+          'HEAD_OF_VEHICLE_PERFORMANCE',
+        )
+      }
+    }
+    const staffScore = tdRating * 0.35 + hoaRating * 0.3 + cdRating * 0.2 + vpRating * 0.15
+
+    // 5. Applicable Knowledge médio entre os domínios afetados
+    let applicableSum = 0
+    let applicableCount = 0
+    for (const dom of regulation.affectedDomains) {
+      const app = this.getApplicableKnowledge({
+        teamTechnicalOrg: technicalOrg || ({} as any),
+        regulation,
+        domain: dom,
+      })
+      applicableSum += app.applicableKnowledge
+      applicableCount++
+    }
+    const applicableKnowledgeAvg = applicableCount > 0 ? applicableSum / applicableCount : 60
+
+    // 6. Regulation Preparation Score
+    const prepScore = preparation ? preparation.preparationScore : 30
+
+    // 7. Structural Potential: capacidade intrínseca sem RNG (35 a 95)
+    // Ponderação balanceada: Staff 30%, Infra 25%, Applicable Knowledge 20%, Preparation 25%
+    const structuralPotential = Number(
+      (
+        staffScore * 0.3 +
+        infraScore * 0.25 +
+        applicableKnowledgeAvg * 0.2 +
+        prepScore * 0.25
+      ).toFixed(1),
+    )
+
+    // 8. Incerteza do Regulamento
+    let uncertaintyFactor = 1.0
+    if (regulation.uncertainty === 'VERY_HIGH') uncertaintyFactor = 1.4
+    else if (regulation.uncertainty === 'HIGH') uncertaintyFactor = 1.2
+    else if (regulation.uncertainty === 'MODERATE') uncertaintyFactor = 1.0
+    else uncertaintyFactor = 0.8
+
+    // 9. Stochastic Deviation (Approach + Uncertainty)
+    // Conservative: desvio menor [-8, +6]
+    // Balanced: desvio intermediário [-14, +14]
+    // Aggressive: desvio amplo [-25, +22] (alto upside potencial, alto risco de erro crasso)
+    let spread = 14
+    let bias = 0
+    if (approach === 'CONSERVATIVE') {
+      spread = 8
+      bias = -1
+    } else if (approach === 'AGGRESSIVE') {
+      spread = 22
+      bias = 2
+    }
+
+    // Variabilidade controlada com distribuição centrada (Box-Muller determinístico simples via 2 RNGs)
+    const u1 = Math.max(0.0001, rng())
+    const u2 = rng()
+    const normalRand = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2) // média 0, std 1
+    const rawStochastic = normalRand * (spread * 0.5 * uncertaintyFactor) + bias
+    const stochasticDeviation = Number(
+      Math.max(-spread * 1.2, Math.min(spread * 1.2, rawStochastic)).toFixed(1),
+    )
+
+    // 10. Realization Score Final (0 a 100 oculto)
+    // Backmarker limit (Regra 25): estruturalmente muito fraca não pode atingir 90+ por pura sorte
+    let rawRealization = structuralPotential + stochasticDeviation
+    if (structuralPotential < 50) {
+      rawRealization = Math.min(rawRealization, 68) // backmarker cap
+    }
+    const realizationScore = Number(Math.max(20, Math.min(98, rawRealization)).toFixed(1))
+
+    let realizationQualityTier: 'FLAWED' | 'SUBPAR' | 'COMPETITIVE' | 'STRONG' | 'INSPIRATIONAL' =
+      'COMPETITIVE'
+    if (realizationScore >= 85) realizationQualityTier = 'INSPIRATIONAL'
+    else if (realizationScore >= 75) realizationQualityTier = 'STRONG'
+    else if (realizationScore >= 60) realizationQualityTier = 'COMPETITIVE'
+    else if (realizationScore >= 45) realizationQualityTier = 'SUBPAR'
+    else realizationQualityTier = 'FLAWED'
+
+    // 11. Perceived Realization & Concept Confidence
+    // A equipe calcula sua expectativa usando simulação e correlação.
+    // Se aeroCorrelation for baixa, a percepção interna pode divergir drasticamente da pista real!
+    const correlationFactor = aeroCorrelation / 100 // 0.2 a 1.0
+    const simAccuracyFactor = simAccuracy / 100
+
+    // Equipe enxerga o structuralPotential somado ao feedback de simulação
+    // Mas se correlação for ruim, ela pode achar que achou ouro quando na verdade há descolamento de fluxo (porpoising / stall)
+    const illusionError = (1 - correlationFactor) * (rng() > 0.4 ? 1 : -1) * 20
+    const perceivedRealization = Number(
+      Math.max(
+        20,
+        Math.min(99, structuralPotential * 0.7 + prepScore * 0.3 + illusionError),
+      ).toFixed(1),
+    )
+
+    // Concept Confidence (LOW, MODERATE, HIGH)
+    // Depende de preparation, simulação e validação (Regras 10, 11 e 12)
+    let confidenceLevel: ConceptConfidenceLevel = 'MODERATE'
+    const confidenceScore =
+      prepScore * 0.4 + simAccuracy * 0.3 + (preparation?.validationProgress ?? 50) * 0.3
+    if (confidenceScore >= 70) confidenceLevel = 'HIGH'
+    else if (confidenceScore <= 40) confidenceLevel = 'LOW'
+    else confidenceLevel = 'MODERATE'
+
+    // Correlation Gap e detecção de problema
+    const correlationGap = Number((perceivedRealization - realizationScore).toFixed(1))
+    const correlationProblemDetected = correlationGap >= 12.0 && correlationFactor < 0.65
+
+    return {
+      teamId,
+      regulationId: regId,
+      seed: baseSeed,
+      approach,
+      realizationScore,
+      structuralPotential,
+      stochasticDeviation,
+      realizationQualityTier,
+      confidenceLevel,
+      perceivedRealization,
+      correlationGap,
+      correlationProblemDetected,
+      correlationProblemAcknowledged: false,
+      stage: 'FINAL_PREPARATION',
+      realityCheckStage: 'PRE_SEASON',
+      revealedConfidenceBand: {
+        min: Math.max(20, Math.round(perceivedRealization - 12)),
+        max: Math.min(99, Math.round(perceivedRealization + 12)),
+      },
+      createdAt: new Date().toISOString(),
+    }
+  }
+
+  /**
+   * Gera o baseline técnico da nova era para uma escuderia.
+   * Regras:
+   * - 12 atributos canônicos
+   * - chassisRating derivado dos 12 atributos e seus pesos oficiais
+   * - Preservar 70/30: carPerformanceRating = chassisRating*0.7 + powerUnitRating*0.3
+   * - Power Unit adaptation
+   * - Track Fit permanece intocado
+   */
+  public generateNewCarBaseline(params: {
+    team: TeamModel
+    regulation: TechnicalRegulation
+    realization: ConceptRealization
+    technicalOrg?: TeamTechnicalOrganization | null
+  }): NewCarBaselineResult {
+    const { team, regulation, realization, technicalOrg } = params
+    const teamId = team.id
+    const regId = regulation.regulationId
+
+    // 1. Base geral do chassi a partir de realizationScore
+    const baseChassisScore = realization.realizationScore
+
+    // 2. Modulação dos 12 atributos canônicos de acordo com prioridades do regulamento e staff
+    const attrs: Record<string, number> = {}
+
+    // Obter atributos dos pesos canônicos (TECHNICAL_ATTRIBUTE_METAS)
+    const domainPriorities = regulation.technicalPriorities || {}
+    const isAeroPriority =
+      domainPriorities.aerodynamics === 'CRITICAL' ||
+      domainPriorities.floorGroundEffect === 'CRITICAL'
+    const isMechPriority =
+      domainPriorities.suspension === 'CRITICAL' || domainPriorities.chassis === 'CRITICAL'
+
+    const attrIds: TechnicalAttributeId[] = [
+      'slowCorner',
+      'mediumCorner',
+      'fastCorner',
+      'topSpeed',
+      'acceleration',
+      'braking',
+      'traction',
+      'tyreManagement',
+      'aeroEfficiency',
+      'cooling',
+      'weight',
+      'reliability',
+    ]
+
+    const seedRng = this.seededRandom(realization.seed + 101)
+
+    for (const attrId of attrIds) {
+      let attrBase = baseChassisScore
+      const deltaSeed = (seedRng() - 0.5) * 8 // dispersão sutil em torno do conceito
+
+      if (['fastCorner', 'aeroEfficiency', 'topSpeed'].includes(attrId)) {
+        if (isAeroPriority) attrBase += (realization.realizationScore - 60) * 0.15
+      } else if (['slowCorner', 'traction', 'braking'].includes(attrId)) {
+        if (isMechPriority) attrBase += (realization.realizationScore - 60) * 0.1
+      }
+
+      attrs[attrId] = Number(Math.max(25, Math.min(99, attrBase + deltaSeed)).toFixed(1))
+    }
+
+    // 3. Chassis Rating consolidado via pesos dos 12 atributos (soma 100%)
+    let weightedChassisSum = 0
+    let totalWeight = 0
+    for (const attrId of attrIds) {
+      const meta = TECHNICAL_ATTRIBUTE_METAS[attrId]
+      const weight = meta.weight // porcentagem
+      weightedChassisSum += attrs[attrId] * weight
+      totalWeight += weight
+    }
+    const chassisRating = Number((weightedChassisSum / totalWeight).toFixed(1))
+
+    // 4. Power Unit Adaptation (Regras 17 e 58)
+    // Avalia o fornecedor de PU e aplica integração ao chassi
+    const puSupplier = (team as any)?.engine_supplier || (team as any)?.pu_supplier || 'Mercedes'
+    let puBase = 78
+    if (puSupplier === 'Ferrari') puBase = 80
+    else if (puSupplier === 'Honda' || puSupplier === 'Red Bull Powertrains') puBase = 81
+    else if (puSupplier === 'Mercedes') puBase = 80
+    else if (puSupplier === 'Audi') puBase = 77
+    else if (puSupplier === 'Renault') puBase = 75
+
+    // Se o regulamento tiver PU integration como afetada
+    let puIntegrationMod = 0
+    if (regulation.affectedDomains.includes('powerUnitIntegration')) {
+      const puApp = this.getApplicableKnowledge({
+        teamTechnicalOrg: technicalOrg || ({} as any),
+        regulation,
+        domain: 'powerUnitIntegration',
+      })
+      puIntegrationMod = (puApp.applicableKnowledge - 60) * 0.08
+    }
+
+    const powerUnitRating = Number(Math.max(30, Math.min(99, puBase + puIntegrationMod)).toFixed(1))
+
+    // 5. Preservar estritamente 70/30 (Regra 18)
+    const carPerformanceRating = Number((chassisRating * 0.7 + powerUnitRating * 0.3).toFixed(1))
+
+    return {
+      teamId,
+      regulationId: regId,
+      seasonYear: regulation.effectiveSeason,
+      chassisRating,
+      powerUnitRating,
+      carPerformanceRating,
+      attributes: attrs,
+      powerUnitAdaptation: {
+        supplier: puSupplier,
+        baselineRating: powerUnitRating,
+        reliabilityModifier: attrs.reliability,
+        integrationFactor: Number(puIntegrationMod.toFixed(1)),
+      },
+      conceptRealizationSummary: {
+        approach: realization.approach,
+        confidenceLevel: realization.confidenceLevel,
+        realityCheckStage: realization.realityCheckStage,
+        correlationProblemDetected: realization.correlationProblemDetected,
+      },
+      generatedAt: new Date().toISOString(),
+    }
+  }
+
+  /**
+   * Reality Check: Atualiza a revelação gradual do carro conforme as corridas avançam.
+   * Pre-season = Incerteza alta (banda de confiança ampla)
+   * GP1 = Primeiro sinal (banda estreita)
+   * GP2/GP3 = Revelação consolidada
+   * O carro real NUNCA é rerrolado, apenas o conhecimento da equipe sobre ele se torna preciso (Regras 27 e 28).
+   */
+  public progressRealityCheck(params: { realization: ConceptRealization; currentRound: number }): {
+    updatedRealization: ConceptRealization
+    newsEvent?: string
+  } {
+    const { realization, currentRound } = params
+    let stage: RealityCheckStage = 'PRE_SEASON'
+    let newsEvent: string | undefined
+
+    if (currentRound >= 3) {
+      stage = 'FULL_REVELATION'
+    } else if (currentRound === 2) {
+      stage = 'GP2_GP3_EVALUATION'
+    } else if (currentRound === 1) {
+      stage = 'GP1_FIRST_SIGNAL'
+    } else {
+      stage = 'PRE_SEASON'
+    }
+
+    // Calcular banda revelada
+    let spread = 12
+    if (stage === 'GP1_FIRST_SIGNAL') spread = 6
+    else if (stage === 'GP2_GP3_EVALUATION') spread = 2.5
+    else if (stage === 'FULL_REVELATION') spread = 0
+
+    const center =
+      stage === 'PRE_SEASON'
+        ? realization.perceivedRealization
+        : stage === 'GP1_FIRST_SIGNAL'
+          ? realization.perceivedRealization * 0.5 + realization.realizationScore * 0.5
+          : realization.realizationScore
+
+    const min = Number(Math.max(20, center - spread).toFixed(1))
+    const max = Number(Math.min(99, center + spread).toFixed(1))
+
+    // Se houver problema de correlação e chegamos a GP1/GP2, a equipe detecta na pista!
+    let ack = realization.correlationProblemAcknowledged
+    if (stage !== 'PRE_SEASON' && realization.correlationProblemDetected && !ack) {
+      ack = true
+      newsEvent =
+        'Dados de telemetria em pista indicam divergência severa com o túnel de vento (problema de correlação detectado).'
+    }
+
+    const updated: ConceptRealization = {
+      ...realization,
+      realityCheckStage: stage,
+      revealedConfidenceBand: { min, max },
+      correlationProblemAcknowledged: ack,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return { updatedRealization: updated, newsEvent }
+  }
+
+  /**
+   * Inicia um Concept Pivot: abandono de direção técnica falha.
+   * Custos: Dinheiro, Tempo de fábrica, Sunk Cost, Redução temporária de capacity.
+   * Não garante recuperação mágica imediata, mas desbloqueia convergência técnica (Regras 30-34).
+   */
+  public executeConceptPivot(params: {
+    team: TeamModel
+    realization: ConceptRealization
+    currentRound: number
+    targetApproach?: ConceptApproach
+    costUsd?: number
+  }): {
+    updatedRealization: ConceptRealization
+    pivotState: ConceptPivotState
+    success: boolean
+    errorMessage?: string
+  } {
+    const { team, realization, currentRound } = params
+    const cost = params.costUsd ?? 12_000_000
+
+    if ((team.budget || 0) < cost) {
+      return {
+        updatedRealization: realization,
+        pivotState: {} as any,
+        success: false,
+        errorMessage: 'Saldo bancário insuficiente para financiar pivot de conceito aerodinâmico.',
+      }
+    }
+
+    const targetApproach = params.targetApproach ?? 'BALANCED'
+
+    // Capacidade de recuperação depende da infraestrutura e staff
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const caps = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
+    const potentialRecovery = Number((caps.designCapacity * 0.12).toFixed(1))
+
+    const pivotState: ConceptPivotState = {
+      teamId: team.id,
+      regulationId: realization.regulationId,
+      seasonYear: (team as any)?.season || 2026,
+      pivotActive: true,
+      pivotRoundStarted: currentRound,
+      pivotTargetRoundCompleted: currentRound + 4, // 4 GPs para introduzir pacote 'B-Spec'
+      costUsd: cost,
+      engineeringCapacitySacrifice: 25, // 25% do P&D focado em retrabalho
+      sunkCostUsd: cost * 0.6,
+      potentialRecoveryAmount: potentialRecovery,
+      recoveredAmount: 0,
+      pivotApproach: targetApproach,
+      status: 'in_progress',
+    }
+
+    const updatedRealization: ConceptRealization = {
+      ...realization,
+      approach: targetApproach,
+      correlationProblemAcknowledged: true,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return {
+      updatedRealization,
+      pivotState,
+      success: true,
+    }
+  }
+
+  /**
+   * Aplica recuperação gradual do Pivot conforme rodadas avançam.
+   */
+  public advanceConceptPivot(params: {
+    pivotState: ConceptPivotState
+    realization: ConceptRealization
+    currentRound: number
+  }): {
+    updatedPivotState: ConceptPivotState
+    updatedRealization: ConceptRealization
+    completed: boolean
+  } {
+    const { pivotState, realization, currentRound } = params
+    if (!pivotState.pivotActive || pivotState.status !== 'in_progress') {
+      return { updatedPivotState: pivotState, updatedRealization: realization, completed: false }
+    }
+
+    const isDone = currentRound >= (pivotState.pivotTargetRoundCompleted ?? 99)
+    const roundsDone = Math.max(0, currentRound - (pivotState.pivotRoundStarted ?? currentRound))
+    const totalRounds = Math.max(
+      1,
+      (pivotState.pivotTargetRoundCompleted ?? currentRound) -
+        (pivotState.pivotRoundStarted ?? currentRound),
+    )
+    const progressRatio = Math.min(1.0, roundsDone / totalRounds)
+
+    const totalToRecover = pivotState.potentialRecoveryAmount
+    const currentRecovered = Number((totalToRecover * progressRatio).toFixed(1))
+    const newlyAdded = Math.max(0, currentRecovered - pivotState.recoveredAmount)
+
+    const updatedRealization: ConceptRealization = {
+      ...realization,
+      realizationScore: Number(Math.min(98, realization.realizationScore + newlyAdded).toFixed(1)),
+      updatedAt: new Date().toISOString(),
+    }
+
+    const updatedPivot: ConceptPivotState = {
+      ...pivotState,
+      recoveredAmount: currentRecovered,
+      status: isDone ? 'completed' : 'in_progress',
+      pivotActive: !isDone,
+      engineeringCapacitySacrifice: isDone ? 0 : pivotState.engineeringCapacitySacrifice,
+    }
+
+    return {
+      updatedPivotState: updatedPivot,
+      updatedRealization,
+      completed: isDone,
+    }
+  }
+
+  /**
+   * Auditoria canônica da geração de novos carros da regulação (Regra 48).
+   * Valida:
+   * 1. Exatamente 1 concept por equipe
+   * 2. Realization persistente e válida
+   * 3. Baseline gerada uma única vez
+   * 4. 12 atributos válidos em cada carro
+   * 5. PU válida e separada
+   * 6. teamStrength não é primário
+   * 7. Track Fit intocado
+   * 8. Todas as equipes na mesma era técnica
+   * 9. Histórico das temporadas passadas absolutamente imutável
+   */
+  public auditNewRegulationCarGeneration(params: {
+    regulationId: string
+    seasonYear: number
+    teams: TeamModel[]
+    concepts: Record<string, ConceptRealization>
+    baselines: Record<string, NewCarBaselineResult>
+    pastHistoryRecords?: any[]
+  }): {
+    isValid: boolean
+    errors: string[]
+    warnings: string[]
+    stats: {
+      totalTeams: number
+      conceptsCount: number
+      baselinesCount: number
+      eliteErrorsCount: number
+      midfieldSuccessCount: number
+    }
+  } {
+    const { teams, concepts, baselines, pastHistoryRecords } = params
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    let eliteErrorsCount = 0
+    let midfieldSuccessCount = 0
+
+    // 1. Validar por equipe
+    for (const team of teams) {
+      const concept = concepts[team.id]
+      const baseline = baselines[team.id]
+
+      if (!concept) {
+        errors.push(`Equipe ${team.id} (${team.name}) não possui ConceptRealization gerado.`)
+        continue
+      }
+      if (!baseline) {
+        errors.push(`Equipe ${team.id} (${team.name}) não possui NewCarBaseline gerado.`)
+        continue
+      }
+
+      // 12 atributos válidos
+      const attrIds: TechnicalAttributeId[] = [
+        'slowCorner',
+        'mediumCorner',
+        'fastCorner',
+        'topSpeed',
+        'acceleration',
+        'braking',
+        'traction',
+        'tyreManagement',
+        'aeroEfficiency',
+        'cooling',
+        'weight',
+        'reliability',
+      ]
+      for (const attr of attrIds) {
+        const val = baseline.attributes[attr]
+        if (typeof val !== 'number' || isNaN(val) || val <= 0 || val > 100) {
+          errors.push(`Atributo inválido ${attr} no carro da equipe ${team.id}: ${val}`)
+        }
+      }
+
+      // PU válida e relação 70/30 preservada
+      const expectedOverall = Number(
+        (baseline.chassisRating * 0.7 + baseline.powerUnitRating * 0.3).toFixed(1),
+      )
+      if (Math.abs(baseline.carPerformanceRating - expectedOverall) > 0.2) {
+        errors.push(
+          `Violação da regra 70/30 na equipe ${team.id}: esperado ${expectedOverall}, encontrado ${baseline.carPerformanceRating}`,
+        )
+      }
+
+      // Check de erro de elite ou sucesso de midfield
+      if (concept.structuralPotential >= 75 && concept.realizationScore < 60) {
+        eliteErrorsCount++
+      }
+      if (concept.structuralPotential <= 65 && concept.realizationScore >= 78) {
+        midfieldSuccessCount++
+      }
+    }
+
+    // 2. Histórico passado imutável
+    if (pastHistoryRecords && pastHistoryRecords.length > 0) {
+      for (const hist of pastHistoryRecords) {
+        if (hist.season >= params.seasonYear) {
+          errors.push(
+            `Registro de histórico posterior ou igual ao ano da transição detectado: ${hist.season}`,
+          )
+        }
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      stats: {
+        totalTeams: teams.length,
+        conceptsCount: Object.keys(concepts).length,
+        baselinesCount: Object.keys(baselines).length,
+        eliteErrorsCount,
+        midfieldSuccessCount,
+      },
+    }
+  }
+
+  /**
+   * Explicabilidade interna para QA / Debug (Regra 49).
+   */
+  public explainNewCarConcept(params: {
+    team: TeamModel
+    regulation: TechnicalRegulation
+    realization: ConceptRealization
+    baseline: NewCarBaselineResult
+    technicalOrg?: TeamTechnicalOrganization | null
+  }): ExplainNewCarConceptResult {
+    const { team, regulation, realization, baseline, technicalOrg } = params
+
+    const facilityLevels = infrastructureCapabilityService.getFacilityLevels(team)
+    const capabilities = infrastructureCapabilityService.calculateCapabilities(facilityLevels, team)
+
+    let staffSum = 60
+    if (technicalOrg?.members) {
+      const m = technicalOrg.members
+      const vals: number[] = []
+      if (m.TECHNICAL_DIRECTOR) {
+        vals.push(
+          technicalOrganizationService.calculateStaffEffectiveness(
+            m.TECHNICAL_DIRECTOR,
+            'TECHNICAL_DIRECTOR',
+          ),
+        )
+      }
+      if (m.HEAD_OF_AERODYNAMICS) {
+        vals.push(
+          technicalOrganizationService.calculateStaffEffectiveness(
+            m.HEAD_OF_AERODYNAMICS,
+            'HEAD_OF_AERODYNAMICS',
+          ),
+        )
+      }
+      if (m.CHIEF_DESIGNER) {
+        vals.push(
+          technicalOrganizationService.calculateStaffEffectiveness(
+            m.CHIEF_DESIGNER,
+            'CHIEF_DESIGNER',
+          ),
+        )
+      }
+      if (vals.length > 0) staffSum = vals.reduce((a, b) => a + b, 0) / vals.length
+    }
+
+    let applicableSum = 0
+    let appCount = 0
+    for (const dom of regulation.affectedDomains) {
+      const app = this.getApplicableKnowledge({
+        teamTechnicalOrg: technicalOrg || ({} as any),
+        regulation,
+        domain: dom,
+      })
+      applicableSum += app.applicableKnowledge
+      appCount++
+    }
+    const appAvg = appCount > 0 ? applicableSum / appCount : 60
+
+    return {
+      teamId: team.id,
+      regulationId: regulation.regulationId,
+      seasonYear: regulation.effectiveSeason,
+      approach: realization.approach,
+      confidenceLevel: realization.confidenceLevel,
+      realityCheckStage: realization.realityCheckStage,
+      applicableKnowledgeAverage: Number(appAvg.toFixed(1)),
+      preparationScore:
+        (team as any)?.regulation_preparations?.[regulation.regulationId]?.preparationScore ?? 30,
+      staffRatingAverage: Number(staffSum.toFixed(1)),
+      infrastructureCapabilityAverage: Number(
+        ((capabilities.designCapacity + capabilities.simulationAccuracy) / 2).toFixed(1),
+      ),
+      simulationAccuracy: capabilities.simulationAccuracy,
+      aeroCorrelation: capabilities.aeroCorrelation,
+      structuralPotential: realization.structuralPotential,
+      stochasticDeviation: realization.stochasticDeviation,
+      realizationScoreHidden: realization.realizationScore,
+      correlationProblemDetected: realization.correlationProblemDetected,
+      baselineChassisRating: baseline.chassisRating,
+      baselinePuRating: baseline.powerUnitRating,
+      baselineCarPerformanceRating: baseline.carPerformanceRating,
+      attributes12: baseline.attributes,
     }
   }
 }

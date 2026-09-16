@@ -320,34 +320,79 @@ export const RegulationSection: React.FC<RegulationSectionProps> = ({
                 </div>
               </div>
 
-              {/* STATUS DE PREPARAÇÃO DA EQUIPE (8C.2) */}
-              <div className="p-3.5 rounded-xl bg-[#0F172A] border border-cyan-500/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-                <div>
-                  <span className="text-[10px] text-[#94A3B8] block uppercase">
-                    Preparação da Escuderia
-                  </span>
-                  <strong className="text-amber-300 text-sm">
-                    {(team as any)?.regulation_preparations?.[selectedRegulation.regulationId]
-                      ?.status || 'MINIMAL'}
-                  </strong>
+              {/* STATUS DE PREPARAÇÃO DA EQUIPE (8C.2 & 8C.3) */}
+              <div className="space-y-2">
+                <div className="p-3.5 rounded-xl bg-[#0F172A] border border-cyan-500/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+                  <div>
+                    <span className="text-[10px] text-[#94A3B8] block uppercase">
+                      Preparação da Escuderia
+                    </span>
+                    <strong className="text-amber-300 text-sm">
+                      {(team as any)?.regulation_preparations?.[selectedRegulation.regulationId]
+                        ?.status || 'MINIMAL'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#94A3B8] block uppercase">
+                      Alocação P&D Futuro
+                    </span>
+                    <strong className="text-cyan-300 text-sm">
+                      {(team as any)?.regulation_development_allocation?.futureRegulationShare ??
+                        25}
+                      %
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#94A3B8] block uppercase">
+                      Pesquisas Concluídas
+                    </span>
+                    <strong className="text-white text-sm">
+                      {(team as any)?.regulation_preparations?.[selectedRegulation.regulationId]
+                        ?.completedProjects?.length || 0}{' '}
+                      de 8 targets
+                    </strong>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-[#94A3B8] block uppercase">
-                    Alocação P&D Futuro
-                  </span>
-                  <strong className="text-cyan-300 text-sm">
-                    {(team as any)?.regulation_development_allocation?.futureRegulationShare ?? 25}%
-                  </strong>
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#94A3B8] block uppercase">
-                    Pesquisas Concluídas
-                  </span>
-                  <strong className="text-white text-sm">
-                    {(team as any)?.regulation_preparations?.[selectedRegulation.regulationId]
-                      ?.completedProjects?.length || 0}{' '}
-                    de 8 targets
-                  </strong>
+
+                {/* PAINEL 8C.3: FUTURE CAR STATUS & CONCEPT CONFIDENCE */}
+                <div className="p-3.5 rounded-xl bg-[#13111C] border border-purple-500/30 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+                  <div>
+                    <span className="text-[10px] text-purple-300 block uppercase">
+                      Estágio do Novo Conceito
+                    </span>
+                    <strong className="text-white text-xs">
+                      {(team as any)?.concept_realizations?.[selectedRegulation.regulationId]
+                        ?.stage || 'Concept Exploration'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-purple-300 block uppercase">
+                      Concept Confidence (Interna)
+                    </span>
+                    <strong
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        (team as any)?.concept_realizations?.[selectedRegulation.regulationId]
+                          ?.confidenceLevel === 'HIGH'
+                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50'
+                          : (team as any)?.concept_realizations?.[selectedRegulation.regulationId]
+                                ?.confidenceLevel === 'MODERATE'
+                            ? 'bg-amber-950 text-amber-300 border border-amber-700/50'
+                            : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                      }`}
+                    >
+                      {(team as any)?.concept_realizations?.[selectedRegulation.regulationId]
+                        ?.confidenceLevel || 'MODERATE'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-purple-300 block uppercase">
+                      Direção de Risco (Approach)
+                    </span>
+                    <strong className="text-purple-200 text-xs">
+                      {(team as any)?.concept_realizations?.[selectedRegulation.regulationId]
+                        ?.approach || 'BALANCED'}
+                    </strong>
+                  </div>
                 </div>
               </div>
 
