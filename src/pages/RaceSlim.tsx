@@ -167,7 +167,7 @@ export interface SimDriverEntry extends RaceResultEntry {
   }
 }
 
-export type SessionTimeResult = SessionResultRow
+export type SessionTimeResult = SessionResultRow & { lapTimeSec?: number }
 
 // Initial tire allotment per weekend per driver
 const INITIAL_ALLOTMENT: TireAllotment = {
@@ -755,11 +755,16 @@ export default function RacePage() {
 
   const puPoolStatus = useMemo(() => {
     const wear = team?.active_engine_wear ?? 15
+    const isCompromised = wear > 65
+    const pacePenaltySec = isCompromised ? (wear - 65) * 0.03 : 0
     return {
+      isCompromised,
+      leastWornPu: { id: team?.engine_pool_used ?? 1, wear },
       leastWear: wear,
+      pacePenaltySec,
       penaltyRisk: wear > 80,
     }
-  }, [team?.active_engine_wear])
+  }, [team?.active_engine_wear, team?.engine_pool_used])
 
   // Feedback do Conselheiro de Engenharia de Pista
   const setupFeedback = useMemo(() => {
@@ -1079,8 +1084,8 @@ export default function RacePage() {
           teamStrength: playerTeamStrength,
           driver: {
             speed: pd.speed,
-            consistency: pd.experience,
-            defense: pd.racecraft,
+            consistency: pd.consistency,
+            defense: pd.defense,
             morale: pd.morale,
             physicalCondition: pd.physical_condition,
           },
@@ -1216,7 +1221,14 @@ export default function RacePage() {
         const playerFlag = playerDrv ? getCountryFlag(playerDrv.nationality) || '🏁' : undefined
 
         const aiProfile = !isPlayer
-          ? generateAIStrategyProfile(q.teamName, idx + 1, weather, gpInfo.tireAbrasiveness || 6)
+          ? generateAIStrategyProfile({
+              teamStrength: 75,
+              driverSpeed: 82,
+              driverConsistency: 82,
+              totalLaps: gpInfo.laps,
+              weather,
+              gridPosition: idx + 1,
+            })
           : undefined
 
         return {
@@ -1265,44 +1277,53 @@ export default function RacePage() {
       })
     } else {
       // Grid simulado rápido quando não jogou qualificação
-      const aiList = competitors.map((ai, idx) => {
-        const aiProfile = generateAIStrategyProfile(
-          ai.teamName,
-          idx + 1,
-          weather,
-          gpInfo.tireAbrasiveness || 6,
-        )
-        return {
-          position: idx + 1,
-          driverId: `drv_ai_${idx}`,
-          driverName: ai.driverName,
-          teamId: `team_ai_${idx}`,
-          teamName: ai.teamName,
-          teamColor: ai.teamColor,
-          isPlayer: false,
-          score: 75,
-          points: 0,
-          fastestLap: false,
-          usedOvertake: false,
-          accumulatedTimeSec: 0,
-          tireCompound: (weather !== 'seco'
-            ? 'intermediario'
-            : idx % 2 === 0
-              ? 'medio'
-              : 'macio') as TireCompound,
-          secondCompound: (weather !== 'seco' ? 'intermediario' : 'duro') as TireCompound,
-          pitLap: Math.round(gpInfo.laps * 0.45),
-          tireWear: 4,
-          driverFatigue: 0,
-          pitStopsDone: 0,
-          hasWingDamage: false,
-          wearMultiplier: 1.0,
-          wearProfileName: 'Neutro',
-          lapsOnCurrentTire: 0,
-          cliffStatus: INITIAL_OPTIMAL_CLIFF,
-          fuelRemaining: 100,
-          aiStrategyProfile: aiProfile,
-        }
+      const aiList = competitors.flatMap((ai, aiIdx) => {
+        const driversList = [
+          { d: ai.driver1, slot: 1 },
+          { d: ai.driver2, slot: 2 },
+        ]
+        return driversList.map(({ d, slot }, dIdx) => {
+          const gridPos = aiIdx * 2 + dIdx + 1
+          const aiProfile = generateAIStrategyProfile({
+            teamStrength: ai.strengthRating || ai.strength || 75,
+            driverSpeed: d.speed,
+            driverConsistency: d.consistency,
+            totalLaps: gpInfo.laps,
+            weather,
+            gridPosition: gridPos,
+          })
+          return {
+            position: gridPos,
+            driverId: `${ai.id}_d${slot}`,
+            driverName: d.name,
+            teamId: ai.id,
+            teamName: ai.name,
+            teamColor: ai.color,
+            isPlayer: false,
+            score: 75,
+            points: 0,
+            fastestLap: false,
+            usedOvertake: false,
+            accumulatedTimeSec: 0,
+            tireCompound: (weather !== 'seco'
+              ? 'intermediario'
+              : gridPos % 2 === 0
+                ? 'medio'
+                : 'macio') as TireCompound,
+            secondCompound: (weather !== 'seco' ? 'intermediario' : 'duro') as TireCompound,
+            pitLap: Math.round(gpInfo.laps * 0.45),
+            tireWear: 4,
+            driverFatigue: 0,
+            pitStopsDone: 0,
+            hasWingDamage: false,
+            wearMultiplier: 1.0,
+            wearProfileName: 'Neutro',
+            lapsOnCurrentTire: 0,
+            cliffStatus: INITIAL_OPTIMAL_CLIFF,
+            fuelRemaining: 100,
+            aiStrategyProfile: aiProfile,
+          }
+        })
       })
 
       const playerList = playerDrivers.map((pd, idx) => {
@@ -2157,7 +2178,7 @@ export default function RacePage() {
                   name: carA.driverName,
                   position: carA.position,
                   morale: carA.morale || driverA.morale || 80,
-                  personality: driverA.personality || 'equilibrado',
+                  personality: driverA.psychology_data?.personality || 'equilibrado',
                   isPlayer: true,
                 },
                 {
@@ -2165,7 +2186,7 @@ export default function RacePage() {
                   name: carB.driverName,
                   position: carB.position,
                   morale: carB.morale || driverB.morale || 80,
-                  personality: driverB.personality || 'equilibrado',
+                  personality: driverB.psychology_data?.personality || 'equilibrado',
                   isPlayer: true,
                 },
               ],
@@ -2212,7 +2233,7 @@ export default function RacePage() {
     const slowDramaContext: DriverDramaContext = {
       id: proposal.slowDriverId,
       name: proposal.slowDriverName,
-      personality: driverSlow?.personality || 'equilibrado',
+      personality: driverSlow?.psychology_data?.personality || 'equilibrado',
       morale: driverSlow?.morale ?? 80,
       isPlayer: true,
     }
@@ -2418,9 +2439,7 @@ export default function RacePage() {
 
   // Decisões de Chuva
   const handleConfirmRainDecision = (
-    compound: TireCompound,
-    shouldWait: boolean,
-    waitLaps: number,
+    decision: 'intermediario' | 'chuva_extrema' | 'macio' | 'medio' | 'duro' | 'aguardar',
   ) => {
     // Implementação direta das decisões de chuva no grid
     setRainDecisionOpen(false)
@@ -2428,13 +2447,13 @@ export default function RacePage() {
   }
 
   // Decisões de Asa Quebrada
-  const handleConfirmWingDamageDecision = (replaceWing: boolean, changeTires: boolean) => {
+  const handleConfirmWingDamageDecision = (decision: 'pit_trocar' | 'continuar') => {
     setWingDamageModalOpen(false)
     setIsRacePaused(false)
   }
 
   // Decisões de Safety Car
-  const handleConfirmSafetyCarDecision = (shouldPit: boolean, compound: TireCompound) => {
+  const handleConfirmSafetyCarDecision = (decision: 'pit_sc' | 'stay_out') => {
     setSafetyCarModalOpen(false)
     setIsRacePaused(false)
   }
@@ -2846,12 +2865,16 @@ export default function RacePage() {
         return (
           <TeamRadioDialog
             open={!!radioActiveMessage}
-            activeMessage={radioActiveMessage}
-            queueLength={radioQueue.length}
+            message={radioActiveMessage}
+            queueCount={radioQueue.length}
             queueTotal={radioQueueTotal}
-            driver={activeRadioDriver}
             availableTireSets={activeDriverTireSets}
-            onSelectResponse={(type: BossResponseType, customParams?: any) => {
+            currentTireCompound={activeRadioDriver?.tireCompound || 'medio'}
+            currentTireWear={activeRadioDriver?.tireWear || 50}
+            onRespond={(
+              type: BossResponseType,
+              options?: { tireSetId?: string; chosenCompound?: TireCompound },
+            ) => {
               if (!radioActiveMessage) return
               const targetDriverId = radioActiveMessage.driverId
               const targetDriverName = radioActiveMessage.driverName
@@ -2860,34 +2883,29 @@ export default function RacePage() {
               let appliedTacticMod: 'attack' | 'preserve' | 'save_fuel' | 'stay_out' = 'stay_out'
               let expiresLap = currentLap + 3
 
-              if (type === 'concordar') {
-                if (radioActiveMessage.suggestedAction === 'box_pneu') {
-                  const chosenSetId = customParams?.tireSetId
-                  const chosenSet = activeDriverTireSets.find((s) => s.id === chosenSetId)
-                  const targetCompound = chosenSet ? chosenSet.compound : 'duro'
-                  const gridCar = liveRaceState?.grid?.find((g) => g.driverId === targetDriverId)
-                  if (gridCar) {
-                    gridCar.tireCompound = targetCompound
-                    gridCar.tireWear = chosenSet ? chosenSet.wear : 4
-                    gridCar.lapsOnCurrentTire = 0
-                    gridCar.pitStopsDone = (gridCar.pitStopsDone || 0) + 1
-                    const pitTiming = calculatePitStopDuration(
-                      gridCar.teamName,
-                      gridCar.driverName,
-                      true,
-                      team?.chassis_level || 75,
-                    )
-                    gridCar.accumulatedTimeSec =
-                      (gridCar.accumulatedTimeSec || 0) + pitTiming.durationSec
-                  }
-                } else if (radioActiveMessage.suggestedAction === 'ataque') {
-                  appliedTacticMod = 'attack'
-                } else if (radioActiveMessage.suggestedAction === 'poupar') {
-                  appliedTacticMod = 'preserve'
+              if (type === 'box_now') {
+                const chosenSetId = options?.tireSetId
+                const chosenSet = activeDriverTireSets.find((s) => s.id === chosenSetId)
+                const targetCompound =
+                  options?.chosenCompound || (chosenSet ? chosenSet.compound : 'duro')
+                const gridCar = liveRaceState?.grid?.find((g) => g.driverId === targetDriverId)
+                if (gridCar) {
+                  gridCar.tireCompound = targetCompound
+                  gridCar.tireWear = chosenSet ? chosenSet.wear : 4
+                  gridCar.lapsOnCurrentTire = 0
+                  gridCar.pitStopsDone = (gridCar.pitStopsDone || 0) + 1
+                  const pitTiming = calculatePitStopDuration(
+                    gridCar.teamName,
+                    gridCar.driverName,
+                    true,
+                    team?.chassis_level || 75,
+                  )
+                  gridCar.accumulatedTimeSec =
+                    (gridCar.accumulatedTimeSec || 0) + pitTiming.durationSec
                 }
-              } else if (type === 'atacar') {
+              } else if (type === 'attack_mode') {
                 appliedTacticMod = 'attack'
-              } else if (type === 'poupar') {
+              } else if (type === 'preserve_car') {
                 appliedTacticMod = 'preserve'
               }
 
@@ -2936,18 +2954,17 @@ export default function RacePage() {
       {/* 8. Modal de Diálogo de Pit Wall Radio (Iniciado pelo Chefe) */}
       <PitWallRadioDialog
         open={pitWallRadioOpen}
-        onOpenChange={setPitWallRadioOpen}
+        onClose={() => setPitWallRadioOpen(false)}
         driverId={pitWallRadioDriverId}
         driverName={
           drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
           liveRaceState?.grid?.find((g) => g.driverId === pitWallRadioDriverId)?.driverName ||
           'Piloto'
         }
-        teamColor={team?.color || '#E10600'}
         currentLap={liveRaceState?.currentLap || 1}
         pendingRequest={pendingDriverRequest}
-        followUpState={activeFollowUpState}
-        onSendBossInstruction={(instructionType: string, note?: string) => {
+        activeFollowUp={activeFollowUpState}
+        onSendTeamOrder={(orderType, reason) => {
           const dName =
             drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
             liveRaceState?.grid?.find((g) => g.driverId === pitWallRadioDriverId)?.driverName ||
@@ -2963,7 +2980,7 @@ export default function RacePage() {
               id: `ev_boss_inst_${Date.now()}_${pitWallRadioDriverId}`,
               lap: liveRaceState?.currentLap || 1,
               type: 'team_radio',
-              message: `📻 PIT WALL ➔ ${dName}: Instrução direta [${instructionType.toUpperCase()}]. ${note || ''}`,
+              message: `📻 PIT WALL ➔ ${dName}: Ordem de equipe [${orderType} - ${reason}].`,
               driverName: dName,
               teamColor: team?.color || '#E10600',
               isPlayer: true,
@@ -2973,15 +2990,11 @@ export default function RacePage() {
           ])
           setPitWallRadioOpen(false)
         }}
-        onAcceptRequest={() => {
+        onRespondToRequest={() => {
           setPendingDriverRequest(null)
           setPitWallRadioOpen(false)
         }}
-        onRejectRequest={() => {
-          setPendingDriverRequest(null)
-          setPitWallRadioOpen(false)
-        }}
-        onCompleteFollowUp={() => {
+        onSendFollowUp={() => {
           setActiveFollowUpState(null)
           setPitWallRadioOpen(false)
         }}
@@ -2990,24 +3003,23 @@ export default function RacePage() {
       {/* 9. Modal Canônico de Simulação Rápida do Fim de Semana (8A) */}
       <SimulateWeekendModal
         open={simulateWeekendModalOpen}
-        onOpenChange={setSimulateWeekendModalOpen}
-        gpName={gpInfo.name}
-        remainingSessions={remainingSessionsLabel}
-        isSimulating={isSimulatingWeekend}
+        onClose={() => setSimulateWeekendModalOpen(false)}
         onConfirm={handleStartSimulateWeekend}
+        hasCompletedSessions={completedSessions.length > 0}
+        isSimulating={isSimulatingWeekend}
       />
 
       {/* Rastreador de Progresso de Simulação por Etapas */}
       {isSimulatingWeekend && (
-        <SimulationStepTracker steps={simulationSteps} currentMessage={simulationStepMessage} />
+        <SimulationStepTracker steps={simulationSteps} currentStepMessage={simulationStepMessage} />
       )}
 
       {/* 10. Modal Resumo Canônico Pós-Fim de Semana Completo */}
       <WeekendSummaryModal
         open={weekendSummaryModalOpen}
-        onOpenChange={setWeekendSummaryModalOpen}
+        onClose={() => setWeekendSummaryModalOpen(false)}
         report={weekendSimulationReport}
-        onAcknowledge={() => {
+        onAdvanceToNextRound={() => {
           setWeekendSummaryModalOpen(false)
           navigate('/')
         }}
