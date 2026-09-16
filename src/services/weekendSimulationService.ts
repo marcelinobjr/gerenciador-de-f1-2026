@@ -856,9 +856,8 @@ export class WeekendSimulationService {
     const damageCost = incidents.length > 0 ? 350000 : 0
     const netCashflow = sponsorIncome - driverSalariesCost - engineCost - damageCost
 
-    const updatedBudget = Math.max(0, (team.budget || 0) + netCashflow)
-
-    // Lançamento idempotente no Financial Ledger
+    // Lançamentos idempotentes no Financial Ledger Canônico
+    // 1. Despesas operacionais e folha salarial da rodada simulada
     await financialLedgerService.recordEntry({
       team_id: team.id,
       season_id: seasonYear.toString(),
@@ -873,6 +872,7 @@ export class WeekendSimulationService {
       description: `Operações de pista e salários — GP Round ${currentRound}`,
     })
 
+    // 2. Receita de patrocínios da rodada simulada
     if (sponsorIncome > 0) {
       await financialLedgerService.recordEntry({
         team_id: team.id,
@@ -889,12 +889,14 @@ export class WeekendSimulationService {
       })
     }
 
+    // Sincronização Canônica: team.budget e cost_cap_spent derivam do Ledger
+    let closingBalance = 0
     try {
-      await pb.collection('teams').update(team.id, {
-        budget: updatedBudget,
-      })
+      const syncResult = await financialLedgerService.syncTeamBudgetCache(team.id, seasonYear)
+      closingBalance = syncResult.cashBalance
     } catch {
-      // tolerância se mock
+      // Fallback resiliente apenas para ambiente de mock ou teste unitário desconectado
+      closingBalance = Math.max(0, (team.budget || 0) + netCashflow)
     }
 
     return {
@@ -903,7 +905,7 @@ export class WeekendSimulationService {
       driverSalariesCost,
       engineCost,
       damageCost,
-      closingBalance: updatedBudget,
+      closingBalance,
     }
   }
 

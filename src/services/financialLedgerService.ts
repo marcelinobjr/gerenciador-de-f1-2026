@@ -165,8 +165,9 @@ export class FinancialLedgerService {
   async getTeamTransactions(teamId: string, seasonYear?: number): Promise<FinancialTransaction[]> {
     try {
       let filter = `team_id = "${teamId}"`
+      // Compatibilidade de transição: se o registro inicial de migração foi gravado no ano anterior (ex: 2026) e o save atual está em 2027, inclui o opening balance
       if (seasonYear) {
-        filter += ` && season_year = ${seasonYear}`
+        filter += ` && (season_year = ${seasonYear} || type = "opening_balance")`
       }
       const records = await pb.collection('financial_ledger').getFullList({
         filter,

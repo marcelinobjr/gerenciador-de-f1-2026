@@ -2446,12 +2446,28 @@ export const f1Service = {
   ): Promise<SeasonModel> {
     try {
       // 1. PREMIAÇÃO FIA DE CONSTRUTORES (P1: R$ 175M até P12: R$ 70M)
+      // Canonical Financial Ledger: Transação canônica com idempotência e sincronização de cache
       const prizeAmount = this.CONSTRUCTOR_PRIZE_BY_RANK[playerFinalConstructorRank] || 70000000
       try {
-        const teamRec = await pb.collection('teams').getOne<TeamModel>(teamId)
-        const updatedBudget = (teamRec.budget || 0) + prizeAmount
+        const { financialLedgerService } = await import('@/services/financialLedgerService')
+        await financialLedgerService.postTransaction({
+          teamId,
+          seasonYear: nextYear,
+          round: 1,
+          type: 'revenue',
+          category: 'prizeMoney',
+          direction: 'inflow',
+          amount: prizeAmount,
+          costCapClassification: 'excluded',
+          sourceSystem: 'fia_constructor_championship_award',
+          sourceEntityId: `constructors_p${playerFinalConstructorRank}_y${nextYear}`,
+          idempotencyKey: `prize_constructors_${teamId}_y${nextYear}`,
+          description: `Premiação oficial da FIA de Construtores: P${playerFinalConstructorRank} temporada ${nextYear - 1}`,
+        })
+
+        await financialLedgerService.syncTeamBudgetCache(teamId, nextYear)
+
         await pb.collection('teams').update(teamId, {
-          budget: updatedBudget,
           cost_cap_spent: 0, // Novo teto de gastos no novo ano
           constructors_points_deduction: 0,
           rd_penalty_rounds_left: 0,
