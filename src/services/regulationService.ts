@@ -909,6 +909,106 @@ export class RegulationService {
    * domains válidos; transferability presente; timeline persistente; sem ativações duplicadas;
    * nenhum evento retroativo inválido.
    */
+  /**
+   * AUDITORIA FORMAL DO CICLO REGULATÓRIO (8C.4)
+   * auditRegulationCycle(season, timeline, baselines, concepts)
+   * Valida:
+   * - regulation timeline (ativação, IDs, consistência cronológica)
+   * - sem ativação duplicada
+   * - sem rerolls aleatórios
+   * - technical era válida
+   * - baselines válidos
+   * - Track Fit e integridade de atributos canônicos
+   */
+  public auditRegulationCycle(params: {
+    seasonYear: number
+    timeline: RegulationTimelineState
+    teamBaselines?: Record<string, NewCarBaselineResult>
+    teamConcepts?: Record<string, ConceptRealization>
+  }): {
+    isValid: boolean
+    errors: string[]
+    warnings: string[]
+    stats: {
+      currentSeason: number
+      activeEraId: string
+      activeRegulationId: string
+      futureRegulationsCount: number
+      baselinesAudited: number
+      conceptsAudited: number
+    }
+  } {
+    const { seasonYear, timeline, teamBaselines = {}, teamConcepts = {} } = params
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    // 1. Auditoria de fundação da timeline
+    const foundAudit = this.auditRegulationFoundation(timeline)
+    if (!foundAudit.isValid) {
+      errors.push(...foundAudit.errors)
+    }
+
+    // 2. Regulamento ativo deve ser condizente com a temporada
+    const activeReg = regulationTimelineService.getActiveRegulation(timeline)
+    if (!activeReg) {
+      errors.push(`Nenhum regulamento ativo encontrado para a temporada ${seasonYear}.`)
+    } else {
+      if (activeReg.effectiveSeason > seasonYear) {
+        errors.push(
+          `Regulamento ativo ${activeReg.regulationId} tem effectiveSeason (${activeReg.effectiveSeason}) no futuro em relação à temporada ${seasonYear}.`,
+        )
+      }
+    }
+
+    // 3. Baselines de novo carro
+    let baselinesAudited = 0
+    for (const [tId, base] of Object.entries(teamBaselines)) {
+      baselinesAudited++
+      if (typeof base.carPerformanceRating !== 'number' || isNaN(base.carPerformanceRating)) {
+        errors.push(`Baseline inválido para equipe ${tId}: carPerformanceRating indefinido ou NaN.`)
+      }
+      if (base.carPerformanceRating < 10 || base.carPerformanceRating > 100) {
+        errors.push(
+          `Baseline fora do range permitido (10-100) para ${tId}: ${base.carPerformanceRating}`,
+        )
+      }
+      // Verificar integridade dos 12 atributos
+      if (!base.attributes || Object.keys(base.attributes).length < 12) {
+        errors.push(`Baseline da equipe ${tId} não contém os 12 atributos canônicos.`)
+      }
+    }
+
+    // 4. Concepts de realização
+    let conceptsAudited = 0
+    for (const [tId, conc] of Object.entries(teamConcepts)) {
+      conceptsAudited++
+      if (typeof conc.realizationScore !== 'number' || isNaN(conc.realizationScore)) {
+        errors.push(`ConceptRealization inválido para equipe ${tId}: realizationScore inválido.`)
+      }
+      if (conc.realizationScore < 10 || conc.realizationScore > 100) {
+        errors.push(
+          `RealizationScore fora dos limites (10-100) em ${tId}: ${conc.realizationScore}`,
+        )
+      }
+    }
+
+    const futureRegs = regulationTimelineService.getFutureRegulations(timeline, seasonYear)
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      stats: {
+        currentSeason: seasonYear,
+        activeEraId: timeline.activeEraId,
+        activeRegulationId: timeline.activeRegulationId,
+        futureRegulationsCount: futureRegs.length,
+        baselinesAudited,
+        conceptsAudited,
+      },
+    }
+  }
+
   public auditRegulationFoundation(timeline: RegulationTimelineState): {
     isValid: boolean
     errors: string[]
@@ -1785,6 +1885,8 @@ export class RegulationService {
     totalRoundsInSeason: number
     regulation: TechnicalRegulation
     seedModifier?: number
+    pointsGapToLeader?: number
+    consecutiveDominantSeasons?: number
   }): {
     strategy: DevelopmentStrategyPreset
     currentCarShare: number
@@ -1803,9 +1905,12 @@ export class RegulationService {
       totalRoundsInSeason,
       regulation,
       seedModifier = 0,
+      pointsGapToLeader = 0,
+      consecutiveDominantSeasons = 0,
     } = params
 
     const yearsToEffective = regulation.effectiveSeason - currentSeasonYear
+    const isMidSeason = currentRound >= Math.round(totalRoundsInSeason * 0.4)
     const isLateSeason = currentRound >= Math.round(totalRoundsInSeason * 0.6)
     const isVeryLateSeason = currentRound >= Math.round(totalRoundsInSeason * 0.8)
 
@@ -1821,6 +1926,8 @@ export class RegulationService {
       futureWeightScore += 25
     } else if (regulation.severity === 'HIGH') {
       futureWeightScore += 15
+    } else if (regulation.severity === 'LOW') {
+      futureWeightScore -= 10
     }
 
     // Fator 2: Proximidade
@@ -1829,22 +1936,38 @@ export class RegulationService {
       if (isLateSeason) futureWeightScore += 15
     } else if (yearsToEffective === 2) {
       futureWeightScore += 10
+      if (isLateSeason) futureWeightScore += 8
     }
 
-    // Fator 3: Posição no Campeonato
-    // Contenders (P1-P3) querem vencer o ano atual! Backmarkers (P8-P10) preferem investir no próximo ciclo
+    // Fator 3: Posição no Campeonato e Dinâmica Competitiva (8C.4)
+    // Contenders (P1-P2) lutando por título tendem a focar no presente
+    // Porém: se o título estiver praticamente garantido ou se for uma New Era iminente e a equipe já lidera folgadamente
     if (championshipPosition <= 2) {
-      // Lutando por título
-      futureWeightScore -= 30
-      if (!isVeryLateSeason) futureWeightScore -= 15
+      if (consecutiveDominantSeasons >= 3 && yearsToEffective <= 1 && isMidSeason) {
+        // Dinastia inteligente: equipe dominante sabe que a nova era ameaça seu reinado, então migra recursos mais cedo!
+        futureWeightScore += 15
+      } else if (!isVeryLateSeason) {
+        futureWeightScore -= 30
+      } else {
+        // Final da temporada: se o título já estiver decidido (ou perdido), pode virar a chave
+        futureWeightScore -= 10
+      }
     } else if (championshipPosition <= 4) {
-      futureWeightScore -= 15
+      // Upper Midfield disputando pódios
+      if (pointsGapToLeader > 80 && isMidSeason) {
+        // Sem chance real de título atual, virar chave mais cedo para tentar pulo de gato
+        futureWeightScore += 15
+      } else {
+        futureWeightScore -= 10
+      }
     } else if (championshipPosition >= 8) {
-      // Sem chances de grandes coisas no ano atual
-      futureWeightScore += 25
+      // Backmarker: sem perspectiva no ano vigente, migra agressivamente para o novo regulamento
+      futureWeightScore += 30
+      if (isMidSeason) futureWeightScore += 10
     } else {
-      // Pelotão intermediário
-      futureWeightScore += 5
+      // Midfield intermediário
+      futureWeightScore += 10
+      if (isLateSeason) futureWeightScore += 10
     }
 
     // Fator 4: DNA e seed

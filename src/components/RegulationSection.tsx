@@ -53,6 +53,10 @@ export const RegulationSection: React.FC<RegulationSectionProps> = ({
   const announcedRegs = regulationTimelineService.getAnnouncedRegulations(timeline)
   const proposedRegs = regulationTimelineService.getProposedRegulations(timeline)
   const supersededRegs = regulationTimelineService.getSupersededRegulations(timeline)
+  const futureRegs = regulationTimelineService.getFutureRegulations(
+    timeline,
+    timeline.currentSeason,
+  )
 
   const handleOpenDetail = (reg: TechnicalRegulation) => {
     setSelectedRegulation(reg)
@@ -165,6 +169,28 @@ export const RegulationSection: React.FC<RegulationSectionProps> = ({
           </p>
         </div>
       </div>
+
+      {/* 8C.4: RESUMO DE CICLO E PRÓXIMA ERA */}
+      {futureRegs.length > 0 && (
+        <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-950/40 via-indigo-950/20 to-transparent border border-blue-500/30 flex items-center justify-between gap-4 font-mono">
+          <div className="space-y-0.5">
+            <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider block">
+              PRÓXIMO MARCO REGULATÓRIO ANUNCIADO
+            </span>
+            <span className="text-xs text-white font-semibold">
+              {futureRegs[0].name} ({futureRegs[0].effectiveSeason})
+            </span>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="text-[10px] text-zinc-400 block">Vigência em</span>
+            <strong className="text-sm text-cyan-400">
+              {futureRegs[0].effectiveSeason - timeline.currentSeason === 1
+                ? 'Próxima Temporada'
+                : `${futureRegs[0].effectiveSeason - timeline.currentSeason} anos`}
+            </strong>
+          </div>
+        </div>
+      )}
 
       {/* TIMELINE PRINCIPAL (REGRA 24) */}
       <Card className="bg-[#0A0E17]/90 border border-[#1F2739] shadow-xl">

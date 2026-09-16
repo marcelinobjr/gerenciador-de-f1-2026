@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import pb from '@/lib/pocketbase/client'
 import { f1Service } from '@/services/f1Service'
 import { raceReportService } from '@/services/raceReportService'
 import { standingsService } from '@/services/standingsService'
+import { eraHistoryService } from '@/services/eraHistoryService'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { formatCurrency } from '@/lib/formatters'
 import { PageHeader } from '@/components/PageHeader'
@@ -71,6 +73,8 @@ export default function HistoryPage() {
   const [selectedReport, setSelectedReport] = useState<RaceReportData | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
+  const [archivedHistories, setArchivedHistories] = useState<any[]>([])
+
   // Carregar dados
   useEffect(() => {
     let mounted = true
@@ -80,15 +84,20 @@ export default function HistoryPage() {
         return
       }
       try {
-        const [rList, dList, repList] = await Promise.all([
+        const [rList, dList, repList, histRecords] = await Promise.all([
           f1Service.getSeasonRaceResults(season.id),
           f1Service.getTeamDrivers(team.id),
           raceReportService.getSeasonReports(season.id),
+          pb
+            .collection('season_histories')
+            .getFullList({ sort: 'season_year' })
+            .catch(() => []),
         ])
         if (mounted) {
           setRaceResults(rList)
           setPlayerDrivers(dList)
           setReports(repList)
+          setArchivedHistories(histRecords || [])
         }
       } catch (err) {
         console.error('Erro ao carregar histórico da temporada:', err)
@@ -650,6 +659,97 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
+
+      {/* 8C.4: ERA SUMMARY & ARQUIVO HISTÓRICO DE ERAS TÉCNICAS */}
+      {archivedHistories.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-[#1C2330]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                Resumo Histórico de Eras Técnicas
+              </h2>
+              <p className="text-xs text-[#8B95A7]">
+                Linha do tempo oficial de campeões mundiais, dinastias e evolução das gerações de
+                monopostos.
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className="border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs font-mono"
+            >
+              {archivedHistories.length} Temporadas Concluídas
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {eraHistoryService
+              .buildEraSummaries(
+                archivedHistories.map((h) => ({
+                  id: h.id,
+                  season: h.season_year,
+                  technicalEraId: h.technical_era_id || 'era_2026_baseline',
+                  driversChampion: h.drivers_champion,
+                  constructorsChampion: h.constructors_champion,
+                  finalStandings: {
+                    drivers: h.final_driver_standings || [],
+                    constructors: h.final_constructor_standings || [],
+                  },
+                  teamSummary: h.team_summary || {},
+                  majorRecords: h.major_records || { totalRaces: 24, mostWinsDriver: '' },
+                  archivedAt: h.archived_at || h.created,
+                })),
+              )
+              .map((eraSummary) => (
+                <div
+                  key={eraSummary.eraId}
+                  className="p-4 rounded-xl bg-[#0F141C] border border-[#1C2330] space-y-3 font-mono"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white uppercase">
+                      {eraSummary.name}
+                    </span>
+                    <span className="text-[10px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 px-2 py-0.5 rounded">
+                      {eraSummary.durationSeasons}{' '}
+                      {eraSummary.durationSeasons === 1 ? 'temporada' : 'temporadas'}
+                    </span>
+                  </div>
+
+                  {eraSummary.dominantTeam && (
+                    <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#1A222F] text-xs">
+                      <span className="text-[10px] text-zinc-400 block uppercase">
+                        Força Dominante da Era:
+                      </span>
+                      <strong className="text-amber-400 text-sm font-bold block">
+                        {eraSummary.dominantTeam.teamName} ({eraSummary.dominantTeam.titlesCount}{' '}
+                        títulos)
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 text-xs">
+                    <span className="text-[10px] text-zinc-400 block uppercase font-bold">
+                      Campeões Homologados:
+                    </span>
+                    <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+                      {eraSummary.constructorsChampions.map((c, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between text-[11px] bg-[#141B26]/60 p-1.5 rounded"
+                        >
+                          <span className="text-zinc-400">{c.season}</span>
+                          <strong className="text-white truncate max-w-[140px]">
+                            {c.teamName}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE RELATÓRIO PÓS-CORRIDA */}
       <RaceReportModal

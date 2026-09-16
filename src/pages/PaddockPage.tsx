@@ -647,21 +647,32 @@ export default function PaddockPage() {
     expiringTopDrivers.forEach((d) => {
       rumors.push({
         id: `rumor-exp-${d.id}`,
-        title: `${d.name} desperta interesse dos principais chefes de equipe para 2027`,
+        title: `${d.name} desperta interesse dos principais chefes de equipe para ${Number(d.contractEnd) + 1}`,
         category: 'MERCADO DE PILOTOS',
         impact: `Com contrato encerrando ao fim de ${d.contractEnd}, o piloto de ${d.age} anos avalia renovação ou mudança.`,
         teamColor: d.teamColor,
       })
     })
 
-    // Rumores de motores
+    // Notícias do Ciclo Técnico & Regulatório (8C.4)
     rumors.push({
-      id: 'rumor-pu-2026',
-      title: 'FIA confirma congelamento de especificações elétricas 50/50 até o meio da temporada',
-      category: 'REGULAMENTO TÉCNICO',
+      id: 'news-reg-cycle',
+      title: 'FIA estuda diretrizes aerodinâmicas e estabilidade para os próximos ciclos técnicos',
+      category: 'CICLO REGULATÓRIO',
       impact:
-        'Todas as 5 fornecedoras de UP trabalham em mapas de recuperação de energia no MGU-K.',
-      teamColor: '#E10600',
+        'Comissões de P&D avaliam equilíbrio entre redução de turbulência e convergência de desempenho entre as escuderias.',
+      teamColor: '#00A6FB',
+    })
+
+    // Notícias de correlação e conceito técnico
+    rumors.push({
+      id: 'news-concept-correlation',
+      title:
+        'Engenheiros alertam para desafios de correlação entre túnel de vento e dados de pista',
+      category: 'ENGENHARIA & CONCEITO',
+      impact:
+        'Escuderias com divergência em CFD realizam pacotes de avaliação nas sextas-feiras de GP.',
+      teamColor: '#F59E0B',
     })
 
     // Rumor de jovens talentos

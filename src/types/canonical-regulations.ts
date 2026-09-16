@@ -196,6 +196,7 @@ export interface RegulationTimelineState {
   currentSeason: number
   regulations: TechnicalRegulation[]
   lastAuditedRound?: number
+  generatedUpToSeason?: number // Controla até qual temporada futura o RegulatoryCycleGenerator já projetou
   historyLog: {
     timestamp: string
     sourceEventId: string
@@ -209,6 +210,43 @@ export interface RegulationTimelineState {
     regulationId: string
     summary: string
   }[]
+}
+
+// 11.b Tiers Analíticos de Mobilidade de Grid (8C.4 — Somente analítico, nunca bônus)
+export type CompetitiveGridTier =
+  | 'TOP'
+  | 'UPPER_MIDFIELD'
+  | 'MIDFIELD'
+  | 'LOWER_MIDFIELD'
+  | 'BACKMARKER'
+
+export interface TeamTierStatus {
+  teamId: string
+  teamName: string
+  seasonYear: number
+  tier: CompetitiveGridTier
+  carPerformance: number
+  championshipRank: number
+  points: number
+  previousTier?: CompetitiveGridTier
+  tierChange: 'PROMOTED' | 'DEMOTED' | 'STABLE'
+}
+
+// 11.c Era History & Summary (8C.4)
+export interface TechnicalEraSummary {
+  eraId: string
+  name: string
+  startSeason: number
+  endSeason?: number
+  durationSeasons: number
+  constructorsChampions: { season: number; teamId: string; teamName: string; count?: number }[]
+  driversChampions: { season: number; driverId: string; driverName: string; teamName: string }[]
+  dominantTeam?: { teamId: string; teamName: string; titlesCount: number }
+  promotedTeams: string[]
+  demotedTeams: string[]
+  majorRegulationsCount: number
+  minorRegulationsCount: number
+  technicalDirectivesCount: number
 }
 
 // 12. Tipos de Eventos de Domínio
