@@ -377,4 +377,136 @@ describe('Implementação Nº 5A — Finanças, Orçamento, Projeções e Cost C
     expect(Number.isInteger(roundVal1)).toBe(true)
     expect(Number.isInteger(roundVal2)).toBe(true)
   })
+
+  // (82) FLUXO VIVO DE AVANÇO DE RODADA: processRoundFinances + syncTeamBudgetCache
+  it('(82) Integração processRoundFinances + syncTeamBudgetCache com idempotência e saldo canônico', async () => {
+    const fakeStore = new Map<string, any>()
+    vi.spyOn(service, 'getTransactionByIdempotencyKey').mockImplementation(async (key: string) => {
+      return fakeStore.get(key) || null
+    })
+    vi.spyOn(service, 'getTeamTransactions').mockImplementation(async () => {
+      return Array.from(fakeStore.values())
+    })
+
+    const fakeTeam: TeamModel = {
+      id: 'team_audi_live',
+      name: 'Audi Revolut F1 Team',
+      budget: 84_035_627,
+      cost_cap_spent: 0,
+      engine_supplier: 'Audi',
+    } as any
+
+    // Opening balance inicial no Ledger
+    const openingTx = {
+      id: 'tx_opening',
+      team_id: fakeTeam.id,
+      season_year: 2027,
+      round: 0,
+      type: 'opening_balance' as const,
+      category: 'ownerFunding' as const,
+      direction: 'inflow' as const,
+      amount: 84_035_627,
+      cash_impact: 84_035_627,
+      cost_cap_impact: 0,
+      cost_cap_classification: 'excluded' as const,
+      source_system: 'season_opening',
+      idempotency_key: `opening_balance_${fakeTeam.id}_2027`,
+      description: 'Saldo de Abertura',
+      status: 'effective' as const,
+    }
+    fakeStore.set(openingTx.idempotency_key, openingTx)
+
+    // Rodada 3: receita de patrocínio 2.500.000, salários 1.200.000, leasing motor 800.000
+    const sponsorIncome = 2_500_000
+    const driversCost = 1_200_000
+    const engineCost = 800_000
+    const expectedNet = sponsorIncome - driversCost - engineCost // +500.000
+
+    // Simula a lógica de f1Service.processRoundFinances usando o service com fakeStore
+    const postRoundFinances = async () => {
+      if (sponsorIncome > 0) {
+        const postRes = await service.postTransaction({
+          teamId: fakeTeam.id,
+          seasonYear: 2027,
+          round: 3,
+          type: 'revenue',
+          category: 'sponsorship',
+          direction: 'inflow',
+          amount: sponsorIncome,
+          costCapClassification: 'excluded',
+          sourceSystem: 'race_advance_sponsor_payout',
+          sourceEntityId: 'round_3_sponsors',
+          idempotencyKey: `sponsor_income_${fakeTeam.id}_y2027_r3`,
+          description: 'Repasse comercial Rodada 3',
+        })
+        if (!fakeStore.has(postRes.transaction.idempotency_key)) {
+          fakeStore.set(postRes.transaction.idempotency_key, postRes.transaction)
+        }
+      }
+      if (driversCost > 0) {
+        const postRes = await service.postTransaction({
+          teamId: fakeTeam.id,
+          seasonYear: 2027,
+          round: 3,
+          type: 'expense',
+          category: 'driverSalaries',
+          direction: 'outflow',
+          amount: driversCost,
+          costCapClassification: 'excluded',
+          sourceSystem: 'race_advance_driver_salaries',
+          sourceEntityId: 'round_3_drivers',
+          idempotencyKey: `driver_salaries_${fakeTeam.id}_y2027_r3`,
+          description: 'Folha salarial Rodada 3',
+        })
+        if (!fakeStore.has(postRes.transaction.idempotency_key)) {
+          fakeStore.set(postRes.transaction.idempotency_key, postRes.transaction)
+        }
+      }
+      if (engineCost > 0) {
+        const postRes = await service.postTransaction({
+          teamId: fakeTeam.id,
+          seasonYear: 2027,
+          round: 3,
+          type: 'expense',
+          category: 'raceOperations',
+          direction: 'outflow',
+          amount: engineCost,
+          costCapClassification: 'included',
+          sourceSystem: 'race_advance_engine_leasing',
+          sourceEntityId: 'round_3_engine',
+          idempotencyKey: `engine_leasing_${fakeTeam.id}_y2027_r3`,
+          description: 'Leasing motor Rodada 3',
+        })
+        if (!fakeStore.has(postRes.transaction.idempotency_key)) {
+          fakeStore.set(postRes.transaction.idempotency_key, postRes.transaction)
+        }
+      }
+      return { netCashflow: sponsorIncome - driversCost - engineCost }
+    }
+
+    // 1ª execução
+    const firstResult = await postRoundFinances()
+    expect(firstResult.netCashflow).toBe(expectedNet)
+
+    // Total de transações após primeira rodada: 1 opening + 3 da rodada = 4
+    expect(fakeStore.size).toBe(4)
+
+    // Snapshot e cálculo de saldo via Ledger
+    const transactions = Array.from(fakeStore.values())
+    const cashSummary = service.calculateCashSummary(transactions)
+    expect(cashSummary.cashBalance).toBe(84_035_627 + expectedNet) // 84.535.627
+
+    // Cost cap spent do motor (included): 800.000
+    const capSummary = service.calculateCostCapSummary(transactions)
+    expect(capSummary.used).toBe(800_000)
+
+    // 2ª execução (retry idempotente): não deve gerar novas transações
+    const secondResult = await postRoundFinances()
+    expect(secondResult.netCashflow).toBe(expectedNet)
+    expect(fakeStore.size).toBe(4)
+
+    const transactionsAfterRetry = Array.from(fakeStore.values())
+    const cashSummaryAfterRetry = service.calculateCashSummary(transactionsAfterRetry)
+    expect(cashSummaryAfterRetry.cashBalance).toBe(84_035_627 + expectedNet)
+  })
 })

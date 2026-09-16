@@ -1,4 +1,5 @@
 import { f1Service } from '@/services/f1Service'
+import { financialLedgerService } from '@/services/financialLedgerService'
 import { notificationService } from '@/services/notificationService'
 import { formatCurrency } from '@/lib/formatters'
 import type { DriverModel, PartModel, SponsorModel, SeasonModel, TeamModel } from '@/types/f1'
@@ -120,7 +121,7 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
       }
     }
 
-    // Process Finances
+    // Process Finances via Canonical Financial Ledger
     let totalSponsorIncome = 0
     for (const sp of sponsors) {
       if (sp.status === 'ativo') {
@@ -135,7 +136,19 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
 
     const driversCost = drivers.reduce((sum, d) => sum + Math.round(d.salary / totalRounds), 0)
     const engineCost = Math.round(currentEngine.costAnnual / totalRounds)
-    const netCashflow = totalSponsorIncome - driversCost - engineCost
+
+    const seasonYear = season.year || 2026
+    const { netCashflow } = await f1Service.processRoundFinances({
+      team,
+      seasonYear,
+      round: currentRound,
+      gpName: gpInfo.name,
+      sponsorIncome: totalSponsorIncome,
+      driversCost,
+      engineCost,
+    })
+
+    await financialLedgerService.syncTeamBudgetCache(team.id, seasonYear)
 
     // -------------------------------------------------------------
     // Atualização de Moral, Condição Física, Lesões e Recuperação ao Avançar Rodada
