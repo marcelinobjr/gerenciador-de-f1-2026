@@ -62,6 +62,29 @@ import { managerEffectService } from '@/services/managerEffectService'
 import { financialLedgerService } from '@/services/financialLedgerService'
 import { TechnicalOrganizationSection } from '@/components/TechnicalOrganizationSection'
 import { MANAGER_DOMAINS } from '@/lib/manager-attribute-domains'
+import { standingsService } from '@/services/standingsService'
+import audiGarageHeroImg from '@/assets/audi-e9cff.jpg'
+import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
+import bortoletoBundledImg from '@/assets/05-gabrielbortoleto-ed602.png'
+import { TeamHeroBanner } from '@/components/team/TeamHeroBanner'
+import { AboutTeamCard } from '@/components/team/AboutTeamCard'
+import { ManagerExecutiveCard } from '@/components/team/ManagerExecutiveCard'
+import { DriverSummaryCard } from '@/components/team/DriverSummaryCard'
+import {
+  TechnicalStaffSummaryCard,
+  KeyStaffMemberItem,
+} from '@/components/team/TechnicalStaffSummaryCard'
+import { BoardObjectivesCard, BoardObjectiveItem } from '@/components/team/BoardObjectivesCard'
+import { OrganizationHealthCard } from '@/components/team/OrganizationHealthCard'
+import {
+  OrganizationalCapacityCard,
+  DepartmentCapacity,
+} from '@/components/team/OrganizationalCapacityCard'
+import { PendingDecisionsCard, PendingDecisionItem } from '@/components/team/PendingDecisionsCard'
+import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
+import { ManagerProfileDetailsModal } from '@/components/team/ManagerProfileDetailsModal'
+import { PilotProfileDialog } from '@/components/PilotProfileDialog'
+import { getManagerOfficialPortrait } from '@/lib/manager-official-assets'
 import {
   Dialog,
   DialogContent,
@@ -485,6 +508,187 @@ export default function TeamPage() {
     },
   ]
 
+  // Modais de detalhes da nova camada UX
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false)
+  const [isManagerModalOpen, setIsManagerModalOpen] = useState(false)
+  const [selectedPilotForProfile, setSelectedPilotForProfile] = useState<any>(null)
+  const [isPilotProfileModalOpen, setIsPilotProfileModalOpen] = useState(false)
+
+  // Metadados do retrato oficial do Manager selecionado
+  const managerOfficialPortrait = useMemo(() => {
+    return getManagerOfficialPortrait(team)
+  }, [team])
+
+  // Avaliação do Manager canônico (para atributos detalhados)
+  const managerEvaluation = useMemo(() => {
+    return managerEffectService.evaluateManager(team)
+  }, [team])
+
+  // Cálculo da pontuação e ranking de construtores vindo da tabela/serviço unificado
+  const { constructorRank, constructorTotalPoints } = useMemo(() => {
+    try {
+      const standingsResult = standingsService.calculateStandings({
+        currentRound: season?.current_round || 1,
+        seasonYear: season?.year || 2026,
+        userTeamId: team?.id || '',
+      })
+      if (standingsResult) {
+        return {
+          constructorRank: standingsResult.playerConstructorRank ?? 3,
+          constructorTotalPoints: standingsResult.teamPoints ?? 65,
+        }
+      }
+    } catch {
+      // fallback gracioso
+    }
+    return {
+      constructorRank: 3,
+      constructorTotalPoints: 65,
+    }
+  }, [season?.current_round, season?.year, team?.id])
+
+  // Capacidade Organizacional departamental (Aerodinâmica 72, Engenharia 84, Operações 88, Comercial 79)
+  const orgCapacities: DepartmentCapacity = useMemo(() => {
+    const aero = Math.round((team as any)?.aero_level ? (team as any).aero_level * 10 : 72)
+    const eng = Math.round(teamStrength ? Math.min(95, teamStrength + 32) : 84)
+    const ops = Math.round((team as any)?.operations_rating || 88)
+    const com = Math.round((team as any)?.commercial_rating || 79)
+    return {
+      aerodynamics: aero || 72,
+      engineering: eng || 84,
+      trackOperations: ops || 88,
+      commercial: com || 79,
+    }
+  }, [team, teamStrength])
+
+  // KPIs de Saúde Organizacional
+  const orgHealthKpis = useMemo(() => {
+    const teamMorale = Math.round(overallMorale || 82)
+    const operationalEfficiency = 78
+    const cohesion = 85
+    const internalPressure = Math.max(10, Math.min(90, Math.round(100 - (boardConfidence || 64))))
+    return {
+      teamMorale,
+      operationalEfficiency,
+      cohesion,
+      internalPressure,
+    }
+  }, [overallMorale, boardConfidence])
+
+  // Objetivos da Diretoria derivados de board_confidence e metas da equipe
+  const boardObjectivesList: BoardObjectiveItem[] = useMemo(() => {
+    return [
+      {
+        id: 'obj-1',
+        area: 'Campeonato',
+        description: 'Terminar a temporada no Top 4 de Construtores',
+        progressPct: Math.min(100, Math.round((constructorTotalPoints / 120) * 100)),
+        statusValue: `${constructorTotalPoints}/120 pts (3º lugar)`,
+        chipStatus: 'No caminho',
+      },
+      {
+        id: 'obj-2',
+        area: 'Financeiro',
+        description: 'Manter margem sob o teto de gastos de 135M',
+        progressPct: Math.min(100, Math.round((currentCostCapSpent / COST_CAP_LIMIT) * 100)),
+        statusValue: `${formatCurrency(remainingCostCap)} livres`,
+        chipStatus: remainingCostCap > 20000000 ? 'No caminho' : 'Atenção',
+      },
+      {
+        id: 'obj-3',
+        area: 'Desenvolvimento do Carro',
+        description: 'Superar o gargalo aerodinâmico antes da rodada 8',
+        progressPct: orgCapacities.aerodynamics,
+        statusValue: `${orgCapacities.aerodynamics}/100 índice`,
+        chipStatus: orgCapacities.aerodynamics < 75 ? 'Atenção' : 'Adiantado',
+      },
+      {
+        id: 'obj-4',
+        area: 'Desenvolvimento dos Pilotos',
+        description: 'Consolidar Bortoleto na zona de pontos frequente',
+        progressPct: 80,
+        statusValue: 'Meta 80% cumprida',
+        chipStatus: 'No caminho',
+      },
+    ]
+  }, [
+    constructorTotalPoints,
+    currentCostCapSpent,
+    COST_CAP_LIMIT,
+    remainingCostCap,
+    orgCapacities.aerodynamics,
+  ])
+
+  // Decisões pendentes organizacionais (máx 3 na tela principal)
+  const pendingDecisionsList: PendingDecisionItem[] = useMemo(() => {
+    return [
+      {
+        id: 'dec-1',
+        title: 'Renovar contrato do chefe de aerodinâmica',
+        priority: 'ALTA',
+        actionTab: 'staff',
+      },
+      {
+        id: 'dec-2',
+        title: 'Resolver atrito entre piloto e engenharia',
+        priority: 'ALTA',
+        actionTab: 'cultura_moral',
+      },
+      {
+        id: 'dec-3',
+        title: 'Aprovar contratação para o departamento técnico',
+        priority: 'MÉDIA',
+        actionTab: 'staff',
+      },
+    ]
+  }, [])
+
+  // Staff técnico chave formatado
+  const keyStaffSummaryList: KeyStaffMemberItem[] = useMemo(() => {
+    return [
+      {
+        id: 'staff-1',
+        name: 'James Key',
+        role: 'Diretor Técnico',
+        overallRating: 89,
+        moralStatus: 'Alta',
+        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=44',
+      },
+      {
+        id: 'staff-2',
+        name: 'Sophie Keller',
+        role: 'Chefe de Aerodinâmica',
+        overallRating: 86,
+        moralStatus: 'Alta',
+        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=female&seed=88',
+      },
+      {
+        id: 'staff-3',
+        name: 'Thomas Weber',
+        role: 'Diretor de Engenharia',
+        overallRating: 84,
+        moralStatus: 'Estável',
+        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=62',
+      },
+      {
+        id: 'staff-4',
+        name: 'Elena Moretti',
+        role: 'Chefe de Estratégia',
+        overallRating: 82,
+        moralStatus: 'Alta',
+        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=female&seed=91',
+      },
+      {
+        id: 'staff-5',
+        name: 'Markus Steiner',
+        role: 'Diretor Comercial',
+        overallRating: 80,
+        moralStatus: 'Estável',
+        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=33',
+      },
+    ]
+  }, [])
+
   // Handlers for engine switch
   const handleSwitchSupplier = async () => {
     if (!selectedSupplier || !team) return
@@ -746,8 +950,8 @@ export default function TeamPage() {
         </div>
       </div>
 
-      {/* BARRA DE SUB-ABAS NO ESTILO DO MOCKUP */}
-      <div className="flex items-center gap-1.5 border-b border-neutral-800/80 pb-2 overflow-x-auto no-scrollbar">
+      {/* BARRA DE SUB-ABAS NO DESIGN SYSTEM APEX */}
+      <div className="flex items-center gap-1.5 border-b border-neutral-200/80 pb-2 overflow-x-auto no-scrollbar">
         {[
           { id: 'visao_geral', label: 'Visão Geral' },
           { id: 'pilotos', label: 'Pilotos & Homologação' },
@@ -763,10 +967,10 @@ export default function TeamPage() {
               onClick={() => {
                 setActiveTab(tab.id as TeamSubTab)
               }}
-              className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                 isActive
-                  ? 'bg-[#E10600] text-white shadow-md shadow-red-600/30 font-bold'
-                  : 'bg-neutral-900/60 text-neutral-400 hover:text-white hover:bg-neutral-800/60 border border-neutral-800/50'
+                  ? 'bg-[#E10600] text-white shadow-sm font-bold'
+                  : 'bg-white text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 border border-neutral-200'
               }`}
             >
               {tab.label}
@@ -775,860 +979,192 @@ export default function TeamPage() {
         })}
       </div>
 
-      {/* HERO CARD DE IDENTIDADE DA EQUIPE (MOCKUP) */}
-      <div className="relative rounded-2xl bg-[#0B0E14] border border-neutral-800/80 overflow-hidden shadow-2xl p-6 lg:p-7">
-        {/* Glow de fundo */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-          {/* Logo e Info Institucional (col-span-8) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="flex items-center gap-4">
-              {/* Logo da equipe */}
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-black/60 border border-neutral-800 flex items-center justify-center p-3 shadow-inner shrink-0">
-                <svg className="w-full h-auto text-white" viewBox="0 0 100 40" fill="currentColor">
-                  {/* Audi 4 rings icon */}
-                  <circle
-                    cx="20"
-                    cy="20"
-                    r="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                  />
-                  <circle
-                    cx="40"
-                    cy="20"
-                    r="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                  />
-                  <circle
-                    cx="60"
-                    cy="20"
-                    r="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                  />
-                  <circle
-                    cx="80"
-                    cy="20"
-                    r="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                  />
-                </svg>
-              </div>
-
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight uppercase">
-                  {teamName}
-                </h2>
-                <div className="flex items-center gap-2 mt-1 text-xs font-mono text-neutral-400">
-                  <span className="text-sm">{teamFlag}</span>
-                  <span>{teamCountry}</span>
-                  <span>•</span>
-                  <span>Sede: {teamHq}</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed max-w-xl">
-              {teamIntro}
-            </p>
-          </div>
-
-          {/* Cards laterais de Team Principal, Cultura, Moral e Diretoria (col-span-5) */}
-          <div className="lg:col-span-5 grid grid-cols-2 gap-3 font-mono">
-            {/* Team Principal */}
-            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
-              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
-                Team Principal
-              </span>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-[#E10600] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    {teamPrincipalName.charAt(0)}
-                  </div>
-                  <span className="text-xs font-bold text-white truncate max-w-[80px]">
-                    {teamPrincipalName}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setActiveTab('staff')}
-                  className="text-[10px] text-neutral-400 hover:text-white underline decoration-neutral-600 cursor-pointer"
-                >
-                  Ver perfil
-                </button>
-              </div>
-            </div>
-
-            {/* Moral Geral com anel % */}
-            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
-              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
-                Moral Geral
-              </span>
-              <div className="flex items-center gap-2.5 mt-2">
-                <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
-                  <svg className="w-8 h-8 -rotate-90" viewBox="0 0 32 32">
-                    <circle cx="16" cy="16" r="13" stroke="#1E293B" strokeWidth="2.5" fill="none" />
-                    <circle
-                      cx="16"
-                      cy="16"
-                      r="13"
-                      stroke="#10B981"
-                      strokeWidth="2.5"
-                      fill="none"
-                      strokeDasharray={2 * Math.PI * 13}
-                      strokeDashoffset={2 * Math.PI * 13 * (1 - overallMorale / 100)}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <Activity className="w-3.5 h-3.5 text-emerald-400 absolute" />
-                </div>
-                <span className="text-base font-black text-white">{overallMorale}%</span>
-              </div>
-            </div>
-
-            {/* Cultura da Equipe */}
-            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
-              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
-                Cultura da Equipe
-              </span>
-              <div className="flex items-center gap-2 mt-2">
-                <Award className="w-4 h-4 text-cyan-400 shrink-0" />
-                <span className="text-xs font-bold text-white truncate">Alta Performance</span>
-              </div>
-            </div>
-
-            {/* Confiança da Diretoria com Estrela */}
-            <div className="p-3.5 rounded-xl bg-black/40 border border-neutral-800/80 flex flex-col justify-between">
-              <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
-                Confiança da Diretoria
-              </span>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-amber-400 text-base">★</span>
-                <span className="text-base font-black text-white">{boardConfidence}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* VISÃO GERAL (GRID DO MOCKUP) */}
+      {/* ABA PRINCIPAL: VISÃO GERAL REESTRUTURADA CONFORME MOCKUP */}
       {activeTab === 'visao_geral' && (
         <div className="space-y-6">
-          {/* LINHA SUPERIOR DO GRID (Pilotos / Membros Principais / Situação) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* 1. PILOTOS DA EQUIPE (col-span-5) */}
-            <div className="lg:col-span-5 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 flex flex-col justify-between shadow-lg">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-4">
-                  <span className="text-xs font-black uppercase tracking-wider text-white font-mono flex items-center gap-2">
-                    PILOTOS DA EQUIPE
-                  </span>
-                  <button
-                    onClick={() => navigate('/pilotos')}
-                    className="text-xs font-mono text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                  >
-                    Ver todos →
-                  </button>
-                </div>
-
-                {/* Cards por piloto (#1, #2, Reserva) */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  {/* Piloto #1 */}
-                  {(() => {
-                    const d1 = titularDrivers[0] || {
-                      name: 'Daniel Ricciardo',
-                      nationality: 'Austrália',
-                      speed: 87,
-                      consistency: 85,
-                      morale: 85,
-                      physical_condition: 92,
-                      fatigue: 28,
-                      contract_end: 2027,
-                      salary: 7500000,
-                    }
-                    const overall1 = Math.round(((d1.speed || 80) + (d1.consistency || 80)) / 2)
-                    return (
-                      <div className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/70 flex flex-col justify-between space-y-2">
-                        <div>
-                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-neutral-400">
-                            <span className="text-white">#1</span>
-                            <span className="text-xs">{getCountryFlag(d1.nationality)}</span>
-                          </div>
-
-                          <div className="relative my-1.5 flex justify-center">
-                            <DriverPhotoAvatar
-                              name={d1.name}
-                              teamColor="#E10600"
-                              size="md"
-                              className="border border-neutral-800 rounded-lg"
-                            />
-                          </div>
-
-                          <div className="text-center">
-                            <div className="text-[11px] font-bold text-white truncate">
-                              {d1.name}
-                            </div>
-                            <div className="text-lg font-black text-white font-mono mt-0.5">
-                              {overall1}{' '}
-                              <span className="text-[9px] font-normal text-neutral-400">GER</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Barras Forma / Moral / Fadiga */}
-                        <div className="space-y-1 font-mono text-[9px]">
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Forma</span>
-                            <span className="text-emerald-400 font-bold">
-                              {d1.physical_condition || 92}
-                            </span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full"
-                              style={{ width: `${d1.physical_condition || 92}%` }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Moral</span>
-                            <span className="text-cyan-400 font-bold">{d1.morale || 85}</span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-cyan-500 rounded-full"
-                              style={{ width: `${d1.morale || 85}%` }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Fadiga</span>
-                            <span className="text-amber-400 font-bold">{d1.fatigue || 28}</span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-amber-500 rounded-full"
-                              style={{ width: `${d1.fatigue || 28}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
-                          <div>Contrato até {d1.contract_end || 2027}</div>
-                          <div className="text-neutral-300 font-semibold truncate">
-                            Salário: {formatCurrency(d1.salary || 7500000)}/ano
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })()}
-
-                  {/* Piloto #2 */}
-                  {(() => {
-                    const d2 = titularDrivers[1] || {
-                      name: 'Gabriel Bortoleto',
-                      nationality: 'Brasil',
-                      speed: 83,
-                      consistency: 82,
-                      morale: 78,
-                      physical_condition: 98,
-                      fatigue: 32,
-                      contract_end: 2028,
-                      salary: 3800000,
-                    }
-                    const overall2 = Math.round(((d2.speed || 83) + (d2.consistency || 82)) / 2)
-                    return (
-                      <div className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/70 flex flex-col justify-between space-y-2">
-                        <div>
-                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-neutral-400">
-                            <span className="text-white">#2</span>
-                            <span className="text-xs">{getCountryFlag(d2.nationality)}</span>
-                          </div>
-
-                          <div className="relative my-1.5 flex justify-center">
-                            <DriverPhotoAvatar
-                              name={d2.name}
-                              teamColor="#E10600"
-                              size="md"
-                              className="border border-neutral-800 rounded-lg"
-                            />
-                          </div>
-
-                          <div className="text-center">
-                            <div className="text-[11px] font-bold text-white truncate">
-                              {d2.name}
-                            </div>
-                            <div className="text-lg font-black text-white font-mono mt-0.5">
-                              {overall2}{' '}
-                              <span className="text-[9px] font-normal text-neutral-400">GER</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Barras Forma / Moral / Fadiga */}
-                        <div className="space-y-1 font-mono text-[9px]">
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Forma</span>
-                            <span className="text-emerald-400 font-bold">
-                              {d2.physical_condition || 98}
-                            </span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full"
-                              style={{ width: `${d2.physical_condition || 98}%` }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Moral</span>
-                            <span className="text-cyan-400 font-bold">{d2.morale || 78}</span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-cyan-500 rounded-full"
-                              style={{ width: `${d2.morale || 78}%` }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Fadiga</span>
-                            <span className="text-amber-400 font-bold">{d2.fatigue || 32}</span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-amber-500 rounded-full"
-                              style={{ width: `${d2.fatigue || 32}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
-                          <div>Contrato até {d2.contract_end || 2028}</div>
-                          <div className="text-neutral-300 font-semibold truncate">
-                            Salário: {formatCurrency(d2.salary || 3800000)}/ano
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })()}
-
-                  {/* Piloto Reserva */}
-                  {(() => {
-                    const dr = reserveDriver || {
-                      id: 'fallback-reserve',
-                      team_id: team?.id || '',
-                      name: 'Zane Maloney',
-                      nationality: 'Barbados',
-                      speed: 78,
-                      consistency: 77,
-                      morale: 75,
-                      physical_condition: 78,
-                      fatigue: 18,
-                      contract_end: 2026,
-                      salary: 1200000,
-                      age: 20,
-                      superlicense_points: 38,
-                      homologation_status: 'homologacao' as const,
-                      homologation_sessions_done: 0,
-                      f1_adaptation: 45,
-                    }
-                    const overallR = Math.round(((dr.speed || 78) + (dr.consistency || 77)) / 2)
-                    return (
-                      <div className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/70 flex flex-col justify-between space-y-2">
-                        <div>
-                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-neutral-400">
-                            <span className="text-amber-400">Reserva</span>
-                            <span className="text-xs">{getCountryFlag(dr.nationality)}</span>
-                          </div>
-
-                          <div className="relative my-1.5 flex justify-center">
-                            <DriverPhotoAvatar
-                              name={dr.name}
-                              teamColor="#D97706"
-                              size="md"
-                              className="border border-neutral-800 rounded-lg"
-                            />
-                          </div>
-
-                          <div className="text-center">
-                            <div className="text-[11px] font-bold text-white truncate">
-                              {dr.name}
-                            </div>
-                            <div className="text-lg font-black text-white font-mono mt-0.5">
-                              {overallR}{' '}
-                              <span className="text-[9px] font-normal text-neutral-400">GER</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Barras Forma / Moral / Fadiga */}
-                        <div className="space-y-1 font-mono text-[9px]">
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Forma</span>
-                            <span className="text-emerald-400 font-bold">
-                              {dr.physical_condition || 78}
-                            </span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full"
-                              style={{ width: `${dr.physical_condition || 78}%` }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Moral</span>
-                            <span className="text-cyan-400 font-bold">{dr.morale || 75}</span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-cyan-500 rounded-full"
-                              style={{ width: `${dr.morale || 75}%` }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Fadiga</span>
-                            <span className="text-amber-400 font-bold">{dr.fatigue || 18}</span>
-                          </div>
-                          <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-amber-500 rounded-full"
-                              style={{ width: `${dr.fatigue || 18}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Status Regulamentar & Homologação FIA */}
-                        {(() => {
-                          const status =
-                            ('homologation_status' in dr && dr.homologation_status) ||
-                            calcularElegibilidade(
-                              ('age' in dr && dr.age) || 20,
-                              ('superlicense_points' in dr && dr.superlicense_points) || 0,
-                              0,
-                            )
-                          const isHomologation = status === 'homologacao'
-                          const sessionsDone =
-                            ('homologation_sessions_done' in dr && dr.homologation_sessions_done) ??
-                            0
-                          const adaptation = ('f1_adaptation' in dr && dr.f1_adaptation) ?? 0
-
-                          return (
-                            <div className="pt-1.5 border-t border-neutral-800/60 space-y-1 font-mono text-[9px]">
-                              <div className="flex items-center justify-between">
-                                <span className="text-neutral-400">FIA:</span>
-                                {status === 'formacao' && (
-                                  <span className="text-purple-400 font-bold">Formação</span>
-                                )}
-                                {status === 'homologacao' && (
-                                  <span className="text-amber-400 font-bold">Homologação</span>
-                                )}
-                                {status === 'elegivel' && (
-                                  <span className="text-emerald-400 font-bold">Elegível</span>
-                                )}
-                              </div>
-
-                              {isHomologation && (
-                                <div className="space-y-0.5">
-                                  <div className="flex justify-between text-[8px] text-amber-300">
-                                    <span>TL1 FIA</span>
-                                    <span>{sessionsDone}/2</span>
-                                  </div>
-                                  <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-amber-400 rounded-full"
-                                      style={{
-                                        width: `${Math.min(100, (sessionsDone / 2) * 100)}%`,
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="flex justify-between text-neutral-400">
-                                <span>Adaptação:</span>
-                                <span className="text-cyan-400 font-bold">{adaptation}% / 80%</span>
-                              </div>
-                            </div>
-                          )
-                        })()}
-
-                        <div className="pt-1.5 border-t border-neutral-800/60 text-[9px] font-mono text-neutral-400">
-                          <div>Contrato até {dr.contract_end || 2026}</div>
-                          <div className="text-neutral-300 font-semibold truncate">
-                            Salário: {formatCurrency(dr.salary || 1200000)}/ano
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-
-                {/* SEÇÃO COMPACTA ACADEMIA & DESENVOLVIMENTO (Regra 2 do PDF) */}
-                <div className="mt-4 pt-3.5 border-t border-neutral-800/80">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
-                      <span className="text-[11px] font-black uppercase tracking-wider text-indigo-300 font-mono">
-                        ACADEMIA & DESENVOLVIMENTO
-                      </span>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => setDevManagerOpen(true)}
-                      className="h-6 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white font-mono px-2.5"
-                    >
-                      Gerenciar Desenvolvimento →
-                    </Button>
-                  </div>
-
-                  {testDrivers.length === 0 && teamAcademyPilots.length === 0 ? (
-                    <div className="p-2.5 rounded-lg bg-black/30 border border-dashed border-neutral-800 text-center text-xs text-neutral-400">
-                      Nenhum piloto de testes ou jovem designado no momento.{' '}
-                      <button
-                        onClick={() => setDevManagerOpen(true)}
-                        className="text-indigo-400 underline font-semibold ml-1 cursor-pointer"
-                      >
-                        Abrir Gestão
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {[
-                        ...testDrivers,
-                        ...teamAcademyPilots.filter((a) => !testDrivers.some((t) => t.id === a.id)),
-                      ]
-                        .slice(0, 3)
-                        .map((driver) => {
-                          const isTest = testDrivers.some((t) => t.id === driver.id)
-                          const licenseLabel =
-                            driver.license_status === 'nivel_a'
-                              ? 'Super Licença'
-                              : driver.license_status === 'nivel_b'
-                                ? 'Licença B (Provisória)'
-                                : 'Autorização Teste (Nível C)'
-                          const ovr = Math.round(
-                            ((driver.speed || 74) + (driver.consistency || 73)) / 2,
-                          )
-                          const prog = academyDevData.homologationPrograms[driver.id]
-
-                          return (
-                            <div
-                              key={driver.id}
-                              onClick={() => setDevManagerOpen(true)}
-                              className="p-2 rounded-lg bg-neutral-900/70 border border-neutral-800 hover:border-indigo-600/60 transition-colors cursor-pointer text-left font-mono space-y-1"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-white truncate max-w-[85px]">
-                                  {driver.name}
-                                </span>
-                                <span className="text-[10px]">
-                                  {getCountryFlag(driver.nationality)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between text-[9px] text-neutral-400">
-                                <span>{isTest ? 'Test Driver' : 'Academia'}</span>
-                                <span className="text-amber-400 font-bold">{ovr} GER</span>
-                              </div>
-                              <div className="text-[8px] truncate text-indigo-300">
-                                {prog
-                                  ? `Homolog: ${prog.completedValidTests}/4 tests`
-                                  : licenseLabel}
-                              </div>
-                            </div>
-                          )
-                        })}
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* 1. LINHA HERO DA EQUIPE + SOBRE A EQUIPE */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            {/* HERO HORIZONTAL DA EQUIPE (8 colunas) */}
+            <div className="lg:col-span-8 flex flex-col">
+              <TeamHeroBanner
+                teamName={teamName}
+                tagline="Tecnologia. Pessoas. Performance."
+                bgImage={audiGarageHeroImg}
+                constructorPosition={constructorRank}
+                constructorPoints={constructorTotalPoints}
+                reputation={team?.prestige_rating || 88}
+                seasonTarget="Top 4"
+                pointsProgress={{ current: constructorTotalPoints, target: 120 }}
+                onOpenDetails={() => setIsAboutModalOpen(true)}
+              />
             </div>
 
-            {/* 2. MEMBROS PRINCIPAIS DA EQUIPE (col-span-4) */}
-            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 flex flex-col justify-between shadow-lg">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
-                  <span className="text-xs font-black uppercase tracking-wider text-white font-mono flex items-center gap-2">
-                    MEMBROS PRINCIPAIS DA EQUIPE
-                  </span>
-                  <button
-                    onClick={() => setActiveTab('staff')}
-                    className="text-xs font-mono text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                  >
-                    Ver staff →
-                  </button>
-                </div>
-
-                <div className="space-y-2.5">
-                  {staffMembers.map((st) => (
-                    <div
-                      key={st.role}
-                      className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/60 flex items-center justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <img
-                          src={st.photo}
-                          alt={st.name}
-                          className="w-8 h-8 rounded-full object-cover border border-neutral-700 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <span className="text-[10px] text-neutral-400 font-mono block truncate">
-                            {st.role}
-                          </span>
-                          <span className="text-xs font-bold text-white block truncate">
-                            {st.name}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 font-mono shrink-0">
-                        <span className="text-xs">{st.flag}</span>
-                        <div className="flex items-center gap-1 text-emerald-400 text-xs font-bold">
-                          <span className="text-[10px] text-neutral-500">ıll</span>
-                          {st.rating}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* 3. SITUAÇÃO DA EQUIPE (col-span-3) */}
-            <div className="lg:col-span-3 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 flex flex-col justify-between shadow-lg font-mono">
-              <div>
-                <div className="pb-3 border-b border-neutral-800/60 mb-3">
-                  <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
-                    SITUAÇÃO DA EQUIPE
-                  </span>
-                </div>
-
-                <div className="space-y-3.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-400 flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-neutral-500" /> Funcionários
-                    </span>
-                    <strong className="text-white text-sm">320</strong>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-400 flex items-center gap-1.5">
-                      <Briefcase className="w-3.5 h-3.5 text-neutral-500" /> Folha Salarial Anual
-                    </span>
-                    <strong className="text-white text-xs">R$ 48,5 M</strong>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-400 flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-cyan-400" /> Eficiência Operacional
-                    </span>
-                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                      79%
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-400 flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-emerald-400" /> Estabilidade
-                    </span>
-                    <strong className="text-emerald-400">85%</strong>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-400 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Ambiente de Trabalho
-                    </span>
-                    <strong className="text-emerald-400">Muito Bom</strong>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-neutral-800/60">
-                    <span className="text-neutral-400 flex items-center gap-1.5">
-                      <Info className="w-3.5 h-3.5 text-neutral-500" /> Risco de Rotatividade
-                    </span>
-                    <strong className="text-emerald-400">Baixo</strong>
-                  </div>
-                </div>
-              </div>
+            {/* SOBRE A EQUIPE LATERAL (4 colunas) */}
+            <div className="lg:col-span-4 flex flex-col">
+              <AboutTeamCard
+                baseLocation={teamHq}
+                engineSupplier={team?.engine_supplier || 'Audi'}
+                nationality={teamCountry}
+                status="Projeto em ascensão"
+                quote="“Mais que uma equipe. Um futuro em movimento.”"
+                onOpenDetails={() => setIsAboutModalOpen(true)}
+              />
             </div>
           </div>
 
-          {/* LINHA INFERIOR DO GRID (Contratos em Destaque / Academia / Atenção Necessária) */}
+          {/* 2. SEGUNDA LINHA: MANAGER + PILOTO 1 + PILOTO 2 (3 cards no mesmo nível) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5">
+            {/* CARD DO MANAGER COM FOTO OFICIAL DO ARQUÉTIPO (col-span-5) */}
+            <div className="lg:col-span-5 flex flex-col">
+              <ManagerExecutiveCard
+                managerName={teamPrincipalName}
+                roleTitle="Team Principal"
+                archetypeTitle={managerOfficialPortrait.archetypeTitle}
+                portraitUrl={managerOfficialPortrait.imageUrl}
+                attributes={managerOfficialPortrait.topAttributes}
+                boardConfidenceText={
+                  boardConfidence >= 80
+                    ? 'Muito alta'
+                    : boardConfidence >= 60
+                      ? 'Alta'
+                      : 'Em atenção'
+                }
+                onOpenProfile={() => setIsManagerModalOpen(true)}
+              />
+            </div>
+
+            {/* PILOTO #1 (col-span-3.5 aprox -> col-span-4/col-span-3.5) */}
+            <div className="lg:col-span-3.5 flex flex-col">
+              {(() => {
+                const d1 = titularDrivers[0] || {
+                  id: 'ricciardo-fallback',
+                  name: 'Daniel Ricciardo',
+                  nationality: 'Austrália',
+                  speed: 87,
+                  consistency: 82,
+                  morale: 78,
+                  physical_condition: 85,
+                  contract_end: 2026,
+                }
+                const ovr1 = Math.round(((d1.speed || 87) + (d1.consistency || 82)) / 2)
+                const isRicciardo = d1.name.toLowerCase().includes('ricciardo')
+                const photoSrc = isRicciardo ? ricciardoBundledImg : undefined
+
+                return (
+                  <DriverSummaryCard
+                    slotNumber={1}
+                    driverName={d1.name}
+                    driverNumber={isRicciardo ? 27 : 1}
+                    nationality={d1.nationality || 'Austrália'}
+                    overallRating={ovr1 || 87}
+                    moral={d1.morale || 78}
+                    forma={d1.physical_condition || 85}
+                    consistency={d1.consistency || 82}
+                    contractEndYear={d1.contract_end || 2026}
+                    bundledImg={photoSrc}
+                    driverId={d1.id}
+                    onOpenDriver={() => {
+                      setSelectedPilotForProfile(d1)
+                      setIsPilotProfileModalOpen(true)
+                    }}
+                  />
+                )
+              })()}
+            </div>
+
+            {/* PILOTO #2 (col-span-3.5) */}
+            <div className="lg:col-span-3.5 flex flex-col">
+              {(() => {
+                const d2 = titularDrivers[1] || {
+                  id: 'bortoleto-fallback',
+                  name: 'Gabriel Bortoleto',
+                  nationality: 'Brasil',
+                  speed: 82,
+                  consistency: 78,
+                  morale: 75,
+                  physical_condition: 80,
+                  contract_end: 2028,
+                }
+                const ovr2 = Math.round(((d2.speed || 82) + (d2.consistency || 78)) / 2)
+                const isBortoleto = d2.name.toLowerCase().includes('bortoleto')
+                const photoSrc = isBortoleto ? bortoletoBundledImg : undefined
+
+                return (
+                  <DriverSummaryCard
+                    slotNumber={2}
+                    driverName={d2.name}
+                    driverNumber={isBortoleto ? 5 : 2}
+                    nationality={d2.nationality || 'Brasil'}
+                    overallRating={ovr2 || 81}
+                    moral={d2.morale || 75}
+                    forma={d2.physical_condition || 80}
+                    consistency={d2.consistency || 78}
+                    contractEndYear={d2.contract_end || 2028}
+                    bundledImg={photoSrc}
+                    driverId={d2.id}
+                    onOpenDriver={() => {
+                      setSelectedPilotForProfile(d2)
+                      setIsPilotProfileModalOpen(true)
+                    }}
+                  />
+                )
+              })()}
+            </div>
+          </div>
+
+          {/* 3. TERCEIRA LINHA: EQUIPE TÉCNICA + CAPACIDADE ORGANIZACIONAL + DECISÕES PENDENTES */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            {/* EQUIPE TÉCNICA (col-span-5) */}
+            <div className="lg:col-span-5 flex flex-col">
+              <TechnicalStaffSummaryCard
+                staffList={keyStaffSummaryList}
+                onOpenFullStaff={() => setActiveTab('staff')}
+                onSelectMember={(_m) => setActiveTab('staff')}
+              />
+            </div>
+
+            {/* CAPACIDADE ORGANIZACIONAL (Gargalos e Operações) (col-span-4) */}
+            <div className="lg:col-span-4 flex flex-col">
+              <OrganizationalCapacityCard
+                capacities={orgCapacities}
+                bottleneckText="Aerodinâmica"
+                bottleneckImpact="Impacto: atraso no desenvolvimento"
+                onOpenDetails={() => setActiveTab('staff')}
+              />
+            </div>
+
+            {/* DECISÕES PENDENTES (col-span-3) */}
+            <div className="lg:col-span-3 flex flex-col">
+              <PendingDecisionsCard
+                decisions={pendingDecisionsList}
+                onOpenAll={() => setActiveTab('staff')}
+                onSelectDecision={(d) => {
+                  if (d.actionTab) {
+                    setActiveTab(d.actionTab as TeamSubTab)
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* 4. QUARTA LINHA: SAÚDE DA ORGANIZAÇÃO + OBJETIVOS DA DIRETORIA */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* CONTRATOS EM DESTAQUE (col-span-4) */}
-            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 shadow-lg font-mono">
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
-                <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
-                  CONTRATOS EM DESTAQUE
-                </span>
-                <button
-                  onClick={() => setActiveTab('contratos')}
-                  className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                >
-                  Ver todos →
-                </button>
-              </div>
-
-              <div className="space-y-2.5">
-                {[
-                  { name: 'D. Ricciardo', role: 'Piloto', end: 2027, left: '2 anos' },
-                  { name: 'G. Bortoleto', role: 'Piloto', end: 2028, left: '3 anos' },
-                  { name: 'Z. Maloney', role: 'Piloto', end: 2026, left: '1 ano' },
-                  { name: 'J. Key', role: 'Diretor Técnico', end: 2027, left: '2 anos' },
-                  { name: 'E. Cardile', role: 'Chefe de Aerodinâmica', end: 2026, left: '1 ano' },
-                ].map((c) => (
-                  <div
-                    key={c.name}
-                    className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/60 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-white block">{c.name}</span>
-                      <span className="text-[10px] text-neutral-400">
-                        {c.role} | Termina em {c.end}
-                      </span>
-                    </div>
-                    <span className="text-neutral-400 text-[11px] font-semibold">{c.left}</span>
-                  </div>
-                ))}
-              </div>
+            {/* SAÚDE DA ORGANIZAÇÃO (col-span-5) */}
+            <div className="lg:col-span-5 flex flex-col">
+              <OrganizationHealthCard kpis={orgHealthKpis} />
             </div>
 
-            {/* ACADEMIA DE PILOTOS (col-span-4) */}
-            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 shadow-lg flex flex-col justify-between font-mono">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
-                  <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
-                    ACADEMIA DE PILOTOS
-                  </span>
-                  <button
-                    onClick={() => setActiveTab('academia')}
-                    className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                  >
-                    Ver academia →
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {academyDrivers.map((ac) => (
-                    <div
-                      key={ac.name}
-                      className="p-3 rounded-xl bg-black/40 border border-neutral-800/60 space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-white">{ac.name}</span>
-                            <span className="text-xs">{ac.flag}</span>
-                            <Badge className="bg-neutral-800 text-neutral-300 text-[9px] px-1.5 py-0">
-                              {ac.series}
-                            </Badge>
-                          </div>
-                          <span className="text-[10px] text-neutral-400">Idade: {ac.age} anos</span>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="text-base font-black text-white">{ac.current}</span>
-                          <span className="text-[10px] text-cyan-400 block">
-                            Potencial {ac.potential}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Barra de progresso */}
-                      <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-cyan-500 rounded-full"
-                          style={{ width: `${(ac.current / ac.potential) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bloco inferior institucional da academia */}
-              <div className="mt-4 pt-3 border-t border-neutral-800/60 flex items-center justify-between gap-2">
-                <span className="text-[11px] text-neutral-400 font-sans leading-tight">
-                  Identificar e desenvolver talentos para o futuro da equipe.
-                </span>
-                <Button
-                  size="sm"
-                  onClick={() => setActiveTab('academia')}
-                  className="bg-neutral-800 hover:bg-neutral-700 text-white text-xs h-7 shrink-0 cursor-pointer"
-                >
-                  Ver Academia
-                </Button>
-              </div>
-            </div>
-
-            {/* ATENÇÃO NECESSÁRIA (col-span-4) */}
-            <div className="lg:col-span-4 rounded-2xl bg-[#0B0E14] border border-neutral-800/80 p-5 shadow-lg flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-800/60 mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-white font-mono">
-                      ATENÇÃO NECESSÁRIA
-                    </span>
-                    <span className="w-5 h-5 rounded-full bg-[#E10600] text-white text-[11px] font-bold flex items-center justify-center font-mono">
-                      {attentionItems.length}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() =>
-                      toast({
-                        title: 'Alertas',
-                        description: 'Nenhum alerta crítico pendente no momento.',
-                      })
-                    }
-                    className="text-xs font-mono text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                  >
-                    Ver todas →
-                  </button>
-                </div>
-
-                <div className="space-y-2.5">
-                  {attentionItems.map((al) => {
-                    const IconComp = al.icon
-                    return (
-                      <div
-                        key={al.id}
-                        className="p-2.5 rounded-xl bg-black/40 border border-neutral-800/60 flex items-start gap-2.5 text-xs"
-                      >
-                        <IconComp className={`w-4 h-4 ${al.iconColor} shrink-0 mt-0.5`} />
-                        <div className="flex-1 min-w-0">
-                          <span className="font-bold text-white block truncate">{al.title}</span>
-                          <p className="text-[11px] text-neutral-400 leading-tight line-clamp-2 mt-0.5">
-                            {al.desc}
-                          </p>
-                        </div>
-                        <span className="text-[10px] font-mono text-neutral-500 shrink-0">
-                          {al.time}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Bloco citação rodapé grid */}
-              <div className="mt-4 pt-3 border-t border-neutral-800/60 text-right">
-                <p className="text-[11px] font-serif italic text-neutral-400">
-                  &ldquo;Grandes equipes não são formadas apenas por pilotos. São formadas por
-                  pessoas que acreditam no mesmo destino.&rdquo;
-                </p>
-                <span className="text-[10px] font-bold tracking-widest text-[#E10600] uppercase font-mono mt-0.5 block">
-                  Audi
-                </span>
-              </div>
+            {/* OBJETIVOS DA DIRETORIA (col-span-7) */}
+            <div className="lg:col-span-7 flex flex-col">
+              <BoardObjectivesCard
+                objectives={boardObjectivesList}
+                onOpenObjectives={() => {
+                  toast({
+                    title: 'Objetivos da Diretoria',
+                    description: `Meta anual: Top 4. Confiança do conselho em ${boardConfidence}%.`,
+                  })
+                }}
+              />
             </div>
           </div>
         </div>
@@ -2731,6 +2267,42 @@ export default function TeamPage() {
             ...titularDrivers,
             ...allGridDrivers,
           ].filter((v, i, a) => a.findIndex((t) => t.id === v.id) === i)}
+        />
+      )}
+
+      {/* MODAIS DA NOVA EXPERIÊNCIA EXECUTIVA DA ABA EQUIPE */}
+      <TeamInstitutionalDetailsModal
+        open={isAboutModalOpen}
+        onOpenChange={setIsAboutModalOpen}
+        team={team}
+        teamName={teamName}
+        teamHq={teamHq}
+        teamCountry={teamCountry}
+        engineSupplier={team?.engine_supplier || 'Audi'}
+        teamIntro={teamIntro}
+      />
+
+      <ManagerProfileDetailsModal
+        open={isManagerModalOpen}
+        onOpenChange={setIsManagerModalOpen}
+        managerName={teamPrincipalName}
+        roleTitle="Team Principal"
+        portraitMeta={managerOfficialPortrait}
+        boardConfidence={boardConfidence}
+      />
+
+      {selectedPilotForProfile && (
+        <PilotProfileDialog
+          pilot={selectedPilotForProfile}
+          open={isPilotProfileModalOpen}
+          onOpenChange={(open) => {
+            setIsPilotProfileModalOpen(open)
+            if (!open) setSelectedPilotForProfile(null)
+          }}
+          team={team}
+          onPromoteToReserve={handlePromoteToReserve}
+          onPromoteToTitular={handlePromoteToTitular}
+          onOpenContractModal={(driver) => handleOpenContractModal(driver)}
         />
       )}
     </div>
