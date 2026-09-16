@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T00:32:44.793Z",
+  "generatedAt": "2026-09-16T00:47:04.708Z",
   "collections": [
     {
       "name": "users",
@@ -439,6 +439,24 @@
         },
         {
           "name": "regulation_timeline_state",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "regulation_development_allocation",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "regulation_preparations",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "next_regulation_research_projects",
           "type": "json",
           "required": false,
           "system": false

@@ -279,3 +279,116 @@ export function formatKnowledgeTransferTierLabel(tier: KnowledgeTransferTier): s
       return 'Muito Baixa (<30%)'
   }
 }
+
+// ==========================================
+// 15. IMPLEMENTAÇÃO 8C.2 — ALLOCATION, RESEARCH & PREPARATION
+// ==========================================
+
+export type DevelopmentStrategyPreset = 'CURRENT_FOCUS' | 'BALANCED' | 'FUTURE_FOCUS' | 'CUSTOM'
+
+export interface RegulationDevelopmentAllocation {
+  teamId: string
+  regulationId: string
+  currentCarShare: number // 0-100%
+  futureRegulationShare: number // 0-100%
+  selectedStrategy: DevelopmentStrategyPreset
+  effectiveRound: number
+  sourceEventId?: string
+  lastUpdatedRound?: number
+}
+
+export type PreparationStatus = 'MINIMAL' | 'LIMITED' | 'MODERATE' | 'STRONG' | 'EXTENSIVE'
+
+export type ResearchTargetDomain =
+  | 'AERO_CONCEPT'
+  | 'FLOOR_PHILOSOPHY'
+  | 'COOLING_ARCHITECTURE'
+  | 'SUSPENSION_ARCHITECTURE'
+  | 'WEIGHT_INTEGRATION'
+  | 'SIMULATION_CORRELATION'
+  | 'VEHICLE_DYNAMICS'
+  | 'PU_INTEGRATION'
+
+export interface ResearchTargetMetadata {
+  id: ResearchTargetDomain
+  name: string
+  mappedDomain: TechnicalDomainId
+  description: string
+  baseCostUsd: number
+  baseDurationRounds: number
+  requiredFacilities: {
+    facility: string
+    minLevel: number
+    weight: number
+  }[]
+  requiredStaffRole:
+    | 'TECHNICAL_DIRECTOR'
+    | 'HEAD_OF_AERODYNAMICS'
+    | 'CHIEF_DESIGNER'
+    | 'HEAD_OF_VEHICLE_PERFORMANCE'
+}
+
+export interface NextRegulationResearchProject {
+  id: string
+  teamId: string
+  regulationId: string
+  targetDomain: ResearchTargetDomain
+  targetName: string
+  roundStarted: number
+  roundCompletedTarget: number
+  durationRounds: number
+  progressPercent: number
+  status: 'in_progress' | 'completed' | 'cancelled'
+  costUsd: number
+  engineeringResourceCost: number
+  estimatedKnowledgeGainLabel: 'Baixo' | 'Moderado' | 'Substancial' | 'Revolucionário'
+  mappedDomain: TechnicalDomainId
+  actualKnowledgeGained?: number // 0-100 escala de preparação
+  actualSimulationConfidenceGained?: number
+  correlationBottleneckDetected?: boolean
+  bottleneckExplanation?: string
+  completedRound?: number
+}
+
+export interface RegulationPreparation {
+  teamId: string
+  regulationId: string
+  researchProgress: number // 0-100
+  knowledgeGain: number // know-how acumulado
+  validationProgress: number // 0-100
+  simulationConfidence: number // 0-100
+  preparationScore: number // Score composto interno
+  status: PreparationStatus
+  completedProjects: string[] // IDs de projetos concluídos
+  completedProjectDetails: {
+    id: string
+    targetDomain: ResearchTargetDomain
+    completedRound: number
+    knowledgeGain: number
+  }[]
+  lastUpdatedSeason: number
+  lastUpdatedRound: number
+}
+
+export function calculatePreparationStatus(score: number): PreparationStatus {
+  if (score >= 80) return 'EXTENSIVE'
+  if (score >= 60) return 'STRONG'
+  if (score >= 40) return 'MODERATE'
+  if (score >= 20) return 'LIMITED'
+  return 'MINIMAL'
+}
+
+export function formatPreparationStatusLabel(status: PreparationStatus): string {
+  switch (status) {
+    case 'EXTENSIVE':
+      return 'EXTENSIVA (Extensive)'
+    case 'STRONG':
+      return 'SÓLIDA (Strong)'
+    case 'MODERATE':
+      return 'MODERADA (Moderate)'
+    case 'LIMITED':
+      return 'LIMITADA (Limited)'
+    case 'MINIMAL':
+      return 'MÍNIMA (Minimal)'
+  }
+}

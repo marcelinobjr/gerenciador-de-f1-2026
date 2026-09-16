@@ -87,6 +87,8 @@ export interface DevelopmentActualResult {
 }
 
 // 7. Entidade Canônica DevelopmentProject
+export type DevelopmentProjectType = 'CURRENT_CAR_COMPONENT' | 'NEXT_REGULATION_RESEARCH'
+
 export interface DevelopmentProject {
   id: string
   teamId: string
@@ -95,7 +97,12 @@ export interface DevelopmentProject {
   roundCompletedTarget: number
   roundFinished?: number
 
-  // Componente e Objetivos
+  // Tipo de projeto (Fase 4B vs Fase 8C.2)
+  projectType?: DevelopmentProjectType
+  targetRegulationId?: string
+  researchTargetDomain?: string
+
+  // Componente e Objetivos (para current car)
   componentId: TechnicalComponentId
   primaryObjective: TechnicalAttributeId
   secondaryObjectives: TechnicalAttributeId[] // 0 a 2 secundários
@@ -125,7 +132,6 @@ export interface DevelopmentProject {
   // Telemetria detalhada de auditoria (QA / Debug / Histórico)
   auditTelemetry?: DevelopmentQATelemetry
 }
-
 // 8. Entidade Canônica de Especificação de Peça (Design/Spec A, B, C...)
 export interface CanonicalComponentSpec {
   specId: string
