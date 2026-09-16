@@ -99,7 +99,15 @@ export default function AuthPage() {
       }
     } catch (err: any) {
       console.error(err)
-      setGeneralError(err?.message || 'Falha ao autenticar. Verifique o email e senha.')
+      const isBadCredentials =
+        err?.status === 400 ||
+        err?.message === 'E-mail ou senha incorretos.' ||
+        err?.originalError?.status === 400
+      if (isBadCredentials) {
+        setGeneralError('E-mail ou senha incorretos.')
+      } else {
+        setGeneralError(err?.message || 'Falha ao autenticar. Verifique o email e senha.')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -124,7 +132,17 @@ export default function AuthPage() {
       }
     } catch (err: any) {
       console.error(err)
-      setGeneralError(err?.message || 'Falha ao criar conta. Tente outro email.')
+      const fieldData = err?.originalError?.response?.data || err?.response?.data || err?.data
+      const isEmailNotUnique =
+        err?.code === 'validation_not_unique' ||
+        fieldData?.email?.code === 'validation_not_unique' ||
+        (err?.status === 400 && fieldData?.email?.code === 'validation_not_unique')
+
+      if (isEmailNotUnique) {
+        setEmailError('Este e-mail já está cadastrado. Use a aba Entrar para acessar.')
+      } else {
+        setGeneralError(err?.message || 'Falha ao criar conta. Tente outro email.')
+      }
     } finally {
       setIsSubmitting(false)
     }

@@ -117,23 +117,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const login = async (email: string, pass: string): Promise<TeamModel | null> => {
-    const authData = await pb.collection('users').authWithPassword(email, pass)
-    setUser(authData.record)
-    setIsLoading(false)
-    let teamResult: TeamModel | null = null
-    if (authData.record?.id) {
-      teamResult = await loadUserData(authData.record.id)
+    try {
+      const authData = await pb.collection('users').authWithPassword(email, pass)
+      setUser(authData.record)
+      setIsLoading(false)
+      let teamResult: TeamModel | null = null
+      if (authData.record?.id) {
+        teamResult = await loadUserData(authData.record.id)
+      }
+      return teamResult
+    } catch (err: any) {
+      // Se for ClientResponseError com status 400 (falha de autenticação/credenciais inválidas)
+      if (err?.status === 400) {
+        const error = new Error('E-mail ou senha incorretos.')
+        ;(error as any).status = 400
+        ;(error as any).originalError = err
+        throw error
+      }
+      throw err
     }
-    return teamResult
   }
 
   const register = async (name: string, email: string, pass: string): Promise<TeamModel | null> => {
-    await pb.collection('users').create({
-      name,
-      email,
-      password: pass,
-      passwordConfirm: pass,
-    })
+    try {
+      await pb.collection('users').create({
+        name,
+        email,
+        password: pass,
+        passwordConfirm: pass,
+      })
+    } catch (err: any) {
+      const fieldData = err?.response?.data || err?.data
+      if (err?.status === 400 && fieldData?.email?.code === 'validation_not_unique') {
+        const error = new Error('Este e-mail já está cadastrado. Use a aba Entrar para acessar.')
+        ;(error as any).status = 400
+        ;(error as any).code = 'validation_not_unique'
+        ;(error as any).field = 'email'
+        ;(error as any).originalError = err
+        throw error
+      }
+      throw err
+    }
     return await login(email, pass)
   }
 
