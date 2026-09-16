@@ -18,6 +18,7 @@ import {
   DRAMA_NARRATIVES,
   type TeamOrderProposal,
   type TeamOrderState,
+  type DriverDramaContext,
 } from '@/lib/raceDrama'
 import { notificationService } from '@/services/notificationService'
 import {
@@ -175,6 +176,17 @@ const INITIAL_ALLOTMENT: TireAllotment = {
   macio: 3,
   intermediario: 4,
   chuva_extrema: 3,
+}
+
+// Estado ótimo inicial padrão sem cliff (conforme interface TireCliffStatus de f1-tire-system.ts)
+const INITIAL_OPTIMAL_CLIFF: TireCliffStatus = {
+  isCliffReached: 0,
+  isCriticalWindow: false,
+  extraLapTimeSec: 0,
+  cliffWearEquivalent: 0,
+  thermalLockupRisk: 0.1,
+  isOverheating: false,
+  overheatPenaltySec: 0,
 }
 
 // Helper para identificar circuitos fisicamente exigentes
@@ -1239,7 +1251,7 @@ export default function RacePage() {
           wearProfileName: wearProfile.profileName,
           strategyPlan: playerStrat ? playerStrat.pitStops : undefined,
           lapsOnCurrentTire: 0,
-          cliffStatus: TireCliffStatus.OPTIMAL,
+          cliffStatus: INITIAL_OPTIMAL_CLIFF,
           fuelRemaining: raceInitialFuelPct,
           carPartsHealth: isPlayer
             ? parts.map((p) => ({
@@ -1287,7 +1299,7 @@ export default function RacePage() {
           wearMultiplier: 1.0,
           wearProfileName: 'Neutro',
           lapsOnCurrentTire: 0,
-          cliffStatus: TireCliffStatus.OPTIMAL,
+          cliffStatus: INITIAL_OPTIMAL_CLIFF,
           fuelRemaining: 100,
           aiStrategyProfile: aiProfile,
         }
@@ -1326,7 +1338,7 @@ export default function RacePage() {
           wearProfileName: wearProfile.profileName,
           strategyPlan: strat.pitStops,
           lapsOnCurrentTire: 0,
-          cliffStatus: TireCliffStatus.OPTIMAL,
+          cliffStatus: INITIAL_OPTIMAL_CLIFF,
           fuelRemaining: raceInitialFuelPct,
           carPartsHealth: parts.map((p) => ({
             id: p.id,
@@ -1685,7 +1697,13 @@ export default function RacePage() {
           const plannedPit = entry.strategyPlan.find((p) => p.lap === currentLap)
           if (plannedPit) {
             didPit = true
-            pitLoss = calculatePitStopDuration(team?.chassis_level || 75)
+            const pitResult = calculatePitStopDuration(
+              entry.teamName,
+              entry.driverName,
+              true,
+              teamStrength,
+            )
+            pitLoss = pitResult.durationSec
             entry.tireCompound = plannedPit.compound
             currentWear = 2
             entry.lapsOnCurrentTire = 0
@@ -1724,8 +1742,21 @@ export default function RacePage() {
         }
 
         // Atualiza estado de desgaste e cliff
-        const cliffStatus = calculateTireCliffStatus(currentWear)
-        const isCliffActive = isTireInCliff(currentWear)
+        const cliffStatus = calculateTireCliffStatus({
+          compound: entry.tireCompound || 'medio',
+          lapsOnTire: entry.lapsOnCurrentTire || 0,
+          wearPercent: currentWear,
+          wearMultiplier: entry.wearMultiplier || 1.0,
+          trackAbrasiveness: abrasiveness,
+          trackTemp: currentTrackTemp,
+          isAttacking: playerTacticThisLap === 'attack',
+        })
+        const isCliffActive = isTireInCliff(
+          entry.tireCompound || 'medio',
+          entry.lapsOnCurrentTire || 0,
+          entry.wearMultiplier || 1.0,
+          abrasiveness,
+        )
 
         entry.tireWear = currentWear
         entry.cliffStatus = cliffStatus
@@ -1798,20 +1829,38 @@ export default function RacePage() {
           entry.tireCompound || 'medio',
           currentWear,
           currentWeather,
+          entry.lapsOnCurrentTire || 0,
+          entry.wearMultiplier || 1.0,
+          abrasiveness,
           currentTrackTemp,
+          playerTacticThisLap === 'attack',
         )
 
-        const freeLapSec =
-          calculateFreeLapPaceSec(
-            gpInfo.lengthKm,
-            finalLapScore,
-            entry.tireCompound || 'medio',
-            currentWear,
-            currentWeather,
-          ) +
-          tirePerfDelta +
-          teamOrderDeltaSec +
-          lightIssuePacePenalty
+        const freeLapResult = calculateFreeLapPaceSec({
+          teamStrength,
+          carLevel: teamStrength,
+          driver: {
+            speed: entry.score,
+            morale: entry.morale,
+            physicalCondition: entry.physicalCondition,
+          },
+          weather: currentWeather,
+          tireCompound: entry.tireCompound || 'medio',
+          lapsOnTire: entry.lapsOnCurrentTire || 0,
+          wearPercent: currentWear,
+          wearMultiplier: entry.wearMultiplier || 1.0,
+          trackAbrasiveness: abrasiveness,
+          trackTemp: currentTrackTemp,
+          hasWingDamage: !!entry.hasWingDamage,
+          tacticalMode:
+            playerTacticThisLap === 'attack'
+              ? 'attack'
+              : playerTacticThisLap === 'save_fuel'
+                ? 'preserve'
+                : undefined,
+        })
+
+        const freeLapSec = freeLapResult.freeLapSec + teamOrderDeltaSec + lightIssuePacePenalty
 
         return {
           entry,
@@ -1857,19 +1906,19 @@ export default function RacePage() {
             (tacticalMod && tacticalMod.mode === 'attack') ||
             (!chasing.isPlayer && chasing.aiStrategyProfile?.type === 'agressiva')
 
-          const attempt = evaluateOvertakeAttempt(
-            rawDeltaSec,
+          const attempt = evaluateOvertakeAttempt({
+            attacker: chasing,
+            target: defending,
+            attackerFreePaceSec: sortedByRawPace[i].freeLapSec,
+            targetFreePaceSec: sortedByRawPace[i - 1].freeLapSec,
             circuitOvertakeFactor,
-            isAttacking,
-            chasing.tireCompound || 'medio',
-            defending.tireCompound || 'medio',
-            chasing.tireWear || 10,
-            defending.tireWear || 10,
-          )
+            currentLap,
+            hasOvertakeEnergy: isAttacking,
+          })
 
           if (!attempt.success) {
             // Ultrapassagem frustrada: carro de trás fica preso em dirty air
-            sortedByRawPace[i].freeLapSec += attempt.timeLostBehindSec
+            sortedByRawPace[i].freeLapSec += attempt.attackerTimePenaltySec || 0.4
             chasing.lapsInDirtyAir = (chasing.lapsInDirtyAir || 0) + 1
           } else {
             // Ultrapassagem com sucesso: limpa contador de dirty air
@@ -1886,9 +1935,9 @@ export default function RacePage() {
                 id: `ev_otk_${currentLap}_${chasing.driverId}_${defending.driverId}`,
                 lap: currentLap,
                 type: 'overtake',
-                message: attempt.narrative
-                  .replace('{attacker}', chasing.driverName)
-                  .replace('{defender}', defending.driverName),
+                message:
+                  attempt.narrativeMessage ||
+                  `🟢 ULTRAPASSAGEM! ${chasing.driverName} superou ${defending.driverName} na volta ${currentLap}!`,
                 driverName: chasing.driverName,
                 teamColor: chasing.teamColor,
                 isPlayer: chasing.isPlayer,
@@ -2020,24 +2069,33 @@ export default function RacePage() {
             Math.abs(c1.lastLapTimeSec - c2.lastLapTimeSec) < 0.25
           ) {
             incidentCandidates.push({
-              driverAId: c1.driverId,
-              driverAName: c1.driverName,
-              driverATeamId: c1.teamId,
-              driverBId: c2.driverId,
-              driverBName: c2.driverName,
-              driverBTeamId: c2.teamId,
-              severity: Math.random() < 0.3 ? 'moderada' : 'leve',
+              driverId: c1.driverId,
+              driverName: c1.driverName,
+              kind: Math.random() < 0.3 ? 'collision_light' : 'chicane_cut',
+              isPushing: playerPaceOrdersRef.current[c1.driverId] === 'empurrar',
             })
           }
         }
 
         if (incidentCandidates.length > 0) {
-          const fiaEval = evaluateFiaIncidents(incidentCandidates, currentLap)
-          if (fiaEval.penalties.length > 0) {
-            setPenalties((prev) => [...prev, ...fiaEval.penalties])
+          const fiaEval = evaluateFiaIncidents(incidentCandidates, currentLap, penalties)
+          if (fiaEval.newPenalties.length > 0) {
+            setPenalties((prev) => [...prev, ...fiaEval.newPenalties])
           }
-          if (fiaEval.events.length > 0) {
-            setLiveEvents((prev) => [...fiaEval.events, ...prev])
+          if (fiaEval.narrativeEvents.length > 0) {
+            const nowStr = new Date().toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })
+            const eventsToAdd: LiveRaceEvent[] = fiaEval.narrativeEvents.map((msg, eIdx) => ({
+              id: `ev_fia_${currentLap}_${eIdx}_${Date.now()}`,
+              lap: currentLap,
+              type: 'incident',
+              message: msg,
+              timestamp: nowStr,
+            }))
+            setLiveEvents((prev) => [...eventsToAdd, ...prev])
           }
         }
       }
@@ -2053,32 +2111,28 @@ export default function RacePage() {
 
           if (driverA && driverB) {
             const proposal = avaliarTeamOrder(
-              {
-                id: carA.driverId,
-                name: carA.driverName,
-                position: carA.position,
-                tireCompound: carA.tireCompound || 'medio',
-                tireWear: carA.tireWear || 10,
-                lapsOnTire: carA.lapsOnCurrentTire || 5,
-                cliffStatus: carA.cliffStatus || TireCliffStatus.OPTIMAL,
-                championshipPoints: carA.points || 0,
-                status: (driverA.role as any) || 'primeiro_piloto',
-                isChampionshipContender: false,
-              },
-              {
-                id: carB.driverId,
-                name: carB.driverName,
-                position: carB.position,
-                tireCompound: carB.tireCompound || 'medio',
-                tireWear: carB.tireWear || 10,
-                lapsOnTire: carB.lapsOnCurrentTire || 5,
-                cliffStatus: carB.cliffStatus || TireCliffStatus.OPTIMAL,
-                championshipPoints: carB.points || 0,
-                status: (driverB.role as any) || 'segundo_piloto',
-                isChampionshipContender: false,
-              },
+              [
+                {
+                  id: carA.driverId,
+                  name: carA.driverName,
+                  position: carA.position,
+                  morale: carA.morale || driverA.morale || 80,
+                  personality: driverA.personality || 'equilibrado',
+                  isPlayer: true,
+                },
+                {
+                  id: carB.driverId,
+                  name: carB.driverName,
+                  position: carB.position,
+                  morale: carB.morale || driverB.morale || 80,
+                  personality: driverB.personality || 'equilibrado',
+                  isPlayer: true,
+                },
+              ],
               currentLap,
-              teamOrdersRef.current,
+              teamOrdersRef.current.length > 0
+                ? teamOrdersRef.current[teamOrdersRef.current.length - 1]
+                : null,
             )
 
             if (proposal && !teamOrderProposalRef.current) {
@@ -2104,41 +2158,43 @@ export default function RacePage() {
   const handleApplyTeamOrder = () => {
     if (!teamOrderProposalRef.current) return
     const proposal = teamOrderProposalRef.current
-    const driverOrdered = drivers.find((d) => d.id === proposal.orderedDriverId)
+    const driverSlow = drivers.find((d) => d.id === proposal.slowDriverId)
+
+    const currentState: TeamOrderState = {
+      fastDriverId: proposal.fastDriverId,
+      slowDriverId: proposal.slowDriverId,
+      lapsPushed: proposal.lapsPushed,
+      active: true,
+      cooldownLaps: 0,
+      refused: false,
+    }
+
+    const slowDramaContext: DriverDramaContext = {
+      id: proposal.slowDriverId,
+      name: proposal.slowDriverName,
+      personality: driverSlow?.personality || 'equilibrado',
+      morale: driverSlow?.morale ?? 80,
+      isPlayer: true,
+    }
 
     const orderResult = aplicarTeamOrder(
-      proposal,
-      driverOrdered
-        ? {
-            id: driverOrdered.id,
-            name: driverOrdered.name,
-            personality: (driverOrdered.personality as any) || 'equilibrado',
-            morale: driverOrdered.morale || 80,
-            contractStatus: 'titular',
-            compliance_rate: 85,
-          }
-        : {
-            id: proposal.orderedDriverId,
-            name: proposal.orderedDriverName,
-            personality: 'equilibrado',
-            morale: 80,
-            contractStatus: 'titular',
-            compliance_rate: 85,
-          },
-      liveRaceState?.currentLap || 1,
+      currentState,
+      slowDramaContext,
+      proposal.fastDriverName,
+      proposal.gap,
     )
 
-    teamOrdersRef.current.push(orderResult.orderState)
+    teamOrdersRef.current.push(orderResult.state)
     setTeamOrders([...teamOrdersRef.current])
 
     // Aplica penalidade/bônus de ritmo via teamOrderPaceModifierRef
-    if (orderResult.orderState.active && !orderResult.orderState.refused) {
-      teamOrderPaceModifierRef.current.set(proposal.orderedDriverId, {
-        deltaSec: 1.2,
+    if (orderResult.state.active && !orderResult.state.refused) {
+      teamOrderPaceModifierRef.current.set(proposal.slowDriverId, {
+        deltaSec: 0.8,
         expiresAtLap: (liveRaceState?.currentLap || 1) + 2,
       })
-      teamOrderPaceModifierRef.current.set(proposal.beneficiaryDriverId, {
-        deltaSec: -0.8,
+      teamOrderPaceModifierRef.current.set(proposal.fastDriverId, {
+        deltaSec: -orderResult.paceModifierSec,
         expiresAtLap: (liveRaceState?.currentLap || 1) + 2,
       })
     }
@@ -2153,8 +2209,8 @@ export default function RacePage() {
         id: `ev_to_applied_${Date.now()}`,
         lap: liveRaceState?.currentLap || 1,
         type: 'team_radio',
-        message: orderResult.radioNarrative,
-        driverName: proposal.orderedDriverName,
+        message: orderResult.radioMessage,
+        driverName: proposal.slowDriverName,
         teamColor: team?.color || '#E10600',
         isPlayer: true,
         timestamp: nowStr,
@@ -2168,9 +2224,9 @@ export default function RacePage() {
 
     toast({
       title: 'Ordem de Equipe Transmitida',
-      description: orderResult.orderState.refused
-        ? `${proposal.orderedDriverName} recusou ceder a posição!`
-        : `${proposal.orderedDriverName} acatou a ordem e abrirá passagem.`,
+      description: orderResult.refused
+        ? `${proposal.slowDriverName} recusou ceder a posição!`
+        : `${proposal.slowDriverName} acatou a ordem e abrirá passagem.`,
     })
   }
 
@@ -2272,7 +2328,13 @@ export default function RacePage() {
     const newCompound = chosenSet?.compound || 'duro'
 
     // Duração da parada
-    const pitDurationSec = calculatePitStopDuration(team?.chassis_level || 75)
+    const pitTiming = calculatePitStopDuration(
+      car.teamName,
+      car.driverName,
+      car.isPlayer,
+      team?.chassis_level || 75,
+    )
+    const pitDurationSec = pitTiming.durationSec
 
     // Atualiza piloto no grid
     car.tireCompound = newCompound
@@ -2769,9 +2831,14 @@ export default function RacePage() {
                     gridCar.tireWear = chosenSet ? chosenSet.wear : 4
                     gridCar.lapsOnCurrentTire = 0
                     gridCar.pitStopsDone = (gridCar.pitStopsDone || 0) + 1
+                    const pitTiming = calculatePitStopDuration(
+                      gridCar.teamName,
+                      gridCar.driverName,
+                      true,
+                      team?.chassis_level || 75,
+                    )
                     gridCar.accumulatedTimeSec =
-                      (gridCar.accumulatedTimeSec || 0) +
-                      calculatePitStopDuration(team?.chassis_level || 75)
+                      (gridCar.accumulatedTimeSec || 0) + pitTiming.durationSec
                   }
                 } else if (radioActiveMessage.suggestedAction === 'ataque') {
                   appliedTacticMod = 'attack'
