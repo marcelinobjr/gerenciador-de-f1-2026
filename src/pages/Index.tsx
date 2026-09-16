@@ -9,11 +9,9 @@ import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { getCountryFlag } from '@/lib/country-flags'
 import { formatCurrency } from '@/lib/formatters'
-import {
-  CARRO_POR_EQUIPE_MAP,
-  IMAGEM_CARRO_PADRAO_FALLBACK,
-  audiHeroCarImg,
-} from '@/assets/carroPorEquipe'
+import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
+import audiCarImg from '@/assets/audi-13288.png'
+import { DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
 import { TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
@@ -175,16 +173,16 @@ export default function IndexPage() {
 
   const trackLayout = TRACK_LAYOUTS[currentRound] || TRACK_LAYOUTS[1]
 
-  // Imagem do carro do Hero
+  // Imagem do carro do Hero (vista lateral audiCarImg para Audi)
   const heroCarImage = useMemo(() => {
     const normalizedTeamKey = (team?.team_key || '').toLowerCase().replace(/[^a-z0-9]/g, '')
     if (normalizedTeamKey === 'audi' || !team?.team_key) {
-      return audiHeroCarImg
+      return audiCarImg
     }
     if (CARRO_POR_EQUIPE_MAP[normalizedTeamKey as keyof typeof CARRO_POR_EQUIPE_MAP]) {
       return CARRO_POR_EQUIPE_MAP[normalizedTeamKey as keyof typeof CARRO_POR_EQUIPE_MAP]
     }
-    return audiHeroCarImg || IMAGEM_CARRO_PADRAO_FALLBACK
+    return audiCarImg || IMAGEM_CARRO_PADRAO_FALLBACK
   }, [team])
 
   // Pilotos Titulares
@@ -284,7 +282,8 @@ export default function IndexPage() {
         priority: 'high' as const,
         priorityLabel: 'ALTA',
         title: pendingDecision.title,
-        subtitle: `Custo estimado de ${formatCurrency(pendingDecision.cost)} • Impacto imediato`,
+        subtitle: `Custo estimado de <span className="font-mono tabular-nums">${formatCurrency(pendingDecision.cost)}</span> • Impacto imediato`,
+        costFormatted: formatCurrency(pendingDecision.cost),
         actionLabel: 'Decidir',
         route: '/car',
       })
@@ -531,10 +530,18 @@ export default function IndexPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl">{currentGP?.flag || '🇯🇵'}</span>
+                  <span
+                    className="text-2xl inline-flex items-center justify-center"
+                    aria-label="Japão"
+                  >
+                    {currentGP?.flag && currentGP.flag !== 'JP' ? currentGP.flag : '🇯🇵'}
+                  </span>
                   <div>
-                    <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-tight">
-                      {currentGP?.name || 'GP do Japão'}
+                    <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-tight flex items-center gap-1.5">
+                      <span>{currentGP?.name || 'Grande Prêmio do Japão'}</span>
+                      <span className="align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200 uppercase font-mono tracking-wider">
+                        JPN
+                      </span>
                     </h3>
                     <p className="text-xs text-[#64748B] font-medium mt-0.5">
                       {currentGP?.circuit || 'Suzuka International Racing Course'}
@@ -544,7 +551,7 @@ export default function IndexPage() {
               </div>
 
               {/* Traçado Oficial Suzuka / Circuito */}
-              <div className="w-20 h-16 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-1.5 flex items-center justify-center shrink-0">
+              <div className="w-20 h-16 rounded-lg bg-[#11161C] border border-[#334155] p-1.5 flex items-center justify-center shrink-0 shadow-inner">
                 {circuitPhotoUrl ? (
                   <CircuitTrackImage
                     src={circuitPhotoUrl}
@@ -556,15 +563,15 @@ export default function IndexPage() {
                     <path
                       d={trackLayout.svgPath}
                       fill="none"
-                      stroke="#94A3B8"
-                      strokeWidth="5"
+                      stroke="#334155"
+                      strokeWidth="6"
                       strokeLinecap="round"
                     />
                     <path
                       d={trackLayout.svgPath}
                       fill="none"
-                      stroke="#0F172A"
-                      strokeWidth="2"
+                      stroke="#CBD5E1"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                     />
                   </svg>
@@ -671,12 +678,12 @@ export default function IndexPage() {
               </span>
             </div>
 
-            {/* Imagem do carro com crop limpo */}
+            {/* Imagem do carro com crop limpo (side view audiCarImg h-28 w-full object-contain) */}
             <div className="relative h-28 w-full rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] overflow-hidden flex items-center justify-center p-2">
               <img
-                src={heroCarImage}
+                src={audiCarImg}
                 alt="Carro Audi F1"
-                className="max-h-full max-w-full object-contain filter drop-shadow-sm transition-transform hover:scale-105 duration-300"
+                className="h-28 w-full object-contain filter drop-shadow-sm transition-transform hover:scale-105 duration-300"
               />
             </div>
 
@@ -753,7 +760,7 @@ export default function IndexPage() {
               <span className="text-[11px] font-semibold text-[#64748B]">2 Titulares</span>
             </div>
 
-            {/* Dois Pilotos Lado a Lado (exclusivamente imagens fornecidas) */}
+            {/* Dois Pilotos Lado a Lado (exclusivamente imagens fornecidas, simetria w-14 h-16) */}
             <div className="grid grid-cols-2 gap-3">
               {titularDrivers.map((driver, idx) => {
                 const flag = getCountryFlag(driver.nationality)
@@ -773,8 +780,8 @@ export default function IndexPage() {
                           <DriverPhotoAvatar
                             name={driver.name}
                             teamColor={team?.color}
-                            size="md"
-                            className="border border-[#CBD5E1]"
+                            className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
+                            imgClassName="w-full h-full object-cover object-top"
                           />
                           <span className="absolute -bottom-1 -right-1 text-xs">{flag}</span>
                         </div>
@@ -873,7 +880,7 @@ export default function IndexPage() {
                 <span className="text-[10px] text-[#64748B] font-medium uppercase block">
                   Saldo Disponível
                 </span>
-                <strong className="text-base sm:text-lg font-bold text-emerald-600 font-mono block mt-0.5">
+                <strong className="text-base sm:text-lg font-bold text-emerald-600 font-mono tabular-nums block mt-0.5">
                   US$ {(budget / 1000000).toFixed(1)}M
                 </strong>
                 <span className="text-[10px] text-[#64748B]">Liquidez imediata</span>
@@ -882,7 +889,7 @@ export default function IndexPage() {
                 <span className="text-[10px] text-[#64748B] font-medium uppercase block">
                   Receita Projetada
                 </span>
-                <strong className="text-base sm:text-lg font-bold text-[#0F172A] font-mono block mt-0.5">
+                <strong className="text-base sm:text-lg font-bold text-[#0F172A] font-mono tabular-nums block mt-0.5">
                   US$ {(projectedRevenue / 1000000).toFixed(1)}M
                 </strong>
                 <span className="text-[10px] text-[#64748B]">Contratos & bônus</span>
@@ -893,7 +900,9 @@ export default function IndexPage() {
             <div className="space-y-1.5 pt-1 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[#64748B] font-medium">Uso do Teto de Gastos (FIA)</span>
-                <span className="font-bold text-[#0F172A] font-mono">{costCapPct}%</span>
+                <span className="font-bold text-[#0F172A] font-mono tabular-nums">
+                  {costCapPct}%
+                </span>
               </div>
               <div className="w-full h-2.5 rounded-full bg-neutral-100 overflow-hidden">
                 <div
@@ -901,7 +910,7 @@ export default function IndexPage() {
                   style={{ width: `${costCapPct}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] text-[#64748B] font-mono">
+              <div className="flex justify-between text-[10px] text-[#64748B] font-mono tabular-nums">
                 <span>US$ {(costCapSpent / 1000000).toFixed(1)}M gastos</span>
                 <span>Limite: US$ 215.0M</span>
               </div>
@@ -911,13 +920,13 @@ export default function IndexPage() {
             <div className="p-2.5 rounded-lg bg-[#F1F5F9] flex items-center justify-between text-xs">
               <div>
                 <span className="text-[10px] text-[#64748B] uppercase block">Custo Mensal</span>
-                <span className="font-bold text-[#0F172A] font-mono">
+                <span className="font-bold text-[#0F172A] font-mono tabular-nums">
                   US$ {(monthlyCost / 1000000).toFixed(1)}M/mês
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-[#64748B] uppercase block">Fim de Temporada</span>
-                <span className="font-bold text-emerald-600 font-mono">
+                <span className="font-bold text-emerald-600 font-mono tabular-nums">
                   +US$ {(endOfSeasonProjection / 1000000).toFixed(1)}M
                 </span>
               </div>
@@ -943,18 +952,44 @@ export default function IndexPage() {
         {/* SUA MESA: O QUE PRECISO DECIDIR AGORA? (Col 5) */}
         <div className="lg:col-span-5 rounded-xl bg-white border border-[#E2E8F0] p-5 shadow-sm flex flex-col justify-between">
           <div className="space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
+            <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9] gap-2">
               <div className="flex items-center gap-2">
                 <Briefcase className="w-4 h-4 text-[#E10600]" />
                 <h3 className="text-sm font-bold uppercase tracking-tight text-[#0F172A]">
                   Sua Mesa
                 </h3>
               </div>
+
+              {/* Card Discreto de Manager / Team Principal */}
+              <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-neutral-50 border border-[#E2E8F0] shrink-0">
+                <div
+                  className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-black text-white shrink-0 shadow-xs"
+                  style={{ backgroundColor: team?.color || '#E10600' }}
+                >
+                  {(team?.manager_name || user?.name || 'Team Principal')
+                    .trim()
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((p: string) => p[0])
+                    .join('')
+                    .toUpperCase()}
+                </div>
+                <div className="flex flex-col text-left leading-none">
+                  <span className="text-[11px] font-bold text-[#0F172A] truncate max-w-[110px]">
+                    {team?.manager_name || user?.name || 'Team Principal'}
+                  </span>
+                  <span className="text-[9px] text-[#64748B] font-medium mt-0.5">
+                    Team Principal & CEO
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-[#E10600] border border-red-200">
                 {executiveDecisions.length} Decisões Pendentes
               </span>
             </div>
-
             <p className="text-xs text-[#64748B]">
               Ações executivas que exigem sua intervenção e direcionamento como Team Principal:
             </p>
@@ -993,7 +1028,10 @@ export default function IndexPage() {
                           {item.title}
                         </h4>
                       </div>
-                      <p className="text-[11px] text-[#64748B] mt-0.5 truncate">{item.subtitle}</p>
+                      <p
+                        className="text-[11px] text-[#64748B] mt-0.5 truncate"
+                        dangerouslySetInnerHTML={{ __html: item.subtitle }}
+                      />
                     </div>
                   </div>
 
@@ -1047,35 +1085,47 @@ export default function IndexPage() {
               </Link>
             </div>
 
-            {/* Lista com Miniaturas e Textos Curtos */}
+            {/* Lista com Miniaturas e Textos Curtos (themed images) */}
             <div className="space-y-2.5">
-              {paddockNews.map((news) => (
-                <div
-                  key={news.id}
-                  className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-3 hover:bg-neutral-100 transition-colors cursor-pointer"
-                >
-                  <div className="w-12 h-12 rounded-md bg-white border border-[#CBD5E1] shrink-0 overflow-hidden flex items-center justify-center p-1">
-                    <img
-                      src={heroCarImage}
-                      alt="Paddock Thumbnail"
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
+              {paddockNews.map((news) => {
+                const isCar =
+                  news.tag === 'CARRO' || news.tag.includes('AERO') || news.tag.includes('TECH')
+                const isDriver = news.tag === 'PILOTO' || news.tag.includes('DRIV')
+                const thumbSrc = isCar
+                  ? audiCarImg
+                  : isDriver
+                    ? DRIVE_STORAGE_PHOTOS['05-Gabriel_Bortoleto.jpg'] ||
+                      DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.png']
+                    : DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.png'] || audiCarImg
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[9px] font-bold text-[#E10600] font-mono">
-                        {news.tag}
-                      </span>
-                      <span className="text-[10px] text-[#94A3B8] font-mono">{news.time}</span>
+                return (
+                  <div
+                    key={news.id}
+                    className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-3 hover:bg-neutral-100 transition-colors cursor-pointer"
+                  >
+                    <div className="w-12 h-12 rounded-md bg-neutral-900 border border-[#CBD5E1] shrink-0 overflow-hidden flex items-center justify-center p-0.5">
+                      <img
+                        src={thumbSrc}
+                        alt="Paddock Thumbnail"
+                        className="w-12 h-12 rounded-md object-cover bg-neutral-900"
+                      />
                     </div>
-                    <h4 className="font-bold text-xs text-[#0F172A] truncate leading-tight mt-0.5">
-                      {news.title}
-                    </h4>
-                    <p className="text-[11px] text-[#64748B] truncate mt-0.5">{news.snippet}</p>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[9px] font-bold text-[#E10600] font-mono">
+                          {news.tag}
+                        </span>
+                        <span className="text-[10px] text-[#94A3B8] font-mono">{news.time}</span>
+                      </div>
+                      <h4 className="font-bold text-xs text-[#0F172A] truncate leading-tight mt-0.5">
+                        {news.title}
+                      </h4>
+                      <p className="text-[11px] text-[#64748B] truncate mt-0.5">{news.snippet}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 

@@ -123,24 +123,54 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
     }
   }
 
-  // 1. Asset empacotado no bundle se houver (ex.: Bortoleto oficial)
-  if (sources.bundledImg) {
-    addCandidate(sources.bundledImg)
+  // 1. Links hi-res do Google Drive mapeados diretamente (prioridade máxima e uniforme antes de caminhos locais)
+  if (
+    surname === 'ricciardo' ||
+    sources.normalizedKey === 'ricciardo' ||
+    norm.includes('ricciardo')
+  ) {
+    addCandidate(
+      getDriveStoragePhotoUrl('3-Daniel_Ricciardo.png') ||
+        DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.png'],
+    )
+    addCandidate(
+      getDriveStoragePhotoUrl('3-Daniel_Ricciardo.jpg') ||
+        DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.jpg'],
+    )
+  }
+  if (
+    surname === 'bortoleto' ||
+    sources.normalizedKey === 'bortoleto' ||
+    norm.includes('bortoleto')
+  ) {
+    addCandidate(
+      getDriveStoragePhotoUrl('05-Gabriel_Bortoleto.jpg') ||
+        DRIVE_STORAGE_PHOTOS['05-Gabriel_Bortoleto.jpg'],
+    )
+    addCandidate(
+      getDriveStoragePhotoUrl('05-Gabriel_Bortoleto.png') ||
+        DRIVE_STORAGE_PHOTOS['05-Gabriel_Bortoleto.png'],
+    )
+    addCandidate(
+      getDriveStoragePhotoUrl('5-Gabriel_Bortoleto.jpg') ||
+        DRIVE_STORAGE_PHOTOS['5-Gabriel_Bortoleto.jpg'],
+    )
+    addCandidate(
+      getDriveStoragePhotoUrl('5-Gabriel_Bortoleto.png') ||
+        DRIVE_STORAGE_PHOTOS['5-Gabriel_Bortoleto.png'],
+    )
   }
 
-  // 2. Mapeamento explícito de arquivos canônicos locais numerados em /pilotos/
   const mappedFiles =
     PILOT_FILE_MAP[surname] || (sources.normalizedKey && PILOT_FILE_MAP[sources.normalizedKey])
   if (mappedFiles && Array.isArray(mappedFiles)) {
     for (const file of mappedFiles) {
-      addCandidate(`/pilotos/${file}`)
-      // CDN Direta do Google Photos em alta resolução (lh3 =s0)
       const cdnUrl = getDriveStoragePhotoUrl(file)
       if (cdnUrl) addCandidate(cdnUrl)
     }
   }
 
-  // 2.1 Busca direta no CDN do Google Photos por chave de sobrenome ou nome completo
+  // Busca direta no CDN do Google Photos por chave de sobrenome, nome canônico ou nome completo
   const cdnDirect =
     getDriveStoragePhotoUrl(sources.normalizedKey) ||
     getDriveStoragePhotoUrl(surname) ||
@@ -149,16 +179,34 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
     addCandidate(cdnDirect)
   }
 
-  // 3. Arquivo registrado na lista canônica DRIVER_PHOTOS
   if (sources.filename) {
-    addCandidate(`/pilotos/${sources.filename}`)
     const cdnFile = getDriveStoragePhotoUrl(sources.filename)
     if (cdnFile) addCandidate(cdnFile)
     if (sources.filename.endsWith('.png')) {
       const jpg = sources.filename.replace('.png', '.jpg')
-      addCandidate(`/pilotos/${jpg}`)
       const cdnJpg = getDriveStoragePhotoUrl(jpg)
       if (cdnJpg) addCandidate(cdnJpg)
+    }
+  }
+
+  // 2. Asset empacotado no bundle se houver
+  if (sources.bundledImg) {
+    addCandidate(sources.bundledImg)
+  }
+
+  // 3. Arquivos locais em /pilotos/ caso o browser consiga carregá-los (após Drive URLs)
+  if (mappedFiles && Array.isArray(mappedFiles)) {
+    for (const file of mappedFiles) {
+      addCandidate(`/pilotos/${file}`)
+    }
+  }
+
+  // 3. Arquivo registrado na lista canônica DRIVER_PHOTOS
+  if (sources.filename) {
+    addCandidate(`/pilotos/${sources.filename}`)
+    if (sources.filename.endsWith('.png')) {
+      const jpg = sources.filename.replace('.png', '.jpg')
+      addCandidate(`/pilotos/${jpg}`)
     } else if (sources.filename.endsWith('.jpg')) {
       const png = sources.filename.replace('.jpg', '.png')
       addCandidate(`/pilotos/${png}`)

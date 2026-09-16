@@ -113,7 +113,7 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
         className,
       )}
     >
-      {/* Lado Esquerdo: Hambúrguer mobile + APEX GP Manager Brand / Logo */}
+      {/* Lado Esquerdo: Hambúrguer mobile + APEX GP Manager Brand / Logo + Logo Equipe + Indicadores */}
       <div className="flex items-center gap-3 min-w-0">
         <Button
           type="button"
@@ -126,7 +126,8 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
           <Menu className="w-5 h-5" />
         </Button>
 
-        <div className="flex items-center gap-2.5 min-w-0">
+        {/* Logo block */}
+        <div className="flex items-center gap-3 shrink-0">
           <img
             src={apexLogoImg}
             alt="APEX GP Manager"
@@ -143,39 +144,49 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
               </span>
             </div>
           </div>
+
+          {teamLogoUrl && (
+            <img
+              src={teamLogoUrl}
+              alt={teamName}
+              className="h-6 w-auto max-w-[60px] object-contain hidden md:block shrink-0"
+            />
+          )}
+        </div>
+
+        {/* Indicators block separado com border-l */}
+        <div className="flex items-center gap-2 shrink-0 border-l border-neutral-700/50 pl-3">
+          <div className="flex flex-col leading-tight">
+            <span className="text-[10px] font-medium uppercase text-[#64748B]">
+              TEMPORADA {seasonYear}
+            </span>
+            <span className="text-xs font-bold text-[#0F172A] flex items-center gap-1 font-mono tabular-nums">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />
+              Rodada {currentRound}/{totalRounds}
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Lado Direito: Métricas ricas do save */}
       <div className="flex items-center gap-2.5 sm:gap-4 shrink-0">
-        {/* Métrica 1: Temporada e Rodada */}
-        <div className="hidden md:flex flex-col items-end leading-tight pr-1">
-          <span className="text-[10px] font-medium uppercase text-[#64748B]">
-            Temporada {seasonYear}
-          </span>
-          <span className="text-xs font-bold text-[#0F172A] flex items-center gap-1 font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />
-            Rodada {currentRound} / {totalRounds}
-          </span>
-        </div>
-
         {/* Métrica 2: Data atual do jogo */}
-        <div className="hidden lg:flex flex-col items-end leading-tight border-l border-[#E2E8F0] pl-3">
-          <span className="text-xs font-semibold text-[#334155] flex items-center gap-1.5">
+        <div className="hidden lg:flex flex-col items-end leading-tight pl-2">
+          <span className="text-xs font-semibold text-[#334155] flex items-center gap-1.5 font-sans">
             <Calendar className="w-3.5 h-3.5 text-[#64748B]" />
             {gameDateFormatted}
           </span>
         </div>
 
-        {/* Métrica 3: Orçamento Disponível */}
+        {/* Métrica 3: Orçamento Disponível (font-mono tabular-nums) */}
         <div className="hidden sm:flex flex-col items-end leading-tight border-l border-[#E2E8F0] pl-3">
-          <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 font-mono">
+          <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 font-mono tabular-nums">
             {`US$ ${(budget / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} M`}
           </span>
           <span className="text-[10px] text-[#64748B] font-medium">Orçamento</span>
         </div>
 
-        {/* Métrica 4: Teto de Gastos com anel de progresso SVG */}
+        {/* Métrica 4: Teto de Gastos com anel de progresso SVG (font-mono tabular-nums) */}
         <div className="hidden xl:flex items-center gap-2 border-l border-[#E2E8F0] pl-3">
           <div className="relative w-7 h-7 flex items-center justify-center">
             <svg className="w-7 h-7 -rotate-90" viewBox="0 0 28 28">
@@ -192,21 +203,25 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
                 strokeLinecap="round"
               />
             </svg>
-            <span className="absolute text-[8px] font-bold text-[#0F172A] font-mono">
+            <span className="absolute text-[8px] font-bold text-[#0F172A] font-mono tabular-nums">
               {costCapPct}%
             </span>
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-[11px] font-bold text-[#0F172A] font-mono">{costCapPct}%</span>
+            <span className="text-[11px] font-bold text-[#0F172A] font-mono tabular-nums">
+              {costCapPct}%
+            </span>
             <span className="text-[9px] uppercase text-[#64748B] font-medium">Teto de gastos</span>
           </div>
         </div>
 
-        {/* Métrica 5: Confiança da Diretoria (%) */}
+        {/* Métrica 5: Confiança da Diretoria (%) (font-mono tabular-nums) */}
         <div className="hidden md:flex items-center gap-2 border-l border-[#E2E8F0] pl-3">
           <span className="text-amber-500 text-sm">★</span>
           <div className="flex flex-col leading-tight">
-            <span className="text-xs font-bold text-[#0F172A] font-mono">{confidence}%</span>
+            <span className="text-xs font-bold text-[#0F172A] font-mono tabular-nums">
+              {confidence}%
+            </span>
             <span className="text-[9px] uppercase text-[#64748B] font-medium">Confiança</span>
           </div>
         </div>

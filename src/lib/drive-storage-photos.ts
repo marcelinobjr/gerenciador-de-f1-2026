@@ -17,6 +17,8 @@ export const DRIVE_STORAGE_PHOTOS: Record<string, string> = {
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBONxOh9LZkmFMTsk1S8jQPj0VbTv_QNTiiHhPDM0avs57nOwskaS_SX6bXMrvOAnpReo70-5hI3RJYvJgqnJtob_iY5rDZlAIL8Rxps=s0',
   '2-Josef_Newgarden.jpg':
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBO4Qkl0sPAZ7fdUaxr1EWo2Cre8XghATKuldJMV9VlqFaA6ncI9CUF6BgeT_1zSHKa8xNZldR4iAH3NRcj3AskoPTHBz12JxjPg89Dm=s0',
+  '3-Daniel_Ricciardo.png':
+    'https://lh3.googleusercontent.com/drive-storage/AJQWtBPBOIHGDb-TnyPxfiTqr9FGBFKC4ICWLn8mEwdagEQMdzydYmk9kUC7iMMvDNYj354D-KyN9e_b7wg5nxEnAI2wpZlLFd0sjK-zWw4Q=s0',
   '3-Daniel_Ricciardo.jpg':
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBPBOIHGDb-TnyPxfiTqr9FGBFKC4ICWLn8mEwdagEQMdzydYmk9kUC7iMMvDNYj354D-KyN9e_b7wg5nxEnAI2wpZlLFd0sjK-zWw4Q=s0',
   '3-Max_Verstappen.jpg':

@@ -42,7 +42,8 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
     setAttemptIndex((prev) => prev + 1)
   }
 
-  const currentSrc = candidateUrls[attemptIndex] || null
+  // Previne loop ou tentativas fora do array
+  const currentSrc = attemptIndex < candidateUrls.length ? candidateUrls[attemptIndex] : null
   const isExhausted = attemptIndex >= candidateUrls.length || !currentSrc
 
   if (isExhausted) {
