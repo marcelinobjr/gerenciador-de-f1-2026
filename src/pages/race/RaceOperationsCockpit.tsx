@@ -9,13 +9,13 @@ import { Activity, Disc, Fuel, Gauge, Play, Wrench, Zap } from 'lucide-react'
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { LiveRaceEvent, WeekendSession } from '@/types/race-events'
 import type { TeamModel } from '@/types/f1'
+import type { LiveTacticalMode, LivePaceOrder } from '@/types/race-interactions'
 import type {
-  LiveTacticalMode,
-  LivePaceOrder,
-  IncidentPenalty,
-  LightMechanicalIssue,
-} from '@/types/race-interactions'
-import type { TeamOrderProposalState, TeamOrderState } from '@/lib/raceDrama'
+  TeamOrderProposal,
+  TeamOrderState,
+  FiaPenalty,
+  MechanicalIssue,
+} from '@/lib/raceDrama'
 
 export interface RaceOperationsCockpitProps {
   isRaceSession: boolean
@@ -50,9 +50,9 @@ export interface RaceOperationsCockpitProps {
   playerPaceOrders: Record<string, LivePaceOrder>
   handleChangePaceOrder: (driverId: string, order: LivePaceOrder) => void
   teamOrders: TeamOrderState[]
-  penalties: IncidentPenalty[]
-  mechanicalIssues: LightMechanicalIssue[]
-  teamOrderProposal: TeamOrderProposalState | null
+  penalties: FiaPenalty[]
+  mechanicalIssues: MechanicalIssue[]
+  teamOrderProposal: TeamOrderProposal | null
   handleApplyTeamOrder: () => void
 }
 

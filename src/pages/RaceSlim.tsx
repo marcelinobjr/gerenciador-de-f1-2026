@@ -1015,73 +1015,102 @@ export default function RacePage() {
 
     // Delta do composto
     const spec = TIRE_SPECS[setup.tire_compound || 'macio'] || TIRE_SPECS.macio
-    const tirePaceDelta = spec.dryPaceDeltaSec
+    const tirePaceDelta = spec.deltaPerLapSec
 
     // Base de tempo da volta no circuito
     const circuitBaseSec = gpInfo.lengthKm * 15.2
 
-    // Competidores IA
-    const aiEntries: SessionTimeResult[] = competitors.map((ai) => {
-      const pace = calculateCombinedPace(
-        ai.teamStrength,
-        ai.driverExperience,
-        0,
-        ai.driverTireManagement,
-        ai.driverRacecraft,
-      )
-      const lapTimeSec = circuitBaseSec - (pace / 100) * 3.5 + (Math.random() * 0.5 - 0.25)
-      return {
-        position: 0,
-        driverName: ai.driverName,
-        teamName: ai.teamName,
-        teamColor: ai.teamColor,
-        isPlayer: false,
-        lapTime: formatLapTime(lapTimeSec),
-        lapTimeSec,
-        tireCompound: (session.startsWith('q') ? 'macio' : 'medio') as TireCompound,
-        sector1: `${(lapTimeSec * 0.31).toFixed(3)}s`,
-        sector2: `${(lapTimeSec * 0.42).toFixed(3)}s`,
-        sector3: `${(lapTimeSec * 0.27).toFixed(3)}s`,
-      }
-    })
+    // Competidores IA - contrato AICompetitor (strength, carLevel, driver1, driver2)
+    const aiEntries: (SessionTimeResult & { lapTimeSec: number })[] = competitors.flatMap(
+      (ai, aiIdx) => {
+        const driversInTeam = [
+          { d: ai.driver1, slot: 1 },
+          { d: ai.driver2, slot: 2 },
+        ]
+        return driversInTeam.map(({ d, slot }) => {
+          const paceResult = calculateCombinedPace({
+            teamStrength: ai.strengthRating || ai.strength || 75,
+            carLevel: ai.carLevel,
+            driver: {
+              speed: d.speed,
+              consistency: d.consistency,
+              defense: d.defense,
+              rain: d.rain,
+            },
+            weather: 'seco',
+            tireCompound: (session.startsWith('q') ? 'macio' : 'medio') as TireCompound,
+            trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+          })
+          const lapTimeSec =
+            circuitBaseSec - (paceResult.lapScore / 100) * 3.5 + (Math.random() * 0.5 - 0.25)
+          const tireUsed = (session.startsWith('q') ? 'macio' : 'medio') as TireCompound
+          return {
+            position: 0,
+            driverId: `${ai.id}_d${slot}`,
+            driverName: d.name,
+            teamName: ai.name,
+            teamColor: ai.color,
+            isPlayer: false,
+            lapTime: formatLapTime(lapTimeSec),
+            lapTimeSec,
+            gap: '',
+            tire: tireUsed,
+          }
+        })
+      },
+    )
 
     // Pilotos do Jogador
-    const playerEntries: SessionTimeResult[] = playerDrivers.map((pd) => {
-      const pace = calculateCombinedPace(
-        playerTeamStrength,
-        pd.experience,
-        pd.speed,
-        pd.tire_management,
-        pd.racecraft,
-      )
-      const lapTimeSec =
-        circuitBaseSec -
-        (pace / 100) * 3.5 +
-        setupDeltaSec +
-        tirePaceDelta +
-        (Math.random() * 0.3 - 0.15)
-      return {
-        position: 0,
-        driverName: pd.name,
-        teamName: team?.name || 'Minha Escuderia',
-        teamColor: team?.color || '#E10600',
-        isPlayer: true,
-        lapTime: formatLapTime(lapTimeSec),
-        lapTimeSec,
-        tireCompound: (setup.tire_compound || 'macio') as TireCompound,
-        sector1: `${(lapTimeSec * 0.31).toFixed(3)}s`,
-        sector2: `${(lapTimeSec * 0.42).toFixed(3)}s`,
-        sector3: `${(lapTimeSec * 0.27).toFixed(3)}s`,
-      }
-    })
+    const playerEntries: (SessionTimeResult & { lapTimeSec: number })[] = playerDrivers.map(
+      (pd) => {
+        const paceResult = calculateCombinedPace({
+          teamStrength: playerTeamStrength,
+          driver: {
+            speed: pd.speed,
+            consistency: pd.experience,
+            defense: pd.racecraft,
+            morale: pd.morale,
+            physicalCondition: pd.physical_condition,
+          },
+          weather: 'seco',
+          tireCompound: (setup.tire_compound || 'macio') as TireCompound,
+          trackAbrasiveness: gpInfo.tireAbrasiveness || 6,
+        })
+        const lapTimeSec =
+          circuitBaseSec -
+          (paceResult.lapScore / 100) * 3.5 +
+          setupDeltaSec +
+          tirePaceDelta +
+          (Math.random() * 0.3 - 0.15)
+        const tireUsed = (setup.tire_compound || 'macio') as TireCompound
+        return {
+          position: 0,
+          driverId: pd.id,
+          driverName: pd.name,
+          teamName: team?.name || 'Minha Escuderia',
+          teamColor: team?.color || '#E10600',
+          isPlayer: true,
+          lapTime: formatLapTime(lapTimeSec),
+          lapTimeSec,
+          gap: '',
+          tire: tireUsed,
+        }
+      },
+    )
 
     const all = [...aiEntries, ...playerEntries].sort((a, b) => a.lapTimeSec - b.lapTimeSec)
     const leaderTime = all[0].lapTimeSec
 
     return all.map((entry, idx) => ({
-      ...entry,
       position: idx + 1,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      lapTime: entry.lapTime,
       gap: idx === 0 ? 'Líder' : formatGap(entry.lapTimeSec - leaderTime),
+      tire: entry.tire,
+      isPlayer: entry.isPlayer,
     }))
   }
 
