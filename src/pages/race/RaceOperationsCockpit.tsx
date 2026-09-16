@@ -9,7 +9,9 @@ import { Activity, Disc, Fuel, Gauge, Play, Wrench, Zap } from 'lucide-react'
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { LiveRaceEvent, WeekendSession } from '@/types/race-events'
 import type { TeamModel } from '@/types/f1'
-import type { LiveTacticalMode, LivePaceOrder } from '@/types/race-interactions'
+import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
+
+export type LiveTacticalMode = 'attack' | 'normal' | 'save_fuel'
 import type {
   TeamOrderProposal,
   TeamOrderState,

@@ -1,7 +1,6 @@
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { LiveRaceEvent } from '@/types/race-events'
-import type { TrackWeatherState } from '@/types/f1'
-import { formatTireName } from '@/lib/f1-tire-system'
+import { formatTireName, type TrackWeatherState } from '@/lib/f1-tire-system'
 
 export function generateLapNarratedEvents(
   currentLap: number,

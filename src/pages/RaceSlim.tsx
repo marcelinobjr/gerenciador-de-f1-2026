@@ -1688,6 +1688,9 @@ export default function RacePage() {
           (entry.fuelRemaining !== undefined ? entry.fuelRemaining : 100) - fuelBurnRate,
         )
 
+        // Cálculo de ritmo livre de volta via F1 Pace Model e Race Sim Engine
+        const teamStrength = entry.isPlayer ? playerTeamStrength : 75
+
         // Verificação se deve parar nos boxes nesta volta
         let didPit = false
         let pitLoss = 0
@@ -1763,15 +1766,22 @@ export default function RacePage() {
         entry.lapsOnCurrentTire = (entry.lapsOnCurrentTire || 0) + 1
         entry.fuelRemaining = updatedFuelRemaining
 
-        // Cálculo de ritmo livre de volta via F1 Pace Model e Race Sim Engine
-        const teamStrength = entry.isPlayer ? playerTeamStrength : 75
-        const basePaceScore = calculateCombinedPace(
+        const basePaceScoreResult = calculateCombinedPace({
           teamStrength,
-          entry.score,
-          0,
-          entry.score,
-          entry.score,
-        )
+          carLevel: teamStrength,
+          driver: {
+            speed: entry.score,
+            morale: entry.morale,
+            physicalCondition: entry.physicalCondition,
+          },
+          weather: currentWeather,
+          tireCompound: entry.tireCompound || 'medio',
+          lapsOnTire: entry.lapsOnCurrentTire || 0,
+          wearPercent: currentWear,
+          wearMultiplier: entry.wearMultiplier || 1.0,
+          trackAbrasiveness: abrasiveness,
+        })
+        const basePaceScore = basePaceScoreResult.lapScore
 
         // Aplica modificadores táticos ao score de ritmo da volta:
         // - Ataque: +3.5 pts de ritmo
@@ -1907,8 +1917,38 @@ export default function RacePage() {
             (!chasing.isPlayer && chasing.aiStrategyProfile?.type === 'agressiva')
 
           const attempt = evaluateOvertakeAttempt({
-            attacker: chasing,
-            target: defending,
+            attacker: {
+              ...chasing,
+              driverName:
+                chasing.driverName ||
+                drivers.find((d) => d.id === chasing.driverId)?.name ||
+                'Piloto Atacante',
+              teamId: chasing.teamId || chasing.teamName || 'team_unknown',
+              teamName: chasing.teamName || 'Equipe',
+              teamColor: chasing.teamColor || '#E10600',
+              isPlayer: !!chasing.isPlayer,
+              flag: chasing.flag || '🏁',
+              position: chasing.position || i + 1,
+              score: chasing.score || 75,
+              accumulatedTimeSec: chasing.accumulatedTimeSec || 0,
+              dnf: !!chasing.dnf,
+            },
+            target: {
+              ...defending,
+              driverName:
+                defending.driverName ||
+                drivers.find((d) => d.id === defending.driverId)?.name ||
+                'Piloto Alvo',
+              teamId: defending.teamId || defending.teamName || 'team_unknown',
+              teamName: defending.teamName || 'Equipe',
+              teamColor: defending.teamColor || '#8B95A7',
+              isPlayer: !!defending.isPlayer,
+              flag: defending.flag || '🏁',
+              position: defending.position || i,
+              score: defending.score || 75,
+              accumulatedTimeSec: defending.accumulatedTimeSec || 0,
+              dnf: !!defending.dnf,
+            },
             attackerFreePaceSec: sortedByRawPace[i].freeLapSec,
             targetFreePaceSec: sortedByRawPace[i - 1].freeLapSec,
             circuitOvertakeFactor,
