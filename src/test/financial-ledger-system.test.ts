@@ -4,9 +4,6 @@ import { FinancialTransaction, FinancialCommitment } from '@/types/canonical-fin
 import { TeamModel } from '@/types/f1'
 
 describe('Implementação Nº 5A — Finanças, Orçamento, Projeções e Cost Cap', () => {
-  it('TESTE DE VERIFICAÇÃO EXECUÇÃO', () => {
-    expect('TEST_EXECUTED').toBe('FAIL_PLEASE')
-  })
   let service: FinancialLedgerService
 
   beforeEach(() => {
