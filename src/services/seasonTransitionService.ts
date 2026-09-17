@@ -903,27 +903,61 @@ export class SeasonTransitionService {
     }
   }
 
-  private async processStaffTransfers(params: {
+  public async processStaffTransfers(params: {
     teamId: string
     fromSeasonYear: number
     toSeasonYear: number
     transitionKey: string
-  }): Promise<void> {
+  }): Promise<{
+    expiredCount: number
+    updatedOrg: TeamTechnicalOrganization | null
+  }> {
     const { teamId, fromSeasonYear, toSeasonYear, transitionKey } = params
     try {
-      const org = await technicalOrganizationService.getTechnicalOrganization(
-        teamId,
+      // Buscar equipe e organização técnica existente
+      const teams = await f1Service.getTeams()
+      const team = teams.find((t) => t.id === teamId)
+      const existingOrg = (team as any)?.technical_organization
+
+      const org = technicalOrganizationService.getOrCreateTeamOrganization(teamId, existingOrg)
+
+      // BLOCO 2C: Executar expiração natural de contratos de staff onde contract_end <= fromSeasonYear
+      // MULTA ZERO e NENHUM LANÇAMENTO NO LEDGER
+      const { updatedOrg, expiredMembers } = technicalOrganizationService.expireStaffContracts(
+        org,
         fromSeasonYear,
       )
+
+      // Atualizar o seasonYear da organização para a nova temporada
+      updatedOrg.seasonYear = toSeasonYear
+
+      // Persistir na equipe se houver alteração
+      try {
+        await pb.collection('teams').update(teamId, {
+          technical_organization: updatedOrg,
+        })
+      } catch {
+        // tolerância offline / mock
+      }
+
       // Ajustar conhecimento técnico: preserva base e aplica evolução natural sem duplicação
-      const currentOrgKnow = org.organizationalKnowledgeScore || 70
+      const currentOrgKnow = updatedOrg.organizationalKnowledgeScore || 70
       await technicalOrganizationService.updateOrganizationalKnowledge(
         teamId,
         Math.min(95, currentOrgKnow + 2),
         `Carry-over organizacional e consolidação da temporada ${toSeasonYear}`,
       )
+
+      return {
+        expiredCount: expiredMembers.length,
+        updatedOrg,
+      }
     } catch {
       // tolerância
+      return {
+        expiredCount: 0,
+        updatedOrg: null,
+      }
     }
   }
 

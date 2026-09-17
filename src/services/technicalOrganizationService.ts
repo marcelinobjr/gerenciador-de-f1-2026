@@ -668,6 +668,78 @@ export class TechnicalOrganizationService {
     lossOrReason?: number | string,
   ): Promise<void> {}
 
+  /**
+   * Processa a expiração natural de contratos de staff na transição de temporada.
+   * BLOCO 2C: TRANSIÇÃO DE TEMPORADA DO STAFF
+   * Regra econômica canônica:
+   * - Para cada membro ativo da organização técnica: se contract_end <= seasonBeingClosed, o vínculo expirou.
+   * - O profissional deixa a equipe (teamId = null, contractId = null, status = 'available').
+   * - O cargo permanece existente na estrutura e torna-se vago (membros[role] = null, cargo em vacancies).
+   * - O registro do profissional é estritamente preservado como agente livre (não deletado).
+   * - ZERO MULTA RESCISÓRIA (terminationFee = 0).
+   * - ZERO LANÇAMENTOS NO LEDGER (expiração natural não gera custos de rescisão ou multas).
+   * - Idempotente: rodar repetidamente não duplica desligamentos nem corrompe o organograma.
+   */
+  public expireStaffContracts(
+    org: TeamTechnicalOrganization,
+    seasonBeingClosed: number,
+  ): {
+    updatedOrg: TeamTechnicalOrganization
+    expiredMembers: Array<{ role: StaffRole; staff: StaffMember; terminationFee: number }>
+  } {
+    const updatedMembers = { ...org.members }
+    const updatedVacancies = Array.from(new Set(org.vacancies))
+    const expiredMembers: Array<{ role: StaffRole; staff: StaffMember; terminationFee: number }> =
+      []
+
+    for (const role of CANONICAL_STAFF_ROLES) {
+      const member = updatedMembers[role]
+      if (member) {
+        const contractEnd = member.contract_end ?? seasonBeingClosed
+        // Regra: contract_end <= seasonBeingClosed (cobre também contratos legados já vencidos)
+        if (contractEnd <= seasonBeingClosed) {
+          // Desvincula o profissional preservando todos os atributos
+          const freeAgent: StaffMember = {
+            ...member,
+            teamId: null,
+            contractId: null,
+            status: 'available',
+          }
+
+          // Cargo fica vago no organograma
+          updatedMembers[role] = null
+          if (!updatedVacancies.includes(role)) {
+            updatedVacancies.push(role)
+          }
+
+          expiredMembers.push({
+            role,
+            staff: freeAgent,
+            terminationFee: 0, // Princípio econômico: expiração natural tem multa ZERO
+          })
+        }
+      }
+    }
+
+    const collaborationFit = this.calculateCollaborationFit(updatedMembers)
+    const organizationalHealthScore = Math.round(
+      (collaborationFit + (9 - updatedVacancies.length) * 10) / 2,
+    )
+
+    const updatedOrg: TeamTechnicalOrganization = {
+      ...org,
+      members: updatedMembers,
+      vacancies: updatedVacancies,
+      collaborationFit,
+      organizationalHealthScore,
+    }
+
+    return {
+      updatedOrg,
+      expiredMembers,
+    }
+  }
+
   public advanceRoundProgress(
     org: TeamTechnicalOrganization,
     round: number,

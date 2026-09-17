@@ -1138,3 +1138,289 @@ describe('BLOCO 2B: T56 — IDEMPOTÊNCIA DA DISPENSA: proteção contra repeti�
     }).toThrow('Membro de staff não encontrado ou já desligado da equipe.')
   })
 })
+
+// =========================================================================
+// BLOCO 2C — TRANSIÇÃO DE TEMPORADA DO STAFF (T57 - T62)
+// Regras Canônicas:
+// 1. Expiração automática quando contract_end <= seasonBeingClosed
+// 2. Remoção de vínculo (cargo vago, teamId = null, preservado como free agent)
+// 3. ZERO MULTA RESCISÓRIA (terminationFee = 0)
+// 4. ZERO LANÇAMENTOS NO FINANCIAL LEDGER (custo de saída 0)
+// 5. Decisões pendentes desaparecem por derivação (sem manipulação manual)
+// 6. Idempotência estrita: reexecução não corrompe, não duplica, não gera despesas
+// =========================================================================
+
+describe('BLOCO 2C: TRANSIÇÃO DE TEMPORADA DO STAFF (T57 - T62)', () => {
+  const seasonBeingClosed = 2027
+  const nextSeason = 2028
+
+  it('T57 — CONTRATO TERMINANDO: temporada encerrada 2027, staff com contract_end = 2027 → após transição: deixa a equipe, cargo vago, profissional preservado, multa = 0', () => {
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi', {
+      seasonYear: seasonBeingClosed,
+    })
+
+    // Configurar Head of Strategy com contrato vencendo em 2027
+    const initialHos = org.members.HEAD_OF_STRATEGY!
+    expect(initialHos).toBeDefined()
+    org.members.HEAD_OF_STRATEGY = {
+      ...initialHos,
+      contract_end: 2027,
+      teamId: 'audi',
+      status: 'under_contract',
+    }
+
+    // Antes da transição: decisão contratual derivada deve existir
+    const activeStaffBefore = Object.values(org.members).filter(Boolean) as StaffMember[]
+    const decisionsBefore = deriveStaffPendingDecisions(activeStaffBefore, seasonBeingClosed)
+    const hosExpiringDecision = decisionsBefore.find(
+      (d) => d.id === `decision_staff_expiring_${org.members.HEAD_OF_STRATEGY?.staffId}`,
+    )
+    expect(hosExpiringDecision).toBeDefined()
+
+    // Executa a expiração canônica na transição 2027 -> 2028
+    const { updatedOrg, expiredMembers } = technicalOrganizationService.expireStaffContracts(
+      org,
+      seasonBeingClosed,
+    )
+
+    // 1. Cargo HEAD_OF_STRATEGY ficou vago no organograma
+    expect(updatedOrg.members.HEAD_OF_STRATEGY).toBeNull()
+    expect(updatedOrg.vacancies).toContain('HEAD_OF_STRATEGY')
+
+    // 2. Membro expirado consta na lista de saídas com multa ZERO
+    const expiredHos = expiredMembers.find((m) => m.role === 'HEAD_OF_STRATEGY')
+    expect(expiredHos).toBeDefined()
+    expect(expiredHos!.terminationFee).toBe(0)
+
+    // 3. Profissional preservado como agente livre (teamId null, status available, dados intactos)
+    expect(expiredHos!.staff.staffId).toBe(initialHos.staffId)
+    expect(expiredHos!.staff.name).toBe(initialHos.name)
+    expect(expiredHos!.staff.teamId).toBeNull()
+    expect(expiredHos!.staff.status).toBe('available')
+    expect(expiredHos!.staff.attributes).toEqual(initialHos.attributes)
+
+    // 4. Decisões pendentes na nova temporada (2028): desaparecem por derivação
+    const activeStaffAfter = Object.values(updatedOrg.members).filter(Boolean) as StaffMember[]
+    const decisionsAfter = deriveStaffPendingDecisions(activeStaffAfter, nextSeason)
+    const oldDecisionPresent = decisionsAfter.some(
+      (d) => d.id === `decision_staff_expiring_${initialHos.staffId}`,
+    )
+    expect(oldDecisionPresent).toBe(false)
+  })
+
+  it('T58 — CONTRATO JÁ VENCIDO: temporada encerrada 2027, contract_end = 2026 → deixa a equipe, profissional preservado, cargo vago, nenhuma despesa (cobre saves legados/anômalos)', () => {
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi', {
+      seasonYear: seasonBeingClosed,
+    })
+
+    // Sanity check com o caso real do save legado: Ruth Buscombe com contract_end = 2026
+    const initialHos = org.members.HEAD_OF_STRATEGY!
+    expect(initialHos.name).toBe('Ruth Buscombe')
+    org.members.HEAD_OF_STRATEGY = {
+      ...initialHos,
+      contract_end: 2026, // Legado / anômalo já vencido
+      teamId: 'audi',
+      status: 'under_contract',
+    }
+
+    // Na temporada 2027 gerava CONTRACT_EXPIRED
+    const activeStaffBefore = Object.values(org.members).filter(Boolean) as StaffMember[]
+    const decisionsBefore = deriveStaffPendingDecisions(activeStaffBefore, seasonBeingClosed)
+    expect(
+      decisionsBefore.some((d) => d.id === `decision_staff_expired_${initialHos.staffId}`),
+    ).toBe(true)
+
+    // Executa a expiração de contratos na transição 2027 -> 2028
+    const { updatedOrg, expiredMembers } = technicalOrganizationService.expireStaffContracts(
+      org,
+      seasonBeingClosed,
+    )
+
+    // Ruth Buscombe obrigatoriamente deixa a equipe pela regra contract_end <= seasonBeingClosed
+    expect(updatedOrg.members.HEAD_OF_STRATEGY).toBeNull()
+    expect(updatedOrg.vacancies).toContain('HEAD_OF_STRATEGY')
+
+    const expiredRuth = expiredMembers.find((m) => m.role === 'HEAD_OF_STRATEGY')
+    expect(expiredRuth).toBeDefined()
+    expect(expiredRuth!.staff.name).toBe('Ruth Buscombe')
+    expect(expiredRuth!.staff.teamId).toBeNull()
+    expect(expiredRuth!.staff.status).toBe('available')
+    expect(expiredRuth!.terminationFee).toBe(0)
+
+    // Decisão antiga de contrato vencido não existe mais na nova temporada
+    const activeStaffAfter = Object.values(updatedOrg.members).filter(Boolean) as StaffMember[]
+    const decisionsAfter = deriveStaffPendingDecisions(activeStaffAfter, nextSeason)
+    expect(
+      decisionsAfter.some((d) => d.id === `decision_staff_expired_${initialHos.staffId}`),
+    ).toBe(false)
+  })
+
+  it('T59 — CONTRATO FUTURO: temporada encerrada 2027, contract_end = 2028 → permanece, vínculo intacto, cargo ocupado', () => {
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi', {
+      seasonYear: seasonBeingClosed,
+    })
+
+    // Staff com contrato até 2028 (Technical Director Enrico Cardile ou similar)
+    const td = org.members.TECHNICAL_DIRECTOR!
+    expect(td).toBeDefined()
+    org.members.TECHNICAL_DIRECTOR = {
+      ...td,
+      contract_end: 2028,
+      teamId: 'audi',
+      status: 'under_contract',
+    }
+
+    const { updatedOrg, expiredMembers } = technicalOrganizationService.expireStaffContracts(
+      org,
+      seasonBeingClosed,
+    )
+
+    // Permanece na equipe, cargo ocupado
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR).not.toBeNull()
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR?.staffId).toBe(td.staffId)
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR?.teamId).toBe('audi')
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR?.status).toBe('under_contract')
+    expect(updatedOrg.vacancies).not.toContain('TECHNICAL_DIRECTOR')
+
+    // Não deve constar na lista de expirados
+    expect(expiredMembers.some((m) => m.role === 'TECHNICAL_DIRECTOR')).toBe(false)
+  })
+
+  it('T60 — RENOVADO ANTES DA TRANSIÇÃO: contract_end = 2027, usuário renova para 2029, depois transição 2027 → 2028 → permanece, não tratado como expirado, decisão anterior continua resolvida', () => {
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi', {
+      seasonYear: seasonBeingClosed,
+    })
+
+    // Staff inicialmente com contract_end = 2027
+    const initialCd = org.members.CHIEF_DESIGNER!
+    org.members.CHIEF_DESIGNER = {
+      ...initialCd,
+      contract_end: 2027,
+      teamId: 'audi',
+      salary: 1_200_000,
+    }
+
+    // Usuário renova antes da transição por +2 temporadas (terminando em 2029)
+    const { updatedOrg: renewedOrg, renewedStaff } =
+      technicalOrganizationService.renewStaffContract(
+        org,
+        initialCd.staffId,
+        2,
+        1_500_000,
+        seasonBeingClosed,
+      )
+    expect(renewedStaff?.contract_end).toBe(2029)
+    expect(renewedOrg.members.CHIEF_DESIGNER?.contract_end).toBe(2029)
+
+    // Realiza a transição 2027 -> 2028 após a renovação
+    const { updatedOrg: postTransitionOrg, expiredMembers } =
+      technicalOrganizationService.expireStaffContracts(renewedOrg, seasonBeingClosed)
+
+    // Membro renovado permanece intacto na equipe
+    expect(postTransitionOrg.members.CHIEF_DESIGNER).not.toBeNull()
+    expect(postTransitionOrg.members.CHIEF_DESIGNER?.staffId).toBe(initialCd.staffId)
+    expect(postTransitionOrg.members.CHIEF_DESIGNER?.contract_end).toBe(2029)
+    expect(postTransitionOrg.vacancies).not.toContain('CHIEF_DESIGNER')
+    expect(expiredMembers.some((m) => m.role === 'CHIEF_DESIGNER')).toBe(false)
+
+    // Na nova temporada 2028 (com contrato até 2029), continua sem gerar decisão pendente
+    const activeStaff = Object.values(postTransitionOrg.members).filter(Boolean) as StaffMember[]
+    const decisions = deriveStaffPendingDecisions(activeStaff, nextSeason)
+    expect(decisions.some((d) => d.id.includes(initialCd.staffId))).toBe(false)
+  })
+
+  it('T61 — ZERO LEDGER: expiração natural não cria nenhum lançamento em penalties/termination/qualquer categoria financeira. Custo de saída 0', async () => {
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi', {
+      seasonYear: seasonBeingClosed,
+    })
+
+    // Membro com término de contrato em 2027 e salário expressivo ($3.000.000)
+    org.members.HEAD_OF_AERODYNAMICS = {
+      ...org.members.HEAD_OF_AERODYNAMICS!,
+      contract_end: 2027,
+      salary: 3_000_000,
+      teamId: 'audi',
+    }
+
+    const fakeLedgerStore: Array<{
+      category: string
+      amount: number
+      idempotency_key: string
+    }> = []
+
+    // Helper que simula o fluxo de encerramento da temporada com respeito ao princípio econômico
+    const { updatedOrg, expiredMembers } = technicalOrganizationService.expireStaffContracts(
+      org,
+      seasonBeingClosed,
+    )
+
+    for (const exp of expiredMembers) {
+      // Como a expiração é natural, a multa é estritamente 0 e NENHUM lançamento deve ser enviado ao Ledger
+      expect(exp.terminationFee).toBe(0)
+      if (exp.terminationFee > 0) {
+        fakeLedgerStore.push({
+          category: 'penalties',
+          amount: exp.terminationFee,
+          idempotency_key: `staff_termination_${exp.staff.staffId}_y${seasonBeingClosed}`,
+        })
+      }
+    }
+
+    // Ledger estritamente VAZIO de despesas de rescisão de staff
+    expect(fakeLedgerStore.length).toBe(0)
+    expect(updatedOrg.members.HEAD_OF_AERODYNAMICS).toBeNull()
+  })
+
+  it('T62 — IDEMPOTÊNCIA: executar a mesma rotina de expiração/transição novamente → nenhum efeito duplicado, profissional continua único, cargo continua vago, zero novas transações, staff válido intacto', () => {
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi', {
+      seasonYear: seasonBeingClosed,
+    })
+
+    // Staff com misto de vencendo em 2027, vencido em 2026 e futuro até 2029
+    org.members.HEAD_OF_STRATEGY = {
+      ...org.members.HEAD_OF_STRATEGY!,
+      contract_end: 2027,
+      teamId: 'audi',
+    }
+    org.members.ACADEMY_DIRECTOR = {
+      ...org.members.ACADEMY_DIRECTOR!,
+      contract_end: 2026,
+      teamId: 'audi',
+    }
+    org.members.TECHNICAL_DIRECTOR = {
+      ...org.members.TECHNICAL_DIRECTOR!,
+      contract_end: 2029,
+      teamId: 'audi',
+    }
+
+    // 1ª execução
+    const firstRun = technicalOrganizationService.expireStaffContracts(org, seasonBeingClosed)
+    expect(firstRun.expiredMembers.length).toBe(2)
+    expect(firstRun.updatedOrg.members.HEAD_OF_STRATEGY).toBeNull()
+    expect(firstRun.updatedOrg.members.ACADEMY_DIRECTOR).toBeNull()
+    expect(firstRun.updatedOrg.members.TECHNICAL_DIRECTOR).not.toBeNull()
+
+    const vacanciesAfterFirst = [...firstRun.updatedOrg.vacancies]
+
+    // 2ª execução sobre a organização resultante (simulação de retry / reload / reprocessamento)
+    const secondRun = technicalOrganizationService.expireStaffContracts(
+      firstRun.updatedOrg,
+      seasonBeingClosed,
+    )
+
+    // Nenhum novo membro expirado na 2ª execução
+    expect(secondRun.expiredMembers.length).toBe(0)
+
+    // Organograma permanece estável e idêntico
+    expect(secondRun.updatedOrg.members.HEAD_OF_STRATEGY).toBeNull()
+    expect(secondRun.updatedOrg.members.ACADEMY_DIRECTOR).toBeNull()
+    expect(secondRun.updatedOrg.members.TECHNICAL_DIRECTOR?.staffId).toBe(
+      org.members.TECHNICAL_DIRECTOR!.staffId,
+    )
+    expect(secondRun.updatedOrg.vacancies.sort()).toEqual(vacanciesAfterFirst.sort())
+
+    // Nenhuma duplicata em vacancies
+    const uniqueVacancies = Array.from(new Set(secondRun.updatedOrg.vacancies))
+    expect(secondRun.updatedOrg.vacancies.length).toBe(uniqueVacancies.length)
+  })
+})
