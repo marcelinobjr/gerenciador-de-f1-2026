@@ -2,7 +2,7 @@ import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ArrowRight, AlertCircle } from 'lucide-react'
 
 export interface PendingDecisionItem {
   id: string
@@ -10,6 +10,9 @@ export interface PendingDecisionItem {
   priority: 'ALTA' | 'MÉDIA' | 'BAIXA'
   actionTab?: string
   actionPayload?: any
+  description?: string
+  contextText?: string
+  actionLabel?: string // "Decidir →" | "Avaliar →" | "Analisar →"
 }
 
 interface PendingDecisionsCardProps {
@@ -23,62 +26,120 @@ export const PendingDecisionsCard: React.FC<PendingDecisionsCardProps> = ({
   onOpenAll,
   onSelectDecision,
 }) => {
-  const getBadgeClass = (priority: PendingDecisionItem['priority']) => {
+  const getBadgeStyle = (priority: PendingDecisionItem['priority']) => {
     switch (priority) {
       case 'ALTA':
-        return 'bg-[#E10600] text-white hover:bg-[#E10600]'
+        return 'bg-red-50 text-[#E10600] border-red-200 font-bold'
       case 'MÉDIA':
-        return 'bg-[#E5A000] text-white hover:bg-[#E5A000]'
+        return 'bg-amber-50 text-amber-700 border-amber-200 font-bold'
       case 'BAIXA':
       default:
-        return 'bg-neutral-500 text-white hover:bg-neutral-500'
+        return 'bg-neutral-100 text-neutral-700 border-neutral-200 font-medium'
+    }
+  }
+
+  const getPriorityDot = (priority: PendingDecisionItem['priority']) => {
+    switch (priority) {
+      case 'ALTA':
+        return 'bg-[#E10600]'
+      case 'MÉDIA':
+        return 'bg-amber-500'
+      case 'BAIXA':
+      default:
+        return 'bg-neutral-400'
+    }
+  }
+
+  const getDefaultActionLabel = (priority: PendingDecisionItem['priority']) => {
+    switch (priority) {
+      case 'ALTA':
+        return 'Decidir →'
+      case 'MÉDIA':
+        return 'Avaliar →'
+      case 'BAIXA':
+      default:
+        return 'Analisar →'
     }
   }
 
   return (
-    <Card className="bg-white border-neutral-200/80 shadow-sm rounded-2xl p-5 flex flex-col justify-between">
+    <Card className="bg-white border-neutral-200/90 shadow-sm rounded-2xl p-5 flex flex-col justify-between h-full">
       <div>
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-          <span className="text-xs font-bold uppercase tracking-wider text-neutral-900 font-sans">
-            DECISÕES PENDENTES
-          </span>
+        {/* Cabeçalho */}
+        <div className="flex items-start justify-between pb-3 border-b border-neutral-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-red-50 text-[#E10600] flex items-center justify-center shrink-0">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-neutral-900 font-sans block">
+                Decisões Pendentes
+              </span>
+              <span className="text-[11px] text-neutral-400 font-medium block">
+                Itens prioritários que demandam ação da diretoria.
+              </span>
+            </div>
+          </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={onOpenAll}
-            className="text-[11px] text-neutral-500 hover:text-neutral-900 font-semibold p-0 h-auto flex items-center gap-0.5"
+            className="text-[11px] text-[#E10600] hover:text-[#B00500] hover:bg-red-50/50 font-bold p-0 h-auto flex items-center gap-0.5 shrink-0"
           >
-            VER TODAS
+            Ver todas
             <ChevronRight className="w-3.5 h-3.5" />
           </Button>
         </div>
 
-        {/* Lista de decisões (máximo 3 visíveis) */}
+        {/* Lista de decisões (máximo 3 visíveis na Visão Geral conforme escopo) */}
         <div className="divide-y divide-neutral-100 mt-1">
-          {decisions.slice(0, 3).map((item) => (
-            <div
-              key={item.id}
-              onClick={() => onSelectDecision && onSelectDecision(item)}
-              className="py-3 flex items-center justify-between gap-3 hover:bg-neutral-50/80 px-1 rounded-lg cursor-pointer transition-colors group"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <Badge
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider shrink-0 ${getBadgeClass(
-                    item.priority,
-                  )}`}
-                >
-                  {item.priority}
-                </Badge>
-                <span className="text-xs font-medium text-neutral-800 truncate group-hover:text-[#E10600] transition-colors leading-snug">
-                  {item.title}
-                </span>
+          {decisions.slice(0, 3).map((item) => {
+            const actionText = item.actionLabel || getDefaultActionLabel(item.priority)
+            const contextShort = item.contextText || item.description || ''
+
+            return (
+              <div
+                key={item.id}
+                onClick={() => onSelectDecision && onSelectDecision(item)}
+                className="py-3 flex flex-col gap-1.5 hover:bg-neutral-50/80 px-2 rounded-xl cursor-pointer transition-colors group text-xs"
+              >
+                {/* Linha 1: Prioridade + Título */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`w-2 h-2 rounded-full ${getPriorityDot(item.priority)} shrink-0`}
+                    />
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] px-1.5 py-0 rounded uppercase tracking-wider shrink-0 font-mono ${getBadgeStyle(
+                        item.priority,
+                      )}`}
+                    >
+                      {item.priority}
+                    </Badge>
+                    <span className="font-bold text-neutral-900 truncate group-hover:text-[#E10600] transition-colors leading-tight">
+                      {item.title}
+                    </span>
+                  </div>
+
+                  {/* Ação interativa no padrão solicitado */}
+                  <span className="text-[11px] font-bold text-[#E10600] shrink-0 group-hover:underline flex items-center gap-0.5">
+                    {actionText}
+                  </span>
+                </div>
+
+                {/* Linha 2: Contexto curto */}
+                {contextShort && (
+                  <p className="text-[11px] text-neutral-500 leading-snug line-clamp-1 pl-4">
+                    {contextShort}
+                  </p>
+                )}
               </div>
-              <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-neutral-700 transition-colors shrink-0" />
-            </div>
-          ))}
+            )
+          })}
 
           {decisions.length === 0 && (
-            <div className="py-6 text-center text-xs text-neutral-400">
+            <div className="py-8 text-center text-xs text-neutral-400 font-medium">
               Nenhuma decisão organizacional pendente no momento.
             </div>
           )}

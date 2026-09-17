@@ -1159,21 +1159,21 @@ export default function TeamPage() {
       {/* HEADER PRINCIPAL CONFORME MOCKUP */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-1">
         <div>
-          <h1 className="text-4xl sm:text-5xl font-black italic tracking-tight text-white font-serif">
+          <h1 className="text-4xl sm:text-5xl font-black italic tracking-tight text-neutral-900 font-serif">
             Equipe
           </h1>
-          <p className="text-xs sm:text-sm font-medium tracking-wide text-neutral-400 mt-1">
+          <p className="text-xs sm:text-sm font-medium tracking-wide text-neutral-500 mt-1">
             Pessoas. Estrutura. Cultura. Performance.
           </p>
         </div>
 
         {/* CITAÇÃO NO TOPO DIREITO */}
         <div className="hidden lg:block text-right">
-          <p className="text-xs font-serif italic text-neutral-300">
+          <p className="text-xs font-serif italic text-neutral-600">
             &ldquo;Pessoas constroem performance.&rdquo;
           </p>
           <span className="text-[11px] font-bold tracking-widest text-[#E10600] uppercase font-mono">
-            Audi
+            {teamName}
           </span>
         </div>
       </div>
@@ -1216,14 +1216,14 @@ export default function TeamPage() {
             <div className="lg:col-span-8 flex flex-col">
               <TeamHeroBanner
                 teamName={teamName}
-                tagline="Tecnologia. Pessoas. Performance."
+                subheading="Tecnologia. Pessoas. Performance."
                 bgImage={audiGarageHeroImg}
                 constructorPosition={constructorRank}
                 constructorPoints={constructorTotalPoints}
                 reputation={(team as any)?.prestige_rating || (team as any)?.strength || 88}
                 seasonTarget={realTeamObjective}
                 pointsProgress={{ current: constructorTotalPoints, target: 120 }}
-                onOpenDetails={() => setIsAboutModalOpen(true)}
+                isAudi={isAudi}
               />
             </div>
 
@@ -1234,7 +1234,8 @@ export default function TeamPage() {
                 engineSupplier={team?.engine_supplier || 'Audi'}
                 nationality={teamCountry}
                 status="Projeto em ascensão"
-                quote="“Mais que uma equipe. Um futuro em movimento.”"
+                seasonTarget={realTeamObjective}
+                isAudi={isAudi}
                 onOpenDetails={() => setIsAboutModalOpen(true)}
               />
             </div>
@@ -1432,16 +1433,37 @@ export default function TeamPage() {
             </div>
           </div>
 
-          {/* 4. TERCEIRA LINHA EM GRID: CULTURA & MORAL + BRANDING CENTRAL + ACADEMIA DE PILOTOS */}
-          {(() => {
-            // Métricas de cultura/moral
-            const cultureBreakdown = {
-              workEnvironment: Math.min(99, Math.max(50, Math.round(overallMorale + 10))),
-              leadershipTrust: Math.min(99, Math.max(50, Math.round(boardConfidence - 6))),
-              clarityOfObjectives: Math.min(99, Math.max(50, Math.round(overallMorale - 4))),
-            }
+          {/* 4. TERCEIRA LINHA EM GRID: SAÚDE DA ORGANIZAÇÃO / CULTURA & MORAL + OBJETIVOS DA DIRETORIA */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            {/* SAÚDE DA ORGANIZAÇÃO / CULTURA & MORAL (col-span-6 desktop) */}
+            <div className="lg:col-span-6 flex flex-col">
+              <TeamCultureMoraleCard
+                overallMorale={overallMorale}
+                breakdown={{
+                  workEnvironment: Math.min(99, Math.max(50, Math.round(overallMorale + 8))),
+                  leadershipTrust: Math.min(99, Math.max(50, Math.round(boardConfidence - 5))),
+                  clarityOfObjectives: Math.min(99, Math.max(50, Math.round(overallMorale - 2))),
+                }}
+                onOpenDetails={() => setActiveTab('cultura_moral')}
+              />
+            </div>
 
-            // Branding da equipe ativa
+            {/* OBJETIVOS DA DIRETORIA (col-span-6 desktop) */}
+            <div className="lg:col-span-6 flex flex-col">
+              <BoardObjectivesCard
+                objectives={boardObjectivesList}
+                onOpenObjectives={() => {
+                  toast({
+                    title: 'Diretoria Executiva',
+                    description: `Meta da Temporada: ${realTeamObjective}. Confiança do conselho: ${boardConfidence}%.`,
+                  })
+                }}
+              />
+            </div>
+          </div>
+
+          {/* 5. QUARTA LINHA: BLOCO INFERIOR DE BRANDING DA EQUIPE + ACADEMIA DE PILOTOS */}
+          {(() => {
             const teamKeyForLogo = (
               (team as any)?.team_key ||
               team?.id ||
@@ -1486,17 +1508,8 @@ export default function TeamPage() {
 
             return (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-                {/* CULTURA & MORAL (col-span-4 desktop) */}
-                <div className="lg:col-span-4 flex flex-col">
-                  <TeamCultureMoraleCard
-                    overallMorale={overallMorale}
-                    breakdown={cultureBreakdown}
-                    onOpenDetails={() => setActiveTab('cultura_moral')}
-                  />
-                </div>
-
-                {/* BRANDING CENTRAL (col-span-4 desktop) */}
-                <div className="lg:col-span-4 flex flex-col">
+                {/* BRANDING DA EQUIPE (col-span-7 desktop) */}
+                <div className="lg:col-span-7 flex flex-col">
                   <TeamBrandingCard
                     teamKey={teamKeyForLogo}
                     teamName={teamName}
@@ -1505,8 +1518,8 @@ export default function TeamPage() {
                   />
                 </div>
 
-                {/* ACADEMIA DE PILOTOS (col-span-4 desktop) */}
-                <div className="lg:col-span-4 flex flex-col">
+                {/* ACADEMIA DE PILOTOS (col-span-5 desktop) */}
+                <div className="lg:col-span-5 flex flex-col">
                   <TeamAcademySummaryCard
                     totalInAcademy={totalInAcad}
                     f2Count={f2InAcad}
