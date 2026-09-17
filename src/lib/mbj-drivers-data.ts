@@ -3328,6 +3328,8 @@ export interface GetDriverCareerStatsParams {
   raceResults?: Array<{
     driver_id?: string
     position?: number
+    grid_position?: number
+    gridPosition?: number
     [key: string]: any
   }> | null
   seasonHistories?: Array<{
@@ -3338,9 +3340,11 @@ export interface GetDriverCareerStatsParams {
 
 /**
  * Retorna as estatísticas consolidadas de carreira (GPs, Vitórias, Poles, Títulos).
- * Decisão do Proprietário (Opção A): poles do jogo ainda não possuem fonte persistida
- * (race_results não tem grid_position/flag de pole; qualifying é volátil e nunca gravado).
- * Portanto poles = baseline histórico do catálogo APENAS até existir registro canônico de grid.
+ * Pacote B: poles do save derivadas canonicamente de race_results através do campo grid_position.
+ * savePoles = count(resultados do piloto com grid_position === 1 ou gridPosition === 1).
+ * totalPoles = baseline histórico do catálogo (f1Poles) + savePoles.
+ * Resultados legados sem grid_position (null/undefined) NÃO contam como pole (não assumem P1).
+ * Função puramente derivada e idempotente: zero contadores persistidos / zero efeitos colaterais.
  */
 export function getDriverCareerStats(params: GetDriverCareerStatsParams): DriverCareerStats {
   const { pilot, raceResults, seasonHistories } = params
@@ -3361,6 +3365,7 @@ export function getDriverCareerStats(params: GetDriverCareerStatsParams): Driver
   // 2. Acréscimos derivados de race_results do save atual
   let saveRaces = 0
   let saveWins = 0
+  let savePoles = 0
 
   if (pilotId && Array.isArray(raceResults)) {
     for (const res of raceResults) {
@@ -3369,15 +3374,17 @@ export function getDriverCareerStats(params: GetDriverCareerStatsParams): Driver
         if (res.position === 1) {
           saveWins += 1
         }
+        // Pacote B: apenas se grid_position === 1 (ou gridPosition === 1)
+        // Resultados legados sem grid_position (null/undefined) NÃO contam como pole
+        const gridPos = res.grid_position ?? res.gridPosition
+        if (gridPos === 1) {
+          savePoles += 1
+        }
       }
     }
   }
 
-  // 3. Poles: Opção A — poles do jogo ainda não possuem fonte persistida;
-  // poles = baseline até existir registro canônico de grid.
-  const savePoles = 0
-
-  // 4. Campeonatos derivados de season_histories do save atual
+  // 3. Campeonatos derivados de season_histories do save atual
   // Suporta drivers_champion como ID (string) ou como objeto { id: string }
   let saveChampionships = 0
 
