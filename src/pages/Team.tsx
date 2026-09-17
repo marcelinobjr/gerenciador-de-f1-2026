@@ -85,6 +85,13 @@ import {
   DepartmentCapacity,
 } from '@/components/team/OrganizationalCapacityCard'
 import { PendingDecisionsCard, PendingDecisionItem } from '@/components/team/PendingDecisionsCard'
+import { TeamCultureMoraleCard } from '@/components/team/TeamCultureMoraleCard'
+import { TeamBrandingCard } from '@/components/team/TeamBrandingCard'
+import {
+  TeamAcademySummaryCard,
+  AcademyHighlightPilot,
+} from '@/components/team/TeamAcademySummaryCard'
+import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { StaffContractDetailsModal } from '@/components/team/StaffContractDetailsModal'
 import {
   deriveStaffContractStatus,
@@ -1375,9 +1382,9 @@ export default function TeamPage() {
             </div>
           </div>
 
-          {/* 3. TERCEIRA LINHA: EQUIPE TÉCNICA + CAPACIDADE ORGANIZACIONAL + DECISÕES PENDENTES */}
+          {/* 3. SEGUNDA LINHA EM GRID DE 3 COLUNAS: EQUIPE TÉCNICA + CAPACIDADE ORGANIZACIONAL + DECISÕES PENDENTES */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-            {/* EQUIPE TÉCNICA (col-span-5) */}
+            {/* EQUIPE TÉCNICA (col-span-5 desktop) */}
             <div className="lg:col-span-5 flex flex-col">
               <TechnicalStaffSummaryCard
                 staffList={keyStaffSummaryList}
@@ -1393,7 +1400,7 @@ export default function TeamPage() {
               />
             </div>
 
-            {/* CAPACIDADE ORGANIZACIONAL (Gargalos e Operações) (col-span-4) */}
+            {/* CAPACIDADE ORGANIZACIONAL (col-span-4 desktop) */}
             <div className="lg:col-span-4 flex flex-col">
               <OrganizationalCapacityCard
                 capacities={orgCapacities}
@@ -1403,7 +1410,7 @@ export default function TeamPage() {
               />
             </div>
 
-            {/* DECISÕES PENDENTES (col-span-3) */}
+            {/* DECISÕES PENDENTES (col-span-3 desktop) */}
             <div className="lg:col-span-3 flex flex-col">
               <PendingDecisionsCard
                 decisions={pendingDecisionsList}
@@ -1425,26 +1432,92 @@ export default function TeamPage() {
             </div>
           </div>
 
-          {/* 4. QUARTA LINHA: SAÚDE DA ORGANIZAÇÃO + OBJETIVOS DA DIRETORIA */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* SAÚDE DA ORGANIZAÇÃO (col-span-5) */}
-            <div className="lg:col-span-5 flex flex-col">
-              <OrganizationHealthCard kpis={orgHealthKpis} />
-            </div>
+          {/* 4. TERCEIRA LINHA EM GRID: CULTURA & MORAL + BRANDING CENTRAL + ACADEMIA DE PILOTOS */}
+          {(() => {
+            // Métricas de cultura/moral
+            const cultureBreakdown = {
+              workEnvironment: Math.min(99, Math.max(50, Math.round(overallMorale + 10))),
+              leadershipTrust: Math.min(99, Math.max(50, Math.round(boardConfidence - 6))),
+              clarityOfObjectives: Math.min(99, Math.max(50, Math.round(overallMorale - 4))),
+            }
 
-            {/* OBJETIVOS DA DIRETORIA (col-span-7) */}
-            <div className="lg:col-span-7 flex flex-col">
-              <BoardObjectivesCard
-                objectives={boardObjectivesList}
-                onOpenObjectives={() => {
-                  toast({
-                    title: 'Objetivos da Diretoria',
-                    description: `Meta anual: ${realTeamObjective}. Confiança do conselho em ${boardConfidence}%.`,
-                  })
-                }}
-              />
-            </div>
-          </div>
+            // Branding da equipe ativa
+            const teamKeyForLogo = (
+              (team as any)?.team_key ||
+              team?.id ||
+              (isAudi ? 'audi' : '')
+            ).toLowerCase()
+            const dynamicTeamLogo = getTeamLogoUrl(teamKeyForLogo)
+
+            // Dados da Academia
+            const totalInAcad =
+              teamAcademyPilots.length > 0 ? teamAcademyPilots.length : academyDrivers.length
+            const f2InAcad =
+              teamAcademyPilots.filter(
+                (p) => (p.category || '').toLowerCase() === 'f2' || (p as any)?.series === 'F2',
+              ).length || 1
+            const f3InAcad =
+              teamAcademyPilots.filter(
+                (p) => (p.category || '').toLowerCase() === 'f3' || (p as any)?.series === 'F3',
+              ).length || 1
+
+            // Piloto em destaque da academia
+            const firstPilot = teamAcademyPilots[0]
+            const highlightPilot: AcademyHighlightPilot | null = firstPilot
+              ? {
+                  id: firstPilot.id,
+                  name: firstPilot.name,
+                  nationality: firstPilot.nationality,
+                  series: (firstPilot.category || 'F2').toUpperCase(),
+                  potential:
+                    (firstPilot as any).perceived_potential ||
+                    (firstPilot as any).true_potential ||
+                    85,
+                  photoUrl: (firstPilot as any).photoUrl || undefined,
+                }
+              : academyDrivers.length > 0
+                ? {
+                    name: academyDrivers[0].name,
+                    nationality: academyDrivers[0].country,
+                    series: academyDrivers[0].series,
+                    potential: academyDrivers[0].potential,
+                  }
+                : null
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                {/* CULTURA & MORAL (col-span-4 desktop) */}
+                <div className="lg:col-span-4 flex flex-col">
+                  <TeamCultureMoraleCard
+                    overallMorale={overallMorale}
+                    breakdown={cultureBreakdown}
+                    onOpenDetails={() => setActiveTab('cultura_moral')}
+                  />
+                </div>
+
+                {/* BRANDING CENTRAL (col-span-4 desktop) */}
+                <div className="lg:col-span-4 flex flex-col">
+                  <TeamBrandingCard
+                    teamKey={teamKeyForLogo}
+                    teamName={teamName}
+                    logoUrl={dynamicTeamLogo}
+                    tagline="DRIVEN BY PROGRESS"
+                  />
+                </div>
+
+                {/* ACADEMIA DE PILOTOS (col-span-4 desktop) */}
+                <div className="lg:col-span-4 flex flex-col">
+                  <TeamAcademySummaryCard
+                    totalInAcademy={totalInAcad}
+                    f2Count={f2InAcad}
+                    f3Count={f3InAcad}
+                    highlightPilot={highlightPilot}
+                    onOpenAcademy={() => setActiveTab('academia')}
+                  />
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
