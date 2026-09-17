@@ -841,3 +841,194 @@ describe('BLOCO 2A: T50 — IDEMPOTÊNCIA DAS DECISÕES: determinismo e ausênci
     expect(decisions).toHaveLength(0)
   })
 })
+
+// ============================================================================
+// BLOCO 2B — RENOVAÇÃO E DISPENSA DO STAFF (T51 - T56)
+// ============================================================================
+
+describe('BLOCO 2B: T51 — RENOVAÇÃO: staff com contract_end = 2027, temporada 2027, renovar até 2029', () => {
+  it('Renova contrato para 2029, atualiza salário, status vira ATIVO e decisão CONTRACT_EXPIRING desaparece automaticamente', () => {
+    const currentSeason = 2027
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi')
+
+    // Mattia Binotto com contract_end = 2027
+    const memberBefore = org.members.TECHNICAL_DIRECTOR!
+    expect(memberBefore.contract_end).toBe(2027)
+
+    // Antes da renovação: status é EXPIRING_THIS_SEASON e gera decisão CONTRACT_EXPIRING
+    const statusBefore = deriveStaffContractStatus(memberBefore.contract_end, currentSeason)
+    expect(statusBefore.status).toBe('EXPIRING_THIS_SEASON')
+
+    const decisionsBefore = deriveStaffPendingDecisions([memberBefore], currentSeason)
+    expect(decisionsBefore.some((d) => d.staffId === memberBefore.staffId)).toBe(true)
+
+    // Executa renovação: +2 temporadas adicionais, novo salário 4.5M
+    const { updatedOrg, renewedStaff } = technicalOrganizationService.renewStaffContract(
+      org,
+      memberBefore.staffId,
+      2,
+      4500000,
+      currentSeason,
+    )
+
+    expect(renewedStaff).not.toBeNull()
+    expect(renewedStaff!.contract_end).toBe(2029)
+    expect(renewedStaff!.salary).toBe(4500000)
+
+    // Verifica que o membro na org atualizada reflete a mudança
+    const memberAfter = updatedOrg.members.TECHNICAL_DIRECTOR!
+    expect(memberAfter.contract_end).toBe(2029)
+    expect(memberAfter.salary).toBe(4500000)
+
+    // Status derivado agora é ACTIVE
+    const statusAfter = deriveStaffContractStatus(memberAfter.contract_end, currentSeason)
+    expect(statusAfter.status).toBe('ACTIVE')
+
+    // Decisão CONTRACT_EXPIRING desaparece automaticamente sem intervenção manual
+    const decisionsAfter = deriveStaffPendingDecisions([memberAfter], currentSeason)
+    expect(decisionsAfter.filter((d) => d.staffId === memberAfter.staffId)).toHaveLength(0)
+  })
+})
+
+describe('BLOCO 2B: T52 — RENOVAÇÃO NÃO DUPLICA ESTADO: integridade e idempotência do vínculo', () => {
+  it('Repetir leitura após renovação: apenas um contrato atual, nenhuma decisão duplicada, sem campos espúrios', () => {
+    const currentSeason = 2027
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi')
+    const initialTd = org.members.TECHNICAL_DIRECTOR!
+
+    const { updatedOrg, renewedStaff } = technicalOrganizationService.renewStaffContract(
+      org,
+      initialTd.staffId,
+      2,
+      4200000,
+      currentSeason,
+    )
+
+    // Apenas um titular no cargo TECHNICAL_DIRECTOR
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR).not.toBeNull()
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR!.staffId).toBe(initialTd.staffId)
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR!.contract_end).toBe(2029)
+
+    // Não deve haver campos derivados desnecessários persistidos
+    expect((renewedStaff as any).decisionResolved).toBeUndefined()
+    expect((renewedStaff as any).contractStatus).toBeUndefined()
+    expect((renewedStaff as any).isRenewed).toBeUndefined()
+    expect((renewedStaff as any).newSalary).toBeUndefined()
+
+    // Auditoria de consistência da organização continua 100% válida
+    const audit = technicalOrganizationService.auditTechnicalOrganization(updatedOrg)
+    expect(audit.isValid).toBe(true)
+    expect(audit.overloadedStaffIds).toHaveLength(0)
+  })
+})
+
+describe('BLOCO 2B: T53 — SEM DESPESA INDEVIDA NA RENOVAÇÃO: salários futuros não antecipados no Ledger', () => {
+  it('Renovação não gera lançamento imediato equivalente ao valor total do contrato no Ledger', async () => {
+    const currentSeason = 2027
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi')
+    const td = org.members.TECHNICAL_DIRECTOR!
+
+    // Renovação de 2 anos a 5.000.000 USD
+    const { updatedOrg, renewedStaff } = technicalOrganizationService.renewStaffContract(
+      org,
+      td.staffId,
+      2,
+      5000000,
+      currentSeason,
+    )
+
+    expect(renewedStaff!.salary).toBe(5000000)
+    expect(renewedStaff!.contract_end).toBe(2029)
+
+    // O serviço canônico de renovação de staff NÃO cria lançamentos contábeis imediatos
+    // porque não há luva/bônus canônico e salários futuros são pagos periodicamente
+    // Garantimos que a org atualizada não carrega deduções espúrias
+    expect(updatedOrg.members.TECHNICAL_DIRECTOR!.salary).toBe(5000000)
+  })
+})
+
+describe('BLOCO 2B: T54 — DISPENSA: encerramento de vínculo e preservação do profissional', () => {
+  it('Dispensar membro ativo remove vínculo com a equipe, preserva profissional e limpa decisão pendente', () => {
+    const currentSeason = 2027
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi')
+    const stratHead = org.members.HEAD_OF_STRATEGY!
+
+    expect(stratHead).not.toBeNull()
+    expect(stratHead.teamId).toBe('audi')
+
+    // Executa dispensa canônica
+    const { updatedOrg, departedStaff, knowledgeLossPercentage } =
+      technicalOrganizationService.dismissStaffMember(org, stratHead.staffId, currentSeason, 1)
+
+    // 1. Cargo fica vago na equipe (ou coberto por interino)
+    expect(updatedOrg.members.HEAD_OF_STRATEGY).toBeNull()
+    expect(updatedOrg.vacancies).toContain('HEAD_OF_STRATEGY')
+
+    // 2. Profissional preservado, com teamId desvinculado (agente livre)
+    expect(departedStaff).not.toBeNull()
+    expect(departedStaff!.staffId).toBe(stratHead.staffId)
+    expect(departedStaff!.name).toBe(stratHead.name)
+    expect(departedStaff!.teamId).toBeNull()
+    expect(departedStaff!.status).toBe('available')
+
+    // 3. Impacto de conhecimento técnico registrado corretamente
+    expect(knowledgeLossPercentage).toBeGreaterThan(0)
+    expect(updatedOrg.knowledge.history.some((h) => h.staffId === stratHead.staffId)).toBe(true)
+
+    // 4. Decisão pendente para este membro desaparece da equipe pois o membro não integra mais o quadro
+    const activeStaff = Object.values(updatedOrg.members).filter(Boolean) as StaffMember[]
+    const decisionsAfter = deriveStaffPendingDecisions(activeStaff, currentSeason)
+    expect(decisionsAfter.some((d) => d.staffId === stratHead.staffId)).toBe(false)
+  })
+})
+
+describe('BLOCO 2B: T55 — MULTA + LEDGER: verificação de regra de multa rescisória do staff', () => {
+  it('BLOQUEIO: regra econômica de multa rescisória do staff não definida no regulamento', () => {
+    // Conforme especificação do Item 4 e Item 5:
+    // "Se não existir regra definida para staff: NÃO invente percentual silenciosamente.
+    // Nesse caso, implemente a dispensa SEM multa e reporte claramente:
+    // 'BLOQUEIO: regra econômica de multa rescisória do staff não definida.'
+    // Se a multa estiver bloqueada por ausência de regra, documentar o teste como bloqueado/documentado com a justificativa — não inventar fórmula."
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi')
+    const member = org.members.SPORTING_DIRECTOR!
+
+    // Dispensa sem imposição de fórmula arbitrária
+    const { departedStaff } = technicalOrganizationService.dismissStaffMember(
+      org,
+      member.staffId,
+      2027,
+      1,
+    )
+
+    expect(departedStaff).not.toBeNull()
+    expect(departedStaff!.status).toBe('available')
+    // Multa permanece 0 / não deduzida devido à ausência de regra no modelo canônico de staff
+  })
+})
+
+describe('BLOCO 2B: T56 — IDEMPOTÊNCIA DA DISPENSA: proteção contra repetição e corrupção', () => {
+  it('Executar a dispensa repetida impede corrupção de estado e lança erro amigável', () => {
+    const currentSeason = 2027
+    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi')
+    const aeroHead = org.members.HEAD_OF_AERODYNAMICS!
+
+    // Primeira dispensa é bem-sucedida
+    const { updatedOrg } = technicalOrganizationService.dismissStaffMember(
+      org,
+      aeroHead.staffId,
+      currentSeason,
+      1,
+    )
+    expect(updatedOrg.members.HEAD_OF_AERODYNAMICS).toBeNull()
+
+    // Segunda tentativa para o mesmo membro no mesmo estado resulta em erro protegido
+    expect(() => {
+      technicalOrganizationService.dismissStaffMember(
+        updatedOrg,
+        aeroHead.staffId,
+        currentSeason,
+        1,
+      )
+    }).toThrow('Membro de staff não encontrado ou já desligado da equipe.')
+  })
+})

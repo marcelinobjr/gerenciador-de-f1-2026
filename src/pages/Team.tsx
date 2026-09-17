@@ -698,8 +698,12 @@ export default function TeamPage() {
 
   const currentSeasonYear = season?.year || 2026
 
+  // Estado local reativo de organização técnica para atualização imediata na UI
+  const [localTeamOrg, setLocalTeamOrg] = useState<TeamTechnicalOrganization | null>(null)
+
   // Equipe técnica real persistida/carregada
   const currentTeamOrg = useMemo(() => {
+    if (localTeamOrg) return localTeamOrg
     const teamKey = (
       (team as any)?.team_key ||
       team?.id ||
@@ -707,6 +711,21 @@ export default function TeamPage() {
     ).toLowerCase()
     const rawOrg = (team as any)?.technical_organization
     return technicalOrganizationService.getOrCreateTeamOrganization(teamKey, rawOrg)
+  }, [team, isAudi, localTeamOrg])
+
+  // Sincroniza localTeamOrg quando team mudar externamente
+  useEffect(() => {
+    if (team) {
+      const teamKey = (
+        (team as any)?.team_key ||
+        team?.id ||
+        (isAudi ? 'audi' : 'audi')
+      ).toLowerCase()
+      const rawOrg = (team as any)?.technical_organization
+      if (rawOrg) {
+        setLocalTeamOrg(technicalOrganizationService.getOrCreateTeamOrganization(teamKey, rawOrg))
+      }
+    }
   }, [team, isAudi])
 
   // Staff técnico chave formatado a partir da fonte real technicalOrganizationService com status contratual derivado
@@ -993,6 +1012,100 @@ export default function TeamPage() {
       } else {
         setSelectedFpRounds([...selectedFpRounds, roundNumber])
       }
+    }
+  }
+
+  // Handlers para Ações Contratuais de Staff (ITEM 3 & ITEM 4)
+  const handleRenewStaffContract = async (
+    targetMember: StaffMember,
+    additionalYears: number,
+    newSalary: number,
+  ) => {
+    setIsProcessing(true)
+    try {
+      const { updatedOrg, renewedStaff } = technicalOrganizationService.renewStaffContract(
+        currentTeamOrg,
+        targetMember.staffId,
+        additionalYears,
+        newSalary,
+        currentSeasonYear,
+      )
+
+      // Atualiza estado reativo local imediatamente
+      setLocalTeamOrg(updatedOrg)
+      setSelectedStaffForModal(renewedStaff)
+
+      // Persiste no backend se team.id existir
+      if (team?.id) {
+        await f1Service.updateTeam(team.id, {
+          technical_organization: updatedOrg as any,
+        } as any)
+      }
+
+      await f1Service.addEvent(
+        team?.id || 'audi',
+        `Contrato de ${targetMember.name} (${ROLE_DISPLAY_NAMES[targetMember.role] || targetMember.role}) renovado até ${renewedStaff?.contract_end} por ${formatCurrency(newSalary)}/ano.`,
+        'contrato',
+      )
+
+      toast({
+        title: 'Contrato de Staff Renovado!',
+        description: `${targetMember.name} assinou extensão válida até ${renewedStaff?.contract_end}.`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro na renovação de staff',
+        description: err?.message || 'Falha ao renovar contrato.',
+      })
+      throw err
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDismissStaffMember = async (targetMember: StaffMember) => {
+    setIsProcessing(true)
+    try {
+      const { updatedOrg, departedStaff, knowledgeLossPercentage } =
+        technicalOrganizationService.dismissStaffMember(
+          currentTeamOrg,
+          targetMember.staffId,
+          currentSeasonYear,
+          season?.current_round || 1,
+        )
+
+      // Atualiza estado reativo local imediatamente
+      setLocalTeamOrg(updatedOrg)
+      setSelectedStaffForModal(null)
+      setSelectedStaffModalContext(null)
+
+      // Persiste no backend se team.id existir
+      if (team?.id) {
+        await f1Service.updateTeam(team.id, {
+          technical_organization: updatedOrg as any,
+        } as any)
+      }
+
+      await f1Service.addEvent(
+        team?.id || 'audi',
+        `${departedStaff?.name || targetMember.name} foi dispensado da diretoria técnica. Retenção de conhecimento impactada em ${knowledgeLossPercentage}%.`,
+        'contrato',
+      )
+
+      toast({
+        title: 'Membro de Staff Dispensado',
+        description: `${departedStaff?.name || targetMember.name} foi desligado. Vaga aberta para nova contratação.`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao dispensar staff',
+        description: err?.message || 'Falha ao processar desligamento.',
+      })
+      throw err
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -2467,7 +2580,7 @@ export default function TeamPage() {
         />
       )}
 
-      {/* ITEM 5: Modal informativo da situação contratual do membro do staff / decisão */}
+      {/* ITEM 5: Modal funcional de gestão contratual do membro do staff / decisão */}
       <StaffContractDetailsModal
         isOpen={Boolean(selectedStaffForModal)}
         onClose={() => {
@@ -2490,6 +2603,9 @@ export default function TeamPage() {
             : undefined
         }
         decisionContext={selectedStaffModalContext}
+        onRenewContract={handleRenewStaffContract}
+        onDismissStaff={handleDismissStaffMember}
+        isProcessing={isProcessing}
       />
     </div>
   )

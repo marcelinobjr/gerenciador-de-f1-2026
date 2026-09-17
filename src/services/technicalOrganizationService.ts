@@ -822,6 +822,101 @@ export class TechnicalOrganizationService {
           : 'Agente livre sem custo de rescisão contratual.',
     }
   }
+
+  /**
+   * Renova o contrato de um membro de staff na organização técnica da equipe.
+   * Atualiza 'contract_end' e 'salary' de forma canônica e idempotente.
+   * Não antecipa salários nem gera lançamento no Ledger caso não haja bônus/luva canônico.
+   */
+  public renewStaffContract(
+    org: TeamTechnicalOrganization,
+    staffIdOrRole: string,
+    additionalYears: number,
+    newSalary: number,
+    currentSeasonYear: number,
+  ): {
+    updatedOrg: TeamTechnicalOrganization
+    renewedStaff: StaffMember | null
+  } {
+    if (additionalYears < 1) {
+      throw new Error('A renovação deve ser de no mínimo 1 temporada adicional.')
+    }
+    if (newSalary <= 0) {
+      throw new Error('O salário anual proposto deve ser maior que zero.')
+    }
+
+    // Localiza o membro pelo staffId ou pela chave de cargo
+    let targetRole: StaffRole | null = null
+    for (const role of CANONICAL_STAFF_ROLES) {
+      const m = org.members[role]
+      if (m && (m.staffId === staffIdOrRole || role === staffIdOrRole)) {
+        targetRole = role
+        break
+      }
+    }
+
+    if (!targetRole || !org.members[targetRole]) {
+      throw new Error('Membro de staff não encontrado no quadro ativo da equipe.')
+    }
+
+    const currentMember = org.members[targetRole]!
+    const baseYear = Math.max(currentMember.contract_end ?? currentSeasonYear, currentSeasonYear)
+    const newContractEnd = baseYear + additionalYears
+
+    if (newContractEnd <= currentSeasonYear) {
+      throw new Error('O término do contrato renovado deve ser posterior à temporada atual.')
+    }
+
+    const renewedStaff: StaffMember = {
+      ...currentMember,
+      salary: Math.round(newSalary),
+      contract_end: newContractEnd,
+      status: 'under_contract',
+    }
+
+    const updatedMembers = {
+      ...org.members,
+      [targetRole]: renewedStaff,
+    }
+
+    const updatedOrg: TeamTechnicalOrganization = {
+      ...org,
+      members: updatedMembers,
+    }
+
+    return { updatedOrg, renewedStaff }
+  }
+
+  /**
+   * Dispensa um membro do staff ativo.
+   * Remove o vínculo com a equipe (cargo fica vago, titular desvinculado) e preserva o profissional.
+   * Retorna a organização atualizada e o profissional como agente livre.
+   */
+  public dismissStaffMember(
+    org: TeamTechnicalOrganization,
+    staffIdOrRole: string,
+    seasonYear: number,
+    round: number = 1,
+  ): {
+    updatedOrg: TeamTechnicalOrganization
+    departedStaff: StaffMember | null
+    knowledgeLossPercentage: number
+  } {
+    let targetRole: StaffRole | null = null
+    for (const role of CANONICAL_STAFF_ROLES) {
+      const m = org.members[role]
+      if (m && (m.staffId === staffIdOrRole || role === staffIdOrRole)) {
+        targetRole = role
+        break
+      }
+    }
+
+    if (!targetRole || !org.members[targetRole]) {
+      throw new Error('Membro de staff não encontrado ou já desligado da equipe.')
+    }
+
+    return this.processStaffDeparture(org, targetRole, seasonYear, round)
+  }
 }
 
 export const technicalOrganizationService = new TechnicalOrganizationService()
