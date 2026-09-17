@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { runIngestion } from '../../scripts/ingest-sideviews.mjs'
+import { describe, it, expect } from 'vitest'
 import {
   canonicalCarRatingsAdapter,
   canonicalComponentAdapter,
@@ -16,10 +15,6 @@ import type { TeamModel, DriverModel, PartModel } from '@/types/f1'
 import type { ComponentSpecification } from '@/types/car-technical-model'
 
 describe('FASE 0A — SANEAMENTO TÉCNICO E FUNDAÇÕES CANÔNICAS', () => {
-  beforeAll(async () => {
-    const res = await runIngestion()
-    throw new Error(`DEBUG INGEST: ${JSON.stringify(res)}`)
-  }, 120000)
   // ==========================================================================
   // 1. TESTES DE RATINGS (Canônico, Nova Carreira, Save Antigo, Equipe Custom)
   // ==========================================================================

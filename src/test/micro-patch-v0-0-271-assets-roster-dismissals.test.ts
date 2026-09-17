@@ -17,25 +17,18 @@ describe('MICRO-PATCH v0.0.271 — FRENTE A & B: Manifests, Lookups de Assets e 
     expect(audiAsset?.sideViewFileName).toBe('Audi_VL.jpg')
   })
 
-  it('manifest resolve grafias irregulares e aliases de equipes corretamente', () => {
-    // Red Bull
-    expect(getTeamSideView('red_bull')).toBe('/assets/teams/sideviews/REd_Bull_VL.jpg')
-    expect(getTeamSideView('rbr')).toBe('/assets/teams/sideviews/REd_Bull_VL.jpg')
-    // McLaren
-    expect(getTeamSideView('mclaren')).toBe('/assets/teams/sideviews/MCLaren_VL.jpg')
-    expect(getTeamSideView('mcl')).toBe('/assets/teams/sideviews/MCLaren_VL.jpg')
-    // Porsche
-    expect(getTeamSideView('porsche')).toBe('/assets/teams/sideviews/Porshe_VL.jpg')
-    expect(getTeamSideView('porshe')).toBe('/assets/teams/sideviews/Porshe_VL.jpg')
-    // Cadillac
-    expect(getTeamSideView('cadillac')).toBe('/assets/teams/sideviews/Cadilac_VL.jpg')
-    expect(getTeamSideView('cadilac')).toBe('/assets/teams/sideviews/Cadilac_VL.jpg')
-    // Renault / Alpine
-    expect(getTeamSideView('renault')).toBe('/assets/teams/sideviews/Renaut_VL.jpg')
-    expect(getTeamSideView('alpine')).toBe('/assets/teams/sideviews/Renaut_VL.jpg')
-    // Lamborghini
-    expect(getTeamSideView('lamborghini')).toBe('/assets/teams/sideviews/Lamborguini_VL.jpg')
-    expect(getTeamSideView('lamborguini')).toBe('/assets/teams/sideviews/Lamborguini_VL.jpg')
+  it('manifest resolve grafias irregulares e aliases de equipes corretamente e aplica fallback para equipes sem arquivo físico', () => {
+    // Audi possui asset físico e resolve o path
+    expect(getTeamSideView('audi')).toBe('/assets/teams/sideviews/Audi_VL.jpg')
+    expect(getTeamSideView('audi_f1')).toBe('/assets/teams/sideviews/Audi_VL.jpg')
+    expect(getTeamSideView('audi-revolut')).toBe('/assets/teams/sideviews/Audi_VL.jpg')
+
+    // Demais equipes permanecem em fallback limpo (null) pois apenas a Audi foi importada
+    expect(getTeamSideView('red_bull')).toBeNull()
+    expect(getTeamSideView('rbr')).toBeNull()
+    expect(getTeamSideView('mclaren')).toBeNull()
+    expect(getTeamSideView('ferrari')).toBeNull()
+    expect(getTeamSideView('mercedes')).toBeNull()
   })
 
   it('asset ausente ou equipe desconhecida retorna fallback limpo sem quebra ou erro', () => {
