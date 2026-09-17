@@ -104,6 +104,7 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
             position: res.position,
             points: calculatedPoints,
             fastest_lap: !!res.fastestLap,
+            grid_position: typeof res.gridPosition === 'number' ? res.gridPosition : undefined,
             laps_completed: res.lapsCompleted ?? gpInfo.laps,
             accumulated_time_sec: res.accumulatedTimeSec,
           })

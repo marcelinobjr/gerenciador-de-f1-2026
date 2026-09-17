@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-17T09:49:59.611Z",
+  "generatedAt": "2026-09-17T10:04:48.669Z",
   "collections": [
     {
       "name": "users",
@@ -984,6 +984,12 @@
         },
         {
           "name": "accumulated_time_sec",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "grid_position",
           "type": "number",
           "required": false,
           "system": false

@@ -18,6 +18,7 @@ export interface RaceResultEntry {
   isPlayer?: boolean
   flag?: string
   position: number
+  gridPosition?: number
   points?: number
   tireCompound?: TireCompound
   secondCompound?: TireCompound

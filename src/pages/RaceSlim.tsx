@@ -1278,6 +1278,7 @@ export default function RacePage() {
 
         return {
           position: idx + 1,
+          gridPosition: idx + 1,
           driverId: isPlayer ? playerDrv?.id || `drv_p_${idx}` : `drv_ai_${idx}`,
           driverName: q.driverName,
           teamId: isPlayer ? team?.id || 'team_player' : `team_ai_${idx}`,
@@ -1339,6 +1340,7 @@ export default function RacePage() {
           })
           return {
             position: gridPos,
+            gridPosition: gridPos,
             driverId: `${ai.id}_d${slot}`,
             driverName: d.name,
             teamId: ai.id,
@@ -1378,6 +1380,7 @@ export default function RacePage() {
 
         return {
           position: 15 + idx,
+          gridPosition: 15 + idx,
           driverId: pd.id,
           driverName: pd.name,
           teamId: team?.id || 'team_player',

@@ -637,9 +637,18 @@ export class SeasonTransitionService {
         archivedAt: new Date().toISOString(),
       }
 
-      // Persistir na collection season_histories
+      // Persistir na collection season_histories de forma estritamente idempotente
       try {
-        await pb.collection('season_histories').create({
+        let existingHist: any = null
+        try {
+          existingHist = await pb
+            .collection('season_histories')
+            .getFirstListItem(`season_year=${fromSeasonYear} && team_id="${teamId}"`)
+        } catch {
+          existingHist = null
+        }
+
+        const historyPayload = {
           season_year: fromSeasonYear,
           team_id: teamId,
           technical_era_id: historyRecordData.technicalEraId || 'era_2026_active_aerodynamics',
@@ -652,7 +661,13 @@ export class SeasonTransitionService {
           cost_cap_report: financialClose.costCapReport,
           major_records: historyRecordData.majorRecords,
           archived_at: historyRecordData.archivedAt,
-        })
+        }
+
+        if (existingHist && existingHist.id) {
+          await pb.collection('season_histories').update(existingHist.id, historyPayload)
+        } else {
+          await pb.collection('season_histories').create(historyPayload)
+        }
       } catch (err) {
         console.warn('Erro ao salvar season_history:', err)
       }
