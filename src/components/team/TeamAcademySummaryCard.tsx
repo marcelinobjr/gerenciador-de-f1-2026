@@ -92,7 +92,7 @@ export const TeamAcademySummaryCard: React.FC<TeamAcademySummaryCardProps> = ({
         </div>
 
         {/* Piloto em Destaque */}
-        {highlightPilot ? (
+        {highlightPilot && totalInAcademy > 0 ? (
           <div
             onClick={onOpenAcademy}
             className="pt-3 flex items-center justify-between gap-3 cursor-pointer group hover:opacity-95 transition-opacity"
@@ -133,8 +133,20 @@ export const TeamAcademySummaryCard: React.FC<TeamAcademySummaryCardProps> = ({
             </div>
           </div>
         ) : (
-          <div className="pt-4 text-center text-xs text-neutral-400 font-medium">
-            Nenhum jovem talento vinculado atualmente.
+          <div className="pt-4 flex flex-col items-center justify-center gap-2 text-center">
+            <span className="text-xs text-neutral-500 font-medium">
+              Nenhum piloto na academia no momento.
+            </span>
+            {onOpenAcademy && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onOpenAcademy}
+                className="text-xs h-7 border-neutral-200 text-neutral-700 hover:bg-neutral-50 cursor-pointer"
+              >
+                Gerenciar Academia
+              </Button>
+            )}
           </div>
         )}
       </div>

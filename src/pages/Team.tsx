@@ -50,7 +50,7 @@ import { Badge } from '@/components/ui/badge'
 import { Slider } from '@/components/ui/slider'
 import { DriverHelmet } from '@/components/DriverHelmet'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
-import { AmbientBackground } from '@/components/AmbientBackground'
+
 import { ProgressBar } from '@/components/ProgressBar'
 import { DevelopmentManagerModal } from '@/components/DevelopmentManagerModal'
 import { ProspectCard } from '@/components/ProspectCard'
@@ -249,24 +249,30 @@ export default function TeamPage() {
   // Pilotos de Teste e Academia vinculados à equipe
   const academyDevData = useMemo(() => driverDevelopmentService.getAcademyData(team), [team])
 
+  const canonicalAcademyPilots = useMemo(() => {
+    if (!team) return []
+    const devData = driverDevelopmentService.getAcademyData(team)
+    const linkedIds = new Set(devData.academyDrivers || [])
+    return allGridDrivers.filter(
+      (d) => linkedIds.has(d.id) || (d.is_academy && d.team_id === team.id),
+    )
+  }, [allGridDrivers, team])
+
   const testDrivers = useMemo(() => {
     return allGridDrivers.filter(
       (d) => academyDevData.testDrivers.includes(d.id) || d.is_test_driver,
     )
   }, [allGridDrivers, academyDevData.testDrivers])
 
-  const teamAcademyPilots = useMemo(() => {
-    return allGridDrivers.filter(
-      (d) => academyDevData.academyDrivers.includes(d.id) || d.is_academy,
-    )
-  }, [allGridDrivers, academyDevData.academyDrivers])
+  const teamAcademyPilots = canonicalAcademyPilots
 
   // Candidatos externos (sem time ou F1 Academy)
   const availableTalents = useMemo(() => {
+    const linkedIds = new Set(academyDevData.academyDrivers || [])
     return allGridDrivers.filter(
       (d) =>
         (!d.team_id || d.team_id === '') &&
-        !academyDevData.academyDrivers.includes(d.id) &&
+        !linkedIds.has(d.id) &&
         !academyDevData.testDrivers.includes(d.id) &&
         d.id !== reserveDriver?.id,
     )
@@ -286,38 +292,16 @@ export default function TeamPage() {
   const boardConfidence = (team as any)?.board_confidence ?? 93
   const overallMorale = 82 // Morale index %
 
-  // Academy young drivers
-  const academyDrivers = [
-    {
-      name: 'Tim Tramnitz',
-      country: 'Alemanha',
-      flag: '🇩🇪',
-      series: 'F2',
-      age: 18,
-      potential: 82,
-      current: 68,
-    },
-    {
-      name: 'Luke Browning',
-      country: 'Reino Unido',
-      flag: '🇬🇧',
-      series: 'F3',
-      age: 17,
-      potential: 78,
-      current: 65,
-    },
-  ]
-
   // Histórico de ex-pilotos que passaram pela academia
   const academyAlumni = useMemo(() => {
     return allGridDrivers.filter((d) => {
       const p = (d as any).procedural_data
       const isAlumni =
         p?.academyOriginTeamId === team?.id || (d as any).academy_origin_team_id === team?.id
-      const isNotCurrentlyInAcademy = !teamAcademyPilots.some((tp) => tp.id === d.id)
+      const isNotCurrentlyInAcademy = !canonicalAcademyPilots.some((tp) => tp.id === d.id)
       return isAlumni && isNotCurrentlyInAcademy
     })
-  }, [allGridDrivers, team?.id, teamAcademyPilots])
+  }, [allGridDrivers, team?.id, canonicalAcademyPilots])
 
   // Gerar novos candidatos de scouting conforme capacidade da equipe
   const handleGenerateScoutBatch = async () => {
@@ -1153,9 +1137,7 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="relative space-y-6 pb-12 animate-fade-in-up">
-      <AmbientBackground />
-
+    <div className="relative space-y-6 pb-12 animate-fade-in-up bg-[#F4F5F7] min-h-full">
       {/* HEADER PRINCIPAL CONFORME MOCKUP */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-1">
         <div>
@@ -1241,10 +1223,10 @@ export default function TeamPage() {
             </div>
           </div>
 
-          {/* 2. SEGUNDA LINHA: MANAGER + PILOTO 1 + PILOTO 2 (3 cards no mesmo nível) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5">
-            {/* CARD DO MANAGER COM FOTO OFICIAL DO ARQUÉTIPO (col-span-5) */}
-            <div className="lg:col-span-5 flex flex-col">
+          {/* 2. SEGUNDA LINHA: MANAGER + PILOTO 1 + PILOTO 2 (3 cards no mesmo nível em grid 40%/30%/30%) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,1fr)_minmax(300px,1fr)] gap-5 items-stretch">
+            {/* CARD DO MANAGER COM FOTO OFICIAL DO ARQUÉTIPO */}
+            <div className="flex flex-col md:col-span-2 lg:col-span-1 h-full">
               <ManagerExecutiveCard
                 managerName={teamPrincipalName}
                 roleTitle="Team Principal"
@@ -1262,8 +1244,8 @@ export default function TeamPage() {
               />
             </div>
 
-            {/* PILOTO #1 (col-span-3.5 aprox -> col-span-4/col-span-3.5) */}
-            <div className="lg:col-span-3.5 flex flex-col">
+            {/* PILOTO #1 (largura mínima 300px, alinhamento consistente) */}
+            <div className="flex flex-col min-w-[300px] h-full">
               {(() => {
                 const d1 = titularDrivers[0] || {
                   id: 'ricciardo-fallback',
@@ -1322,8 +1304,8 @@ export default function TeamPage() {
               })()}
             </div>
 
-            {/* PILOTO #2 (col-span-3.5) */}
-            <div className="lg:col-span-3.5 flex flex-col">
+            {/* PILOTO #2 (largura mínima 300px, mesma altura e layout) */}
+            <div className="flex flex-col min-w-[300px] h-full">
               {(() => {
                 const d2 = titularDrivers[1] || {
                   id: 'bortoleto-fallback',
@@ -1471,40 +1453,32 @@ export default function TeamPage() {
             ).toLowerCase()
             const dynamicTeamLogo = getTeamLogoUrl(teamKeyForLogo)
 
-            // Dados da Academia
-            const totalInAcad =
-              teamAcademyPilots.length > 0 ? teamAcademyPilots.length : academyDrivers.length
-            const f2InAcad =
-              teamAcademyPilots.filter(
-                (p) => (p.category || '').toLowerCase() === 'f2' || (p as any)?.series === 'F2',
-              ).length || 1
-            const f3InAcad =
-              teamAcademyPilots.filter(
-                (p) => (p.category || '').toLowerCase() === 'f3' || (p as any)?.series === 'F3',
-              ).length || 1
+            // Dados canônicos da Academia (sem fallback fictício)
+            const totalInAcad = canonicalAcademyPilots.length
+            const f2InAcad = canonicalAcademyPilots.filter(
+              (p) => (p.category || '').toLowerCase() === 'f2' || (p as any)?.series === 'F2',
+            ).length
+            const f3InAcad = canonicalAcademyPilots.filter(
+              (p) => (p.category || '').toLowerCase() === 'f3' || (p as any)?.series === 'F3',
+            ).length
 
-            // Piloto em destaque da academia
-            const firstPilot = teamAcademyPilots[0]
+            // Piloto em destaque da academia: primeiro de canonicalAcademyPilots; se 0, highlightPilot = null
+            const firstPilot = canonicalAcademyPilots[0]
             const highlightPilot: AcademyHighlightPilot | null = firstPilot
               ? {
                   id: firstPilot.id,
                   name: firstPilot.name,
                   nationality: firstPilot.nationality,
-                  series: (firstPilot.category || 'F2').toUpperCase(),
+                  series: (
+                    (firstPilot.category || (firstPilot as any)?.series || 'F2') as string
+                  ).toUpperCase(),
                   potential:
                     (firstPilot as any).perceived_potential ||
                     (firstPilot as any).true_potential ||
                     85,
                   photoUrl: (firstPilot as any).photoUrl || undefined,
                 }
-              : academyDrivers.length > 0
-                ? {
-                    name: academyDrivers[0].name,
-                    nationality: academyDrivers[0].country,
-                    series: academyDrivers[0].series,
-                    potential: academyDrivers[0].potential,
-                  }
-                : null
+              : null
 
             return (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
@@ -1537,14 +1511,14 @@ export default function TeamPage() {
       {/* SUB-ABA: PILOTOS & HOMOLOGAÇÃO */}
       {activeTab === 'pilotos' && (
         <div className="space-y-6">
-          <Card className="bg-[#0B0E14] border-neutral-800/80">
-            <CardHeader className="border-b border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <Card className="bg-white border-neutral-200/90 shadow-sm">
+            <CardHeader className="border-b border-neutral-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                <CardTitle className="text-xl font-black text-neutral-900 flex items-center gap-2">
                   <UserCheck className="w-5 h-5 text-[#E10600]" />
                   Quadro de Pilotos, Homologação & Adaptação F1
                 </CardTitle>
-                <CardDescription className="text-xs text-neutral-400">
+                <CardDescription className="text-xs text-neutral-500">
                   Gerenciamento de pilotos titulares, reservas e cumprimento das exigências de
                   Superlicença FIA e Treinos Livres.
                 </CardDescription>
@@ -1553,7 +1527,7 @@ export default function TeamPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => navigate('/pilotos')}
-                className="border-neutral-700 text-neutral-300 hover:text-white shrink-0"
+                className="border-neutral-200 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 shrink-0"
               >
                 Mercado Completo FIA →
               </Button>
@@ -1569,11 +1543,13 @@ export default function TeamPage() {
                   return (
                     <div
                       key={d.id}
-                      className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex flex-col justify-between space-y-4 shadow-lg"
+                      className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col justify-between space-y-4 shadow-sm"
                     >
                       <div>
-                        <div className="flex items-center justify-between text-xs text-neutral-400 mb-2">
-                          <span className="font-bold text-white uppercase">Titular #{idx + 1}</span>
+                        <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">
+                          <span className="font-bold text-neutral-900 uppercase">
+                            Titular #{idx + 1}
+                          </span>
                           <span className="text-sm">{getCountryFlag(d.nationality)}</span>
                         </div>
 
@@ -1592,47 +1568,47 @@ export default function TeamPage() {
                         >
                           <DriverPhotoAvatar name={d.name} teamColor="#E10600" size="md" />
                           <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-white truncate hover:underline">
+                            <h3 className="text-sm font-bold text-neutral-900 truncate hover:underline">
                               {d.name}
                             </h3>
-                            <div className="text-xs text-neutral-400">
+                            <div className="text-xs text-neutral-500">
                               Idade: {d.age || 25} anos • OVR:{' '}
-                              <strong className="text-white">{ovr}</strong>
+                              <strong className="text-neutral-900">{ovr}</strong>
                             </div>
                           </div>
                         </div>
                       </div>
                       {/* Status FIA & Adaptação F1 */}
-                      <div className="space-y-2 pt-2 border-t border-neutral-800/80 text-xs">
+                      <div className="space-y-2 pt-2 border-t border-neutral-200/80 text-xs">
                         <div className="flex items-center justify-between">
-                          <span className="text-neutral-400">Status FIA:</span>
-                          <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <span className="text-neutral-500">Status FIA:</span>
+                          <span className="text-emerald-600 font-bold flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Superlicença Válida
                           </span>
                         </div>
 
                         <div className="space-y-1">
-                          <div className="flex justify-between text-[11px] text-neutral-400">
+                          <div className="flex justify-between text-[11px] text-neutral-500">
                             <span>Adaptação à F1</span>
-                            <span className="text-cyan-400 font-bold">
+                            <span className="text-blue-600 font-bold">
                               {adaptation}% / meta 80%
                             </span>
                           </div>
-                          <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                          <div className="w-full h-1.5 bg-neutral-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-cyan-500 rounded-full transition-all"
+                              className="h-full bg-blue-500 rounded-full transition-all"
                               style={{ width: `${Math.min(100, (adaptation / 80) * 100)}%` }}
                             />
                           </div>
-                          <span className="text-[10px] text-neutral-500 block">
+                          <span className="text-[10px] text-neutral-400 block">
                             Ritmo em corrida F1 e adaptação aerodinâmica
                           </span>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-neutral-800/60 text-[11px] text-neutral-400 flex justify-between">
+                      <div className="pt-2 border-t border-neutral-200/80 text-[11px] text-neutral-500 flex justify-between">
                         <span>Contrato até {d.contract_end || 2027}</span>
-                        <span className="text-white font-semibold">
+                        <span className="text-neutral-900 font-semibold">
                           {formatCurrency(d.salary || 5000000)}/ano
                         </span>
                       </div>
@@ -1653,10 +1629,10 @@ export default function TeamPage() {
                   const isHomologation = status === 'homologacao'
 
                   return (
-                    <div className="p-4 rounded-xl bg-black/40 border border-amber-500/30 flex flex-col justify-between space-y-4 shadow-lg">
+                    <div className="p-4 rounded-xl bg-white border border-amber-300 flex flex-col justify-between space-y-4 shadow-sm">
                       <div>
-                        <div className="flex items-center justify-between text-xs text-neutral-400 mb-2">
-                          <span className="font-bold text-amber-400 uppercase">Piloto Reserva</span>
+                        <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">
+                          <span className="font-bold text-amber-600 uppercase">Piloto Reserva</span>
                           <span className="text-sm">{getCountryFlag(rd.nationality)}</span>
                         </div>
 
@@ -1680,32 +1656,32 @@ export default function TeamPage() {
                             size="md"
                           />
                           <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-white truncate hover:underline">
+                            <h3 className="text-sm font-bold text-neutral-900 truncate hover:underline">
                               {rd.name}
                             </h3>
-                            <div className="text-xs text-neutral-400">
+                            <div className="text-xs text-neutral-500">
                               Idade: {rd.age || 22} anos • OVR:{' '}
-                              <strong className="text-white">{ovrR}</strong>
+                              <strong className="text-neutral-900">{ovrR}</strong>
                             </div>
                           </div>
                         </div>
                       </div>
                       {/* Status FIA & Homologação */}
-                      <div className="space-y-2.5 pt-2 border-t border-neutral-800/80 text-xs">
+                      <div className="space-y-2.5 pt-2 border-t border-neutral-200/80 text-xs">
                         <div className="flex items-center justify-between">
-                          <span className="text-neutral-400">Status Regulamentar:</span>
+                          <span className="text-neutral-500">Status Regulamentar:</span>
                           {status === 'formacao' && (
-                            <span className="text-purple-400 font-bold flex items-center gap-1">
+                            <span className="text-purple-600 font-bold flex items-center gap-1">
                               <GraduationCap className="w-3.5 h-3.5" /> Formação
                             </span>
                           )}
                           {status === 'homologacao' && (
-                            <span className="text-amber-400 font-bold flex items-center gap-1">
+                            <span className="text-amber-600 font-bold flex items-center gap-1">
                               <AlertTriangle className="w-3.5 h-3.5" /> Em Homologação
                             </span>
                           )}
                           {status === 'elegivel' && (
-                            <span className="text-emerald-400 font-bold flex items-center gap-1">
+                            <span className="text-emerald-600 font-bold flex items-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Elegível FIA
                             </span>
                           )}
@@ -1713,18 +1689,18 @@ export default function TeamPage() {
 
                         {/* Progresso de Homologação TL1 */}
                         {isHomologation && (
-                          <div className="p-2.5 bg-amber-950/30 border border-amber-500/40 rounded-lg space-y-1.5">
-                            <div className="flex justify-between text-[11px] text-amber-300 font-bold">
+                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg space-y-1.5">
+                            <div className="flex justify-between text-[11px] text-amber-800 font-bold">
                               <span>Sessões TL1 (100 km):</span>
                               <span>{sessionsDone}/2 sessões</span>
                             </div>
-                            <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-amber-400 rounded-full transition-all"
+                                className="h-full bg-amber-500 rounded-full transition-all"
                                 style={{ width: `${Math.min(100, (sessionsDone / 2) * 100)}%` }}
                               />
                             </div>
-                            <p className="text-[10px] text-amber-200/80 leading-tight">
+                            <p className="text-[10px] text-amber-700 leading-tight">
                               Escale o piloto em treinos livres (TL1) para homologá-lo como titular
                               da F1.
                             </p>
@@ -1733,27 +1709,27 @@ export default function TeamPage() {
 
                         {/* Adaptação à F1 */}
                         <div className="space-y-1">
-                          <div className="flex justify-between text-[11px] text-neutral-400">
+                          <div className="flex justify-between text-[11px] text-neutral-500">
                             <span>Adaptação à F1:</span>
-                            <span className="text-cyan-400 font-bold">
+                            <span className="text-blue-600 font-bold">
                               {adaptation}% / meta 80%
                             </span>
                           </div>
-                          <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                          <div className="w-full h-1.5 bg-neutral-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-cyan-500 rounded-full transition-all"
+                              className="h-full bg-blue-500 rounded-full transition-all"
                               style={{ width: `${Math.min(100, (adaptation / 80) * 100)}%` }}
                             />
                           </div>
-                          <span className="text-[10px] text-neutral-500 block">
+                          <span className="text-[10px] text-neutral-400 block">
                             +8% por sessão TL1 disputada • +3,5% de bancada
                           </span>
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-neutral-800/60 text-[11px] text-neutral-400 flex justify-between">
+                      <div className="pt-2 border-t border-neutral-200/80 text-[11px] text-neutral-500 flex justify-between">
                         <span>Contrato até {rd.contract_end || 2026}</span>
-                        <span className="text-white font-semibold">
+                        <span className="text-neutral-900 font-semibold">
                           {formatCurrency(rd.salary || 1200000)}/ano
                         </span>
                       </div>
@@ -1773,17 +1749,17 @@ export default function TeamPage() {
           return (
             <div className="space-y-6">
               {/* Bloco Canônico do Team Principal e seus 6 Domínios Operacionais */}
-              <Card className="bg-[#0B0E14] border-neutral-800/80">
-                <CardHeader className="border-b border-neutral-800 pb-4">
+              <Card className="bg-white border-neutral-200/90 shadow-sm">
+                <CardHeader className="border-b border-neutral-200/80 pb-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+                      <CardTitle className="text-xl font-black text-neutral-900 flex items-center gap-2">
                         <Shield className="w-5 h-5 text-amber-500" />
                         Team Principal & Liderança: {managerEval.managerName}
                       </CardTitle>
-                      <CardDescription className="text-xs text-neutral-400 mt-1">
+                      <CardDescription className="text-xs text-neutral-500 mt-1">
                         Arquétipo:{' '}
-                        <strong className="text-amber-400 font-bold">
+                        <strong className="text-amber-600 font-bold">
                           {managerEval.archetypeTitle}
                         </strong>{' '}
                         — {managerEval.specialty}
@@ -1791,7 +1767,7 @@ export default function TeamPage() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="self-start sm:self-auto border-amber-500/40 text-amber-400 bg-amber-500/10 font-mono text-xs uppercase"
+                      className="self-start sm:self-auto border-amber-300 text-amber-700 bg-amber-50 font-mono text-xs uppercase"
                     >
                       Atributos Derivados (Anti-Stacking Ativo)
                     </Badge>
@@ -1807,25 +1783,25 @@ export default function TeamPage() {
                       return (
                         <div
                           key={domKey}
-                          className="p-3.5 rounded-xl bg-black/40 border border-neutral-800 flex flex-col justify-between"
+                          className="p-3.5 rounded-xl bg-neutral-50/80 border border-neutral-200/80 flex flex-col justify-between"
                         >
                           <div>
-                            <span className="text-[10px] text-neutral-400 uppercase block tracking-wider truncate">
+                            <span className="text-[10px] text-neutral-500 uppercase block tracking-wider truncate">
                               {domMeta.name}
                             </span>
-                            <span className="text-2xl font-black text-white block mt-1">
+                            <span className="text-2xl font-black text-neutral-900 block mt-1">
                               {score}
                             </span>
                           </div>
                           <div className="mt-2 flex items-center justify-between text-[10px]">
-                            <span className="text-neutral-500">Base 75</span>
+                            <span className="text-neutral-400">Base 75</span>
                             <span
                               className={`font-bold ${
                                 delta > 0
-                                  ? 'text-emerald-400'
+                                  ? 'text-emerald-600'
                                   : delta < 0
-                                    ? 'text-rose-400'
-                                    : 'text-neutral-400'
+                                    ? 'text-rose-600'
+                                    : 'text-neutral-500'
                               }`}
                             >
                               {delta > 0 ? `+${delta}` : `${delta}`}
@@ -1837,64 +1813,64 @@ export default function TeamPage() {
                   </div>
 
                   {/* Resumo de Efeitos Ativos e Balanceados */}
-                  <div className="p-4 rounded-xl bg-black/30 border border-neutral-800 text-xs font-mono space-y-2">
-                    <div className="text-[#8B95A7] font-bold uppercase text-[11px] flex items-center gap-2">
-                      <Sliders className="w-4 h-4 text-cyan-400" />
+                  <div className="p-4 rounded-xl bg-neutral-50/90 border border-neutral-200/80 text-xs font-mono space-y-2">
+                    <div className="text-neutral-700 font-bold uppercase text-[11px] flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-cyan-600" />
                       Impactos Aplicados na Operação da Escuderia (Sem Alterar Física do Monoposto):
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-neutral-300 pt-1">
-                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
-                        <span className="text-neutral-500 block text-[10px]">Estratégia & SC:</span>
-                        <strong className="text-amber-400">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-neutral-700 pt-1">
+                      <div className="p-2 rounded bg-white border border-neutral-200">
+                        <span className="text-neutral-400 block text-[10px]">Estratégia & SC:</span>
+                        <strong className="text-amber-600">
                           {managerEval.modifiers.strategyDecisionBonus >= 0 ? '+' : ''}
                           {(managerEval.modifiers.strategyDecisionBonus * 100).toFixed(1)}%
                           confiança
                         </strong>
                       </div>
-                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
-                        <span className="text-neutral-500 block text-[10px]">
+                      <div className="p-2 rounded bg-white border border-neutral-200">
+                        <span className="text-neutral-400 block text-[10px]">
                           Retenção de Moral:
                         </span>
-                        <strong className="text-emerald-400">
+                        <strong className="text-emerald-600">
                           {managerEval.modifiers.moraleRecoveryBonus >= 0 ? '+' : ''}
                           {(managerEval.modifiers.moraleRecoveryBonus * 100).toFixed(1)}%
                           amortecimento
                         </strong>
                       </div>
-                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
-                        <span className="text-neutral-500 block text-[10px]">
+                      <div className="p-2 rounded bg-white border border-neutral-200">
+                        <span className="text-neutral-400 block text-[10px]">
                           Captação Comercial:
                         </span>
-                        <strong className="text-purple-400">
+                        <strong className="text-purple-600">
                           {managerEval.modifiers.sponsorValueBonus >= 0 ? '+' : ''}
                           {(managerEval.modifiers.sponsorValueBonus * 100).toFixed(1)}% receita
                         </strong>
                       </div>
-                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
-                        <span className="text-neutral-500 block text-[10px]">
+                      <div className="p-2 rounded bg-white border border-neutral-200">
+                        <span className="text-neutral-400 block text-[10px]">
                           Lapidação na Academia:
                         </span>
-                        <strong className="text-pink-400">
+                        <strong className="text-pink-600">
                           {managerEval.modifiers.academyDevelopmentBonus >= 0 ? '+' : ''}
                           {(managerEval.modifiers.academyDevelopmentBonus * 100).toFixed(1)}%
                           aprendizado
                         </strong>
                       </div>
-                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
-                        <span className="text-neutral-500 block text-[10px]">
+                      <div className="p-2 rounded bg-white border border-neutral-200">
+                        <span className="text-neutral-400 block text-[10px]">
                           Oficina & Revisões:
                         </span>
-                        <strong className="text-cyan-400">
+                        <strong className="text-cyan-600">
                           {managerEval.modifiers.workshopEfficiencyBonus >= 0 ? '+' : ''}
                           {(managerEval.modifiers.workshopEfficiencyBonus * 100).toFixed(1)}%
                           eficiência
                         </strong>
                       </div>
-                      <div className="p-2 rounded bg-neutral-900/40 border border-neutral-800/80">
-                        <span className="text-neutral-500 block text-[10px]">
+                      <div className="p-2 rounded bg-white border border-neutral-200">
+                        <span className="text-neutral-400 block text-[10px]">
                           Confiança do Conselho:
                         </span>
-                        <strong className="text-blue-400">
+                        <strong className="text-blue-600">
                           {managerEval.modifiers.boardTrustBonus >= 0 ? '+' : ''}
                           {(managerEval.modifiers.boardTrustBonus * 100).toFixed(1)}% suporte
                         </strong>
@@ -1918,13 +1894,13 @@ export default function TeamPage() {
       {/* SUB-ABA: CONTRATOS */}
       {activeTab === 'contratos' && (
         <div className="space-y-6">
-          <Card className="bg-[#0B0E14] border-neutral-800/80">
-            <CardHeader className="border-b border-neutral-800">
-              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+          <Card className="bg-white border-neutral-200/90 shadow-sm">
+            <CardHeader className="border-b border-neutral-200/80">
+              <CardTitle className="text-xl font-black text-neutral-900 flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-[#E10600]" />
                 Gestão de Vínculos Contratuais
               </CardTitle>
-              <CardDescription className="text-xs text-neutral-400">
+              <CardDescription className="text-xs text-neutral-500">
                 Acompanhe o vencimento de contratos, salários vigentes e planeje renovações
                 antecipadas.
               </CardDescription>
@@ -1934,13 +1910,13 @@ export default function TeamPage() {
                 {titularDrivers.concat(reserveDriver ? [reserveDriver] : []).map((d) => (
                   <div
                     key={d.id}
-                    className="p-4 rounded-xl bg-black/40 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
                   >
                     <div className="flex items-center gap-3">
                       <DriverPhotoAvatar name={d.name} teamColor="#E10600" size="sm" />
                       <div>
-                        <span className="font-bold text-white text-sm block">{d.name}</span>
-                        <span className="text-[11px] text-neutral-400">
+                        <span className="font-bold text-neutral-900 text-sm block">{d.name}</span>
+                        <span className="text-[11px] text-neutral-500">
                           Função: {d.role === 'reserva' ? 'Piloto Reserva' : 'Piloto Titular'}
                         </span>
                       </div>
@@ -1949,11 +1925,11 @@ export default function TeamPage() {
                     <div className="flex items-center gap-6">
                       <div>
                         <span className="text-[10px] text-neutral-400 block">Salário Anual</span>
-                        <strong className="text-white">{formatCurrency(d.salary)}</strong>
+                        <strong className="text-neutral-900">{formatCurrency(d.salary)}</strong>
                       </div>
                       <div>
                         <span className="text-[10px] text-neutral-400 block">Término</span>
-                        <strong className="text-emerald-400">{d.contract_end || 2026}</strong>
+                        <strong className="text-emerald-600">{d.contract_end || 2026}</strong>
                       </div>
                       <Button
                         size="sm"
@@ -1962,7 +1938,7 @@ export default function TeamPage() {
                           setSalaryMultiplier(100)
                           setContractYears(1)
                         }}
-                        className="bg-[#E10600] hover:bg-red-700 text-white text-xs h-7 font-bold"
+                        className="bg-[#E10600] hover:bg-red-700 text-white text-xs h-7 font-bold cursor-pointer"
                       >
                         Renovar
                       </Button>
@@ -1979,8 +1955,8 @@ export default function TeamPage() {
       {activeTab === 'academia' && (
         <div className="space-y-6">
           {/* Subnavegação da Academia */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 pb-3">
-            <div className="flex flex-wrap gap-1 bg-neutral-900/60 p-1 rounded-xl border border-neutral-800">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200/80 pb-3">
+            <div className="flex flex-wrap gap-1 bg-white p-1 rounded-xl border border-neutral-200/90 shadow-sm">
               <Button
                 size="sm"
                 variant={academySubArea === 'programa' ? 'default' : 'ghost'}
@@ -1988,7 +1964,7 @@ export default function TeamPage() {
                 className={`text-xs ${
                   academySubArea === 'programa'
                     ? 'bg-cyan-600 text-white'
-                    : 'text-neutral-400 hover:text-white'
+                    : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
                 <Users className="w-3.5 h-3.5 mr-1.5" />
@@ -2002,7 +1978,7 @@ export default function TeamPage() {
                 className={`text-xs ${
                   academySubArea === 'scouting'
                     ? 'bg-cyan-600 text-white'
-                    : 'text-neutral-400 hover:text-white'
+                    : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
                 <Search className="w-3.5 h-3.5 mr-1.5" />
@@ -2016,7 +1992,7 @@ export default function TeamPage() {
                 className={`text-xs ${
                   academySubArea === 'desenvolvimento'
                     ? 'bg-cyan-600 text-white'
-                    : 'text-neutral-400 hover:text-white'
+                    : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
                 <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
@@ -2030,7 +2006,7 @@ export default function TeamPage() {
                 className={`text-xs ${
                   academySubArea === 'caminho_f1'
                     ? 'bg-cyan-600 text-white'
-                    : 'text-neutral-400 hover:text-white'
+                    : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
                 <Gauge className="w-3.5 h-3.5 mr-1.5" />
@@ -2044,7 +2020,7 @@ export default function TeamPage() {
                 className={`text-xs ${
                   academySubArea === 'historico'
                     ? 'bg-cyan-600 text-white'
-                    : 'text-neutral-400 hover:text-white'
+                    : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
                 <Award className="w-3.5 h-3.5 mr-1.5" />
@@ -2057,9 +2033,9 @@ export default function TeamPage() {
               size="sm"
               variant="outline"
               onClick={() => setIsDebugModalOpen(true)}
-              className="text-xs border-amber-800/60 bg-amber-950/20 text-amber-300 hover:bg-amber-900/40"
+              className="text-xs border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
             >
-              <Cpu className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
+              <Cpu className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
               Prospect Debug (Engenharia)
             </Button>
           </div>
@@ -2067,9 +2043,9 @@ export default function TeamPage() {
           {/* 1. SUB-ÁREA: PROGRAMA DE JOVENS ATUAIS */}
           {academySubArea === 'programa' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center bg-neutral-900/40 p-3 rounded-xl border border-neutral-800">
-                <div className="text-xs text-neutral-300">
-                  <span className="font-bold text-white">Pilotos Vinculados:</span>{' '}
+              <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-neutral-200/90 shadow-sm">
+                <div className="text-xs text-neutral-600">
+                  <span className="font-bold text-neutral-900">Pilotos Vinculados:</span>{' '}
                   {teamAcademyPilots.length} de{' '}
                   {Math.max(3, Math.min(6, (team?.youth_academy_level || 3) + 1))} vagas suportadas
                   com máxima atenção técnica.
@@ -2077,7 +2053,7 @@ export default function TeamPage() {
                 <Button
                   size="sm"
                   onClick={() => setDevManagerOpen(true)}
-                  className="text-xs bg-red-600 hover:bg-red-500 text-white"
+                  className="text-xs bg-red-600 hover:bg-red-500 text-white cursor-pointer"
                 >
                   <Sliders className="w-3.5 h-3.5 mr-1.5" />
                   Gerenciar Pistas & Licenças
@@ -2085,14 +2061,14 @@ export default function TeamPage() {
               </div>
 
               {teamAcademyPilots.length === 0 ? (
-                <div className="p-8 text-center bg-black/40 border border-neutral-800 rounded-2xl space-y-3">
-                  <Sparkles className="w-8 h-8 text-cyan-400 mx-auto" />
-                  <h3 className="text-sm font-bold text-white">
+                <div className="p-8 text-center bg-white border border-neutral-200/90 rounded-2xl space-y-3 shadow-sm">
+                  <Sparkles className="w-8 h-8 text-cyan-600 mx-auto" />
+                  <h3 className="text-sm font-bold text-neutral-900">
                     Nenhum piloto no programa no momento
                   </h3>
-                  <p className="text-xs text-neutral-400 max-w-md mx-auto">
+                  <p className="text-xs text-neutral-500 max-w-md mx-auto">
                     Inicie uma janela de observação na aba{' '}
-                    <strong className="text-white">Scouting</strong> para descobrir candidatos
+                    <strong className="text-neutral-900">Scouting</strong> para descobrir candidatos
                     internacionais e convidá-los para a academia.
                   </p>
                   <Button
@@ -2101,7 +2077,7 @@ export default function TeamPage() {
                       setAcademySubArea('scouting')
                       if (scoutingCandidates.length === 0) handleGenerateScoutBatch()
                     }}
-                    className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
+                    className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white cursor-pointer"
                   >
                     <Search className="w-3.5 h-3.5 mr-1.5" />
                     Abrir Janela de Prospecção
@@ -2124,7 +2100,7 @@ export default function TeamPage() {
                             variant="destructive"
                             onClick={() => handleReleaseAcademyDriver(pilot)}
                             disabled={isProcessing}
-                            className="w-full text-[11px] h-7 bg-red-950 hover:bg-red-900 text-red-200 border border-red-800/60"
+                            className="w-full text-[11px] h-7 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 cursor-pointer"
                           >
                             Liberar da Academia (Agente Livre)
                           </Button>
@@ -2140,13 +2116,13 @@ export default function TeamPage() {
           {/* 2. SUB-ÁREA: SCOUTING & CANDIDATOS */}
           {academySubArea === 'scouting' && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-neutral-900/40 p-4 rounded-xl border border-neutral-800">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-neutral-200/90 shadow-sm">
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Search className="w-4 h-4 text-cyan-400" />
+                  <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <Search className="w-4 h-4 text-cyan-600" />
                     Janela Ativa de Prospecção de Base
                   </h3>
-                  <p className="text-xs text-neutral-400 mt-0.5">
+                  <p className="text-xs text-neutral-500 mt-0.5">
                     Prospectos identificados pelas capacidades de scouting e rede da equipe.
                     Informação parcial coberta por Fog of War.
                   </p>
@@ -2156,7 +2132,7 @@ export default function TeamPage() {
                   size="sm"
                   onClick={handleGenerateScoutBatch}
                   disabled={isGeneratingScout || isProcessing}
-                  className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white shrink-0"
+                  className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white shrink-0 cursor-pointer"
                 >
                   <RefreshCw
                     className={`w-3.5 h-3.5 mr-1.5 ${isGeneratingScout ? 'animate-spin' : ''}`}
@@ -2166,19 +2142,19 @@ export default function TeamPage() {
               </div>
 
               {scoutingCandidates.length === 0 ? (
-                <div className="p-8 text-center bg-black/40 border border-neutral-800 rounded-2xl space-y-3">
-                  <Search className="w-8 h-8 text-neutral-500 mx-auto" />
-                  <h3 className="text-sm font-bold text-white">
+                <div className="p-8 text-center bg-white border border-neutral-200/90 rounded-2xl space-y-3 shadow-sm">
+                  <Search className="w-8 h-8 text-neutral-400 mx-auto" />
+                  <h3 className="text-sm font-bold text-neutral-900">
                     Nenhum candidato na janela no momento
                   </h3>
-                  <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                  <p className="text-xs text-neutral-500 max-w-sm mx-auto">
                     Envie os olheiros para observar campeonatos de F4, Fórmula Regional e Karting
                     internacional.
                   </p>
                   <Button
                     size="sm"
                     onClick={handleGenerateScoutBatch}
-                    className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
+                    className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white cursor-pointer"
                   >
                     Iniciar Varredura de Base
                   </Button>
@@ -2206,13 +2182,13 @@ export default function TeamPage() {
           {/* 3. SUB-ÁREA: DESENVOLVIMENTO & PLANOS ANUAIS */}
           {academySubArea === 'desenvolvimento' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800 flex justify-between items-center">
+              <div className="p-4 rounded-xl bg-white border border-neutral-200/90 shadow-sm flex justify-between items-center">
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
                     Plano de Progressão e Temporadas de Base
                   </h3>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-neutral-500">
                     O desenvolvimento não é fixo (+1 por nível é proibido): depende de idade, testes
                     em pista, teto real e infraestrutura.
                   </p>
@@ -2221,7 +2197,7 @@ export default function TeamPage() {
                   size="sm"
                   onClick={handleAdvanceAcademySeason}
                   disabled={isProcessing}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
                 >
                   <Zap className="w-3.5 h-3.5 mr-1.5" />
                   Simular Temporada Júnior
@@ -2235,31 +2211,34 @@ export default function TeamPage() {
                   return (
                     <div
                       key={pilot.id}
-                      className="p-4 rounded-xl bg-black/40 border border-neutral-800 space-y-3 font-mono"
+                      className="p-4 rounded-xl bg-white border border-neutral-200/90 shadow-sm space-y-3 font-mono"
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="text-sm font-bold text-white">{pilot.name}</h4>
-                          <span className="text-xs text-neutral-400">
+                          <h4 className="text-sm font-bold text-neutral-900">{pilot.name}</h4>
+                          <span className="text-xs text-neutral-500">
                             {pilot.age} anos • {meta?.juniorCategory?.toUpperCase() || 'F4'} •{' '}
                             {pilot.nationality}
                           </span>
                         </div>
-                        <Badge variant="outline" className="text-xs border-cyan-800 text-cyan-300">
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-cyan-300 bg-cyan-50 text-cyan-800"
+                        >
                           Ritmo Atual: {pilot.speed}
                         </Badge>
                       </div>
 
                       {latestHistory && (
-                        <div className="p-2.5 rounded bg-neutral-900/70 border border-neutral-800 text-xs space-y-1">
-                          <span className="text-neutral-400 block font-bold">
+                        <div className="p-2.5 rounded bg-neutral-50 border border-neutral-200 text-xs space-y-1">
+                          <span className="text-neutral-500 block font-bold">
                             Última Temporada Júnior:
                           </span>
-                          <div className="text-neutral-200">
+                          <div className="text-neutral-700">
                             Posição: <strong>{latestHistory.championshipPosition}º lugar</strong> (
                             {latestHistory.wins} vitórias, {latestHistory.podiums} pódios)
                           </div>
-                          <div className="text-[11px] text-neutral-400 italic">
+                          <div className="text-[11px] text-neutral-500 italic">
                             "{latestHistory.notes}"
                           </div>
                         </div>
@@ -2270,7 +2249,7 @@ export default function TeamPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => setDevManagerOpen(true)}
-                          className="flex-1 text-xs border-neutral-700 hover:bg-neutral-800 text-cyan-300"
+                          className="flex-1 text-xs border-neutral-200 hover:bg-neutral-100 text-neutral-800 cursor-pointer"
                         >
                           Designar Testes em Pista
                         </Button>
@@ -2285,13 +2264,13 @@ export default function TeamPage() {
           {/* 4. SUB-ÁREA: CAMINHO F1 & HOMOLOGAÇÃO */}
           {academySubArea === 'caminho_f1' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800 flex justify-between items-center">
+              <div className="p-4 rounded-xl bg-white border border-neutral-200/90 shadow-sm flex justify-between items-center">
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Gauge className="w-4 h-4 text-cyan-400" />
+                  <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <Gauge className="w-4 h-4 text-cyan-600" />
                     Trilha Oficial de Acesso à Fórmula 1
                   </h3>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-neutral-500">
                     Academia → Piloto de Desenvolvimento → Homologação FIA (C/B/A) → Reserva →
                     Titular.
                   </p>
@@ -2299,31 +2278,31 @@ export default function TeamPage() {
                 <Button
                   size="sm"
                   onClick={() => setDevManagerOpen(true)}
-                  className="text-xs bg-red-600 hover:bg-red-500 text-white"
+                  className="text-xs bg-red-600 hover:bg-red-500 text-white cursor-pointer"
                 >
                   Abrir Central de Homologação FIA
                 </Button>
               </div>
 
-              <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-xs space-y-3 font-mono text-neutral-300">
+              <div className="p-4 rounded-xl bg-white border border-neutral-200/90 shadow-sm text-xs space-y-3 font-mono text-neutral-600">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded bg-neutral-900/60 border border-neutral-800">
-                    <strong className="text-white block mb-1">1. Test Drivers Atuais</strong>
-                    <div className="text-neutral-400">
+                  <div className="p-3 rounded bg-neutral-50 border border-neutral-200">
+                    <strong className="text-neutral-900 block mb-1">1. Test Drivers Atuais</strong>
+                    <div className="text-neutral-500">
                       {testDrivers.length > 0
                         ? testDrivers.map((t) => t.name).join(', ')
                         : 'Nenhum piloto de testes ativo.'}
                     </div>
                   </div>
-                  <div className="p-3 rounded bg-neutral-900/60 border border-neutral-800">
-                    <strong className="text-white block mb-1">2. Piloto Reserva</strong>
-                    <div className="text-neutral-400">
+                  <div className="p-3 rounded bg-neutral-50 border border-neutral-200">
+                    <strong className="text-neutral-900 block mb-1">2. Piloto Reserva</strong>
+                    <div className="text-neutral-500">
                       {reserveDriver ? reserveDriver.name : 'Vaga de reserva em aberto.'}
                     </div>
                   </div>
-                  <div className="p-3 rounded bg-neutral-900/60 border border-neutral-800">
-                    <strong className="text-white block mb-1">3. Titulares Atuais</strong>
-                    <div className="text-neutral-400">
+                  <div className="p-3 rounded bg-neutral-50 border border-neutral-200">
+                    <strong className="text-neutral-900 block mb-1">3. Titulares Atuais</strong>
+                    <div className="text-neutral-500">
                       {titularDrivers.map((t) => t.name).join(' & ')}
                     </div>
                   </div>
@@ -2335,20 +2314,20 @@ export default function TeamPage() {
           {/* 5. SUB-ÁREA: HISTÓRICO & EX-PILOTOS (ALUMNI) */}
           {academySubArea === 'historico' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Award className="w-4 h-4 text-amber-400" />
+              <div className="p-4 rounded-xl bg-white border border-neutral-200/90 shadow-sm">
+                <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-amber-500" />
                   Legado da Academia: Ex-Pilotos e Carreira no Paddock
                 </h3>
-                <p className="text-xs text-neutral-400 mt-0.5">
+                <p className="text-xs text-neutral-500 mt-0.5">
                   Pilotos que foram descobertos ou formados pela academia e hoje competem no grid,
                   em equipes rivais ou como agentes livres.
                 </p>
               </div>
 
               {academyAlumni.length === 0 ? (
-                <div className="p-8 text-center bg-black/40 border border-neutral-800 rounded-2xl">
-                  <p className="text-xs text-neutral-400">
+                <div className="p-8 text-center bg-white border border-neutral-200/90 rounded-2xl shadow-sm">
+                  <p className="text-xs text-neutral-500">
                     Nenhum ex-piloto registrado ainda. Conforme jovens forem promovidos ou liberados
                     para o mercado, seu legado será registrado aqui permanentemente.
                   </p>
@@ -2358,26 +2337,26 @@ export default function TeamPage() {
                   {academyAlumni.map((alumnus) => (
                     <div
                       key={alumnus.id}
-                      className="p-4 rounded-xl bg-black/40 border border-neutral-800 font-mono text-xs space-y-2"
+                      className="p-4 rounded-xl bg-white border border-neutral-200/90 shadow-sm font-mono text-xs space-y-2"
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-bold text-white text-sm">{alumnus.name}</h4>
-                          <span className="text-neutral-400 text-[11px]">
+                          <h4 className="font-bold text-neutral-900 text-sm">{alumnus.name}</h4>
+                          <span className="text-neutral-500 text-[11px]">
                             {alumnus.nationality} • {alumnus.age} anos
                           </span>
                         </div>
                         <Badge
                           variant="outline"
-                          className="text-[10px] border-amber-800 text-amber-300"
+                          className="text-[10px] border-amber-300 bg-amber-50 text-amber-800"
                         >
                           {alumnus.team_id ? 'Contratado por Rival' : 'Agente Livre'}
                         </Badge>
                       </div>
 
-                      <div className="text-[11px] text-neutral-300">
+                      <div className="text-[11px] text-neutral-600">
                         Situação Atual:{' '}
-                        <strong className="text-white">
+                        <strong className="text-neutral-900">
                           {alumnus.team_id
                             ? `Titular/Piloto da Equipe ${alumnus.team_id}`
                             : 'Disponível no Mercado'}
@@ -2395,40 +2374,40 @@ export default function TeamPage() {
       {/* SUB-ABA: CULTURA & MORAL */}
       {activeTab === 'cultura_moral' && (
         <div className="space-y-6">
-          <Card className="bg-[#0B0E14] border-neutral-800/80">
-            <CardHeader className="border-b border-neutral-800">
-              <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+          <Card className="bg-white border-neutral-200/90 shadow-sm">
+            <CardHeader className="border-b border-neutral-200/80">
+              <CardTitle className="text-xl font-black text-neutral-900 flex items-center gap-2">
                 <HeartPulse className="w-5 h-5 text-rose-500" />
                 Cultura Organizacional e Moral da Fábrica
               </CardTitle>
-              <CardDescription className="text-xs text-neutral-400">
+              <CardDescription className="text-xs text-neutral-500">
                 O ambiente humano reflete diretamente na agilidade de fabricação e confiabilidade
                 das peças de corrida.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
-                <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-center">
-                  <span className="text-xs text-neutral-400 uppercase block">Moral Geral</span>
-                  <span className="text-3xl font-black text-emerald-400 block mt-2">82%</span>
+                <div className="p-4 rounded-xl bg-neutral-50/90 border border-neutral-200/80 text-center">
+                  <span className="text-xs text-neutral-500 uppercase block">Moral Geral</span>
+                  <span className="text-3xl font-black text-emerald-600 block mt-2">82%</span>
                   <span className="text-[11px] text-neutral-500 mt-1 block">
                     Ambiente Excelente
                   </span>
                 </div>
 
-                <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-center">
-                  <span className="text-xs text-neutral-400 uppercase block">
+                <div className="p-4 rounded-xl bg-neutral-50/90 border border-neutral-200/80 text-center">
+                  <span className="text-xs text-neutral-500 uppercase block">
                     Confiança Diretoria
                   </span>
-                  <span className="text-3xl font-black text-amber-400 block mt-2">
+                  <span className="text-3xl font-black text-amber-600 block mt-2">
                     {boardConfidence}%
                   </span>
                   <span className="text-[11px] text-neutral-500 mt-1 block">Apoio Irrestrito</span>
                 </div>
 
-                <div className="p-4 rounded-xl bg-black/40 border border-neutral-800 text-center">
-                  <span className="text-xs text-neutral-400 uppercase block">Estabilidade</span>
-                  <span className="text-3xl font-black text-cyan-400 block mt-2">85%</span>
+                <div className="p-4 rounded-xl bg-neutral-50/90 border border-neutral-200/80 text-center">
+                  <span className="text-xs text-neutral-500 uppercase block">Estabilidade</span>
+                  <span className="text-3xl font-black text-cyan-600 block mt-2">85%</span>
                   <span className="text-[11px] text-neutral-500 mt-1 block">
                     Baixa Rotatividade
                   </span>
@@ -2436,15 +2415,15 @@ export default function TeamPage() {
               </div>
 
               {/* PAINEL PSICOLÓGICO DOS PILOTOS (Implementação Nº 6A) */}
-              <div className="pt-4 border-t border-neutral-800/80 space-y-3">
+              <div className="pt-4 border-t border-neutral-200/80 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Users className="w-4 h-4 text-purple-400" /> Clima Interno dos Pilotos & Tensão
+                  <h4 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-purple-600" /> Clima Interno dos Pilotos & Tensão
                     entre Teammates
                   </h4>
                   <Badge
                     variant="outline"
-                    className="text-[10px] border-purple-700/50 text-purple-300"
+                    className="text-[10px] border-purple-200 bg-purple-50 text-purple-700"
                   >
                     6A Personalidade & Relações
                   </Badge>
@@ -2455,29 +2434,29 @@ export default function TeamPage() {
                     return (
                       <div
                         key={drv.id}
-                        className="p-3 rounded-lg bg-neutral-900/60 border border-neutral-800 text-xs space-y-2"
+                        className="p-3 rounded-lg bg-neutral-50/80 border border-neutral-200/80 text-xs space-y-2"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-white text-sm">{drv.name}</span>
+                          <span className="font-bold text-neutral-900 text-sm">{drv.name}</span>
                           <Badge
                             variant="outline"
-                            className="text-[10px] border-neutral-700 text-neutral-300 font-mono"
+                            className="text-[10px] border-neutral-200 bg-white text-neutral-700 font-mono"
                           >
                             Segurança: {drv.seat_security ?? 80}%
                           </Badge>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-400">
+                        <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-600">
                           <div>
-                            Confiança no TP: <strong className="text-emerald-400">Alta</strong>
+                            Confiança no TP: <strong className="text-emerald-600">Alta</strong>
                           </div>
                           <div>
-                            Pertencimento: <strong className="text-blue-400">Satisfeito</strong>
+                            Pertencimento: <strong className="text-blue-600">Satisfeito</strong>
                           </div>
                           <div>
-                            Desejo de Ficar: <strong className="text-amber-300">Positivo</strong>
+                            Desejo de Ficar: <strong className="text-amber-600">Positivo</strong>
                           </div>
                           <div>
-                            Risco de Conflito: <strong className="text-neutral-300">Baixo</strong>
+                            Risco de Conflito: <strong className="text-neutral-600">Baixo</strong>
                           </div>
                         </div>
                       </div>
