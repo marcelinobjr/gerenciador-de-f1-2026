@@ -8,20 +8,25 @@ import { technicalOrganizationService } from '@/services/technicalOrganizationSe
 import { DriverModel, TeamModel } from '@/types/f1'
 
 describe('MICRO-PATCH v0.0.271 — FRENTE A & B: Manifests, Lookups de Assets e Fallback Limpo', () => {
-  it('lookup Audi retorna Audi_VL.jpg com caminho padronizado', () => {
+  it('lookup Audi retorna asset empacotado válido e sideViewFileName padronizado', () => {
     const audiSideView = getTeamSideView('audi')
-    expect(audiSideView).toBe('/assets/teams/sideviews/Audi_VL.jpg')
+    expect(audiSideView).toBeDefined()
+    expect(typeof audiSideView).toBe('string')
+    expect(audiSideView).not.toBe('/assets/teams/sideviews/Audi_VL.jpg')
+    expect(audiSideView).toMatch(/\.(jpg|jpeg|png|webp)($|\?)/i)
 
     const audiAsset = getTeamAsset('audi-sport')
     expect(audiAsset).not.toBeNull()
     expect(audiAsset?.sideViewFileName).toBe('Audi_VL.jpg')
+    expect(audiAsset?.sideViewPath).toBe(audiSideView)
   })
 
   it('manifest resolve grafias irregulares e aliases de equipes corretamente e aplica fallback para equipes sem arquivo físico', () => {
-    // Audi possui asset físico e resolve o path
-    expect(getTeamSideView('audi')).toBe('/assets/teams/sideviews/Audi_VL.jpg')
-    expect(getTeamSideView('audi_f1')).toBe('/assets/teams/sideviews/Audi_VL.jpg')
-    expect(getTeamSideView('audi-revolut')).toBe('/assets/teams/sideviews/Audi_VL.jpg')
+    // Audi possui asset físico e resolve o path empacotado
+    const audiSideView = getTeamSideView('audi')
+    expect(audiSideView).toBeTruthy()
+    expect(getTeamSideView('audi_f1')).toBe(audiSideView)
+    expect(getTeamSideView('audi-revolut')).toBe(audiSideView)
 
     // Demais equipes permanecem em fallback limpo (null) pois apenas a Audi foi importada
     expect(getTeamSideView('red_bull')).toBeNull()

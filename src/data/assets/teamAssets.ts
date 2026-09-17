@@ -1,3 +1,5 @@
+import audiSideView from '@/assets/audivl-cfef2.jpg'
+
 export interface TeamAssetDefinition {
   id: string
   name: string
@@ -13,7 +15,7 @@ export const TEAM_ASSET_MANIFEST: Record<string, TeamAssetDefinition> = {
     id: 'audi',
     name: 'Audi Revolut F1 Team',
     sideViewFileName: 'Audi_VL.jpg',
-    sideViewPath: '/assets/teams/sideviews/Audi_VL.jpg',
+    sideViewPath: audiSideView,
     aliases: ['audi', 'audi_f1', 'audi-sport', 'audi-revolut'],
   },
 }
