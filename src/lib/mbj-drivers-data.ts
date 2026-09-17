@@ -129,6 +129,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Max Verstappen',
     nationality: 'Holanda',
     age: 28,
+    baseAge2026: 28,
+    permanentNumber: 33,
     category: 'f1',
     role: 'titular',
     teamKey: 'red_bull',
@@ -188,6 +190,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Liam Lawson',
     nationality: 'Nova Zelândia',
     age: 24,
+    baseAge2026: 24,
+    permanentNumber: 30,
     category: 'f1',
     role: 'titular',
     teamKey: 'red_bull',
@@ -243,6 +247,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Lewis Hamilton',
     nationality: 'Reino Unido',
     age: 41,
+    baseAge2026: 41,
+    permanentNumber: 44,
     category: 'f1',
     role: 'titular',
     teamKey: 'ferrari',
@@ -302,6 +308,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Charles Leclerc',
     nationality: 'Mônaco',
     age: 28,
+    baseAge2026: 28,
+    permanentNumber: 16,
     category: 'f1',
     role: 'titular',
     teamKey: 'ferrari',
@@ -357,6 +365,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Lando Norris',
     nationality: 'Reino Unido',
     age: 26,
+    baseAge2026: 26,
+    permanentNumber: 4,
     category: 'f1',
     role: 'titular',
     teamKey: 'mclaren',
@@ -365,6 +375,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 93,
     rain: 94,
     defense: 92,
+    preferredNumber: 4,
     salaryUsd: 25000000,
     salaryBrl: 25000000 * USD_TO_BRL_RATE,
     contractYears: 3,
@@ -379,6 +390,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Oscar Piastri',
     nationality: 'Austrália',
     age: 24,
+    baseAge2026: 24,
+    permanentNumber: 81,
     category: 'f1',
     role: 'titular',
     teamKey: 'mclaren',
@@ -387,6 +400,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 92,
     rain: 91,
     defense: 93,
+    preferredNumber: 81,
     salaryUsd: 12000000,
     salaryBrl: 12000000 * USD_TO_BRL_RATE,
     contractYears: 3,
@@ -401,6 +415,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'George Russell',
     nationality: 'Reino Unido',
     age: 28,
+    baseAge2026: 28,
+    permanentNumber: 63,
     category: 'f1',
     role: 'titular',
     teamKey: 'mercedes',
@@ -409,6 +425,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 92,
     rain: 93,
     defense: 91,
+    preferredNumber: 63,
     salaryUsd: 20000000,
     salaryBrl: 20000000 * USD_TO_BRL_RATE,
     contractYears: 2,
@@ -423,6 +440,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Andrea Kimi Antonelli',
     nationality: 'Itália',
     age: 19,
+    baseAge2026: 19,
+    permanentNumber: 12,
     category: 'f1',
     role: 'titular',
     teamKey: 'mercedes',
@@ -431,6 +450,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 84,
     rain: 86,
     defense: 85,
+    preferredNumber: 12,
     salaryUsd: 5000000,
     salaryBrl: 5000000 * USD_TO_BRL_RATE,
     contractYears: 2,
@@ -445,6 +465,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Fernando Alonso',
     nationality: 'Espanha',
     age: 44,
+    baseAge2026: 44,
+    permanentNumber: 14,
     category: 'f1',
     role: 'titular',
     teamKey: 'aston_martin',
@@ -453,6 +475,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 94,
     rain: 96,
     defense: 98,
+    preferredNumber: 14,
     salaryUsd: 22000000,
     salaryBrl: 22000000 * USD_TO_BRL_RATE,
     contractYears: 1,
@@ -467,6 +490,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Lance Stroll',
     nationality: 'Canadá',
     age: 27,
+    baseAge2026: 27,
+    permanentNumber: 18,
     category: 'f1',
     role: 'titular',
     teamKey: 'aston_martin',
@@ -475,6 +500,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 80,
     rain: 88,
     defense: 84,
+    preferredNumber: 18,
     salaryUsd: 10000000,
     salaryBrl: 10000000 * USD_TO_BRL_RATE,
     contractYears: 2,
@@ -489,6 +515,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Pierre Gasly',
     nationality: 'França',
     age: 30,
+    baseAge2026: 30,
+    permanentNumber: 10,
     category: 'f1',
     role: 'titular',
     teamKey: 'alpine',
@@ -497,6 +525,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 86,
     rain: 88,
     defense: 87,
+    preferredNumber: 10,
     salaryUsd: 9000000,
     salaryBrl: 9000000 * USD_TO_BRL_RATE,
     contractYears: 2,
@@ -511,6 +540,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Jack Doohan',
     nationality: 'Austrália',
     age: 23,
+    baseAge2026: 23,
+    permanentNumber: 7,
     category: 'f1',
     role: 'titular',
     teamKey: 'alpine',
@@ -519,6 +550,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 80,
     rain: 82,
     defense: 81,
+    preferredNumber: 7,
     salaryUsd: 2500000,
     salaryBrl: 2500000 * USD_TO_BRL_RATE,
     contractYears: 1,
@@ -533,6 +565,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Alexander Albon',
     nationality: 'Tailândia',
     age: 29,
+    baseAge2026: 29,
+    permanentNumber: 23,
     category: 'f1',
     role: 'titular',
     teamKey: 'williams',
@@ -541,6 +575,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 87,
     rain: 86,
     defense: 89,
+    preferredNumber: 23,
     salaryUsd: 8000000,
     salaryBrl: 8000000 * USD_TO_BRL_RATE,
     contractYears: 3,
@@ -555,6 +590,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Carlos Sainz Jr',
     nationality: 'Espanha',
     age: 31,
+    baseAge2026: 31,
+    permanentNumber: 55,
     category: 'f1',
     role: 'titular',
     teamKey: 'williams',
@@ -563,6 +600,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 93,
     rain: 91,
     defense: 94,
+    preferredNumber: 55,
     salaryUsd: 18000000,
     salaryBrl: 18000000 * USD_TO_BRL_RATE,
     contractYears: 2,
@@ -577,6 +615,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Yuki Tsunoda',
     nationality: 'Japão',
     age: 25,
+    baseAge2026: 25,
+    permanentNumber: 22,
     category: 'f1',
     role: 'titular',
     teamKey: 'rb',
@@ -585,6 +625,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 84,
     rain: 85,
     defense: 86,
+    preferredNumber: 22,
     salaryUsd: 5000000,
     salaryBrl: 5000000 * USD_TO_BRL_RATE,
     contractYears: 1,
@@ -599,6 +640,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Isack Hadjar',
     nationality: 'França',
     age: 21,
+    baseAge2026: 21,
+    permanentNumber: 6,
     category: 'f1',
     role: 'titular',
     teamKey: 'rb',
@@ -607,6 +650,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 81,
     rain: 82,
     defense: 83,
+    preferredNumber: 6,
     salaryUsd: 2000000,
     salaryBrl: 2000000 * USD_TO_BRL_RATE,
     contractYears: 1,
@@ -621,6 +665,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Esteban Ocon',
     nationality: 'França',
     age: 29,
+    baseAge2026: 29,
+    permanentNumber: 31,
     category: 'f1',
     role: 'titular',
     teamKey: 'haas',
@@ -629,6 +675,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 86,
     rain: 89,
     defense: 91,
+    preferredNumber: 31,
     salaryUsd: 8000000,
     salaryBrl: 8000000 * USD_TO_BRL_RATE,
     contractYears: 2,
@@ -643,6 +690,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Oliver Bearman',
     nationality: 'Reino Unido',
     age: 20,
+    baseAge2026: 20,
+    permanentNumber: 87,
     category: 'f1',
     role: 'titular',
     teamKey: 'haas',
@@ -651,6 +700,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     consistency: 83,
     rain: 84,
     defense: 85,
+    preferredNumber: 87,
     salaryUsd: 3000000,
     salaryBrl: 3000000 * USD_TO_BRL_RATE,
     contractYears: 2,
@@ -665,6 +715,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Nico Hülkenberg',
     nationality: 'Alemanha',
     age: 38,
+    baseAge2026: 38,
+    permanentNumber: 27,
     category: 'f1',
     role: 'titular',
     teamKey: 'audi',
@@ -724,6 +776,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Gabriel Bortoleto',
     nationality: 'Brasil',
     age: 21,
+    baseAge2026: 21,
+    permanentNumber: 5,
     category: 'f1',
     role: 'titular',
     teamKey: 'audi',
@@ -779,6 +833,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Sergio Pérez',
     nationality: 'México',
     age: 36,
+    baseAge2026: 36,
+    permanentNumber: 11,
     category: 'f1',
     role: 'titular',
     teamKey: 'cadillac',
@@ -838,6 +894,8 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Valtteri Bottas',
     nationality: 'Finlândia',
     age: 36,
+    baseAge2026: 36,
+    permanentNumber: 77,
     category: 'f1',
     role: 'titular',
     teamKey: 'cadillac',
@@ -1140,6 +1198,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Daniel Ricciardo',
     nationality: 'Austrália',
     age: 36,
+    baseAge2026: 36,
+    permanentNumber: 89,
+    preferredNumber: 89,
     category: 'mercado',
     speed: 85,
     consistency: 83,
@@ -1463,6 +1524,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     name: 'Kamui Kobayashi',
     nationality: 'Japão',
     age: 39,
+    baseAge2026: 39,
+    permanentNumber: 17,
+    preferredNumber: 17,
     category: 'prototipos',
     speed: 84,
     consistency: 87,
@@ -3156,4 +3220,63 @@ export function checkEligibility(pilot: {
     canSignReserve: true,
     requiresHomologation: false,
   }
+}
+
+/**
+ * Retorna o número de corrida ativo do piloto.
+ * Se for o campeão mundial vigente (driver.id === championId), tem o direito ao #1.
+ * O #1 é status esportivo de campeão e NUNCA sobrescreve permanentNumber.
+ * Caso contrário, retorna permanentNumber ?? preferredNumber ?? null.
+ */
+export function getDriverActiveNumber(
+  driver?: {
+    id?: string
+    permanentNumber?: number | null
+    preferredNumber?: number | null
+    [key: string]: any
+  } | null,
+  championId?: string | null,
+): number | null {
+  if (!driver) return null
+  if (championId && driver.id === championId) {
+    return 1
+  }
+  return driver.permanentNumber ?? driver.preferredNumber ?? null
+}
+
+/**
+ * Retorna a idade do piloto para um dado ano.
+ * Pilotos históricos (com baseAge2026): baseAge2026 + (year - 2026).
+ * Pilotos procedurais (Academia/8B, com birth_date ou birthDate próprio, ou sem baseAge2026):
+ * mantêm a lógica procedural existente baseada na data de nascimento ou age atual com offset.
+ */
+export function getDriverAge(
+  driver: {
+    baseAge2026?: number
+    birthDate?: string | null
+    birth_date?: string | null
+    age?: number
+    [key: string]: any
+  },
+  year: number = 2026,
+): number {
+  if (typeof driver.baseAge2026 === 'number') {
+    return driver.baseAge2026 + (year - 2026)
+  }
+
+  // Pilotos procedurais com birth_date / birthDate
+  const birthStr = driver.birthDate || driver.birth_date
+  if (birthStr) {
+    const birthYear = new Date(birthStr).getFullYear()
+    if (!isNaN(birthYear) && birthYear > 1900) {
+      return Math.max(16, year - birthYear)
+    }
+  }
+
+  // Fallback procedural: se já tem age definido (assumindo base 2026)
+  if (typeof driver.age === 'number') {
+    return driver.age + (year - 2026)
+  }
+
+  return 25
 }

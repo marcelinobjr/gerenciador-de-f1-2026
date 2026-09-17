@@ -10,6 +10,7 @@ import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { getCountryFlag } from '@/lib/country-flags'
 import { calcularElegibilidade } from '@/lib/superlicense'
 import { toast } from '@/hooks/use-toast'
+import { getDriverActiveNumber, MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
 import {
   Users,
   AlertTriangle,
@@ -129,6 +130,7 @@ export default function TeamPage() {
   const [allGridDrivers, setAllGridDrivers] = useState<DriverModel[]>([])
   const [scoutingCandidates, setScoutingCandidates] = useState<DriverModel[]>([])
   const [isGeneratingScout, setIsGeneratingScout] = useState(false)
+  const [reigningChampionId, setReigningChampionId] = useState<string | null>(null)
 
   const isCustomTeam = team?.is_custom ?? false
   const teamStrength = team?.strength ?? 52
@@ -154,6 +156,34 @@ export default function TeamPage() {
       // Carrega pilotos livres e categorias para gestão de talentos
       const allD = await f1Service.getAllDrivers()
       setAllGridDrivers(allD || [])
+
+      // Campeão vigente a partir do histórico de temporadas (season_histories) ou fallback para o último campeão registrado
+      try {
+        const histRecords = await pb.collection('season_histories').getFullList({
+          sort: '-season_year',
+        })
+        if (histRecords && histRecords.length > 0) {
+          const latest = histRecords[0]
+          const champDriver = latest.drivers_champion
+          if (champDriver?.driverId) {
+            setReigningChampionId(champDriver.driverId)
+          } else if (champDriver?.driverName) {
+            const found = (allD || []).find((d) =>
+              d.name.toLowerCase().includes(champDriver.driverName.toLowerCase()),
+            )
+            setReigningChampionId(found?.id || null)
+          }
+        } else {
+          // Se ainda não há season_histories (ex: início de temporada 2026/2027 sem histórico persistido),
+          // localiza o campeão mundial de referência (Verstappen) no banco/catálogo
+          const champDriver = (allD || []).find((d) => d.name.toLowerCase().includes('verstappen'))
+          setReigningChampionId(champDriver?.id || null)
+        }
+      } catch (histErr) {
+        console.warn('Não foi possível carregar season_histories para reigningChampion:', histErr)
+        const champDriver = (allD || []).find((d) => d.name.toLowerCase().includes('verstappen'))
+        setReigningChampionId(champDriver?.id || null)
+      }
     } catch (err) {
       console.error('Error loading team page data:', err)
     } finally {
@@ -1081,12 +1111,27 @@ export default function TeamPage() {
                 const ovr1 = Math.round(((d1.speed || 87) + (d1.consistency || 82)) / 2)
                 const isRicciardo = d1.name.toLowerCase().includes('ricciardo')
                 const photoSrc = isRicciardo ? ricciardoBundledImg : undefined
+                const mbj1 = MBJ_2026_PILOTS.find(
+                  (p) =>
+                    p.id === d1.id ||
+                    p.name.toLowerCase().trim() === (d1.name || '').toLowerCase().trim(),
+                )
+                const driverObj1 = {
+                  id: d1.id,
+                  permanentNumber:
+                    (d1 as any).permanentNumber ??
+                    (d1 as any).permanent_number ??
+                    mbj1?.permanentNumber ??
+                    null,
+                  preferredNumber: (d1 as any).preferredNumber ?? mbj1?.preferredNumber ?? null,
+                }
+                const activeNum1 = getDriverActiveNumber(driverObj1, reigningChampionId) ?? 1
 
                 return (
                   <DriverSummaryCard
                     slotNumber={1}
                     driverName={d1.name}
-                    driverNumber={isRicciardo ? 27 : 1}
+                    driverNumber={activeNum1}
                     nationality={d1.nationality || 'Austrália'}
                     overallRating={ovr1 || 87}
                     moral={d1.morale || 78}
@@ -1126,12 +1171,27 @@ export default function TeamPage() {
                 const ovr2 = Math.round(((d2.speed || 82) + (d2.consistency || 78)) / 2)
                 const isBortoleto = d2.name.toLowerCase().includes('bortoleto')
                 const photoSrc = isBortoleto ? bortoletoBundledImg : undefined
+                const mbj2 = MBJ_2026_PILOTS.find(
+                  (p) =>
+                    p.id === d2.id ||
+                    p.name.toLowerCase().trim() === (d2.name || '').toLowerCase().trim(),
+                )
+                const driverObj2 = {
+                  id: d2.id,
+                  permanentNumber:
+                    (d2 as any).permanentNumber ??
+                    (d2 as any).permanent_number ??
+                    mbj2?.permanentNumber ??
+                    null,
+                  preferredNumber: (d2 as any).preferredNumber ?? mbj2?.preferredNumber ?? null,
+                }
+                const activeNum2 = getDriverActiveNumber(driverObj2, reigningChampionId) ?? 2
 
                 return (
                   <DriverSummaryCard
                     slotNumber={2}
                     driverName={d2.name}
-                    driverNumber={isBortoleto ? 5 : 2}
+                    driverNumber={activeNum2}
                     nationality={d2.nationality || 'Brasil'}
                     overallRating={ovr2 || 81}
                     moral={d2.morale || 75}
