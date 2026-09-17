@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-17T03:20:26.868Z",
+  "generatedAt": "2026-09-17T03:52:59.665Z",
   "collections": [
     {
       "name": "users",
@@ -1649,7 +1649,14 @@
         "update": null,
         "delete": null
       },
-      "fields": [],
+      "fields": [
+        {
+          "name": "content",
+          "type": "text",
+          "required": false,
+          "system": false
+        }
+      ],
       "indexes": []
     },
     {

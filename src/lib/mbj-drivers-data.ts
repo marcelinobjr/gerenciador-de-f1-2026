@@ -109,6 +109,15 @@ export interface MBJPilotData {
 
   // Traços
   revealedTraits?: string[]
+
+  // Estatísticas e Identidade Canônica FIA 01/01/2026
+  permanentNumber?: number
+  activeRaceNumber?: number
+  f1Gps?: number
+  f1Wins?: number
+  f1Poles?: number
+  f1Titles?: number
+  baseAge2026?: number
 }
 
 export const USD_TO_BRL_RATE = 5.75
