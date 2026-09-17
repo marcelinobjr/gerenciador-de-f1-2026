@@ -35,14 +35,6 @@ export const ManagerExecutiveCard: React.FC<ManagerExecutiveCardProps> = ({
           <span className="text-xs font-bold uppercase tracking-wider text-neutral-300 font-sans">
             MANAGER
           </span>
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="text-[11px] font-semibold text-neutral-400 hover:text-white flex items-center gap-0.5 cursor-pointer transition-colors"
-          >
-            VER PERFIL
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
         </div>
 
         {/* Corpo: Retrato do Manager à esquerda, Infos e Barras à direita */}
