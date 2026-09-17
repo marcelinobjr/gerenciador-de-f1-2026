@@ -275,30 +275,30 @@ describe('MICRO-PATCH v0.0.271 — FRENTE D & E: Rescisões Canônicas de Piloto
   })
 
   it('dispensa de staff deixa o cargo formalmente vago na organização técnica sem mock fictício', () => {
-    const mockOrg = technicalOrganizationService.createDefaultOrganization('team_audi_2026', 'audi')
-    expect(mockOrg.members.technical_director).not.toBeNull()
+    const mockOrg = technicalOrganizationService.getOrCreateTeamOrganization('audi')
+    expect(mockOrg.members.TECHNICAL_DIRECTOR).not.toBeNull()
 
     const result = technicalOrganizationService.dismissStaffMember(
       mockOrg,
-      'technical_director',
+      'TECHNICAL_DIRECTOR',
       2026,
       1,
     )
 
     // Cargo vago
-    expect(result.updatedOrg.members.technical_director).toBeNull()
+    expect(result.updatedOrg.members.TECHNICAL_DIRECTOR).toBeNull()
     // Titular desvinculado e retornado como agente livre
     expect(result.departedStaff).not.toBeNull()
-    expect(result.departedStaff?.currentTeamId).toBeNull()
+    expect(result.departedStaff?.teamId).toBeNull()
     // Multa calculada
     expect(result.terminationFee).toBeGreaterThanOrEqual(0)
   })
 
   it('demissão repetida ou em cargo já vago lança erro controlado sem duplicar multas', () => {
-    const mockOrg = technicalOrganizationService.createDefaultOrganization('team_audi_2026', 'audi')
+    const mockOrg = technicalOrganizationService.getOrCreateTeamOrganization('audi')
     const firstDismissal = technicalOrganizationService.dismissStaffMember(
       mockOrg,
-      'technical_director',
+      'TECHNICAL_DIRECTOR',
       2026,
       1,
     )
@@ -306,7 +306,7 @@ describe('MICRO-PATCH v0.0.271 — FRENTE D & E: Rescisões Canônicas de Piloto
     expect(() => {
       technicalOrganizationService.dismissStaffMember(
         firstDismissal.updatedOrg,
-        'technical_director',
+        'TECHNICAL_DIRECTOR',
         2026,
         1,
       )
