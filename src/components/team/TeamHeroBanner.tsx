@@ -9,7 +9,7 @@ interface TeamHeroBannerProps {
   teamName: string
   tagline?: string
   bgImage: string
-  constructorPosition: number
+  constructorPosition: number | string
   constructorPoints: number
   reputation: number
   seasonTarget: string
@@ -62,7 +62,9 @@ export const TeamHeroBanner: React.FC<TeamHeroBannerProps> = ({
             <div>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl sm:text-2xl font-black text-white font-mono">
-                  {constructorPosition}º
+                  {typeof constructorPosition === 'number' && constructorPosition > 0
+                    ? `${constructorPosition}º`
+                    : constructorPosition || '—'}
                 </span>
                 <span className="text-[11px] text-neutral-300 font-sans leading-tight">
                   no Campeonato de Construtores

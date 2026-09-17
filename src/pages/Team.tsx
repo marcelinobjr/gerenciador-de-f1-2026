@@ -64,6 +64,9 @@ import { financialLedgerService } from '@/services/financialLedgerService'
 import { TechnicalOrganizationSection } from '@/components/TechnicalOrganizationSection'
 import { MANAGER_DOMAINS } from '@/lib/manager-attribute-domains'
 import { standingsService } from '@/services/standingsService'
+import { technicalOrganizationService } from '@/services/technicalOrganizationService'
+import { ROLE_DISPLAY_NAMES } from '@/types/canonical-staff'
+import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 import audiGarageHeroImg from '@/assets/audi-e9cff.jpg'
 import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
 import bortoletoBundledImg from '@/assets/05-gabrielbortoleto-ed602.png'
@@ -105,6 +108,7 @@ export default function TeamPage() {
   const [activeTab, setActiveTab] = useState<TeamSubTab>('visao_geral')
   const [teamDrivers, setTeamDrivers] = useState<DriverModel[]>([])
   const [loading, setLoading] = useState(true)
+  const [seasonRaceResults, setSeasonRaceResults] = useState<any[]>([])
 
   // Modals state
   const [renegotiateDriver, setRenegotiateDriver] = useState<DriverModel | null>(null)
@@ -151,11 +155,16 @@ export default function TeamPage() {
       return
     }
     try {
-      const tDrivers = await f1Service.getTeamDrivers(team.id)
-      setTeamDrivers(tDrivers)
-      // Carrega pilotos livres e categorias para gestão de talentos
-      const allD = await f1Service.getAllDrivers()
+      const [tDrivers, allD, seasonResults] = await Promise.all([
+        f1Service.getTeamDrivers(team.id).catch(() => []),
+        f1Service.getAllDrivers().catch(() => []),
+        season?.id
+          ? f1Service.getSeasonRaceResults(season.id).catch(() => [])
+          : Promise.resolve([]),
+      ])
+      setTeamDrivers(tDrivers || [])
       setAllGridDrivers(allD || [])
+      setSeasonRaceResults(seasonResults || [])
 
       // Campeão vigente a partir do histórico de temporadas (season_histories) ou fallback para o último campeão registrado
       try {
@@ -193,7 +202,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     loadData()
-  }, [team?.id])
+  }, [team?.id, season?.id])
 
   useRealtime('drivers', () => {
     loadData()
@@ -257,50 +266,6 @@ export default function TeamPage() {
   const teamPrincipalName = team?.manager_name || 'Jogador'
   const boardConfidence = (team as any)?.board_confidence ?? 93
   const overallMorale = 82 // Morale index %
-
-  // Staff members
-  const staffMembers = [
-    {
-      role: 'Diretor Técnico',
-      name: 'James Key',
-      country: 'Reino Unido',
-      flag: '🇬🇧',
-      rating: 88,
-      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=44',
-    },
-    {
-      role: 'Chefe de Aerodinâmica',
-      name: 'Enrico Cardile',
-      country: 'Itália',
-      flag: '🇮🇹',
-      rating: 86,
-      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=88',
-    },
-    {
-      role: 'Chefe de Engenharia',
-      name: 'Adam Baker',
-      country: 'Reino Unido',
-      flag: '🇬🇧',
-      rating: 82,
-      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=62',
-    },
-    {
-      role: 'Chefe de Estratégia',
-      name: 'Hannah Schmitz',
-      country: 'Alemanha',
-      flag: '🇩🇪',
-      rating: 85,
-      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=female&seed=91',
-    },
-    {
-      role: 'Diretor Esportivo',
-      name: 'Allan McNish',
-      country: 'Reino Unido',
-      flag: '🇬🇧',
-      rating: 80,
-      photo: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=33',
-    },
-  ]
 
   // Academy young drivers
   const academyDrivers = [
@@ -558,25 +523,46 @@ export default function TeamPage() {
   const { constructorRank, constructorTotalPoints } = useMemo(() => {
     try {
       const standingsResult = standingsService.calculateStandings({
-        raceResults: [],
+        raceResults: seasonRaceResults,
         playerDrivers: titularDrivers,
         team,
         season,
       })
       if (standingsResult) {
         return {
-          constructorRank: standingsResult.playerConstructorRank ?? 3,
-          constructorTotalPoints: standingsResult.teamPoints ?? 65,
+          constructorRank:
+            standingsResult.playerConstructorRank != null &&
+            standingsResult.playerConstructorRank > 0
+              ? standingsResult.playerConstructorRank
+              : ('—' as const),
+          constructorTotalPoints: standingsResult.teamPoints ?? 0,
         }
       }
     } catch {
       // fallback gracioso
     }
     return {
-      constructorRank: 3,
-      constructorTotalPoints: 65,
+      constructorRank: '—' as const,
+      constructorTotalPoints: 0,
     }
-  }, [titularDrivers, team, season])
+  }, [seasonRaceResults, titularDrivers, team, season])
+
+  // Objetivo real da equipe derivado do save / banco oficial de construtores
+  const realTeamObjective = useMemo(() => {
+    const rawObjective =
+      (team as any)?.objective || (team as any)?.board_objective || (team as any)?.initialObjective
+    if (rawObjective && typeof rawObjective === 'string') return rawObjective
+    const teamKey = ((team as any)?.team_key || team?.id || (isAudi ? 'audi' : '')).toLowerCase()
+    const dbTeam = ALL_GRID_TEAMS_DATABASE.find(
+      (t) =>
+        t.key.toLowerCase() === teamKey ||
+        (team?.name && t.name.toLowerCase().includes(team.name.toLowerCase())),
+    )
+    return (
+      dbTeam?.initialObjective ||
+      (isAudi ? 'Consolidar-se no Top 8 e marcar pontos regulares' : '—')
+    )
+  }, [team, isAudi])
 
   // Capacidade Organizacional departamental (Aerodinâmica 72, Engenharia 84, Operações 88, Comercial 79)
   const orgCapacities: DepartmentCapacity = useMemo(() => {
@@ -639,14 +625,29 @@ export default function TeamPage() {
 
   // Objetivos da Diretoria derivados de board_confidence e metas da equipe
   const boardObjectivesList: BoardObjectiveItem[] = useMemo(() => {
+    const posText = constructorRank === '—' ? '—' : `${constructorRank}º lugar`
+    const pointsStatusText =
+      constructorTotalPoints > 0
+        ? `${constructorTotalPoints} pts (${posText})`
+        : `0 pts (${posText})`
+
     return [
       {
         id: 'obj-1',
         area: 'Campeonato',
-        description: 'Terminar a temporada no Top 4 de Construtores',
-        progressPct: Math.min(100, Math.round((constructorTotalPoints / 120) * 100)),
-        statusValue: `${constructorTotalPoints}/120 pts (3º lugar)`,
-        chipStatus: 'No caminho',
+        description:
+          realTeamObjective !== '—' ? realTeamObjective : 'Meta da temporada em avaliação',
+        progressPct:
+          typeof constructorRank === 'number' && constructorRank > 0
+            ? Math.min(100, Math.max(10, Math.round(((11 - constructorRank) / 10) * 100)))
+            : 0,
+        statusValue: pointsStatusText,
+        chipStatus:
+          typeof constructorRank === 'number' && constructorRank <= 8
+            ? 'No caminho'
+            : constructorTotalPoints > 0
+              ? 'Atenção'
+              : 'No caminho',
       },
       {
         id: 'obj-2',
@@ -674,82 +675,63 @@ export default function TeamPage() {
       },
     ]
   }, [
+    constructorRank,
     constructorTotalPoints,
+    realTeamObjective,
     currentCostCapSpent,
     COST_CAP_LIMIT,
     remainingCostCap,
     orgCapacities.aerodynamics,
   ])
 
-  // Decisões pendentes organizacionais (máx 3 na tela principal)
+  // Decisões pendentes organizacionais (vazio por padrão; renderiza empty-state canônico)
   const pendingDecisionsList: PendingDecisionItem[] = useMemo(() => {
-    return [
-      {
-        id: 'dec-1',
-        title: 'Renovar contrato do chefe de aerodinâmica',
-        priority: 'ALTA',
-        actionTab: 'staff',
-      },
-      {
-        id: 'dec-2',
-        title: 'Resolver atrito entre piloto e engenharia',
-        priority: 'ALTA',
-        actionTab: 'cultura_moral',
-      },
-      {
-        id: 'dec-3',
-        title: 'Aprovar contratação para o departamento técnico',
-        priority: 'MÉDIA',
-        actionTab: 'staff',
-      },
-    ]
+    return []
   }, [])
 
-  // Staff técnico chave formatado
+  // Staff técnico chave formatado a partir da fonte real technicalOrganizationService
   const keyStaffSummaryList: KeyStaffMemberItem[] = useMemo(() => {
-    return [
-      {
-        id: 'staff-1',
-        name: 'James Key',
-        role: 'Diretor Técnico',
-        overallRating: 89,
-        moralStatus: 'Alta',
-        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=44',
-      },
-      {
-        id: 'staff-2',
-        name: 'Sophie Keller',
-        role: 'Chefe de Aerodinâmica',
-        overallRating: 86,
-        moralStatus: 'Alta',
-        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=female&seed=88',
-      },
-      {
-        id: 'staff-3',
-        name: 'Thomas Weber',
-        role: 'Diretor de Engenharia',
-        overallRating: 84,
-        moralStatus: 'Estável',
-        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=62',
-      },
-      {
-        id: 'staff-4',
-        name: 'Elena Moretti',
-        role: 'Chefe de Estratégia',
-        overallRating: 82,
-        moralStatus: 'Alta',
-        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=female&seed=91',
-      },
-      {
-        id: 'staff-5',
-        name: 'Markus Steiner',
-        role: 'Diretor Comercial',
-        overallRating: 80,
-        moralStatus: 'Estável',
-        photoUrl: 'https://img.usecurling.com/ppl/thumbnail?gender=male&seed=33',
-      },
+    const teamKey = (
+      (team as any)?.team_key ||
+      team?.id ||
+      (isAudi ? 'audi' : 'audi')
+    ).toLowerCase()
+    const rawOrg = (team as any)?.technical_organization
+    const org = technicalOrganizationService.getOrCreateTeamOrganization(teamKey, rawOrg)
+
+    const keyRoles: Array<keyof typeof org.members> = [
+      'TECHNICAL_DIRECTOR',
+      'HEAD_OF_AERODYNAMICS',
+      'CHIEF_DESIGNER',
+      'HEAD_OF_VEHICLE_PERFORMANCE',
+      'HEAD_OF_STRATEGY',
     ]
-  }, [])
+
+    const deriveMoralStatus = (morale: number): 'Alta' | 'Estável' | 'Baixa' => {
+      if (morale >= 80) return 'Alta'
+      if (morale >= 50) return 'Estável'
+      return 'Baixa'
+    }
+
+    return keyRoles
+      .map((role) => {
+        const member = org.members[role]
+        if (!member) return null
+        const rating = technicalOrganizationService.calculateStaffEffectiveness(member, role)
+        const roleLabel = ROLE_DISPLAY_NAMES[role] || role
+        return {
+          id: member.staffId,
+          name: member.name,
+          role: roleLabel,
+          overallRating: rating,
+          moralStatus: deriveMoralStatus(member.morale ?? 85),
+          photoUrl:
+            member.photoUrl ||
+            `https://img.usecurling.com/ppl/thumbnail?gender=male&seed=${member.name.length * 7}`,
+        }
+      })
+      .filter((item): item is KeyStaffMemberItem => item !== null)
+  }, [team, isAudi])
 
   // Handlers for engine switch
   const handleSwitchSupplier = async () => {
@@ -1055,7 +1037,7 @@ export default function TeamPage() {
                 constructorPosition={constructorRank}
                 constructorPoints={constructorTotalPoints}
                 reputation={(team as any)?.prestige_rating || (team as any)?.strength || 88}
-                seasonTarget="Top 4"
+                seasonTarget={realTeamObjective}
                 pointsProgress={{ current: constructorTotalPoints, target: 120 }}
                 onOpenDetails={() => setIsAboutModalOpen(true)}
               />
@@ -1265,7 +1247,7 @@ export default function TeamPage() {
                 onOpenObjectives={() => {
                   toast({
                     title: 'Objetivos da Diretoria',
-                    description: `Meta anual: Top 4. Confiança do conselho em ${boardConfidence}%.`,
+                    description: `Meta anual: ${realTeamObjective}. Confiança do conselho em ${boardConfidence}%.`,
                   })
                 }}
               />
