@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DriverPoster } from '@/components/DriverPoster'
 import { getCountryFlag } from '@/lib/country-flags'
-import { checkEligibility, getOverallRating } from '@/lib/mbj-drivers-data'
+import { checkEligibility, getOverallRating, getDriverCareerStats } from '@/lib/mbj-drivers-data'
+import pb from '@/lib/pocketbase/client'
 import {
   GraduationCap,
   AlertTriangle,
@@ -119,6 +120,55 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   onOpenContractModal,
   currentRound = 1,
 }) => {
+  // Carrega resultados de corrida e históricos de temporada do save para cálculo canônico de carreira
+  const [saveRaceResults, setSaveRaceResults] = React.useState<any[] | null>(null)
+  const [saveSeasonHistories, setSaveSeasonHistories] = React.useState<any[] | null>(null)
+
+  React.useEffect(() => {
+    let isMounted = true
+    if (!open || !pilot) return
+
+    async function loadSaveCareerData() {
+      try {
+        const [rr, sh] = await Promise.allSettled([
+          pb.collection('race_results').getFullList({
+            filter: `driver_id = "${pilot?.id}"`,
+            fields: 'id,driver_id,position,season_id',
+          }),
+          pb.collection('season_histories').getFullList({
+            fields: 'id,season_year,drivers_champion',
+          }),
+        ])
+
+        if (!isMounted) return
+
+        if (rr.status === 'fulfilled') {
+          setSaveRaceResults(rr.value as any[])
+        }
+        if (sh.status === 'fulfilled') {
+          setSaveSeasonHistories(sh.value as any[])
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar dados de carreira do save para PilotProfileDialog:', err)
+      }
+    }
+
+    loadSaveCareerData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [open, pilot?.id])
+
+  // Estatísticas canônicas de carreira derivadas: baseline + resultados do save
+  const careerStats = React.useMemo(() => {
+    return getDriverCareerStats({
+      pilot: pilot as any,
+      raceResults: saveRaceResults,
+      seasonHistories: saveSeasonHistories,
+    })
+  }, [pilot, saveRaceResults, saveSeasonHistories])
+
   // Implementação Nº 6A — Recupera Auditoria e Bundle Psicológico (incondicional no topo)
   const psychAudit = React.useMemo(() => {
     if (!pilot) return null
@@ -905,18 +955,52 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             )
           })()}
 
-          {/* Seção 4: Carreira & Histórico (V) */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-2">
+          {/* Seção 4: Carreira & Histórico (V) — CARREIRA NA F1 */}
+          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
             <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
-              Trajetória & Carreira (V)
+              CARREIRA NA F1
             </h4>
-            <p className="text-xs text-zinc-300 leading-relaxed">{biography}</p>
-            <div className="flex flex-wrap items-center gap-4 pt-2 text-[11px] font-mono text-zinc-400">
-              <span>
-                GPs F1 Disputados: <strong className="text-white">{pilot.f1RacesCompleted}</strong>
-              </span>
-              <span>•</span>
+
+            {/* Grid Canônico de Estatísticas de Carreira na F1 */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+                  GPs
+                </span>
+                <strong className="text-lg font-black font-mono text-white">
+                  {careerStats.races}
+                </strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+                  Vitórias
+                </span>
+                <strong className="text-lg font-black font-mono text-emerald-400">
+                  {careerStats.wins}
+                </strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+                  Pole Positions
+                </span>
+                <strong className="text-lg font-black font-mono text-amber-400">
+                  {careerStats.poles}
+                </strong>
+              </div>
+              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+                  Títulos Mundiais
+                </span>
+                <strong className="text-lg font-black font-mono text-yellow-400">
+                  {careerStats.championships}
+                </strong>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-300 leading-relaxed pt-1">{biography}</p>
+
+            <div className="flex flex-wrap items-center gap-4 pt-2 text-[11px] font-mono text-zinc-400 border-t border-zinc-800/60">
               <span>
                 Pontos Superlicença:{' '}
                 <strong className="text-white">{pilot.superlicensePoints}</strong>

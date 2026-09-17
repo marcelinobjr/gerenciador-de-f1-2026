@@ -117,6 +117,7 @@ export interface MBJPilotData {
   f1Wins?: number
   f1Poles?: number
   f1Titles?: number
+  f1Championships?: number
   baseAge2026?: number
 }
 
@@ -182,6 +183,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     potentialMin: 97,
     potentialMax: 99,
     f1RacesCompleted: 205,
+    f1Wins: 63,
+    f1Poles: 40,
+    f1Championships: 4,
     superlicensePoints: 100,
     photoFilename: 'verstappen.webp',
   },
@@ -300,6 +304,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     potentialMin: 94,
     potentialMax: 97,
     f1RacesCompleted: 350,
+    f1Wins: 105,
+    f1Poles: 104,
+    f1Championships: 7,
     superlicensePoints: 100,
     photoFilename: 'hamilton.webp',
   },
@@ -357,6 +364,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     potentialMin: 95,
     potentialMax: 98,
     f1RacesCompleted: 145,
+    f1Wins: 8,
+    f1Poles: 26,
+    f1Championships: 0,
     superlicensePoints: 85,
     photoFilename: 'leclerc.webp',
   },
@@ -382,6 +392,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     potentialMin: 94,
     potentialMax: 98,
     f1RacesCompleted: 125,
+    f1Wins: 4,
+    f1Poles: 0,
+    f1Championships: 0,
     superlicensePoints: 80,
     photoFilename: 'norris.webp',
   },
@@ -482,6 +495,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     potentialMin: 91,
     potentialMax: 94,
     f1RacesCompleted: 400,
+    f1Wins: 32,
+    f1Poles: 22,
+    f1Championships: 2,
     superlicensePoints: 100,
     photoFilename: 'alonso.webp',
   },
@@ -825,6 +841,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     potentialMin: 87,
     potentialMax: 94,
     f1RacesCompleted: 0,
+    f1Wins: 0,
+    f1Poles: 0,
+    f1Championships: 0,
     superlicensePoints: 55,
     photoFilename: 'bortoleto.webp',
   },
@@ -1212,6 +1231,9 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     potentialMin: 83,
     potentialMax: 87,
     f1RacesCompleted: 257,
+    f1Wins: 8,
+    f1Poles: 3,
+    f1Championships: 0,
     superlicensePoints: 75,
     photoFilename: 'ricciardo.webp',
   },
@@ -3279,4 +3301,108 @@ export function getDriverAge(
   }
 
   return 25
+}
+
+/**
+ * Estatísticas canônicas de carreira de um piloto na F1.
+ * CARREIRA TOTAL = BASELINE HISTÓRICO (catálogo FIA pré-2026) + RESULTADOS DO SAVE ATUAL.
+ * Função puramente derivada e idempotente: zero persistência / zero escritas.
+ */
+export interface DriverCareerStats {
+  races: number
+  wins: number
+  poles: number
+  championships: number
+}
+
+export interface GetDriverCareerStatsParams {
+  pilot: {
+    id?: string
+    f1RacesCompleted?: number
+    f1Wins?: number
+    f1Poles?: number
+    f1Championships?: number
+    f1Titles?: number
+    [key: string]: any
+  } | null
+  raceResults?: Array<{
+    driver_id?: string
+    position?: number
+    [key: string]: any
+  }> | null
+  seasonHistories?: Array<{
+    drivers_champion?: any
+    [key: string]: any
+  }> | null
+}
+
+/**
+ * Retorna as estatísticas consolidadas de carreira (GPs, Vitórias, Poles, Títulos).
+ * Decisão do Proprietário (Opção A): poles do jogo ainda não possuem fonte persistida
+ * (race_results não tem grid_position/flag de pole; qualifying é volátil e nunca gravado).
+ * Portanto poles = baseline histórico do catálogo APENAS até existir registro canônico de grid.
+ */
+export function getDriverCareerStats(params: GetDriverCareerStatsParams): DriverCareerStats {
+  const { pilot, raceResults, seasonHistories } = params
+
+  if (!pilot) {
+    return { races: 0, wins: 0, poles: 0, championships: 0 }
+  }
+
+  const pilotId = pilot.id
+
+  // 1. Baselines do catálogo (com corte 01/01/2026)
+  // Suporta f1Championships ou f1Titles como fallback retrocompatível
+  const baseRaces = Number(pilot.f1RacesCompleted) || 0
+  const baseWins = Number(pilot.f1Wins) || 0
+  const basePoles = Number(pilot.f1Poles) || 0
+  const baseChampionships = Number(pilot.f1Championships ?? pilot.f1Titles) || 0
+
+  // 2. Acréscimos derivados de race_results do save atual
+  let saveRaces = 0
+  let saveWins = 0
+
+  if (pilotId && Array.isArray(raceResults)) {
+    for (const res of raceResults) {
+      if (res && res.driver_id === pilotId) {
+        saveRaces += 1
+        if (res.position === 1) {
+          saveWins += 1
+        }
+      }
+    }
+  }
+
+  // 3. Poles: Opção A — poles do jogo ainda não possuem fonte persistida;
+  // poles = baseline até existir registro canônico de grid.
+  const savePoles = 0
+
+  // 4. Campeonatos derivados de season_histories do save atual
+  // Suporta drivers_champion como ID (string) ou como objeto { id: string }
+  let saveChampionships = 0
+
+  if (pilotId && Array.isArray(seasonHistories)) {
+    for (const sh of seasonHistories) {
+      if (!sh || !sh.drivers_champion) continue
+      const champion = sh.drivers_champion
+      if (typeof champion === 'string' && champion === pilotId) {
+        saveChampionships += 1
+      } else if (typeof champion === 'object' && champion !== null) {
+        if (
+          champion.id === pilotId ||
+          champion.driver_id === pilotId ||
+          champion.driverId === pilotId
+        ) {
+          saveChampionships += 1
+        }
+      }
+    }
+  }
+
+  return {
+    races: baseRaces + saveRaces,
+    wins: baseWins + saveWins,
+    poles: basePoles + savePoles,
+    championships: baseChampionships + saveChampionships,
+  }
 }
