@@ -90,7 +90,7 @@ import {
   deriveStaffContractStatus,
   deriveStaffPendingDecisions,
 } from '@/lib/canonical-staff-contract-status'
-import { StaffMember } from '@/types/canonical-staff'
+import { StaffMember, StaffRole, TeamTechnicalOrganization } from '@/types/canonical-staff'
 import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
 import { ManagerProfileDetailsModal } from '@/components/team/ManagerProfileDetailsModal'
 import { PilotProfileDialog } from '@/components/PilotProfileDialog'
@@ -732,7 +732,7 @@ export default function TeamPage() {
   const keyStaffSummaryList: KeyStaffMemberItem[] = useMemo(() => {
     const org = currentTeamOrg
 
-    const keyRoles: Array<keyof typeof org.members> = [
+    const keyRoles: StaffRole[] = [
       'TECHNICAL_DIRECTOR',
       'HEAD_OF_AERODYNAMICS',
       'CHIEF_DESIGNER',
