@@ -10,6 +10,10 @@ export interface KeyStaffMemberItem {
   overallRating: number
   moralStatus: 'Alta' | 'Estável' | 'Baixa'
   photoUrl: string
+  contractEnd?: number | null
+  contractBadgeLabel?: string
+  contractBadgeVariant?: 'active' | 'expiring' | 'expired'
+  rawMember?: any
 }
 
 interface TechnicalStaffSummaryCardProps {
@@ -84,9 +88,25 @@ export const TechnicalStaffSummaryCard: React.FC<TechnicalStaffSummaryCardProps>
                       className="w-full h-full object-cover"
                     />
                   </div>
-                  <span className="font-semibold text-neutral-900 truncate group-hover:text-[#E10600] transition-colors">
-                    {member.name}
-                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-semibold text-neutral-900 truncate group-hover:text-[#E10600] transition-colors">
+                      {member.name}
+                    </span>
+                    {member.contractBadgeLabel && (
+                      <span
+                        className={`text-[9.5px] font-medium tracking-tight truncate ${
+                          member.contractBadgeVariant === 'expired'
+                            ? 'text-red-600 font-semibold'
+                            : member.contractBadgeVariant === 'expiring'
+                              ? 'text-amber-700 font-semibold'
+                              : 'text-neutral-500'
+                        }`}
+                        title={member.contractBadgeLabel}
+                      >
+                        {member.contractBadgeLabel}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Função */}

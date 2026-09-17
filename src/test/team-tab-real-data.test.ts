@@ -40,7 +40,15 @@ import { describe, it, expect } from 'vitest'
 import { standingsService } from '@/services/standingsService'
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
 import type { TeamModel, DriverModel, RaceResultModel, SeasonModel } from '@/types/f1'
-import type { TeamTechnicalOrganization } from '@/types/canonical-staff'
+import {
+  ROLE_DISPLAY_NAMES,
+  type TeamTechnicalOrganization,
+  type StaffMember,
+} from '@/types/canonical-staff'
+import {
+  deriveStaffContractStatus,
+  deriveStaffPendingDecisions,
+} from '@/lib/canonical-staff-contract-status'
 
 // ============================================================================
 // FIXTURES CONTROLADAS
@@ -492,5 +500,344 @@ describe('T46 — DECISÕES PENDENTES: estado limpo e ausência de itens decorat
       )
       expect(found, `Decisão decorativa legada "${item}" não deve estar presente`).toBe(false)
     })
+  })
+})
+
+// ----------------------------------------------------------------------------
+// BLOCO 2A — STATUS CONTRATUAL E DECISÕES REAIS DO STAFF (T47 - T50)
+// ----------------------------------------------------------------------------
+describe('BLOCO 2A: T47 — STATUS ATIVO: contrato além da temporada atual', () => {
+  it('Temporada 2027, staff com contract_end = 2029 → status ativo, NÃO gera decisão pendente', () => {
+    const currentSeason = 2027
+    const contractEnd = 2029
+
+    // 1. Derivação de status canônico
+    const derivedStatus = deriveStaffContractStatus(contractEnd, currentSeason)
+    expect(derivedStatus.status).toBe('ACTIVE')
+    expect(derivedStatus.badgeLabel).toBe('Contrato até 2029')
+    expect(derivedStatus.badgeVariant).toBe('active')
+    expect(derivedStatus.isExpiringThisSeason).toBe(false)
+    expect(derivedStatus.isExpired).toBe(false)
+
+    // 2. Staff ativo na lista
+    const activeStaff: StaffMember = {
+      staffId: 'staff_audi_technical_director_active',
+      name: 'James Key',
+      age: 54,
+      nationality: 'Reino Unido',
+      countryFlag: '🇬🇧',
+      role: 'TECHNICAL_DIRECTOR',
+      teamId: 'audi',
+      reputation: 82,
+      attributes: {
+        technicalAbility: 84,
+        leadership: 80,
+        organisation: 81,
+        collaboration: 78,
+        innovation: 79,
+        pressureHandling: 76,
+        experience: 88,
+        communication: 75,
+        adaptability: 74,
+      },
+      specialties: ['vehicle_dynamics'],
+      contractId: 'contract_audi_td',
+      contract_end: 2029,
+      salary: 4200000,
+      adaptation: 100,
+      morale: 85,
+      previousTeams: [],
+      careerHistory: [],
+      status: 'under_contract',
+    }
+
+    const decisions = deriveStaffPendingDecisions([activeStaff], currentSeason)
+    expect(decisions).toHaveLength(0)
+  })
+})
+
+describe('BLOCO 2A: T48 — VENCE NA TEMPORADA: contrato expira ao final do ano corrente', () => {
+  it('Temporada 2027, staff com contract_end = 2027 → status "vence nesta temporada", exatamente UMA decisão contratual gerada', () => {
+    const currentSeason = 2027
+    const contractEnd = 2027
+
+    // 1. Derivação de status
+    const derivedStatus = deriveStaffContractStatus(contractEnd, currentSeason)
+    expect(derivedStatus.status).toBe('EXPIRING_THIS_SEASON')
+    expect(derivedStatus.badgeLabel).toBe('Contrato até 2027 · Vence nesta temporada')
+    expect(derivedStatus.badgeVariant).toBe('expiring')
+    expect(derivedStatus.isExpiringThisSeason).toBe(true)
+    expect(derivedStatus.isExpired).toBe(false)
+
+    // 2. Staff com vencimento em 2027
+    const expiringStaff: StaffMember = {
+      staffId: 'staff_audi_technical_director',
+      name: 'James Key',
+      age: 54,
+      nationality: 'Reino Unido',
+      countryFlag: '🇬🇧',
+      role: 'TECHNICAL_DIRECTOR',
+      teamId: 'audi',
+      reputation: 82,
+      attributes: {
+        technicalAbility: 84,
+        leadership: 80,
+        organisation: 81,
+        collaboration: 78,
+        innovation: 79,
+        pressureHandling: 76,
+        experience: 88,
+        communication: 75,
+        adaptability: 74,
+      },
+      specialties: ['vehicle_dynamics'],
+      contractId: 'contract_audi_td',
+      contract_end: 2027,
+      salary: 4200000,
+      adaptation: 100,
+      morale: 85,
+      previousTeams: [],
+      careerHistory: [],
+      status: 'under_contract',
+    }
+
+    const decisions = deriveStaffPendingDecisions([expiringStaff], currentSeason)
+    expect(decisions).toHaveLength(1)
+    expect(decisions[0].type).toBe('CONTRACT_EXPIRING')
+    expect(decisions[0].staffId).toBe('staff_audi_technical_director')
+    expect(decisions[0].title).toBe('Contrato de James Key vence ao final de 2027')
+    expect(decisions[0].description).toContain('expira ao término da temporada atual (2027)')
+    expect(decisions[0].priority).toBe('MÉDIA')
+    expect(decisions[0].contractEnd).toBe(2027)
+  })
+})
+
+describe('BLOCO 2A: T49 — CONTRATO VENCIDO: contrato anterior à temporada atual', () => {
+  it('Temporada 2027, staff com contract_end = 2026 → status vencido, decisão contratual correspondente', () => {
+    const currentSeason = 2027
+    const contractEnd = 2026
+
+    // 1. Derivação de status
+    const derivedStatus = deriveStaffContractStatus(contractEnd, currentSeason)
+    expect(derivedStatus.status).toBe('EXPIRED')
+    expect(derivedStatus.badgeLabel).toBe('Contrato vencido')
+    expect(derivedStatus.badgeVariant).toBe('expired')
+    expect(derivedStatus.isExpiringThisSeason).toBe(false)
+    expect(derivedStatus.isExpired).toBe(true)
+
+    // 2. Staff com vencimento em 2026
+    const expiredStaff: StaffMember = {
+      staffId: 'staff_audi_head_of_strategy',
+      name: 'Ruth Buscombe',
+      age: 36,
+      nationality: 'Reino Unido',
+      countryFlag: '🇬🇧',
+      role: 'HEAD_OF_STRATEGY',
+      teamId: 'audi',
+      reputation: 83,
+      attributes: {
+        pressureHandling: 84,
+        technicalAbility: 82,
+        communication: 85,
+        organisation: 81,
+        experience: 79,
+        leadership: 76,
+        innovation: 78,
+        collaboration: 80,
+        adaptability: 82,
+      },
+      specialties: ['wet_safety_car_strategy'],
+      contractId: 'contract_audi_strategy',
+      contract_end: 2026,
+      salary: 2100000,
+      adaptation: 100,
+      morale: 85,
+      previousTeams: [],
+      careerHistory: [],
+      status: 'under_contract',
+    }
+
+    const decisions = deriveStaffPendingDecisions([expiredStaff], currentSeason)
+    expect(decisions).toHaveLength(1)
+    expect(decisions[0].type).toBe('CONTRACT_EXPIRED')
+    expect(decisions[0].staffId).toBe('staff_audi_head_of_strategy')
+    expect(decisions[0].title).toBe('Contrato de Ruth Buscombe está vencido')
+    expect(decisions[0].description).toContain('encerrou em 2026')
+    expect(decisions[0].priority).toBe('ALTA')
+    expect(decisions[0].contractEnd).toBe(2026)
+  })
+})
+
+describe('BLOCO 2A: T50 — IDEMPOTÊNCIA DAS DECISÕES: determinismo e ausência de duplicação', () => {
+  it('Gerar a lista repetidamente para o mesmo estado → mesma quantidade, mesmos IDs/chaves lógicas, nenhuma duplicação, nenhum dado persistido adicional', () => {
+    const currentSeason = 2027
+
+    const staffList: StaffMember[] = [
+      {
+        staffId: 'staff_audi_technical_director',
+        name: 'James Key',
+        age: 54,
+        nationality: 'Reino Unido',
+        countryFlag: '🇬🇧',
+        role: 'TECHNICAL_DIRECTOR',
+        teamId: 'audi',
+        reputation: 82,
+        attributes: {
+          technicalAbility: 84,
+          leadership: 80,
+          organisation: 81,
+          collaboration: 78,
+          innovation: 79,
+          pressureHandling: 76,
+          experience: 88,
+          communication: 75,
+          adaptability: 74,
+        },
+        specialties: ['vehicle_dynamics'],
+        contractId: 'contract_audi_td',
+        contract_end: 2027, // EXPIRING
+        salary: 4200000,
+        adaptation: 100,
+        morale: 85,
+        previousTeams: [],
+        careerHistory: [],
+        status: 'under_contract',
+      },
+      {
+        staffId: 'staff_audi_head_of_strategy',
+        name: 'Ruth Buscombe',
+        age: 36,
+        nationality: 'Reino Unido',
+        countryFlag: '🇬🇧',
+        role: 'HEAD_OF_STRATEGY',
+        teamId: 'audi',
+        reputation: 83,
+        attributes: {
+          pressureHandling: 84,
+          technicalAbility: 82,
+          communication: 85,
+          organisation: 81,
+          experience: 79,
+          leadership: 76,
+          innovation: 78,
+          collaboration: 80,
+          adaptability: 82,
+        },
+        specialties: ['wet_safety_car_strategy'],
+        contractId: 'contract_audi_strategy',
+        contract_end: 2026, // EXPIRED
+        salary: 2100000,
+        adaptation: 100,
+        morale: 85,
+        previousTeams: [],
+        careerHistory: [],
+        status: 'under_contract',
+      },
+      {
+        staffId: 'staff_audi_head_of_aero',
+        name: 'Enrico Cardile',
+        age: 49,
+        nationality: 'Itália',
+        countryFlag: '🇮🇹',
+        role: 'HEAD_OF_AERODYNAMICS',
+        teamId: 'audi',
+        reputation: 84,
+        attributes: {
+          technicalAbility: 86,
+          innovation: 83,
+          collaboration: 76,
+          organisation: 79,
+          experience: 82,
+          pressureHandling: 78,
+          leadership: 77,
+          communication: 74,
+          adaptability: 72,
+        },
+        specialties: ['ground_effect'],
+        contractId: 'contract_audi_aero',
+        contract_end: 2028, // ACTIVE
+        salary: 3100000,
+        adaptation: 100,
+        morale: 85,
+        previousTeams: [],
+        careerHistory: [],
+        status: 'under_contract',
+      },
+    ]
+
+    // Executa a derivação 20 vezes consecutivas
+    const results = Array.from({ length: 20 }, () =>
+      deriveStaffPendingDecisions(staffList, currentSeason),
+    )
+
+    const baseline = results[0]
+    expect(baseline).toHaveLength(2)
+
+    // IDs determinísticos e estáveis
+    const expectedIds = [
+      'decision_staff_expired_staff_audi_head_of_strategy_2027',
+      'decision_staff_expiring_staff_audi_technical_director_2027',
+    ]
+
+    expect(baseline.map((d) => d.id)).toEqual(expectedIds)
+
+    // Todas as 20 iterações são idênticas
+    results.forEach((runResult) => {
+      expect(runResult.length).toBe(baseline.length)
+      expect(runResult.map((d) => d.id)).toEqual(expectedIds)
+      expect(runResult.map((d) => d.title)).toEqual(baseline.map((d) => d.title))
+      expect(runResult.map((d) => d.priority)).toEqual(baseline.map((d) => d.priority))
+    })
+
+    // Staff regular ativo (Enrico Cardile) não gerou pendência
+    expect(baseline.some((d) => d.staffId === 'staff_audi_head_of_aero')).toBe(false)
+  })
+
+  it('Se nenhum contrato estiver vencendo ou vencido, lista é vazia e preserva empty state T46', () => {
+    const currentSeason = 2027
+    const regularStaff: StaffMember[] = [
+      {
+        staffId: 'staff_1',
+        name: 'Engenheiro A',
+        age: 40,
+        nationality: 'Alemanha',
+        countryFlag: '🇩🇪',
+        role: 'CHIEF_DESIGNER',
+        teamId: 'audi',
+        reputation: 80,
+        attributes: {} as any,
+        specialties: [],
+        contractId: 'c1',
+        contract_end: 2028,
+        adaptation: 100,
+        morale: 80,
+        previousTeams: [],
+        careerHistory: [],
+        status: 'under_contract',
+      },
+      {
+        staffId: 'staff_2',
+        name: 'Engenheiro B',
+        age: 42,
+        nationality: 'Reino Unido',
+        countryFlag: '🇬🇧',
+        role: 'SPORTING_DIRECTOR',
+        teamId: 'audi',
+        reputation: 82,
+        attributes: {} as any,
+        specialties: [],
+        contractId: 'c2',
+        contract_end: 2029,
+        adaptation: 100,
+        morale: 80,
+        previousTeams: [],
+        careerHistory: [],
+        status: 'under_contract',
+      },
+    ]
+
+    const decisions = deriveStaffPendingDecisions(regularStaff, currentSeason)
+    expect(decisions).toEqual([])
+    expect(decisions).toHaveLength(0)
   })
 })

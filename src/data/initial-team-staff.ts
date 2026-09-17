@@ -18,6 +18,7 @@ export interface InitialTeamStaffSeed {
       attributes: StaffAttributes
       specialties: StaffSpecialty[]
       salary: number
+      contract_end?: number
     }
   >
 }
@@ -46,6 +47,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['vehicle_dynamics', 'cooling_packaging'],
         salary: 4200000,
+        contract_end: 2027,
       },
       HEAD_OF_AERODYNAMICS: {
         name: 'Enrico Cardile',
@@ -66,6 +68,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['ground_effect', 'low_high_speed_aero'],
         salary: 3100000,
+        contract_end: 2028,
       },
       CHIEF_DESIGNER: {
         name: 'Stefan Strähnz',
@@ -86,6 +89,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['suspension_kinematics', 'mechanical_grip'],
         salary: 2400000,
+        contract_end: 2027,
       },
       HEAD_OF_VEHICLE_PERFORMANCE: {
         name: 'Adam Baker',
@@ -106,6 +110,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['simulation_correlation', 'vehicle_dynamics'],
         salary: 2200000,
+        contract_end: 2028,
       },
       HEAD_OF_STRATEGY: {
         name: 'Ruth Buscombe',
@@ -126,6 +131,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['wet_safety_car_strategy', 'tyre_thermal_management'],
         salary: 2100000,
+        contract_end: 2026,
       },
       SPORTING_DIRECTOR: {
         name: 'Beat Zehnder',
@@ -146,6 +152,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['pit_operations'],
         salary: 2500000,
+        contract_end: 2028,
       },
       RACE_ENGINEER_1: {
         name: 'Marco Matassa',
@@ -166,6 +173,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['vehicle_dynamics'],
         salary: 1100000,
+        contract_end: 2027,
       },
       RACE_ENGINEER_2: {
         name: 'Steven Petrik',
@@ -186,6 +194,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['tyre_thermal_management'],
         salary: 980000,
+        contract_end: 2027,
       },
       ACADEMY_DIRECTOR: {
         name: 'Allan McNish',
@@ -206,6 +215,7 @@ export const INITIAL_GRID_STAFF_SEEDS: Record<string, InitialTeamStaffSeed> = {
         },
         specialties: ['driver_development'],
         salary: 1400000,
+        contract_end: 2028,
       },
     },
   },

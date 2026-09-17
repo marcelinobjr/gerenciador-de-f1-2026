@@ -85,6 +85,12 @@ import {
   DepartmentCapacity,
 } from '@/components/team/OrganizationalCapacityCard'
 import { PendingDecisionsCard, PendingDecisionItem } from '@/components/team/PendingDecisionsCard'
+import { StaffContractDetailsModal } from '@/components/team/StaffContractDetailsModal'
+import {
+  deriveStaffContractStatus,
+  deriveStaffPendingDecisions,
+} from '@/lib/canonical-staff-contract-status'
+import { StaffMember } from '@/types/canonical-staff'
 import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
 import { ManagerProfileDetailsModal } from '@/components/team/ManagerProfileDetailsModal'
 import { PilotProfileDialog } from '@/components/PilotProfileDialog'
@@ -128,6 +134,12 @@ export default function TeamPage() {
   // Sistema de Homologação, Academia e Test Drivers (FASE DESENVOLVIMENTO & 4C)
   const [devManagerOpen, setDevManagerOpen] = useState(false)
   const [isDebugModalOpen, setIsDebugModalOpen] = useState(false)
+  const [selectedStaffForModal, setSelectedStaffForModal] = useState<StaffMember | null>(null)
+  const [selectedStaffModalContext, setSelectedStaffModalContext] = useState<{
+    type?: string
+    title?: string
+    description?: string
+  } | null>(null)
   const [academySubArea, setAcademySubArea] = useState<
     'programa' | 'scouting' | 'desenvolvimento' | 'caminho_f1' | 'historico'
   >('programa')
@@ -684,20 +696,22 @@ export default function TeamPage() {
     orgCapacities.aerodynamics,
   ])
 
-  // Decisões pendentes organizacionais (vazio por padrão; renderiza empty-state canônico)
-  const pendingDecisionsList: PendingDecisionItem[] = useMemo(() => {
-    return []
-  }, [])
+  const currentSeasonYear = season?.year || 2026
 
-  // Staff técnico chave formatado a partir da fonte real technicalOrganizationService
-  const keyStaffSummaryList: KeyStaffMemberItem[] = useMemo(() => {
+  // Equipe técnica real persistida/carregada
+  const currentTeamOrg = useMemo(() => {
     const teamKey = (
       (team as any)?.team_key ||
       team?.id ||
       (isAudi ? 'audi' : 'audi')
     ).toLowerCase()
     const rawOrg = (team as any)?.technical_organization
-    const org = technicalOrganizationService.getOrCreateTeamOrganization(teamKey, rawOrg)
+    return technicalOrganizationService.getOrCreateTeamOrganization(teamKey, rawOrg)
+  }, [team, isAudi])
+
+  // Staff técnico chave formatado a partir da fonte real technicalOrganizationService com status contratual derivado
+  const keyStaffSummaryList: KeyStaffMemberItem[] = useMemo(() => {
+    const org = currentTeamOrg
 
     const keyRoles: Array<keyof typeof org.members> = [
       'TECHNICAL_DIRECTOR',
@@ -719,6 +733,7 @@ export default function TeamPage() {
         if (!member) return null
         const rating = technicalOrganizationService.calculateStaffEffectiveness(member, role)
         const roleLabel = ROLE_DISPLAY_NAMES[role] || role
+        const contractInfo = deriveStaffContractStatus(member.contract_end, currentSeasonYear)
         return {
           id: member.staffId,
           name: member.name,
@@ -728,10 +743,22 @@ export default function TeamPage() {
           photoUrl:
             member.photoUrl ||
             `https://img.usecurling.com/ppl/thumbnail?gender=male&seed=${member.name.length * 7}`,
+          contractEnd: member.contract_end ?? null,
+          contractBadgeLabel: contractInfo.badgeLabel,
+          contractBadgeVariant: contractInfo.badgeVariant,
+          rawMember: member,
         }
       })
       .filter((item): item is KeyStaffMemberItem => item !== null)
-  }, [team, isAudi])
+  }, [currentTeamOrg, currentSeasonYear])
+
+  // Decisões pendentes organizacionais derivadas estritamente do status contratual do staff real
+  // ITEM 3: Contrato vencendo nesta temporada (CONTRACT_EXPIRING) ou vencido (CONTRACT_EXPIRED)
+  // ITEM 4: Idempotente, determinístico, recalculado na hora sem persistência duplicada
+  const pendingDecisionsList: PendingDecisionItem[] = useMemo(() => {
+    const allMembers = Object.values(currentTeamOrg.members).filter(Boolean) as StaffMember[]
+    return deriveStaffPendingDecisions(allMembers, currentSeasonYear)
+  }, [currentTeamOrg, currentSeasonYear])
 
   // Handlers for engine switch
   const handleSwitchSupplier = async () => {
@@ -1205,7 +1232,14 @@ export default function TeamPage() {
               <TechnicalStaffSummaryCard
                 staffList={keyStaffSummaryList}
                 onOpenFullStaff={() => setActiveTab('staff')}
-                onSelectMember={(_m) => setActiveTab('staff')}
+                onSelectMember={(m) => {
+                  if (m.rawMember) {
+                    setSelectedStaffForModal(m.rawMember)
+                    setSelectedStaffModalContext(null)
+                  } else {
+                    setActiveTab('staff')
+                  }
+                }}
               />
             </div>
 
@@ -1225,7 +1259,15 @@ export default function TeamPage() {
                 decisions={pendingDecisionsList}
                 onOpenAll={() => setActiveTab('staff')}
                 onSelectDecision={(d) => {
-                  if (d.actionTab) {
+                  const payload = d.actionPayload as any
+                  if (payload?.staffMember) {
+                    setSelectedStaffForModal(payload.staffMember)
+                    setSelectedStaffModalContext({
+                      type: d.type,
+                      title: d.title,
+                      description: (d as any).description,
+                    })
+                  } else if (d.actionTab) {
                     setActiveTab(d.actionTab as TeamSubTab)
                   }
                 }}
@@ -2423,6 +2465,31 @@ export default function TeamPage() {
           currentRound={season?.current_round || 1}
         />
       )}
+
+      {/* ITEM 5: Modal informativo da situação contratual do membro do staff / decisão */}
+      <StaffContractDetailsModal
+        isOpen={Boolean(selectedStaffForModal)}
+        onClose={() => {
+          setSelectedStaffForModal(null)
+          setSelectedStaffModalContext(null)
+        }}
+        member={selectedStaffForModal}
+        currentSeasonYear={currentSeasonYear}
+        roleDisplayName={
+          selectedStaffForModal
+            ? ROLE_DISPLAY_NAMES[selectedStaffForModal.role] || selectedStaffForModal.role
+            : undefined
+        }
+        overallRating={
+          selectedStaffForModal
+            ? technicalOrganizationService.calculateStaffEffectiveness(
+                selectedStaffForModal,
+                selectedStaffForModal.role,
+              )
+            : undefined
+        }
+        decisionContext={selectedStaffModalContext}
+      />
     </div>
   )
 }

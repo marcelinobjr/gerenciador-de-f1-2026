@@ -318,6 +318,9 @@ export class TechnicalOrganizationService {
           attributes: { ...smSeed.attributes },
           specialties: [...smSeed.specialties],
           contractId: `contract_${teamKey}_${role.toLowerCase()}`,
+          contract_end:
+            smSeed.contract_end ?? (existingOrg?.seasonYear ? existingOrg.seasonYear + 1 : 2027),
+          salary: smSeed.salary,
           adaptation: 100, // Equipe titular inicial começa 100% adaptada
           morale: 85,
           previousTeams: [],

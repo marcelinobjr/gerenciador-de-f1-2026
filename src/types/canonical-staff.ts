@@ -224,6 +224,8 @@ export interface StaffMember {
   attributes: StaffAttributes
   specialties: StaffSpecialty[] // 0 a 2 especialidades
   contractId: string | null
+  contract_end?: number // Ano de término do contrato canônico (ex: 2026, 2027, 2029)
+  salary?: number // Salário anual em USD se disponível
   adaptation: number // 0-100 (começa em 40-80 ao chegar)
   morale: number // 30-99 (satisfação e motivação profissional)
   previousTeams: string[]
