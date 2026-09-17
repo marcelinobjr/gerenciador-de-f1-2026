@@ -110,11 +110,11 @@ const PILOT_FILE_MAP: Record<string, string[]> = {
  * Prioriza arquivos locais em /pilotos/ com nomes canônicos numerados (.png / .jpg / .webp),
  * eliminando a dependência do Dropbox como fonte primária.
  */
-export function getLocalDriverPosterCandidates(name: string): string[] {
-  if (!name) return []
-  const sources = getDriverPhotoSources(name)
-  const norm = normalizeSurname(name)
-  const surname = normalizeDriverSurname(name)
+export function getLocalDriverPosterCandidates(name: string, driverId?: string): string[] {
+  if (!name && !driverId) return []
+  const sources = getDriverPhotoSources(name || '')
+  const norm = name ? normalizeSurname(name) : ''
+  const surname = name ? normalizeDriverSurname(name) : ''
 
   const candidates: string[] = []
 
@@ -122,6 +122,21 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
     if (url && !candidates.includes(url)) {
       candidates.push(url)
     }
+  }
+
+  // Caso Rafael Câmara (id 'rafael_camara' ou 'mbj-067' ou nome contém camara/câmara)
+  if (
+    driverId === 'rafael_camara' ||
+    driverId === 'mbj-067' ||
+    norm.includes('camara') ||
+    surname === 'camara'
+  ) {
+    const camaraDirect =
+      getDriveStoragePhotoUrl('1-Rafael_Camara.jpg') || DRIVE_STORAGE_PHOTOS['1-Rafael_Camara.jpg']
+    if (camaraDirect) addCandidate(camaraDirect)
+    const camaraPng =
+      getDriveStoragePhotoUrl('1-Rafael_Camara.png') || DRIVE_STORAGE_PHOTOS['1-Rafael_Camara.png']
+    if (camaraPng) addCandidate(camaraPng)
   }
 
   // 1. Pôster vertical do Daniel Ricciardo registrado como PRIMEIRO candidato absoluto
@@ -258,8 +273,8 @@ export function getLocalDriverPosterCandidates(name: string): string[] {
 /**
  * Retorna a primeira URL provável de pôster para o piloto
  */
-export function getLocalDriverPosterUrl(name: string): string | null {
-  const candidates = getLocalDriverPosterCandidates(name)
+export function getLocalDriverPosterUrl(name: string, driverId?: string): string | null {
+  const candidates = getLocalDriverPosterCandidates(name, driverId)
   return candidates.length > 0 ? candidates[0] : null
 }
 

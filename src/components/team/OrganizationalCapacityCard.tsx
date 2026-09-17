@@ -1,7 +1,6 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Wind, Wrench, Flag, BarChart3, AlertTriangle, ChevronRight } from 'lucide-react'
+import { Wind, Wrench, Flag, BarChart3, AlertTriangle } from 'lucide-react'
 
 export interface DepartmentCapacity {
   aerodynamics: number // ex: 72
@@ -14,43 +13,49 @@ interface OrganizationalCapacityCardProps {
   capacities: DepartmentCapacity
   bottleneckText?: string
   bottleneckImpact?: string
-  onOpenDetails: () => void
+  onOpenDetails?: () => void
 }
 
 export const OrganizationalCapacityCard: React.FC<OrganizationalCapacityCardProps> = ({
   capacities,
   bottleneckText = 'Aerodinâmica',
   bottleneckImpact = 'Impacto: atraso no desenvolvimento',
-  onOpenDetails,
+  onOpenDetails: _onOpenDetails,
 }) => {
+  const getCapacityColor = (score: number) => {
+    if (score < 60) return 'bg-red-500'
+    if (score < 80) return 'bg-amber-500'
+    return 'bg-emerald-500'
+  }
+
   const depts = [
     {
       name: 'Aerodinâmica',
       score: capacities.aerodynamics,
       icon: Wind,
-      isBottleneck: true,
-      color: 'bg-red-500',
+      isBottleneck: bottleneckText.toLowerCase().includes('aero'),
+      color: getCapacityColor(capacities.aerodynamics),
     },
     {
       name: 'Engenharia',
       score: capacities.engineering,
       icon: Wrench,
-      isBottleneck: false,
-      color: 'bg-emerald-500',
+      isBottleneck: bottleneckText.toLowerCase().includes('engenh'),
+      color: getCapacityColor(capacities.engineering),
     },
     {
       name: 'Operações de pista',
       score: capacities.trackOperations,
       icon: Flag,
-      isBottleneck: false,
-      color: 'bg-emerald-500',
+      isBottleneck: bottleneckText.toLowerCase().includes('operaç'),
+      color: getCapacityColor(capacities.trackOperations),
     },
     {
       name: 'Comercial',
       score: capacities.commercial,
       icon: BarChart3,
-      isBottleneck: false,
-      color: 'bg-emerald-500',
+      isBottleneck: bottleneckText.toLowerCase().includes('comercial'),
+      color: getCapacityColor(capacities.commercial),
     },
   ]
 
@@ -67,15 +72,6 @@ export const OrganizationalCapacityCard: React.FC<OrganizationalCapacityCardProp
               Gargalos e capacidade operacional
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onOpenDetails}
-            className="text-[11px] text-neutral-500 hover:text-neutral-900 font-semibold p-0 h-auto flex items-center gap-0.5"
-          >
-            VER DETALHES
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Button>
         </div>
 
         {/* 4 Barras de Departamentos */}

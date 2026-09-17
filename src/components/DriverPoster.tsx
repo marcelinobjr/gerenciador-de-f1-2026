@@ -7,6 +7,7 @@ interface DriverPosterProps {
   className?: string
   aspectRatio?: 'square' | 'poster'
   showInitialsFallback?: boolean
+  driverId?: string
 }
 
 export const DriverPoster: React.FC<DriverPosterProps> = ({
@@ -14,14 +15,18 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
   className,
   aspectRatio = 'poster',
   showInitialsFallback = true,
+  driverId,
 }) => {
-  const candidateUrls = useMemo(() => getLocalDriverPosterCandidates(name), [name])
+  const candidateUrls = useMemo(
+    () => getLocalDriverPosterCandidates(name, driverId),
+    [name, driverId],
+  )
   const [candidateIndex, setCandidateIndex] = useState(0)
 
-  // Reset index when name changes
+  // Reset index when name or driverId changes
   React.useEffect(() => {
     setCandidateIndex(0)
-  }, [name])
+  }, [name, driverId])
 
   const isExhausted = candidateIndex >= candidateUrls.length
   const currentSrc = !isExhausted ? candidateUrls[candidateIndex] : null

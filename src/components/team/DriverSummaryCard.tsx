@@ -1,6 +1,5 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { ChevronRight } from 'lucide-react'
 import { getCountryFlag } from '@/lib/country-flags'
 import { getDriverPhotoSources } from '@/lib/driver-photos'
@@ -145,18 +144,9 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
         </div>
       </div>
 
-      {/* Linha de Contrato + CTA */}
+      {/* Linha de Contrato */}
       <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-2">
         <span className="text-xs text-neutral-500 font-medium">Contrato até {contractEndYear}</span>
-
-        <Button
-          onClick={onOpenDriver}
-          size="sm"
-          className="bg-[#E10600] hover:bg-[#c40500] text-white text-xs font-semibold px-3 py-1.5 h-8 rounded-lg shadow-sm flex items-center gap-1"
-        >
-          VER PILOTO
-          <ChevronRight className="w-3.5 h-3.5" />
-        </Button>
       </div>
     </Card>
   )

@@ -294,9 +294,15 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   const biography = pilot.biography || getDriverBiography(pilot)
 
   // Status/vínculo do piloto
-  const currentTeamDisplay = pilot.teamName || 'Agente Livre (Sem equipe)'
+  const hasTeam = Boolean(
+    pilot.teamName &&
+    pilot.teamName !== 'Sem equipe' &&
+    pilot.teamName !== 'Agente Livre' &&
+    pilot.teamName !== 'Agente Livre (Sem equipe)',
+  )
+  const currentTeamDisplay = hasTeam ? pilot.teamName : 'Agente Livre'
   const contractTermDisplay =
-    pilot.contractEnd && pilot.contractEnd >= 2026
+    hasTeam && pilot.contractEnd && pilot.contractEnd >= 2026
       ? `Até o fim de ${pilot.contractEnd}`
       : 'Sem vínculo vigente'
 
@@ -306,14 +312,15 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-zinc-950 border border-zinc-800 text-zinc-100 p-0 overflow-hidden max-h-[92vh] flex flex-col shadow-2xl">
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full bg-zinc-950 border border-zinc-800 text-zinc-100 p-0 overflow-hidden max-h-[88vh] flex flex-col shadow-2xl">
         {/* Cabeçalho de Perfil com Banner e Foto */}
-        <div className="relative bg-gradient-to-r from-zinc-900 via-zinc-850 to-zinc-900 p-6 pb-5 border-b border-zinc-800">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+        <div className="relative bg-gradient-to-r from-zinc-900 via-zinc-850 to-zinc-900 p-4 sm:p-6 pb-4 sm:pb-5 border-b border-zinc-800 shrink-0">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-5">
             {/* Foto Grande do Piloto */}
-            <div className="w-28 sm:w-32 shrink-0">
+            <div className="w-20 sm:w-32 shrink-0">
               <DriverPoster
                 name={pilot.name}
+                driverId={pilot.id}
                 aspectRatio="poster"
                 className="w-full shadow-2xl ring-2 ring-zinc-700/80 rounded-lg"
               />
@@ -321,31 +328,31 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
             {/* Informações V (Público - Valor Exato) */}
             <div className="flex-1 text-center sm:text-left min-w-0">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1.5">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-1">
                 <Badge
                   variant="outline"
-                  className="bg-zinc-900/80 border-zinc-700 text-zinc-300 font-mono text-xs flex items-center gap-1"
+                  className="bg-zinc-900/80 border-zinc-700 text-zinc-300 font-mono text-[10px] sm:text-xs flex items-center gap-1"
                 >
                   {getCountryFlag(pilot.nationality)} {pilot.nationality}
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="bg-zinc-900/80 border-zinc-700 text-zinc-300 text-xs uppercase"
+                  className="bg-zinc-900/80 border-zinc-700 text-zinc-300 text-[10px] sm:text-xs uppercase"
                 >
                   {pilot.category.toUpperCase()}
                 </Badge>
                 {isUserTeam && (
-                  <Badge className="bg-red-600/20 text-red-400 border border-red-500/40 text-xs">
+                  <Badge className="bg-red-600/20 text-red-400 border border-red-500/40 text-[10px] sm:text-xs">
                     Sua Equipe
                   </Badge>
                 )}
               </div>
 
-              <DialogTitle className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              <DialogTitle className="text-xl sm:text-3xl font-black tracking-tight text-white truncate">
                 {pilot.name}
               </DialogTitle>
 
-              <DialogDescription className="text-zinc-400 text-xs mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <DialogDescription className="text-zinc-400 text-xs mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
                 <span>{pilot.age} anos</span>
                 <span>•</span>
                 <span className="text-zinc-200 font-medium">{currentTeamDisplay}</span>
@@ -353,7 +360,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   <Badge
                     variant="secondary"
                     className={`text-[10px] uppercase py-0 px-2 ${
-                      pilot.role === 'titular'
+                      String(pilot.role).toLowerCase().includes('titular')
                         ? 'bg-red-950 text-red-300 border border-red-800'
                         : 'bg-blue-950 text-blue-300 border border-blue-800'
                     }`}
@@ -400,7 +407,23 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                       Salário de Referência (USD)
                     </div>
                     <div className="font-bold font-mono text-xs">
-                      {formatUsdCurrency(pilot.salaryUsd, 'full')}
+                      {(() => {
+                        const rawSal =
+                          pilot.salaryUsd ??
+                          (pilot as any).salary ??
+                          (pilot as any).rawDbRecord?.salary ??
+                          (pilot as any).canonical_contract?.baseSalaryUsd
+                        if (
+                          rawSal === null ||
+                          rawSal === undefined ||
+                          rawSal === '' ||
+                          isNaN(Number(rawSal)) ||
+                          Number(rawSal) <= 0
+                        ) {
+                          return '—'
+                        }
+                        return formatUsdCurrency(Number(rawSal), 'full')
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1062,28 +1085,34 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
         </div>
 
         {/* Rodapé Fixo com Botão de Ação */}
-        <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between gap-3">
+        <div className="p-3 sm:p-4 bg-zinc-900 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => onOpenChange(false)}
-            className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+            className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs h-8"
           >
             Fechar
           </Button>
 
           {isUserTeam ? (
-            <Button disabled className="bg-zinc-800 text-zinc-400 border border-zinc-700">
+            <Button
+              disabled
+              size="sm"
+              className="bg-zinc-800 text-zinc-400 border border-zinc-700 text-xs h-8"
+            >
               Piloto sob Contrato Ativo na Equipe
             </Button>
           ) : (
             <Button
+              size="sm"
               onClick={() => {
                 onOpenChange(false)
                 onOpenContractModal(pilot)
               }}
-              className="bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-2 shadow-lg"
+              className="bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-1.5 shadow-lg text-xs h-8"
             >
-              <UserPlus className="w-4 h-4" />
+              <UserPlus className="w-3.5 h-3.5" />
               {canPreContract ? 'Propor Pré-contrato / Contrato' : 'Propor Contrato (US$)'}
             </Button>
           )}

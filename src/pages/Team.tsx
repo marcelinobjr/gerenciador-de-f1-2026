@@ -550,7 +550,7 @@ export default function TeamPage() {
 
   // Capacidade Organizacional departamental (Aerodinâmica 72, Engenharia 84, Operações 88, Comercial 79)
   const orgCapacities: DepartmentCapacity = useMemo(() => {
-    const aero = Math.round((team as any)?.aero_level ? (team as any).aero_level * 10 : 72)
+    const aero = Math.round((team as any)?.aero_level ?? 72)
     const eng = Math.round(teamStrength ? Math.min(95, teamStrength + 32) : 84)
     const ops = Math.round((team as any)?.operations_rating || 88)
     const com = Math.round((team as any)?.commercial_rating || 79)
@@ -561,6 +561,37 @@ export default function TeamPage() {
       commercial: com || 79,
     }
   }, [team, teamStrength])
+
+  // Gargalo departamental dinâmico (departamento de menor score)
+  const bottleneckInfo = useMemo(() => {
+    const list = [
+      {
+        name: 'Aerodinâmica',
+        score: orgCapacities.aerodynamics,
+        impact: 'Impacto: atraso no desenvolvimento aerodinâmico',
+      },
+      {
+        name: 'Engenharia',
+        score: orgCapacities.engineering,
+        impact: 'Impacto: menor eficiência em peças e upgrades',
+      },
+      {
+        name: 'Operações de pista',
+        score: orgCapacities.trackOperations,
+        impact: 'Impacto: risco em paradas e acerto do carro',
+      },
+      {
+        name: 'Comercial',
+        score: orgCapacities.commercial,
+        impact: 'Impacto: atratividade reduzida para patrocinadores',
+      },
+    ]
+    list.sort((a, b) => a.score - b.score)
+    return {
+      name: list[0].name,
+      impact: list[0].impact,
+    }
+  }, [orgCapacities])
 
   // KPIs de Saúde Organizacional
   const orgHealthKpis = useMemo(() => {
@@ -1065,7 +1096,13 @@ export default function TeamPage() {
                     bundledImg={photoSrc}
                     driverId={d1.id}
                     onOpenDriver={() => {
-                      setSelectedPilotForProfile(d1)
+                      setSelectedPilotForProfile({
+                        ...d1,
+                        teamName,
+                        role: 'Titular',
+                        isPlayerDriver: true,
+                        salaryUsd: (d1 as any).salary ?? (d1 as any).salaryUsd,
+                      })
                       setIsPilotProfileModalOpen(true)
                     }}
                   />
@@ -1104,7 +1141,13 @@ export default function TeamPage() {
                     bundledImg={photoSrc}
                     driverId={d2.id}
                     onOpenDriver={() => {
-                      setSelectedPilotForProfile(d2)
+                      setSelectedPilotForProfile({
+                        ...d2,
+                        teamName,
+                        role: 'Titular',
+                        isPlayerDriver: true,
+                        salaryUsd: (d2 as any).salary ?? (d2 as any).salaryUsd,
+                      })
                       setIsPilotProfileModalOpen(true)
                     }}
                   />
@@ -1128,8 +1171,8 @@ export default function TeamPage() {
             <div className="lg:col-span-4 flex flex-col">
               <OrganizationalCapacityCard
                 capacities={orgCapacities}
-                bottleneckText="Aerodinâmica"
-                bottleneckImpact="Impacto: atraso no desenvolvimento"
+                bottleneckText={bottleneckInfo.name}
+                bottleneckImpact={bottleneckInfo.impact}
                 onOpenDetails={() => setActiveTab('staff')}
               />
             </div>
@@ -1214,10 +1257,24 @@ export default function TeamPage() {
                           <span className="text-sm">{getCountryFlag(d.nationality)}</span>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div
+                          className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => {
+                            setSelectedPilotForProfile({
+                              ...d,
+                              teamName,
+                              role: 'Titular',
+                              isPlayerDriver: true,
+                              salaryUsd: d.salary,
+                            })
+                            setIsPilotProfileModalOpen(true)
+                          }}
+                        >
                           <DriverPhotoAvatar name={d.name} teamColor="#E10600" size="md" />
                           <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-white truncate">{d.name}</h3>
+                            <h3 className="text-sm font-bold text-white truncate hover:underline">
+                              {d.name}
+                            </h3>
                             <div className="text-xs text-neutral-400">
                               Idade: {d.age || 25} anos • OVR:{' '}
                               <strong className="text-white">{ovr}</strong>
@@ -1225,7 +1282,6 @@ export default function TeamPage() {
                           </div>
                         </div>
                       </div>
-
                       {/* Status FIA & Adaptação F1 */}
                       <div className="space-y-2 pt-2 border-t border-neutral-800/80 text-xs">
                         <div className="flex items-center justify-between">
@@ -1284,10 +1340,29 @@ export default function TeamPage() {
                           <span className="text-sm">{getCountryFlag(rd.nationality)}</span>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                          <DriverPhotoAvatar name={rd.name} teamColor="#D97706" size="md" />
+                        <div
+                          className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => {
+                            setSelectedPilotForProfile({
+                              ...rd,
+                              teamName,
+                              role: 'Reserva',
+                              isPlayerDriver: true,
+                              salaryUsd: rd.salary,
+                            })
+                            setIsPilotProfileModalOpen(true)
+                          }}
+                        >
+                          <DriverPhotoAvatar
+                            name={rd.name}
+                            driverId={rd.id}
+                            teamColor="#D97706"
+                            size="md"
+                          />
                           <div className="min-w-0">
-                            <h3 className="text-sm font-bold text-white truncate">{rd.name}</h3>
+                            <h3 className="text-sm font-bold text-white truncate hover:underline">
+                              {rd.name}
+                            </h3>
                             <div className="text-xs text-neutral-400">
                               Idade: {rd.age || 22} anos • OVR:{' '}
                               <strong className="text-white">{ovrR}</strong>
@@ -1295,7 +1370,6 @@ export default function TeamPage() {
                           </div>
                         </div>
                       </div>
-
                       {/* Status FIA & Homologação */}
                       <div className="space-y-2.5 pt-2 border-t border-neutral-800/80 text-xs">
                         <div className="flex items-center justify-between">

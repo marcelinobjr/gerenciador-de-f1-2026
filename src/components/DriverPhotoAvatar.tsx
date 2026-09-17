@@ -9,6 +9,7 @@ export interface DriverPhotoAvatarProps {
   imgClassName?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   alt?: string
+  driverId?: string
 }
 
 export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
@@ -18,9 +19,13 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   imgClassName,
   size = 'md',
   alt,
+  driverId,
 }) => {
   // Usa o mesmo resolvedor de fotos canônicas que o DriverPoster
-  const candidateUrls = React.useMemo(() => getLocalDriverPosterCandidates(name), [name])
+  const candidateUrls = React.useMemo(
+    () => getLocalDriverPosterCandidates(name, driverId),
+    [name, driverId],
+  )
 
   const [attemptIndex, setAttemptIndex] = useState<number>(0)
 
