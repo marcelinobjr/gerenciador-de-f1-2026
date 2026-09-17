@@ -9,7 +9,7 @@ export interface KeyStaffMemberItem {
   role: string
   overallRating: number
   moralStatus: 'Alta' | 'Estável' | 'Baixa'
-  photoUrl?: string
+  photoUrl: string
 }
 
 interface TechnicalStaffSummaryCardProps {
