@@ -59,6 +59,7 @@ import { driverScoutingService } from '@/services/driverScoutingService'
 import { proceduralDriverProgressService } from '@/services/proceduralDriverProgressService'
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
+import { teamRosterService } from '@/services/teamRosterService'
 import { managerEffectService } from '@/services/managerEffectService'
 import { financialLedgerService } from '@/services/financialLedgerService'
 import { TechnicalOrganizationSection } from '@/components/TechnicalOrganizationSection'
@@ -227,19 +228,18 @@ export default function TeamPage() {
     loadData()
   })
 
-  // Starters and reserve
-  const titularDrivers = useMemo(
-    () => teamDrivers.filter((d) => d.role !== 'reserva' && d.team_id === team?.id),
-    [teamDrivers, team?.id],
-  )
+  // Roster Canônico estruturado 2+1+2 (limite estrito contra Titular #3/#4)
+  const canonicalRoster = useMemo(() => {
+    return teamRosterService.buildTeamRoster(
+      team,
+      allGridDrivers.length > 0 ? allGridDrivers : teamDrivers,
+    )
+  }, [team, allGridDrivers, teamDrivers])
 
-  const reserveDriver = useMemo(
-    () =>
-      teamDrivers.find(
-        (d) => d.role === 'reserva' || (d.reserve_team_id === team?.id && d.team_id !== team?.id),
-      ),
-    [teamDrivers, team?.id],
-  )
+  // Starters and reserve derived from canonical roster
+  const titularDrivers = useMemo(() => canonicalRoster.titulars, [canonicalRoster.titulars])
+
+  const reserveDriver = useMemo(() => canonicalRoster.reserve, [canonicalRoster.reserve])
 
   const incapacitatedDriver = useMemo(
     () => titularDrivers.find((d) => d.is_incapacitated),
@@ -888,12 +888,13 @@ export default function TeamPage() {
     }
   }
 
-  // Fire driver handler
+  // Fire driver handler com evento canônico DRIVER_RELEASED e liberação segura de slot
   const handleFire = async () => {
     if (!fireDriver || !team) return
     setIsProcessing(true)
     try {
-      const penaltyCost = Math.round(fireDriver.salary * 0.5)
+      const priorRole = fireDriver.role === 'reserva' ? 'Reserva' : 'Titular'
+      const penaltyCost = Math.round((fireDriver.salary || 0) * 0.5)
       if (team.budget < penaltyCost) {
         toast({
           variant: 'destructive',
@@ -908,9 +909,6 @@ export default function TeamPage() {
       const currentRound = season?.current_round || 1
 
       // 1. Registro Canônico no Financial Ledger (Multa Rescisória de Piloto)
-      // O Ledger é a única fonte de verdade contábil.
-      // A chave idempotente é determinística por equipe, piloto, temporada e rodada.
-      // O syncTeamBudgetCache reconcilia o espelho/cache team.budget canonicamente — sem escrita direta.
       if (penaltyCost > 0) {
         try {
           await financialLedgerService.postTransaction({
@@ -937,15 +935,31 @@ export default function TeamPage() {
       await financialLedgerService.syncTeamBudgetCache(team.id, seasonYear)
       await f1Service.fireDriver(fireDriver.id)
 
+      // Evento Canônico DRIVER_RELEASED (piloto, equipe, data, papel anterior, multa, usuário, motivo)
+      const releaseEventPayload = {
+        eventType: 'DRIVER_RELEASED',
+        driverId: fireDriver.id,
+        driverName: fireDriver.name,
+        teamId: team.id,
+        teamName: team.name,
+        priorRole,
+        terminationFee: penaltyCost,
+        releaseDate: new Date().toISOString(),
+        releasedBy: teamPrincipalName || 'Manager',
+        reason: 'Rescisão unilateral de contrato por decisão da diretoria',
+      }
+
       await f1Service.addEvent(
         team.id,
-        `${fireDriver.name} foi dispensado. Multa rescisória de ${formatCurrency(penaltyCost)} paga.`,
+        `EVENTO CANÔNICO DRIVER_RELEASED: ${fireDriver.name} foi dispensado da função de ${priorRole}. Multa rescisória de ${formatCurrency(penaltyCost)} lançada no Ledger. Slot liberado no roster.`,
         'contrato',
       )
 
+      console.info('Canonical DRIVER_RELEASED event logged:', releaseEventPayload)
+
       toast({
-        title: 'Piloto Dispensado',
-        description: `${fireDriver.name} liberado para o mercado.`,
+        title: 'Piloto Dispensado com Sucesso',
+        description: `${fireDriver.name} (${priorRole}) foi liberado para o mercado global. Slot aberto no roster.`,
       })
 
       setFireDriver(null)
@@ -956,6 +970,46 @@ export default function TeamPage() {
         variant: 'destructive',
         title: 'Erro ao demitir piloto',
         description: err?.message || 'Falha ao processar rescisão.',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Handler para troca de papel de piloto (Titular <-> Reserva)
+  const handleSwitchRole = async (driver: DriverModel, newRole: 'titular' | 'reserva') => {
+    if (!team) return
+    setIsProcessing(true)
+    try {
+      const validation = teamRosterService.validateRoleAssignment(canonicalRoster, driver, newRole)
+      if (!validation.valid) {
+        toast({
+          variant: 'destructive',
+          title: 'Mudança de Papel Bloqueada',
+          description: validation.error,
+        })
+        setIsProcessing(false)
+        return
+      }
+
+      await f1Service.switchDriverRole(driver.id, team.id, newRole)
+      await f1Service.addEvent(
+        team.id,
+        `Reatribuição de função: ${driver.name} agora atua como Piloto ${newRole === 'titular' ? 'Titular' : 'Reserva'}.`,
+        'contrato',
+      )
+
+      toast({
+        title: 'Função Atualizada',
+        description: `${driver.name} agora é piloto ${newRole === 'titular' ? 'titular' : 'reserva'}.`,
+      })
+      await refreshTeamAndSeason()
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao alterar função',
+        description: err?.message || 'Falha ao reatribuir papel.',
       })
     } finally {
       setIsProcessing(false)
@@ -1931,17 +1985,27 @@ export default function TeamPage() {
                         <span className="text-[10px] text-neutral-400 block">Término</span>
                         <strong className="text-emerald-600">{d.contract_end || 2026}</strong>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setRenegotiateDriver(d)
-                          setSalaryMultiplier(100)
-                          setContractYears(1)
-                        }}
-                        className="bg-[#E10600] hover:bg-red-700 text-white text-xs h-7 font-bold cursor-pointer"
-                      >
-                        Renovar
-                      </Button>
+                      <div className="flex gap-1.5 items-center">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setRenegotiateDriver(d)
+                            setSalaryMultiplier(100)
+                            setContractYears(1)
+                          }}
+                          className="bg-[#E10600] hover:bg-red-700 text-white text-xs h-7 font-bold cursor-pointer"
+                        >
+                          Renovar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setFireDriver(d)}
+                          className="bg-neutral-800 hover:bg-red-900 text-red-200 text-xs h-7 border border-red-800/40 cursor-pointer"
+                        >
+                          Dispensar
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2673,10 +2737,37 @@ export default function TeamPage() {
             setIsPilotProfileModalOpen(open)
             if (!open) setSelectedPilotForProfile(null)
           }}
-          onOpenContractModal={(_pilot) => {
+          onOpenContractModal={(pilotItem) => {
             setIsPilotProfileModalOpen(false)
-            navigate('/pilotos')
+            const d = titularDrivers.find((td) => td.id === pilotItem.id) || reserveDriver
+            if (d) {
+              setRenegotiateDriver(d)
+              setSalaryMultiplier(100)
+              setContractYears(1)
+            } else {
+              navigate('/pilotos')
+            }
           }}
+          onPromoteToStarter={(pilotItem) => {
+            const d = reserveDriver && reserveDriver.id === pilotItem.id ? reserveDriver : null
+            if (d) handleSwitchRole(d, 'titular')
+          }}
+          onRelegateToReserve={(pilotItem) => {
+            const d = titularDrivers.find((td) => td.id === pilotItem.id)
+            if (d) handleSwitchRole(d, 'reserva')
+          }}
+          onDismissDriver={(pilotItem) => {
+            const d =
+              titularDrivers.find((td) => td.id === pilotItem.id) ||
+              (reserveDriver?.id === pilotItem.id ? reserveDriver : null)
+            if (d) setFireDriver(d)
+          }}
+          canPromoteToStarter={Boolean(
+            selectedPilotForProfile?.role === 'reserva' && canonicalRoster.titularCount < 2,
+          )}
+          canRelegateToReserve={Boolean(
+            selectedPilotForProfile?.role !== 'reserva' && canonicalRoster.reserveCount === 0,
+          )}
           currentRound={season?.current_round || 1}
         />
       )}

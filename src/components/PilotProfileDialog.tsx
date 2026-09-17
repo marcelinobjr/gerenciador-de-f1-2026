@@ -56,6 +56,11 @@ export interface PilotProfileDialogProps {
   onOpenChange: (open: boolean) => void
   onOpenContractModal: (pilot: UnifiedDriverItem) => void
   currentRound?: number
+  onPromoteToStarter?: (pilot: UnifiedDriverItem) => void
+  onRelegateToReserve?: (pilot: UnifiedDriverItem) => void
+  onDismissDriver?: (pilot: UnifiedDriverItem) => void
+  canPromoteToStarter?: boolean
+  canRelegateToReserve?: boolean
 }
 
 // Helper para formatar em moeda US$
@@ -119,6 +124,11 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   onOpenChange,
   onOpenContractModal,
   currentRound = 1,
+  onPromoteToStarter,
+  onRelegateToReserve,
+  onDismissDriver,
+  canPromoteToStarter,
+  canRelegateToReserve,
 }) => {
   // Carrega resultados de corrida e históricos de temporada do save para cálculo canônico de carreira
   const [saveRaceResults, setSaveRaceResults] = React.useState<any[] | null>(null)
@@ -1168,7 +1178,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
           </div>
         </div>
 
-        {/* Rodapé Fixo com Botão de Ação */}
+        {/* Rodapé Fixo com Botão de Ação e Ações Contextuais por Papel */}
         <div className="p-3 sm:p-4 bg-zinc-900 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <Button
             variant="outline"
@@ -1180,13 +1190,62 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
           </Button>
 
           {isUserTeam ? (
-            <Button
-              disabled
-              size="sm"
-              className="bg-zinc-800 text-zinc-400 border border-zinc-700 text-xs h-8"
-            >
-              Piloto sob Contrato Ativo na Equipe
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {onRelegateToReserve && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!canRelegateToReserve}
+                  onClick={() => {
+                    onOpenChange(false)
+                    onRelegateToReserve(pilot)
+                  }}
+                  className="border-amber-500/40 text-amber-300 bg-amber-950/40 hover:bg-amber-900/50 text-xs h-8"
+                >
+                  Rebaixar p/ Reserva
+                </Button>
+              )}
+
+              {onPromoteToStarter && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!canPromoteToStarter}
+                  onClick={() => {
+                    onOpenChange(false)
+                    onPromoteToStarter(pilot)
+                  }}
+                  className="border-emerald-500/40 text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 text-xs h-8"
+                >
+                  Promover a Titular
+                </Button>
+              )}
+
+              {onDismissDriver && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    onOpenChange(false)
+                    onDismissDriver(pilot)
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white font-medium text-xs h-8"
+                >
+                  Dispensar Piloto
+                </Button>
+              )}
+
+              <Button
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false)
+                  onOpenContractModal(pilot)
+                }}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs h-8"
+              >
+                Renegociar Contrato
+              </Button>
+            </div>
           ) : (
             <Button
               size="sm"

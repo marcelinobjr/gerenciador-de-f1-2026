@@ -330,6 +330,27 @@ export const f1Service = {
     }
   },
 
+  /**
+   * Retorna o Roster Canônico estruturado da equipe (2 Titulares + 1 Reserva + 2 Academia)
+   * Aplica teto de negócio estrito e elimina duplicações e "Titular #3/#4"
+   */
+  async getTeamDriverRoster(teamId: string) {
+    const { teamRosterService } = await import('@/services/teamRosterService')
+    try {
+      const team = await pb
+        .collection('teams')
+        .getOne<TeamModel>(teamId)
+        .catch(() => null)
+      const allDrivers = await pb.collection('drivers').getFullList<DriverModel>({
+        filter: `team_id = "${teamId}" || reserve_team_id = "${teamId}"`,
+      })
+      return teamRosterService.buildTeamRoster(team, allDrivers)
+    } catch (e) {
+      console.error('Error getting canonical team roster:', e)
+      return teamRosterService.buildTeamRoster(null, [])
+    }
+  },
+
   async getMarketDrivers(): Promise<DriverModel[]> {
     try {
       // Drivers without active team_id and without active reserve_team_id
