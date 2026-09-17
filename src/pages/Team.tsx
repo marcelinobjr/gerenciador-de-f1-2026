@@ -734,7 +734,7 @@ export default function TeamPage() {
         const rating = technicalOrganizationService.calculateStaffEffectiveness(member, role)
         const roleLabel = ROLE_DISPLAY_NAMES[role] || role
         const contractInfo = deriveStaffContractStatus(member.contract_end, currentSeasonYear)
-        return {
+        const keyItem: KeyStaffMemberItem = {
           id: member.staffId,
           name: member.name,
           role: roleLabel,
@@ -748,6 +748,7 @@ export default function TeamPage() {
           contractBadgeVariant: contractInfo.badgeVariant,
           rawMember: member,
         }
+        return keyItem
       })
       .filter((item): item is KeyStaffMemberItem => item !== null)
   }, [currentTeamOrg, currentSeasonYear])
@@ -1263,7 +1264,7 @@ export default function TeamPage() {
                   if (payload?.staffMember) {
                     setSelectedStaffForModal(payload.staffMember)
                     setSelectedStaffModalContext({
-                      type: d.type,
+                      type: (d as any).type,
                       title: d.title,
                       description: (d as any).description,
                     })
