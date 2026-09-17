@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { StaffMember } from '@/types/canonical-staff'
 import { deriveStaffContractStatus } from '@/lib/canonical-staff-contract-status'
 import { formatCurrency } from '@/lib/formatters'
+import { technicalOrganizationService } from '@/services/technicalOrganizationService'
 import {
   Shield,
   Calendar,
@@ -78,6 +79,14 @@ export const StaffContractDetailsModal: React.FC<StaffContractDetailsModalProps>
 
   const contractStatus = deriveStaffContractStatus(member.contract_end, currentSeasonYear)
   const roleName = roleDisplayName || member.role
+  const terminationFee = technicalOrganizationService.calculateStaffTerminationFee(
+    member,
+    currentSeasonYear,
+  )
+  const contractEndYear = member.contract_end ?? currentSeasonYear
+  const isContractExpired = contractEndYear < currentSeasonYear
+  const isExpiringThisSeason = contractEndYear === currentSeasonYear
+  const remainingSeasons = Math.max(0, contractEndYear - currentSeasonYear)
 
   const getStatusBadge = () => {
     switch (contractStatus.status) {
@@ -485,20 +494,52 @@ export const StaffContractDetailsModal: React.FC<StaffContractDetailsModalProps>
                 <span className="text-[10px] text-neutral-500 uppercase block">
                   Multa Rescisória
                 </span>
-                <strong className="text-amber-400 block mt-0.5">$0 (Sem regra definida)</strong>
+                <strong
+                  className={`block mt-0.5 ${
+                    terminationFee > 0 ? 'text-amber-400' : 'text-emerald-400'
+                  }`}
+                >
+                  {terminationFee === 0 && isContractExpired
+                    ? 'Multa rescisória: $0 — contrato vencido'
+                    : `Multa rescisória: ${formatCurrency(terminationFee)}`}
+                </strong>
               </div>
             </div>
 
             {/* Aviso Canônico da Regra Econômica de Multa Rescisória */}
             <div className="p-3 rounded-lg bg-neutral-900/60 border border-neutral-800 text-[11px] text-neutral-400 space-y-1">
               <span className="text-neutral-300 font-bold block flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-neutral-400" /> Nota Regulatória / Econômica:
+                <Info className="w-3.5 h-3.5 text-neutral-400" /> Regra Econômica de Rescisão de
+                Staff:
               </span>
               <p>
-                O desligamento removerá o vínculo com a equipe e preservará o histórico profissional
-                do membro. Como a regra canônica de multa rescisória de staff não possui fórmula
-                definida no regulamento atual, a rescisão ocorre sem lançamento compulsório de
-                multa.
+                {isContractExpired && (
+                  <>
+                    Profissional atuando além do término do contrato anterior (vencido em{' '}
+                    {contractEndYear}). A liberação ocorre com{' '}
+                    <strong>multa rescisória de $0</strong>, sem lançamento de penalidades no Ledger
+                    da equipe.
+                  </>
+                )}
+                {isExpiringThisSeason && (
+                  <>
+                    Contrato com término previsto na temporada corrente ({currentSeasonYear}). A
+                    rescisão antecipada aplica <strong>25% do salário anual</strong> (
+                    {formatCurrency(terminationFee)}), registrado como despesa no Ledger.
+                  </>
+                )}
+                {!isContractExpired && !isExpiringThisSeason && (
+                  <>
+                    Contrato com{' '}
+                    <strong>
+                      {remainingSeasons}{' '}
+                      {remainingSeasons === 1 ? 'temporada restante' : 'temporadas restantes'}
+                    </strong>{' '}
+                    (término em {contractEndYear}). A rescisão unilateral aplica{' '}
+                    <strong>50% × salário anual × temporadas restantes</strong> (
+                    {formatCurrency(terminationFee)}), registrado como despesa no Ledger.
+                  </>
+                )}
               </p>
             </div>
 

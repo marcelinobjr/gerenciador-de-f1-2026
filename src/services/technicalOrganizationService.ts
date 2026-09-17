@@ -888,9 +888,44 @@ export class TechnicalOrganizationService {
   }
 
   /**
+   * Cálculo canônico único de multa rescisória do staff.
+   * Regra econômica canônica:
+   * 1. Contrato com mais de uma temporada restante (contract_end > currentSeason):
+   *    multa = 50% × salário anual × temporadas restantes, onde temporadas restantes = contract_end - currentSeason.
+   * 2. Contrato vencendo na temporada atual (contract_end === currentSeason):
+   *    multa = 25% × salário anual.
+   * 3. Contrato já vencido (contract_end < currentSeason):
+   *    multa = $0 (profissional trabalhando além do contrato pode ser liberado sem multa).
+   */
+  public calculateStaffTerminationFee(
+    staff: Pick<StaffMember, 'salary' | 'contract_end'> | null | undefined,
+    currentSeasonYear: number,
+  ): number {
+    if (!staff || !staff.salary || staff.salary <= 0) {
+      return 0
+    }
+
+    const contractEnd = staff.contract_end ?? currentSeasonYear
+
+    // Caso 3: Contrato já vencido
+    if (contractEnd < currentSeasonYear) {
+      return 0
+    }
+
+    // Caso 2: Contrato vencendo na temporada atual
+    if (contractEnd === currentSeasonYear) {
+      return Math.round(staff.salary * 0.25)
+    }
+
+    // Caso 1: Contrato com mais de uma temporada restante
+    const remainingSeasons = contractEnd - currentSeasonYear
+    return Math.round(staff.salary * 0.5 * remainingSeasons)
+  }
+
+  /**
    * Dispensa um membro do staff ativo.
    * Remove o vínculo com a equipe (cargo fica vago, titular desvinculado) e preserva o profissional.
-   * Retorna a organização atualizada e o profissional como agente livre.
+   * Retorna a organização atualizada, o profissional como agente livre e o valor da multa calculada.
    */
   public dismissStaffMember(
     org: TeamTechnicalOrganization,
@@ -901,6 +936,7 @@ export class TechnicalOrganizationService {
     updatedOrg: TeamTechnicalOrganization
     departedStaff: StaffMember | null
     knowledgeLossPercentage: number
+    terminationFee: number
   } {
     let targetRole: StaffRole | null = null
     for (const role of CANONICAL_STAFF_ROLES) {
@@ -915,7 +951,15 @@ export class TechnicalOrganizationService {
       throw new Error('Membro de staff não encontrado ou já desligado da equipe.')
     }
 
-    return this.processStaffDeparture(org, targetRole, seasonYear, round)
+    const memberToDismiss = org.members[targetRole]!
+    const terminationFee = this.calculateStaffTerminationFee(memberToDismiss, seasonYear)
+
+    const departureResult = this.processStaffDeparture(org, targetRole, seasonYear, round)
+
+    return {
+      ...departureResult,
+      terminationFee,
+    }
   }
 }
 

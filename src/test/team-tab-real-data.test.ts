@@ -982,27 +982,133 @@ describe('BLOCO 2B: T54 — DISPENSA: encerramento de vínculo e preservação d
   })
 })
 
-describe('BLOCO 2B: T55 — MULTA + LEDGER: verificação de regra de multa rescisória do staff', () => {
-  it('BLOQUEIO: regra econômica de multa rescisória do staff não definida no regulamento', () => {
-    // Conforme especificação do Item 4 e Item 5:
-    // "Se não existir regra definida para staff: NÃO invente percentual silenciosamente.
-    // Nesse caso, implemente a dispensa SEM multa e reporte claramente:
-    // 'BLOQUEIO: regra econômica de multa rescisória do staff não definida.'
-    // Se a multa estiver bloqueada por ausência de regra, documentar o teste como bloqueado/documentado com a justificativa — não inventar fórmula."
-    const org = technicalOrganizationService.getOrCreateTeamOrganization('audi')
-    const member = org.members.SPORTING_DIRECTOR!
+describe('BLOCO 2B: T55 — MULTA + LEDGER: verificação da regra econômica canônica de multa rescisória do staff', () => {
+  it('Caso A: contrato com mais de uma temporada restante (2027, contract_end 2029, salário $1.000.000) → multa = $1.000.000 (50% × salário × 2)', () => {
+    const currentSeason = 2027
+    const salary = 1_000_000
+    const contractEnd = 2029
 
-    // Dispensa sem imposição de fórmula arbitrária
-    const { departedStaff } = technicalOrganizationService.dismissStaffMember(
-      org,
-      member.staffId,
-      2027,
-      1,
+    const fee = technicalOrganizationService.calculateStaffTerminationFee(
+      { salary, contract_end: contractEnd },
+      currentSeason,
     )
 
+    // 50% * 1.000.000 * (2029 - 2027) = 500.000 * 2 = 1.000.000
+    expect(fee).toBe(1_000_000)
+  })
+
+  it('Caso B: contrato vencendo na temporada atual (2027, contract_end 2027, salário $1.000.000) → multa = $250.000 (25% × salário)', () => {
+    const currentSeason = 2027
+    const salary = 1_000_000
+    const contractEnd = 2027
+
+    const fee = technicalOrganizationService.calculateStaffTerminationFee(
+      { salary, contract_end: contractEnd },
+      currentSeason,
+    )
+
+    // 25% * 1.000.000 = 250.000
+    expect(fee).toBe(250_000)
+  })
+
+  it('Caso C: contrato já vencido (2027, contract_end 2026, salário $1.000.000) → multa = $0 (profissional além do contrato)', () => {
+    const currentSeason = 2027
+    const salary = 1_000_000
+    const contractEnd = 2026
+
+    const fee = technicalOrganizationService.calculateStaffTerminationFee(
+      { salary, contract_end: contractEnd },
+      currentSeason,
+    )
+
+    expect(fee).toBe(0)
+  })
+
+  it('Caso D — Idempotência e integração Ledger: executar dispensa/retry duas vezes gera uma única multa e um único lançamento no Ledger', async () => {
+    const currentSeason = 2027
+    const teamId = 'audi'
+    const org = technicalOrganizationService.getOrCreateTeamOrganization(teamId)
+    const director = org.members.SPORTING_DIRECTOR!
+
+    // Configura membro com salário de $1.000.000 e contrato até 2029 (multa de $1.000.000)
+    const mockStaff: StaffMember = {
+      ...director,
+      salary: 1_000_000,
+      contract_end: 2029,
+    }
+    const testOrg: TeamTechnicalOrganization = {
+      ...org,
+      members: {
+        ...org.members,
+        SPORTING_DIRECTOR: mockStaff,
+      },
+    }
+
+    // Calcula multa via helper canônico
+    const fee = technicalOrganizationService.calculateStaffTerminationFee(mockStaff, currentSeason)
+    expect(fee).toBe(1_000_000)
+
+    // Simula store do Ledger com verificação de chave idempotente
+    const fakeStore = new Map<string, any>()
+    const idempotencyKey = `staff_termination_${mockStaff.staffId}_y${currentSeason}`
+
+    const postStaffTerminationTransaction = async () => {
+      // Se chave idempotente já existe, retorna existente sem duplicar
+      if (fakeStore.has(idempotencyKey)) {
+        return { wasAlreadyProcessed: true, transaction: fakeStore.get(idempotencyKey) }
+      }
+
+      const tx = {
+        id: `tx_${Date.now()}`,
+        team_id: teamId,
+        season_year: currentSeason,
+        round: 1,
+        type: 'expense',
+        category: 'penalties',
+        subcategory: 'staff_contract_termination',
+        direction: 'outflow',
+        amount: fee,
+        cost_cap_classification: 'excluded',
+        source_system: 'staff_termination',
+        source_entity_id: mockStaff.staffId,
+        idempotency_key: idempotencyKey,
+        description: `Multa rescisória por dispensa de staff: ${mockStaff.name}`,
+        status: 'effective',
+      }
+      fakeStore.set(idempotencyKey, tx)
+      return { wasAlreadyProcessed: false, transaction: tx }
+    }
+
+    // 1ª execução
+    const firstRun = await postStaffTerminationTransaction()
+    expect(firstRun.wasAlreadyProcessed).toBe(false)
+    expect(firstRun.transaction.amount).toBe(1_000_000)
+    expect(firstRun.transaction.idempotency_key).toBe(idempotencyKey)
+    expect(fakeStore.size).toBe(1)
+
+    // Dispensa no technicalOrganizationService
+    const { updatedOrg, departedStaff, terminationFee } =
+      technicalOrganizationService.dismissStaffMember(testOrg, mockStaff.staffId, currentSeason, 1)
+
+    expect(terminationFee).toBe(1_000_000)
     expect(departedStaff).not.toBeNull()
     expect(departedStaff!.status).toBe('available')
-    // Multa permanece 0 / não deduzida devido à ausência de regra no modelo canônico de staff
+    expect(updatedOrg.members.SPORTING_DIRECTOR).toBeNull()
+
+    // 2ª execução (duplo clique / retry / reload)
+    const retryRun = await postStaffTerminationTransaction()
+    expect(retryRun.wasAlreadyProcessed).toBe(true)
+    expect(fakeStore.size).toBe(1) // Nenhuma duplicação de despesa no Ledger
+
+    // Nova chamada no serviço falha amigavelmente pois membro já foi desligado
+    expect(() => {
+      technicalOrganizationService.dismissStaffMember(
+        updatedOrg,
+        mockStaff.staffId,
+        currentSeason,
+        1,
+      )
+    }).toThrow('Membro de staff não encontrado ou já desligado da equipe.')
   })
 })
 

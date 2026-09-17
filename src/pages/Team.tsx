@@ -1067,6 +1067,39 @@ export default function TeamPage() {
   const handleDismissStaffMember = async (targetMember: StaffMember) => {
     setIsProcessing(true)
     try {
+      const terminationFee = technicalOrganizationService.calculateStaffTerminationFee(
+        targetMember,
+        currentSeasonYear,
+      )
+
+      // Lançamento da multa no Ledger via serviço canônico do Ledger (se multa > 0)
+      if (terminationFee > 0 && team?.id) {
+        const seasonYear = season?.year || currentSeasonYear
+        const currentRound = season?.current_round || 1
+        try {
+          await financialLedgerService.postTransaction({
+            teamId: team.id,
+            seasonYear,
+            round: currentRound,
+            type: 'expense',
+            category: 'penalties',
+            subcategory: 'staff_contract_termination',
+            direction: 'outflow',
+            amount: terminationFee,
+            costCapClassification: 'excluded', // Multas rescisórias de staff excluídas do Cost Cap FIA
+            sourceSystem: 'staff_termination',
+            sourceEntityId: targetMember.staffId,
+            idempotencyKey: `staff_termination_${targetMember.staffId}_y${seasonYear}`,
+            description: `Multa rescisória por dispensa de staff: ${targetMember.name} (${ROLE_DISPLAY_NAMES[targetMember.role] || targetMember.role})`,
+          })
+        } catch (finErr) {
+          console.warn('Erro ao registrar multa de staff no FinancialLedger:', finErr)
+        }
+
+        // Reconcilia cache sem mutação direta de budget
+        await financialLedgerService.syncTeamBudgetCache(team.id, seasonYear)
+      }
+
       const { updatedOrg, departedStaff, knowledgeLossPercentage } =
         technicalOrganizationService.dismissStaffMember(
           currentTeamOrg,
@@ -1089,13 +1122,16 @@ export default function TeamPage() {
 
       await f1Service.addEvent(
         team?.id || 'audi',
-        `${departedStaff?.name || targetMember.name} foi dispensado da diretoria técnica. Retenção de conhecimento impactada em ${knowledgeLossPercentage}%.`,
+        `${departedStaff?.name || targetMember.name} foi dispensado da diretoria técnica. Multa rescisória: ${formatCurrency(terminationFee)}. Retenção de conhecimento impactada em ${knowledgeLossPercentage}%.`,
         'contrato',
       )
 
       toast({
         title: 'Membro de Staff Dispensado',
-        description: `${departedStaff?.name || targetMember.name} foi desligado. Vaga aberta para nova contratação.`,
+        description:
+          terminationFee > 0
+            ? `${departedStaff?.name || targetMember.name} foi desligado. Multa de ${formatCurrency(terminationFee)} lançada no Ledger.`
+            : `${departedStaff?.name || targetMember.name} foi desligado sem incidência de multa rescisória.`,
       })
     } catch (err: any) {
       toast({
