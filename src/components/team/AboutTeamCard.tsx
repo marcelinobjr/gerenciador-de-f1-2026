@@ -1,14 +1,16 @@
 import React from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Building2, Cpu, Flag, TrendingUp, ChevronRight } from 'lucide-react'
+import { MapPin, Cpu, Flag, Star, Target, ChevronRight } from 'lucide-react'
 
 interface AboutTeamCardProps {
   baseLocation: string
   engineSupplier: string
   nationality: string
   status: string
-  quote?: string
+  seasonTarget?: string
+  teamLogoUrl?: string
+  isAudi?: boolean
   onOpenDetails: () => void
 }
 
@@ -17,78 +19,119 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
   engineSupplier,
   nationality,
   status,
-  quote = '“Mais que uma equipe. Um futuro em movimento.”',
+  seasonTarget = 'Lutar por pódios',
+  teamLogoUrl,
+  isAudi = false,
   onOpenDetails,
 }) => {
   return (
-    <Card className="bg-white border-neutral-200/80 shadow-sm rounded-2xl flex flex-col justify-between p-5 h-full">
+    <Card className="bg-[#10141C] border border-neutral-800 text-white rounded-2xl flex flex-col justify-between p-6 h-full shadow-lg">
       <div>
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 font-sans">
-            Sobre a Equipe
-          </h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onOpenDetails}
-            className="text-[11px] text-neutral-500 hover:text-neutral-900 font-semibold p-0 h-auto flex items-center gap-0.5"
-          >
-            VER DETALHES
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Button>
+        {/* Header integrado com estilo da referência */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-neutral-800">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-[#E10600] rounded-sm inline-block" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white font-sans">
+              Sobre a Equipe
+            </h3>
+          </div>
+
+          {/* Emblema sutil no topo do card */}
+          {isAudi ? (
+            <div className="flex items-center -space-x-1 opacity-70">
+              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
+              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
+              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
+              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
+            </div>
+          ) : teamLogoUrl ? (
+            <img
+              src={teamLogoUrl}
+              alt="Logo"
+              className="h-4 max-w-[60px] object-contain opacity-70"
+            />
+          ) : null}
         </div>
 
-        <div className="space-y-3.5 py-3.5">
+        {/* Lista com ícones e valores conforme referência */}
+        <div className="divide-y divide-neutral-800/80">
           {/* Base */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-neutral-100 text-neutral-600 flex items-center justify-center shrink-0">
-              <Building2 className="w-4 h-4" />
+          <div className="flex items-center justify-between py-3 text-xs">
+            <div className="flex items-center gap-2 text-neutral-400 font-medium">
+              <MapPin className="w-3.5 h-3.5 text-neutral-400" />
+              <span>Base</span>
             </div>
-            <div className="min-w-0">
-              <div className="text-[10px] uppercase font-semibold text-neutral-400">Base</div>
-              <div className="text-xs font-bold text-neutral-800 truncate">{baseLocation}</div>
-            </div>
+            <span
+              className="font-semibold text-white text-right truncate max-w-[170px]"
+              title={baseLocation}
+            >
+              {baseLocation}
+            </span>
           </div>
 
           {/* Motor */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-neutral-100 text-neutral-600 flex items-center justify-center shrink-0">
-              <Cpu className="w-4 h-4" />
+          <div className="flex items-center justify-between py-3 text-xs">
+            <div className="flex items-center gap-2 text-neutral-400 font-medium">
+              <Cpu className="w-3.5 h-3.5 text-neutral-400" />
+              <span>Motor</span>
             </div>
-            <div className="min-w-0">
-              <div className="text-[10px] uppercase font-semibold text-neutral-400">Motor</div>
-              <div className="text-xs font-bold text-neutral-800 truncate">{engineSupplier}</div>
-            </div>
+            <span
+              className="font-semibold text-white text-right truncate max-w-[170px]"
+              title={engineSupplier}
+            >
+              {engineSupplier}
+            </span>
           </div>
 
           {/* Nacionalidade */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-neutral-100 text-neutral-600 flex items-center justify-center shrink-0">
-              <Flag className="w-4 h-4" />
+          <div className="flex items-center justify-between py-3 text-xs">
+            <div className="flex items-center gap-2 text-neutral-400 font-medium">
+              <Flag className="w-3.5 h-3.5 text-neutral-400" />
+              <span>Nacionalidade</span>
             </div>
-            <div className="min-w-0">
-              <div className="text-[10px] uppercase font-semibold text-neutral-400">
-                Nacionalidade
-              </div>
-              <div className="text-xs font-bold text-neutral-800 truncate">{nationality}</div>
-            </div>
+            <span className="font-semibold text-white text-right truncate max-w-[170px]">
+              {nationality}
+            </span>
           </div>
 
           {/* Status */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-              <TrendingUp className="w-4 h-4" />
+          <div className="flex items-center justify-between py-3 text-xs">
+            <div className="flex items-center gap-2 text-neutral-400 font-medium">
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span>Status</span>
             </div>
-            <div className="min-w-0">
-              <div className="text-[10px] uppercase font-semibold text-neutral-400">Status</div>
-              <div className="text-xs font-bold text-neutral-800 truncate">{status}</div>
+            <span className="font-semibold text-neutral-200 text-right truncate max-w-[170px]">
+              {status}
+            </span>
+          </div>
+
+          {/* Objetivo da Temporada */}
+          <div className="flex items-center justify-between py-3 text-xs">
+            <div className="flex items-center gap-2 text-neutral-400 font-medium">
+              <Target className="w-3.5 h-3.5 text-neutral-400" />
+              <span>Objetivo da Temporada</span>
             </div>
+            <span
+              className="font-semibold text-white text-right truncate max-w-[170px]"
+              title={seasonTarget}
+            >
+              {seasonTarget}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="pt-3 border-t border-neutral-100">
-        <p className="text-xs italic text-neutral-500 font-serif leading-relaxed">{quote}</p>
+      {/* Botão Editar Informações / Ver Detalhes */}
+      <div className="pt-3 border-t border-neutral-800 mt-2 flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenDetails}
+          className="border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800 text-xs font-semibold text-white hover:text-white flex items-center gap-1.5 px-3 py-1.5 h-auto transition-colors"
+        >
+          <span>Editar Informações</span>
+          <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
+        </Button>
       </div>
     </Card>
   )

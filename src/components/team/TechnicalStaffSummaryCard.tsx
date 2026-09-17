@@ -1,7 +1,7 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Users, AlertCircle } from 'lucide-react'
 
 export interface KeyStaffMemberItem {
   id: string
@@ -28,40 +28,47 @@ export const TechnicalStaffSummaryCard: React.FC<TechnicalStaffSummaryCardProps>
   onSelectMember,
 }) => {
   return (
-    <Card className="bg-white border-neutral-200/80 shadow-sm rounded-2xl p-5 flex flex-col justify-between">
+    <Card className="bg-white border-neutral-200/90 shadow-sm rounded-2xl p-5 flex flex-col justify-between h-full">
       <div>
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-          <span className="text-xs font-bold uppercase tracking-wider text-neutral-900 font-sans">
-            EQUIPE TÉCNICA
-          </span>
+        {/* Cabeçalho do Card */}
+        <div className="flex items-start justify-between pb-3 border-b border-neutral-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-red-50 text-[#E10600] flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-black uppercase tracking-wider text-neutral-900 font-sans block">
+                Equipe Técnica
+              </span>
+              <span className="text-[11px] text-neutral-400 font-medium block">
+                Pilares que transformam ambição em performance.
+              </span>
+            </div>
+          </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={onOpenFullStaff}
-            className="text-[11px] text-neutral-500 hover:text-neutral-900 font-semibold p-0 h-auto flex items-center gap-0.5"
+            className="text-[11px] text-[#E10600] hover:text-[#B00500] hover:bg-red-50/50 font-bold p-0 h-auto flex items-center gap-0.5 shrink-0"
           >
-            VER EQUIPE TÉCNICA
+            Ver todos
             <ChevronRight className="w-3.5 h-3.5" />
           </Button>
         </div>
 
-        {/* Tabela resumida de 5 cargos principais */}
+        {/* Lista Premium de Staff */}
         <div className="mt-2 divide-y divide-neutral-100">
-          {/* Header das colunas */}
-          <div className="grid grid-cols-12 py-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-            <span className="col-span-5">NOME</span>
-            <span className="col-span-4">FUNÇÃO</span>
-            <span className="col-span-1 text-center">GER</span>
-            <span className="col-span-2 text-right">MORAL</span>
-          </div>
+          {staffList.slice(0, 4).map((member) => {
+            const isExpiringOrExpired =
+              member.contractBadgeVariant === 'expiring' ||
+              member.contractBadgeVariant === 'expired'
 
-          {staffList.slice(0, 5).map((member) => {
             const moralColor =
               member.moralStatus === 'Alta'
-                ? 'text-emerald-500'
+                ? 'text-emerald-600'
                 : member.moralStatus === 'Estável'
-                  ? 'text-amber-500'
-                  : 'text-red-500'
+                  ? 'text-amber-600'
+                  : 'text-red-600'
 
             const moralDotBg =
               member.moralStatus === 'Alta'
@@ -70,15 +77,19 @@ export const TechnicalStaffSummaryCard: React.FC<TechnicalStaffSummaryCardProps>
                   ? 'bg-amber-500'
                   : 'bg-red-500'
 
+            const formattedContract = member.contractEnd
+              ? `Até ${member.contractEnd}`
+              : member.contractBadgeLabel || 'Até 2028'
+
             return (
               <div
                 key={member.id}
                 onClick={() => onSelectMember && onSelectMember(member)}
-                className="grid grid-cols-12 py-2.5 items-center hover:bg-neutral-50/80 rounded-lg px-1 transition-colors cursor-pointer group text-xs"
+                className="py-2.5 flex items-center justify-between gap-3 hover:bg-neutral-50/80 rounded-xl px-2 transition-colors cursor-pointer group text-xs"
               >
-                {/* Nome + Avatar */}
-                <div className="col-span-5 flex items-center gap-2.5 min-w-0 pr-2">
-                  <div className="w-7 h-7 rounded-full bg-neutral-200 overflow-hidden shrink-0">
+                {/* Avatar + Nome + Função */}
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-full bg-neutral-100 overflow-hidden shrink-0 border border-neutral-200">
                     <img
                       src={
                         member.photoUrl ||
@@ -88,42 +99,47 @@ export const TechnicalStaffSummaryCard: React.FC<TechnicalStaffSummaryCardProps>
                       className="w-full h-full object-cover"
                     />
                   </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-semibold text-neutral-900 truncate group-hover:text-[#E10600] transition-colors">
+                  <div className="min-w-0">
+                    <div className="font-bold text-neutral-900 truncate group-hover:text-[#E10600] transition-colors leading-tight">
                       {member.name}
-                    </span>
-                    {member.contractBadgeLabel && (
-                      <span
-                        className={`text-[9.5px] font-medium tracking-tight truncate ${
-                          member.contractBadgeVariant === 'expired'
-                            ? 'text-red-600 font-semibold'
-                            : member.contractBadgeVariant === 'expiring'
-                              ? 'text-amber-700 font-semibold'
-                              : 'text-neutral-500'
-                        }`}
-                        title={member.contractBadgeLabel}
-                      >
-                        {member.contractBadgeLabel}
-                      </span>
-                    )}
+                    </div>
+                    <div className="text-[11px] text-neutral-500 truncate leading-tight mt-0.5">
+                      {member.role}
+                    </div>
                   </div>
                 </div>
 
-                {/* Função */}
-                <div className="col-span-4 text-neutral-500 text-[11px] truncate pr-2">
-                  {member.role}
+                {/* Rating GER */}
+                <div className="text-right shrink-0 px-2">
+                  <span className="text-[9px] uppercase font-bold text-neutral-400 block font-mono leading-none">
+                    GER
+                  </span>
+                  <span className="font-mono font-black text-sm text-neutral-900 leading-tight">
+                    {member.overallRating}
+                  </span>
                 </div>
 
-                {/* GER */}
-                <div className="col-span-1 text-center font-mono font-bold text-neutral-800">
-                  {member.overallRating}
-                </div>
-
-                {/* Moral + Chevron */}
-                <div className="col-span-2 flex items-center justify-end gap-1.5 text-[11px]">
+                {/* Moral */}
+                <div className="flex items-center gap-1.5 shrink-0 min-w-[60px]">
                   <span className={`w-2 h-2 rounded-full ${moralDotBg} shrink-0`} />
-                  <span className={`font-medium ${moralColor}`}>{member.moralStatus}</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-neutral-300 group-hover:text-neutral-700 transition-colors ml-0.5" />
+                  <span className={`text-[11px] font-semibold ${moralColor}`}>
+                    {member.moralStatus}
+                  </span>
+                </div>
+
+                {/* Contrato + Alerta */}
+                <div className="flex items-center justify-end gap-1.5 shrink-0 min-w-[70px] text-right">
+                  <span className="text-[11px] font-medium text-neutral-600">
+                    {formattedContract}
+                  </span>
+                  {isExpiringOrExpired && (
+                    <span
+                      title="Contrato próximo do término ou vencido"
+                      className="w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-black"
+                    >
+                      !
+                    </span>
+                  )}
                 </div>
               </div>
             )

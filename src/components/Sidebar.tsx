@@ -82,7 +82,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
     title: 'PRINCIPAL',
     items: [
       { name: 'Central', path: '/', icon: LayoutDashboard },
-      { name: 'Equipe', path: '/team', icon: Users },
+      { name: 'Minha Equipe', path: '/team', icon: Users },
       { name: 'Pilotos', path: '/pilotos', icon: Users2 },
       { name: 'Carro', path: '/car', icon: Wrench },
     ],
@@ -123,7 +123,7 @@ export const CAREER_NAV_ITEMS = CAREER_NAV_SECTIONS.flatMap((s) => s.items)
 
 export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/': 'Central de Operações',
-  '/team': 'Equipe',
+  '/team': 'Minha Equipe',
   '/pilotos': 'Pilotos da Temporada',
   '/car': 'Carro e Peças',
   '/pistas': 'Circuitos da Temporada',

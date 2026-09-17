@@ -1,15 +1,23 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { ChevronRight, ShieldCheck } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { TrendingUp, UserCheck, Shield } from 'lucide-react'
+
+interface AttributeItem {
+  label: string
+  key: string
+  value: number
+}
 
 interface ManagerExecutiveCardProps {
   managerName: string
   roleTitle?: string
   archetypeTitle: string
   portraitUrl: string
-  attributes: { label: string; value: number }[]
+  attributes: AttributeItem[]
+  boardConfidencePct?: number
   boardConfidenceText?: string
+  quote?: string
   onOpenProfile: () => void
 }
 
@@ -19,69 +27,71 @@ export const ManagerExecutiveCard: React.FC<ManagerExecutiveCardProps> = ({
   archetypeTitle,
   portraitUrl,
   attributes,
-  boardConfidenceText = 'Muito alta',
+  boardConfidencePct = 52,
+  boardConfidenceText = 'Estável',
+  quote = '“Estratégia transforma potencial em vitórias.”',
   onOpenProfile,
 }) => {
-  const [imgError, setImgError] = useState(false)
-
   return (
-    <Card className="bg-[#0C1017] text-white border-neutral-800 shadow-md rounded-2xl p-5 overflow-hidden flex flex-col justify-between relative">
-      {/* Glow de fundo sutil */}
-      <div className="absolute top-0 right-0 w-48 h-48 bg-red-600/10 rounded-full blur-2xl pointer-events-none" />
-
+    <Card
+      onClick={onOpenProfile}
+      className="bg-white border-neutral-200/90 shadow-sm hover:shadow-md transition-all duration-200 rounded-2xl p-5 cursor-pointer flex flex-col justify-between group overflow-hidden"
+    >
       <div>
-        {/* Cabeçalho do Card */}
-        <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
-          <span className="text-xs font-bold uppercase tracking-wider text-neutral-300 font-sans">
-            MANAGER
-          </span>
-        </div>
-
-        {/* Corpo: Retrato do Manager à esquerda, Infos e Barras à direita */}
-        <div className="grid grid-cols-12 gap-4 py-4 items-center">
-          {/* Retrato oficial do Manager (Drive / Asset canônico) */}
-          <div className="col-span-4 flex justify-center">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-neutral-900 border border-neutral-700/80 shadow-inner shrink-0 relative">
-              <img
-                src={
-                  imgError
-                    ? 'https://img.usecurling.com/ppl/medium?gender=male&seed=44'
-                    : portraitUrl
-                }
-                alt={managerName}
-                onError={() => setImgError(true)}
-                className="w-full h-full object-cover object-top"
-              />
-              <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-xl" />
-            </div>
+        <div className="flex gap-4 sm:gap-5 items-start">
+          {/* Foto Vertical à Esquerda */}
+          <div className="relative w-28 sm:w-36 h-44 sm:h-52 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200/70 shadow-inner">
+            <img
+              src={portraitUrl}
+              alt={managerName}
+              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
           </div>
 
-          {/* Nome, Cargo, Arquétipo e Barras de Atributos */}
-          <div className="col-span-8 space-y-2.5">
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
+          {/* Dados do Manager à Direita */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-400">
+              <span>{roleTitle}</span>
+            </div>
+
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight font-sans truncate group-hover:text-[#E10600] transition-colors">
                 {managerName}
-              </h3>
-              <div className="text-xs text-neutral-400 font-medium">{roleTitle}</div>
-              <div className="text-xs italic text-neutral-300 font-serif">
-                &ldquo;{archetypeTitle}&rdquo;
+              </h2>
+              <Badge className="bg-[#E10600] text-white hover:bg-[#E10600] text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                {roleTitle}
+              </Badge>
+            </div>
+
+            {/* Arquétipo */}
+            <div className="mt-2.5 p-2 rounded-lg bg-neutral-50 border border-neutral-100 flex items-start gap-2">
+              <div className="w-5 h-5 rounded-full bg-red-100 text-[#E10600] flex items-center justify-center shrink-0 mt-0.5">
+                <Shield className="w-3 h-3" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase font-bold text-neutral-400">Arquétipo</div>
+                <div className="text-xs font-bold text-neutral-800">{archetypeTitle}</div>
+                <div className="text-[10px] text-neutral-500 italic mt-0.5 line-clamp-1">
+                  &ldquo;Campeonatos são vencidos antes de o carro entrar na pista.&rdquo;
+                </div>
               </div>
             </div>
 
-            {/* 4 Características Principais em barras */}
-            <div className="space-y-1.5 pt-1">
+            {/* Atributos em barras horizontais elegantes */}
+            <div className="mt-3 space-y-2">
               {attributes.slice(0, 4).map((attr) => (
-                <div key={attr.label} className="flex items-center gap-2 text-xs">
-                  <span className="text-[11px] text-neutral-300 w-28 shrink-0 truncate">
+                <div key={attr.key} className="flex items-center gap-2.5 text-xs">
+                  <span className="w-28 shrink-0 text-neutral-600 font-medium text-[11px] truncate">
                     {attr.label}
                   </span>
-                  <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                  <div className="flex-1 h-2 bg-neutral-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#E10600] rounded-full"
-                      style={{ width: `${Math.min(100, Math.max(10, attr.value))}%` }}
+                      className="h-full bg-[#E10600] rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.max(5, attr.value))}%` }}
                     />
                   </div>
-                  <span className="text-[11px] font-mono font-bold text-white w-6 text-right">
+                  <span className="w-6 text-right font-mono font-bold text-neutral-900 text-xs">
                     {attr.value}
                   </span>
                 </div>
@@ -91,23 +101,39 @@ export const ManagerExecutiveCard: React.FC<ManagerExecutiveCardProps> = ({
         </div>
       </div>
 
-      {/* Rodapé: Confiança da Diretoria + Botão VER PERFIL CTA Vermelho */}
-      <div className="pt-3 border-t border-neutral-800 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
-          <span className="text-neutral-400 text-[11px]">Confiança da diretoria:</span>
-          <span className="text-emerald-400 font-semibold text-[11px]">{boardConfidenceText}</span>
+      {/* Rodapé: Confiança da Direção + Citação */}
+      <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <StarIcon />
+          </div>
+          <div>
+            <div className="text-[10px] uppercase font-bold text-neutral-400 leading-none">
+              Confiança da Direção
+            </div>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="font-mono font-black text-sm text-neutral-900">
+                {boardConfidencePct}%
+              </span>
+              <span className="text-[11px] font-medium text-emerald-600 flex items-center gap-0.5">
+                {boardConfidenceText} <TrendingUp className="w-3 h-3" />
+              </span>
+            </div>
+          </div>
         </div>
 
-        <Button
-          onClick={onOpenProfile}
-          size="sm"
-          className="bg-[#E10600] hover:bg-[#c40500] text-white text-xs font-semibold px-3.5 py-1.5 h-8 rounded-lg shadow-sm flex items-center gap-1"
-        >
-          VER PERFIL
-          <ChevronRight className="w-3.5 h-3.5" />
-        </Button>
+        <p className="text-[11px] italic text-neutral-400 font-serif text-right max-w-[200px] hidden sm:block">
+          {quote}
+        </p>
       </div>
     </Card>
+  )
+}
+
+function StarIcon() {
+  return (
+    <svg className="w-3.5 h-3.5 fill-emerald-500 text-emerald-500" viewBox="0 0 20 20">
+      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+    </svg>
   )
 }
