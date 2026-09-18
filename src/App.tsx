@@ -20,6 +20,7 @@ import SeasonEndPage from './pages/SeasonEndPage'
 import StandingsPage from './pages/Standings'
 import CalendarPage from './pages/CalendarPage'
 import HistoryPage from './pages/History'
+
 import InfrastructurePage from './pages/InfrastructurePage'
 import TeamSelectionPage from './pages/TeamSelection'
 import { LobbyPage } from './pages/LobbyPage'
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/standings" element={<StandingsPage />} />
               <Route path="/paddock" element={<PaddockPage />} />
               <Route path="/historico" element={<HistoryPage />} />
+              <Route path="/regulamento" element={<Navigate to="/car?tab=regulamento" replace />} />
               <Route path="/calendario" element={<CalendarPage />} />
             </Route>
           </Route>

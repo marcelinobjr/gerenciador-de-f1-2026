@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Info,
   Map,
+  ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -81,10 +82,10 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
   {
     title: 'PRINCIPAL',
     items: [
-      { name: 'Central', path: '/', icon: LayoutDashboard },
+      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
       { name: 'Minha Equipe', path: '/team', icon: Users },
-      { name: 'Pilotos', path: '/pilotos', icon: Users2 },
-      { name: 'Meu Carro', path: '/car', icon: Wrench },
+      { name: 'Meus Carros', path: '/car', icon: Wrench },
+      { name: 'Comercial & Finanças', path: '/sponsors', icon: DollarSign },
     ],
   },
   {
@@ -92,7 +93,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
     items: [
       {
         name: 'Desenvolvimento',
-        path: '/car',
+        path: '/car?tab=pd',
         icon: Cpu,
         isNotice: true,
         noticeTitle: 'Desenvolvimento (P&D & Engenharia)',
@@ -105,36 +106,44 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
         icon: Building2,
       },
       { name: 'Fim de Semana', path: '/race', icon: Flag },
-      { name: 'Pistas', path: '/pistas', icon: Map },
     ],
   },
   {
     title: 'GESTÃO',
     items: [
-      { name: 'Comercial & Finanças', path: '/sponsors', icon: DollarSign },
-      { name: 'Paddock', path: '/paddock', icon: Users },
+      { name: 'Pilotos', path: '/pilotos', icon: Users2 },
+      { name: 'Pistas', path: '/pistas', icon: Map },
+      { name: 'Equipes', path: '/paddock', icon: Users },
+    ],
+  },
+  {
+    title: 'COMPETIÇÃO',
+    items: [
       { name: 'Campeonato', path: '/standings', icon: Trophy },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
+      { name: 'Regulamento', path: '/car?tab=regulamento', icon: BookOpen },
     ],
   },
 ]
+
 // Lista plana para compatibilidade de rotas
 export const CAREER_NAV_ITEMS = CAREER_NAV_SECTIONS.flatMap((s) => s.items)
 
 export const ROUTE_TITLE_MAP: Record<string, string> = {
-  '/': 'Central de Operações',
+  '/': 'Dashboard de Operações',
   '/team': 'Minha Equipe',
   '/pilotos': 'Pilotos da Temporada',
-  '/car': 'Meu Carro',
+  '/car': 'Meus Carros',
   '/pistas': 'Circuitos da Temporada',
   '/infraestrutura': 'Infraestrutura & Instalações',
   '/sponsors': 'Comercial & Finanças',
   '/race': 'Fim de Semana',
   '/calendario': 'Calendário Oficial',
   '/standings': 'Campeonato Mundial',
-  '/paddock': 'Paddock Oficial',
+  '/paddock': 'Equipes do Paddock',
   '/historico': 'Histórico',
   '/teams': 'Grid da Temporada',
+  '/regulamento': 'Regulamento Técnico FIA',
 }
 
 export interface SidebarProps {
