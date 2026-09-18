@@ -2,6 +2,11 @@ import React, { useState, useMemo } from 'react'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { ALL_GRID_TEAMS_DATABASE, OFFICIAL_2026_GRID_KEYS } from '@/lib/grid-teams-database'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
+import { getTeamCarPhotoUrl } from '@/lib/team-car-photo-resolver'
+import {
+  INITIAL_GRID_FACILITIES,
+  DEFAULT_CUSTOM_TEAM_FACILITIES,
+} from '@/data/initial-team-facilities'
 import {
   Search,
   Trophy,
@@ -10,6 +15,20 @@ import {
   CheckCircle2,
   MinusCircle,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+  Gauge,
+  Factory,
+  Compass,
+  Wind,
+  Layers,
+  Monitor,
+  Activity,
+  Wrench,
+  GraduationCap,
+  Sparkles,
+  Car,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -25,6 +44,22 @@ export interface UnifiedPaddockTeam {
   country: string
   flag: string
   headquarters: string
+  category: string
+  historySummary: string
+  currentSituation: string
+  competitivenessVerdict: string
+  difficulty: string
+  boardPressure: string
+  initialObjective: string
+  specialTraits: string[]
+  // Características técnicas e organizacionais
+  carRating: number | null
+  engineeringRating: number | null
+  operationsRating: number | null
+  prestigeRating: number | null
+  cultureRating: number | null
+  potentialRating: number | null
+  budget: number | null
   isPlayer: boolean
   inCurrentSeason: boolean
   // Dados de classificação oficial FIA da temporada atual
@@ -173,6 +208,21 @@ export default function PaddockPage() {
         country: struct.country || 'Internacional',
         flag: struct.flag || '🏁',
         headquarters: struct.headquarters || 'Sede não cadastrada',
+        category: struct.category || 'Não informado',
+        historySummary: struct.historySummary || '',
+        currentSituation: struct.currentSituation || '',
+        competitivenessVerdict: struct.competitivenessVerdict || '',
+        difficulty: struct.difficulty || '',
+        boardPressure: struct.boardPressure || '',
+        initialObjective: struct.initialObjective || '',
+        specialTraits: struct.specialTraits || [],
+        carRating: struct.carRating ?? null,
+        engineeringRating: struct.engineeringRating ?? null,
+        operationsRating: struct.operationsRating ?? null,
+        prestigeRating: struct.prestigeRating ?? null,
+        cultureRating: struct.cultureRating ?? null,
+        potentialRating: struct.potentialRating ?? null,
+        budget: struct.budget ?? null,
         isPlayer,
         inCurrentSeason: isParticipating,
         position: isParticipating ? (standingInfo ? standingInfo.rank : 0) : null,
@@ -242,8 +292,10 @@ export default function PaddockPage() {
     return [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   }, [filteredTeams])
 
-  // 4. Seleção da equipe para o painel lateral
+  // 4. Seleção da equipe para o painel lateral e controle de expansão de infraestrutura
   const [selectedTeamKey, setSelectedTeamKey] = useState<string | null>(null)
+  const [isFacilitiesExpanded, setIsFacilitiesExpanded] = useState(false)
+  const [carImageLoading, setCarImageLoading] = useState(false)
 
   // Seleção inicial automática: equipe do jogador se visível, senão a primeira disponível
   const activeSelectedTeam = useMemo(() => {
@@ -265,8 +317,28 @@ export default function PaddockPage() {
   }, [filteredTeams, selectedTeamKey, participantsGroup])
 
   const handleSelectTeam = (teamItem: UnifiedPaddockTeam) => {
-    setSelectedTeamKey(teamItem.key)
+    if (selectedTeamKey !== teamItem.key) {
+      setCarImageLoading(true)
+      setSelectedTeamKey(teamItem.key)
+    }
   }
+
+  // Obter instalações da equipe ativa a partir do catálogo canônico existente
+  const activeTeamFacilities = useMemo(() => {
+    if (!activeSelectedTeam) return null
+    const norm = activeSelectedTeam.key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    return INITIAL_GRID_FACILITIES[norm] || DEFAULT_CUSTOM_TEAM_FACILITIES
+  }, [activeSelectedTeam])
+
+  // Obter foto oficial do carro para a equipe ativa
+  const activeCarPhotoUrl = useMemo(() => {
+    if (!activeSelectedTeam) return null
+    return (
+      getTeamCarPhotoUrl(activeSelectedTeam.key) ||
+      getTeamCarPhotoUrl(activeSelectedTeam.name) ||
+      getTeamCarPhotoUrl(activeSelectedTeam.shortName)
+    )
+  }, [activeSelectedTeam])
 
   // Renderizar linha individual da tabela
   const renderTeamRow = (teamItem: UnifiedPaddockTeam) => {
@@ -699,22 +771,344 @@ export default function PaddockPage() {
                   </div>
                 )}
 
-                {/* Fornecedor de Motor e Dados Institucionais */}
-                <div className="space-y-2 pt-2 border-t border-[#F1F5F9] text-xs">
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-[#64748B]">Fornecedor de Motor:</span>
-                    <span className="font-bold text-[#0F172A]">{activeSelectedTeam.engine}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-[#64748B]">Sede Operacional:</span>
-                    <span
-                      className="font-medium text-[#0F172A] text-right truncate max-w-[180px]"
-                      title={activeSelectedTeam.headquarters}
-                    >
-                      {activeSelectedTeam.headquarters}
+                {/* B. FOTO DO CARRO: imagem horizontal logo abaixo do cabeçalho */}
+                <div className="space-y-1.5" data-testid="car-photo-section">
+                  <div className="flex items-center justify-between text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                    <span>MONOPOSTO {seasonYear}</span>
+                    <span className="text-[9px] font-normal normal-case text-[#94A3B8]">
+                      Vista lateral homologada
                     </span>
                   </div>
+
+                  <div className="w-full h-44 sm:h-48 rounded-lg border border-[#E2E8F0] bg-neutral-50/80 flex items-center justify-center overflow-hidden p-2 relative group">
+                    {activeCarPhotoUrl ? (
+                      <img
+                        key={activeSelectedTeam.key}
+                        src={activeCarPhotoUrl}
+                        alt={`Monoposto ${activeSelectedTeam.name}`}
+                        data-testid="team-car-image"
+                        className={`w-full h-full object-contain transition-opacity duration-200 ${
+                          carImageLoading ? 'opacity-50' : 'opacity-100'
+                        }`}
+                        loading="lazy"
+                        onLoad={() => setCarImageLoading(false)}
+                        onError={() => setCarImageLoading(false)}
+                      />
+                    ) : (
+                      /* Fallback neutro identificado sem imagem quebrada */
+                      <div
+                        data-testid="car-photo-fallback"
+                        className="flex flex-col items-center justify-center gap-1.5 text-center p-4 text-[#94A3B8]"
+                      >
+                        <Car className="w-8 h-8 stroke-1 text-[#CBD5E1]" />
+                        <span className="text-xs font-semibold text-[#64748B]">
+                          Imagem do carro indisponível
+                        </span>
+                        <span className="text-[10px] text-[#94A3B8]">
+                          Asset aguardando inclusão no catálogo oficial
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* D. PERFIL DA EQUIPE: informações institucionais disponíveis */}
+                <div
+                  className="space-y-2.5 pt-2 border-t border-[#F1F5F9] text-xs"
+                  data-testid="team-profile-section"
+                >
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-[#64748B]" />
+                    <span>PERFIL DA EQUIPE</span>
+                  </div>
+
+                  <div className="space-y-1.5 bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
+                    <div className="flex justify-between items-start gap-2 py-0.5">
+                      <span className="text-[#64748B] shrink-0">Tipo / Categoria:</span>
+                      <span className="font-semibold text-[#0F172A] text-right">
+                        {activeSelectedTeam.category}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center gap-2 py-0.5">
+                      <span className="text-[#64748B] shrink-0">Fornecedor de Motor:</span>
+                      <span className="font-bold text-[#0F172A] text-right">
+                        {activeSelectedTeam.inCurrentSeason
+                          ? activeSelectedTeam.engine
+                          : activeSelectedTeam.engine === 'A definir'
+                            ? 'A definir'
+                            : `${activeSelectedTeam.engine} (Previsto)`}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-start gap-2 py-0.5">
+                      <span className="text-[#64748B] shrink-0">Sede Operacional:</span>
+                      <span
+                        className="font-medium text-[#0F172A] text-right truncate max-w-[200px]"
+                        title={activeSelectedTeam.headquarters}
+                      >
+                        {activeSelectedTeam.headquarters}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center gap-2 py-0.5">
+                      <span className="text-[#64748B] shrink-0">País de Origem:</span>
+                      <span className="font-medium text-[#0F172A] flex items-center gap-1">
+                        <span>{activeSelectedTeam.flag}</span>
+                        <span>{activeSelectedTeam.country}</span>
+                      </span>
+                    </div>
+
+                    {activeSelectedTeam.historySummary && (
+                      <div className="pt-2 mt-1 border-t border-[#E2E8F0] text-[11px] text-[#475569] leading-relaxed">
+                        <span className="font-bold text-[#0F172A] block text-[10px] uppercase font-mono mb-0.5">
+                          Herança & Histórico:
+                        </span>
+                        {activeSelectedTeam.historySummary}
+                      </div>
+                    )}
+
+                    {activeSelectedTeam.currentSituation && (
+                      <div className="pt-1.5 text-[11px] text-[#475569] leading-relaxed">
+                        <span className="font-bold text-[#0F172A] block text-[10px] uppercase font-mono mb-0.5">
+                          Situação & Liderança:
+                        </span>
+                        {activeSelectedTeam.currentSituation}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* E. CARACTERÍSTICAS: dados técnicos e organizacionais existentes */}
+                <div
+                  className="space-y-2.5 pt-2 border-t border-[#F1F5F9] text-xs"
+                  data-testid="team-characteristics-section"
+                >
+                  <div className="flex items-center justify-between text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                    <span className="flex items-center gap-1.5">
+                      <Gauge className="w-3.5 h-3.5 text-[#64748B]" />
+                      <span>CARACTERÍSTICAS TÉCNICAS</span>
+                    </span>
+                    <span className="text-[9px] font-normal normal-case text-[#94A3B8]">
+                      {activeSelectedTeam.inCurrentSeason
+                        ? 'Temporada atual'
+                        : 'Catálogo de referência'}
+                    </span>
+                  </div>
+
+                  {/* Barras de Rating /100 existentes */}
+                  <div className="space-y-2 bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
+                    {/* Monoposto / Carro */}
+                    <div>
+                      <div className="flex justify-between items-center text-[11px] mb-1">
+                        <span className="text-[#64748B]">Desempenho do Carro</span>
+                        <span className="font-mono font-bold text-[#0F172A]">
+                          {activeSelectedTeam.carRating !== null
+                            ? `${activeSelectedTeam.carRating}/100`
+                            : 'Não informado'}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-neutral-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#E10600] rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, activeSelectedTeam.carRating ?? 0))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Engenharia / Desenvolvimento */}
+                    <div>
+                      <div className="flex justify-between items-center text-[11px] mb-1">
+                        <span className="text-[#64748B]">Capacidade de Engenharia</span>
+                        <span className="font-mono font-bold text-[#0F172A]">
+                          {activeSelectedTeam.engineeringRating !== null
+                            ? `${activeSelectedTeam.engineeringRating}/100`
+                            : 'Não informado'}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-neutral-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-slate-700 rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, activeSelectedTeam.engineeringRating ?? 0))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Operações de Pista & Pit Stop */}
+                    <div>
+                      <div className="flex justify-between items-center text-[11px] mb-1">
+                        <span className="text-[#64748B]">Excelência Operacional</span>
+                        <span className="font-mono font-bold text-[#0F172A]">
+                          {activeSelectedTeam.operationsRating !== null
+                            ? `${activeSelectedTeam.operationsRating}/100`
+                            : 'Não informado'}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-neutral-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-600 rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, activeSelectedTeam.operationsRating ?? 0))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Prestígio / Marca */}
+                    <div>
+                      <div className="flex justify-between items-center text-[11px] mb-1">
+                        <span className="text-[#64748B]">Prestígio Internacional</span>
+                        <span className="font-mono font-bold text-[#0F172A]">
+                          {activeSelectedTeam.prestigeRating !== null
+                            ? `${activeSelectedTeam.prestigeRating}/100`
+                            : 'Não informado'}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-neutral-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, activeSelectedTeam.prestigeRating ?? 0))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Pontos Fortes / Traits Especiais */}
+                    {activeSelectedTeam.specialTraits &&
+                      activeSelectedTeam.specialTraits.length > 0 && (
+                        <div className="pt-2 mt-1 border-t border-[#E2E8F0]">
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B] block mb-1.5 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-amber-500" />
+                            <span>Pontos Fortes & Identidade</span>
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {activeSelectedTeam.specialTraits.map((trait, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded text-[10px] font-medium bg-white text-[#334155] border border-neutral-200 shadow-2xs"
+                              >
+                                {trait}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                {/* F. INFRAESTRUTURA: bloco compacto com instalações canônicas */}
+                <div
+                  className="space-y-2 pt-2 border-t border-[#F1F5F9] text-xs"
+                  data-testid="team-infrastructure-section"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
+                      <Factory className="w-3.5 h-3.5 text-[#64748B]" />
+                      <span>INFRAESTRUTURA ({activeTeamFacilities ? '9 Instalações' : '—'})</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsFacilitiesExpanded((prev) => !prev)}
+                      className="text-[11px] font-semibold text-[#E10600] hover:underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <span>{isFacilitiesExpanded ? 'Recolher' : 'Ver detalhes'}</span>
+                      {isFacilitiesExpanded ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {activeTeamFacilities ? (
+                    <div className="space-y-1 bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
+                      {/* Principais instalações sempre visíveis em linha compacta */}
+                      <div className="grid grid-cols-3 gap-2 text-center py-1">
+                        <div className="p-1.5 bg-white rounded border border-[#E2E8F0]">
+                          <span className="text-[10px] text-[#64748B] block truncate">Fábrica</span>
+                          <span className="font-mono text-xs font-bold text-[#0F172A]">
+                            Nível {activeTeamFacilities.factory}/5
+                          </span>
+                        </div>
+                        <div className="p-1.5 bg-white rounded border border-[#E2E8F0]">
+                          <span className="text-[10px] text-[#64748B] block truncate">
+                            Túnel Vento
+                          </span>
+                          <span className="font-mono text-xs font-bold text-[#0F172A]">
+                            Nível {activeTeamFacilities.wind_tunnel}/5
+                          </span>
+                        </div>
+                        <div className="p-1.5 bg-white rounded border border-[#E2E8F0]">
+                          <span className="text-[10px] text-[#64748B] block truncate">
+                            Simulador
+                          </span>
+                          <span className="font-mono text-xs font-bold text-[#0F172A]">
+                            Nível {activeTeamFacilities.simulator}/5
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Seção expansível com as 9 instalações canônicas */}
+                      {isFacilitiesExpanded && (
+                        <div className="pt-2 mt-1 border-t border-[#E2E8F0] space-y-1.5">
+                          {[
+                            { name: 'Fábrica Operacional', level: activeTeamFacilities.factory },
+                            { name: 'Centro de Design', level: activeTeamFacilities.design_centre },
+                            { name: 'Cluster CFD', level: activeTeamFacilities.cfd },
+                            { name: 'Túnel de Vento', level: activeTeamFacilities.wind_tunnel },
+                            {
+                              name: 'Manufatura & Produção',
+                              level: activeTeamFacilities.manufacturing,
+                            },
+                            { name: 'Simulador Dinâmico', level: activeTeamFacilities.simulator },
+                            {
+                              name: 'Centro de Operações',
+                              level: activeTeamFacilities.operations_centre,
+                            },
+                            {
+                              name: 'Centro de Pit Stop',
+                              level: activeTeamFacilities.pitstop_center,
+                            },
+                            {
+                              name: 'Academia de Jovens Pilotos',
+                              level: activeTeamFacilities.youth_academy,
+                            },
+                          ].map((fac, idx) => (
+                            <div
+                              key={idx}
+                              className="flex justify-between items-center text-[11px] py-0.5"
+                            >
+                              <span className="text-[#475569]">{fac.name}</span>
+                              <div className="flex items-center gap-1">
+                                <div className="flex gap-0.5">
+                                  {[1, 2, 3, 4, 5].map((dot) => (
+                                    <span
+                                      key={dot}
+                                      className={`w-1.5 h-1.5 rounded-full ${
+                                        dot <= fac.level ? 'bg-[#E10600]' : 'bg-neutral-200'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                                <span className="font-mono font-semibold text-[#0F172A] ml-1.5 w-7 text-right">
+                                  {fac.level}/5
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-[#64748B] italic p-2 bg-[#F8FAFC] rounded border border-[#E2E8F0]">
+                      Infraestrutura não informada
+                    </div>
+                  )}
                 </div>
               </>
             ) : (

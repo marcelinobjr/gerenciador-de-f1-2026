@@ -63,3 +63,8 @@ export function getTeamLogo(teamCodeOrId: string | null | undefined): string | n
 }
 
 export { getTeamReducedLogoUrl, teamAssetResolver } from '@/lib/team-reduced-logo-resolver'
+export {
+  getTeamCarPhotoUrl,
+  getTeamCarPhotoDef,
+  TEAM_CAR_PHOTOS_MANIFEST,
+} from '@/lib/team-car-photo-resolver'
