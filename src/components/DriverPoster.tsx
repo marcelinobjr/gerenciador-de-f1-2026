@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 interface DriverPosterProps {
   name: string
   className?: string
-  aspectRatio?: 'square' | 'poster'
+  aspectRatio?: 'square' | 'poster' | 'tall'
   showInitialsFallback?: boolean
   driverId?: string
 }
@@ -37,7 +37,11 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
       <div
         className={cn(
           'flex items-center justify-center font-bold tracking-wider select-none text-zinc-300 bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700/60 rounded-md shadow-inner',
-          aspectRatio === 'poster' ? 'aspect-[3/4]' : 'aspect-square',
+          aspectRatio === 'poster'
+            ? 'aspect-[3/4]'
+            : aspectRatio === 'tall'
+              ? 'aspect-[4/5]'
+              : 'aspect-square',
           className,
         )}
       >
@@ -50,7 +54,11 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
     <div
       className={cn(
         'relative overflow-hidden rounded-md border border-zinc-700/60 bg-zinc-900 group shadow-md',
-        aspectRatio === 'poster' ? 'aspect-[3/4]' : 'aspect-square',
+        aspectRatio === 'poster'
+          ? 'aspect-[3/4]'
+          : aspectRatio === 'tall'
+            ? 'aspect-[4/5]'
+            : 'aspect-square',
         className,
       )}
     >
