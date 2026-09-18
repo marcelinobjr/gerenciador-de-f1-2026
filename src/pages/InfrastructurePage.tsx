@@ -8,7 +8,7 @@ import { ENGINE_SUPPLIERS, F1_2026_CALENDAR } from '@/lib/f1-data'
 import { EngineSupplierSpec } from '@/types/f1'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { calculatePUWear } from '@/lib/pu-wear-calculator'
-import { DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
+import { DRIVE_STORAGE_PHOTOS, getEngineSupplierLogo } from '@/lib/drive-storage-photos'
 import { CANONICAL_FACILITIES_DEFINITIONS } from '@/types/canonical-facilities-data'
 import { FacilityDefinition } from '@/types/canonical-facilities'
 import { useToast } from '@/hooks/use-toast'
@@ -43,6 +43,7 @@ import { FacilityExpandModal } from '@/components/commercial/FacilityExpandModal
 
 // Imagem oficial de referência salva no projeto
 import puHeroImg from '@/assets/motor-67601.jpg'
+import puAttachedUnitImg from '@/assets/file0000000033a8820ebdd18c0df97ed4fb-f0e78.png'
 
 export default function InfrastructurePage() {
   const { team, season, user, refreshTeamAndSeason } = useAuth()
@@ -381,761 +382,930 @@ export default function InfrastructurePage() {
   }, [puMetrics.overall, currentSupplierSpec.name])
 
   return (
-    <div className="relative min-h-screen bg-[#07090E] text-[#F1F5F9] pb-16">
-      <AmbientBackground />
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 select-none text-[#1E293B] antialiased">
+      {/* ======================================================== */}
+      {/* 1. HERO COM LINGUAGEM VISUAL PADRÃO DO JOGO             */}
+      {/* ======================================================== */}
+      <div className="relative rounded-2xl overflow-hidden bg-white border border-[#E2E8F0] shadow-sm p-6 sm:p-7">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#E10600]">
+                TECNOLOGIA & OPERAÇÕES
+              </span>
+              <span className="text-[#CBD5E1]">•</span>
+              <span className="text-[11px] font-mono text-[#64748B]">
+                TEMPORADA {season?.year || 2026}
+              </span>
+              <span className="text-[#CBD5E1]">•</span>
+              <span className="text-[10px] font-mono text-[#475569] bg-[#F1F5F9] px-2 py-0.5 rounded border border-[#E2E8F0]">
+                {activeTab === 'pu' ? 'PROGRAMA DE POWER UNIT' : 'CAMPUS INTEGRADO'}
+              </span>
+            </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-        {/* Cabeçalho Oficial Canônico */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#1A2538] gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white flex items-center gap-2">
-              Infraestrutura
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0F172A] uppercase font-sans">
+              Infraestrutura & Instalações
             </h1>
-            <p className="text-xs text-[#8B98AD] mt-0.5">
-              Tecnologia, instalações, operações e programa de Power Unit.
+
+            <p className="text-xs sm:text-sm text-[#475569] font-medium">
+              Desenvolva o campus técnico, monitore a confiabilidade do conjunto propulsor e planeje
+              acordos de longo prazo.
             </p>
           </div>
 
           {/* AS 2 SUBABAS OFICIAIS CANÔNICAS — NENHUMA TERCEIRA SUBABA */}
-          <div className="inline-flex p-1 bg-[#0C1017] border border-[#1C2534] rounded-xl shadow-lg self-start sm:self-auto">
+          <div className="inline-flex p-1 bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl self-start md:self-auto shrink-0 shadow-xs">
             <button
               type="button"
               onClick={() => setActiveTab('pu')}
-              className={`px-6 py-2 text-xs font-mono font-black uppercase tracking-wider rounded-lg transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-lg transition-all ${
                 activeTab === 'pu'
-                  ? 'bg-[#E10600] text-white shadow-[0_0_12px_rgba(225,6,0,0.5)]'
-                  : 'text-[#8B98AD] hover:text-white hover:bg-[#141B26]'
+                  ? 'bg-[#E10600] text-white shadow-sm'
+                  : 'text-[#475569] hover:text-[#0F172A] hover:bg-white/60'
               }`}
             >
-              Power Unit
+              <Cpu className="w-4 h-4" />
+              <span>Power Unit</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('facilities')}
-              className={`px-6 py-2 text-xs font-mono font-black uppercase tracking-wider rounded-lg transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-lg transition-all ${
                 activeTab === 'facilities'
-                  ? 'bg-[#E10600] text-white shadow-[0_0_12px_rgba(225,6,0,0.5)]'
-                  : 'text-[#8B98AD] hover:text-white hover:bg-[#141B26]'
+                  ? 'bg-[#E10600] text-white shadow-sm'
+                  : 'text-[#475569] hover:text-[#0F172A] hover:bg-white/60'
               }`}
             >
-              Infraestruturas
+              <Building2 className="w-4 h-4" />
+              <span>Infraestruturas</span>
             </button>
           </div>
         </div>
 
-        {/* ======================================================== */}
-        {/* SUBABA 1: POWER UNIT                                     */}
-        {/* ======================================================== */}
-        {activeTab === 'pu' && (
-          <div className="space-y-6 animate-fade-in">
-            {/* HERO ESCURO DA POWER UNIT (Visual Aprovado) */}
-            <div className="relative rounded-2xl bg-[#090C12] border border-[#1C2536] p-5 sm:p-6 shadow-2xl overflow-hidden">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Linha de KPIs Rápidos no Rodapé do Cabeçalho */}
+        <div className="mt-5 pt-4 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+              Fornecedor Atual
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <strong className="text-sm font-bold text-[#0F172A] font-mono">
+                {currentSupplierSpec.name}
+              </strong>
+              {getEngineSupplierLogo(currentSupplierSpec.name) && (
+                <img
+                  src={getEngineSupplierLogo(currentSupplierSpec.name)!}
+                  alt={currentSupplierSpec.name}
+                  className="w-4 h-4 rounded-full object-contain shrink-0 border border-[#CBD5E1] bg-white"
+                />
+              )}
+            </div>
+          </div>
 
-              <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                {/* Lado Esquerdo: Identidade do Fornecedor e Contrato */}
-                <div className="lg:col-span-5 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-[#121824] border border-[#1F293B] flex items-center justify-center p-2">
-                      <Zap className="w-6 h-6 text-[#E10600]" />
-                    </div>
-                    <div>
-                      <Badge className="bg-[#E10600]/20 text-[#E10600] border border-[#E10600]/40 text-[10px] font-mono uppercase font-bold tracking-wider">
-                        FORNECEDOR ATUAL
-                      </Badge>
-                      <h2 className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white uppercase mt-1">
-                        {currentSupplierSpec.name} Power Unit
-                      </h2>
-                      <p className="text-xs text-[#8B98AD] font-mono">
-                        Tecnologia. Performance. Pessoas.
-                      </p>
-                    </div>
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">Índice PU</span>
+            <span className="text-sm font-black font-mono text-cyan-600">
+              {puMetrics.overall} / 100
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+              Unidade em Uso
+            </span>
+            <span className="text-sm font-bold font-mono text-[#0F172A]">
+              Carro #1: PU{car1PuUnit} • Carro #2: PU{car2PuUnit}
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+              Integridade Média
+            </span>
+            <span className="text-sm font-black font-mono text-emerald-600">
+              {activeFocusUnit.integrity}%
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+              Nível do Campus
+            </span>
+            <span className="text-sm font-black font-mono text-[#0F172A]">
+              {audit.averageLevel} <span className="text-xs font-normal text-[#64748B]">/ 5.0</span>
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+              Obras Ativas
+            </span>
+            <span className="text-sm font-bold font-mono text-amber-600">
+              {activeProjects.length > 0 ? `${activeProjects.length} instalação` : 'Em dia'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* SUBABA 1: POWER UNIT                                     */}
+      {/* ======================================================== */}
+      {activeTab === 'pu' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* CARD PRINCIPAL: PACOTE ATUAL DE MOTOR */}
+          <div className="rounded-2xl bg-white border border-[#E2E8F0] p-6 shadow-sm">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              {/* Lado Esquerdo: Identidade do Fornecedor e Contrato */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center p-2 shrink-0">
+                    <Zap className="w-6 h-6 text-[#E10600]" />
                   </div>
-
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#161F2E] text-xs font-mono">
-                    <div>
-                      <span className="text-[10px] text-[#64748B] block uppercase">
-                        Contrato Atual
-                      </span>
-                      <strong className="text-white">2026 - 2030</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[#64748B] block uppercase">
-                        Custo Anual
-                      </span>
-                      <strong className="text-white">
-                        {formatCurrency(currentSupplierSpec.costAnnual)}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[#64748B] block uppercase">
-                        Integração Chassi
-                      </span>
-                      <strong className="text-emerald-400">Excelente</strong>
-                    </div>
-                  </div>
-
-                  {/* Aviso de Contrato Futuro se existir */}
-                  {futurePuContract && (
-                    <div className="p-2.5 rounded-lg bg-blue-950/30 border border-blue-500/40 text-[11px] font-mono text-cyan-300 flex items-center justify-between">
-                      <span>
-                        Contrato Futuro: <strong>{futurePuContract.supplierName}</strong> (vigência{' '}
-                        {futurePuContract.startsSeason})
-                      </span>
-                      <Badge className="bg-blue-600/20 text-cyan-400 border-none text-[9px]">
-                        HOMOLOGADO
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-red-50 text-[#E10600] border border-red-200 text-[10px] font-mono uppercase font-bold tracking-wider">
+                        FORNECEDOR HOMOLOGADO
                       </Badge>
+                      {getEngineSupplierLogo(currentSupplierSpec.name) && (
+                        <img
+                          src={getEngineSupplierLogo(currentSupplierSpec.name)!}
+                          alt={currentSupplierSpec.name}
+                          className="w-5 h-5 rounded-full object-contain border border-[#CBD5E1] bg-white shadow-2xs"
+                        />
+                      )}
                     </div>
-                  )}
+                    <h2 className="text-xl sm:text-2xl font-black font-sans tracking-tight text-[#0F172A] uppercase mt-1">
+                      {currentSupplierSpec.name} Power Unit
+                    </h2>
+                    <p className="text-xs text-[#64748B] font-medium">
+                      Pacote regulamentar V6 Turbo Híbrido 50/50 • MGU-K de alta regeneração
+                    </p>
+                  </div>
                 </div>
 
-                {/* Centro: Imagem Real da PU */}
-                <div className="lg:col-span-3 flex justify-center">
-                  <div className="relative w-full max-w-[260px] h-40 sm:h-44 rounded-xl overflow-hidden border border-[#1E293B] shadow-xl group">
-                    <img
-                      src={puHeroImg}
-                      alt="F1 Power Unit 2026"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        const target = e.currentTarget
-                        target.style.opacity = '0.3'
-                      }}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#090C12] via-transparent to-transparent" />
-                    <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between text-[10px] font-mono text-neutral-300">
-                      <span>DRIVEN BY PROGRESS</span>
-                      <span className="text-[#E10600] font-bold">50/50 V6 TURBO</span>
-                    </div>
+                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#F1F5F9] text-xs font-mono">
+                  <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0]">
+                    <span className="text-[10px] text-[#64748B] block uppercase">Contrato</span>
+                    <strong className="text-[#0F172A] text-xs font-bold block mt-0.5">
+                      2026 - 2030
+                    </strong>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0]">
+                    <span className="text-[10px] text-[#64748B] block uppercase">Custo Anual</span>
+                    <strong className="text-[#0F172A] text-xs font-bold block mt-0.5">
+                      {formatCurrency(currentSupplierSpec.costAnnual)}
+                    </strong>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0]">
+                    <span className="text-[10px] text-[#64748B] block uppercase">
+                      Integração Chassi
+                    </span>
+                    <strong className="text-emerald-600 text-xs font-bold block mt-0.5">
+                      Excelente
+                    </strong>
                   </div>
                 </div>
 
-                {/* Lado Direito: Indicadores de Desempenho x/100 */}
-                <div className="lg:col-span-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2">
-                  <div className="p-3 rounded-lg bg-[#0F1420] border border-[#1A2436] text-center">
-                    <span className="text-[10px] font-mono text-[#8B98AD] uppercase block">
-                      Desempenho
+                {/* Aviso de Contrato Futuro se existir */}
+                {futurePuContract && (
+                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs font-medium text-blue-900 flex items-center justify-between">
+                    <span>
+                      Contrato Futuro Homologado:{' '}
+                      <strong className="text-[#0F172A] font-mono">
+                        {futurePuContract.supplierName}
+                      </strong>{' '}
+                      (vigência a partir de {futurePuContract.startsSeason})
                     </span>
-                    <div className="text-2xl font-black font-mono text-cyan-400 mt-1">
-                      {puMetrics.overall}
-                      <span className="text-xs font-normal text-[#64748B]">/100</span>
-                    </div>
+                    <Badge className="bg-blue-100 text-blue-700 border-blue-300 text-[10px] font-mono font-bold">
+                      FIA OK
+                    </Badge>
                   </div>
+                )}
+              </div>
 
-                  <div className="p-3 rounded-lg bg-[#0F1420] border border-[#1A2436] text-center">
-                    <span className="text-[10px] font-mono text-[#8B98AD] uppercase block">
-                      Confiabilidade
+              {/* Centro: Imagem Real da PU com Moldura Limpa */}
+              <div className="lg:col-span-3 flex justify-center">
+                <div className="relative w-full max-w-[270px] h-40 sm:h-44 rounded-xl overflow-hidden border border-[#E2E8F0] shadow-sm bg-neutral-900 group">
+                  <img
+                    src={puHeroImg}
+                    alt="F1 Power Unit 2026"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      target.style.opacity = '0.3'
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                  <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-[10px] font-mono text-white">
+                    <span className="font-semibold tracking-wider">FIA REGULATION</span>
+                    <span className="text-[#E10600] font-black bg-white/10 px-1.5 py-0.5 rounded">
+                      50/50 V6 TURBO
                     </span>
-                    <div className="text-2xl font-black font-mono text-emerald-400 mt-1">
-                      {puMetrics.reliability}%
-                    </div>
                   </div>
+                </div>
+              </div>
 
-                  <div className="p-3 rounded-lg bg-[#0F1420] border border-[#1A2436] text-center">
-                    <span className="text-[10px] font-mono text-[#8B98AD] uppercase block">
-                      Eficiência
-                    </span>
-                    <div className="text-2xl font-black font-mono text-amber-400 mt-1">
-                      {puMetrics.efficiency}%
-                    </div>
+              {/* Lado Direito: Indicadores de Desempenho em Cards Claros */}
+              <div className="lg:col-span-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2">
+                <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-center shadow-xs">
+                  <span className="text-[10px] font-mono text-[#64748B] uppercase block font-semibold">
+                    Desempenho
+                  </span>
+                  <div className="text-2xl font-black font-mono text-cyan-700 mt-1">
+                    {puMetrics.overall}
+                    <span className="text-xs font-normal text-[#64748B]">/100</span>
                   </div>
+                </div>
 
-                  <div className="p-3 rounded-lg bg-[#0F1420] border border-[#1A2436] text-center">
-                    <span className="text-[10px] font-mono text-[#8B98AD] uppercase block">
-                      Potencial
-                    </span>
-                    <div className="text-2xl font-black font-mono text-purple-400 mt-1">
-                      {puMetrics.potential}
-                    </div>
+                <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-center shadow-xs">
+                  <span className="text-[10px] font-mono text-[#64748B] uppercase block font-semibold">
+                    Confiabilidade
+                  </span>
+                  <div className="text-2xl font-black font-mono text-emerald-600 mt-1">
+                    {puMetrics.reliability}%
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-center shadow-xs">
+                  <span className="text-[10px] font-mono text-[#64748B] uppercase block font-semibold">
+                    Eficiência
+                  </span>
+                  <div className="text-2xl font-black font-mono text-amber-600 mt-1">
+                    {puMetrics.efficiency}%
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-center shadow-xs">
+                  <span className="text-[10px] font-mono text-[#64748B] uppercase block font-semibold">
+                    Potencial
+                  </span>
+                  <div className="text-2xl font-black font-mono text-purple-600 mt-1">
+                    {puMetrics.potential}
                   </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* SEÇÃO INTERMEDIÁRIA: POOL PU1-PU4 + INTEGRIDADE DA ATUAL + GESTÃO & AÇÕES */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* BLOCO 1: Motores da Temporada 2026 (Pool PU1 a PU4) */}
-              <div className="lg:col-span-5 p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-3">
+          {/* SEÇÃO INTERMEDIÁRIA: POOL PU1-PU4 + INTEGRIDADE DA ATUAL + GESTÃO & AÇÕES */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* BLOCO 1: Motores da Temporada 2026 (Pool PU1 a PU4 com imagem anexada) */}
+            <div className="lg:col-span-5 p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-3.5 shadow-sm flex flex-col justify-between">
+              <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Gauge className="w-4 h-4 text-cyan-400" />
-                    <h3 className="text-xs font-black font-mono uppercase tracking-wider text-white">
-                      Motores da Temporada {season?.year || 2026}
-                    </h3>
+                    <div className="w-7 h-7 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center">
+                      <Gauge className="w-4 h-4 text-cyan-700" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold font-sans uppercase tracking-wider text-[#0F172A]">
+                        Motores da Temporada {season?.year || 2026}
+                      </h3>
+                      <p className="text-[11px] text-[#64748B]">
+                        Alocação do pool oficial (4 unidades sem penalização de grid FIA)
+                      </p>
+                    </div>
                   </div>
-                  <Badge className="bg-[#121A28] text-cyan-400 border border-cyan-500/30 text-[10px] font-mono">
-                    PU {car1PuUnit} de 4
+                  <Badge className="bg-cyan-50 text-cyan-800 border border-cyan-200 text-[10px] font-mono font-bold">
+                    PU{car1PuUnit} & PU{car2PuUnit} em uso
                   </Badge>
                 </div>
-                <p className="text-[11px] text-[#8B98AD]">
-                  Você pode utilizar até 4 unidades sem punição de grid.
-                </p>
 
-                {/* Grade das 4 Unidades */}
-                <div className="grid grid-cols-4 gap-2 pt-1">
+                {/* Grade das 4 Unidades — PU1 e PU2 com a imagem oficial anexada */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3">
                   {poolUnits.map((pu) => {
                     const isInUse = pu.assignedCar !== null
                     return (
                       <div
                         key={pu.unitNumber}
-                        className={`p-2.5 rounded-lg border text-center transition-all ${
+                        className={`rounded-xl border p-2.5 flex flex-col justify-between transition-all ${
                           isInUse
-                            ? 'bg-[#101928] border-cyan-500/50 shadow-md'
+                            ? 'bg-[#F0FDF4] border-emerald-400 shadow-xs ring-1 ring-emerald-300'
                             : pu.km > 0
-                              ? 'bg-[#0E1420] border-[#1C2738]'
-                              : 'bg-[#0A0D14] border-[#141B26] opacity-75'
+                              ? 'bg-[#FFFBEB] border-amber-300 shadow-2xs'
+                              : 'bg-[#F8FAFC] border-[#E2E8F0]'
                         }`}
                       >
-                        <div className="text-[11px] font-black font-mono text-white">
-                          PU{pu.unitNumber}
-                        </div>
-                        <div className="my-1.5 flex justify-center">
-                          <Cpu
-                            className={`w-5 h-5 ${
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black font-mono text-[#0F172A]">
+                            PU{pu.unitNumber}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold font-mono px-1.5 py-0.2 rounded ${
                               isInUse
-                                ? 'text-cyan-400 animate-pulse'
+                                ? 'bg-emerald-600 text-white'
                                 : pu.km > 0
-                                  ? 'text-amber-400'
-                                  : 'text-[#475569]'
+                                  ? 'bg-amber-500 text-white'
+                                  : 'bg-neutral-200 text-[#475569]'
                             }`}
+                          >
+                            {isInUse ? `C#${pu.assignedCar}` : pu.km > 0 ? 'Reserva' : 'Novo'}
+                          </span>
+                        </div>
+
+                        {/* Imagem Real do Motor anexada */}
+                        <div className="my-2 h-14 w-full rounded-lg overflow-hidden border border-[#E2E8F0] bg-neutral-900 relative shadow-inner">
+                          <img
+                            src={puAttachedUnitImg}
+                            alt={`Unidade PU${pu.unitNumber}`}
+                            loading="lazy"
+                            className="w-full h-full object-cover transition-transform hover:scale-105 duration-300"
                           />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                          <span className="absolute bottom-1 right-1 text-[8px] font-mono font-black text-white px-1 rounded bg-black/60">
+                            {pu.integrity}%
+                          </span>
                         </div>
-                        <div className="text-[10px] font-mono text-[#CBD5E1]">
-                          {pu.km > 0 ? `${pu.km} km` : 'Disponível'}
+
+                        <div className="space-y-0.5 text-center font-mono">
+                          <div className="text-[11px] font-bold text-[#0F172A]">
+                            {pu.km > 0 ? `${pu.km} km` : '0 km'}
+                          </div>
+                          <div className="text-[9px] text-[#64748B]">
+                            {pu.km > 0 ? `Desgaste: ${pu.wear}%` : 'Pronto p/ montar'}
+                          </div>
                         </div>
-                        <Badge
-                          className={`mt-1.5 text-[8px] font-mono uppercase px-1 py-0 ${
-                            isInUse
-                              ? 'bg-emerald-500/20 text-emerald-400 border-none'
-                              : pu.km > 0
-                                ? 'bg-amber-500/20 text-amber-300 border-none'
-                                : 'bg-[#162030] text-[#64748B] border-none'
-                          }`}
-                        >
-                          {isInUse ? `C#${pu.assignedCar}` : pu.km > 0 ? 'Reserva' : 'Não usado'}
-                        </Badge>
                       </div>
                     )
                   })}
                 </div>
               </div>
 
-              {/* BLOCO 2: Integridade da Unidade Atual (Barra Grande + pu-wear-calculator) */}
-              <div className="lg:col-span-4 p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-3">
+              <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[11px] text-[#475569] flex items-center justify-between">
+                <span>
+                  Alocação atual: Carro 1 → PU{car1PuUnit} | Carro 2 → PU{car2PuUnit}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAllocationModalOpen(true)}
+                  className="text-xs font-bold text-[#E10600] hover:underline cursor-pointer"
+                >
+                  Alterar alocação →
+                </button>
+              </div>
+            </div>
+
+            {/* BLOCO 2: Integridade da Unidade Atual (PU em foco no Carro 1) */}
+            <div className="lg:col-span-4 p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-3.5 shadow-sm flex flex-col justify-between">
+              <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-emerald-400" />
-                    <h3 className="text-xs font-black font-mono uppercase tracking-wider text-white">
-                      Integridade da Unidade Atual (PU{activeFocusUnit.unitNumber})
-                    </h3>
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                      <Activity className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold font-sans uppercase tracking-wider text-[#0F172A]">
+                        Integridade da Unidade (PU{activeFocusUnit.unitNumber})
+                      </h3>
+                      <p className="text-[11px] text-[#64748B]">
+                        Montada no Carro #1 • Telemetria em tempo real
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-base font-black font-mono text-emerald-400">
+                  <span className="text-base font-black font-mono text-emerald-600">
                     {activeFocusUnit.integrity}%
                   </span>
                 </div>
 
-                {/* Barra Grande de Integridade */}
-                <div className="w-full bg-[#141C2B] h-3 rounded-full overflow-hidden p-0.5 border border-[#1E2C40]">
+                {/* Barra Grande de Integridade Estilo Claro */}
+                <div className="w-full bg-[#F1F5F9] h-3 rounded-full overflow-hidden p-0.5 border border-[#E2E8F0] mt-3">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       activeFocusUnit.integrity > 75
-                        ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                        ? 'bg-emerald-500'
                         : activeFocusUnit.integrity > 50
-                          ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
-                          : 'bg-gradient-to-r from-red-600 to-rose-500'
+                          ? 'bg-amber-500'
+                          : 'bg-red-600'
                     }`}
                     style={{ width: `${activeFocusUnit.integrity}%` }}
                   />
                 </div>
 
                 {/* Parâmetros Derivados do Módulo de Desgaste */}
-                <div className="space-y-1.5 text-xs font-mono pt-1">
-                  <div className="flex justify-between items-center text-[#94A3B8]">
-                    <span>Desgaste estimado (última sessão):</span>
-                    <span className="text-white font-bold">{activeFocusUnit.wear}%</span>
+                <div className="space-y-2 text-xs font-mono pt-3">
+                  <div className="flex justify-between items-center text-[#475569] pb-1.5 border-b border-[#F1F5F9]">
+                    <span>Desgaste acumulado:</span>
+                    <span className="text-[#0F172A] font-bold">{activeFocusUnit.wear}%</span>
                   </div>
-                  <div className="flex justify-between items-center text-[#94A3B8]">
-                    <span>Quilometragem (acumulado):</span>
-                    <span className="text-cyan-400 font-bold">{activeFocusUnit.km} km</span>
+                  <div className="flex justify-between items-center text-[#475569] pb-1.5 border-b border-[#F1F5F9]">
+                    <span>Quilometragem total:</span>
+                    <span className="text-cyan-700 font-bold">{activeFocusUnit.km} km</span>
                   </div>
-                  <div className="flex justify-between items-center text-[#94A3B8]">
-                    <span>Ciclos de uso:</span>
-                    <span className="text-amber-400 font-bold">{currentRound} corridas</span>
+                  <div className="flex justify-between items-center text-[#475569] pb-1.5 border-b border-[#F1F5F9]">
+                    <span>Grandes Prêmios completados:</span>
+                    <span className="text-[#0F172A] font-bold">{currentRound} rodadas</span>
                   </div>
-                  <div className="flex justify-between items-center text-[#94A3B8]">
+                  <div className="flex justify-between items-center text-[#475569] pb-1.5 border-b border-[#F1F5F9]">
                     <span>Vida útil estimada restante:</span>
-                    <span className="text-white font-bold">~ 2 corridas</span>
+                    <span className="text-emerald-700 font-bold">~ 2 a 3 GPs</span>
                   </div>
-                  <div className="flex justify-between items-center text-[#94A3B8] pt-1 border-t border-[#162030]">
-                    <span>Risco de falha mecânica:</span>
-                    <span className="text-emerald-400 font-bold">● {activeFocusUnit.risk}</span>
+                  <div className="flex justify-between items-center text-[#475569] pt-0.5">
+                    <span>Risco de pane mecânica:</span>
+                    <span className="text-emerald-600 font-bold flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      {activeFocusUnit.risk}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* BLOCO 3: Gestão e Ações Operacionais */}
-              <div className="lg:col-span-3 p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] flex flex-col justify-between space-y-3">
+              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 flex items-center justify-between">
+                <span>Condição térmica e compressão conformes aos limites FIA.</span>
+              </div>
+            </div>
+
+            {/* BLOCO 3: Gestão & Ações Operacionais */}
+            <div className="lg:col-span-3 p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-4 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-xs font-bold font-sans uppercase tracking-wider text-[#0F172A]">
+                  Gestão & Ações
+                </h3>
+                <p className="text-xs text-[#64748B] mt-1">
+                  Configure os motores por cockpit e abra negociações oficiais de fornecimento para
+                  2027.
+                </p>
+              </div>
+
+              <div className="space-y-2.5">
+                <Button
+                  onClick={() => setAllocationModalOpen(true)}
+                  className="w-full h-10 bg-white hover:bg-[#F8FAFC] border border-[#CBD5E1] text-[#0F172A] font-sans text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <RotateCw className="w-4 h-4 text-cyan-600" />
+                  <span>Gerenciar Alocação</span>
+                </Button>
+
+                <Button
+                  onClick={() => handleOpenNegotiation(currentSupplierSpec)}
+                  className="w-full h-10 bg-[#E10600] hover:bg-[#C00400] text-white font-sans text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 text-white" />
+                  <span>Negociar Fornecedor</span>
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[11px] text-[#475569] flex items-start gap-2">
+                <Info className="w-4 h-4 text-cyan-600 shrink-0 mt-0.5" />
+                <span className="leading-snug">
+                  Unidades trocadas além do limite de 4 acarretam penalidades regulamentares de 10
+                  posições no grid de largada.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* SEÇÃO INFERIOR: COMPARATIVO DE FORNECEDORES + IMPACTO E RECOMENDAÇÃO */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Comparativo dos 5 Principais Fornecedores (com Logos Reais ao lado direito do nome) */}
+            <div className="lg:col-span-8 p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-4 shadow-sm">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xs font-black font-mono uppercase tracking-wider text-white">
-                    Gestão & Ações
+                  <h3 className="text-sm font-bold font-sans uppercase tracking-wider text-[#0F172A]">
+                    Comparativo de Fornecedores de Power Unit 2026
                   </h3>
-                  <p className="text-[11px] text-[#8B98AD] mt-1">
-                    Gerencie sua alocação de motores e defina a estratégia para os dois cockpits.
+                  <p className="text-xs text-[#64748B] mt-0.5">
+                    Compare potência, confiabilidade, eficiência e custo anual dos 5 motores
+                    homologados.
                   </p>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => setAllocationModalOpen(true)}
-                    className="w-full h-9 bg-[#121824] hover:bg-[#1A2334] border border-[#233147] text-white font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md"
-                  >
-                    <RotateCw className="w-3.5 h-3.5 text-cyan-400" />
-                    Gerenciar Alocação
-                  </Button>
+              {/* Grade dos 5 Fornecedores com Logos Oficiais da pasta do Drive */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+                {ENGINE_SUPPLIERS.map((supplier) => {
+                  const isCurrent =
+                    supplier.name.toLowerCase() === currentSupplierName.toLowerCase()
+                  const logoUrl = getEngineSupplierLogo(supplier.name)
 
-                  <Button
-                    onClick={() => handleOpenNegotiation(currentSupplierSpec)}
-                    className="w-full h-9 bg-[#E10600] hover:bg-[#C00400] text-white font-mono text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-white" />
-                    Negociar Fornecedor
-                  </Button>
+                  return (
+                    <div
+                      key={supplier.name}
+                      className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
+                        isCurrent
+                          ? 'bg-[#FFF5F5] border-[#E10600] shadow-sm ring-1 ring-[#E10600]'
+                          : 'bg-[#F8FAFC] border-[#E2E8F0] hover:border-[#CBD5E1] hover:bg-white'
+                      }`}
+                    >
+                      <div>
+                        {/* Nome do Fornecedor + Logo Oficial à Direita */}
+                        <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-[#E2E8F0]/70">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-bold text-sm text-[#0F172A] truncate">
+                              {supplier.name}
+                            </span>
+                            {logoUrl && (
+                              <img
+                                src={logoUrl}
+                                alt={`Logo ${supplier.name}`}
+                                loading="lazy"
+                                className="w-5 h-5 rounded-full object-contain shrink-0 border border-[#CBD5E1] bg-white shadow-2xs"
+                              />
+                            )}
+                          </div>
+                          {isCurrent && (
+                            <Badge className="bg-[#E10600] text-white text-[8px] font-mono px-1 py-0 shrink-0">
+                              ATUAL
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5 text-xs font-mono pt-2.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[#64748B]">Potência:</span>
+                            <strong className="text-[#0F172A]">{supplier.power}</strong>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[#64748B]">Confiabilidade:</span>
+                            <strong className="text-emerald-600">{supplier.reliability}%</strong>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[#64748B]">Eficiência:</span>
+                            <strong className="text-amber-600">79%</strong>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[#64748B]">Potencial:</span>
+                            <strong className="text-purple-600">84</strong>
+                          </div>
+                          <div className="flex justify-between items-center pt-1.5 border-t border-[#E2E8F0] text-[10px]">
+                            <span className="text-[#64748B]">Custo anual:</span>
+                            <span className="text-[#0F172A] font-bold">
+                              {formatCurrency(supplier.costAnnual)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-3">
+                        {isCurrent ? (
+                          <div className="py-1.5 text-center rounded bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold flex items-center justify-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Em Uso
+                          </div>
+                        ) : (
+                          <Button
+                            onClick={() => handleOpenNegotiation(supplier)}
+                            className="w-full h-8 bg-white hover:bg-[#E10600] hover:text-white border border-[#CBD5E1] text-[#0F172A] text-[10px] font-mono font-bold uppercase transition-colors cursor-pointer"
+                          >
+                            Negociar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Lado Direito: Impacto da Troca + Recomendação da Equipe */}
+            <div className="lg:col-span-4 space-y-4">
+              {/* Painel: Impacto da Troca de Fornecedor */}
+              <div className="p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-3 shadow-sm">
+                <h3 className="text-xs font-bold font-sans uppercase tracking-wider text-[#0F172A]">
+                  Impacto da Troca de Fornecedor
+                </h3>
+                <p className="text-xs text-[#64748B]">
+                  Efeitos práticos de uma eventual mudança de motor para a equipe.
+                </p>
+
+                <div className="space-y-2 text-xs font-mono pt-1">
+                  <div className="flex justify-between items-center pb-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Esforço de integração:</span>
+                    <span className="text-red-600 font-bold">Alto</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Compatibilidade chassi:</span>
+                    <span className="text-amber-600 font-bold">Média</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Tempo de adaptação:</span>
+                    <span className="text-cyan-700 font-bold">2 - 4 GPs</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Risco de perda inicial:</span>
+                    <span className="text-red-600 font-bold">Alto</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#64748B]">Potencial de ganho:</span>
+                    <span className="text-emerald-600 font-bold">Alto</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Painel: Recomendação da Equipe */}
+              <div className="p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-2.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold font-sans uppercase tracking-wider text-[#0F172A]">
+                    Recomendação da Equipe
+                  </span>
+                  <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 font-mono text-[9px] font-bold">
+                    {teamRecommendation.badge}
+                  </Badge>
+                </div>
+                <p className="text-xs text-[#334155] leading-relaxed">{teamRecommendation.text}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SUBABA 2: INFRAESTRUTURAS (Linguagem Clara e Elegante)   */}
+      {/* ======================================================== */}
+      {activeTab === 'facilities' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* HERO DO CAMPUS COM A IMAGEM OFICIAL DO DRIVE */}
+          <div className="relative rounded-2xl overflow-hidden border border-[#E2E8F0] shadow-sm min-h-[180px] flex items-end">
+            <img
+              src={campusHeroImg}
+              alt="Campus Tecnológico da Equipe"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.currentTarget
+                target.style.opacity = '0.3'
+              }}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-white via-white/85 to-transparent pointer-events-none" />
+
+            <div className="relative w-full p-6 sm:p-7 flex flex-col md:flex-row md:items-end justify-between gap-5 z-10">
+              <div className="max-w-xl">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="w-6 h-6 rounded-md bg-[#E10600] flex items-center justify-center text-white">
+                    <Building2 className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-mono font-bold text-[#475569] uppercase tracking-wider">
+                    Campus de Engenharia {team?.name || 'Audi F1 Team'}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black font-sans tracking-tight text-[#0F172A] uppercase">
+                  Tecnologia, Manufatura e Precisão Operacional
+                </h2>
+                <p className="text-xs text-[#64748B] mt-1">
+                  9 instalações canônicas integradas. O nível do campus define a velocidade de
+                  produção, acurácia da correlação túnel-CFD e tempo de pit stop.
+                </p>
+              </div>
+
+              {/* 4 Indicadores Rápidos do Campus */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono shrink-0">
+                <div className="p-3 rounded-xl bg-white/95 border border-[#E2E8F0] shadow-xs backdrop-blur-sm">
+                  <span className="text-[9px] text-[#64748B] block uppercase font-semibold">
+                    Nível Médio
+                  </span>
+                  <strong className="text-base text-emerald-600 font-black">
+                    {audit.averageLevel}{' '}
+                    <span className="text-xs text-[#64748B] font-normal">/ 5</span>
+                  </strong>
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-[#0D121B] border border-[#162030] text-[10px] text-[#8B98AD] flex items-start gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
-                  <span>
-                    Até 4 unidades de Power Unit podem ser utilizadas por temporada sem penalidade
-                    esportiva.
+                <div className="p-3 rounded-xl bg-white/95 border border-[#E2E8F0] shadow-xs backdrop-blur-sm">
+                  <span className="text-[9px] text-[#64748B] block uppercase font-semibold">
+                    Eficiência
                   </span>
+                  <strong className="text-base text-cyan-700 font-black">
+                    {audit.capabilities.operationalEfficiency}
+                  </strong>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/95 border border-[#E2E8F0] shadow-xs backdrop-blur-sm">
+                  <span className="text-[9px] text-[#64748B] block uppercase font-semibold">
+                    Precisão
+                  </span>
+                  <strong className="text-base text-blue-700 font-black">
+                    {audit.capabilities.simulationAccuracy}
+                  </strong>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/95 border border-[#E2E8F0] shadow-xs backdrop-blur-sm">
+                  <span className="text-[9px] text-[#64748B] block uppercase font-semibold">
+                    OPEX Anual
+                  </span>
+                  <strong className="text-base text-amber-700 font-black">
+                    {formatCurrency(audit.totalAnnualOpex)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* AS 9 INSTALAÇÕES CANÔNICAS (3 COLUNAS EM CARDS CLAROS E ELEGANTES) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {CANONICAL_FACILITIES_DEFINITIONS.map((fac) => {
+              const currentLvl = facilityLevels[fac.id]
+              const isMax = currentLvl >= 5
+              const imgUrl = FACILITY_IMAGE_MAP[fac.id] || campusHeroImg
+              const isUnderConstruction = f1Service.isFacilityUnderConstruction(team, fac.id)
+              const project = f1Service.getActiveFacilityProject(team, fac.id)
+
+              return (
+                <div
+                  key={fac.id}
+                  className="rounded-2xl bg-white border border-[#E2E8F0] overflow-hidden flex flex-col justify-between shadow-sm group hover:shadow-md hover:border-[#CBD5E1] transition-all"
+                >
+                  <div>
+                    {/* Imagem da Instalação */}
+                    <div className="relative h-36 w-full overflow-hidden bg-neutral-900">
+                      <img
+                        src={imgUrl}
+                        alt={fac.name}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.style.opacity = '0.3'
+                        }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+                      <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                        <span className="font-mono font-bold text-xs text-white uppercase drop-shadow-md">
+                          {fac.shortName}
+                        </span>
+                        {isUnderConstruction ? (
+                          <Badge className="bg-amber-500 text-white border-none text-[9px] font-mono font-bold shadow-xs">
+                            OBRA ATÉ R{project?.completionRound}
+                          </Badge>
+                        ) : (
+                          <Badge
+                            className={`font-mono text-[9px] font-bold uppercase px-2 py-0.5 shadow-xs ${
+                              isMax
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-white/90 text-[#0F172A] border-[#E2E8F0]'
+                            }`}
+                          >
+                            NÍVEL {currentLvl} / 5
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Título sobreposto sutil */}
+                      <div className="absolute bottom-2 left-2.5 right-2.5 text-white">
+                        <h4 className="text-xs font-bold leading-tight drop-shadow-sm truncate">
+                          {fac.name}
+                        </h4>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo Técnico */}
+                    <div className="p-4 space-y-3">
+                      <p className="text-xs text-[#64748B] line-clamp-2 leading-relaxed">
+                        {fac.subtitle}
+                      </p>
+
+                      {/* 2 Efeitos Centrais */}
+                      <div className="space-y-1.5 pt-1">
+                        {fac.effects.slice(0, 2).map((eff, i) => (
+                          <div
+                            key={i}
+                            className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-2 text-[11px] font-mono"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-600 shrink-0" />
+                            <span className="font-bold text-[#0F172A] truncate">{eff.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botão Expandir com Estilo Limpo */}
+                  <div className="p-3.5 bg-[#F8FAFC] border-t border-[#E2E8F0]">
+                    <Button
+                      onClick={() => handleOpenExpandFacility(fac)}
+                      disabled={isMax || isUnderConstruction}
+                      className={`w-full h-9 font-mono text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                        isMax
+                          ? 'bg-neutral-200 text-[#64748B] cursor-default'
+                          : isUnderConstruction
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300 cursor-default'
+                            : 'bg-[#E10600] hover:bg-[#C00400] text-white shadow-xs'
+                      }`}
+                    >
+                      {isMax
+                        ? 'Padrão Máximo'
+                        : isUnderConstruction
+                          ? 'Em Obras'
+                          : 'Expandir Instalação >'}
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* SEÇÃO INFERIOR: SINERGIAS-CHAVE + GARGALOS ATUAIS + OBRAS EM ANDAMENTO */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Painel 1: Sinergias-chave */}
+            <div className="p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-3 shadow-sm">
+              <div className="flex items-center gap-2 text-emerald-700 font-sans font-bold text-xs uppercase tracking-wider">
+                <Sparkles className="w-4 h-4" />
+                <span>Sinergias do Campus</span>
+              </div>
+              <div className="space-y-2 text-xs font-mono">
+                <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[11px] text-[#334155]">
+                  <strong className="text-emerald-700 block mb-0.5">CFD + Túnel de Vento</strong>
+                  Maior correlação dos pacotes aerodinâmicos e redução de incerteza em pista.
+                </div>
+                <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[11px] text-[#334155]">
+                  <strong className="text-cyan-700 block mb-0.5">Design + Manufatura</strong>
+                  Redução dos ciclos de produção para entrega rápida de atualizações.
+                </div>
+                <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[11px] text-[#334155]">
+                  <strong className="text-purple-700 block mb-0.5">Simulador + Academia</strong>
+                  Desenvolvimento contínuo de pilotos e aceleração de jovens talentos.
                 </div>
               </div>
             </div>
 
-            {/* SEÇÃO INFERIOR: COMPARATIVO DE FORNECEDORES + IMPACTO E RECOMENDAÇÃO */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Comparativo dos 5 Principais Fornecedores */}
-              <div className="lg:col-span-8 p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-black font-mono uppercase tracking-wider text-white">
-                      Comparativo de Fornecedores de Power Unit 2026
-                    </h3>
-                    <p className="text-[11px] text-[#8B98AD]">
-                      Compare o desempenho, confiabilidade e custo dos 5 motores homologados.
-                    </p>
-                  </div>
-                </div>
+            {/* Painel 2: Gargalos Atuais (Calculados Dinamicamente) */}
+            <div className="p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-3 shadow-sm">
+              <div className="flex items-center gap-2 text-red-600 font-sans font-bold text-xs uppercase tracking-wider">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Gargalos Operacionais</span>
+              </div>
 
-                {/* Grade dos 5 Fornecedores com scroll horizontal seguro */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
-                  {ENGINE_SUPPLIERS.map((supplier) => {
-                    const isCurrent =
-                      supplier.name.toLowerCase() === currentSupplierName.toLowerCase()
+              {audit.bottlenecks.length > 0 ? (
+                <div className="space-y-2">
+                  {audit.bottlenecks.map((b, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-red-50 border border-red-200 text-[11px] text-[#334155]"
+                    >
+                      <strong className="text-red-700 font-mono block">
+                        ● {b.title} ({b.penaltyPercent > 0 ? `-${b.penaltyPercent}%` : ''})
+                      </strong>
+                      <p className="text-[#64748B] mt-0.5 leading-snug">{b.description}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-[#64748B]">
+                  Nenhum gargalo severo detectado. Instalações operam em equilíbrio técnico
+                  harmonioso.
+                </div>
+              )}
+            </div>
+
+            {/* Painel 3: Obras em Andamento */}
+            <div className="p-5 rounded-2xl bg-white border border-[#E2E8F0] space-y-3 shadow-sm">
+              <div className="flex items-center gap-2 text-amber-600 font-sans font-bold text-xs uppercase tracking-wider">
+                <Hammer className="w-4 h-4" />
+                <span>Canteiro de Obras</span>
+              </div>
+
+              {activeProjects.length > 0 ? (
+                <div className="space-y-3">
+                  {activeProjects.map((p, idx) => {
+                    const roundsLeft = Math.max(0, p.completionRound - currentRound)
+                    const progressPct = Math.min(
+                      100,
+                      Math.max(
+                        10,
+                        ((currentRound - p.startedAtRound) /
+                          Math.max(1, p.completionRound - p.startedAtRound)) *
+                          100,
+                      ),
+                    )
 
                     return (
                       <div
-                        key={supplier.name}
-                        className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
-                          isCurrent
-                            ? 'bg-[#111A29] border-[#E10600] shadow-[0_0_12px_rgba(225,6,0,0.3)] ring-1 ring-[#E10600]'
-                            : 'bg-[#0E131E] border-[#1B2536] hover:border-[#2A3952]'
-                        }`}
+                        key={idx}
+                        className="p-3 rounded-xl bg-amber-50/50 border border-amber-200 space-y-2 text-xs font-mono"
                       >
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono font-black text-sm text-white">
-                              {supplier.name}
-                            </span>
-                            {isCurrent && (
-                              <Badge className="bg-[#E10600] text-white text-[8px] font-mono px-1 py-0">
-                                ATUAL
-                              </Badge>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-[#8B98AD] font-mono block mb-2">
-                            Power Unit
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-[#0F172A] uppercase text-[11px]">
+                            {p.facilityId.replace('_', ' ')}
                           </span>
-
-                          <div className="space-y-1.5 text-[11px] font-mono">
-                            <div className="flex justify-between">
-                              <span className="text-[#8B98AD]">Potência:</span>
-                              <strong className="text-white">{supplier.power}</strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-[#8B98AD]">Confiabilidade:</span>
-                              <strong className="text-emerald-400">{supplier.reliability}%</strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-[#8B98AD]">Eficiência:</span>
-                              <strong className="text-amber-400">79%</strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-[#8B98AD]">Potencial:</span>
-                              <strong className="text-purple-400">84</strong>
-                            </div>
-                            <div className="flex justify-between pt-1 border-t border-[#1A2538] text-[10px]">
-                              <span className="text-[#8B98AD]">Custo anual:</span>
-                              <span className="text-white font-bold">
-                                {formatCurrency(supplier.costAnnual)}
-                              </span>
-                            </div>
-                          </div>
+                          <span className="text-cyan-700 text-[10px] font-bold">
+                            Conclusão: R{p.completionRound}
+                          </span>
                         </div>
-
-                        <div className="pt-3">
-                          {isCurrent ? (
-                            <div className="py-1.5 text-center rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold flex items-center justify-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Fornecedor atual
-                            </div>
-                          ) : (
-                            <Button
-                              onClick={() => handleOpenNegotiation(supplier)}
-                              className="w-full h-7 bg-[#141B26] hover:bg-[#E10600] hover:text-white border border-[#233147] text-[#CBD5E1] text-[10px] font-mono font-bold uppercase"
-                            >
-                              Negociar
-                            </Button>
-                          )}
+                        <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 transition-all duration-300"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                        <div className="text-[10px] text-[#64748B] flex justify-between">
+                          <span>Progresso: {Math.round(progressPct)}%</span>
+                          <span>Faltam {roundsLeft} rodadas</span>
                         </div>
                       </div>
                     )
                   })}
                 </div>
-              </div>
-
-              {/* Lado Direito: Impacto da Troca + Recomendação da Equipe */}
-              <div className="lg:col-span-4 space-y-4">
-                {/* Painel: Impacto da Troca de Fornecedor */}
-                <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-3">
-                  <h3 className="text-xs font-black font-mono uppercase tracking-wider text-white">
-                    Impacto da Troca de Fornecedor
-                  </h3>
-                  <p className="text-[11px] text-[#8B98AD]">
-                    Principais efeitos da mudança estrutural de motor.
-                  </p>
-
-                  <div className="space-y-2 text-xs font-mono pt-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#94A3B8]">Esforço de integração:</span>
-                      <span className="text-red-400 font-bold">Alto</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#94A3B8]">Compatibilidade chassi:</span>
-                      <span className="text-amber-400 font-bold">Média</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#94A3B8]">Tempo de adaptação:</span>
-                      <span className="text-cyan-400 font-bold">2 - 4 corridas</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#94A3B8]">Risco de perda inicial:</span>
-                      <span className="text-red-400 font-bold">Alto</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#94A3B8]">Potencial de ganho:</span>
-                      <span className="text-emerald-400 font-bold">Alto</span>
-                    </div>
-                  </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-[#64748B] text-center">
+                  Nenhuma obra em andamento no momento.
                 </div>
-
-                {/* Painel: Recomendação da Equipe */}
-                <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black font-mono uppercase tracking-wider text-white">
-                      Recomendação da Equipe
-                    </span>
-                    <Badge className={`font-mono text-[9px] font-bold ${teamRecommendation.color}`}>
-                      {teamRecommendation.badge}
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-[#CBD5E1] leading-relaxed">
-                    {teamRecommendation.text}
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
           </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* SUBABA 2: INFRAESTRUTURAS (Visual Aprovado)              */}
-        {/* ======================================================== */}
-        {activeTab === 'facilities' && (
-          <div className="space-y-6 animate-fade-in">
-            {/* HERO CAMPUS COM IMAGEM EXISTENTE (Visual Aprovado) */}
-            <div className="relative rounded-2xl overflow-hidden border border-[#1C2536] shadow-2xl min-h-[160px] sm:min-h-[180px] flex items-end">
-              <img
-                src={campusHeroImg}
-                alt="Campus Tecnológico da Equipe"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const target = e.currentTarget
-                  target.style.opacity = '0.3'
-                }}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#07090E] via-[#07090E]/85 to-transparent" />
-
-              <div className="relative w-full p-5 sm:p-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Building2 className="w-5 h-5 text-[#E10600]" />
-                    <span className="text-xs font-mono font-bold text-[#CBD5E1] uppercase tracking-wider">
-                      Campus Tecnológico {team?.name || 'Audi F1 Team'}
-                    </span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white uppercase">
-                    Inovação. Performance. Pessoas. Um futuro mais rápido.
-                  </h2>
-                  <div className="flex items-center gap-2 text-xs font-mono text-[#8B98AD] mt-1">
-                    <Building2 className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>9 instalações integradas em operação</span>
-                  </div>
-                </div>
-
-                {/* 4 Indicadores Rápidos do Campus */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono shrink-0">
-                  <div className="p-2.5 rounded-lg bg-[#070A10]/90 border border-[#1C2738] backdrop-blur-md">
-                    <span className="text-[9px] text-[#8B98AD] block uppercase">Nível Médio</span>
-                    <strong className="text-base text-emerald-400 font-black">
-                      {audit.averageLevel}{' '}
-                      <span className="text-xs text-[#64748B] font-normal">/ 5</span>
-                    </strong>
-                  </div>
-
-                  <div className="p-2.5 rounded-lg bg-[#070A10]/90 border border-[#1C2738] backdrop-blur-md">
-                    <span className="text-[9px] text-[#8B98AD] block uppercase">
-                      Eficiência Operacional
-                    </span>
-                    <strong className="text-base text-cyan-400 font-black">
-                      {audit.capabilities.operationalEfficiency}
-                    </strong>
-                  </div>
-
-                  <div className="p-2.5 rounded-lg bg-[#070A10]/90 border border-[#1C2738] backdrop-blur-md">
-                    <span className="text-[9px] text-[#8B98AD] block uppercase">
-                      Precisão Técnica
-                    </span>
-                    <strong className="text-base text-blue-400 font-black">
-                      {audit.capabilities.simulationAccuracy}
-                    </strong>
-                  </div>
-
-                  <div className="p-2.5 rounded-lg bg-[#070A10]/90 border border-[#1C2738] backdrop-blur-md">
-                    <span className="text-[9px] text-[#8B98AD] block uppercase">OPEX Anual</span>
-                    <strong className="text-base text-amber-400 font-black">
-                      {formatCurrency(audit.totalAnnualOpex)}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* AS 9 INSTALAÇÕES CANÔNICAS (3 COLUNAS) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {CANONICAL_FACILITIES_DEFINITIONS.map((fac) => {
-                const currentLvl = facilityLevels[fac.id]
-                const isMax = currentLvl >= 5
-                const imgUrl = FACILITY_IMAGE_MAP[fac.id] || campusHeroImg
-                const isUnderConstruction = f1Service.isFacilityUnderConstruction(team, fac.id)
-                const project = f1Service.getActiveFacilityProject(team, fac.id)
-
-                return (
-                  <div
-                    key={fac.id}
-                    className="rounded-xl bg-[#0B0F17] border border-[#1B2434] overflow-hidden flex flex-col justify-between shadow-xl group hover:border-[#2C3B54] transition-all"
-                  >
-                    <div>
-                      {/* Imagem do Departamento */}
-                      <div className="relative h-32 w-full overflow-hidden">
-                        <img
-                          src={imgUrl}
-                          alt={fac.name}
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            const target = e.currentTarget
-                            target.style.opacity = '0.3'
-                          }}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F17] via-transparent to-transparent" />
-                        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
-                          <span className="font-mono font-bold text-xs text-white uppercase drop-shadow">
-                            {fac.shortName}
-                          </span>
-                          {isUnderConstruction ? (
-                            <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-mono">
-                              OBRA R{project?.completionRound}
-                            </Badge>
-                          ) : (
-                            <Badge
-                              className={`font-mono text-[9px] font-bold uppercase px-2 py-0.5 ${
-                                isMax
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                              }`}
-                            >
-                              NÍVEL {currentLvl} / 5
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Conteúdo Técnico */}
-                      <div className="p-3.5 space-y-2.5">
-                        <p className="text-[11px] text-[#8B98AD] line-clamp-1">{fac.subtitle}</p>
-
-                        {/* 2 Efeitos Centrais */}
-                        <div className="space-y-1.5">
-                          {fac.effects.slice(0, 2).map((eff, i) => (
-                            <div
-                              key={i}
-                              className="p-1.5 rounded bg-[#090C12] border border-[#161F2E] flex items-center gap-2 text-[10px] font-mono"
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
-                              <span className="font-bold text-white truncate">{eff.title}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Botão Expandir */}
-                    <div className="p-3 bg-[#080B10] border-t border-[#141C28]">
-                      <Button
-                        onClick={() => handleOpenExpandFacility(fac)}
-                        disabled={isMax || isUnderConstruction}
-                        className={`w-full h-8 font-mono text-[10px] font-black uppercase tracking-wider ${
-                          isMax
-                            ? 'bg-[#121824] text-[#64748B] cursor-default'
-                            : isUnderConstruction
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-default'
-                              : 'bg-[#E10600] hover:bg-[#C00400] text-white shadow-md'
-                        }`}
-                      >
-                        {isMax ? 'Padrão Máximo' : isUnderConstruction ? 'Em Obras' : 'Expandir >'}
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* SEÇÃO INFERIOR: SINERGIAS-CHAVE + GARGALOS ATUAIS + OBRAS EM ANDAMENTO */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Painel 1: Sinergias-chave */}
-              <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-3">
-                <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-xs uppercase tracking-wider">
-                  <Sparkles className="w-4 h-4" />
-                  <span>Sinergias-chave</span>
-                </div>
-                <div className="space-y-2 text-xs font-mono">
-                  <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#162030] text-[11px] text-[#CBD5E1]">
-                    <strong className="text-emerald-400 block">CFD + Túnel de Vento</strong>
-                    Maior correlação de dados e redução de incerteza aerodinâmica.
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#162030] text-[11px] text-[#CBD5E1]">
-                    <strong className="text-cyan-400 block">Design + Manufatura</strong>
-                    Ciclo de desenvolvimento mais rápido da prancheta à pista.
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#162030] text-[11px] text-[#CBD5E1]">
-                    <strong className="text-purple-400 block">Simulador + Academia</strong>
-                    Evolução constante de jovens pilotos e retenção de talentos.
-                  </div>
-                </div>
-              </div>
-
-              {/* Painel 2: Gargalos Atuais (Calculados Dinamicamente) */}
-              <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-3">
-                <div className="flex items-center gap-2 text-red-400 font-mono font-bold text-xs uppercase tracking-wider">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>Gargalos Atuais</span>
-                </div>
-
-                {audit.bottlenecks.length > 0 ? (
-                  <div className="space-y-2">
-                    {audit.bottlenecks.map((b, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2.5 rounded-lg bg-[#090D14] border border-red-500/30 text-[11px] text-[#CBD5E1]"
-                      >
-                        <strong className="text-red-400 font-mono block">
-                          ● {b.title} ({b.penaltyPercent > 0 ? `-${b.penaltyPercent}%` : ''})
-                        </strong>
-                        <p className="text-[#8B98AD] mt-0.5">{b.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-lg bg-[#090D14] border border-[#162030] text-xs text-[#8B98AD]">
-                    Nenhum gargalo severo detectado. Instalações operam em equilíbrio relativo
-                    harmonioso.
-                  </div>
-                )}
-              </div>
-
-              {/* Painel 3: Obras em Andamento */}
-              <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1A2538] space-y-3">
-                <div className="flex items-center gap-2 text-amber-400 font-mono font-bold text-xs uppercase tracking-wider">
-                  <Hammer className="w-4 h-4" />
-                  <span>Obras em Andamento</span>
-                </div>
-
-                {activeProjects.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {activeProjects.map((p, idx) => {
-                      const roundsLeft = Math.max(0, p.completionRound - currentRound)
-                      const progressPct = Math.min(
-                        100,
-                        Math.max(
-                          10,
-                          ((currentRound - p.startedAtRound) /
-                            Math.max(1, p.completionRound - p.startedAtRound)) *
-                            100,
-                        ),
-                      )
-
-                      return (
-                        <div
-                          key={idx}
-                          className="p-2.5 rounded-lg bg-[#090D14] border border-amber-500/30 space-y-1.5 text-xs font-mono"
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold text-white uppercase text-[11px]">
-                              {p.facilityId.replace('_', ' ')}
-                            </span>
-                            <span className="text-cyan-400 text-[10px]">
-                              Conclusão: R{p.completionRound}
-                            </span>
-                          </div>
-                          <div className="w-full bg-[#141C2B] h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-amber-400 transition-all duration-300"
-                              style={{ width: `${progressPct}%` }}
-                            />
-                          </div>
-                          <div className="text-[10px] text-[#8B98AD] flex justify-between">
-                            <span>Progresso: {Math.round(progressPct)}%</span>
-                            <span>Faltam {roundsLeft} rodadas</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-lg bg-[#090D14] border border-[#162030] text-xs text-[#8B98AD] text-center">
-                    Nenhuma obra em andamento no momento.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* MODAIS DEDICADOS FUNCIONAIS */}
       <PowerUnitAllocationModal

@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Cpu, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react'
+import puAttachedUnitImg from '@/assets/file0000000033a8820ebdd18c0df97ed4fb-f0e78.png'
 
 export interface AllocationUnitInfo {
   unitNumber: number
@@ -59,18 +60,24 @@ export function PowerUnitAllocationModal({
     return 'text-red-400'
   }
 
+  const getRiskBadge = (risk: string) => {
+    if (risk === 'Baixo') return 'bg-emerald-100 text-emerald-800'
+    if (risk === 'Médio') return 'bg-amber-100 text-amber-800'
+    return 'bg-red-100 text-red-800'
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#0B0F17] border-[#1C2638] text-[#F1F5F9] max-w-xl">
+      <DialogContent className="bg-white border-[#E2E8F0] text-[#0F172A] max-w-xl shadow-xl">
         <DialogHeader>
-          <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs uppercase tracking-wider font-bold">
+          <div className="flex items-center gap-2 text-[#E10600] font-sans text-xs uppercase tracking-wider font-bold">
             <Cpu className="w-4 h-4" />
             <span>Engenharia de Pista // Alocação do Pool</span>
           </div>
-          <DialogTitle className="text-lg font-black font-mono tracking-tight text-white">
+          <DialogTitle className="text-lg font-bold font-sans tracking-tight text-[#0F172A]">
             Gerenciar Alocação de Unidades de Potência
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#8B98AD]">
+          <DialogDescription className="text-xs text-[#64748B]">
             Defina qual unidade física do pool de motores será montada no Carro #1 e Carro #2 para a
             próxima sessão de pista.
           </DialogDescription>
@@ -78,13 +85,13 @@ export function PowerUnitAllocationModal({
 
         <div className="space-y-4 py-2 text-xs">
           {/* Seletor Carro #1 */}
-          <div className="p-3.5 rounded-lg bg-[#0F1622] border border-[#1C2738] space-y-2">
+          <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="font-mono font-bold text-white text-xs uppercase flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#E10600]" />
+              <span className="font-bold text-[#0F172A] text-xs uppercase flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#E10600]" />
                 Carro #1 — {driver1Name}
               </span>
-              <Badge className="bg-[#141C29] text-cyan-400 border border-cyan-500/30 text-[10px] font-mono">
+              <Badge className="bg-white text-cyan-800 border border-[#CBD5E1] text-[10px] font-mono font-bold">
                 Atualmente: PU{car1Unit}
               </Badge>
             </div>
@@ -98,24 +105,41 @@ export function PowerUnitAllocationModal({
                     key={`c1-${u.unitNumber}`}
                     type="button"
                     onClick={() => setSelectedC1(u.unitNumber)}
-                    className={`p-2.5 rounded-md border text-left transition-all ${
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-[#E10600]/20 border-[#E10600] text-white shadow-sm ring-1 ring-[#E10600]'
+                        ? 'bg-red-50 border-[#E10600] shadow-xs ring-1 ring-[#E10600]'
                         : isUsedByOther
-                          ? 'bg-[#10141D] border-[#1C2330] text-[#64748B] hover:border-amber-500/40'
-                          : 'bg-[#121926] border-[#1E293B] text-[#94A3B8] hover:text-white hover:border-[#334155]'
+                          ? 'bg-neutral-100 border-[#CBD5E1] opacity-60 hover:opacity-100'
+                          : 'bg-white border-[#E2E8F0] hover:border-[#CBD5E1] hover:bg-neutral-50'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono font-black text-xs text-white">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-mono font-black text-xs text-[#0F172A]">
                         PU{u.unitNumber}
                       </span>
-                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#E10600]" />}
+                      {isSelected ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#E10600]" />
+                      ) : (
+                        <span className="text-[9px] text-[#64748B] font-mono">#{u.unitNumber}</span>
+                      )}
                     </div>
+
+                    <div className="h-10 w-full rounded-md overflow-hidden bg-neutral-900 mb-1.5 relative">
+                      <img
+                        src={puAttachedUnitImg}
+                        alt={`PU${u.unitNumber}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
                     <div className="text-[10px] font-mono space-y-0.5">
-                      <div className="text-[#8B98AD]">{u.km} km</div>
-                      <div className="font-semibold text-white">{u.integrity}% integ.</div>
-                      <div className={getRiskColor(u.risk)}>Risco {u.risk}</div>
+                      <div className="text-[#64748B]">{u.km} km</div>
+                      <div className="font-bold text-[#0F172A]">{u.integrity}% integ.</div>
+                      <span
+                        className={`inline-block text-[8px] font-bold px-1 rounded ${getRiskBadge(u.risk)}`}
+                      >
+                        {u.risk}
+                      </span>
                     </div>
                   </button>
                 )
@@ -124,13 +148,13 @@ export function PowerUnitAllocationModal({
           </div>
 
           {/* Seletor Carro #2 */}
-          <div className="p-3.5 rounded-lg bg-[#0F1622] border border-[#1C2738] space-y-2">
+          <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="font-mono font-bold text-white text-xs uppercase flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span className="font-bold text-[#0F172A] text-xs uppercase flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-600" />
                 Carro #2 — {driver2Name}
               </span>
-              <Badge className="bg-[#141C29] text-cyan-400 border border-cyan-500/30 text-[10px] font-mono">
+              <Badge className="bg-white text-cyan-800 border border-[#CBD5E1] text-[10px] font-mono font-bold">
                 Atualmente: PU{car2Unit}
               </Badge>
             </div>
@@ -144,24 +168,41 @@ export function PowerUnitAllocationModal({
                     key={`c2-${u.unitNumber}`}
                     type="button"
                     onClick={() => setSelectedC2(u.unitNumber)}
-                    className={`p-2.5 rounded-md border text-left transition-all ${
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-sm ring-1 ring-cyan-400'
+                        ? 'bg-cyan-50 border-cyan-600 shadow-xs ring-1 ring-cyan-600'
                         : isUsedByOther
-                          ? 'bg-[#10141D] border-[#1C2330] text-[#64748B] hover:border-amber-500/40'
-                          : 'bg-[#121926] border-[#1E293B] text-[#94A3B8] hover:text-white hover:border-[#334155]'
+                          ? 'bg-neutral-100 border-[#CBD5E1] opacity-60 hover:opacity-100'
+                          : 'bg-white border-[#E2E8F0] hover:border-[#CBD5E1] hover:bg-neutral-50'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono font-black text-xs text-white">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-mono font-black text-xs text-[#0F172A]">
                         PU{u.unitNumber}
                       </span>
-                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />}
+                      {isSelected ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-cyan-600" />
+                      ) : (
+                        <span className="text-[9px] text-[#64748B] font-mono">#{u.unitNumber}</span>
+                      )}
                     </div>
+
+                    <div className="h-10 w-full rounded-md overflow-hidden bg-neutral-900 mb-1.5 relative">
+                      <img
+                        src={puAttachedUnitImg}
+                        alt={`PU${u.unitNumber}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
                     <div className="text-[10px] font-mono space-y-0.5">
-                      <div className="text-[#8B98AD]">{u.km} km</div>
-                      <div className="font-semibold text-white">{u.integrity}% integ.</div>
-                      <div className={getRiskColor(u.risk)}>Risco {u.risk}</div>
+                      <div className="text-[#64748B]">{u.km} km</div>
+                      <div className="font-bold text-[#0F172A]">{u.integrity}% integ.</div>
+                      <span
+                        className={`inline-block text-[8px] font-bold px-1 rounded ${getRiskBadge(u.risk)}`}
+                      >
+                        {u.risk}
+                      </span>
                     </div>
                   </button>
                 )
@@ -171,10 +212,10 @@ export function PowerUnitAllocationModal({
 
           {/* Validação de Conflito */}
           {isConflict && (
-            <div className="p-3 rounded-lg bg-red-950/30 border border-red-500/50 text-red-200 flex items-start gap-2.5">
-              <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-start gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
               <div className="text-[11px] leading-tight">
-                <strong className="font-mono uppercase text-red-300 block">
+                <strong className="font-bold uppercase text-red-800 block">
                   Conflito Físico de Montagem:
                 </strong>
                 A mesma unidade física <strong>(PU{selectedC1})</strong> não pode ser montada
@@ -185,12 +226,12 @@ export function PowerUnitAllocationModal({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-[#161F2E]">
+        <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-[#F1F5F9]">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="bg-[#121926] border-[#1F2A3C] text-[#8B98AD] hover:text-white font-mono text-xs"
+            className="bg-white border-[#CBD5E1] text-[#475569] hover:text-[#0F172A] font-sans text-xs cursor-pointer"
           >
             Cancelar
           </Button>
@@ -198,10 +239,10 @@ export function PowerUnitAllocationModal({
             type="button"
             onClick={handleSave}
             disabled={isConflict}
-            className={`font-mono text-xs font-black uppercase tracking-wider ${
+            className={`font-sans text-xs font-bold uppercase tracking-wider cursor-pointer ${
               isConflict
-                ? 'bg-[#1C2533] text-[#64748B] cursor-not-allowed'
-                : 'bg-[#E10600] hover:bg-[#C00400] text-white shadow-md'
+                ? 'bg-neutral-200 text-[#64748B] cursor-not-allowed'
+                : 'bg-[#E10600] hover:bg-[#C00400] text-white shadow-xs'
             }`}
           >
             Confirmar e Homologar Montagem

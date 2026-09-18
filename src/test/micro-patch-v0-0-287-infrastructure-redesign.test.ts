@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { CAREER_NAV_SECTIONS } from '@/components/Sidebar'
 import { ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { CANONICAL_FACILITIES_DEFINITIONS } from '@/types/canonical-facilities-data'
-import { DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
+import {
+  DRIVE_STORAGE_PHOTOS,
+  ENGINE_SUPPLIER_LOGOS,
+  getEngineSupplierLogo,
+} from '@/lib/drive-storage-photos'
 
 describe('REDESIGN INFRAESTRUTURA v0.0.287 — Suíte de Testes Canônica', () => {
   it('Sidebar: deve ter removido o item "Desenvolvimento" (/development) e manter seções GESTÃO e COMPETIÇÃO', () => {
@@ -33,6 +37,16 @@ describe('REDESIGN INFRAESTRUTURA v0.0.287 — Suíte de Testes Canônica', () =
   })
 
   it('Power Unit: Fornecedores de Power Unit contém Audi, Ferrari, Mercedes, Honda e Ford com dados completos', () => {
+    const suppliers = ['Audi', 'Ferrari', 'Mercedes', 'Honda', 'Ford']
+    suppliers.forEach((s) => {
+      const logo = getEngineSupplierLogo(s)
+      expect(logo).toBeTruthy()
+      expect(logo).toContain('drive.google.com/thumbnail?id=')
+      expect(ENGINE_SUPPLIER_LOGOS[s]).toBeTruthy()
+    })
+  })
+
+  it('Power Unit: Fornecedores de Power Unit contém dados técnicos válidos', () => {
     expect(ENGINE_SUPPLIERS.length).toBeGreaterThanOrEqual(5)
     const audi = ENGINE_SUPPLIERS.find((s) => s.name === 'Audi')
     expect(audi).toBeDefined()

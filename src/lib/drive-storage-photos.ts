@@ -22,6 +22,13 @@ export const DRIVE_STORAGE_PHOTOS: Record<string, string> = {
   '3-Daniel_Ricciardo.jpg':
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBPBOIHGDb-TnyPxfiTqr9FGBFKC4ICWLn8mEwdagEQMdzydYmk9kUC7iMMvDNYj354D-KyN9e_b7wg5nxEnAI2wpZlLFd0sjK-zWw4Q=s0',
 
+  // --- PASTA LOGO_MOTOR (1XTaHxbAL0EzztsNBvRx0lekYXjWPj5Bq) ---
+  'Audi.jpg': 'https://drive.google.com/thumbnail?id=1DU0WIt6g0JaLCRfe9MzAJ0Jsw5EdpPnF&sz=w800',
+  'Ferrari.jpg': 'https://drive.google.com/thumbnail?id=1D67Kqt1sUMc4127HBQiV_0V4R_rjvmIt&sz=w800',
+  'Ford.jpg': 'https://drive.google.com/thumbnail?id=1tfRGoCErwXylqtxIurYQ9Pwb0YoDZDS2&sz=w800',
+  'Honda.jpg': 'https://drive.google.com/thumbnail?id=1pg8L_hcIUS4eom_YCWEHR6hHaK9C2Iy8&sz=w800',
+  'Mercedes.jpg': 'https://drive.google.com/thumbnail?id=1Y02CikBrjw76QvMBExc23UFKhsehkBdo&sz=w800',
+
   // --- PASTA ESTRUTURAS (1qMFGQkKXlH1Zb3u7GVnRYKFUny1Jzqnk) ---
   'Academia_de_pilotos.jpg':
     'https://drive.google.com/thumbnail?id=1bZajSpyxHJW5ZVr9QHGx-L4MuDNYbFva&sz=w1600',
@@ -373,4 +380,24 @@ export function getDriveStoragePhotoUrl(filenameOrPilotKey: string): string | nu
   }
 
   return null
+}
+
+/**
+ * URLs oficiais das logos de fornecedores de motor extraídas da pasta pública do Google Drive
+ * (1XTaHxbAL0EzztsNBvRx0lekYXjWPj5Bq): Audi, Ferrari, Ford, Honda, Mercedes
+ */
+export const ENGINE_SUPPLIER_LOGOS: Record<string, string> = {
+  Audi: 'https://drive.google.com/thumbnail?id=1DU0WIt6g0JaLCRfe9MzAJ0Jsw5EdpPnF&sz=w800',
+  Ferrari: 'https://drive.google.com/thumbnail?id=1D67Kqt1sUMc4127HBQiV_0V4R_rjvmIt&sz=w800',
+  Ford: 'https://drive.google.com/thumbnail?id=1tfRGoCErwXylqtxIurYQ9Pwb0YoDZDS2&sz=w800',
+  Honda: 'https://drive.google.com/thumbnail?id=1pg8L_hcIUS4eom_YCWEHR6hHaK9C2Iy8&sz=w800',
+  Mercedes: 'https://drive.google.com/thumbnail?id=1Y02CikBrjw76QvMBExc23UFKhsehkBdo&sz=w800',
+}
+
+export function getEngineSupplierLogo(supplierName: string): string | null {
+  if (!supplierName) return null
+  const key = Object.keys(ENGINE_SUPPLIER_LOGOS).find(
+    (k) => k.toLowerCase() === supplierName.toLowerCase(),
+  )
+  return key ? ENGINE_SUPPLIER_LOGOS[key] : null
 }

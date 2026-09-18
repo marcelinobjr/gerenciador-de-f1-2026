@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Zap, AlertTriangle, CheckCircle2, ShieldCheck, ArrowRight, DollarSign } from 'lucide-react'
 import { formatCurrency } from '@/lib/formatters'
 import { EngineSupplierSpec } from '@/types/f1'
+import { getEngineSupplierLogo } from '@/lib/drive-storage-photos'
 
 interface PowerUnitNegotiationModalProps {
   open: boolean
@@ -86,21 +87,32 @@ export function PowerUnitNegotiationModal({
     }
   }
 
+  const supplierLogo = getEngineSupplierLogo(targetSupplier.name)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#0B0F17] border-[#1C2638] text-[#F1F5F9] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-white border-[#E2E8F0] text-[#0F172A] max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
         <DialogHeader>
-          <div className="flex items-center gap-2 text-[#E10600] font-mono text-xs uppercase tracking-wider font-bold">
+          <div className="flex items-center gap-2 text-[#E10600] font-sans text-xs uppercase tracking-wider font-bold">
             <Zap className="w-4 h-4" />
             <span>Mesa de Negociação // Fornecimento de Power Unit</span>
           </div>
-          <DialogTitle className="text-xl font-black font-mono tracking-tight text-white flex items-center justify-between">
-            <span>Contrato Oficial: {targetSupplier.name} Power Unit</span>
-            <Badge className="bg-[#162030] text-cyan-400 border border-cyan-500/30 text-xs font-mono">
-              Vigência a partir de {nextSeasonYear}
+          <DialogTitle className="text-xl font-bold font-sans tracking-tight text-[#0F172A] flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <span>Contrato Oficial: {targetSupplier.name} Power Unit</span>
+              {supplierLogo && (
+                <img
+                  src={supplierLogo}
+                  alt={targetSupplier.name}
+                  className="w-5 h-5 rounded-full object-contain border border-[#CBD5E1] bg-white shadow-2xs"
+                />
+              )}
+            </span>
+            <Badge className="bg-neutral-100 text-[#475569] border border-[#CBD5E1] text-xs font-mono font-bold">
+              A partir de {nextSeasonYear}
             </Badge>
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#8B98AD]">
+          <DialogDescription className="text-xs text-[#64748B]">
             Acordo técnico e comercial para fornecimento de unidades de potência regulamentares F1
             2026+. Trocas de fornecedor entram em vigor na próxima temporada para permitir
             integração de chassi.
@@ -109,13 +121,13 @@ export function PowerUnitNegotiationModal({
 
         <div className="space-y-4 py-2 text-xs">
           {/* Alerta de Contrato Futuro Canônico */}
-          <div className="p-3 rounded-lg bg-blue-950/25 border border-blue-500/40 text-blue-200 flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <strong className="text-white font-mono uppercase text-[11px] block">
+              <strong className="text-blue-900 font-sans uppercase text-[11px] block">
                 Regulamento FIA: Troca não-instantânea de motor
               </strong>
-              <p className="text-[#93C5FD] text-[11px] leading-relaxed">
+              <p className="text-blue-900/80 text-[11px] leading-relaxed">
                 A assinatura deste acordo sela o fornecimento para a temporada de{' '}
                 <strong>{nextSeasonYear}</strong>. Durante o ano corrente, a equipe continuará
                 utilizando o pool atual da <strong>{currentSupplierName}</strong>. A engenharia
@@ -126,74 +138,78 @@ export function PowerUnitNegotiationModal({
 
           {/* Comparativo de Custo & Condições Financeiras */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-3 rounded-lg bg-[#0F1622] border border-[#1C2738] space-y-2">
-              <span className="text-[10px] font-mono text-[#8B98AD] uppercase block">
+            <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+              <span className="text-[10px] font-mono text-[#64748B] uppercase block font-semibold">
                 Termos Comerciais
               </span>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-[#94A3B8]">Custo Operacional Anual:</span>
-                <span className="font-mono font-bold text-white">
+                <span className="text-[#64748B]">Custo Operacional Anual:</span>
+                <span className="font-mono font-bold text-[#0F172A]">
                   {formatCurrency(annualCost)}/ano
                 </span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-[#94A3B8]">Taxa de Assinatura (Sinal):</span>
-                <span className="font-mono text-cyan-400 font-bold">
+                <span className="text-[#64748B]">Taxa de Assinatura (Sinal):</span>
+                <span className="font-mono text-cyan-700 font-bold">
                   {formatCurrency(signingFee)}
                 </span>
               </div>
               {breakPenalty > 0 && (
-                <div className="flex justify-between items-center text-xs text-amber-400">
+                <div className="flex justify-between items-center text-xs text-amber-700">
                   <span>Multa Rescisória ({currentSupplierName}):</span>
                   <span className="font-mono font-bold">{formatCurrency(breakPenalty)}</span>
                 </div>
               )}
-              <div className="pt-2 border-t border-[#1C2738] flex justify-between items-center text-xs">
-                <span className="text-white font-bold">Desembolso Imediato:</span>
-                <span className="font-mono font-black text-emerald-400 text-sm">
+              <div className="pt-2 border-t border-[#E2E8F0] flex justify-between items-center text-xs">
+                <span className="text-[#0F172A] font-bold">Desembolso Imediato:</span>
+                <span className="font-mono font-black text-emerald-600 text-sm">
                   {formatCurrency(initialCashOutflow)}
                 </span>
               </div>
             </div>
 
             {/* Impacto Técnico e Integração */}
-            <div className="p-3 rounded-lg bg-[#0F1622] border border-[#1C2738] space-y-2">
-              <span className="text-[10px] font-mono text-[#8B98AD] uppercase block">
+            <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+              <span className="text-[10px] font-mono text-[#64748B] uppercase block font-semibold">
                 Impacto Técnico Previsto
               </span>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-[#94A3B8]">Integração com Chassi:</span>
-                <span className="font-mono font-semibold text-white">{integrationPredicted}</span>
+                <span className="text-[#64748B]">Integração com Chassi:</span>
+                <span className="font-mono font-semibold text-[#0F172A]">
+                  {integrationPredicted}
+                </span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-[#94A3B8]">Risco de Adaptação:</span>
+                <span className="text-[#64748B]">Risco de Adaptação:</span>
                 <span
                   className={`font-mono font-semibold ${
                     adaptationRisk.startsWith('Nenhum')
-                      ? 'text-emerald-400'
+                      ? 'text-emerald-600'
                       : adaptationRisk.startsWith('Alto')
-                        ? 'text-red-400'
-                        : 'text-amber-400'
+                        ? 'text-red-600'
+                        : 'text-amber-600'
                   }`}
                 >
                   {adaptationRisk}
                 </span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-[#94A3B8]">Classificação FIA:</span>
-                <span className="font-mono text-xs text-[#CBD5E1]">{targetSupplier.techBadge}</span>
+                <span className="text-[#64748B]">Classificação FIA:</span>
+                <span className="font-mono text-xs text-[#0F172A] font-medium">
+                  {targetSupplier.techBadge}
+                </span>
               </div>
-              <div className="pt-2 border-t border-[#1C2738] text-[11px] text-[#8B98AD]">
-                Potência: <strong className="text-white">{targetSupplier.power}/100</strong> •
+              <div className="pt-2 border-t border-[#E2E8F0] text-[11px] text-[#64748B]">
+                Potência: <strong className="text-[#0F172A]">{targetSupplier.power}/100</strong> •
                 Confiabilidade:{' '}
-                <strong className="text-white">{targetSupplier.reliability}%</strong>
+                <strong className="text-emerald-600">{targetSupplier.reliability}%</strong>
               </div>
             </div>
           </div>
 
           {/* Duração do Contrato */}
-          <div className="p-3 rounded-lg bg-[#0E141F] border border-[#192231] space-y-2">
-            <label className="text-[10px] font-mono text-[#8B98AD] uppercase block font-bold">
+          <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+            <label className="text-[10px] font-mono text-[#64748B] uppercase block font-bold">
               Duração Contratual Desejada
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -202,10 +218,10 @@ export function PowerUnitNegotiationModal({
                   key={years}
                   type="button"
                   onClick={() => setContractYears(years)}
-                  className={`py-2 px-3 rounded-md text-xs font-mono font-bold transition-all border ${
+                  className={`py-2 px-3 rounded-lg text-xs font-mono font-bold transition-all border cursor-pointer ${
                     contractYears === years
-                      ? 'bg-[#E10600] text-white border-[#E10600] shadow-md'
-                      : 'bg-[#121926] text-[#8B98AD] border-[#1E293B] hover:bg-[#182232] hover:text-white'
+                      ? 'bg-[#E10600] text-white border-[#E10600] shadow-xs'
+                      : 'bg-white text-[#475569] border-[#CBD5E1] hover:bg-neutral-50 hover:text-[#0F172A]'
                   }`}
                 >
                   {years} Temporadas ({nextSeasonYear} - {nextSeasonYear + years - 1})
@@ -215,16 +231,16 @@ export function PowerUnitNegotiationModal({
           </div>
 
           {/* Checagem Orçamentária */}
-          <div className="flex justify-between items-center p-3 rounded-lg bg-[#090C12] border border-[#161F2E] font-mono text-xs">
-            <span className="text-[#8B98AD]">Orçamento Atual da Equipe:</span>
-            <span className={canAfford ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+          <div className="flex justify-between items-center p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] font-mono text-xs">
+            <span className="text-[#64748B]">Orçamento Atual da Equipe:</span>
+            <span className={canAfford ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}>
               {formatCurrency(budget)} {canAfford ? '(Suficiente)' : '(Insuficiente)'}
             </span>
           </div>
 
           {!canAfford && (
-            <div className="p-2.5 rounded bg-red-950/30 border border-red-500/40 text-red-300 text-xs flex items-center gap-2 font-mono">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2 font-mono">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
               <span>
                 Fundos insuficientes para honrar o sinal de assinatura e multas rescisórias.
               </span>
@@ -232,13 +248,13 @@ export function PowerUnitNegotiationModal({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-[#161F2E]">
+        <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-[#F1F5F9]">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
-            className="bg-[#121926] border-[#1F2A3C] text-[#8B98AD] hover:text-white font-mono text-xs"
+            className="bg-white border-[#CBD5E1] text-[#475569] hover:text-[#0F172A] font-sans text-xs cursor-pointer"
           >
             Cancelar
           </Button>
@@ -246,7 +262,7 @@ export function PowerUnitNegotiationModal({
             type="button"
             onClick={handleSignContract}
             disabled={!canAfford || isSubmitting}
-            className="bg-[#E10600] hover:bg-[#C00400] text-white font-mono text-xs font-black uppercase tracking-wider"
+            className="bg-[#E10600] hover:bg-[#C00400] text-white font-sans text-xs font-bold uppercase tracking-wider cursor-pointer"
           >
             {isSubmitting
               ? 'Registrando Contrato FIA...'
