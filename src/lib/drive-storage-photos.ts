@@ -24,45 +24,40 @@ export const DRIVE_STORAGE_PHOTOS: Record<string, string> = {
 
   // --- PASTA ESTRUTURAS (1qMFGQkKXlH1Zb3u7GVnRYKFUny1Jzqnk) ---
   'Academia_de_pilotos.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBOz3T5FFbatT-nOB-J7JGaZ-eookTZA5PEhoRUNVpEw7-JllRPiXQV0QGl47Bgzlh4XCpnpGyozFFPfwvkgGUqLuGMXR7SO0swkSW_w=s0',
+    'https://drive.google.com/thumbnail?id=1bZajSpyxHJW5ZVr9QHGx-L4MuDNYbFva&sz=w1600',
   'Asa_Dianteira.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBM88hLwqIhVm4A7GvRRoNFvEMZpggymxjYvlgzLgz8TTV1XjrUiYauY1LLLMQ75ZTMQ6lOGdk5NNZFrdyLvU6sm7ElQe6iH6idRmJSm=s0',
+    'https://drive.google.com/thumbnail?id=1BB8Umo0um9kRn4e6CuwEiBiGoEU08kvA&sz=w1600',
   'Asa_Traseira.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBM5RC-_QG4t2hzbzBkj9aW5LS0ej_KD-2WqIKO-ZvglNGJSmipebD-uT4hQGAjHyPqPxuPAMLDmanzOdBKIPxKCwrKmUlOehXhRmUu6=s0',
+    'https://drive.google.com/thumbnail?id=125OW0qijn0kArV1WM4FJtCBlIYBwlqM9&sz=w1600',
   'Assoalho.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBM3qiAPDuPnwz2ZKte6gWvrU2zmlVbgNtXhL3zbHe5Q20PHp8F2RBjxF4OVnoARjCvBlLw0bnUXov6siEKE0L2TFwBFswJJ3QixX62G=s0',
+    'https://drive.google.com/thumbnail?id=1Z9gh5xe3YfT5OVN3gTkMRhdP4X6FNYY1&sz=w1600',
   'Centro_de_Design.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBP5EO7Kn-7BKm8bddSbxRuLlnc1AYRifsQmsl7Mm7oIfGIorX30QoThARjDhelliRu3ap_IKPN8vDZBQTTlimorl9CzAv_eXH10CrXg=s0',
+    'https://drive.google.com/thumbnail?id=1qyYkUNjw46Za-cWqFgIkRIOkYBARjzNF&sz=w1600',
   'Centro_de_operações.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBPOqUAxzi6l8lY262TElInETLXzV3RnM4frQHeIaGiZ92-nV9EWWDP6Dj77H-77e9ZiA0BYAkBNeQDSG_BaJ4p043AUplUfs0GR49Nu=s0',
+    'https://drive.google.com/thumbnail?id=1VZwvNs4ENeCOwjZXap1Wkstc4NEp6WeG&sz=w1600',
   'Centro_de_Pit_stop.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBO4OWTB752Qi9YMhmk7AS6cbVt_Rr_0NvMikoIu_CHRFS2er6X-6vLjoOHTb6Qj9kPRpMa4y0jEIMAp6mIgr_PwZ-5h3sajSJGmFQeG=s0',
-  'Chuva.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBPZQl79THtzkReUB-OB0wResohSSDyTPfXvRNvOLnAYsgyQNDV0N3AtOpBiBGtnPmsRH_xLJKe4mH5JPlDFB9FyGQClT48qFusKxyn=s0',
+    'https://drive.google.com/thumbnail?id=1cnzcYOvlipue238eftPktQf5AKAI-YHu&sz=w1600',
+  'Chuva.jpg': 'https://drive.google.com/thumbnail?id=1NPTSQO5uCUYLMelLpmEf2VG6pk2jwZYX&sz=w1600',
   'Cluster_CFD.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBOczNFt9FQE4WrL8a5AYxEfRLD261RhfJGPwHgbQn1fPWUuYuO3YF9Z5x6BbHv4Z4LK3V9D67x_W-xs9bd5PoTocPiZE5CWQaCS3eXC=s0',
+    'https://drive.google.com/thumbnail?id=1dmYw9CxdM_73zqX10qmoVaWCNpJ1i7qt&sz=w1600',
   'compostos.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBNsqBlq7RtU4yw3Jchz6yKns0AYfxlSy_tq5Ogh1xOPPYqarje1yXZXhVuNSFq0GYGbP1MM9dwV_bETNVu3guDij9ARD6KukCmBEdTf=s0',
-  'Duros.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBPa41M0bNp7G6dhK9CRgbwi56WabKtdVJJ-ok_NvkUDa_ERS2Bcrlsmpv_g56900dthQDDW8wGg3X0SmA7VM4nifwhWY7SovkxTcWGD=s0',
+    'https://drive.google.com/thumbnail?id=1UdAM5sGtihYLiRJICPEqylZOoW1fIXCA&sz=w1600',
+  'Duros.jpg': 'https://drive.google.com/thumbnail?id=1wSZVvLjd9ZlT1n5uyoNI0frjw4dLjHs8&sz=w1600',
   'Estrutura_industrial.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBPDAbB6zKi3mFZX8NtvYluYa0tMQvxMs56s8vyWgXU2ez77-SJhRbXo7YwXjb2MuLxXS1ssGYoqaYQyd1kii_7-KvkeCliEVpsZ_dnX=s0',
-  'Fabrica.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBNIFECeLt42nWmPwmFoTUmqZs6eU_9pArxwX6zExSurnabE8hpUd665O6JEvyxziBL4KY6uu5FEk1X0ncV6-64lp8B5qZ8f61azz5HB=s0',
+    'https://drive.google.com/thumbnail?id=1iXyVw_enWLYp4G2FbAg5EsoMr5A7mKwS&sz=w1600',
+  'Fabrica.jpg': 'https://drive.google.com/thumbnail?id=1phyP1H8xzTbit9rblTUMzLrKg2jhy-f-&sz=w1600',
   'Intermediário.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBNbAHVGppSD5kmwhOjjwEHABW9WUH5teMZcDJXjINGgFYA0daHRYEJ7j2i5KB6DVVLzY45p0bUsAKc6Qq-Elt3w6D1KZSyHYBG2P7yn=s0',
+    'https://drive.google.com/thumbnail?id=1h2n2ofOalVTYgRZFdFGRtyT9hJzDdcWm&sz=w1600',
   'Laterais.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBNFEyRNf1AXRMMvOXFOcGxoQ-05fyInwHyFWU3N2yxjGwVYOocBC_8jeoZL6B11iYIHm25Q7BxFUY5yzJYKjt4w_EwnqV8DZYMCfnR1=s0',
-  'Macios.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBPG4pO-wcCfrCUtUSwHQX0jpfYgCRXXEJC3ZTNP8tWFEQvZYlP1kI2hF76QXWy_E5hUcpFCVWAYtVhsD8bEwFrcMlWqnbKOCbs-Mvij=s0',
-  'Médios.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBPaF77cWbAIq8sxxCrQp7fbBhtrUYLOdaI5x4_V_7Zcym5SCH3EwEgCGv71612IUpxX601wKlvURCdYxaq1lcjkre2-s3KUYmw2bhT5=s0',
+    'https://drive.google.com/thumbnail?id=18Eh0zSN5gLHJoiWlNq5NXjGovRRCVfw9&sz=w1600',
+  'Macios.jpg': 'https://drive.google.com/thumbnail?id=1Y7UtgkkfLbKGfqpEht1OLtPrl9NMmr35&sz=w1600',
+  'Médios.jpg': 'https://drive.google.com/thumbnail?id=15SGWc6r2GPcqwP73DI_5E-kz5Sre8JnJ&sz=w1600',
   'Simulador.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBMu_JgSKJH1LBsB_KJsKqebUYKUUxUVOxJZuprvFO24vA-DRra-ESF41QJIwLIaIT_V6EYPO6_3LWjzjfj-Oft3NWhjBSMx-VabD8Y5=s0',
+    'https://drive.google.com/thumbnail?id=16YZFSmFgLGdVhjAZbB5PhG9U5R0qHK1V&sz=w1600',
   'suspensão.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBM9Uj2ez9uHGIaRD4DM-Jddr4lUCb3DaLgOmqMMdI7qIrCyKafd2b6WSVOID-NSFm2SgZ-MahJBJB5HaHy82OdK-TPG7df3o4s7XSZs=s0',
+    'https://drive.google.com/thumbnail?id=1aiF6LsEp98yKlUD-KMH8yIwXe6w6Atdq&sz=w1600',
   'Túnel_de_vento.jpg':
-    'https://lh3.googleusercontent.com/drive-storage/AJQWtBNWrb-P5KYMgELoztmrpsbzDmzAqZHsGlcqAP3uNQNiKAc8l03M5VJ48DtYZoRyBUGbETlHWP0loRfaYwnB1rAFbKy7lUdBLYiC1dwe=s0',
+    'https://drive.google.com/thumbnail?id=1lENvyCJa0fKVpttHVYl8N4Z11svoPy4y&sz=w1600',
   '3-Max_Verstappen.jpg':
     'https://lh3.googleusercontent.com/drive-storage/AJQWtBOU5GuL8vJ47nk5dGfeekKDi4Il7bAvodJRBMyzJnqNG1A1IM0J9V7HaXI9G570tWWAMpaEpnZPOq6utPMZeu2DqZ4-0ERequi-Ly9Q=s0',
   '3-Nina_Gademan.jpg':

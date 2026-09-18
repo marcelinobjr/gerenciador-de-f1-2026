@@ -193,19 +193,39 @@ export default function InfrastructurePage() {
     return f1Service.getFacilityProjects(team)
   }, [team])
 
-  // Mapeamento canônico obrigatório de imagens das 9 instalações
-  const campusHeroImg = DRIVE_STORAGE_PHOTOS['Fabrica.jpg'] || puHeroImg
+  // Mapeamento canônico obrigatório de imagens das 9 instalações + Hero Campus da pasta oficial do Google Drive
+  const campusHeroImg =
+    DRIVE_STORAGE_PHOTOS['Fabrica.jpg'] ||
+    'https://drive.google.com/thumbnail?id=1phyP1H8xzTbit9rblTUMzLrKg2jhy-f-&sz=w1600'
 
   const FACILITY_IMAGE_MAP: Record<string, string> = {
-    factory: DRIVE_STORAGE_PHOTOS['Fabrica.jpg'] || campusHeroImg,
-    design_centre: DRIVE_STORAGE_PHOTOS['Centro_de_Design.jpg'] || campusHeroImg,
-    cfd: DRIVE_STORAGE_PHOTOS['Cluster_CFD.jpg'] || campusHeroImg,
-    wind_tunnel: DRIVE_STORAGE_PHOTOS['Túnel_de_vento.jpg'] || campusHeroImg,
-    manufacturing: DRIVE_STORAGE_PHOTOS['Estrutura_industrial.jpg'] || campusHeroImg,
-    simulator: DRIVE_STORAGE_PHOTOS['Simulador.jpg'] || campusHeroImg,
-    operations_centre: DRIVE_STORAGE_PHOTOS['Centro_de_operações.jpg'] || campusHeroImg,
-    pitstop_center: DRIVE_STORAGE_PHOTOS['Centro_de_Pit_stop.jpg'] || campusHeroImg,
-    youth_academy: DRIVE_STORAGE_PHOTOS['Academia_de_pilotos.jpg'] || campusHeroImg,
+    factory:
+      DRIVE_STORAGE_PHOTOS['Fabrica.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1phyP1H8xzTbit9rblTUMzLrKg2jhy-f-&sz=w1600',
+    design_centre:
+      DRIVE_STORAGE_PHOTOS['Centro_de_Design.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1qyYkUNjw46Za-cWqFgIkRIOkYBARjzNF&sz=w1600',
+    cfd:
+      DRIVE_STORAGE_PHOTOS['Cluster_CFD.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1dmYw9CxdM_73zqX10qmoVaWCNpJ1i7qt&sz=w1600',
+    wind_tunnel:
+      DRIVE_STORAGE_PHOTOS['Túnel_de_vento.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1lENvyCJa0fKVpttHVYl8N4Z11svoPy4y&sz=w1600',
+    manufacturing:
+      DRIVE_STORAGE_PHOTOS['Estrutura_industrial.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1iXyVw_enWLYp4G2FbAg5EsoMr5A7mKwS&sz=w1600',
+    simulator:
+      DRIVE_STORAGE_PHOTOS['Simulador.jpg'] ||
+      'https://drive.google.com/thumbnail?id=16YZFSmFgLGdVhjAZbB5PhG9U5R0qHK1V&sz=w1600',
+    operations_centre:
+      DRIVE_STORAGE_PHOTOS['Centro_de_operações.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1VZwvNs4ENeCOwjZXap1Wkstc4NEp6WeG&sz=w1600',
+    pitstop_center:
+      DRIVE_STORAGE_PHOTOS['Centro_de_Pit_stop.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1cnzcYOvlipue238eftPktQf5AKAI-YHu&sz=w1600',
+    youth_academy:
+      DRIVE_STORAGE_PHOTOS['Academia_de_pilotos.jpg'] ||
+      'https://drive.google.com/thumbnail?id=1bZajSpyxHJW5ZVr9QHGx-L4MuDNYbFva&sz=w1600',
   }
 
   // Handlers de Alocação de PU
@@ -475,6 +495,12 @@ export default function InfrastructurePage() {
                     <img
                       src={puHeroImg}
                       alt="F1 Power Unit 2026"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const target = e.currentTarget
+                        target.style.opacity = '0.3'
+                      }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#090C12] via-transparent to-transparent" />
@@ -843,6 +869,12 @@ export default function InfrastructurePage() {
               <img
                 src={campusHeroImg}
                 alt="Campus Tecnológico da Equipe"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.currentTarget
+                  target.style.opacity = '0.3'
+                }}
                 className="absolute inset-0 w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-[#07090E] via-[#07090E]/85 to-transparent" />
@@ -922,6 +954,12 @@ export default function InfrastructurePage() {
                         <img
                           src={imgUrl}
                           alt={fac.name}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.currentTarget
+                            target.style.opacity = '0.3'
+                          }}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F17] via-transparent to-transparent" />

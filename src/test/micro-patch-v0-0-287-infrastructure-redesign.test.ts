@@ -69,6 +69,36 @@ describe('REDESIGN INFRAESTRUTURA v0.0.287 — Suíte de Testes Canônica', () =
       expect(DRIVE_STORAGE_PHOTOS[key]).toBeDefined()
       expect(typeof DRIVE_STORAGE_PHOTOS[key]).toBe('string')
       expect(DRIVE_STORAGE_PHOTOS[key].length).toBeGreaterThan(10)
+      // Validação de formato Google Drive Thumbnail resiliente
+      expect(DRIVE_STORAGE_PHOTOS[key]).toContain('drive.google.com/thumbnail?id=')
     }
+  })
+
+  it('Assets Visuais Oficiais da Pasta do Google Drive (9 Instalações + Campus + Power Unit)', () => {
+    // 9 instalações com seus IDs únicos na pasta oficial do Drive (1qMFGQkKXlH1Zb3u7GVnRYKFUny1Jzqnk)
+    const officialDriveMap: Record<string, string> = {
+      'Fabrica.jpg': '1phyP1H8xzTbit9rblTUMzLrKg2jhy-f-',
+      'Centro_de_Design.jpg': '1qyYkUNjw46Za-cWqFgIkRIOkYBARjzNF',
+      'Cluster_CFD.jpg': '1dmYw9CxdM_73zqX10qmoVaWCNpJ1i7qt',
+      'Túnel_de_vento.jpg': '1lENvyCJa0fKVpttHVYl8N4Z11svoPy4y',
+      'Estrutura_industrial.jpg': '1iXyVw_enWLYp4G2FbAg5EsoMr5A7mKwS',
+      'Simulador.jpg': '16YZFSmFgLGdVhjAZbB5PhG9U5R0qHK1V',
+      'Centro_de_operações.jpg': '1VZwvNs4ENeCOwjZXap1Wkstc4NEp6WeG',
+      'Centro_de_Pit_stop.jpg': '1cnzcYOvlipue238eftPktQf5AKAI-YHu',
+      'Academia_de_pilotos.jpg': '1bZajSpyxHJW5ZVr9QHGx-L4MuDNYbFva',
+    }
+
+    // Cada uma das 9 instalações possui seu arquivo mapeado com o ID correto e único
+    const seenIds = new Set<string>()
+    for (const [filename, fileId] of Object.entries(officialDriveMap)) {
+      const url = DRIVE_STORAGE_PHOTOS[filename]
+      expect(url).toBeDefined()
+      expect(url).toContain(fileId)
+      expect(seenIds.has(fileId)).toBe(false)
+      seenIds.add(fileId)
+    }
+
+    // Exatamente 9 arquivos distintos para as 9 instalações (não reutiliza imagem entre cards)
+    expect(seenIds.size).toBe(9)
   })
 })

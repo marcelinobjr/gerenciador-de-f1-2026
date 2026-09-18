@@ -96,6 +96,12 @@ export function FacilityExpandModal({
             <img
               src={facilityImageUrl}
               alt={facility.name}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.currentTarget
+                target.style.opacity = '0.3'
+              }}
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F17] via-[#0B0F17]/40 to-transparent" />
