@@ -375,6 +375,10 @@ export function SponsorsPage() {
               <span className="text-[11px] font-mono text-neutral-400">
                 TEMPORADA {season?.year || 2026}
               </span>
+              <span className="text-white/30">•</span>
+              <span className="text-[10px] font-mono text-neutral-500 bg-[#141B26] px-1.5 py-0.5 rounded border border-[#1F2733]">
+                v0.0.282
+              </span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
