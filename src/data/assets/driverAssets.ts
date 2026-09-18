@@ -161,6 +161,10 @@ export function normalizeDriverKey(driverIdOrName: string | null | undefined): s
 /**
  * Retorna URL de imagem do piloto priorizando caminho local e caindo em CDN / fallback limpo
  */
+export function getDriverPhoto(driverIdOrName: string | null | undefined): string | null {
+  return getDriverImage(driverIdOrName)
+}
+
 export function getDriverImage(driverIdOrName: string | null | undefined): string | null {
   if (!driverIdOrName) return null
   const key = normalizeDriverKey(driverIdOrName)
