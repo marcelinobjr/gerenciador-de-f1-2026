@@ -16,41 +16,48 @@ export interface CarPartAssetDefinition {
   aspectRatio?: string
 }
 
+import frontWingImg from '@/assets/asadianteira-59e28.png'
+import rearWingImg from '@/assets/asatraseira-33f08.png'
+import floorImg from '@/assets/assoalho-e8e97.png'
+import sidepodsImg from '@/assets/laterais-37ced.jpg'
+import engineImg from '@/assets/motor-67601.jpg'
+import suspensionImg from '@/assets/suspensao-8b1b8.jpg'
+
 export const CAR_PART_ASSETS: Record<CarPartType, CarPartAssetDefinition> = {
   frontWing: {
     partType: 'frontWing',
     label: 'Asa Dianteira',
-    photoUrl: '/assets/car-parts/front-wing/front-wing-studio.png',
+    photoUrl: frontWingImg,
     fallbackSvg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 40 C30 25, 70 25, 90 40 L85 50 C65 35, 35 35, 15 50 Z" fill="#94A3B8" fill-opacity="0.2"/><path d="M45 20 L55 20 L52 40 L48 40 Z" fill="#64748B"/></svg>`,
   },
   rearWing: {
     partType: 'rearWing',
     label: 'Asa Traseira',
-    photoUrl: '/assets/car-parts/rear-wing/rear-wing-studio.png',
+    photoUrl: rearWingImg,
     fallbackSvg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="15" y="15" width="70" height="15" rx="3" fill="#94A3B8" fill-opacity="0.2"/><path d="M25 30 L25 50 M75 30 L75 50 M50 30 L50 50" stroke="#64748B" stroke-width="3"/></svg>`,
   },
   floor: {
     partType: 'floor',
     label: 'Assoalho e Efeito Solo',
-    photoUrl: '/assets/car-parts/floor/floor-studio.png',
+    photoUrl: floorImg,
     fallbackSvg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 20 L80 20 L75 45 L25 45 Z" fill="#94A3B8" fill-opacity="0.2"/><line x1="35" y1="20" x2="35" y2="45" stroke="#64748B"/><line x1="50" y1="20" x2="50" y2="45" stroke="#64748B"/><line x1="65" y1="20" x2="65" y2="45" stroke="#64748B"/></svg>`,
   },
   sidepods: {
     partType: 'sidepods',
     label: 'Laterais & Refrigeração',
-    photoUrl: undefined, // Aguardando foto real do usuário
+    photoUrl: sidepodsImg,
     fallbackSvg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M25 15 C40 15, 60 25, 75 30 L70 45 C55 40, 35 30, 20 30 Z" fill="#94A3B8" fill-opacity="0.2"/></svg>`,
   },
   engine: {
     partType: 'engine',
     label: 'Unidade de Potência (PU)',
-    photoUrl: undefined, // Aguardando foto real do usuário
+    photoUrl: engineImg,
     fallbackSvg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="25" y="15" width="50" height="32" rx="4" fill="#94A3B8" fill-opacity="0.2"/><circle cx="50" cy="31" r="8" stroke="#64748B"/></svg>`,
   },
   suspension: {
     partType: 'suspension',
     label: 'Suspensão Push/Pull-rod',
-    photoUrl: undefined, // Aguardando foto real do usuário
+    photoUrl: suspensionImg,
     fallbackSvg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="15" y1="20" x2="50" y2="35" stroke="#64748B" stroke-width="3"/><line x1="15" y1="45" x2="50" y2="35" stroke="#64748B" stroke-width="3"/><line x1="85" y1="20" x2="50" y2="35" stroke="#64748B" stroke-width="3"/><line x1="85" y1="45" x2="50" y2="35" stroke="#64748B" stroke-width="3"/></svg>`,
   },
 }

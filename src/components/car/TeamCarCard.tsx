@@ -2,6 +2,7 @@ import React from 'react'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { getCountryFlag } from '@/lib/country-flags'
 import { getDriverPhotoSources } from '@/lib/driver-photos'
+import { getDriverImage } from '@/data/assets/driverAssets'
 import { getTeamSideView } from '@/data/assets/teamAssets'
 import { getCarroPorEquipeImage } from '@/assets/carroPorEquipe'
 
@@ -35,10 +36,14 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
   const carImage = getTeamSideView(teamKey) || getCarroPorEquipeImage(teamKey, isCustom)
 
   // Foto do piloto usando pipeline canônico com fallback
+  const driverIdentifier = driver?.id || driver?.name || ''
+  const manifestPhoto = driverIdentifier ? getDriverImage(driverIdentifier) : null
   const photoSources = driver?.name ? getDriverPhotoSources(driver.name) : null
   const driverPhoto =
+    manifestPhoto ||
     photoSources?.bundledImg ||
     photoSources?.localCandidates?.find(Boolean) ||
+    photoSources?.dropboxUrl ||
     photoSources?.localPath ||
     photoSources?.fallbackLocal ||
     '/pilotos/generico.png'

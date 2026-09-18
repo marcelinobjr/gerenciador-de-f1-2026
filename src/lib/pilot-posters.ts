@@ -52,6 +52,7 @@ const PILOT_FILE_MAP: Record<string, string[]> = {
   ],
   herta: ['26-Colton_Herta.png', '26-Colton_Herta.jpg'],
   hulkenberg: [
+    '27-Nuco_Hulkemberg.jpg',
     '27-Nico_Hulkenberg.png',
     '27-Nico_Hulkenberg.jpg',
     '27-Nico_Hülkenberg.png',

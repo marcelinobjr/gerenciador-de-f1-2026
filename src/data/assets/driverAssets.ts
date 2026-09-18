@@ -128,6 +128,24 @@ export const DRIVER_ASSET_MANIFEST: Record<string, DriverAssetDefinition> = {
     fallbackDriveKey: 'Alisha_Palmowski.jpg',
     aliases: ['palmowski', 'alisha palmowski', 'a. palmowski'],
   },
+  hulkenberg: {
+    id: 'nico_hulkenberg',
+    name: 'Nico Hülkenberg',
+    normalizedKey: 'hulkenberg',
+    localFileName: '27-Nico_Hulkenberg.png',
+    localPath: '/pilotos/27-Nico_Hulkenberg.png',
+    fallbackDriveKey: '27-Nuco_Hulkemberg.jpg',
+    aliases: [
+      'hulkenberg',
+      'hülkenberg',
+      'nico hulkenberg',
+      'nico hülkenberg',
+      'n. hulkenberg',
+      'n. hülkenberg',
+      'mbj-019',
+      'drv_hulkenberg',
+    ],
+  },
 }
 
 /**
@@ -142,8 +160,22 @@ export function normalizeDriverKey(driverIdOrName: string | null | undefined): s
     .trim()
 
   for (const [key, item] of Object.entries(DRIVER_ASSET_MANIFEST)) {
-    if (key === clean || item.id === clean) return key
-    if (item.aliases.some((alias) => clean.includes(alias) || alias === clean)) {
+    const cleanId = item.id
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+    if (key === clean || item.id === clean || cleanId === clean) return key
+    if (
+      item.aliases.some((alias) => {
+        const normAlias = alias
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+        return clean.includes(normAlias) || normAlias === clean
+      })
+    ) {
       return key
     }
   }
