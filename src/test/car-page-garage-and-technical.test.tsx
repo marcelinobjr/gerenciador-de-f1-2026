@@ -17,6 +17,9 @@ describe('Meu Carro - Subabas Garagem e Área Técnica (Modelos e Lógica)', () 
     engine_pool_used: 2,
     active_engine_wear: 21,
     engine_supplier: 'Mercedes',
+    chassis_level: 5,
+    aero_level: 5,
+    strategy_level: 5,
     created: '2026-01-01',
     updated: '2026-04-14',
   }

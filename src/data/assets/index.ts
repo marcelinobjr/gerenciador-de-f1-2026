@@ -10,11 +10,13 @@ export * from './teamAssets'
 export * from './driverAssets'
 export * from './staffAssets'
 export * from './circuitAssets'
+export * from './carPartAssets'
 
 import { getTeamLogo, getTeamSideView } from './teamAssets'
 import { getDriverImage } from './driverAssets'
 import { getStaffImage } from './staffAssets'
 import { getCircuitImage } from './circuitAssets'
+import { getCarPartPhoto } from './carPartAssets'
 
 export const AssetResolver = {
   getTeamLogo,
@@ -22,4 +24,5 @@ export const AssetResolver = {
   getDriverImage,
   getStaffImage,
   getCircuitImage,
+  getCarPartPhoto,
 }

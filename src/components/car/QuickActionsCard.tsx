@@ -1,5 +1,5 @@
 import React from 'react'
-import { Wrench, Sliders, Scale, Download } from 'lucide-react'
+import { Wrench, Sliders, Scale, Download, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export interface QuickActionsCardProps {
@@ -7,6 +7,7 @@ export interface QuickActionsCardProps {
   onUpgradePart?: () => void
   onCompareCars?: () => void
   onBalanceSetup?: () => void
+  onOpenQuickSwap?: () => void
   isRepairing?: boolean
   isUpgrading?: boolean
 }
@@ -16,6 +17,7 @@ export const QuickActionsCard: React.FC<QuickActionsCardProps> = ({
   onUpgradePart,
   onCompareCars,
   onBalanceSetup,
+  onOpenQuickSwap,
   isRepairing = false,
   isUpgrading = false,
 }) => {
@@ -33,16 +35,15 @@ export const QuickActionsCard: React.FC<QuickActionsCardProps> = ({
 
       {/* Grade de Ações 2x2 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {/* Trocar / Reparar peça (Ação de Destaque em Vermelho) */}
+        {/* Trocar / Reparar peça (Ação de Destaque em Vermelho) com seleção explícita de carro */}
         <Button
-          onClick={onRepairPart}
+          onClick={onOpenQuickSwap || onRepairPart}
           disabled={isRepairing}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-10 shadow-sm flex items-center justify-center gap-2 rounded-lg"
+          className="w-full h-10 bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm shadow-red-200 transition-all hover:shadow-md cursor-pointer disabled:opacity-50"
         >
-          <Wrench className="w-3.5 h-3.5" />
-          <span>{isRepairing ? 'Reparando...' : 'Trocar peça'}</span>
+          <RotateCcw className={`w-4 h-4 ${isRepairing ? 'animate-spin' : ''}`} />
+          <span>{isRepairing ? 'Reparando...' : 'Trocar peça (Carro #1 / #2)'}</span>
         </Button>
-
         {/* Instalar upgrade */}
         <Button
           onClick={onUpgradePart}

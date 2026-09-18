@@ -1,4 +1,5 @@
 import React from 'react'
+import { getCarPartPhoto } from '@/data/assets/carPartAssets'
 
 export interface CarPartVisualMeta {
   id: string
@@ -61,6 +62,21 @@ export const PartIllustration: React.FC<{ partKey: string; className?: string }>
   className = 'w-24 h-16',
 }) => {
   const norm = partKey.toLowerCase()
+  const realPhoto = getCarPartPhoto(partKey)
+
+  if (realPhoto) {
+    return (
+      <div
+        className={`relative flex items-center justify-center overflow-hidden rounded-md ${className}`}
+      >
+        <img
+          src={realPhoto}
+          alt={partKey}
+          className="w-full h-full object-contain filter drop-shadow-sm transition-transform hover:scale-105"
+        />
+      </div>
+    )
+  }
 
   if (norm.includes('front') || norm.includes('dianteira')) {
     // Asa Dianteira

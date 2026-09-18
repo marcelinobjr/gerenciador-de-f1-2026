@@ -36,10 +36,16 @@ import { PowerUnitSystemsPanel } from '@/components/car/PowerUnitSystemsPanel'
 import { TechnicalCorrelationPanel } from '@/components/car/TechnicalCorrelationPanel'
 import { GridCompetitiveness, TeamTechnicalRow } from '@/components/car/GridCompetitiveness'
 import { TechnicalFooterCards } from '@/components/car/TechnicalFooterCards'
+import { EngineeringPlanModal } from '@/components/car/EngineeringPlanModal'
+import { EngineSwapModal } from '@/components/car/EngineSwapModal'
+import { PartSwapModal } from '@/components/car/PartSwapModal'
+import { QuickSwapCarSelectorModal } from '@/components/car/QuickSwapCarSelectorModal'
+import { useNavigate } from 'react-router-dom'
 
 export type CarSubTab = 'garagem' | 'tecnica'
 
 export default function CarPage() {
+  const navigate = useNavigate()
   const { team, season, refreshTeamAndSeason } = useAuth()
   const currentRound = season?.current_round || 1
 
@@ -54,6 +60,299 @@ export default function CarPage() {
   const [compareModalOpen, setCompareModalOpen] = useState(false)
   const [balanceModalOpen, setBalanceModalOpen] = useState(false)
   const [repairModalOpen, setRepairModalOpen] = useState(false)
+
+  // Modais Funcionais do Micro-Patch
+  const [engineeringModalOpen, setEngineeringModalOpen] = useState(false)
+  const [engineSwapModalOpen, setEngineSwapModalOpen] = useState(false)
+  const [partSwapModalOpen, setPartSwapModalOpen] = useState(false)
+  const [quickSwapSelectorOpen, setQuickSwapSelectorOpen] = useState(false)
+
+  // Configuração e Estado Canônico Individual por Carro (#1 e #2)
+  const [engineUnitCar1, setEngineUnitCar1] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car1_engine_unit')
+      return saved ? parseInt(saved, 10) : 2
+    } catch {
+      return 2
+    }
+  })
+  const [engineUnitCar2, setEngineUnitCar2] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car2_engine_unit')
+      return saved ? parseInt(saved, 10) : 1
+    } catch {
+      return 1
+    }
+  })
+
+  // Specs e desgaste específicos por carro
+  const [car1Specs, setCar1Specs] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car1_specs')
+      return saved
+        ? JSON.parse(saved)
+        : {
+            frontWing: 'Spec B - Alta Carga',
+            rearWing: 'Spec B - Baixo Arrasto DRS',
+            floor: 'Spec A - Versão Base',
+            sidepods: 'Spec B - Refrigeração Reduzida',
+            engine: 'PU-2 (Mercedes)',
+            suspension: 'Spec A - Pushrod Dinâmica',
+          }
+    } catch {
+      return {
+        frontWing: 'Spec B - Alta Carga',
+        rearWing: 'Spec B - Baixo Arrasto DRS',
+        floor: 'Spec A - Versão Base',
+        sidepods: 'Spec B - Refrigeração Reduzida',
+        engine: 'PU-2 (Mercedes)',
+        suspension: 'Spec A - Pushrod Dinâmica',
+      }
+    }
+  })
+
+  const [car2Specs, setCar2Specs] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car2_specs')
+      return saved
+        ? JSON.parse(saved)
+        : {
+            frontWing: 'Spec A - Base Homologação',
+            rearWing: 'Spec A - Base Balanceada',
+            floor: 'Spec A - Versão Base',
+            sidepods: 'Spec A - Máximo Arrefecimento',
+            engine: 'PU-1 (Mercedes)',
+            suspension: 'Spec A - Pushrod Dinâmica',
+          }
+    } catch {
+      return {
+        frontWing: 'Spec A - Base Homologação',
+        rearWing: 'Spec A - Base Balanceada',
+        floor: 'Spec A - Versão Base',
+        sidepods: 'Spec A - Máximo Arrefecimento',
+        engine: 'PU-1 (Mercedes)',
+        suspension: 'Spec A - Pushrod Dinâmica',
+      }
+    }
+  })
+
+  const [car1Conditions, setCar1Conditions] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car1_conditions')
+      return saved
+        ? JSON.parse(saved)
+        : {
+            frontWing: 82,
+            rearWing: 77,
+            floor: 77,
+            sidepods: 80,
+            engine: 88,
+            suspension: 83,
+          }
+    } catch {
+      return {
+        frontWing: 82,
+        rearWing: 77,
+        floor: 77,
+        sidepods: 80,
+        engine: 88,
+        suspension: 83,
+      }
+    }
+  })
+
+  const [car2Conditions, setCar2Conditions] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car2_conditions')
+      return saved
+        ? JSON.parse(saved)
+        : {
+            frontWing: 68,
+            rearWing: 91,
+            floor: 73,
+            sidepods: 65,
+            engine: 82,
+            suspension: 72,
+          }
+    } catch {
+      return {
+        frontWing: 68,
+        rearWing: 91,
+        floor: 73,
+        sidepods: 65,
+        engine: 82,
+        suspension: 72,
+      }
+    }
+  })
+
+  // Seriais físicos instalados para impedir instalação simultânea
+  const [car1PartSerials, setCar1PartSerials] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car1_part_serials')
+      return saved
+        ? JSON.parse(saved)
+        : {
+            frontWing: 'FW-E-01',
+            rearWing: 'RW-E-01',
+            floor: 'FL-E-01',
+            sidepods: 'SP-E-01',
+            suspension: 'SU-E-01',
+          }
+    } catch {
+      return {
+        frontWing: 'FW-E-01',
+        rearWing: 'RW-E-01',
+        floor: 'FL-E-01',
+        sidepods: 'SP-E-01',
+        suspension: 'SU-E-01',
+      }
+    }
+  })
+
+  const [car2PartSerials, setCar2PartSerials] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('apex_gp_car2_part_serials')
+      return saved
+        ? JSON.parse(saved)
+        : {
+            frontWing: 'FW-D-01',
+            rearWing: 'RW-D-01',
+            floor: 'FL-D-01',
+            sidepods: 'SP-D-01',
+            suspension: 'SU-D-01',
+          }
+    } catch {
+      return {
+        frontWing: 'FW-D-01',
+        rearWing: 'RW-D-01',
+        floor: 'FL-D-01',
+        sidepods: 'SP-D-01',
+        suspension: 'SU-D-01',
+      }
+    }
+  })
+
+  // Contexto selecionado para o modal de troca de peça / motor
+  const [activeSwapTargetCar, setActiveSwapTargetCar] = useState<1 | 2>(1)
+  const [activeSwapPartType, setActiveSwapPartType] = useState<string>('frontWing')
+  const [technicalSelectedCarPU, setTechnicalSelectedCarPU] = useState<1 | 2>(1)
+
+  // Salva no localStorage quando alterado para sobrevivência ao reload e navegação
+  useEffect(() => {
+    localStorage.setItem('apex_gp_car1_engine_unit', engineUnitCar1.toString())
+    localStorage.setItem('apex_gp_car2_engine_unit', engineUnitCar2.toString())
+    localStorage.setItem('apex_gp_car1_specs', JSON.stringify(car1Specs))
+    localStorage.setItem('apex_gp_car2_specs', JSON.stringify(car2Specs))
+    localStorage.setItem('apex_gp_car1_conditions', JSON.stringify(car1Conditions))
+    localStorage.setItem('apex_gp_car2_conditions', JSON.stringify(car2Conditions))
+    localStorage.setItem('apex_gp_car1_part_serials', JSON.stringify(car1PartSerials))
+    localStorage.setItem('apex_gp_car2_part_serials', JSON.stringify(car2PartSerials))
+  }, [
+    engineUnitCar1,
+    engineUnitCar2,
+    car1Specs,
+    car2Specs,
+    car1Conditions,
+    car2Conditions,
+    car1PartSerials,
+    car2PartSerials,
+  ])
+
+  // Handlers para troca de motor individual por carro
+  const handleOpenEngineSwapModal = (targetCar: 1 | 2) => {
+    setActiveSwapTargetCar(targetCar)
+    setEngineSwapModalOpen(true)
+  }
+
+  const handleConfirmEngineSwap = (targetCar: 1 | 2, unitNumber: number) => {
+    if (targetCar === 1) {
+      if (unitNumber === engineUnitCar2) {
+        toast({
+          variant: 'destructive',
+          title: 'Unidade Ocupada',
+          description: `A PU-${unitNumber} já está instalada no Carro #2! Não é permitido compartilhar o mesmo motor.`,
+        })
+        return
+      }
+      setEngineUnitCar1(unitNumber)
+      setCar1Specs((prev) => ({
+        ...prev,
+        engine: `PU-${unitNumber} (${team?.engine_supplier || 'Audi Sport'})`,
+      }))
+      toast({
+        title: `Motor do Carro #1 Atualizado!`,
+        description: `Unidade física PU-${unitNumber} montada com sucesso no carro de ${roster.starter1?.name || 'Piloto 1'}.`,
+      })
+    } else {
+      if (unitNumber === engineUnitCar1) {
+        toast({
+          variant: 'destructive',
+          title: 'Unidade Ocupada',
+          description: `A PU-${unitNumber} já está instalada no Carro #1! Não é permitido compartilhar o mesmo motor.`,
+        })
+        return
+      }
+      setEngineUnitCar2(unitNumber)
+      setCar2Specs((prev) => ({
+        ...prev,
+        engine: `PU-${unitNumber} (${team?.engine_supplier || 'Audi Sport'})`,
+      }))
+      toast({
+        title: `Motor do Carro #2 Atualizado!`,
+        description: `Unidade física PU-${unitNumber} montada com sucesso no carro de ${roster.starter2?.name || 'Piloto 2'}.`,
+      })
+    }
+  }
+
+  // Handlers para troca de peça individual por carro
+  const handleOpenPartSwapModal = (carNum: 1 | 2, partType: string) => {
+    setActiveSwapTargetCar(carNum)
+    setActiveSwapPartType(partType)
+    setPartSwapModalOpen(true)
+  }
+
+  const handleConfirmPartSwap = (
+    targetCar: 1 | 2,
+    partType: string,
+    specCode: string,
+    condition: number,
+    serialId: string,
+  ) => {
+    if (targetCar === 1) {
+      if (car2PartSerials[partType] === serialId) {
+        toast({
+          variant: 'destructive',
+          title: 'Instância em Uso',
+          description: `A peça física ${serialId} já está montada no Carro #2. Escolha outra unidade disponível.`,
+        })
+        return
+      }
+      setCar1Specs((prev) => ({ ...prev, [partType]: specCode }))
+      setCar1Conditions((prev) => ({ ...prev, [partType]: condition }))
+      setCar1PartSerials((prev) => ({ ...prev, [partType]: serialId }))
+      toast({
+        title: `Peça Atualizada no Carro #1!`,
+        description: `${serialId} (${specCode}) montada no carro de ${roster.starter1?.name || 'Piloto 1'}. Integridade: ${condition}%.`,
+      })
+    } else {
+      if (car1PartSerials[partType] === serialId) {
+        toast({
+          variant: 'destructive',
+          title: 'Instância em Uso',
+          description: `A peça física ${serialId} já está montada no Carro #1. Escolha outra unidade disponível.`,
+        })
+        return
+      }
+      setCar2Specs((prev) => ({ ...prev, [partType]: specCode }))
+      setCar2Conditions((prev) => ({ ...prev, [partType]: condition }))
+      setCar2PartSerials((prev) => ({ ...prev, [partType]: serialId }))
+      toast({
+        title: `Peça Atualizada no Carro #2!`,
+        description: `${serialId} (${specCode}) montada no carro de ${roster.starter2?.name || 'Piloto 2'}. Integridade: ${condition}%.`,
+      })
+    }
+  }
 
   // Modal para confirmação de estouro do teto
   const [costCapBreachDialog, setCostCapBreachDialog] = useState<{
@@ -552,20 +851,34 @@ export default function CarPage() {
                   carNumber={1}
                   driver={roster.starter1}
                   team={team}
-                  aeroSpec="Aero B"
+                  aeroSpec={car1Specs.frontWing?.split('-')[0]?.trim() || 'Aero B'}
                   chassisSpec="Chassi A"
-                  puInUse={`PU-${enginePoolUsed}`}
-                  puCycleText={`Uso ${enginePoolUsed}/4`}
+                  puInUse={`PU-${engineUnitCar1}`}
+                  puCycleText={`Uso ${engineUnitCar1}/4`}
                   reliability={ourTeamTech.reliability}
-                  totalWear={28}
+                  totalWear={Math.round(
+                    100 - Object.values(car1Conditions).reduce((a, b) => a + b, 0) / 6,
+                  )}
                   setupOrientation="Equilibrado"
                 />
 
                 <InstalledComponentsGrid
                   carNumber={1}
                   parts={parts}
-                  activeEngineCondition={Math.max(10, 100 - activeEngineWear)}
+                  driverName={roster.starter1?.name}
+                  carSpecificSpecs={car1Specs}
+                  carSpecificConditions={car1Conditions}
+                  activeEngineCondition={
+                    car1Conditions.engine ?? Math.max(10, 100 - activeEngineWear)
+                  }
                   engineSupplier={team?.engine_supplier}
+                  onSwapPart={(partId) => {
+                    if (partId === 'engine') {
+                      handleOpenEngineSwapModal(1)
+                    } else {
+                      handleOpenPartSwapModal(1, partId)
+                    }
+                  }}
                 />
               </div>
 
@@ -575,20 +888,34 @@ export default function CarPage() {
                   carNumber={2}
                   driver={roster.starter2}
                   team={team}
-                  aeroSpec="Aero A"
+                  aeroSpec={car2Specs.frontWing?.split('-')[0]?.trim() || 'Aero A'}
                   chassisSpec="Chassi B"
-                  puInUse={`PU-${Math.max(1, enginePoolUsed - 1)}`}
-                  puCycleText="Uso 3/4"
-                  reliability={Math.max(50, ourTeamTech.reliability - 5)}
-                  totalWear={34}
+                  puInUse={`PU-${engineUnitCar2}`}
+                  puCycleText={`Uso ${engineUnitCar2}/4`}
+                  reliability={Math.max(50, ourTeamTech.reliability - 4)}
+                  totalWear={Math.round(
+                    100 - Object.values(car2Conditions).reduce((a, b) => a + b, 0) / 6,
+                  )}
                   setupOrientation="Mais ponta (baixa asa)"
                 />
 
                 <InstalledComponentsGrid
                   carNumber={2}
                   parts={parts}
-                  activeEngineCondition={Math.max(10, 96 - activeEngineWear)}
+                  driverName={roster.starter2?.name}
+                  carSpecificSpecs={car2Specs}
+                  carSpecificConditions={car2Conditions}
+                  activeEngineCondition={
+                    car2Conditions.engine ?? Math.max(10, 96 - activeEngineWear)
+                  }
                   engineSupplier={team?.engine_supplier}
+                  onSwapPart={(partId) => {
+                    if (partId === 'engine') {
+                      handleOpenEngineSwapModal(2)
+                    } else {
+                      handleOpenPartSwapModal(2, partId)
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -616,12 +943,9 @@ export default function CarPage() {
               {/* Ações Rápidas com conexões reais */}
               <QuickActionsCard
                 onRepairPart={() => setRepairModalOpen(true)}
+                onOpenQuickSwap={() => setQuickSwapSelectorOpen(true)}
                 onUpgradePart={() => {
-                  toast({
-                    title: 'Aprimoramento de Peças',
-                    description:
-                      'Selecione uma peça na lista de componentes ou acesse a Área Técnica para gerenciar o pacote aerodinâmico.',
-                  })
+                  navigate('/car-development')
                 }}
                 onCompareCars={() => setCompareModalOpen(true)}
                 onBalanceSetup={() => setBalanceModalOpen(true)}
@@ -655,13 +979,25 @@ export default function CarPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <PowerUnitSystemsPanel
                 supplierName={team?.engine_supplier || 'Audi Sport'}
-                overallIntegrity={Math.max(10, 100 - activeEngineWear)}
-                activeUnitIndex={enginePoolUsed}
+                overallIntegrity={
+                  technicalSelectedCarPU === 1
+                    ? (car1Conditions.engine ?? 88)
+                    : (car2Conditions.engine ?? 82)
+                }
+                activeUnitIndex={technicalSelectedCarPU === 1 ? engineUnitCar1 : engineUnitCar2}
                 totalUnitsLimit={4}
                 currentKm={1482 + currentRound * 305}
                 usageCycles={currentRound}
-                estimatedWear={activeEngineWear}
-                onIntroduceNewEngine={() => handleIntroduceNewEngine(false)}
+                estimatedWear={
+                  technicalSelectedCarPU === 1
+                    ? 100 - (car1Conditions.engine ?? 88)
+                    : 100 - (car2Conditions.engine ?? 82)
+                }
+                targetCar={technicalSelectedCarPU}
+                driver1Name={roster.starter1?.name}
+                driver2Name={roster.starter2?.name}
+                onSelectCar={(carNum) => setTechnicalSelectedCarPU(carNum)}
+                onIntroduceNewEngine={(targetCar) => handleOpenEngineSwapModal(targetCar)}
                 isChangingEngine={isChangingEngine}
                 costCapAvailable={Math.max(0, COST_CAP_LIMIT - currentCostCapSpent)}
               />
@@ -687,6 +1023,7 @@ export default function CarPage() {
               nextTechnicalUpdateRound={Math.min(24, currentRound + 5)}
               nextTechnicalUpdateTrack="GP da Espanha"
               engineeringRecommendations="Focar na redução de arrasto nas curvas de alta velocidade e na melhoria da estabilidade traseira com novos flaps de assoalho."
+              onOpenEngineeringRecommendations={() => setEngineeringModalOpen(true)}
             />
           </div>
         )}
@@ -890,6 +1227,67 @@ export default function CarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL PONTO 3: RECOMENDAÇÕES DA ENGENHARIA (PLANO TÉCNICO DETALHADO) */}
+      <EngineeringPlanModal
+        open={engineeringModalOpen}
+        onOpenChange={setEngineeringModalOpen}
+        onNavigateToDevelopment={(targetArea) => {
+          navigate('/car-development', { state: { targetArea } })
+        }}
+      />
+
+      {/* MODAL PONTO 2: TROCA INDIVIDUAL DE MOTOR ENTRE CARRO #1 E CARRO #2 */}
+      <EngineSwapModal
+        open={engineSwapModalOpen}
+        onOpenChange={setEngineSwapModalOpen}
+        targetCar={activeSwapTargetCar}
+        driverName={activeSwapTargetCar === 1 ? roster.starter1?.name : roster.starter2?.name}
+        currentCar1EngineUnit={engineUnitCar1}
+        currentCar2EngineUnit={engineUnitCar2}
+        totalUnitsLimit={4}
+        onConfirmSwap={handleConfirmEngineSwap}
+      />
+
+      {/* MODAL PONTO 2: TROCA INDIVIDUAL DE PEÇA POR CARRO */}
+      <PartSwapModal
+        open={partSwapModalOpen}
+        onOpenChange={setPartSwapModalOpen}
+        targetCar={activeSwapTargetCar}
+        driverName={activeSwapTargetCar === 1 ? roster.starter1?.name : roster.starter2?.name}
+        partType={activeSwapPartType}
+        currentPartSpec={
+          activeSwapTargetCar === 1
+            ? car1Specs[activeSwapPartType] || 'Spec B'
+            : car2Specs[activeSwapPartType] || 'Spec A'
+        }
+        currentPartCondition={
+          activeSwapTargetCar === 1
+            ? (car1Conditions[activeSwapPartType] ?? 80)
+            : (car2Conditions[activeSwapPartType] ?? 75)
+        }
+        otherCarPartInstanceSerial={
+          activeSwapTargetCar === 1
+            ? car2PartSerials[activeSwapPartType]
+            : car1PartSerials[activeSwapPartType]
+        }
+        onConfirmSwapPart={handleConfirmPartSwap}
+      />
+
+      {/* MODAL PONTO 2(L): AÇÕES RÁPIDAS - SELETOR DE CARRO E PEÇA */}
+      <QuickSwapCarSelectorModal
+        open={quickSwapSelectorOpen}
+        onOpenChange={setQuickSwapSelectorOpen}
+        driver1Name={roster.starter1?.name}
+        driver2Name={roster.starter2?.name}
+        onSelectTarget={(targetCar, partType) => {
+          if (partType === 'engine') {
+            handleOpenEngineSwapModal(targetCar)
+          } else {
+            handleOpenPartSwapModal(targetCar, partType)
+          }
+        }}
+      />
     </div>
   )
 }

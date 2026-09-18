@@ -7,12 +7,20 @@ export interface InstalledComponentsGridProps {
   parts: PartModel[]
   activeEngineCondition?: number
   engineSupplier?: string
+  driverName?: string
+  carSpecificSpecs?: Record<string, string>
+  carSpecificConditions?: Record<string, number>
+  onSwapPart?: (partType: string) => void
 }
 
 export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = ({
   carNumber,
   parts,
   activeEngineCondition = 82,
+  driverName,
+  carSpecificSpecs,
+  carSpecificConditions,
+  onSwapPart,
 }) => {
   // Mapeia condições das peças reais do save ou aplica fallback
   const getComponentData = (catalogPartId: string, defaultSpec: string) => {
@@ -59,9 +67,11 @@ export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = (
       )
     }
 
-    // Se for motor, calcula integridade a partir da PU em uso
+    // Se houver condição configurada individualmente para este carro, usa-a com prioridade
     let condition = 80
-    if (catalogPartId === 'engine') {
+    if (carSpecificConditions && typeof carSpecificConditions[catalogPartId] === 'number') {
+      condition = Math.max(5, Math.min(100, carSpecificConditions[catalogPartId]))
+    } else if (catalogPartId === 'engine') {
       condition = Math.max(10, Math.min(100, activeEngineCondition))
     } else if (matchingPart && typeof matchingPart.condition === 'number') {
       // Leve variação entre carro #1 e carro #2 para não ficarem cópias idênticas
@@ -80,9 +90,12 @@ export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = (
       condition = defaultConditions[catalogPartId] || 80
     }
 
-    const specName = matchingPart?.level
-      ? `Spec ${String.fromCharCode(64 + Math.min(26, Math.max(1, matchingPart.level)))}`
-      : defaultSpec
+    // Se houver spec configurada individualmente para este carro, usa-a com prioridade
+    const specName =
+      carSpecificSpecs?.[catalogPartId] ||
+      (matchingPart?.level
+        ? `Spec ${String.fromCharCode(64 + Math.min(26, Math.max(1, matchingPart.level)))}`
+        : defaultSpec)
 
     return {
       condition,
@@ -127,11 +140,11 @@ export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = (
                 <PartIllustration partKey={part.id} className="h-14 w-full" />
               </div>
 
-              {/* Rodapé: Spec + Barra de % de Condição */}
-              <div className="mt-1 pt-1.5 border-t border-slate-200/60 space-y-1">
+              {/* Rodapé: Spec + Barra de % de Condição + Ação de Troca */}
+              <div className="mt-1 pt-1.5 border-t border-slate-200/60 space-y-1.5">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 font-mono font-medium">{specName}</span>
-                  <span className="font-bold font-mono text-slate-800">{condition}%</span>
+                  <span className="text-slate-500 font-mono font-medium truncate">{specName}</span>
+                  <span className="font-bold font-mono text-slate-800 shrink-0">{condition}%</span>
                 </div>
 
                 <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
@@ -139,6 +152,19 @@ export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = (
                     className={`${barColor} h-full rounded-full transition-all duration-300`}
                     style={{ width: `${condition}%` }}
                   />
+                </div>
+
+                <div className="pt-1 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    #{carNumber} {driverName ? `• ${driverName.split(' ').pop()}` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onSwapPart?.(part.id)}
+                    className="px-2 py-0.5 text-[10px] font-medium rounded bg-white hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 shadow-xs transition-colors"
+                  >
+                    Trocar
+                  </button>
                 </div>
               </div>
             </div>

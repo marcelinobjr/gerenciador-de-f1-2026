@@ -6,6 +6,7 @@ export interface TechnicalFooterCardsProps {
   nextTechnicalUpdateRound?: number
   nextTechnicalUpdateTrack?: string
   engineeringRecommendations?: string
+  onOpenEngineeringRecommendations?: () => void
 }
 
 export const TechnicalFooterCards: React.FC<TechnicalFooterCardsProps> = ({
@@ -13,6 +14,7 @@ export const TechnicalFooterCards: React.FC<TechnicalFooterCardsProps> = ({
   nextTechnicalUpdateRound = 8,
   nextTechnicalUpdateTrack = 'GP da Espanha',
   engineeringRecommendations = 'Focar na redução de arrasto nas curvas de alta velocidade e na melhoria da estabilidade traseira com novos flaps de assoalho.',
+  onOpenEngineeringRecommendations,
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -74,9 +76,13 @@ export const TechnicalFooterCards: React.FC<TechnicalFooterCardsProps> = ({
         </p>
 
         <div className="pt-2 border-t border-slate-100 flex justify-end">
-          <span className="text-xs font-bold text-red-600 hover:text-red-700 cursor-pointer flex items-center">
+          <button
+            type="button"
+            onClick={onOpenEngineeringRecommendations}
+            className="text-xs font-bold text-red-600 hover:text-red-700 cursor-pointer flex items-center bg-transparent border-none p-0 transition-colors"
+          >
             Ver plano detalhado →
-          </span>
+          </button>
         </div>
       </div>
     </div>

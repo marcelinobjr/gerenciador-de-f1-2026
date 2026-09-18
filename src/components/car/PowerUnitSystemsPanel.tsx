@@ -19,7 +19,11 @@ export interface PowerUnitSystemsPanelProps {
   subcomponents?: PowerUnitSubcomponent[]
   energyEfficiency?: number
   engineMode?: string
-  onIntroduceNewEngine?: () => void
+  targetCar?: 1 | 2
+  driver1Name?: string
+  driver2Name?: string
+  onSelectCar?: (carNumber: 1 | 2) => void
+  onIntroduceNewEngine?: (targetCar: 1 | 2) => void
   isChangingEngine?: boolean
   costCapAvailable?: number
 }
@@ -44,6 +48,10 @@ export const PowerUnitSystemsPanel: React.FC<PowerUnitSystemsPanelProps> = ({
   subcomponents = DEFAULT_SUBCOMPONENTS,
   energyEfficiency = 79,
   engineMode = 'Padrão / Equilibrado',
+  targetCar = 1,
+  driver1Name,
+  driver2Name,
+  onSelectCar,
   onIntroduceNewEngine,
   isChangingEngine = false,
 }) => {
@@ -53,22 +61,57 @@ export const PowerUnitSystemsPanel: React.FC<PowerUnitSystemsPanelProps> = ({
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
       {/* Top Banner com Fornecedor e Botão de Ação Real Trocar Motor */}
       <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block" />
-          <h3 className="text-sm font-bold text-slate-900">Power Unit & Sistemas</h3>
-          <span className="text-xs text-slate-400 font-mono">{supplierName} 2026</span>
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block" />
+            <h3 className="text-sm font-bold text-slate-900">Power Unit & Sistemas</h3>
+            <span className="text-xs text-slate-400 font-mono">{supplierName} 2026</span>
+          </div>
+          <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+            Configuração atribuída ao Carro #{targetCar}
+          </div>
         </div>
 
-        {onIntroduceNewEngine && (
-          <Button
-            onClick={onIntroduceNewEngine}
-            disabled={isChangingEngine}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-8 px-3 rounded-lg shadow-sm flex items-center gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isChangingEngine ? 'animate-spin' : ''}`} />
-            <span>{isChangingEngine ? 'Trocando...' : 'Trocar motor'}</span>
-          </Button>
-        )}
+        {/* Seletor Carro #1 | Carro #2 e Botão de Ação */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {onSelectCar && (
+            <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => onSelectCar(1)}
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                  targetCar === 1
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Carro #1 {driver1Name ? `(${driver1Name.split(' ').pop()})` : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => onSelectCar(2)}
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                  targetCar === 2
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Carro #2 {driver2Name ? `(${driver2Name.split(' ').pop()})` : ''}
+              </button>
+            </div>
+          )}
+
+          {onIntroduceNewEngine && (
+            <Button
+              onClick={() => onIntroduceNewEngine(targetCar)}
+              disabled={isChangingEngine}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-8 px-3 rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isChangingEngine ? 'animate-spin' : ''}`} />
+              <span>{isChangingEngine ? 'Trocando...' : `Trocar motor — Carro #${targetCar}`}</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <p className="text-[11px] text-slate-500 mt-2 mb-3">
