@@ -379,6 +379,23 @@ export function getDriveStoragePhotoUrl(filenameOrPilotKey: string): string | nu
     }
   }
 
+  // 4. Busca com normalização de separadores e prefixos numéricos
+  const cleanBase = baseKey
+    .replace(/^\d+[-_\s]+/, '')
+    .replace(/[-_]+/g, ' ')
+    .trim()
+  for (const [key, url] of Object.entries(DRIVE_STORAGE_PHOTOS)) {
+    const cleanCand = key
+      .replace(/\.(jpg|png|webp|jpeg)$/i, '')
+      .replace(/^\d+[-_\s]+/, '')
+      .replace(/[-_]+/g, ' ')
+      .toLowerCase()
+      .trim()
+    if (cleanCand === cleanBase) {
+      return url
+    }
+  }
+
   return null
 }
 
