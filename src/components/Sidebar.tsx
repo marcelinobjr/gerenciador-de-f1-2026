@@ -117,11 +117,11 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'COMPETIÇÃO',
+    title: 'COMPETIÇÃO & REGRAS',
     items: [
       { name: 'Campeonato', path: '/standings', icon: Trophy },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
-      { name: 'Regulamento', path: '/car?tab=regulamento', icon: BookOpen },
+      { name: 'Regulamento', path: '/regulamento', icon: BookOpen },
     ],
   },
 ]

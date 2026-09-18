@@ -68,7 +68,13 @@ export const CAR_PART_ASSETS: Record<CarPartType, CarPartAssetDefinition> = {
 export function normalizeCarPartType(rawKey: string | null | undefined): CarPartType {
   if (!rawKey) return 'frontWing'
   const clean = rawKey.toLowerCase().trim()
-  if (clean.includes('front') || clean.includes('asa dianteira')) return 'frontWing'
+  if (
+    clean.includes('front') ||
+    clean.includes('asa dianteira') ||
+    clean.includes('bico') ||
+    clean.includes('nose')
+  )
+    return 'frontWing'
   if (clean.includes('rear') || clean.includes('asa traseira')) return 'rearWing'
   if (clean.includes('floor') || clean.includes('assoalho')) return 'floor'
   if (clean.includes('sidepod') || clean.includes('lateral') || clean.includes('laterais'))
@@ -84,6 +90,32 @@ export function normalizeCarPartType(rawKey: string | null | undefined): CarPart
   if (clean.includes('suspension') || clean.includes('suspensao') || clean.includes('suspensão'))
     return 'suspension'
   return 'frontWing'
+}
+
+/**
+ * Helper para resolver miniatura dos 5 espaços de patrocínio
+ * (front_wing, nose, sidepod, engine_cover, rear_wing)
+ */
+export function getSponsorSlotPhoto(slotKey: string | null | undefined): string {
+  if (!slotKey) return CAR_PART_ASSETS.frontWing.photoUrl || getCarPartFallbackSvg('frontWing')
+  const clean = slotKey.toLowerCase().trim()
+  if (clean === 'front_wing' || clean === 'frontwing') {
+    return CAR_PART_ASSETS.frontWing.photoUrl || getCarPartFallbackSvg('frontWing')
+  }
+  if (clean === 'rear_wing' || clean === 'rearwing') {
+    return CAR_PART_ASSETS.rearWing.photoUrl || getCarPartFallbackSvg('rearWing')
+  }
+  if (clean === 'sidepod' || clean === 'sidepods') {
+    return CAR_PART_ASSETS.sidepods.photoUrl || getCarPartFallbackSvg('sidepods')
+  }
+  if (clean === 'engine_cover' || clean === 'enginecover' || clean === 'engine') {
+    return CAR_PART_ASSETS.engine.photoUrl || getCarPartFallbackSvg('engine')
+  }
+  if (clean === 'nose' || clean === 'bico') {
+    return CAR_PART_ASSETS.frontWing.photoUrl || getCarPartFallbackSvg('frontWing')
+  }
+  const norm = normalizeCarPartType(clean)
+  return CAR_PART_ASSETS[norm]?.photoUrl || getCarPartFallbackSvg(norm)
 }
 
 /**

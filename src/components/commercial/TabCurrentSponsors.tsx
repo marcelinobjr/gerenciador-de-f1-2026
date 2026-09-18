@@ -14,20 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 
-// Miniaturas fiéis das peças do carro (utiliza os assets de peças já existentes do projeto)
-import noseImg from '@/assets/car-parts/bico-nose-f1-2026.png'
-import frontWingImg from '@/assets/car-parts/asa-dianteira-front-wing-f1-2026.png'
-import rearWingImg from '@/assets/car-parts/asa-traseira-rear-wing-f1-2026.png'
-import sidepodImg from '@/assets/car-parts/sidepods-f1-2026.png'
-import engineCoverImg from '@/assets/car-parts/tampa-motor-engine-cover-f1-2026.png'
-
-const PART_IMAGES: Record<SponsorSlotKey, string> = {
-  front_wing: frontWingImg,
-  nose: noseImg,
-  sidepod: sidepodImg,
-  engine_cover: engineCoverImg,
-  rear_wing: rearWingImg,
-}
+import { getSponsorSlotPhoto } from '@/data/assets/carPartAssets'
 
 export interface TabCurrentSponsorsProps {
   teamId?: string | null
@@ -165,7 +152,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-12 h-10 rounded-lg bg-neutral-900/5 p-1 flex items-center justify-center shrink-0 border border-neutral-200">
                         <img
-                          src={PART_IMAGES[slot.key]}
+                          src={getSponsorSlotPhoto(slot.key)}
                           alt={slot.label}
                           className="w-full h-full object-contain"
                         />
@@ -234,7 +221,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                   Negociações na Mesa
                 </span>
                 <span className="font-bold font-mono text-neutral-900 text-sm">
-                  {contracts.filter((c) => c.status === 'em_negociacao').length} em andamento
+                  {summary.pendingNegotiationsCount} em andamento
                 </span>
               </div>
               <div className="p-2.5 rounded-lg bg-neutral-50 border border-neutral-100">
@@ -462,7 +449,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                   >
                     <div className="h-10 w-full mb-1 flex items-center justify-center">
                       <img
-                        src={PART_IMAGES[slot.key]}
+                        src={getSponsorSlotPhoto(slot.key)}
                         alt={slot.label}
                         className="max-h-full max-w-full object-contain"
                       />

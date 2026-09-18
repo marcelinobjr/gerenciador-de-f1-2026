@@ -196,6 +196,12 @@ export interface FinancialLedgerSnapshot {
   costCapLimit: number
   transactionCount: number
   status: 'compliant' | 'minor_breach' | 'material_breach'
+  cashSummary?: CashSummary
+  costCapSummary?: CostCapSummary
+  recentTransactions?: FinancialTransaction[]
+  activeCommitments?: FinancialCommitment[]
+  financialAlerts?: FinancialAlert[]
+  lastAuditDate?: string
 }
 
 export interface FinancialIntegrityReport {

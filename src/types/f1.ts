@@ -91,6 +91,8 @@ export interface TeamModel {
   financial_commitments?: any[]
   budget_allocations?: Record<string, number>
   opening_balances?: Record<string, any>
+  country?: string
+  reputation?: number
   created?: string
   updated?: string
 }

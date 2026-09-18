@@ -198,7 +198,44 @@ export interface SponsorshipContract {
   renewalInterest: number // 0-100
   status: 'ativo' | 'suspenso' | 'encerrado' | 'proposta'
   signingDate: string
+  podiumBonus?: number
   clauses?: Record<string, any>
+}
+
+// Resumo Geral da Gestão Comercial
+export interface CommercialSummary {
+  totalContractedRevenue: number
+  totalPotentialRevenue: number
+  occupiedSlotsCount: number
+  totalSlotsCount: number
+  averageSatisfaction: number
+  pendingNegotiationsCount: number
+  commercialAttractivenessScore: number
+}
+
+// Perfil de Patrocinador Comercial para Mercado & Oportunidades
+export interface CanonicalSponsorProfile {
+  id: string
+  name: string
+  sector: string
+  country: string
+  reach: string
+  estimatedBudgetMin: number
+  estimatedBudgetMax: number
+  preferredSlots: CanonicalSponsorSlot[]
+  sportingRequirement: string
+  potentialContractYears: number
+  commercialNotes: string
+  logoUrl: string
+  activeStatus: 'disponivel' | 'em_negociacao' | 'assinado'
+}
+
+// Fator de Fit Comercial
+export interface CanonicalSponsorFitFactor {
+  name: string
+  weight: number
+  score: number
+  explanation: string
 }
 
 // Atratividade Comercial Canônica

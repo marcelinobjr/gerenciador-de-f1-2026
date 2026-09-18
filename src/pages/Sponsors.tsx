@@ -87,6 +87,17 @@ export function SponsorsPage() {
       )
 
       setLedgerSnapshot({
+        teamId: team.id,
+        seasonYear: season?.year || 2026,
+        round,
+        cashBalance: cash.cashBalance,
+        committedCash: cash.committedCash,
+        availableCash: cash.availableCash,
+        costCapSpent: cap.used,
+        costCapRemaining: cap.remaining,
+        costCapLimit: cap.annualLimit,
+        transactionCount: txs.length,
+        status: cap.status === 'breach' ? 'material_breach' : 'compliant',
         cashSummary: cash,
         costCapSummary: cap,
         recentTransactions: txs.slice(0, 10),
