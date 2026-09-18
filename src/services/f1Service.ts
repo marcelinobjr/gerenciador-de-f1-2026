@@ -2910,16 +2910,38 @@ export const f1Service = {
   },
 
   // Reset all game progress for the given user, keeping user auth record intact.
-  // Mirrors logic in 0004_reset_player_progress.js with proper dependency cascade.
+  // Rigorously deletes career-scoped records across all collections and unbinds drivers.
   async resetPlayerProgress(userId: string): Promise<void> {
     if (!userId) {
       throw new Error('ID de usuário obrigatório para reiniciar o jogo.')
     }
 
     // 1. Find all teams owned by this user
-    const userTeams = await pb.collection('teams').getFullList<TeamModel>({
-      filter: `user_id = "${userId}"`,
-    })
+    let userTeams: TeamModel[] = []
+    try {
+      userTeams = await pb.collection('teams').getFullList<TeamModel>({
+        filter: `user_id = "${userId}"`,
+      })
+    } catch (err) {
+      console.warn('Erro ao carregar equipes do usuário para reset:', err)
+      userTeams = []
+    }
+
+    // 2. Excluir notificações do usuário (career-scoped)
+    try {
+      const userNotifs = await pb.collection('notifications').getFullList({
+        filter: `user_id = "${userId}"`,
+      })
+      for (const n of userNotifs) {
+        try {
+          await pb.collection('notifications').delete(n.id)
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao limpar notificações do usuário:', err)
+    }
 
     if (userTeams.length === 0) {
       return
@@ -2928,91 +2950,219 @@ export const f1Service = {
     for (const team of userTeams) {
       const teamId = team.id
 
-      // 1. Delete race_results linked directly to this team
-      try {
-        const raceResults = await pb.collection('race_results').getFullList({
-          filter: `team_id = "${teamId}"`,
-        })
-        for (const rr of raceResults) {
-          await pb.collection('race_results').delete(rr.id)
-        }
-      } catch (err) {
-        console.warn('Erro ao deletar race_results por team_id:', err)
-      }
-
-      // Also delete race_results linked via seasons of this team
+      // A. Buscar seasons vinculadas à equipe
       let teamSeasons: SeasonModel[] = []
       try {
         teamSeasons = await pb.collection('seasons').getFullList<SeasonModel>({
           filter: `team_id = "${teamId}"`,
         })
-        for (const s of teamSeasons) {
-          try {
-            const seasonResults = await pb.collection('race_results').getFullList({
-              filter: `season_id = "${s.id}"`,
-            })
-            for (const sr of seasonResults) {
-              await pb.collection('race_results').delete(sr.id)
-            }
-          } catch (err) {
-            console.warn('Erro ao deletar race_results por season_id:', err)
-          }
-        }
       } catch (err) {
         console.warn('Erro ao buscar temporadas da equipe:', err)
       }
 
-      // 2. Delete events
+      // B. Race results por team_id
+      try {
+        const raceResults = await pb.collection('race_results').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const rr of raceResults) {
+          try {
+            await pb.collection('race_results').delete(rr.id)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar race_results por team_id:', err)
+      }
+
+      // C. Race results por season_id
+      for (const s of teamSeasons) {
+        try {
+          const seasonResults = await pb.collection('race_results').getFullList({
+            filter: `season_id = "${s.id}"`,
+          })
+          for (const sr of seasonResults) {
+            try {
+              await pb.collection('race_results').delete(sr.id)
+            } catch {
+              /* intentionally ignored */
+            }
+          }
+        } catch (err) {
+          console.warn('Erro ao deletar race_results por season_id:', err)
+        }
+      }
+
+      // D. Session setups por team_id
+      try {
+        const setups = await pb.collection('session_setups').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const st of setups) {
+          try {
+            await pb.collection('session_setups').delete(st.id)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar session_setups:', err)
+      }
+
+      // E. Race reports por team_id
+      try {
+        const reports = await pb.collection('race_reports').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const rp of reports) {
+          try {
+            await pb.collection('race_reports').delete(rp.id)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar race_reports:', err)
+      }
+
+      // F. Driver tests por team_id
+      try {
+        const tests = await pb.collection('driver_tests').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const dt of tests) {
+          try {
+            await pb.collection('driver_tests').delete(dt.id)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar driver_tests:', err)
+      }
+
+      // G. Season transitions por team_id
+      try {
+        const transitions = await pb.collection('season_transitions').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const tr of transitions) {
+          try {
+            await pb.collection('season_transitions').delete(tr.id)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar season_transitions:', err)
+      }
+
+      // H. Season histories por team_id
+      try {
+        const histories = await pb.collection('season_histories').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const sh of histories) {
+          try {
+            await pb.collection('season_histories').delete(sh.id)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar season_histories:', err)
+      }
+
+      // I. Financial Ledger por team_id
+      try {
+        const ledgerEntries = await pb.collection('financial_ledger').getFullList({
+          filter: `team_id = "${teamId}"`,
+        })
+        for (const le of ledgerEntries) {
+          try {
+            await pb.collection('financial_ledger').delete(le.id)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao deletar financial_ledger:', err)
+      }
+
+      // J. Events por team_id
       try {
         const events = await pb.collection('events').getFullList({
           filter: `team_id = "${teamId}"`,
         })
         for (const ev of events) {
-          await pb.collection('events').delete(ev.id)
+          try {
+            await pb.collection('events').delete(ev.id)
+          } catch {
+            /* intentionally ignored */
+          }
         }
       } catch (err) {
         console.warn('Erro ao deletar eventos:', err)
       }
 
-      // 3. Reset drivers: return them to free market / unassigned pool
+      // K. Reset drivers: desvincular pilotos titulares, reservas e jovens
       try {
         const drivers = await pb.collection('drivers').getFullList({
-          filter: `team_id = "${teamId}"`,
+          filter: `team_id = "${teamId}" || reserve_team_id = "${teamId}" || next_team_id = "${teamId}"`,
         })
         for (const d of drivers) {
-          await pb.collection('drivers').update(d.id, {
-            team_id: null,
-          })
+          try {
+            await pb.collection('drivers').update(d.id, {
+              team_id: null,
+              reserve_team_id: null,
+              next_team_id: null,
+              role: null,
+              next_contract_role: null,
+              canonical_contract: null,
+              future_contract: null,
+            })
+          } catch {
+            /* intentionally ignored */
+          }
         }
       } catch (err) {
-        console.warn('Erro ao desvincular pilotos titulares:', err)
+        console.warn('Erro ao desvincular pilotos:', err)
       }
 
-      // 4. Delete sponsors
+      // L. Sponsors por team_id
       try {
         const sponsors = await pb.collection('sponsors').getFullList({
           filter: `team_id = "${teamId}"`,
         })
         for (const sp of sponsors) {
-          await pb.collection('sponsors').delete(sp.id)
+          try {
+            await pb.collection('sponsors').delete(sp.id)
+          } catch {
+            /* intentionally ignored */
+          }
         }
       } catch (err) {
         console.warn('Erro ao deletar patrocínios:', err)
       }
 
-      // 5. Delete parts
+      // M. Parts por team_id
       try {
         const parts = await pb.collection('parts').getFullList({
           filter: `team_id = "${teamId}"`,
         })
         for (const pt of parts) {
-          await pb.collection('parts').delete(pt.id)
+          try {
+            await pb.collection('parts').delete(pt.id)
+          } catch {
+            /* intentionally ignored */
+          }
         }
       } catch (err) {
         console.warn('Erro ao deletar peças:', err)
       }
 
-      // 6. Delete seasons
+      // N. Seasons por team_id
       for (const s of teamSeasons) {
         try {
           await pb.collection('seasons').delete(s.id)
@@ -3021,7 +3171,7 @@ export const f1Service = {
         }
       }
 
-      // 7. Delete the team itself
+      // O. Deletar a equipe em si
       await pb.collection('teams').delete(teamId)
     }
   },

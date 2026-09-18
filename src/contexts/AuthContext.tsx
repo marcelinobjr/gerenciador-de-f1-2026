@@ -166,8 +166,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Usuário não autenticado.')
     }
     await f1Service.resetPlayerProgress(user.id)
+    // Limpar estados locais de carreira
     setTeam(null)
     setSeason(null)
+    try {
+      localStorage.removeItem(`f1_notifications_${user.id}`)
+      sessionStorage.removeItem('f1_live_race_running')
+    } catch {
+      /* intentionally ignored */
+    }
   }
 
   const ensureValidSession = async (): Promise<boolean> => {

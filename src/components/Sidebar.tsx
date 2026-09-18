@@ -84,7 +84,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
       { name: 'Central', path: '/', icon: LayoutDashboard },
       { name: 'Minha Equipe', path: '/team', icon: Users },
       { name: 'Pilotos', path: '/pilotos', icon: Users2 },
-      { name: 'Carro', path: '/car', icon: Wrench },
+      { name: 'Meu Carro', path: '/car', icon: Wrench },
     ],
   },
   {
@@ -125,7 +125,7 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/': 'Central de Operações',
   '/team': 'Minha Equipe',
   '/pilotos': 'Pilotos da Temporada',
-  '/car': 'Carro e Peças',
+  '/car': 'Meu Carro',
   '/pistas': 'Circuitos da Temporada',
   '/infraestrutura': 'Infraestrutura & Instalações',
   '/sponsors': 'Comercial & Finanças',

@@ -31,11 +31,13 @@ export default function Layout() {
   const [isResetting, setIsResetting] = useState(false)
 
   const handleResetGame = async () => {
+    if (isResetting) return
     setIsResetting(true)
     try {
       await resetGame()
       setResetDialogOpen(false)
       setMobileDrawerOpen(false)
+      setSettingsOpen(false)
       toast({
         title: 'Jogo reiniciado com sucesso',
         description:
