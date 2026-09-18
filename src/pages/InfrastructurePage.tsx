@@ -311,7 +311,7 @@ export default function InfrastructurePage() {
     try {
       setIsUpgrading(true)
       const res = await f1Service.startFacilityUpgrade(
-        team.id,
+        team as any,
         fac.id,
         fac.teamField,
         fac.name,
