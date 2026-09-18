@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { CanonicalSponsorSlot, SponsorshipContract } from '@/types/canonical-commercial'
 import { SponsorSlotKey, OFFICIAL_SPONSOR_SLOTS } from '@/data/assets/teamSponsorHotspots'
-import { formatMoneyM } from '@/lib/formatters'
+import { formatMoneyM, formatPercent } from '@/lib/formatters'
 import {
   Handshake,
   ArrowRight,
@@ -157,7 +157,7 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                 Rodada {activeNegotiation.roundsCount} de {activeNegotiation.maxRounds}
               </span>
               <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                Fit: {activeNegotiation.sponsorFit}%
+                Fit: {formatPercent(activeNegotiation.sponsorFit)}
               </span>
             </div>
           </div>
@@ -250,10 +250,10 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
 
                     <div className="text-right shrink-0">
                       <span className="text-xs font-mono font-black text-emerald-600 block">
-                        US$ {neg.currentOfferAnnual},00 M
+                        {formatMoneyM(neg.currentOfferAnnual)}
                       </span>
                       <span className="text-[10px] font-mono text-neutral-400">
-                        {neg.durationYears} temporadas
+                        {neg.durationYears} {neg.durationYears === 1 ? 'temporada' : 'temporadas'}
                       </span>
                     </div>
                   </div>
@@ -290,7 +290,7 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                     Oferta Anual Fixo
                   </span>
                   <span className="text-sm font-black font-mono text-emerald-600">
-                    US$ {activeNegotiation.currentOfferAnnual},00 M
+                    {formatMoneyM(activeNegotiation.currentOfferAnnual)}
                   </span>
                 </div>
 
@@ -299,7 +299,8 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                     Duração Proposta
                   </span>
                   <span className="text-sm font-bold text-neutral-900">
-                    {activeNegotiation.durationYears} Temporadas
+                    {activeNegotiation.durationYears}{' '}
+                    {activeNegotiation.durationYears === 1 ? 'Temporada' : 'Temporadas'}
                   </span>
                 </div>
 
@@ -308,7 +309,7 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                     Bônus por Pódio
                   </span>
                   <span className="text-sm font-black font-mono text-cyan-600">
-                    +US$ {activeNegotiation.podiumBonus},00 M
+                    +{formatMoneyM(activeNegotiation.podiumBonus)}
                   </span>
                 </div>
 
@@ -317,7 +318,7 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                     Fit com a Equipe
                   </span>
                   <span className="text-sm font-bold text-neutral-900">
-                    {activeNegotiation.sponsorFit}% (Sólido)
+                    {formatPercent(activeNegotiation.sponsorFit)} (Sólido)
                   </span>
                 </div>
               </div>
@@ -378,7 +379,7 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
 
                 <div className="pt-2 flex items-center justify-between">
                   <span className="text-[10px] font-mono text-neutral-400">
-                    Ajustes de até +15% costumam ser aceitos em 1 rodada.
+                    Ajustes de até +{formatPercent(15)} costumam ser aceitos em 1 rodada.
                   </span>
                   <button
                     onClick={() => onSendCounter(activeNegotiation.id, counterValue, counterYears)}

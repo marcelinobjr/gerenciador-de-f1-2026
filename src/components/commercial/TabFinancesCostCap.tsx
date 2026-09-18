@@ -1,7 +1,7 @@
 import React from 'react'
 import { FinancialLedgerSnapshot } from '@/types/canonical-finances'
 import { TeamModel } from '@/types/f1'
-import { formatMoneyM } from '@/lib/formatters'
+import { formatMoneyM, formatNumber, formatPercent } from '@/lib/formatters'
 import {
   DollarSign,
   TrendingUp,
@@ -56,41 +56,53 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
 
   // Despesas Operacionais por Categoria (Referência 3)
   const expenseCategories = [
-    { label: 'Equipe e Staff Técnico', valueM: 76.2, percent: 26, trend: '+6%', icon: 'Staff' },
+    {
+      label: 'Equipe e Staff Técnico',
+      valueM: 76.2,
+      percent: 26,
+      trend: `+${formatPercent(6)}`,
+      icon: 'Staff',
+    },
     {
       label: 'Desenvolvimento do Carro (P&D)',
       valueM: 68.4,
       percent: 23,
-      trend: '+8%',
+      trend: `+${formatPercent(8)}`,
       icon: 'Car',
     },
     {
       label: 'Unidade de Potência (PU Lease)',
       valueM: 42.1,
       percent: 14,
-      trend: '+5%',
+      trend: `+${formatPercent(5)}`,
       icon: 'Engine',
     },
     {
       label: 'Operações de Pista & Logística',
       valueM: 31.8,
       percent: 11,
-      trend: '+4%',
+      trend: `+${formatPercent(4)}`,
       icon: 'Track',
     },
-    { label: 'Infraestrutura & Fábrica', valueM: 22.1, percent: 7, trend: '+3%', icon: 'Building' },
+    {
+      label: 'Infraestrutura & Fábrica',
+      valueM: 22.1,
+      percent: 7,
+      trend: `+${formatPercent(3)}`,
+      icon: 'Building',
+    },
     {
       label: 'Marketing & Hospitalidade',
       valueM: 18.7,
       percent: 6,
-      trend: '+7%',
+      trend: `+${formatPercent(7)}`,
       icon: 'Megaphone',
     },
     {
       label: 'Outras Despesas Operacionais',
       valueM: 38.3,
       percent: 13,
-      trend: '+2%',
+      trend: `+${formatPercent(2)}`,
       icon: 'Other',
     },
   ]
@@ -101,7 +113,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
     ? ledgerSnapshot.costCapSummary.used / 1_000_000
     : 168.6
   const costCapPercent = Math.round((costCapSpent / costCapLimit) * 100)
-  const costCapRemaining = Math.max(0, Number((costCapLimit - costCapSpent).toFixed(2)))
+  const costCapRemaining = Math.max(0, costCapLimit - costCapSpent)
   const costCapProjectedYearEnd = 200.0 // US$ M
 
   // Compromissos e Obrigações (Referência 3)
@@ -172,8 +184,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1 text-[11px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            +12,5 M
+            <ArrowUpRight className="w-3.5 h-3.5" />+{formatNumber(12.5, 1, 2)} M
           </div>
         </div>
 
@@ -193,8 +204,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1 text-[11px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            +8%
+            <ArrowUpRight className="w-3.5 h-3.5" />+{formatPercent(8)}
           </div>
         </div>
 
@@ -214,8 +224,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1 text-[11px] font-mono text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded-full">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            +5%
+            <ArrowUpRight className="w-3.5 h-3.5" />+{formatPercent(5)}
           </div>
         </div>
 
@@ -235,8 +244,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1 text-[11px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            +28%
+            <ArrowUpRight className="w-3.5 h-3.5" />+{formatPercent(28)}
           </div>
         </div>
       </div>
@@ -279,12 +287,12 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
                       <div
                         style={{ height: `${inHeight}px` }}
                         className="w-2.5 bg-emerald-500 rounded-t transition-all group-hover:bg-emerald-600"
-                        title={`Entradas: +US$ ${item.inVal} M`}
+                        title={`Entradas: +${formatMoneyM(item.inVal)}`}
                       />
                       <div
                         style={{ height: `${outHeight}px` }}
                         className="w-2.5 bg-red-500 rounded-b transition-all group-hover:bg-red-600"
-                        title={`Saídas: -US$ ${Math.abs(item.outVal)} M`}
+                        title={`Saídas: -${formatMoneyM(Math.abs(item.outVal))}`}
                       />
                     </div>
                     <span className="text-[9px] font-mono text-neutral-500 mt-2">{item.month}</span>
@@ -296,7 +304,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
 
           <div className="pt-3 flex items-center justify-between text-xs text-neutral-500">
             <span>Saldo projetado acumulado em Dezembro:</span>
-            <span className="font-bold font-mono text-emerald-600">+US$ 97,00 M</span>
+            <span className="font-bold font-mono text-emerald-600">+{formatMoneyM(97)}</span>
           </div>
         </div>
 
@@ -355,7 +363,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span className="text-xs font-mono font-bold text-neutral-900">
-                  US$ {projectedTotalRevenue} M
+                  {formatMoneyM(projectedTotalRevenue)}
                 </span>
                 <span className="text-[9px] text-neutral-400 font-mono">total</span>
               </div>
@@ -373,8 +381,10 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
                     <span className="text-neutral-700 truncate text-[11px]">{source.label}</span>
                   </div>
                   <div className="text-right shrink-0 font-mono text-[11px]">
-                    <span className="font-bold text-neutral-900">US$ {source.valueM} M</span>
-                    <span className="text-neutral-400 ml-1">({source.percent}%)</span>
+                    <span className="font-bold text-neutral-900">
+                      {formatMoneyM(source.valueM)}
+                    </span>
+                    <span className="text-neutral-400 ml-1">({formatPercent(source.percent)})</span>
                   </div>
                 </div>
               ))}
@@ -410,10 +420,10 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                   <span className="text-base font-black font-mono text-neutral-900">
-                    {costCapPercent}%
+                    {formatPercent(costCapPercent)}
                   </span>
                   <span className="text-[9px] font-mono text-neutral-500">
-                    de US$ {costCapLimit} M
+                    de {formatMoneyM(costCapLimit)}
                   </span>
                 </div>
               </div>
@@ -424,7 +434,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
                     Gasto Operacional Atual
                   </span>
                   <span className="font-bold font-mono text-neutral-900 text-sm">
-                    US$ {costCapSpent} M
+                    {formatMoneyM(costCapSpent)}
                   </span>
                 </div>
                 <div>
@@ -432,7 +442,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
                     Margem Regulamentar
                   </span>
                   <span className="font-bold font-mono text-emerald-600 text-sm">
-                    US$ {costCapRemaining} M
+                    {formatMoneyM(costCapRemaining)}
                   </span>
                 </div>
                 <div>
@@ -440,7 +450,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
                     Projeção Final de Ano
                   </span>
                   <span className="font-mono text-neutral-700">
-                    US$ {costCapProjectedYearEnd} M
+                    {formatMoneyM(costCapProjectedYearEnd)}
                   </span>
                 </div>
               </div>
@@ -472,7 +482,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
               Principais Despesas ({currentSeasonYear})
             </h3>
             <span className="text-xs font-mono font-bold text-neutral-900">
-              Total: US$ {projectedTotalExpenses} M
+              Total: {formatMoneyM(projectedTotalExpenses)}
             </span>
           </div>
 
@@ -485,13 +495,13 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
                 <div className="truncate pr-2">
                   <div className="font-bold text-neutral-800 truncate">{item.label}</div>
                   <div className="text-[10px] text-neutral-500 font-mono">
-                    {item.percent}% do orçamento operacional
+                    {formatPercent(item.percent)} do orçamento operacional
                   </div>
                 </div>
 
                 <div className="text-right shrink-0">
                   <div className="font-bold font-mono text-neutral-900">
-                    US$ {item.valueM.toFixed(2)} M
+                    {formatMoneyM(item.valueM)}
                   </div>
                   <span className="text-[10px] font-mono text-red-500 font-bold">
                     ▲ {item.trend} vs 2025
@@ -513,7 +523,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
           <div className="h-44 flex items-end justify-center gap-5 pt-4 pb-2 border-b border-neutral-100">
             <div className="flex flex-col items-center">
               <span className="text-[10px] font-mono font-bold text-emerald-600 mb-1">
-                {projectedTotalRevenue}
+                {formatNumber(projectedTotalRevenue, 1, 2)}
               </span>
               <div className="w-10 bg-emerald-500 rounded-t h-32" />
               <span className="text-[10px] font-mono text-neutral-600 mt-2">Receitas</span>
@@ -521,7 +531,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
 
             <div className="flex flex-col items-center">
               <span className="text-[10px] font-mono font-bold text-red-600 mb-1">
-                -{projectedTotalExpenses}
+                -{formatNumber(projectedTotalExpenses, 1, 2)}
               </span>
               <div className="w-10 bg-red-500 rounded-t h-28" />
               <span className="text-[10px] font-mono text-neutral-600 mt-2">Despesas</span>
@@ -529,7 +539,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
 
             <div className="flex flex-col items-center">
               <span className="text-[10px] font-mono font-bold text-emerald-600 mb-1">
-                +{projectedNetResult}
+                +{formatNumber(projectedNetResult, 2, 2)}
               </span>
               <div className="w-10 bg-emerald-600 rounded-t h-8" />
               <span className="text-[10px] font-mono text-neutral-600 mt-2">Resultado</span>
@@ -537,7 +547,9 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
           </div>
 
           <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
-            <span className="font-bold block">Projeção positiva de US$ {projectedNetResult} M</span>
+            <span className="font-bold block">
+              Projeção positiva de {formatMoneyM(projectedNetResult)}
+            </span>
             <span className="text-[10px] text-emerald-700 mt-0.5 block">
               Equilíbrio financeiro saudável mantido entre receitas comerciais e teto de
               desenvolvimento.
@@ -568,7 +580,7 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
 
                 <div className="text-right shrink-0">
                   <span className="font-bold font-mono text-neutral-900 block">
-                    US$ {c.valueM.toFixed(2)} M
+                    {formatMoneyM(c.valueM)}
                   </span>
                   <span className="inline-block px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[9px] font-mono font-bold uppercase">
                     {c.status}

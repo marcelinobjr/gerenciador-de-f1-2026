@@ -8,10 +8,11 @@ import {
   getTeamHotspots,
   SponsorHotspotCoord,
 } from '@/data/assets/teamSponsorHotspots'
-import { formatMoneyM } from '@/lib/formatters'
+import { formatMoneyM, formatNumber } from '@/lib/formatters'
 
 export interface CarSideViewHotspotsProps {
   teamId?: string | null
+  teamKey?: string | null
   teamName?: string
   contracts: SponsorshipContract[]
   selectedSlot: SponsorSlotKey | null
@@ -21,14 +22,24 @@ export interface CarSideViewHotspotsProps {
 
 export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
   teamId,
+  teamKey,
   teamName,
   contracts,
   selectedSlot,
   onSelectSlot,
 }) => {
-  // Obter imagem lateral real da equipe dos assets oficiais do jogo
-  const sideViewImage = getCarroPorEquipeImage(teamId) || getTeamSideView(teamId)
-  const hotspotsConfig = getTeamHotspots(teamId)
+  // Resolução canônica F1 2026:
+  // 1. Autoridade primária é getTeamSideView usando a teamKey (ou fallback teamId se for a key)
+  // 2. Fallback para getCarroPorEquipeImage, mas sem permitir que paths virtuais (/equipes/...) bloqueiem o fallback
+  const resolvedKey = teamKey || teamId
+  const sideViewFromAssets = getTeamSideView(resolvedKey)
+  const legacyImage = getCarroPorEquipeImage(resolvedKey)
+  // Ignora paths virtuais inexistentes que não são do bundle Vite
+  const isVirtualPath = legacyImage?.startsWith('/equipes/') || legacyImage?.startsWith('/carros/')
+  const validLegacyImage = isVirtualPath ? null : legacyImage
+
+  const sideViewImage = sideViewFromAssets || validLegacyImage
+  const hotspotsConfig = getTeamHotspots(resolvedKey)
 
   const getContractForSlot = (slotKey: SponsorSlotKey) => {
     return contracts.find(
@@ -159,7 +170,8 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
                   </div>
                 ) : (
                   <span className="text-[9px] font-mono text-neutral-400 mt-0.5">
-                    Est. US$ {slotMeta.defaultMarketValueMin}M - {slotMeta.defaultMarketValueMax}M
+                    Est. {formatMoneyM(slotMeta.defaultMarketValueMin, false, 0)} –{' '}
+                    {formatMoneyM(slotMeta.defaultMarketValueMax, false, 0)}
                   </span>
                 )}
               </div>

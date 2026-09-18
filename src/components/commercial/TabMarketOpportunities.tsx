@@ -4,6 +4,7 @@ import { TeamModel } from '@/types/f1'
 import { SponsorSlotKey, OFFICIAL_SPONSOR_SLOTS } from '@/data/assets/teamSponsorHotspots'
 import { COMMERCIAL_MARKET_SPONSORS } from '@/data/commercialMarketData'
 import { calculateCanonicalSponsorFit } from '@/lib/sponsorFitCalculator'
+import { formatMoneyM, formatPercent, formatNumber } from '@/lib/formatters'
 import {
   Search,
   Building2,
@@ -203,9 +204,11 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
               className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-200 bg-neutral-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E10600]/20 focus:border-[#E10600]"
             >
               <option value="todos">Qualquer Orçamento</option>
-              <option value="alto">Alto (US$ 25M+)</option>
-              <option value="medio">Médio (US$ 15M - 25M)</option>
-              <option value="acessivel">Acessível (&lt; US$ 15M)</option>
+              <option value="alto">Alto ({formatMoneyM(25, false, 0)}+)</option>
+              <option value="medio">
+                Médio ({formatMoneyM(15, false, 0)} – {formatMoneyM(25, false, 0)})
+              </option>
+              <option value="acessivel">Acessível (&lt; {formatMoneyM(15, false, 0)})</option>
             </select>
           </div>
         </div>
@@ -305,7 +308,8 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                       Valor Estimado
                     </span>
                     <span className="text-sm font-black font-mono text-neutral-900 block mt-0.5">
-                      US$ {sponsor.estimatedBudgetMin}M – {sponsor.estimatedBudgetMax}M
+                      {formatMoneyM(sponsor.estimatedBudgetMin, false, 0)} –{' '}
+                      {formatMoneyM(sponsor.estimatedBudgetMax, false, 0)}
                     </span>
                     <span className="text-[10px] text-neutral-500 font-mono">
                       por ano ({sponsor.potentialContractYears} temporadas)
@@ -338,7 +342,9 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                     <div>
                       <div className="flex items-center justify-between text-[10px]">
                         <span className="text-neutral-500">Fit com a Equipe</span>
-                        <span className="font-bold font-mono text-emerald-600">{fit.score}%</span>
+                        <span className="font-bold font-mono text-emerald-600">
+                          {formatPercent(fit.score)}
+                        </span>
                       </div>
                       <div className="w-full h-1.5 bg-neutral-100 rounded-full overflow-hidden mt-0.5">
                         <div
@@ -389,10 +395,10 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                   Valor Total Disponível
                 </span>
                 <span className="text-base font-black font-mono text-neutral-900 block mt-0.5">
-                  US$ {marketInsights.totalAvailable} M
+                  {formatMoneyM(marketInsights.totalAvailable)}
                 </span>
                 <span className="text-[10px] font-mono text-emerald-600 font-semibold flex items-center gap-0.5 mt-0.5">
-                  +12% vs. 2025
+                  +{formatPercent(12)} vs. 2025
                 </span>
               </div>
 
@@ -414,7 +420,7 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                   {marketInsights.mostDemandedSlotName}
                 </span>
                 <span className="text-[10px] text-neutral-400 font-mono">
-                  Presente na preferência de mais de 70% das marcas
+                  Presente na preferência de mais de {formatPercent(70)} das marcas
                 </span>
               </div>
             </div>
@@ -432,25 +438,25 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                 <span className="font-medium text-emerald-950">
                   Tecnologia & Nuvem (IA e Telemetria)
                 </span>
-                <span className="font-mono font-bold text-emerald-600">+23%</span>
+                <span className="font-mono font-bold text-emerald-600">+{formatPercent(23)}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
                 <span className="font-medium text-emerald-950">
                   Combustíveis Sustentáveis e Baterias
                 </span>
-                <span className="font-mono font-bold text-emerald-600">+18%</span>
+                <span className="font-mono font-bold text-emerald-600">+{formatPercent(18)}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
                 <span className="font-medium text-emerald-950">
                   Serviços Financeiros & Fintechs
                 </span>
-                <span className="font-mono font-bold text-emerald-600">+15%</span>
+                <span className="font-mono font-bold text-emerald-600">+{formatPercent(15)}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
                 <span className="font-medium text-emerald-950">
                   Marcas de Luxo e Alta Relojoaria
                 </span>
-                <span className="font-mono font-bold text-emerald-600">+12%</span>
+                <span className="font-mono font-bold text-emerald-600">+{formatPercent(12)}</span>
               </div>
             </div>
           </div>
@@ -482,14 +488,15 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                         {sponsor.name}
                       </div>
                       <div className="text-[10px] font-mono text-emerald-600 font-bold">
-                        Fit: {fit.score}%
+                        Fit: {formatPercent(fit.score)}
                       </div>
                     </div>
                   </div>
 
                   <div className="text-right shrink-0">
                     <span className="text-[10px] font-mono font-bold text-neutral-800 block">
-                      US$ {sponsor.estimatedBudgetMin}M - {sponsor.estimatedBudgetMax}M
+                      {formatMoneyM(sponsor.estimatedBudgetMin, false, 0)} –{' '}
+                      {formatMoneyM(sponsor.estimatedBudgetMax, false, 0)}
                     </span>
                     <span className="text-[9px] text-[#E10600] font-semibold flex items-center justify-end gap-0.5 group-hover:underline">
                       Negociar <ChevronRight className="w-3 h-3" />
@@ -546,8 +553,8 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                     Faixa de Investimento
                   </span>
                   <span className="font-bold font-mono text-neutral-900">
-                    US$ {selectedDetailSponsor.estimatedBudgetMin}M –{' '}
-                    {selectedDetailSponsor.estimatedBudgetMax}M / ano
+                    {formatMoneyM(selectedDetailSponsor.estimatedBudgetMin, false, 0)} –{' '}
+                    {formatMoneyM(selectedDetailSponsor.estimatedBudgetMax, false, 0)} / ano
                   </span>
                 </div>
 
@@ -576,7 +583,7 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                 return (
                   <div className="space-y-2 pt-1">
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500 block">
-                      Análise de Fit Estratégico ({fit.score}/100)
+                      Análise de Fit Estratégico ({formatNumber(fit.score, 0, 0)}/100)
                     </span>
                     <div className="space-y-1.5">
                       {fit.factors.map((f) => (
@@ -586,7 +593,7 @@ export const TabMarketOpportunities: React.FC<TabMarketOpportunitiesProps> = ({
                         >
                           <span className="text-neutral-700 truncate pr-2">{f.name}</span>
                           <span className="font-mono font-bold text-neutral-900 shrink-0">
-                            {f.score}/100
+                            {formatNumber(f.score, 0, 0)}/100
                           </span>
                         </div>
                       ))}

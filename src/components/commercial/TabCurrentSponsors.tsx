@@ -2,7 +2,7 @@ import React from 'react'
 import { SponsorshipContract, CommercialSummary } from '@/types/canonical-commercial'
 import { SponsorSlotKey, OFFICIAL_SPONSOR_SLOTS } from '@/data/assets/teamSponsorHotspots'
 import { CarSideViewHotspots } from './CarSideViewHotspots'
-import { formatMoneyM } from '@/lib/formatters'
+import { formatMoneyM, formatPercent } from '@/lib/formatters'
 import {
   DollarSign,
   TrendingUp,
@@ -18,6 +18,7 @@ import { getSponsorSlotPhoto } from '@/data/assets/carPartAssets'
 
 export interface TabCurrentSponsorsProps {
   teamId?: string | null
+  teamKey?: string | null
   teamName?: string
   contracts: SponsorshipContract[]
   summary: CommercialSummary
@@ -28,6 +29,7 @@ export interface TabCurrentSponsorsProps {
 
 export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
   teamId,
+  teamKey,
   teamName,
   contracts,
   summary,
@@ -52,6 +54,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
       {/* 1. SEÇÃO DO CARRO LATERAL REAL COM 5 HOTSPOTS */}
       <CarSideViewHotspots
         teamId={teamId}
+        teamKey={teamKey}
         teamName={teamName}
         contracts={contracts}
         selectedSlot={selectedSlot}
@@ -112,7 +115,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
               Satisfação Média
             </span>
             <span className="text-base font-black font-mono text-amber-400">
-              {summary.averageSatisfaction > 0 ? `${summary.averageSatisfaction}%` : '--'}
+              {summary.averageSatisfaction > 0 ? formatPercent(summary.averageSatisfaction) : '--'}
             </span>
           </div>
         </div>
@@ -180,7 +183,8 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                       ) : (
                         <>
                           <div className="text-[11px] font-mono text-neutral-400">
-                            US$ {slot.defaultMarketValueMin}M - {slot.defaultMarketValueMax}M
+                            {formatMoneyM(slot.defaultMarketValueMin, false, 0)} –{' '}
+                            {formatMoneyM(slot.defaultMarketValueMax, false, 0)}
                           </div>
                           <span className="inline-block text-[9px] font-mono px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-600 font-semibold uppercase">
                             Disponível
@@ -230,8 +234,8 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                 </span>
                 <span className="font-bold font-mono text-emerald-600 text-sm">
                   {summary.averageSatisfaction > 0
-                    ? `${summary.averageSatisfaction}%`
-                    : '100% Estável'}
+                    ? formatPercent(summary.averageSatisfaction)
+                    : `${formatPercent(100)} Estável`}
                 </span>
               </div>
             </div>
@@ -325,7 +329,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                       Satisfação da Marca
                     </span>
                     <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-                      ★ {activeContract.satisfaction || 85}% (Estável)
+                      ★ {formatPercent(activeContract.satisfaction || 85)} (Estável)
                     </span>
                   </div>
 
@@ -376,8 +380,9 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                     </h4>
                     <p className="text-xs text-amber-800 mt-0.5">
                       Este espaço não possui contrato ativo. A equipe está perdendo receita anual
-                      estimada de até <strong>US$ {currentSlotMeta.defaultMarketValueMax} M</strong>{' '}
-                      por temporada.
+                      estimada de até{' '}
+                      <strong>{formatMoneyM(currentSlotMeta.defaultMarketValueMax)}</strong> por
+                      temporada.
                     </p>
                   </div>
                 </div>
@@ -388,7 +393,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                       Valor de Mercado Mínimo
                     </span>
                     <span className="text-sm font-black font-mono text-neutral-900">
-                      US$ {currentSlotMeta.defaultMarketValueMin},00 M
+                      {formatMoneyM(currentSlotMeta.defaultMarketValueMin)}
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-100">
@@ -396,7 +401,7 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                       Valor de Mercado Máximo
                     </span>
                     <span className="text-sm font-black font-mono text-emerald-600">
-                      US$ {currentSlotMeta.defaultMarketValueMax},00 M
+                      {formatMoneyM(currentSlotMeta.defaultMarketValueMax)}
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-100">
@@ -458,7 +463,8 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
                       {slot.labelEn}
                     </span>
                     <span className="text-[10px] font-mono font-bold text-emerald-600 block mt-0.5">
-                      US$ {slot.defaultMarketValueMin}M - {slot.defaultMarketValueMax}M
+                      {formatMoneyM(slot.defaultMarketValueMin, false, 0)} –{' '}
+                      {formatMoneyM(slot.defaultMarketValueMax, false, 0)}
                     </span>
                     <button
                       onClick={(e) => {

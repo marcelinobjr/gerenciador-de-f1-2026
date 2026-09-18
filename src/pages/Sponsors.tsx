@@ -21,7 +21,7 @@ import {
 import { TabFinancesCostCap } from '@/components/commercial/TabFinancesCostCap'
 import { COMMERCIAL_MARKET_SPONSORS } from '@/data/commercialMarketData'
 import { calculateCanonicalSponsorFit } from '@/lib/sponsorFitCalculator'
-import { formatMoneyM } from '@/lib/formatters'
+import { formatMoneyM, formatPercent } from '@/lib/formatters'
 import { getCarroPorEquipeImage } from '@/assets/carroPorEquipe'
 import { getTeamSideView } from '@/data/assets/teamAssets'
 import { useToast } from '@/hooks/use-toast'
@@ -269,7 +269,7 @@ export function SponsorsPage() {
 
     toast({
       title: 'Contraproposta Enviada',
-      description: `A marca recebeu nossa solicitação de US$ ${counterAnnualValue}M/ano e responderá na próxima rodada.`,
+      description: `A marca recebeu nossa solicitação de ${formatMoneyM(counterAnnualValue)}/ano e responderá na próxima rodada.`,
     })
   }
 
@@ -325,7 +325,7 @@ export function SponsorsPage() {
 
       toast({
         title: 'Contrato Oficial Assinado!',
-        description: `Parceria com a ${neg.sponsorName} ratificada com sucesso por US$ ${neg.currentOfferAnnual}M/ano.`,
+        description: `Parceria com a ${neg.sponsorName} ratificada com sucesso por ${formatMoneyM(neg.currentOfferAnnual)}/ano.`,
       })
 
       // Voltar para a aba de Patrocinadores Atuais para ver o carro atualizado
@@ -354,7 +354,13 @@ export function SponsorsPage() {
   }
 
   // Imagem do carro lateral para o Hero
-  const heroSideCarImg = getCarroPorEquipeImage(team?.id) || getTeamSideView(team?.id)
+  const resolvedTeamKey = team?.team_key || team?.id
+  const heroSideCarImg =
+    getTeamSideView(resolvedTeamKey) ||
+    (() => {
+      const legacy = getCarroPorEquipeImage(resolvedTeamKey)
+      return legacy?.startsWith('/equipes/') || legacy?.startsWith('/carros/') ? null : legacy
+    })()
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 select-none">
@@ -377,7 +383,7 @@ export function SponsorsPage() {
               </span>
               <span className="text-white/30">•</span>
               <span className="text-[10px] font-mono text-neutral-500 bg-[#141B26] px-1.5 py-0.5 rounded border border-[#1F2733]">
-                v0.0.282
+                v0.0.285
               </span>
             </div>
 
@@ -458,7 +464,9 @@ export function SponsorsPage() {
             <span className="text-[10px] font-mono uppercase text-[#8B95A7] block">
               Uso do Cost Cap
             </span>
-            <span className="text-base font-black font-mono text-white">78% (US$ 168,60M)</span>
+            <span className="text-base font-black font-mono text-white">
+              {formatPercent(78)} ({formatMoneyM(168.6)})
+            </span>
           </div>
         </div>
       </div>
@@ -521,6 +529,7 @@ export function SponsorsPage() {
       {activeTab === 'patrocinadores' && (
         <TabCurrentSponsors
           teamId={team?.id}
+          teamKey={team?.team_key || team?.id}
           teamName={team?.name}
           contracts={canonicalContracts}
           summary={commercialSummary}
