@@ -66,6 +66,11 @@ const App = () => (
               <Route path="/historico" element={<HistoryPage />} />
               <Route path="/regulamento" element={<Navigate to="/car?tab=regulamento" replace />} />
               <Route path="/calendario" element={<CalendarPage />} />
+              <Route path="/development" element={<Navigate to="/car?tab=technical" replace />} />
+              <Route
+                path="/car-development"
+                element={<Navigate to="/car?tab=technical" replace />}
+              />
             </Route>
           </Route>
 

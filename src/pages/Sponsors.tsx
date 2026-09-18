@@ -383,7 +383,7 @@ export function SponsorsPage() {
               </span>
               <span className="text-white/30">•</span>
               <span className="text-[10px] font-mono text-neutral-500 bg-[#141B26] px-1.5 py-0.5 rounded border border-[#1F2733]">
-                v0.0.286
+                v0.0.287
               </span>
             </div>
 

@@ -40,16 +40,32 @@ import { EngineeringPlanModal } from '@/components/car/EngineeringPlanModal'
 import { EngineSwapModal } from '@/components/car/EngineSwapModal'
 import { PartSwapModal } from '@/components/car/PartSwapModal'
 import { QuickSwapCarSelectorModal } from '@/components/car/QuickSwapCarSelectorModal'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 export type CarSubTab = 'garagem' | 'tecnica'
 
 export default function CarPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { team, season, refreshTeamAndSeason } = useAuth()
   const currentRound = season?.current_round || 1
 
-  const [activeSubTab, setActiveSubTab] = useState<CarSubTab>('garagem')
+  const initialSubTab: CarSubTab =
+    searchParams.get('tab') === 'technical' ||
+    searchParams.get('tab') === 'tecnica' ||
+    searchParams.get('tab') === 'pd'
+      ? 'tecnica'
+      : 'garagem'
+  const [activeSubTab, setActiveSubTab] = useState<CarSubTab>(initialSubTab)
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'technical' || tabParam === 'tecnica' || tabParam === 'pd') {
+      setActiveSubTab('tecnica')
+    } else if (tabParam === 'garagem' || tabParam === 'garage') {
+      setActiveSubTab('garagem')
+    }
+  }, [searchParams])
   const [parts, setParts] = useState<PartModel[]>([])
   const [allDrivers, setAllDrivers] = useState<DriverModel[]>([])
   const [loading, setLoading] = useState(true)
@@ -945,7 +961,7 @@ export default function CarPage() {
                 onRepairPart={() => setRepairModalOpen(true)}
                 onOpenQuickSwap={() => setQuickSwapSelectorOpen(true)}
                 onUpgradePart={() => {
-                  navigate('/car-development')
+                  navigate('/car?tab=technical')
                 }}
                 onCompareCars={() => setCompareModalOpen(true)}
                 onBalanceSetup={() => setBalanceModalOpen(true)}
@@ -1233,7 +1249,7 @@ export default function CarPage() {
         open={engineeringModalOpen}
         onOpenChange={setEngineeringModalOpen}
         onNavigateToDevelopment={(targetArea) => {
-          navigate('/car-development', { state: { targetArea } })
+          navigate('/car?tab=technical', { state: { targetArea } })
         }}
       />
 

@@ -80,48 +80,23 @@ export interface NavSection {
 
 export const CAREER_NAV_SECTIONS: NavSection[] = [
   {
-    title: 'PRINCIPAL',
+    title: 'GESTÃO',
     items: [
-      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-      { name: 'Minha Equipe', path: '/team', icon: Users },
-      { name: 'Meus Carros', path: '/car', icon: Wrench },
+      { name: 'Central', path: '/', icon: LayoutDashboard },
+      { name: 'Equipe', path: '/team', icon: Users },
+      { name: 'Pilotos', path: '/pilotos', icon: Users2 },
+      { name: 'Carro', path: '/car', icon: Wrench },
+      { name: 'Infraestrutura', path: '/infraestrutura', icon: Building2 },
       { name: 'Comercial & Finanças', path: '/sponsors', icon: DollarSign },
     ],
   },
   {
-    title: 'PERFORMANCE',
+    title: 'COMPETIÇÃO',
     items: [
-      {
-        name: 'Desenvolvimento',
-        path: '/car?tab=pd',
-        icon: Cpu,
-        isNotice: true,
-        noticeTitle: 'Desenvolvimento (P&D & Engenharia)',
-        noticeDesc:
-          'O fluxo de engenharia aerodinâmica, CFD e fabricação rápida é operado através do painel de Carro & Peças. Você pode aprimorar qualquer componente do monoposto.',
-      },
-      {
-        name: 'Infraestrutura',
-        path: '/infraestrutura',
-        icon: Building2,
-      },
       { name: 'Fim de Semana', path: '/race', icon: Flag },
-    ],
-  },
-  {
-    title: 'GESTÃO',
-    items: [
-      { name: 'Pilotos', path: '/pilotos', icon: Users2 },
-      { name: 'Pistas', path: '/pistas', icon: Map },
-      { name: 'Equipes', path: '/paddock', icon: Users },
-    ],
-  },
-  {
-    title: 'COMPETIÇÃO & REGRAS',
-    items: [
       { name: 'Campeonato', path: '/standings', icon: Trophy },
+      { name: 'Paddock', path: '/paddock', icon: Users },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
-      { name: 'Regulamento', path: '/regulamento', icon: BookOpen },
     ],
   },
 ]
