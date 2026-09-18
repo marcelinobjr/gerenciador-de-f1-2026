@@ -462,8 +462,8 @@ export default function DriversPage() {
 
   // Helper canônico de Superlicença
   const checkDriverSuperlicense = useCallback((pilot: UnifiedDriverItem): boolean => {
-    if (pilot.rawDbRecord?.has_superlicense !== undefined) {
-      return Boolean(pilot.rawDbRecord.has_superlicense)
+    if ((pilot.rawDbRecord as any)?.has_superlicense !== undefined) {
+      return Boolean((pilot.rawDbRecord as any).has_superlicense)
     }
     if (pilot.category === 'f1' && (pilot.teamId || pilot.teamKey || pilot.f1RacesCompleted > 0)) {
       return true
@@ -655,17 +655,22 @@ export default function DriversPage() {
     if (!activeSideDriver) {
       return { races: 0, wins: 0, poles: 0, championships: 0 }
     }
-    const mbjStats = getDriverCareerStats(activeSideDriver.name)
+    const mbjPilot = MBJ_2026_PILOTS.find(
+      (p) =>
+        p.id === activeSideDriver.id ||
+        p.name.toLowerCase().trim() === activeSideDriver.name.toLowerCase().trim(),
+    )
+    const mbjStats = getDriverCareerStats({ pilot: mbjPilot || (activeSideDriver as any) })
     const raw = activeSideDriver.rawDbRecord as any
 
     const races =
       raw?.f1_career_starts ??
-      mbjStats?.starts ??
+      mbjStats.races ??
       (activeSideDriver.category === 'f1' ? activeSideDriver.f1RacesCompleted : 0)
 
-    const wins = raw?.f1_career_wins ?? mbjStats?.wins ?? 0
-    const poles = raw?.f1_career_poles ?? mbjStats?.poles ?? 0
-    const championships = raw?.f1_career_titles ?? mbjStats?.titles ?? 0
+    const wins = raw?.f1_career_wins ?? mbjStats.wins ?? 0
+    const poles = raw?.f1_career_poles ?? mbjStats.poles ?? 0
+    const championships = raw?.f1_career_titles ?? mbjStats.championships ?? 0
 
     return { races, wins, poles, championships }
   }, [activeSideDriver])
@@ -1418,7 +1423,7 @@ export default function DriversPage() {
         <DriverNegotiationModal
           open={isNegotiationModalOpen}
           onOpenChange={setIsNegotiationModalOpen}
-          driver={selectedPilotForNegotiation}
+          driver={selectedPilotForNegotiation as any}
           playerTeam={team}
           currentRound={currentRound}
           seasonYear={season?.year || 2026}

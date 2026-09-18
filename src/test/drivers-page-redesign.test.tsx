@@ -175,14 +175,17 @@ describe('Aba Pilotos — Suíte de Requisitos Funcionais e Visuais (A a L)', ()
 
   // I. Estatísticas F1 corretas (somente F1)
   it('I. Estatísticas na Fórmula 1 registram apenas números oficiais de F1', () => {
-    const statsVerstappen = getDriverCareerStats('Max Verstappen')
+    const mbjVerstappen = MBJ_2026_PILOTS.find((p) => p.name === 'Max Verstappen')
+    expect(mbjVerstappen).toBeDefined()
+    const statsVerstappen = getDriverCareerStats({ pilot: mbjVerstappen })
     expect(statsVerstappen).not.toBeNull()
-    expect(statsVerstappen?.wins).toBeGreaterThanOrEqual(60)
-    expect(statsVerstappen?.titles).toBeGreaterThanOrEqual(3)
+    expect(statsVerstappen.wins).toBeGreaterThanOrEqual(60)
+    expect(statsVerstappen.championships).toBeGreaterThanOrEqual(3)
 
     // Piloto sem F1 tem 0 vitórias na F1
-    const statsJunior = getDriverCareerStats('Piloto Inexistente F1')
-    expect(statsJunior).toBeNull()
+    const statsJunior = getDriverCareerStats({ pilot: null })
+    expect(statsJunior.wins).toBe(0)
+    expect(statsJunior.races).toBe(0)
   })
 
   // J. Piloto livre não aparece como contratado

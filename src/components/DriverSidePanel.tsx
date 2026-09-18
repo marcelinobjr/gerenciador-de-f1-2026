@@ -62,40 +62,28 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
   isPlayerDriverTeam = false,
   isMobileModal = false,
 }) => {
-  if (!driver) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl shadow-sm">
-        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
-          <Activity className="w-8 h-8" />
-        </div>
-        <h3 className="text-base font-bold text-slate-800">Nenhum piloto selecionado</h3>
-        <p className="text-xs text-slate-500 mt-1 max-w-xs">
-          Clique em qualquer piloto da lista para inspecionar ficha técnica rápida, estatísticas de
-          F1 e ações de mercado.
-        </p>
-      </div>
-    )
-  }
-
-  const overall = getOverallRating(driver)
+  const overall = driver ? getOverallRating(driver) : 0
   const isContracted = contractStatusType === 'contracted' || contractStatusType === 'reserve'
   const isMarketFree = contractStatusType === 'free'
 
   // Número permanente ou preferido
   const driverNumber =
-    driver.preferredNumber || (driver.rawDbRecord as any)?.permanent_number || null
+    driver?.preferredNumber || (driver?.rawDbRecord as any)?.permanent_number || null
 
   // Logo da equipe atual se existir
-  const teamLogo = driver.teamKey ? getTeamLogoUrl(driver.teamKey) : null
+  const teamLogo = driver?.teamKey ? getTeamLogoUrl(driver.teamKey) : null
 
   // Atributos resumidos para o painel (Ritmo, Consistência, Feedback Técnico, Potencial)
-  const pace = driver.racePace ?? Math.round((driver.speed + driver.consistency) / 2)
-  const consistency = driver.consistency
-  const feedback = driver.feedback ?? Math.min(99, Math.max(50, driver.consistency + 2))
-  const potentialAvg = Math.round((driver.potentialMin + driver.potentialMax) / 2)
+  const pace = driver ? (driver.racePace ?? Math.round((driver.speed + driver.consistency) / 2)) : 0
+  const consistency = driver?.consistency ?? 0
+  const feedback = driver
+    ? (driver.feedback ?? Math.min(99, Math.max(50, driver.consistency + 2)))
+    : 0
+  const potentialAvg = driver ? Math.round((driver.potentialMin + driver.potentialMax) / 2) : 0
 
-  // Citações ou biografia de destaque sintética
+  // Citações ou biografia de destaque sintética (chamado incondicionalmente)
   const quoteText = useMemo(() => {
+    if (!driver) return ''
     if (driver.f1RacesCompleted > 150) {
       return '"Veterano de referência global, liderança técnica de paddock comprovada."'
     }
@@ -112,7 +100,22 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
       return '"Jovem promessa com curva de evolução acelerada e grande potencial."'
     }
     return '"Profissional veloz com experiência e prontidão competitiva imediata."'
-  }, [driver.f1RacesCompleted, overall, driver.isAcademyProspect, driver.age])
+  }, [driver, overall])
+
+  if (!driver) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl shadow-sm">
+        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+          <Activity className="w-8 h-8" />
+        </div>
+        <h3 className="text-base font-bold text-slate-800">Nenhum piloto selecionado</h3>
+        <p className="text-xs text-slate-500 mt-1 max-w-xs">
+          Clique em qualquer piloto da lista para inspecionar ficha técnica rápida, estatísticas de
+          F1 e ações de mercado.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div
