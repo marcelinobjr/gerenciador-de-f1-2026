@@ -61,3 +61,5 @@ export function getTeamLogo(teamCodeOrId: string | null | undefined): string | n
   const asset = getTeamAsset(teamCodeOrId)
   return asset?.logoPath || null
 }
+
+export { getTeamReducedLogoUrl, teamAssetResolver } from '@/lib/team-reduced-logo-resolver'

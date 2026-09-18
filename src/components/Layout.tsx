@@ -83,7 +83,7 @@ export default function Layout() {
       <Sheet open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
         <SheetContent
           side="left"
-          className="p-0 w-[270px] bg-[#11161C] border-[#1F2732] text-[#F5F7FA] sm:max-w-[280px]"
+          className="p-0 w-[270px] bg-white border-[#E2E8F0] text-[#1E293B] sm:max-w-[280px]"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Menu de Navegação APEX GP Manager</SheetTitle>

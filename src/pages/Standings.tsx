@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { DriverStanding, TeamStanding } from '@/services/standingsService'
-import { Trophy, Award, Users, Scale, Medal, AlertCircle } from 'lucide-react'
+import { Calendar, Compass, Trophy, Users, Shield, Scale, Award, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { AmbientBackground } from '@/components/AmbientBackground'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PageHeader } from '@/components/PageHeader'
-import { DataTable, DataTableColumn } from '@/components/DataTable'
-import { ProgressBar } from '@/components/ProgressBar'
 import { EmptyState } from '@/components/EmptyState'
-import { formatCurrency } from '@/lib/formatters'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
+import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
+import { PilotProfileDialog } from '@/components/PilotProfileDialog'
+import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
+import { normalizeDriverSurname } from '@/lib/pilot-posters'
+import heroHorizontalAsset from '@/assets/chatgpt-image-10-de-set.de-2026-122312-fc092.png'
 
 export type { DriverStanding, TeamStanding }
 
@@ -19,6 +20,7 @@ export default function StandingsPage() {
     season,
     driverStandings,
     constructorStandings,
+    playerDrivers,
     loading,
     currentRound,
     totalRounds,
@@ -26,432 +28,687 @@ export default function StandingsPage() {
 
   const [activeTab, setActiveTab] = useState<'drivers' | 'constructors'>('drivers')
 
-  // Máximo de pontos para calcular as mini-barras relativas ao líder
+  // Modais canônicos de interação ao clicar na linha
+  const [selectedPilotForModal, setSelectedPilotForModal] = useState<any | null>(null)
+  const [pilotModalOpen, setPilotModalOpen] = useState(false)
+
+  const [selectedTeamForModal, setSelectedTeamForModal] = useState<any | null>(null)
+  const [teamModalOpen, setTeamModalOpen] = useState(false)
+
+  const seasonYear = season?.year || 2026
+  const safeTotalRounds = totalRounds || 24
+  const safeCurrentRound = Math.min(safeTotalRounds, Math.max(1, currentRound || 1))
+
+  // Detalhes do circuito atual a partir do calendário canônico
+  const currentGp = useMemo(() => {
+    return F1_2026_CALENDAR.find((c) => c.round === safeCurrentRound) || F1_2026_CALENDAR[0]
+  }, [safeCurrentRound])
+
+  // Máximo de pontos para calcular as barras relativas ao líder (líder = 100%)
   const maxDriverPoints = useMemo(() => {
-    if (driverStandings.length === 0) return 1
+    if (!driverStandings || driverStandings.length === 0) return 1
     return Math.max(1, driverStandings[0]?.points || 1)
   }, [driverStandings])
 
   const maxConstructorPoints = useMemo(() => {
-    if (constructorStandings.length === 0) return 1
+    if (!constructorStandings || constructorStandings.length === 0) return 1
     return Math.max(1, constructorStandings[0]?.points || 1)
   }, [constructorStandings])
 
-  const prizeByRank: Record<number, number> = {
-    1: 175000000,
-    2: 160000000,
-    3: 147000000,
-    4: 135000000,
-    5: 124000000,
-    6: 114000000,
-    7: 104000000,
-    8: 95000000,
-    9: 87000000,
-    10: 80000000,
-    11: 74000000,
-    12: 70000000,
+  // Mapa de pilotos por equipe para listar os titulares compactos na aba Construtores ("Bortoleto · Ricciardo")
+  const teamLineupMap = useMemo(() => {
+    const map: Record<string, string[]> = {}
+
+    // 1. Pilotos do jogador
+    if (playerDrivers && playerDrivers.length > 0) {
+      const pKey = team?.id || 'player'
+      const pTeamName = team?.name || 'Escuderia Brasil'
+      const starters = playerDrivers.filter(
+        (d) => !d.role || d.role.toLowerCase().includes('titular'),
+      )
+      const list = starters.length > 0 ? starters : playerDrivers.slice(0, 2)
+      const surnames = list.map((d) => normalizeDriverSurname(d.name))
+      map[pKey] = surnames
+      map[pTeamName] = surnames
+    }
+
+    // 2. Pilotos agrupados a partir do driverStandings
+    if (driverStandings && driverStandings.length > 0) {
+      driverStandings.forEach((d) => {
+        if (!map[d.teamName]) {
+          map[d.teamName] = []
+        }
+        const surname = normalizeDriverSurname(d.name)
+        if (!map[d.teamName].includes(surname)) {
+          map[d.teamName].push(surname)
+        }
+      })
+    }
+
+    return map
+  }, [playerDrivers, team, driverStandings])
+
+  // Handler para abrir perfil de piloto existente
+  const handleDriverClick = (driver: DriverStanding) => {
+    // Tenta casar com dados completos de playerDrivers se for do jogador
+    const fullPlayer = playerDrivers?.find((p) => p.id === driver.id || p.name === driver.name)
+    const pilotItem: any = fullPlayer
+      ? {
+          ...fullPlayer,
+          isPlayerDriver: true,
+          f1RacesCompleted: 24,
+          speed: fullPlayer.speed || 84,
+          consistency: fullPlayer.consistency || 82,
+          defense: fullPlayer.defense || 80,
+          rain: fullPlayer.rain || 82,
+        }
+      : {
+          id: driver.id,
+          name: driver.name,
+          nationality: driver.nationality,
+          category: 'f1',
+          teamName: driver.teamName,
+          isPlayerDriver: driver.isPlayer,
+          f1RacesCompleted: 24,
+          speed: 84,
+          consistency: 82,
+          defense: 80,
+          rain: 82,
+        }
+
+    setSelectedPilotForModal(pilotItem)
+    setPilotModalOpen(true)
   }
 
-  // Colunas de Pilotos para o DataTable
-  const driverColumns: DataTableColumn<DriverStanding>[] = [
-    {
-      key: 'position',
-      header: 'Pos',
-      width: '64px',
-      render: (_, index) => {
-        const pos = index + 1
-        return (
-          <span
-            className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-num font-bold text-xs ${
-              pos === 1
-                ? 'bg-amber-400 text-black'
-                : pos === 2
-                  ? 'bg-slate-300 text-black'
-                  : pos === 3
-                    ? 'bg-amber-700 text-white'
-                    : 'text-[#8B95A7] bg-[#161D29]'
-            }`}
-          >
-            {pos}
-          </span>
-        )
-      },
-    },
-    {
-      key: 'name',
-      header: 'Piloto',
-      render: (driver) => (
-        <div className="flex items-center gap-2">
-          {/* Barra lateral 3px da cor da equipe */}
-          <span
-            className="w-[3px] h-4 rounded-full shrink-0"
-            style={{ backgroundColor: driver.teamColor || '#8B95A7' }}
-          />
-          <span
-            title={driver.nationality}
-            className="text-base select-none cursor-default leading-none"
-          >
-            {driver.flag}
-          </span>
-          <span
-            className={
-              driver.isPlayer
-                ? 'font-bold text-[#F5F7FA] text-xs sm:text-sm'
-                : 'text-[#F5F7FA] text-xs'
-            }
-          >
-            {driver.name}
-          </span>
-          {driver.isPlayer && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#E10600]/20 text-red-300 border border-[#E10600]/40">
-              Sua Equipe
-            </span>
-          )}
-          {(driver.totalPenaltiesSec || 0) > 0 && (
-            <Badge
-              className="bg-amber-950/80 text-amber-300 border border-amber-500/60 text-[9px] px-1.5 py-0 h-4 font-num font-bold flex items-center gap-0.5"
-              title={`Penalidades acumuladas nesta temporada: +${driver.totalPenaltiesSec}s (${driver.penaltiesCount || 1} infração(ões))`}
-            >
-              <Scale className="w-2.5 h-2.5" />+{driver.totalPenaltiesSec}s
-            </Badge>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'teamName',
-      header: 'Escuderia',
-      render: (driver) => (
-        <span style={{ color: driver.teamColor }} className="text-xs font-medium">
-          {driver.teamName}
-        </span>
-      ),
-    },
-    {
-      key: 'wins',
-      header: 'Vitórias',
-      align: 'center',
-      render: (driver) =>
-        driver.wins > 0 ? (
-          <span className="font-num text-amber-400 font-bold text-xs">{driver.wins}</span>
-        ) : (
-          <span className="font-num text-[#8B95A7] text-xs">0</span>
-        ),
-    },
-    {
-      key: 'podiums',
-      header: 'Pódios',
-      align: 'center',
-      render: (driver) =>
-        driver.podiums > 0 ? (
-          <span className="font-num text-emerald-400 font-bold text-xs">{driver.podiums}</span>
-        ) : (
-          <span className="font-num text-[#8B95A7] text-xs">0</span>
-        ),
-    },
-    {
-      key: 'points',
-      header: 'Pontos & Barra',
-      align: 'right',
-      render: (driver, index) => {
-        const leaderPts = driverStandings[0]?.points || 0
-        const gap = index === 0 ? 'LÍDER' : `-${leaderPts - driver.points}`
-        const ratio = Math.round((driver.points / maxDriverPoints) * 100)
-
-        return (
-          <div className="flex items-center justify-end gap-3 min-w-[140px]">
-            {/* Mini barra de pontos proporcional ao líder */}
-            <div className="w-20 hidden md:block">
-              <ProgressBar
-                value={ratio}
-                max={100}
-                showValue={false}
-                size="sm"
-                trackClassName="bg-[#161D29] border-[#1F2733]"
-              />
-            </div>
-            <div className="text-right">
-              <div className="flex items-baseline justify-end gap-1">
-                <span
-                  className={`font-num text-sm font-bold ${
-                    driver.isPlayer ? 'text-[#00A6FB]' : 'text-[#F5F7FA]'
-                  }`}
-                >
-                  {driver.points}
-                </span>
-                <span className="text-[10px] text-[#8B95A7]">pts</span>
-              </div>
-              <span className="font-num text-[10px] text-[#8B95A7] block leading-none">{gap}</span>
-            </div>
-          </div>
-        )
-      },
-    },
-  ]
-
-  // Colunas de Construtores para o DataTable
-  const constructorColumns: DataTableColumn<TeamStanding>[] = [
-    {
-      key: 'position',
-      header: 'Pos',
-      width: '64px',
-      render: (_, index) => {
-        const pos = index + 1
-        return (
-          <span
-            className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-num font-bold text-xs ${
-              pos === 1
-                ? 'bg-amber-400 text-black'
-                : pos === 2
-                  ? 'bg-slate-300 text-black'
-                  : pos === 3
-                    ? 'bg-amber-700 text-white'
-                    : 'text-[#8B95A7] bg-[#161D29]'
-            }`}
-          >
-            {pos}
-          </span>
-        )
-      },
-    },
-    {
-      key: 'name',
-      header: 'Escuderia',
-      render: (cTeam) => (
-        <div className="flex items-center gap-2">
-          {/* Barra lateral 3px da cor da equipe */}
-          <span
-            className="w-[3px] h-4 rounded-full shrink-0"
-            style={{ backgroundColor: cTeam.color || '#8B95A7' }}
-          />
-          <span
-            className="w-2.5 h-2.5 rounded-full shrink-0"
-            style={{ backgroundColor: cTeam.color }}
-          />
-          <span
-            className={`text-xs sm:text-sm ${
-              cTeam.isPlayer ? 'font-bold text-[#F5F7FA]' : 'text-[#F5F7FA]'
-            }`}
-          >
-            {cTeam.name}
-          </span>
-          {cTeam.isPlayer && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#E10600]/20 text-red-300 border border-[#E10600]/40">
-              Sua Escuderia
-            </span>
-          )}
-          {cTeam.isPlayer && (team?.constructors_points_deduction || 0) > 0 && (
-            <Badge
-              className="bg-red-950/80 text-red-400 border border-red-500/50 text-[9px] px-1.5 py-0 h-4 font-num font-bold"
-              title="Penalidade FIA por exceder teto de gastos"
-            >
-              -{team?.constructors_points_deduction} pts FIA
-            </Badge>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'engine',
-      header: 'Motor 50/50',
-      render: (cTeam) => <span className="text-xs text-[#8B95A7]">{cTeam.engine}</span>,
-    },
-    {
-      key: 'wins',
-      header: 'Vitórias',
-      align: 'center',
-      render: (cTeam) =>
-        cTeam.wins > 0 ? (
-          <span className="font-num text-amber-400 font-bold text-xs">{cTeam.wins}</span>
-        ) : (
-          <span className="font-num text-[#8B95A7] text-xs">0</span>
-        ),
-    },
-    {
-      key: 'podiums',
-      header: 'Pódios',
-      align: 'center',
-      render: (cTeam) =>
-        cTeam.podiums > 0 ? (
-          <span className="font-num text-emerald-400 font-bold text-xs">{cTeam.podiums}</span>
-        ) : (
-          <span className="font-num text-[#8B95A7] text-xs">0</span>
-        ),
-    },
-    {
-      key: 'prize',
-      header: 'Premiação FIA',
-      align: 'right',
-      render: (_, index) => {
-        const pos = index + 1
-        const estimatedPrize = prizeByRank[pos] || 70000000
-        return (
-          <span className="font-num text-xs font-semibold text-emerald-400">
-            {formatCurrency(estimatedPrize)}
-          </span>
-        )
-      },
-    },
-    {
-      key: 'points',
-      header: 'Pontos & Barra',
-      align: 'right',
-      render: (cTeam, index) => {
-        const leaderPts = constructorStandings[0]?.points || 0
-        const gap = index === 0 ? 'LÍDER' : `-${leaderPts - cTeam.points}`
-        const ratio = Math.round((cTeam.points / maxConstructorPoints) * 100)
-
-        return (
-          <div className="flex items-center justify-end gap-3 min-w-[140px]">
-            {/* Mini barra de pontos proporcional ao líder */}
-            <div className="w-20 hidden md:block">
-              <ProgressBar
-                value={ratio}
-                max={100}
-                showValue={false}
-                size="sm"
-                trackClassName="bg-[#161D29] border-[#1F2733]"
-              />
-            </div>
-            <div className="text-right">
-              <div className="flex items-baseline justify-end gap-1">
-                <span
-                  className={`font-num text-sm font-bold ${
-                    cTeam.isPlayer ? 'text-[#00A6FB]' : 'text-[#F5F7FA]'
-                  }`}
-                >
-                  {cTeam.points}
-                </span>
-                <span className="text-[10px] text-[#8B95A7]">pts</span>
-              </div>
-              <span className="font-num text-[10px] text-[#8B95A7] block leading-none">{gap}</span>
-            </div>
-          </div>
-        )
-      },
-    },
-  ]
+  // Handler para abrir modal institucional de equipe
+  const handleTeamClick = (cTeam: TeamStanding) => {
+    setSelectedTeamForModal(cTeam)
+    setTeamModalOpen(true)
+  }
 
   return (
-    <div className="relative z-10 space-y-6 animate-fade-in-up">
-      <AmbientBackground />
-
-      {/* Header oficial da fundação Race Operations */}
-      <PageHeader
-        eyebrow="RACE OPERATIONS // CLASSIFICAÇÕES"
-        title={`Classificação Geral F1 ${season?.year || 2026}`}
-        description={
-          <span>
-            Grid oficial com{' '}
-            {team?.is_custom ? '12 equipes (11 oficiais + 12ª sua escuderia)' : '11 equipes'} •
-            Pontuação FIA (25-18-15-12-10-8-6-4-2-1), vitórias e pódios ao longo das 24 etapas.
-          </span>
-        }
-        badge={
-          <span className="px-2.5 py-1 rounded-md text-xs font-num font-semibold bg-[#11161F] border border-[#1F2733] text-[#8B95A7]">
-            Temporada {season?.year || 2026} • Rodada {currentRound} de {totalRounds}
-          </span>
-        }
-        actions={
-          /* Alternador Construtores ⇄ Pilotos */
-          <div className="inline-flex items-center p-1 rounded-lg bg-[#0E131B] border border-[#1F2733]">
-            <button
-              type="button"
-              onClick={() => setActiveTab('drivers')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                activeTab === 'drivers'
-                  ? 'bg-[#161D29] text-[#F5F7FA] font-bold border border-[#1F2733] shadow-sm'
-                  : 'text-[#8B95A7] hover:text-[#F5F7FA]'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Pilotos</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('constructors')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                activeTab === 'constructors'
-                  ? 'bg-[#161D29] text-[#F5F7FA] font-bold border border-[#1F2733] shadow-sm'
-                  : 'text-[#8B95A7] hover:text-[#F5F7FA]'
-              }`}
-            >
-              <Trophy className="w-3.5 h-3.5" />
-              <span>Construtores</span>
-            </button>
-          </div>
-        }
-      />
-
-      {/* Conteúdo da Tabela Selecionada */}
-      {loading ? (
-        <div className="space-y-2 p-4 rounded-xl border border-[#1F2733] bg-[#11161F]">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-10 w-full bg-[#161D29]" />
-          ))}
-        </div>
-      ) : activeTab === 'drivers' ? (
-        driverStandings.length === 0 ? (
-          <div className="p-8 rounded-xl bg-[#11161F] border border-[#1F2733] text-center space-y-3">
-            <EmptyState
-              icon={Award}
-              title="Sem pontuação registrada ainda"
-              description={`A tabela de pilotos será preenchida automaticamente após a conclusão das sessões de corrida da temporada ${season?.year || 2026}.`}
-            />
-            <p className="text-xs text-[#8B95A7]">
-              Você está na Rodada {currentRound}. Acesse a aba "Fim de Semana" para iniciar o GP!
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs px-1 text-[#8B95A7]">
-              <span className="eyebrow text-[#8B95A7]">Mundial de Pilotos • Temporada Oficial</span>
-              <span className="font-num text-[11px]">
-                {driverStandings.length} pilotos registrados
-              </span>
-            </div>
-            <DataTable
-              columns={driverColumns}
-              data={driverStandings}
-              keyExtractor={(row) => row.id}
-              playerRowPredicate={(row) => !!row.isPlayer}
-              playerRowTeamColor={team?.color || '#E10600'}
-              playerBadgeLabel="SUA EQUIPE"
-              emptyMessage="Nenhum piloto encontrado."
-            />
-          </div>
-        )
-      ) : constructorStandings.length === 0 ? (
-        <div className="p-8 rounded-xl bg-[#11161F] border border-[#1F2733] text-center space-y-3">
-          <EmptyState
-            icon={Trophy}
-            title="Sem classificação de equipes ainda"
-            description={`A tabela de construtores será atualizada com os pontos FIA e premiação após cada GP da temporada ${season?.year || 2026}.`}
-          />
-          <p className="text-xs text-[#8B95A7]">
-            Você está na Rodada {currentRound}. Acesse a aba "Fim de Semana" para iniciar o GP!
+    <div className="space-y-6 pb-16 antialiased text-[#0F172A] select-none">
+      {/* ======================================================== */}
+      {/* 1. CABEÇALHO DA PÁGINA COM SELETOR [PILOTOS] [CONSTRUTORES] */}
+      {/* ======================================================== */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E2E8F0] pb-5">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#0F172A] flex items-center gap-2">
+            <span>CAMPEONATO</span>
+            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200">
+              OFICIAL FIA
+            </span>
+          </h1>
+          <p className="text-xs sm:text-sm text-[#475569] mt-0.5">
+            Classificação oficial da temporada, com pontos, vitórias e pódios ao longo das{' '}
+            {safeTotalRounds} etapas.
           </p>
         </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs px-1 text-[#8B95A7]">
-            <span className="eyebrow text-[#8B95A7]">
-              Mundial de Construtores • Premiação Oficial FIA
+
+        {/* Seletor PILOTOS / CONSTRUTORES */}
+        <div className="inline-flex items-center p-1 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] self-start sm:self-auto shadow-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('drivers')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'drivers'
+                ? 'bg-[#E10600] text-white shadow-sm'
+                : 'bg-transparent text-[#0F172A] hover:bg-white/70'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span className="tracking-wide uppercase">PILOTOS</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('constructors')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'constructors'
+                ? 'bg-[#E10600] text-white shadow-sm'
+                : 'bg-transparent text-[#0F172A] hover:bg-white/70'
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span className="tracking-wide uppercase">CONSTRUTORES</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 2. HERO HORIZONTAL COM DESIGN AUTOMOBILÍSTICO PREMIUM     */}
+      {/* ======================================================== */}
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white shadow-md border border-[#CBD5E1]">
+        {/* Background cinematográfico de automobilismo */}
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity"
+          style={{ backgroundImage: `url(${heroHorizontalAsset})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0E17] via-[#0A0E17]/85 to-transparent" />
+
+        <div className="relative z-10 px-6 py-6 sm:px-8 sm:py-7 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          {/* Lado Esquerdo: Título & Subtítulo */}
+          <div className="space-y-1.5 max-w-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black tracking-widest text-[#E10600] uppercase font-mono">
+                FÓRMULA 1
+              </span>
+              <span className="text-white/30">•</span>
+              <span className="text-[11px] font-mono text-neutral-300">TEMPORADA {seasonYear}</span>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tight text-white">
+              {activeTab === 'drivers'
+                ? `Campeonato Mundial de Pilotos ${seasonYear}`
+                : `Campeonato Mundial de Construtores ${seasonYear}`}
+            </h2>
+
+            <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed font-sans">
+              {activeTab === 'drivers'
+                ? 'Os melhores do mundo. Uma só coroa.'
+                : 'Engenharia, pessoas e performance. Uma temporada para definir o melhor conjunto.'}
+            </p>
+          </div>
+
+          {/* Extremo Direito: Pequena barra diagonal vermelha + Texto institucional */}
+          <div className="hidden lg:flex items-center gap-4 pl-6 border-l border-white/10 shrink-0">
+            {/* Barra diagonal vermelha */}
+            <div className="w-1.5 h-12 bg-[#E10600] rounded-full transform -rotate-12 shadow-sm" />
+
+            <div className="flex flex-col text-[10px] font-mono font-black italic tracking-widest text-neutral-300 uppercase leading-snug">
+              <span className="text-white">VELOCIDADE</span>
+              <span className="text-[#E10600]">ESTRATÉGIA</span>
+              <span className="text-neutral-300">RESULTADOS</span>
+              <span className="text-neutral-400">HISTÓRIA</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 3. FAIXA DE INFORMAÇÕES (4 BLOCOS HORIZONTAIS BRANCOS)    */}
+      {/* ======================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Bloco 1: Temporada */}
+        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-red-50 text-[#E10600] flex items-center justify-center shrink-0 border border-red-100">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-mono font-bold uppercase text-[#64748B] block truncate">
+              Temporada Oficial
             </span>
-            <span className="font-num text-[11px]">
-              {constructorStandings.length} escuderias na temporada
+            <div className="text-sm font-black text-[#0F172A] truncate">Ano {seasonYear}</div>
+            <span className="text-[11px] text-[#475569] font-medium block">
+              {safeTotalRounds} etapas programadas
             </span>
           </div>
-          <DataTable
-            columns={constructorColumns}
-            data={constructorStandings}
-            keyExtractor={(row) => row.id}
-            playerRowPredicate={(row) => !!row.isPlayer}
-            playerRowTeamColor={team?.color || '#E10600'}
-            playerBadgeLabel="SUA ESCUDERIA"
-            emptyMessage="Nenhuma escuderia encontrada."
-          />
         </div>
+
+        {/* Bloco 2: Rodada Atual e GP */}
+        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0 border border-cyan-100">
+            <Compass className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-mono font-bold uppercase text-[#64748B] block truncate">
+              Etapa em Disputa
+            </span>
+            <div className="text-sm font-black text-[#0F172A] truncate">
+              Rodada {safeCurrentRound} de {safeTotalRounds}
+            </div>
+            <span
+              className="text-[11px] text-[#475569] font-medium block truncate"
+              title={currentGp.name}
+            >
+              {currentGp.flag} {currentGp.name.replace('Grande Prêmio d', 'GP d')}
+            </span>
+          </div>
+        </div>
+
+        {/* Bloco 3: Sistema de Pontuação FIA */}
+        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-mono font-bold uppercase text-[#64748B] block truncate">
+              Sistema de Pontuação
+            </span>
+            <div className="text-sm font-black text-[#0F172A] truncate">Regulamento FIA</div>
+            <span className="text-[11px] text-[#475569] font-mono font-semibold block truncate">
+              25-18-15-12-10-8-6-4-2-1
+            </span>
+          </div>
+        </div>
+
+        {/* Bloco 4: Inscritos na Temporada */}
+        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+            {activeTab === 'drivers' ? (
+              <Users className="w-5 h-5" />
+            ) : (
+              <Shield className="w-5 h-5" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-mono font-bold uppercase text-[#64748B] block truncate">
+              {activeTab === 'drivers' ? 'Grid de Pilotos' : 'Grid de Construtores'}
+            </span>
+            <div className="text-sm font-black text-[#0F172A] truncate">
+              {activeTab === 'drivers'
+                ? `${driverStandings.length} Pilotos Registrados`
+                : `${constructorStandings.length} Construtores`}
+            </div>
+            <span className="text-[11px] text-[#475569] font-medium block truncate">
+              {activeTab === 'drivers'
+                ? `${constructorStandings.length} equipes participantes`
+                : `${driverStandings.length} pilotos titulares no grid`}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 4. TABELAS DE CLASSIFICAÇÃO (PILOTOS OU CONSTRUTORES)     */}
+      {/* ======================================================== */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+        {/* Título da subseção */}
+        <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-neutral-50/70">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#E10600]" />
+            <h3 className="text-xs sm:text-sm font-black tracking-tight text-[#0F172A] uppercase">
+              {activeTab === 'drivers'
+                ? `CLASSIFICAÇÃO DE PILOTOS • TEMPORADA ${seasonYear}`
+                : `CLASSIFICAÇÃO DE CONSTRUTORES • TEMPORADA ${seasonYear}`}
+            </h3>
+          </div>
+          <span className="text-[11px] font-mono font-bold text-[#64748B]">
+            {activeTab === 'drivers'
+              ? `${driverStandings.length} pilotos inscritos`
+              : `${constructorStandings.length} construtores ativos`}
+          </span>
+        </div>
+
+        {/* Conteúdo com carregamento ou dados */}
+        {loading ? (
+          <div className="p-6 space-y-3">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <Skeleton key={i} className="h-11 w-full bg-neutral-100" />
+            ))}
+          </div>
+        ) : activeTab === 'drivers' ? (
+          driverStandings.length === 0 ? (
+            <div className="p-12 text-center">
+              <EmptyState
+                icon={Award}
+                title="Sem pontuação registrada ainda"
+                description={`A tabela de pilotos será preenchida automaticamente após a conclusão das sessões de corrida da temporada ${seasonYear}.`}
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[760px]">
+                <thead>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFAFA] text-[11px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                    <th className="py-3 px-4 text-center w-16">POS</th>
+                    <th className="py-3 px-4">PILOTO</th>
+                    <th className="py-3 px-4">ESCUDERIA</th>
+                    <th className="py-3 px-4 text-center w-24">VITÓRIAS</th>
+                    <th className="py-3 px-4 text-center w-24">PÓDIOS</th>
+                    <th className="py-3 px-4 text-right w-64">PONTOS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F1F5F9] text-xs">
+                  {driverStandings.map((driver, index) => {
+                    const pos = index + 1
+                    const logoUrl = getTeamReducedLogoUrl(driver.teamName)
+                    const leaderPts = driverStandings[0]?.points || 0
+                    const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - driver.points} pts`
+                    const ratio =
+                      maxDriverPoints > 0
+                        ? Math.max(
+                            0,
+                            Math.min(100, Math.round((driver.points / maxDriverPoints) * 100)),
+                          )
+                        : 0
+
+                    return (
+                      <tr
+                        key={driver.id}
+                        onClick={() => handleDriverClick(driver)}
+                        className={`transition-colors cursor-pointer group ${
+                          driver.isPlayer
+                            ? 'bg-red-50/40 hover:bg-red-50/70'
+                            : 'hover:bg-neutral-50'
+                        }`}
+                      >
+                        {/* POS: Círculo estilizado (1º dourado, 2º prata, 3º bronze, demais neutro) */}
+                        <td className="py-2.5 px-4 text-center">
+                          <span
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
+                              pos === 1
+                                ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
+                                : pos === 2
+                                  ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
+                                  : pos === 3
+                                    ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
+                                    : 'bg-neutral-100 text-[#64748B]'
+                            }`}
+                          >
+                            {pos}
+                          </span>
+                        </td>
+
+                        {/* PILOTO: Bandeira + Nome completo + Badge Sua Equipe se jogador */}
+                        <td className="py-2.5 px-4">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="text-base select-none shrink-0"
+                              title={driver.nationality}
+                            >
+                              {driver.flag}
+                            </span>
+                            <span
+                              className={`truncate tracking-tight ${
+                                driver.isPlayer
+                                  ? 'font-black text-[#0F172A] text-xs sm:text-sm'
+                                  : 'font-semibold text-[#0F172A]'
+                              }`}
+                            >
+                              {driver.name}
+                            </span>
+                            {driver.isPlayer && (
+                              <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-[#E10600] text-white">
+                                SUA EQUIPE
+                              </span>
+                            )}
+                            {(driver.totalPenaltiesSec || 0) > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="bg-amber-50 text-amber-700 border-amber-300 text-[9px] px-1.5 py-0 h-4 font-mono font-bold flex items-center gap-0.5"
+                                title={`Penalidades acumuladas: +${driver.totalPenaltiesSec}s (${driver.penaltiesCount || 1} infrações)`}
+                              >
+                                <Scale className="w-2.5 h-2.5" />+{driver.totalPenaltiesSec}s
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* ESCUDERIA: Logo reduzida oficial (20-28px) + Nome */}
+                        <td className="py-2.5 px-4">
+                          <div className="flex items-center gap-2">
+                            {logoUrl ? (
+                              <img
+                                src={logoUrl}
+                                alt={driver.teamName}
+                                className="w-6 h-6 object-contain shrink-0"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div
+                                className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black text-white"
+                                style={{ backgroundColor: driver.teamColor || '#E10600' }}
+                              >
+                                {driver.teamName.charAt(0)}
+                              </div>
+                            )}
+                            <span
+                              className="truncate font-medium text-xs text-[#334155]"
+                              style={{
+                                color: driver.teamColor ? undefined : undefined,
+                              }}
+                            >
+                              {driver.teamName}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* VITÓRIAS */}
+                        <td className="py-2.5 px-4 text-center">
+                          <span
+                            className={`font-mono font-bold ${
+                              driver.wins > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
+                            }`}
+                          >
+                            {driver.wins}
+                          </span>
+                        </td>
+
+                        {/* PÓDIOS */}
+                        <td className="py-2.5 px-4 text-center">
+                          <span
+                            className={`font-mono font-bold ${
+                              driver.podiums > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
+                            }`}
+                          >
+                            {driver.podiums}
+                          </span>
+                        </td>
+
+                        {/* PONTOS: Barra horizontal vermelha proporcional + Número oficial */}
+                        <td className="py-2.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-3 min-w-[200px]">
+                            {/* Barra proporcional ao líder */}
+                            <div className="w-28 sm:w-36 h-2 bg-neutral-100 rounded-full overflow-hidden border border-[#E2E8F0]">
+                              <div
+                                className="h-full bg-[#E10600] rounded-full transition-all duration-300"
+                                style={{ width: `${ratio}%` }}
+                              />
+                            </div>
+
+                            {/* Numeração de pontos */}
+                            <div className="text-right w-16">
+                              <span className="font-mono text-sm font-black text-[#0F172A]">
+                                {driver.points}
+                              </span>
+                              <span className="text-[10px] text-[#64748B] block font-mono leading-none">
+                                {gap}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : constructorStandings.length === 0 ? (
+          <div className="p-12 text-center">
+            <EmptyState
+              icon={Trophy}
+              title="Sem classificação de construtores ainda"
+              description={`A tabela de construtores será preenchida automaticamente após a conclusão das sessões de corrida da temporada ${seasonYear}.`}
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[760px]">
+              <thead>
+                <tr className="border-b border-[#E2E8F0] bg-[#FAFAFA] text-[11px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                  <th className="py-3 px-4 text-center w-16">POS</th>
+                  <th className="py-3 px-4">EQUIPE</th>
+                  <th className="py-3 px-4">PILOTOS</th>
+                  <th className="py-3 px-4 text-center w-24">VITÓRIAS</th>
+                  <th className="py-3 px-4 text-center w-24">PÓDIOS</th>
+                  <th className="py-3 px-4 text-right w-64">PONTOS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9] text-xs">
+                {constructorStandings.map((cTeam, index) => {
+                  const pos = index + 1
+                  const logoUrl = getTeamReducedLogoUrl(cTeam.name || cTeam.id)
+                  const leaderPts = constructorStandings[0]?.points || 0
+                  const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - cTeam.points} pts`
+                  const ratio =
+                    maxConstructorPoints > 0
+                      ? Math.max(
+                          0,
+                          Math.min(100, Math.round((cTeam.points / maxConstructorPoints) * 100)),
+                        )
+                      : 0
+
+                  // Lineup dos dois titulares de forma compacta (ex: "Bortoleto · Ricciardo")
+                  const pilotsList = teamLineupMap[cTeam.id] || teamLineupMap[cTeam.name] || []
+                  const pilotsDisplay =
+                    pilotsList.length > 0 ? pilotsList.slice(0, 2).join(' · ') : '—'
+
+                  return (
+                    <tr
+                      key={cTeam.id}
+                      onClick={() => handleTeamClick(cTeam)}
+                      className={`transition-colors cursor-pointer group ${
+                        cTeam.isPlayer ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-neutral-50'
+                      }`}
+                    >
+                      {/* POS */}
+                      <td className="py-2.5 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
+                            pos === 1
+                              ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
+                              : pos === 2
+                                ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
+                                : pos === 3
+                                  ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
+                                  : 'bg-neutral-100 text-[#64748B]'
+                          }`}
+                        >
+                          {pos}
+                        </span>
+                      </td>
+
+                      {/* EQUIPE: Logo reduzida oficial (20-28px) + Nome + Tag Sua Escuderia */}
+                      <td className="py-2.5 px-4">
+                        <div className="flex items-center gap-2.5">
+                          {logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt={cTeam.name}
+                              className="w-6 h-6 object-contain shrink-0"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div
+                              className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black text-white"
+                              style={{ backgroundColor: cTeam.color || '#E10600' }}
+                            >
+                              {cTeam.name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 truncate">
+                            <span
+                              className={`truncate ${
+                                cTeam.isPlayer
+                                  ? 'font-black text-[#0F172A] text-xs sm:text-sm'
+                                  : 'font-semibold text-[#0F172A]'
+                              }`}
+                            >
+                              {cTeam.name}
+                            </span>
+                            {cTeam.isPlayer && (
+                              <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-[#E10600] text-white shrink-0">
+                                SUA ESCUDERIA
+                              </span>
+                            )}
+                            {cTeam.isPlayer && (team?.constructors_points_deduction || 0) > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="bg-red-50 text-red-600 border-red-300 text-[9px] px-1.5 py-0 h-4 font-mono font-bold"
+                              >
+                                -{team?.constructors_points_deduction} pts FIA
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* PILOTOS: Sobrenomes dos dois titulares de forma compacta */}
+                      <td className="py-2.5 px-4">
+                        <span className="font-medium text-[#475569] text-xs">{pilotsDisplay}</span>
+                      </td>
+
+                      {/* VITÓRIAS */}
+                      <td className="py-2.5 px-4 text-center">
+                        <span
+                          className={`font-mono font-bold ${
+                            cTeam.wins > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
+                          }`}
+                        >
+                          {cTeam.wins}
+                        </span>
+                      </td>
+
+                      {/* PÓDIOS */}
+                      <td className="py-2.5 px-4 text-center">
+                        <span
+                          className={`font-mono font-bold ${
+                            cTeam.podiums > 0 ? 'text-[#0F172A]' : 'text-[#94A3B8]'
+                          }`}
+                        >
+                          {cTeam.podiums}
+                        </span>
+                      </td>
+
+                      {/* PONTOS: Barra horizontal vermelha proporcional + Número oficial */}
+                      <td className="py-2.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-3 min-w-[200px]">
+                          {/* Barra proporcional ao líder */}
+                          <div className="w-28 sm:w-36 h-2 bg-neutral-100 rounded-full overflow-hidden border border-[#E2E8F0]">
+                            <div
+                              className="h-full bg-[#E10600] rounded-full transition-all duration-300"
+                              style={{ width: `${ratio}%` }}
+                            />
+                          </div>
+
+                          {/* Numeração de pontos */}
+                          <div className="text-right w-16">
+                            <span className="font-mono text-sm font-black text-[#0F172A]">
+                              {cTeam.points}
+                            </span>
+                            <span className="text-[10px] text-[#64748B] block font-mono leading-none">
+                              {gap}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================== */}
+      {/* 5. MODAL DE FICHA/PERFIL DO PILOTO (SISTEMA EXISTENTE)   */}
+      {/* ======================================================== */}
+      {selectedPilotForModal && (
+        <PilotProfileDialog
+          pilot={selectedPilotForModal}
+          open={pilotModalOpen}
+          onOpenChange={setPilotModalOpen}
+          onOpenContractModal={() => {}}
+          currentRound={safeCurrentRound}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* 6. MODAL INSTITUCIONAL DA EQUIPE (SISTEMA EXISTENTE)     */}
+      {/* ======================================================== */}
+      {selectedTeamForModal && (
+        <TeamInstitutionalDetailsModal
+          open={teamModalOpen}
+          onOpenChange={setTeamModalOpen}
+          team={selectedTeamForModal}
+          teamName={selectedTeamForModal.name}
+          teamHq="Sede Operacional Europeia"
+          teamCountry="Licença Oficial FIA"
+          engineSupplier={selectedTeamForModal.engine || 'Fórmula 1 Turbo-Híbrido'}
+          teamIntro="Operação técnica de alto rendimento focada na disputa direta do Campeonato Mundial da FIA sob o regulamento técnico da era 2026."
+        />
       )}
     </div>
   )

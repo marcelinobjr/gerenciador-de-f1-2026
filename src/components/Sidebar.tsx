@@ -175,13 +175,13 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'h-screen flex flex-col bg-[#11161C] border-r border-[#1F2732] select-none transition-[width] duration-200 ease-in-out text-[#F5F7FA]',
+        'h-screen flex flex-col bg-white border-r border-[#E2E8F0] select-none transition-[width] duration-200 ease-in-out text-[#1E293B]',
         collapsed ? 'w-16' : 'w-[244px]',
         className,
       )}
     >
       {/* Topo da Sidebar: Logo oficial APEX GP Manager */}
-      <div className="h-16 px-3.5 border-b border-[#1F2732] flex items-center justify-between shrink-0 bg-[#0D1117]">
+      <div className="h-16 px-3.5 border-b border-[#E2E8F0] flex items-center justify-between shrink-0 bg-white">
         <NavLink
           to="/"
           onClick={onItemClick}
@@ -192,16 +192,16 @@ export function Sidebar({
             <img
               src={apexLogoImg}
               alt="APEX GP Manager Logo"
-              className="w-9 h-9 rounded-lg object-cover border border-[#2A3442] shadow-sm"
+              className="w-9 h-9 rounded-lg object-cover border border-[#E2E8F0] shadow-sm"
             />
           </div>
 
           {!collapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-xs font-black tracking-tight text-white uppercase truncate">
+              <span className="text-xs font-black tracking-tight text-[#0F172A] uppercase truncate">
                 APEX <span className="text-[#E10600]">GP</span>
               </span>
-              <span className="text-[10px] font-mono tracking-wider text-[#94A3B8] font-semibold truncate">
+              <span className="text-[10px] font-mono tracking-wider text-[#64748B] font-semibold truncate">
                 MANAGER
               </span>
             </div>
@@ -214,7 +214,7 @@ export function Sidebar({
             type="button"
             onClick={onToggleCollapse}
             aria-label={collapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-            className="hidden lg:flex w-6 h-6 rounded-md items-center justify-center text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29] transition-colors"
+            className="hidden lg:flex w-6 h-6 rounded-md items-center justify-center text-[#64748B] hover:text-[#0F172A] hover:bg-neutral-100 transition-colors"
           >
             {collapsed ? (
               <ChevronRight className="w-3.5 h-3.5" />
@@ -226,7 +226,7 @@ export function Sidebar({
       </div>
 
       {/* 10 Áreas da Carreira agrupadas por GESTÃO e COMPETIÇÃO */}
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-3">
+      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-3 bg-white">
         {CAREER_NAV_SECTIONS.map((section) => (
           <div key={section.title} className="space-y-0.5">
             {!collapsed && (
@@ -264,8 +264,8 @@ export function Sidebar({
                       'relative flex items-center gap-2.5 rounded-lg text-xs font-semibold transition-all duration-150',
                       collapsed ? 'justify-center h-9 w-9 mx-auto px-0' : 'px-2.5 py-2 w-full',
                       isActive
-                        ? 'bg-[#E10600] text-white shadow-md font-bold'
-                        : 'text-[#94A3B8] hover:text-white hover:bg-[#1A222C]',
+                        ? 'bg-[#E10600] text-white shadow-sm font-bold'
+                        : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9]',
                     )}
                   >
                     {isActive && (
@@ -276,7 +276,7 @@ export function Sidebar({
                       className={cn(
                         'shrink-0 transition-colors',
                         collapsed ? 'w-4 h-4' : 'w-4 h-4',
-                        isActive ? 'text-white' : 'text-[#8B95A7]',
+                        isActive ? 'text-white' : 'text-[#64748B]',
                       )}
                     />
 
@@ -287,7 +287,7 @@ export function Sidebar({
                     )}
 
                     {!collapsed && item.isNotice && (
-                      <span className="text-[8px] font-mono uppercase bg-[#1E293B] text-[#94A3B8] px-1 py-0.2 rounded border border-[#334155]">
+                      <span className="text-[8px] font-mono uppercase bg-neutral-100 text-[#475569] px-1 py-0.2 rounded border border-neutral-200">
                         INFO
                       </span>
                     )}
@@ -300,7 +300,7 @@ export function Sidebar({
                       <TooltipTrigger asChild>{navItemContent}</TooltipTrigger>
                       <TooltipContent
                         side="right"
-                        className="bg-[#11161F] border-[#1F2733] text-white text-xs font-semibold px-2.5 py-1"
+                        className="bg-white border-[#E2E8F0] text-[#0F172A] text-xs font-semibold px-2.5 py-1 shadow-md"
                       >
                         {item.name}
                       </TooltipContent>
@@ -316,7 +316,7 @@ export function Sidebar({
       </div>
 
       {/* Seção Inferior: Configurações, Salvar Jogo, Carregar Jogo, Sair */}
-      <div className="p-2 border-t border-[#1C2330] bg-[#0B0E14] shrink-0 space-y-0.5">
+      <div className="p-2 border-t border-[#E2E8F0] bg-[#FAFAFA] shrink-0 space-y-0.5">
         {/* Configurações */}
         <button
           type="button"
@@ -325,12 +325,12 @@ export function Sidebar({
             onOpenSettings()
           }}
           className={cn(
-            'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-[#8B95A7] hover:text-white hover:bg-[#121822] transition-colors',
+            'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-[#475569] hover:text-[#0F172A] hover:bg-neutral-100 transition-colors',
             collapsed ? 'justify-center h-9 w-9 mx-auto' : 'px-3 py-2',
           )}
           title="Configurações (Conta & Carreira)"
         >
-          <Settings className="w-4 h-4 text-cyan-400 shrink-0" />
+          <Settings className="w-4 h-4 text-cyan-600 shrink-0" />
           {!collapsed && <span className="truncate font-medium">Configurações</span>}
         </button>
 
@@ -339,12 +339,12 @@ export function Sidebar({
           type="button"
           onClick={handleSaveGame}
           className={cn(
-            'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-[#8B95A7] hover:text-white hover:bg-[#121822] transition-colors',
+            'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-[#475569] hover:text-[#0F172A] hover:bg-neutral-100 transition-colors',
             collapsed ? 'justify-center h-9 w-9 mx-auto' : 'px-3 py-2',
           )}
           title="Salvar Jogo na Nuvem"
         >
-          <Save className="w-4 h-4 text-emerald-400 shrink-0" />
+          <Save className="w-4 h-4 text-emerald-600 shrink-0" />
           {!collapsed && <span className="truncate font-medium">Salvar Jogo</span>}
         </button>
 
@@ -353,12 +353,12 @@ export function Sidebar({
           type="button"
           onClick={handleLoadGame}
           className={cn(
-            'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-[#8B95A7] hover:text-white hover:bg-[#121822] transition-colors',
+            'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-[#475569] hover:text-[#0F172A] hover:bg-neutral-100 transition-colors',
             collapsed ? 'justify-center h-9 w-9 mx-auto' : 'px-3 py-2',
           )}
           title="Carregar Save Atual"
         >
-          <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
+          <FolderOpen className="w-4 h-4 text-amber-600 shrink-0" />
           {!collapsed && <span className="truncate font-medium">Carregar Jogo</span>}
         </button>
 
@@ -368,7 +368,7 @@ export function Sidebar({
             type="button"
             onClick={onLogout}
             className={cn(
-              'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors',
+              'flex items-center gap-3 w-full rounded-lg text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors',
               collapsed ? 'justify-center h-9 w-9 mx-auto' : 'px-3 py-2',
             )}
             title="Sair da Conta"
@@ -380,14 +380,14 @@ export function Sidebar({
 
         {/* Rodapé da Sidebar com o slogan aprovado: "PEOPLE / CARS / RESULTS" */}
         {!collapsed && (
-          <div className="pt-2 mt-1 border-t border-[#1C2330]/60 text-left px-2">
-            <span className="text-[9px] font-mono font-black italic tracking-wider text-rose-500/70 block">
+          <div className="pt-2 mt-1 border-t border-[#E2E8F0] text-left px-2">
+            <span className="text-[9px] font-mono font-black italic tracking-wider text-[#E10600] block">
               PEOPLE
             </span>
-            <span className="text-[9px] font-mono font-black italic tracking-wider text-neutral-400 block">
+            <span className="text-[9px] font-mono font-black italic tracking-wider text-[#475569] block">
               CARS
             </span>
-            <span className="text-[9px] font-mono font-black italic tracking-wider text-neutral-500 block">
+            <span className="text-[9px] font-mono font-black italic tracking-wider text-[#94A3B8] block">
               RESULTS
             </span>
           </div>
