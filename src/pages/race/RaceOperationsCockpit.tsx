@@ -13,6 +13,7 @@ import { TeamActionsCard, type TeamActionExecutionResult } from '@/components/ra
 import { LiveRaceFeed } from '@/components/race/LiveRaceFeed'
 import { EngineeringRecommendationCard } from '@/components/race/EngineeringRecommendationCard'
 import type { PreparationInformedPackage } from '@/services/canonicalPreparationInformedService'
+import type { RacePendingDecision } from '@/types/race-session'
 
 export type LiveTacticalMode = 'attack' | 'normal' | 'save_fuel'
 
@@ -65,12 +66,14 @@ export interface RaceOperationsCockpitProps {
   pauseReason?: string | null
   partsCondition?: Array<{ id: string; name: string; condition: number }>
   informedPackage?: PreparationInformedPackage | null
+  pendingDecisions?: RacePendingDecision[]
 }
 
 export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
   isRaceSession,
   liveRaceState,
   gpInfo,
+  puPoolStatus,
   team,
   drivers = [],
   handleStartRace,
@@ -93,6 +96,7 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
   pauseReason,
   partsCondition = [],
   informedPackage,
+  pendingDecisions = [],
 }) => {
   const [selectedCompareDriverId, setSelectedCompareDriverId] = useState<string | null>(null)
   const [lastTeamOrderResult, setLastTeamOrderResult] = useState<TeamActionExecutionResult | null>(
@@ -112,6 +116,18 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
 
   const driver1Model = drivers.find((d) => d.id === car1?.driverId) || drivers[0] || null
   const driver2Model = drivers.find((d) => d.id === car2?.driverId) || drivers[1] || null
+
+  // Identificar recomendação informada pendente específica para cada carro
+  const pendingRecCar1 = car1
+    ? pendingDecisions.find(
+        (d) => d.driverId === car1.driverId && d.type === 'pit_stop_informed_recommendation',
+      ) || null
+    : null
+  const pendingRecCar2 = car2
+    ? pendingDecisions.find(
+        (d) => d.driverId === car2.driverId && d.type === 'pit_stop_informed_recommendation',
+      ) || null
+    : null
 
   const handleExecuteTeamOrder = (result: TeamActionExecutionResult) => {
     setLastTeamOrderResult(result)
@@ -294,6 +310,9 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
             }}
             mechanicalIssues={mechanicalIssues}
             partsCondition={partsCondition}
+            informedPackage={informedPackage}
+            pendingRecommendation={pendingRecCar1}
+            puStatus={puPoolStatus}
           />
 
           {/* Painel do Carro 2 */}
@@ -312,6 +331,9 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
             }}
             mechanicalIssues={mechanicalIssues}
             partsCondition={partsCondition}
+            informedPackage={informedPackage}
+            pendingRecommendation={pendingRecCar2}
+            puStatus={puPoolStatus}
           />
 
           {/* Bloco de Ações de Equipe (Team Orders Canônicas com destinatário P1/P2) */}

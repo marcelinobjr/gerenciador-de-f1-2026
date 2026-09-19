@@ -134,20 +134,23 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                 <tr>
                   <th className="py-2 px-2 text-center w-10">Pos</th>
                   <th
-                    className="py-2 px-1 text-center w-8"
+                    className="py-2 px-1 text-center w-8 hidden sm:table-cell"
                     title="Variação em relação à posição de largada"
                   >
                     Var
                   </th>
-                  <th className="py-2 px-2.5">Piloto</th>
-                  <th className="py-2 px-2 text-center w-12" title="Equipe / Escuderia">
+                  <th className="py-2 px-2">Piloto</th>
+                  <th className="py-2 px-1.5 text-center w-10 sm:w-12" title="Equipe / Escuderia">
                     Equipe
                   </th>
-                  <th className="py-2 px-1.5 text-center w-10">Pneu</th>
+                  <th className="py-2 px-1 text-center w-8 sm:w-10">Pneu</th>
                   <th className="py-2 px-2 text-right hidden md:table-cell">Última Volta</th>
                   <th className="py-2 px-2 text-right hidden sm:table-cell">Gap Líder</th>
                   <th className="py-2 px-2 text-right">Intervalo</th>
-                  <th className="py-2 px-1.5 text-center w-10" title="Paradas nos Boxes">
+                  <th
+                    className="py-2 px-1 text-center w-7 sm:w-10 hidden sm:table-cell"
+                    title="Paradas nos Boxes"
+                  >
                     Pit
                   </th>
                 </tr>
@@ -246,7 +249,7 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                       </td>
 
                       {/* Variação vs Largada com Tooltip */}
-                      <td className="py-1 px-1 text-center">
+                      <td className="py-1 px-1 text-center hidden sm:table-cell">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -383,7 +386,7 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                       </td>
 
                       {/* Pit Stops Realizados */}
-                      <td className="py-1 px-1.5 text-center font-mono text-[11px] text-slate-600">
+                      <td className="py-1 px-1 text-center font-mono text-[11px] text-slate-600 hidden sm:table-cell">
                         {entry.pitStopsDone !== undefined ? entry.pitStopsDone : '0'}
                       </td>
                     </tr>
