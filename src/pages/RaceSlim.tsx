@@ -93,6 +93,8 @@ import { PageHeader } from '@/components/PageHeader'
 import { LiveRaceHUD } from '@/components/race/LiveRaceHUD'
 import { PracticeQualyResults, SessionResultRow } from '@/components/race/PracticeQualyResults'
 import { PracticePreparationView } from '@/components/race/PracticePreparationView'
+import { PracticeLiveSessionView } from '@/components/race/PracticeLiveSessionView'
+import type { PracticePreparation } from '@/types/practice-preparation'
 import { RaceResultsTable, RaceResultEntry } from '@/components/race/RaceResultsTable'
 import { DecisionModals } from '@/components/race/DecisionModals'
 import { SillySeasonModal } from '@/components/race/SillySeasonModal'
@@ -297,6 +299,14 @@ export default function RacePage() {
 
   // Selected driver for individual car setup & telemetry view in practice/qualy/race
   const [selectedDriverSetupId, setSelectedDriverSetupId] = useState<string>('')
+
+  // Estado da sessão ao vivo de treino (Etapa 4B)
+  const [activePracticeLivePreps, setActivePracticeLivePreps] = useState<
+    Record<string, PracticePreparation | null>
+  >({
+    tp1: null,
+    tp2: null,
+  })
 
   // Tire inventory for the GP weekend (allotment counts and individual sets per driver)
   const [tireStock, setTireStock] = useState<TireAllotment>({ ...INITIAL_ALLOTMENT })
@@ -2691,8 +2701,8 @@ export default function RacePage() {
 
           return (
             <TabsContent key={sessKey} value={sessKey} className="space-y-6 mt-4">
-              {/* PREPARAÇÃO MODERNA DE TREINOS LIVRES (TL1 / TL2) — ETAPA 4A */}
-              {isPracticeSession && !isDone && (
+              {/* PREPARAÇÃO E RUNNER CANÔNICO DE TREINOS LIVRES (TL1 / TL2) — ETAPA 4A / 4B */}
+              {isPracticeSession && !isDone && !activePracticeLivePreps[sessKey] && (
                 <PracticePreparationView
                   careerId={team?.id || ''}
                   seasonId={season?.id || ''}
@@ -2702,7 +2712,7 @@ export default function RacePage() {
                   drivers={drivers}
                   allTiresByDriver={driverTireInventories}
                   onStartSessionHandoff={(readyPrep) => {
-                    // Sincroniza parâmetros herdados do Carro 1 para manter retrocompatibilidade com o motor de treinos
+                    // Sincroniza parâmetros herdados do Carro 1 para manter retrocompatibilidade
                     const c1 = readyPrep.cars[0]
                     if (c1) {
                       updateCurrentSetup('wing_level', c1.setup.frontWing)
@@ -2712,8 +2722,66 @@ export default function RacePage() {
                         updateCurrentSetup('tire_compound', c1.tyreSelection.compound)
                       }
                     }
-                    // Executa a sessão canônica
-                    handleRunSession(sessKey)
+                    // Entra na sessão ao vivo de treino (Etapa 4B)
+                    setActivePracticeLivePreps((prev) => ({
+                      ...prev,
+                      [sessKey]: readyPrep,
+                    }))
+                  }}
+                  onNavigateToWeekendTab={(tab) => setActiveSession(tab as WeekendSession)}
+                />
+              )}
+
+              {/* SESSÃO DE TREINO AO VIVO EM ANDAMENTO (ETAPA 4B) */}
+              {isPracticeSession && !isDone && activePracticeLivePreps[sessKey] && (
+                <PracticeLiveSessionView
+                  careerId={team?.id || ''}
+                  seasonId={season?.id || ''}
+                  round={currentRound}
+                  sessionType={sessKey as 'tp1' | 'tp2'}
+                  preparation={activePracticeLivePreps[sessKey]!}
+                  team={team!}
+                  drivers={drivers}
+                  gpInfo={gpInfo}
+                  weather={weather}
+                  onFinishSession={(finalPracticeState) => {
+                    // Consumir pneus dos carros do jogador que participaram
+                    const c1Compound = finalPracticeState.cars.car1.currentCompound
+                    const c2Compound = finalPracticeState.cars.car2.currentCompound
+                    consumeTireSet(c1Compound || 'medio')
+                    consumeTireSet(c2Compound || 'medio')
+
+                    // Converter tabela de tempos de treino para sessionResults oficial
+                    const convertedResults: SessionTimeResult[] =
+                      finalPracticeState.leaderboard.map((entry) => ({
+                        position: entry.position,
+                        driverId: entry.driverId,
+                        driverName: entry.driverName,
+                        teamName: entry.teamName,
+                        teamColor: entry.teamColor,
+                        lapTime: entry.bestLapTime,
+                        lapTimeSec: entry.bestLapSec,
+                        gap: entry.gap,
+                        tire: entry.compound,
+                        isPlayer: entry.isPlayer,
+                      }))
+                    setSessionResults((prev) => ({ ...prev, [sessKey]: convertedResults }))
+
+                    // Marcar sessão como concluída
+                    setCompletedSessions((prev) => Array.from(new Set([...prev, sessKey])))
+                    setActivePracticeLivePreps((prev) => ({ ...prev, [sessKey]: null }))
+
+                    const sessionTitle = sessKey === 'tp1' ? 'Treino Livre 1' : 'Treino Livre 2'
+                    toast({
+                      title: `${sessionTitle} Concluído`,
+                      description: `Melhor volta registrada: ${
+                        convertedResults.find((r) => r.isPlayer)?.lapTime || '1:19.450'
+                      }.`,
+                    })
+
+                    // Transição de esteira de fim de semana após conclusão do treino
+                    if (sessKey === 'tp1') setActiveSession('tp2')
+                    else if (sessKey === 'tp2') setActiveSession('q1')
                   }}
                   onNavigateToWeekendTab={(tab) => setActiveSession(tab as WeekendSession)}
                 />
