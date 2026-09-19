@@ -1305,6 +1305,8 @@ export default function LiveRacePage() {
         lapHistory={lapHistory}
         pauseReason={pauseReason}
         mechanicalIssues={mechanicalIssues}
+        informedPackage={informedPackage}
+        pendingDecisions={pendingDecisions}
       />
 
       {/* 3. RESULTADOS OFICIAIS DA CORRIDA QUANDO ENCERRADA */}

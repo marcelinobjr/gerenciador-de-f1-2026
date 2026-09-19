@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Trophy, ArrowUp, ArrowDown, Minus, Timer, Users, ChevronDown, Info } from 'lucide-react'
 import type { SimDriverEntry } from '@/pages/race/types'
 import { TIRE_SPECS, isTireInCliff } from '@/lib/f1-tire-system'
+import { getTeamReducedLogoUrl, getTeamReducedLogoDef } from '@/lib/team-reduced-logo-resolver'
 
 export interface LapRecord {
   lap: number
@@ -133,20 +134,22 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                 <tr>
                   <th className="py-2 px-2 text-center w-10">Pos</th>
                   <th
-                    className="py-2 px-1 text-center w-9"
+                    className="py-2 px-1 text-center w-8"
                     title="Variação em relação à posição de largada"
                   >
                     Var
                   </th>
-                  <th className="py-2 px-3">Piloto</th>
-                  <th className="py-2 px-2 hidden sm:table-cell">Equipe</th>
-                  <th className="py-2 px-1.5 text-center">Pneu</th>
-                  <th className="py-2 px-1 text-center" title="Paradas nos Boxes">
-                    Box
+                  <th className="py-2 px-2.5">Piloto</th>
+                  <th className="py-2 px-2 text-center w-12" title="Equipe / Escuderia">
+                    Equipe
                   </th>
-                  <th className="py-2 px-2 text-right">Última Volta</th>
-                  <th className="py-2 px-2 text-right">Gap Líder</th>
+                  <th className="py-2 px-1.5 text-center w-10">Pneu</th>
+                  <th className="py-2 px-2 text-right hidden md:table-cell">Última Volta</th>
+                  <th className="py-2 px-2 text-right hidden sm:table-cell">Gap Líder</th>
                   <th className="py-2 px-2 text-right">Intervalo</th>
+                  <th className="py-2 px-1.5 text-center w-10" title="Paradas nos Boxes">
+                    Pit
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -189,6 +192,23 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                       6,
                     ).inCliff
 
+                  // Resolução canônica de logo reduzida da equipe pelo teamId / slug / alias / nome
+                  const teamLogoUrl =
+                    getTeamReducedLogoUrl(entry.teamId) || getTeamReducedLogoUrl(entry.teamName)
+                  const teamLogoDef =
+                    getTeamReducedLogoDef(entry.teamId) || getTeamReducedLogoDef(entry.teamName)
+                  const fullTeamName = teamLogoDef?.displayName || entry.teamName || 'Equipe'
+
+                  // Iniciais neutras para fallback de construtores sem asset
+                  const teamInitials = entry.teamName
+                    ? entry.teamName
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((w) => w[0]?.toUpperCase())
+                        .join('')
+                    : 'EQ'
+
                   return (
                     <tr
                       key={entry.driverId}
@@ -196,19 +216,16 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                         onSelectCompareDriverId(entry.driverId)
                         onSelectRowDriver?.(entry.driverId)
                       }}
-                      className={`cursor-pointer transition-colors ${
+                      className={`cursor-pointer transition-colors h-9 ${
                         isPlayerCar
-                          ? 'bg-red-50/80 hover:bg-red-100/70 font-semibold'
+                          ? 'bg-red-50/60 hover:bg-red-100/70 border-l-[3px] border-l-[#E10600]'
                           : entry.dnf
-                            ? 'bg-slate-50/70 opacity-60 hover:bg-slate-100'
-                            : 'hover:bg-slate-50'
+                            ? 'bg-slate-50/70 opacity-60 hover:bg-slate-100 border-l-[3px] border-l-transparent'
+                            : 'hover:bg-slate-50 border-l-[3px] border-l-transparent'
                       }`}
                     >
                       {/* Posição */}
-                      <td className="py-2 px-2 text-center relative">
-                        {isPlayerCar && (
-                          <span className="absolute left-0 top-0 bottom-0 w-[3.5px] bg-[#E10600]" />
-                        )}
+                      <td className="py-1 px-2 text-center">
                         <span
                           className={`inline-flex items-center justify-center w-5 h-5 rounded font-mono text-[11px] font-black ${
                             entry.dnf
@@ -219,7 +236,9 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                                   ? 'bg-slate-300 text-slate-900'
                                   : entry.position === 3
                                     ? 'bg-amber-600 text-white'
-                                    : 'text-slate-800 bg-slate-100'
+                                    : isPlayerCar
+                                      ? 'bg-red-100 text-[#E10600] font-black'
+                                      : 'text-slate-800 bg-slate-100'
                           }`}
                         >
                           {entry.dnf ? 'DNF' : entry.position}
@@ -227,7 +246,7 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                       </td>
 
                       {/* Variação vs Largada com Tooltip */}
-                      <td className="py-2 px-1 text-center">
+                      <td className="py-1 px-1 text-center">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -260,20 +279,24 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                       </td>
 
                       {/* Piloto */}
-                      <td className="py-2 px-3">
+                      <td className="py-1 px-2.5">
                         <div className="flex items-center gap-1.5 overflow-hidden">
                           <span
                             className="w-1.5 h-3.5 rounded-full shrink-0"
                             style={{ backgroundColor: entry.teamColor || '#94A3B8' }}
                           />
                           <span
-                            className={`truncate text-xs ${isPlayerCar ? 'font-black text-slate-950' : 'font-semibold text-slate-900'}`}
+                            className={`truncate text-xs ${
+                              isPlayerCar
+                                ? 'font-black text-slate-950'
+                                : 'font-medium text-slate-900'
+                            }`}
                           >
                             {entry.driverName}
                           </span>
                           {isPlayerCar && (
-                            <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 rounded font-black uppercase shrink-0">
-                              NÓS
+                            <Badge className="bg-[#E10600] hover:bg-[#E10600] text-white text-[9px] px-1 py-0 rounded font-black uppercase shrink-0 tracking-wider">
+                              APEX
                             </Badge>
                           )}
                           {isCliff && (
@@ -284,15 +307,41 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                         </div>
                       </td>
 
-                      {/* Equipe */}
-                      <td className="py-2 px-2 hidden sm:table-cell">
-                        <span className="text-[11px] text-slate-500 truncate block max-w-[120px]">
-                          {entry.teamName}
-                        </span>
+                      {/* Equipe [LOGO REDUZIDO 20-26px + TOOLTIP COM NOME COMPLETO] */}
+                      <td className="py-1 px-2 text-center">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="inline-flex items-center justify-center cursor-help">
+                                {teamLogoUrl ? (
+                                  <img
+                                    src={teamLogoUrl}
+                                    alt={fullTeamName}
+                                    className="h-5 max-w-[26px] object-contain rounded-xs shrink-0 select-none"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-black text-white shrink-0 shadow-2xs select-none"
+                                    style={{ backgroundColor: entry.teamColor || '#64748B' }}
+                                  >
+                                    {teamInitials}
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="text-xs bg-slate-900 text-white font-medium"
+                            >
+                              {fullTeamName}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </td>
 
                       {/* Pneu */}
-                      <td className="py-2 px-1.5 text-center">
+                      <td className="py-1 px-1.5 text-center">
                         <span
                           className={`inline-flex items-center justify-center w-5 h-5 rounded-full font-mono text-[9px] font-black border ${compBadgeColor}`}
                           title={`${compSpec.name} (${entry.tireWear || 0}% desg.)`}
@@ -301,13 +350,8 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                         </span>
                       </td>
 
-                      {/* Pit Stops Realizados */}
-                      <td className="py-2 px-1 text-center font-mono text-[11px] text-slate-600">
-                        {entry.pitStopsDone !== undefined ? entry.pitStopsDone : '0'}
-                      </td>
-
                       {/* Última Volta */}
-                      <td className="py-2 px-2 text-right font-mono text-[11px] tabular-nums text-slate-700">
+                      <td className="py-1 px-2 text-right font-mono text-[11px] tabular-nums text-slate-700 hidden md:table-cell">
                         {currentLap <= 1 && !entry.lastLapTime
                           ? '—'
                           : entry.lastLapTime ||
@@ -315,7 +359,7 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                       </td>
 
                       {/* Gap Líder */}
-                      <td className="py-2 px-2 text-right font-mono text-[11px] tabular-nums font-semibold">
+                      <td className="py-1 px-2 text-right font-mono text-[11px] tabular-nums font-semibold hidden sm:table-cell">
                         {entry.dnf ? (
                           <span className="text-red-600 font-bold">ABANDONO</span>
                         ) : entry.position === 1 ? (
@@ -328,7 +372,7 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                       </td>
 
                       {/* Intervalo / Gap Frente */}
-                      <td className="py-2 px-2 text-right font-mono text-[11px] tabular-nums text-slate-600">
+                      <td className="py-1 px-2 text-right font-mono text-[11px] tabular-nums text-slate-600">
                         {entry.dnf
                           ? '—'
                           : entry.position === 1
@@ -336,6 +380,11 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
                             : currentLap <= 1
                               ? '—'
                               : entry.gapToFront || '—'}
+                      </td>
+
+                      {/* Pit Stops Realizados */}
+                      <td className="py-1 px-1.5 text-center font-mono text-[11px] text-slate-600">
+                        {entry.pitStopsDone !== undefined ? entry.pitStopsDone : '0'}
                       </td>
                     </tr>
                   )

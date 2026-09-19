@@ -260,6 +260,12 @@ export function normalizeTeamIdentifier(input: string | null | undefined): strin
     .replace(/[-\s]+/g, '_')
     .replace(/[^a-z0-9_]/g, '')
 
+  // 0. Remove prefixos de ID de equipe comuns (ex: team_audi -> audi)
+  const cleanWithoutPrefix = clean.replace(/^team_/, '')
+  if (TEAM_REDUCED_LOGOS_MANIFEST[cleanWithoutPrefix]) {
+    return cleanWithoutPrefix
+  }
+
   // 1. Match direto de chave
   if (TEAM_REDUCED_LOGOS_MANIFEST[clean]) {
     return clean
@@ -279,9 +285,13 @@ export function normalizeTeamIdentifier(input: string | null | undefined): strin
   }
 
   // 3. Match por nome contido
-  const cleanPlain = clean.replace(/_/g, '')
-  for (const [key] of Object.entries(TEAM_REDUCED_LOGOS_MANIFEST)) {
+  const cleanPlain = cleanWithoutPrefix.replace(/_/g, '')
+  for (const [key, item] of Object.entries(TEAM_REDUCED_LOGOS_MANIFEST)) {
     if (cleanPlain.includes(key) || key.includes(cleanPlain)) {
+      return key
+    }
+    const normDisplay = item.displayName.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (cleanPlain.includes(normDisplay) || normDisplay.includes(cleanPlain)) {
       return key
     }
   }
