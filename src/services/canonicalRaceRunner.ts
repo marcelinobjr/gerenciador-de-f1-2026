@@ -18,7 +18,8 @@ import { carTechnicalService } from '@/services/carTechnicalService'
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { LiveRaceEvent } from '@/types/race-events'
 import type { LapRecord } from '@/components/race/LiveStandingsTable'
-import type { TeamModel } from '@/types/f1'
+import type { TeamModel, TireSetItem, TireCompound } from '@/types/f1'
+import type { WeekendTyreKnowledge } from '@/types/practice-tyres'
 
 import type { RacePendingDecision, RaceResolvedDecision } from '@/types/race-session'
 
@@ -52,6 +53,9 @@ export interface AdvanceOneLapParams {
   sessionId?: string
   existingPendingDecisions?: RacePendingDecision[]
   resolvedDecisionIds?: string[] | Set<string>
+  // ETAPA 4D.2: Conhecimento dos treinos e estoque real por piloto
+  tyreKnowledge?: WeekendTyreKnowledge | null
+  driverTireInventories?: Record<string, TireSetItem[]>
 }
 
 export interface AdvanceOneLapResult {
@@ -474,10 +478,92 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
       }
     }
 
-    // Prioridade 2: Janela de parada de estratégia programada
-    const isStrategyPitLap = pCar.pitLap === nextLap && (pCar.pitStopsDone || 0) === 0
-    if (isStrategyPitLap && !isCriticalWear) {
-      const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_strategy`
+    // Prioridade 2: Reavaliação informada com conhecimento aprendido dos treinos (4D.2)
+    // Compara desgaste e voltas acumuladas contra usefulWindow e degradation do composto atual.
+    const currentComp = (pCar.tireCompound || 'medio') as TireCompound
+    const compKnowledge = params.tyreKnowledge?.[currentComp]
+    const lapsOnTire = pCar.lapsOnCurrentTire || 0
+    const currentTireWear = pCar.tireWear || 0
+
+    let isInformedWindowTriggered = false
+    let informedJustification = ''
+    let informedProposedCompound: TireCompound = 'duro'
+    let informedProposedSetId: string | undefined = undefined
+    let informedConfidence: string = 'baixa'
+    let informedEstimatedWindow: { min: number; max: number } | undefined = undefined
+
+    if (compKnowledge && compKnowledge.totalStintsObserved > 0 && !isCriticalWear) {
+      const usefulWin = compKnowledge.usefulWindow
+      const degDim = compKnowledge.degradation
+      informedConfidence = compKnowledge.overallConfidence
+
+      const hasUsefulWindow = usefulWin.revealed && usefulWin.value
+      const minWindowLaps = hasUsefulWindow ? usefulWin.value!.minLaps : 14
+      const maxWindowLaps = hasUsefulWindow ? usefulWin.value!.maxLaps : 24
+      informedEstimatedWindow = { min: minWindowLaps, max: maxWindowLaps }
+
+      const isHighDeg =
+        degDim.revealed && (degDim.value === 'alta' || degDim.value === 'muito_alta')
+      const isWindowReached = hasUsefulWindow && lapsOnTire >= minWindowLaps
+      const isWearConcerning = currentTireWear >= 55 && (isHighDeg || isWindowReached)
+
+      if (
+        isWindowReached ||
+        (isHighDeg && lapsOnTire >= Math.max(6, minWindowLaps - 3)) ||
+        isWearConcerning
+      ) {
+        isInformedWindowTriggered = true
+
+        // Escolha de composto elegível no estoque real do piloto
+        const driverInventory = params.driverTireInventories?.[dId] || []
+        const eligibleSets = driverInventory.filter((s) => !s.isFitted && s.wear < 90)
+
+        // Preferência por composto alternativo (regra FIA de seco ou chuva)
+        if (weather !== 'seco') {
+          informedProposedCompound = weather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+        } else {
+          const differentSets = eligibleSets.filter((s) => s.compound !== currentComp)
+          if (differentSets.some((s) => s.compound === 'duro')) {
+            informedProposedCompound = 'duro'
+          } else if (differentSets.some((s) => s.compound === 'medio')) {
+            informedProposedCompound = 'medio'
+          } else if (differentSets.some((s) => s.compound === 'macio')) {
+            informedProposedCompound = 'macio'
+          } else if (eligibleSets.length > 0) {
+            informedProposedCompound = eligibleSets[0].compound
+          } else {
+            informedProposedCompound = currentComp === 'medio' ? 'duro' : 'medio'
+          }
+        }
+
+        const chosenTargetSet = eligibleSets.find((s) => s.compound === informedProposedCompound)
+        informedProposedSetId = chosenTargetSet?.id
+
+        const compLabel =
+          informedProposedCompound === 'duro'
+            ? 'duro'
+            : informedProposedCompound === 'medio'
+              ? 'médio'
+              : informedProposedCompound === 'macio'
+                ? 'macio'
+                : informedProposedCompound === 'intermediario'
+                  ? 'intermediário'
+                  : 'chuva extrema'
+
+        const reasonBasis = isHighDeg
+          ? `Alta degradação aprendida nos treinos para o composto ${currentComp}`
+          : `Janela útil aprendida nos treinos atingida (volta ${minWindowLaps}–${maxWindowLaps}, confiança ${informedConfidence})`
+
+        const stockMention = chosenTargetSet
+          ? `Composto ${compLabel} elegível no estoque (${chosenTargetSet.wear}% desgaste inicial).`
+          : `Composto ${compLabel} sugerido pela engenharia.`
+
+        informedJustification = `${reasonBasis}. Carro ${dName} completou ${lapsOnTire} voltas no composto com ${currentTireWear}% de desgaste. ${stockMention} Condições de invalidação: alteração climática repentina ou entrada iminente de Safety Car.`
+      }
+    }
+
+    if (isInformedWindowTriggered && !isCriticalWear) {
+      const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_informed`
       if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
         detectedDecisions.push({
           id: eventId,
@@ -486,27 +572,72 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
           driverName: dName,
           lap: nextLap,
           createdAt: new Date().toISOString(),
-          title: `Janela de Pit Stop Planejada — ${dName}`,
-          description: `A volta ${nextLap} é a janela estratégica ideal de pit stop prevista para ${dName}.`,
+          title: `Recomendação de Pit Stop (Treinos) — ${dName}`,
+          description: informedJustification,
           priority: 2,
           options: [
             {
               id: 'box_now',
-              label: 'Box nesta volta (Confirmar Plano)',
-              description: 'Entrar nos boxes e cumprir a janela estratégica programada.',
+              label: `Box nesta volta (Instalar ${informedProposedCompound.toUpperCase()})`,
+              description: `Confirmar pit stop recomendado pelo pit wall para ${dName}.`,
             },
             {
               id: 'stay_out',
-              label: 'Estender Stint (Adiar Box)',
-              description: 'Prorrogar o stint na pista por voltas adicionais.',
+              label: 'Manter Plano Atual (Adiar Box)',
+              description: 'Continuar na pista e postergar a chamada de boxes.',
             },
           ],
           payload: {
-            pitLap: pCar.pitLap,
-            compound: pCar.tireCompound,
+            driverId: dId,
+            driverName: dName,
+            currentCompound: currentComp,
+            lapsOnTire,
+            currentWear: currentTireWear,
+            proposedCompound: informedProposedCompound,
+            proposedSetId: informedProposedSetId,
+            confidence: informedConfidence,
+            estimatedWindow: informedEstimatedWindow,
+            justification: informedJustification,
+            invalidationConditions: 'Chuva iminente ou Safety Car na pista',
             position: pCar.position,
           },
         })
+      }
+    } else {
+      // Janela de parada de estratégia programada padrão
+      const isStrategyPitLap = pCar.pitLap === nextLap && (pCar.pitStopsDone || 0) === 0
+      if (isStrategyPitLap && !isCriticalWear) {
+        const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_strategy`
+        if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
+          detectedDecisions.push({
+            id: eventId,
+            type: 'pit_stop_strategy_window',
+            driverId: dId,
+            driverName: dName,
+            lap: nextLap,
+            createdAt: new Date().toISOString(),
+            title: `Janela de Pit Stop Planejada — ${dName}`,
+            description: `A volta ${nextLap} é a janela estratégica ideal de pit stop prevista para ${dName}.`,
+            priority: 2,
+            options: [
+              {
+                id: 'box_now',
+                label: 'Box nesta volta (Confirmar Plano)',
+                description: 'Entrar nos boxes e cumprir a janela estratégica programada.',
+              },
+              {
+                id: 'stay_out',
+                label: 'Estender Stint (Adiar Box)',
+                description: 'Prorrogar o stint na pista por voltas adicionais.',
+              },
+            ],
+            payload: {
+              pitLap: pCar.pitLap,
+              compound: pCar.tireCompound,
+              position: pCar.position,
+            },
+          })
+        }
       }
     }
 

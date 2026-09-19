@@ -16,6 +16,7 @@ export type RaceSessionType = 'race' | 'sprint'
 export type RaceDecisionType =
   | 'pit_stop_critical_wear'
   | 'pit_stop_strategy_window'
+  | 'pit_stop_informed_recommendation'
   | 'pit_stop_weather_change'
   | 'operational_incident'
 

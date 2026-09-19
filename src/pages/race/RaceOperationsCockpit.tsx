@@ -11,6 +11,8 @@ import { LiveStandingsTable, type LapRecord } from '@/components/race/LiveStandi
 import { DriverLiveOperationsPanel } from '@/components/race/DriverLiveOperationsPanel'
 import { TeamActionsCard, type TeamActionExecutionResult } from '@/components/race/TeamActionsCard'
 import { LiveRaceFeed } from '@/components/race/LiveRaceFeed'
+import { EngineeringRecommendationCard } from '@/components/race/EngineeringRecommendationCard'
+import type { PreparationInformedPackage } from '@/services/canonicalPreparationInformedService'
 
 export type LiveTacticalMode = 'attack' | 'normal' | 'save_fuel'
 
@@ -62,6 +64,7 @@ export interface RaceOperationsCockpitProps {
   lapHistory?: Record<string, LapRecord[]>
   pauseReason?: string | null
   partsCondition?: Array<{ id: string; name: string; condition: number }>
+  informedPackage?: PreparationInformedPackage | null
 }
 
 export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
@@ -89,6 +92,7 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
   lapHistory = {},
   pauseReason,
   partsCondition = [],
+  informedPackage,
 }) => {
   const [selectedCompareDriverId, setSelectedCompareDriverId] = useState<string | null>(null)
   const [lastTeamOrderResult, setLastTeamOrderResult] = useState<TeamActionExecutionResult | null>(
@@ -255,6 +259,16 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
               teamColor={team?.color || '#E10600'}
             />
           </div>
+
+          {/* Recomendações da Engenharia Informadas pelos Treinos (4D.1 / 4D.2) */}
+          {informedPackage && (
+            <div className="mt-4">
+              <EngineeringRecommendationCard
+                informedPackage={informedPackage}
+                disabledApply={true}
+              />
+            </div>
+          )}
         </div>
 
         {/* =========================================================================

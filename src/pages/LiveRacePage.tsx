@@ -18,6 +18,11 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { raceSessionService } from '@/services/raceSessionService'
+import { practiceSessionService } from '@/services/practiceSessionService'
+import {
+  canonicalPreparationInformedService,
+  type PreparationInformedPackage,
+} from '@/services/canonicalPreparationInformedService'
 import { advanceCanonicalRaceLap } from '@/services/canonicalRaceRunner'
 import { f1Service } from '@/services/f1Service'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
@@ -25,7 +30,8 @@ import { toast } from '@/hooks/use-toast'
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { LiveRaceEvent } from '@/types/race-events'
 import type { LapRecord } from '@/components/race/LiveStandingsTable'
-import type { TireCompound, TireAllotment } from '@/types/f1'
+import type { TireCompound, TireAllotment, TireSetItem } from '@/types/f1'
+import type { WeekendTyreKnowledge } from '@/types/practice-tyres'
 import type { TrackWeatherState } from '@/lib/f1-tire-system'
 import type {
   RaceSessionRecord,
@@ -40,7 +46,11 @@ import { DecisionModals } from '@/components/race/DecisionModals'
 import { PitWallRadioDialog } from '@/components/race/PitWallRadioDialog'
 import { RaceResultsTable } from '@/components/race/RaceResultsTable'
 import { advanceRound } from '@/pages/race/raceAdvance'
-import { calculatePitStopDuration, formatTireName } from '@/lib/f1-tire-system'
+import {
+  calculatePitStopDuration,
+  formatTireName,
+  createInitialTireInventory,
+} from '@/lib/f1-tire-system'
 import { buildCanonicalEventGrid } from '@/lib/canonical-race-grid-resolver'
 
 export default function LiveRacePage() {
@@ -60,6 +70,15 @@ export default function LiveRacePage() {
     status: string
   } | null>(null)
   const [retryCounter, setRetryCounter] = useState(0)
+
+  // ETAPA 4D.2: Conhecimento herdado dos treinos livres e estoque canônico
+  const [inheritedTyreKnowledge, setInheritedTyreKnowledge] = useState<WeekendTyreKnowledge | null>(
+    null,
+  )
+  const [informedPackage, setInformedPackage] = useState<PreparationInformedPackage | null>(null)
+  const [driverTireInventories, setDriverTireInventories] = useState<Record<string, TireSetItem[]>>(
+    {},
+  )
 
   useEffect(() => {
     if (!team?.id) return
@@ -180,6 +199,34 @@ export default function LiveRacePage() {
             `A equipe ${team!.name} possui apenas ${titularDrivers.length} piloto(s) titular(es) inscrito(s). São obrigatórios 2 titulares para o grid do evento.`,
           )
         }
+
+        // 1.1.b ETAPA 4D.2: Carregar conhecimento aprendido nos treinos livres e estoque de pneus
+        try {
+          const inherited = await practiceSessionService.resolveInheritedWeekendKnowledge(
+            team!.id,
+            season!.id,
+            currentRound,
+          )
+          if (isMounted && inherited) {
+            setInheritedTyreKnowledge(inherited.tyreKnowledge || null)
+            const pkg = canonicalPreparationInformedService.buildPreparationInformedPackage({
+              inheritedKnowledge: inherited,
+              currentRound,
+              circuitKey: gpInfo.circuit,
+              sessionType: 'race',
+            })
+            setInformedPackage(pkg)
+          }
+        } catch (e) {
+          console.warn('[LiveRacePage] Falha ao herdar conhecimento de treinos:', e)
+        }
+
+        // Inicializar inventários de pneus para os pilotos titulares
+        const initialInventories: Record<string, TireSetItem[]> = {}
+        titularDrivers.forEach((d) => {
+          initialInventories[d.id] = createInitialTireInventory(d.id)
+        })
+        setDriverTireInventories(initialInventories)
 
         // 1.2 Verificar se já existe uma sessão persistida no PocketBase
         const existingSession = await raceSessionService.getSession({
@@ -558,7 +605,7 @@ export default function LiveRacePage() {
         return
       }
 
-      // Executa avanço da volta pelo runner canônico com proteção anti-loop
+      // Executa avanço da volta pelo runner canônico com proteção anti-loop e conhecimento 4D.2
       const res = advanceCanonicalRaceLap({
         currentLap,
         totalLaps,
@@ -577,6 +624,8 @@ export default function LiveRacePage() {
         sessionId: sessionRecord?.id,
         existingPendingDecisions: pendingDecisions,
         resolvedDecisionIds: resolvedDecisions.map((r) => r.eventId),
+        tyreKnowledge: inheritedTyreKnowledge,
+        driverTireInventories,
       })
 
       setCurrentLap(res.nextLap)
@@ -657,6 +706,8 @@ export default function LiveRacePage() {
     mechanicalIssues,
     redFlagState,
     lapHistory,
+    inheritedTyreKnowledge,
+    driverTireInventories,
     triggerSaveCheckpoint,
   ])
 
