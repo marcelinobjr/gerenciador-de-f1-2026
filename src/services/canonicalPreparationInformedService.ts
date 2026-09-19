@@ -476,22 +476,29 @@ export function generateRacePlannerRecommendations(
     const startAnalysis = tyresAnalysis[startComp]
     const chosenStartSet = availableDriverSets.find((s) => s.compound === startComp)
 
-    // Determinar a janela útil aprendida do composto de largada
-    let estimatedStintLaps = { min: 14, max: 24 }
+    // Determinar a janela útil aprendida do composto de largada (duração total do stint novo)
+    let nominalUsefulWindow = { min: 14, max: 24 }
     if (startAnalysis && startAnalysis.usefulWindowRange) {
-      estimatedStintLaps = {
+      nominalUsefulWindow = {
         min: startAnalysis.usefulWindowRange.minLaps,
         max: startAnalysis.usefulWindowRange.maxLaps,
       }
     } else {
       // Estimativa teórica base de fábrica
-      if (startComp === 'macio') estimatedStintLaps = { min: 10, max: 18 }
-      else if (startComp === 'medio') estimatedStintLaps = { min: 16, max: 28 }
-      else if (startComp === 'duro') estimatedStintLaps = { min: 24, max: 38 }
-      else estimatedStintLaps = { min: 15, max: 30 }
+      if (startComp === 'macio') nominalUsefulWindow = { min: 10, max: 18 }
+      else if (startComp === 'medio') nominalUsefulWindow = { min: 16, max: 28 }
+      else if (startComp === 'duro') nominalUsefulWindow = { min: 24, max: 38 }
+      else nominalUsefulWindow = { min: 15, max: 30 }
     }
 
-    // Janela estimada da primeira parada (em voltas, derivada da janela útil)
+    // Se o jogo de largada já foi usado anteriormente (ex: no quali), deduzir voltas já rodadas da vida restante
+    const previousLapsOnChosenSet = chosenStartSet?.lapsUsed || 0
+    const estimatedStintLaps = {
+      min: Math.max(5, nominalUsefulWindow.min - previousLapsOnChosenSet),
+      max: Math.max(8, nominalUsefulWindow.max - previousLapsOnChosenSet),
+    }
+
+    // Janela estimada da primeira parada (número da volta de prova em que ocorre o pit stop, distinta das voltas do stint)
     const pit1LapMin = Math.max(8, Math.min(totalLaps - 5, estimatedStintLaps.min))
     const pit1LapMax = Math.max(pit1LapMin + 2, Math.min(totalLaps - 3, estimatedStintLaps.max))
 

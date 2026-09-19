@@ -82,7 +82,7 @@ describe('ETAPA 4D.1: PREPARAÇÃO INFORMADA (CONTRATO E HOMOLOGAÇÃO)', () => 
       driverName: 'Lando Norris',
       stintId: 'stint_1',
       lapsCount: 5,
-      program: 'qualifying_trim',
+      program: 'qualifying_sim',
       setupSnapshot: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
       quality: 'reliable',
       generalMessage: 'Carro equilibrado em alta velocidade, traseira estável.',
@@ -391,5 +391,127 @@ describe('ETAPA 4D.1: PREPARAÇÃO INFORMADA (CONTRATO E HOMOLOGAÇÃO)', () => 
     expect(drvRec).toBeDefined()
     expect(drvRec.suggestedPitWindows[0].windowLapMin).toBeGreaterThanOrEqual(8)
     expect(drvRec.suggestedPitWindows[0].windowLapMax).toBeLessThanOrEqual(50)
+  })
+
+  // TESTE H — SEMÂNTICA DA JANELA DE PARADA E JOGO USADO:
+  // Jogo usado desconta voltas já rodadas; janela de parada (número da volta de prova) não excede a prova
+  it('H — JANELA DE PARADA: Jogo usado desconta lapsUsed da autonomia restante e respeita o total de voltas da corrida', () => {
+    const totalRaceLaps = 50
+    const mockDriverSets: TireSetItem[] = [
+      { id: 'set_fresh', compound: 'medio', wear: 0, lapsUsed: 0, isFitted: false },
+      { id: 'set_used', compound: 'medio', wear: 25, lapsUsed: 6, isFitted: false },
+    ]
+
+    const freshAnalysis = analyzeTyresInformed(
+      'seco',
+      null,
+      null,
+      { drv_fresh: [mockDriverSets[0]] },
+      'drv_fresh',
+    )
+    const usedAnalysis = analyzeTyresInformed(
+      'seco',
+      null,
+      null,
+      { drv_used: [mockDriverSets[1]] },
+      'drv_used',
+    )
+
+    const recFresh = generateRacePlannerRecommendations(
+      {
+        sessionKey: 'race',
+        currentSetup: { session: 'race' } as any,
+        gpInfo: { circuit: 'Interlagos', laps: totalRaceLaps },
+        weather: 'seco',
+        driverTireInventories: { drv_fresh: [mockDriverSets[0]] },
+        drivers: [{ id: 'drv_fresh', name: 'Piloto Novo' }],
+      },
+      freshAnalysis,
+    )
+
+    const recUsed = generateRacePlannerRecommendations(
+      {
+        sessionKey: 'race',
+        currentSetup: { session: 'race' } as any,
+        gpInfo: { circuit: 'Interlagos', laps: totalRaceLaps },
+        weather: 'seco',
+        driverTireInventories: { drv_used: [mockDriverSets[1]] },
+        drivers: [{ id: 'drv_used', name: 'Piloto Usado' }],
+      },
+      usedAnalysis,
+    )
+
+    const freshWindow = recFresh['drv_fresh'].estimatedStintLaps
+    const usedWindow = recUsed['drv_used'].estimatedStintLaps
+
+    // O jogo usado deve ter autonomia restante menor do que o novo
+    expect(usedWindow.max).toBeLessThan(freshWindow.max)
+    expect(usedWindow.min).toBeLessThanOrEqual(freshWindow.min)
+
+    // O pit stop não ultrapassa o limite da prova
+    expect(recUsed['drv_used'].suggestedPitWindows[0].windowLapMax).toBeLessThanOrEqual(
+      totalRaceLaps - 3,
+    )
+  })
+
+  // TESTE I — NÃO ACESSO À VERDADE OCULTA:
+  // O canonicalPreparationInformedService e suas recomendações operam EXCLUSIVAMENTE sobre faixas aprendidas observadas,
+  // sem chamar resolveInternalIdealSetup() nem ler valores ocultos da simulação.
+  it('I — NÃO ACESSO À VERDADE OCULTA: A recomendação reporta apenas minKnown/maxKnown observados, nunca o valor ideal interno', () => {
+    const currentSetup: SessionSetupModel = {
+      team_id: 'ferrari',
+      season_id: 's2026',
+      round: 1,
+      session: 'q1',
+      wing_level: 5,
+      suspension_stiffness: 5,
+      pu_electric_ratio: 50,
+      tire_compound: 'medio',
+    }
+
+    const partialKnowledge: SetupKnowledgeModel = {
+      totalStintsAnalyzed: 2,
+      overallConfidence: 'media',
+      frontWing: {
+        minKnown: 4,
+        maxKnown: 8,
+        confidence: 'media',
+        confidenceScore: 60,
+        revealed: true,
+      },
+      rearWing: {
+        minKnown: 4,
+        maxKnown: 8,
+        confidence: 'media',
+        confidenceScore: 60,
+        revealed: true,
+      },
+      suspension: {
+        minKnown: 3,
+        maxKnown: 7,
+        confidence: 'media',
+        confidenceScore: 55,
+        revealed: true,
+      },
+      differential: {
+        minKnown: 40,
+        maxKnown: 60,
+        confidence: 'media',
+        confidenceScore: 50,
+        revealed: true,
+      },
+      updatedAt: new Date().toISOString(),
+    }
+
+    const rec = analyzeSetupInformed(currentSetup, partialKnowledge, [])
+
+    // Os eixos devem refletir unicamente minKnown e maxKnown observados
+    expect(rec.axes.frontWing.minKnown).toBe(4)
+    expect(rec.axes.frontWing.maxKnown).toBe(8)
+    // Não expõe nenhum campo "idealValue" ou similar
+    expect((rec.axes.frontWing as any).idealValue).toBeUndefined()
+    expect((rec.axes.rearWing as any).idealValue).toBeUndefined()
+    expect((rec.axes.suspension as any).idealValue).toBeUndefined()
+    expect((rec.axes.differential as any).idealValue).toBeUndefined()
   })
 })
