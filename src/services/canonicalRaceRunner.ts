@@ -56,6 +56,9 @@ export interface AdvanceOneLapParams {
   // ETAPA 4D.2: Conhecimento dos treinos e estoque real por piloto
   tyreKnowledge?: WeekendTyreKnowledge | null
   driverTireInventories?: Record<string, TireSetItem[]>
+  // ETAPA 4D.2: Consumidor delegado / IA autorizada
+  isDelegatedExecutor?: boolean
+  delegatedDecisionsHandled?: string[]
 }
 
 export interface AdvanceOneLapResult {
@@ -70,6 +73,13 @@ export interface AdvanceOneLapResult {
   detectedDecisions: RacePendingDecision[]
   requiresPause: boolean
   pauseReason?: string
+  // ETAPA 4D.2: Decisões resolvidas automaticamente por executor delegado/IA
+  delegatedResolutions?: Array<{
+    decision: RacePendingDecision
+    choice: string
+    proposedCompound?: TireCompound
+    proposedSetId?: string
+  }>
 }
 
 export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOneLapResult {

@@ -400,7 +400,9 @@ export const raceSessionService = {
       }
 
       const inventories = cp.driverTireInventories ? { ...cp.driverTireInventories } : undefined
-      let updatedDriverSets = inventories?.[targetDriverId] ? [...inventories[targetDriverId]] : undefined
+      let updatedDriverSets = inventories?.[targetDriverId]
+        ? [...inventories[targetDriverId]]
+        : undefined
 
       if (params.choice === 'box_now') {
         // Obter payload informado se disponível
@@ -423,27 +425,38 @@ export const raceSessionService = {
         // Validar estoque do piloto se inventário existir
         let chosenSetWear = 4
         if (updatedDriverSets && updatedDriverSets.length > 0) {
+          // Validação canônica: jogo deve pertencer ao piloto e não estar montado
           let chosenSet = proposedSetId
-            ? updatedDriverSets.find((s) => s.id === proposedSetId && !s.isFitted)
-            : updatedDriverSets.find((s) => s.compound === chosenCompound && !s.isFitted)
+            ? updatedDriverSets.find((s) => s.id === proposedSetId && !s.isFitted && s.wear < 90)
+            : updatedDriverSets.find(
+                (s) => s.compound === chosenCompound && !s.isFitted && s.wear < 90,
+              )
 
           if (!chosenSet) {
-            // Se o jogo específico proposto não estiver disponível, buscar qualquer outro elegível do composto
-            chosenSet = updatedDriverSets.find((s) => s.compound === chosenCompound && !s.isFitted && s.wear < 90)
+            // Se o jogo específico proposto não estiver disponível, buscar qualquer outro elegível do composto (< 90% desgaste)
+            chosenSet = updatedDriverSets.find(
+              (s) => s.compound === chosenCompound && !s.isFitted && s.wear < 90,
+            )
           }
 
           if (chosenSet) {
             // Desmontar pneu anterior e montar o novo
+            // O pneu removido preserva seu desgaste real ( targetCar.tireWear ) e não é apagado
+            // O jogo instalado mantém seu desgaste original de estoque se usado, sem restaurar 100%
             updatedDriverSets = updatedDriverSets.map((s) => {
               if (s.isFitted) {
-                return { ...s, isFitted: false, wear: Math.min(100, targetCar.tireWear || s.wear) }
+                return {
+                  ...s,
+                  isFitted: false,
+                  wear: Math.min(100, Math.max(s.wear, targetCar.tireWear || s.wear)),
+                }
               }
               if (s.id === chosenSet!.id) {
                 return { ...s, isFitted: true }
               }
               return s
             })
-            chosenSetWear = chosenSet.wear || 4
+            chosenSetWear = chosenSet.wear !== undefined ? chosenSet.wear : 4
           }
         }
 
@@ -458,8 +471,7 @@ export const raceSessionService = {
         targetCar.tireWear = chosenSetWear
         targetCar.lapsOnCurrentTire = 0
         targetCar.pitStopsDone = (targetCar.pitStopsDone || 0) + 1
-        targetCar.accumulatedTimeSec =
-          (targetCar.accumulatedTimeSec || 0) + pitDuration.durationSec
+        targetCar.accumulatedTimeSec = (targetCar.accumulatedTimeSec || 0) + pitDuration.durationSec
         targetCar.cliffStatus = undefined
 
         consequenceSummary = `Box realizado: calçou pneus ${chosenCompound} em ${pitDuration.durationSec.toFixed(2)}s.`
@@ -507,9 +519,10 @@ export const raceSessionService = {
         grid: updatedGrid,
         pendingDecisions: updatedPendingList,
         resolvedDecisions: updatedResolvedList,
-        driverTireInventories: updatedDriverSets && inventories
-          ? { ...inventories, [targetDriverId]: updatedDriverSets }
-          : cp.driverTireInventories,
+        driverTireInventories:
+          updatedDriverSets && inventories
+            ? { ...inventories, [targetDriverId]: updatedDriverSets }
+            : cp.driverTireInventories,
         liveEvents: [resolutionEvent, ...(cp.liveEvents || [])].slice(0, 40),
         lastSavedAt: new Date().toISOString(),
       }

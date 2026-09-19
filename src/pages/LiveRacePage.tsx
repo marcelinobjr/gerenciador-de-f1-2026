@@ -323,6 +323,7 @@ export default function LiveRacePage() {
             if (existingSession.lap_history) setLapHistory(existingSession.lap_history)
             if (cp.pendingDecisions) setPendingDecisions(cp.pendingDecisions)
             if (cp.resolvedDecisions) setResolvedDecisions(cp.resolvedDecisions)
+            if (cp.driverTireInventories) setDriverTireInventories(cp.driverTireInventories)
 
             const hasBlockingDecisions = (cp.pendingDecisions?.length || 0) > 0
             setIsRacePaused(
@@ -410,6 +411,7 @@ export default function LiveRacePage() {
             playerPaceOrders: initialPace,
             mechanicalIssues: [],
             penalties: [],
+            driverTireInventories: initialInventories,
             lastSavedAt: new Date().toISOString(),
           },
         })
@@ -555,6 +557,10 @@ export default function LiveRacePage() {
               extraCheckpointPatch?.resolvedDecisions !== undefined
                 ? extraCheckpointPatch.resolvedDecisions
                 : resolvedDecisions,
+            driverTireInventories:
+              extraCheckpointPatch?.driverTireInventories !== undefined
+                ? extraCheckpointPatch.driverTireInventories
+                : driverTireInventories,
             lastSavedAt: new Date().toISOString(),
           },
           lapHistory,
@@ -795,6 +801,8 @@ export default function LiveRacePage() {
           if (updatedCp.pendingDecisions) setPendingDecisions(updatedCp.pendingDecisions)
           else setPendingDecisions([])
           if (updatedCp.resolvedDecisions) setResolvedDecisions(updatedCp.resolvedDecisions)
+          if (updatedCp.driverTireInventories)
+            setDriverTireInventories(updatedCp.driverTireInventories)
         }
 
         // REGRA 9: Permanece pausada após a resolução para o jogador pressionar Play
