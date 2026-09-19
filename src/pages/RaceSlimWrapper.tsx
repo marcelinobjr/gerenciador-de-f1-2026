@@ -1,8 +1,12 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import RaceSlim from './RaceSlim'
+import { Link } from 'react-router-dom'
+import { raceSessionService } from '@/services/raceSessionService'
 import { WeekendHeader, WeekendDisplaySession } from './race/WeekendHeader'
 import { SimulateWeekendModal } from '@/components/race/SimulateWeekendModal'
+import { Button } from '@/components/ui/button'
+import { ExternalLink, Radio } from 'lucide-react'
 import { SimulationStepTracker } from '@/components/race/SimulationStepTracker'
 import { WeekendSummaryModal } from '@/components/race/WeekendSummaryModal'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
@@ -28,8 +32,34 @@ export default function RaceSlimWrapper() {
   const [simulationStepMessage, setSimulationStepMessage] = useState('')
   const [completedSessions, setCompletedSessions] = useState<string[]>([])
   const [raceRefreshKey, setRaceRefreshKey] = useState(0)
+  const [activeSharedSession, setActiveSharedSession] = useState<any>(null)
 
   const currentRound = season?.current_round || 1
+
+  // Detecta se existe uma sessão compartilhada ativa para esta rodada
+  React.useEffect(() => {
+    if (!season?.id || !team?.id) return
+    let active = true
+    raceSessionService
+      .getSession({
+        seasonId: season.id,
+        teamId: team.id,
+        round: currentRound,
+        sessionType: 'race',
+      })
+      .then((sess) => {
+        if (!active) return
+        if (sess && sess.status !== 'not_started') {
+          setActiveSharedSession(sess)
+        } else {
+          setActiveSharedSession(null)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [season?.id, team?.id, currentRound])
   const gpInfo =
     F1_2026_CALENDAR[Math.min(currentRound - 1, F1_2026_CALENDAR.length - 1)] || F1_2026_CALENDAR[0]
 
@@ -146,6 +176,56 @@ export default function RaceSlimWrapper() {
 
   return (
     <div className="space-y-6">
+      {/* Banner de interop e sessão compartilhada ativa */}
+      {activeSharedSession && (
+        <div className="p-4 rounded-xl border border-red-200 bg-red-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="p-2 bg-red-600 text-white rounded-lg">
+              <Radio className="w-5 h-5 animate-pulse" />
+            </span>
+            <div>
+              <p className="font-extrabold text-sm text-red-950">
+                Sessão Compartilhada Ativa Detectada
+              </p>
+              <p className="text-xs text-red-800">
+                Esta corrida já possui uma sessão persistente em andamento (Volta{' '}
+                {activeSharedSession.current_lap}/{activeSharedSession.total_laps}, status:{' '}
+                {activeSharedSession.status}). Para evitar conflitos de save, continue na nova
+                interface.
+              </p>
+            </div>
+          </div>
+          <Button
+            asChild
+            className="bg-[#E10600] hover:bg-red-700 text-white font-bold text-xs h-8 px-4 shrink-0 shadow-sm"
+          >
+            <Link to="/corrida-ao-vivo">
+              Continuar na Nova Interface
+              <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Acesso rápido temporário para a nova página funcional */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 text-white rounded-lg text-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span className="font-bold">NOVA CORRIDA AO VIVO DISPONÍVEL:</span>
+          <span className="text-slate-300">
+            Layout claro com timing real, controles 1x/2x/4x e checkpoints persistentes.
+          </span>
+        </div>
+        <Button
+          asChild
+          size="sm"
+          variant="secondary"
+          className="h-7 text-xs font-bold bg-white text-slate-900 hover:bg-slate-100"
+        >
+          <Link to="/corrida-ao-vivo">Abrir Nova Versão</Link>
+        </Button>
+      </div>
+
       {/* 1. Header Canônico com Botão Visível "SIMULAR FIM DE SEMANA" */}
       <WeekendHeader
         currentRound={currentRound}

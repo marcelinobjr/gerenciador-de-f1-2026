@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T12:48:08.999Z",
+  "generatedAt": "2026-09-19T15:00:49.461Z",
   "collections": [
     {
       "name": "users",
@@ -2180,6 +2180,157 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX idx_season_transitions_key ON season_transitions (transition_key)"
+      ]
+    },
+    {
+      "name": "race_sessions",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "session_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "season_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "seasons"
+        },
+        {
+          "name": "team_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "teams"
+        },
+        {
+          "name": "user_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "season_year",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "session_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["race", "sprint"]
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "not_started",
+            "in_progress",
+            "paused",
+            "awaiting_decision",
+            "completed",
+            "recovering"
+          ]
+        },
+        {
+          "name": "revision",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "current_lap",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_laps",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sim_speed",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pause_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active_executor_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "executor_lease_until",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "lock_heartbeat_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "checkpoint_data",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "lap_history",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_race_sessions_key ON race_sessions (session_key)",
+        "CREATE INDEX idx_race_sessions_lookup ON race_sessions (season_id, round, session_type)"
       ]
     }
   ]

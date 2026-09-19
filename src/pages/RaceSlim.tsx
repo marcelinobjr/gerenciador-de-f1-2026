@@ -2800,6 +2800,8 @@ export default function RacePage() {
                 mechanicalIssues={mechanicalIssues}
                 teamOrderProposal={teamOrderProposal}
                 handleApplyTeamOrder={handleApplyTeamOrder}
+                isRacePaused={isRacePaused}
+                onTogglePause={() => setIsRacePaused((p) => !p)}
               />
 
               {/* 3. Resultados de treinos/quali (Sub-componente desacoplado) */}

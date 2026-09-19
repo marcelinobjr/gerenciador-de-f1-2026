@@ -69,7 +69,7 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
   }
 
   // 1. Dados Básicos do Piloto
-  const driverNumber = driver.driver_number || (slotNumber === 1 ? 16 : 55)
+  const driverNumber = (driver as any).driver_number || (slotNumber === 1 ? 16 : 55)
   const driverName = car.driverName || driver.name
   const position = car.position || 0
   const gapFront = car.gapToFront || '—'
@@ -125,9 +125,8 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
           {/* Foto/Pôster do Piloto */}
           <div className="w-11 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-xs relative">
             <DriverPoster
-              driverName={driverName}
-              teamId={driver.team_id || 'player'}
-              teamName={car.teamName}
+              name={driverName}
+              driverId={car.driverId}
               className="w-full h-full object-cover object-top"
             />
             <span className="absolute bottom-0 right-0 bg-slate-900/80 text-white font-mono text-[9px] font-black px-1 rounded-tl">
