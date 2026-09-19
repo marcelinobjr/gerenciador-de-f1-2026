@@ -84,9 +84,45 @@ export const LiveStandingsTable: React.FC<LiveStandingsTableProps> = ({
             <span className="font-mono text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
               V {currentLap}/{totalLaps}
             </span>
-            <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              {grid.filter((g) => !g.dnf).length} em pista
-            </span>
+            {(() => {
+              const totalEnrolled = grid.length
+              const dnfCount = grid.filter((g) => g.dnf).length
+              const inPitsCount = grid.filter((g) => !g.dnf && (g as any).inPits).length
+              const onTrackCount = totalEnrolled - dnfCount - inPitsCount
+
+              return (
+                <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                  <span
+                    className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200"
+                    title="Total de competidores oficialmente inscritos no evento"
+                  >
+                    {totalEnrolled} inscritos
+                  </span>
+                  <span
+                    className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
+                    title="Pilotos acelerando na pista"
+                  >
+                    {onTrackCount} em pista
+                  </span>
+                  {inPitsCount > 0 && (
+                    <span
+                      className="font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200"
+                      title="Pilotos no pit lane"
+                    >
+                      {inPitsCount} nos boxes
+                    </span>
+                  )}
+                  {dnfCount > 0 && (
+                    <span
+                      className="font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded border border-red-200"
+                      title="Abandonos na corrida"
+                    >
+                      {dnfCount} DNF
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </CardHeader>
 

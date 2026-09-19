@@ -41,6 +41,7 @@ import { PitWallRadioDialog } from '@/components/race/PitWallRadioDialog'
 import { RaceResultsTable } from '@/components/race/RaceResultsTable'
 import { advanceRound } from '@/pages/race/raceAdvance'
 import { calculatePitStopDuration, formatTireName } from '@/lib/f1-tire-system'
+import { buildCanonicalEventGrid } from '@/lib/canonical-race-grid-resolver'
 
 export default function LiveRacePage() {
   const navigate = useNavigate()
@@ -49,21 +50,43 @@ export default function LiveRacePage() {
   const [drivers, setDrivers] = useState<any[]>([])
   const [parts, setParts] = useState<any[]>([])
   const [sponsors, setSponsors] = useState<any[]>([])
+  const [isLoadingSession, setIsLoadingSession] = useState(true)
+  const [initError, setInitError] = useState<string | null>(null)
+  const [inconsistentSession, setInconsistentSession] = useState<{
+    sessionId: string
+    participantsCount: number
+    expectedParticipants: number
+    currentLap: number
+    status: string
+  } | null>(null)
+  const [retryCounter, setRetryCounter] = useState(0)
 
   useEffect(() => {
     if (!team?.id) return
+    let isMounted = true
+
     Promise.all([
       f1Service.getTeamDrivers(team.id),
       f1Service.getTeamParts(team.id),
       f1Service.getTeamSponsors(team.id),
     ])
       .then(([d, p, s]) => {
+        if (!isMounted) return
         setDrivers(d || [])
         setParts(p || [])
         setSponsors(s || [])
       })
-      .catch(console.error)
-  }, [team?.id])
+      .catch((err) => {
+        if (!isMounted) return
+        console.error('[LiveRacePage] Erro ao carregar dados do time:', err)
+        setInitError(err?.message || 'Falha ao carregar dados da equipe e pilotos.')
+        setIsLoadingSession(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [team?.id, retryCounter])
 
   const currentRound = season?.current_round || 1
   const totalRounds = season?.total_rounds || 24
@@ -132,22 +155,190 @@ export default function LiveRacePage() {
   const isSavingRef = useRef(false)
   const pendingSaveRef = useRef<boolean>(false)
 
-  // 1. CARREGAMENTO INICIAL OU RETOMADA DA SESSÃO REAL
+  // 1. GATE DE INICIALIZAÇÃO E RETOMADA DA SESSÃO CANÔNICA
   useEffect(() => {
     if (!season?.id || !team?.id || !user?.id) return
 
+    // GATE: Não inicializar nem criar sessão se os dados essenciais da equipe ainda não resolveram
+    if (drivers.length === 0) {
+      return
+    }
+
     let isMounted = true
+    setIsLoadingSession(true)
+    setInitError(null)
 
     async function initSession() {
       try {
+        // 1.1 Validar pré-requisitos canônicos da equipe do jogador
+        const titularDrivers = drivers.filter(
+          (d) => d.team_id === team!.id && (d.role === 'titular' || !d.role),
+        )
+
+        if (titularDrivers.length < 2) {
+          throw new Error(
+            `A equipe ${team!.name} possui apenas ${titularDrivers.length} piloto(s) titular(es) inscrito(s). São obrigatórios 2 titulares para o grid do evento.`,
+          )
+        }
+
+        // 1.2 Verificar se já existe uma sessão persistida no PocketBase
+        const existingSession = await raceSessionService.getSession({
+          seasonId: season!.id,
+          teamId: team!.id,
+          round: currentRound,
+          sessionType: 'race',
+        })
+
+        if (!isMounted) return
+
+        if (existingSession) {
+          // Validação de sessão salva: verificar se há consistência no grid
+          const savedGrid = existingSession.checkpoint_data?.grid || []
+
+          // DETECÇÃO DE SESSÃO INCONSISTENTE: sessão gravada com dados parciais (ex: fixture de 3 pilotos quando o evento exige 24)
+          if (
+            existingSession.status !== 'not_started' &&
+            savedGrid.length > 0 &&
+            savedGrid.length < 24
+          ) {
+            console.warn('[LiveRacePage] Sessão inconsistente detectada:', {
+              sessionId: existingSession.id,
+              participantsCount: savedGrid.length,
+              expected: 24,
+              currentLap: existingSession.current_lap,
+              status: existingSession.status,
+            })
+            setInconsistentSession({
+              sessionId: existingSession.id,
+              participantsCount: savedGrid.length,
+              expectedParticipants: 24,
+              currentLap: existingSession.current_lap,
+              status: existingSession.status,
+            })
+            setSessionRecord(existingSession)
+            setIsLoadingSession(false)
+            return
+          }
+
+          // Retomada válida de sessão persistida
+          setSessionRecord(existingSession)
+          setSessionStatus(existingSession.status)
+          setRevision(existingSession.revision || 1)
+          setTotalLaps(existingSession.total_laps || gpInfo.laps)
+
+          if (existingSession.status === 'completed') {
+            setIsRaceFinished(true)
+            if (savedGrid.length > 0) {
+              setGrid(savedGrid)
+              setRaceResults(savedGrid)
+            }
+            setIsLoadingSession(false)
+            return
+          }
+
+          if (existingSession.checkpoint_data && savedGrid.length >= 24) {
+            const cp = existingSession.checkpoint_data
+            setCurrentLap(existingSession.current_lap || cp.currentLap || 1)
+            setGrid(savedGrid)
+            setWeather(cp.weather || 'seco')
+            setLiveEvents(cp.liveEvents || [])
+            setPlayerCarTactics(cp.playerCarTactics || {})
+            setPlayerPaceOrders(cp.playerPaceOrders || {})
+            setMechanicalIssues(cp.mechanicalIssues || [])
+            setPenalties(cp.penalties || [])
+            if (cp.redFlagState) setRedFlagState(cp.redFlagState)
+            if (existingSession.lap_history) setLapHistory(existingSession.lap_history)
+            if (cp.pendingDecisions) setPendingDecisions(cp.pendingDecisions)
+            if (cp.resolvedDecisions) setResolvedDecisions(cp.resolvedDecisions)
+
+            const hasBlockingDecisions = (cp.pendingDecisions?.length || 0) > 0
+            setIsRacePaused(
+              existingSession.status === 'paused' ||
+                existingSession.status === 'awaiting_decision' ||
+                hasBlockingDecisions,
+            )
+            setPauseReason(
+              existingSession.pause_reason ||
+                (hasBlockingDecisions ? 'Decisão Obrigatória Pendente' : null),
+            )
+            setSimSpeed(existingSession.sim_speed || 1)
+
+            toast({
+              title: 'Sessão Retomada com Sucesso',
+              description: `Corrida da Rodada ${currentRound} carregada a partir da volta ${existingSession.current_lap}. Grid preservado (${savedGrid.length} carros).`,
+            })
+            setIsLoadingSession(false)
+            return
+          }
+        }
+
+        // 1.3 Se a sessão não existe ou não tem checkpoint, construir o grid canônico de 24 inscritos
+        const canonicalResult = buildCanonicalEventGrid({
+          team: team!,
+          playerDrivers: drivers,
+          currentRound,
+          totalLaps: gpInfo.laps,
+          gpName: gpInfo.name,
+          circuitName: gpInfo.circuit,
+          tireAbrasiveness: gpInfo.tireAbrasiveness || 6,
+        })
+
+        if (!canonicalResult.success || canonicalResult.grid.length !== 24) {
+          throw new Error(
+            canonicalResult.missingRequirements?.join('; ') ||
+              `Grid canônico incompleto: ${canonicalResult.grid.length} de 24 inscritos esperados.`,
+          )
+        }
+
+        const initialGrid = canonicalResult.grid
+
+        // Configurar táticas e ordens iniciais dos pilotos do jogador
+        const initialTactics: Record<string, LiveTacticalMode> = {}
+        const initialPace: Record<string, LivePaceOrder> = {}
+        titularDrivers.forEach((d) => {
+          initialTactics[d.id] = 'normal'
+          initialPace[d.id] = 'normal'
+        })
+        setPlayerCarTactics(initialTactics)
+        setPlayerPaceOrders(initialPace)
+        setGrid(initialGrid)
+
+        const initialEvents: LiveRaceEvent[] = [
+          {
+            id: `ev_init_${Date.now()}`,
+            lap: 1,
+            type: 'overtake',
+            message: `🟢 Grid oficial homologado montado para o ${gpInfo.name}. 24 pilotos alinhados.`,
+            timestamp: new Date().toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }),
+          },
+        ]
+        setLiveEvents(initialEvents)
+
+        // 1.4 Criar ou retomar sessão no PocketBase passando o grid canônico completo nos dados iniciais
         const { session, isResumed } = await raceSessionService.openOrResumeRaceSession({
-          seasonId: season.id,
-          teamId: team.id,
-          userId: user.id,
-          seasonYear: season.year || 2026,
+          seasonId: season!.id,
+          teamId: team!.id,
+          userId: user!.id,
+          seasonYear: season!.year || 2026,
           round: currentRound,
           sessionType: 'race',
           totalLaps: gpInfo.laps,
+          initialData: {
+            grid: initialGrid,
+            currentLap: 1,
+            totalLaps: gpInfo.laps,
+            weather: 'seco',
+            liveEvents: initialEvents,
+            playerCarTactics: initialTactics,
+            playerPaceOrders: initialPace,
+            mechanicalIssues: [],
+            penalties: [],
+            lastSavedAt: new Date().toISOString(),
+          },
         })
 
         if (!isMounted) return
@@ -156,51 +347,22 @@ export default function LiveRacePage() {
         setRevision(session.revision || 1)
         setTotalLaps(session.total_laps || gpInfo.laps)
 
-        if (session.status === 'completed') {
-          setIsRaceFinished(true)
-          if (session.checkpoint_data?.grid) {
-            setGrid(session.checkpoint_data.grid)
-            setRaceResults(session.checkpoint_data.grid)
-          }
-          return
+        // Se porventura já existia checkpoint válido na sessão retomada
+        if (
+          isResumed &&
+          session.checkpoint_data?.grid &&
+          session.checkpoint_data.grid.length >= 24
+        ) {
+          setGrid(session.checkpoint_data.grid)
+          setCurrentLap(session.current_lap || 1)
         }
 
-        if (isResumed && session.checkpoint_data) {
-          const cp = session.checkpoint_data
-          setCurrentLap(session.current_lap || cp.currentLap || 1)
-          setGrid(cp.grid || [])
-          setWeather(cp.weather || 'seco')
-          setLiveEvents(cp.liveEvents || [])
-          setPlayerCarTactics(cp.playerCarTactics || {})
-          setPlayerPaceOrders(cp.playerPaceOrders || {})
-          setMechanicalIssues(cp.mechanicalIssues || [])
-          setPenalties(cp.penalties || [])
-          if (cp.redFlagState) setRedFlagState(cp.redFlagState)
-          if (session.lap_history) setLapHistory(session.lap_history)
-          if (cp.pendingDecisions) setPendingDecisions(cp.pendingDecisions)
-          if (cp.resolvedDecisions) setResolvedDecisions(cp.resolvedDecisions)
-
-          const hasBlockingDecisions = (cp.pendingDecisions?.length || 0) > 0
-          setIsRacePaused(
-            session.status === 'paused' ||
-              session.status === 'awaiting_decision' ||
-              hasBlockingDecisions,
-          )
-          setPauseReason(
-            session.pause_reason || (hasBlockingDecisions ? 'Decisão Obrigatória Pendente' : null),
-          )
-          setSimSpeed(session.sim_speed || 1)
-
-          toast({
-            title: 'Sessão Retomada com Sucesso',
-            description: `Corrida da Rodada ${currentRound} carregada a partir da volta ${session.current_lap}.`,
-          })
-        } else {
-          // Inicializa Grid canônico a partir dos pilotos da carreira
-          buildInitialGrid()
-        }
+        setIsLoadingSession(false)
       } catch (err: any) {
-        console.error('[LiveRacePage] Erro ao abrir sessão:', err)
+        if (!isMounted) return
+        console.error('[LiveRacePage] Erro ao inicializar sessão:', err)
+        setInitError(err?.message || 'Falha ao acessar os dados da corrida.')
+        setIsLoadingSession(false)
         toast({
           variant: 'destructive',
           title: 'Erro ao inicializar sessão',
@@ -214,125 +376,7 @@ export default function LiveRacePage() {
     return () => {
       isMounted = false
     }
-  }, [season?.id, team?.id, user?.id, currentRound])
-
-  // Constrói grid canônico inicial
-  const buildInitialGrid = () => {
-    const playerDrivers = drivers.filter((d) => d.team_id === team?.id && d.role !== 'reserva')
-    const initialTactics: Record<string, LiveTacticalMode> = {}
-    const initialPace: Record<string, LivePaceOrder> = {}
-    playerDrivers.forEach((d) => {
-      initialTactics[d.id] = 'normal'
-      initialPace[d.id] = 'normal'
-    })
-    setPlayerCarTactics(initialTactics)
-    setPlayerPaceOrders(initialPace)
-
-    // Grid padrão
-    const initialGrid: SimDriverEntry[] = [
-      {
-        position: 1,
-        gridPosition: 1,
-        driverId: 'drv_nor',
-        driverName: 'L. Norris',
-        teamId: 'team_mclaren',
-        teamName: 'McLaren',
-        teamColor: '#FF8000',
-        score: 88,
-        points: 0,
-        fastestLap: false,
-        usedOvertake: false,
-        accumulatedTimeSec: 0,
-        tireCompound: 'medio',
-        pitLap: Math.round(gpInfo.laps * 0.45),
-        tireWear: 4,
-        pitStopsDone: 0,
-        gapToLeader: 'Líder',
-        gapToFront: '+0.000s',
-      },
-      {
-        position: 2,
-        gridPosition: 2,
-        driverId: 'drv_ver',
-        driverName: 'M. Verstappen',
-        teamId: 'team_redbull',
-        teamName: 'Red Bull Racing',
-        teamColor: '#3671C6',
-        score: 92,
-        points: 0,
-        fastestLap: false,
-        usedOvertake: false,
-        accumulatedTimeSec: 0,
-        tireCompound: 'medio',
-        pitLap: Math.round(gpInfo.laps * 0.45),
-        tireWear: 4,
-        pitStopsDone: 0,
-        gapToLeader: '+0.231s',
-        gapToFront: '+0.231s',
-      },
-      {
-        position: 3,
-        gridPosition: 3,
-        driverId: 'drv_lec',
-        driverName: 'C. Leclerc',
-        teamId: 'team_ferrari',
-        teamName: 'Ferrari',
-        teamColor: '#E80020',
-        score: 89,
-        points: 0,
-        fastestLap: false,
-        usedOvertake: false,
-        accumulatedTimeSec: 0,
-        tireCompound: 'duro',
-        pitLap: Math.round(gpInfo.laps * 0.55),
-        tireWear: 4,
-        pitStopsDone: 0,
-        gapToLeader: '+0.512s',
-        gapToFront: '+0.281s',
-      },
-      ...playerDrivers.map((pd, idx) => ({
-        position: 4 + idx,
-        gridPosition: 4 + idx,
-        driverId: pd.id,
-        driverName: pd.name,
-        teamId: team?.id || 'team_player',
-        teamName: team?.name || 'Escuderia Audi',
-        teamColor: team?.color || '#E10600',
-        isPlayer: true,
-        score: pd.speed || 80,
-        points: 0,
-        fastestLap: false,
-        usedOvertake: false,
-        accumulatedTimeSec: 0,
-        tireCompound: 'medio' as TireCompound,
-        pitLap: Math.round(gpInfo.laps * 0.45),
-        tireWear: 4,
-        driverFatigue: 0,
-        morale: pd.morale || 85,
-        physicalCondition: pd.physical_condition || 90,
-        pitStopsDone: 0,
-        hasWingDamage: false,
-        fuelRemaining: 100,
-        gapToLeader: `+${(0.8 + idx * 0.4).toFixed(3)}s`,
-        gapToFront: '+0.320s',
-      })),
-    ]
-
-    setGrid(initialGrid)
-    setLiveEvents([
-      {
-        id: `ev_init_${Date.now()}`,
-        lap: 1,
-        type: 'overtake',
-        message: `🟢 Grid oficial montado para o ${gpInfo.name}. Pilotos alinhados.`,
-        timestamp: new Date().toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }),
-      },
-    ])
-  }
+  }, [season?.id, team?.id, user?.id, currentRound, drivers, retryCounter])
 
   // 2. ADQUIRIR / RENOVAR TRAVA DE EXECUTOR ÚNICO
   const handleTryAcquireLock = async (): Promise<boolean> => {
@@ -778,6 +822,120 @@ export default function LiveRacePage() {
     } finally {
       setIsFinishing(false)
     }
+  }
+
+  // Telas de Gate: Carregando, Erro com Retry Seguro, ou Sessão Inconsistente Identificada
+  if (isLoadingSession) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] bg-white rounded-xl border border-slate-200 p-8 text-center space-y-4 shadow-sm">
+        <RefreshCw className="w-8 h-8 text-[#E10600] animate-spin" />
+        <div className="space-y-1">
+          <h2 className="text-base font-bold text-slate-900">Carregando participantes da sessão</h2>
+          <p className="text-xs text-slate-500 max-w-md">
+            Validando inscrições da temporada, pilotos titulares e configurações homologadas do grid
+            de 24 competidores...
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (inconsistentSession) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] bg-white rounded-xl border border-amber-300 p-8 text-center space-y-4 shadow-sm">
+        <AlertTriangle className="w-10 h-10 text-amber-600" />
+        <div className="space-y-1 max-w-lg">
+          <h2 className="text-lg font-black text-slate-900">
+            Sessão inconsistente — composição do grid precisa de revisão.
+          </h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            A sessão persistida <code>{inconsistentSession.sessionId}</code> possui apenas{' '}
+            <strong className="text-slate-900">
+              {inconsistentSession.participantsCount} participantes
+            </strong>{' '}
+            registrados, quando o regulamento do evento exige 24 inscritos homologados.
+          </p>
+          <div className="mt-3 p-3 bg-amber-50 rounded-lg text-[11px] font-mono text-amber-900 text-left border border-amber-200">
+            <p>
+              <strong>ID da Sessão:</strong> {inconsistentSession.sessionId}
+            </p>
+            <p>
+              <strong>Participantes salvos:</strong> {inconsistentSession.participantsCount}
+            </p>
+            <p>
+              <strong>Inscrições esperadas:</strong> {inconsistentSession.expectedParticipants}
+            </p>
+            <p>
+              <strong>Volta salva:</strong> {inconsistentSession.currentLap}
+            </p>
+            <p>
+              <strong>Status:</strong> {inconsistentSession.status}
+            </p>
+          </div>
+          <p className="text-[11px] text-slate-500 pt-2">
+            Nenhuma modificação arbitrária foi realizada no save existente para garantir a
+            integridade dos dados históricos.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="text-xs font-bold border-slate-300"
+          >
+            <Link to="/race">
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+              Voltar ao Painel
+            </Link>
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setRetryCounter((c) => c + 1)}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1" />
+            Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (initError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] bg-white rounded-xl border border-red-200 p-8 text-center space-y-4 shadow-sm">
+        <AlertTriangle className="w-10 h-10 text-red-600" />
+        <div className="space-y-1 max-w-md">
+          <h2 className="text-base font-black text-slate-900">Falha na Inicialização da Sessão</h2>
+          <p className="text-xs text-red-700 font-medium leading-relaxed">{initError}</p>
+          <p className="text-[11px] text-slate-500 pt-1">
+            Nenhuma sessão parcial ou fictícia foi gerada.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="text-xs font-bold border-slate-300"
+          >
+            <Link to="/race">
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+              Voltar ao Painel
+            </Link>
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setRetryCounter((c) => c + 1)}
+            className="bg-[#E10600] hover:bg-[#C10500] text-white font-bold text-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5 mr-1" />
+            Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
