@@ -1400,6 +1400,12 @@ export default function LiveRacePage() {
             ? (teammateCar.position || 0) < (selectedCar.position || 0)
             : false
 
+        // Recomendação pendente de pit stop para este piloto específico
+        const pendingRecForDriver = pendingDecisions.find(
+          (d) =>
+            d.driverId === pitWallRadioDriverId && d.type === 'pit_stop_informed_recommendation',
+        )
+
         return (
           <PitWallRadioDialog
             open={pitWallRadioOpen}
@@ -1410,21 +1416,73 @@ export default function LiveRacePage() {
               selectedCar?.driverName ||
               'Piloto'
             }
+            carNumber={(selectedCar as any)?.driverNumber ?? (selectedCar as any)?.carNumber}
+            currentPosition={selectedCar?.position}
+            car={selectedCar}
             teammateName={teammateDriver?.name || teammateCar?.driverName}
             teammateId={teammateCar?.driverId}
+            teammateCar={teammateCar}
             gapToTeammateSec={gapSec}
             isTeammateAhead={isTeammateAhead}
             currentTireCompound={selectedCar?.tireCompound}
             currentTireWear={selectedCar?.tireWear}
+            lapsOnTire={selectedCar?.lapsOnCurrentTire}
+            liveEvents={liveEvents}
+            pendingRecommendation={pendingRecForDriver}
+            onAcceptRecommendation={(decisionId) => {
+              handleResolvePendingDecision(decisionId, 'box_now')
+              setPitWallRadioOpen(false)
+            }}
+            onDeclineRecommendation={(decisionId) => {
+              handleResolvePendingDecision(decisionId, 'stay_out')
+              setPitWallRadioOpen(false)
+            }}
+            onReviewPitStop={(driverId) => {
+              setPitWallRadioOpen(false)
+              if (driverId) setForcePitSelectedDriverId(driverId)
+              setForcePitModalOpen(true)
+            }}
             currentLap={currentLap}
-            onSendTeamOrder={(orderType, reason) => {
+            onCallBoxThisLap={(driverId) => {
+              setPitWallRadioOpen(false)
+              if (driverId) setForcePitSelectedDriverId(driverId)
+              setForcePitModalOpen(true)
+            }}
+            onStayOut={(driverId) => {
               setLiveEvents((prev) => [
                 {
                   id: `ev_radio_${Date.now()}`,
                   lap: currentLap,
                   type: 'team_radio',
-                  message: `📻 PIT WALL: Ordem transmitida: ${orderType} (${reason})`,
+                  message: `📻 PIT WALL: Ordem de permanecer na pista para ${selectedCar?.driverName || 'o piloto'}.`,
                   timestamp: new Date().toLocaleTimeString('pt-BR'),
+                },
+                ...prev,
+              ])
+              setPitWallRadioOpen(false)
+              triggerSaveCheckpoint('Ordem de rádio transmitida (permanecer na pista)')
+            }}
+            onSendTeamOrder={(orderType, reason) => {
+              const dName =
+                drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
+                selectedCar?.driverName ||
+                'Piloto'
+
+              const nowStr = new Date().toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })
+
+              setLiveEvents((prev) => [
+                {
+                  id: `ev_radio_${Date.now()}`,
+                  lap: currentLap,
+                  type: 'team_radio',
+                  message: `📻 PIT WALL ➔ ${dName}: Ordem de equipe transmitida [${orderType} - ${reason}].`,
+                  driverName: dName,
+                  isPlayer: true,
+                  timestamp: nowStr,
                 },
                 ...prev,
               ])

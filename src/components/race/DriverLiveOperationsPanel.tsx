@@ -350,7 +350,10 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
         {/* SEÇÃO 4: CONTROLE DE RITMO & TÁTICA DO PILOTO */}
         <div className="space-y-2 pt-1">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
-            <span>Ordem de Ritmo:</span>
+            <span title="Ritmo de pilotagem na pista (poupar, padrão ou empurrar)">
+              Ordem de Ritmo{' '}
+              <span className="text-[9px] text-slate-400 font-normal">(pneu/tempo)</span>:
+            </span>
             <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5">
               <button
                 type="button"
@@ -361,7 +364,7 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Segurar
+                Poupar
               </button>
               <button
                 type="button"
@@ -383,13 +386,16 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Empurrar
+                Aumentar
               </button>
             </div>
           </div>
 
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
-            <span>Modo Tático:</span>
+            <span title="Modo do trem de força e consumo de combustível (ataque, padrão ou economia)">
+              Modo Tático{' '}
+              <span className="text-[9px] text-slate-400 font-normal">(PU/combustível)</span>:
+            </span>
             <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5">
               <button
                 type="button"

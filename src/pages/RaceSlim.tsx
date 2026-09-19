@@ -3173,15 +3173,42 @@ export default function RacePage() {
               activeCar?.driverName ||
               'Piloto'
             }
+            currentLap={liveRaceState?.currentLap || 1}
+            carNumber={(activeCar as any)?.driverNumber ?? (activeCar as any)?.carNumber}
+            currentPosition={activeCar?.position}
+            car={activeCar as any}
             teammateName={teammateDriver?.name || teammateCar?.driverName}
             teammateId={teammateCar?.driverId}
+            teammateCar={teammateCar as any}
             gapToTeammateSec={gapSec}
             isTeammateAhead={isTeammateAhead}
             currentTireCompound={activeCar?.tireCompound}
             currentTireWear={activeCar?.tireWear}
-            currentLap={liveRaceState?.currentLap || 1}
+            lapsOnTire={activeCar?.lapsOnCurrentTire}
+            liveEvents={liveEvents}
             pendingRequest={pendingDriverRequest}
             activeFollowUp={activeFollowUpState}
+            onCallBoxThisLap={() => {
+              setPitWallRadioOpen(false)
+              handleOpenForcePitModal()
+            }}
+            onStayOut={() => {
+              setPitWallRadioOpen(false)
+              setLiveEvents((prev) => [
+                {
+                  id: `ev_radio_${Date.now()}`,
+                  lap: liveRaceState?.currentLap || 1,
+                  type: 'team_radio',
+                  message: `📻 PIT WALL: Ordem de permanecer na pista para ${activeCar?.driverName || 'o piloto'}.`,
+                  timestamp: new Date().toLocaleTimeString('pt-BR'),
+                },
+                ...prev,
+              ])
+            }}
+            onReviewPitStop={() => {
+              setPitWallRadioOpen(false)
+              handleOpenForcePitModal()
+            }}
             onSendTeamOrder={(orderType, reason) => {
               const dName =
                 drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
