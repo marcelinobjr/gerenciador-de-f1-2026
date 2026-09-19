@@ -167,6 +167,9 @@ export interface PracticeSessionRecordState {
   feedbacks: StintFeedbackRecord[]
   knowledge: SetupKnowledgeModel
   unreadFeedbackCarIds?: Array<'car1' | 'car2'>
+  // Etapa 4C2: Conhecimento Progressivo de Pneus e Comportamento dos Compostos
+  tyreObservations?: import('./practice-tyres').TyreStintObservation[]
+  tyreKnowledge?: import('./practice-tyres').WeekendTyreKnowledge
   activeExecutorId?: string
   executorLeaseUntil?: string
   lockHeartbeatAt?: string

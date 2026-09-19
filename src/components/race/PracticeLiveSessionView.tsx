@@ -27,6 +27,7 @@ import { PracticeSessionRunner, type PracticeTickContext } from '@/services/cano
 import { PracticeLeaderboardTable } from '@/components/race/PracticeLeaderboardTable'
 import { PracticeCarCockpitCard } from '@/components/race/PracticeCarCockpitCard'
 import { PracticeRadioFeed } from '@/components/race/PracticeRadioFeed'
+import { PracticeTyreKnowledgeCard } from '@/components/race/PracticeTyreKnowledgeCard'
 import { useToast } from '@/hooks/use-toast'
 import type { TeamModel, DriverModel } from '@/types/f1'
 import type { TrackWeatherState } from '@/lib/f1-tire-system'
@@ -456,8 +457,17 @@ export const PracticeLiveSessionView: React.FC<PracticeLiveSessionViewProps> = (
           />
         </div>
 
-        {/* Lado Direito (xl:col-span-5): Painéis Carro 1 e Carro 2 */}
+        {/* Lado Direito (xl:col-span-5): Painéis Carro 1 e Carro 2 + Conhecimento de Pneus */}
         <div className="xl:col-span-5 space-y-4">
+          {/* Card Compacto: Conhecimento de Pneus & Compostos (Etapa 4C2) */}
+          <PracticeTyreKnowledgeCard
+            tyreKnowledge={sessionState.tyreKnowledge}
+            latestObservation={
+              sessionState.tyreObservations && sessionState.tyreObservations.length > 0
+                ? sessionState.tyreObservations[sessionState.tyreObservations.length - 1]
+                : undefined
+            }
+          />
           {/* Painel do Carro 1 */}
           <PracticeCarCockpitCard
             car={sessionState.cars.car1}

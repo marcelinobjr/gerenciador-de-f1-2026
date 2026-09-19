@@ -20,6 +20,11 @@ import {
   updateSetupKnowledge,
   createInitialSetupKnowledge,
 } from '@/services/canonicalPracticeFeedbackService'
+import {
+  evaluateTyreStint,
+  updateTyreKnowledge,
+  createInitialWeekendTyreKnowledge,
+} from '@/services/canonicalPracticeTyreService'
 
 export interface PracticeTickContext {
   round: number
@@ -414,17 +419,19 @@ export class PracticeSessionRunner {
               (f) => f.stintId === stintToClose.id || f.id === feedbackId,
             )
 
-            if (!existingFeedback) {
-              const driverObj = context.drivers.find((d) => d.id === car.driverId) || {
-                id: car.driverId,
-                name: car.driverName,
-                speed: 80,
-                consistency: 80,
-                technical_feedback: 70,
-              }
+            const driverObj = context.drivers.find((d) => d.id === car.driverId) || {
+              id: car.driverId,
+              name: car.driverName,
+              speed: 80,
+              consistency: 80,
+              technical_feedback: 70,
+            }
 
+            const practiceSessionId = `${nextState.careerId}_${nextState.seasonId}_${nextState.round}_${nextState.sessionType}`
+
+            if (!existingFeedback) {
               const newFeedback = evaluateStintFeedback({
-                sessionId: `${nextState.careerId}_${nextState.seasonId}_${nextState.round}_${nextState.sessionType}`,
+                sessionId: practiceSessionId,
                 stint: stintToClose,
                 driver: driverObj,
                 round: context.round,
@@ -442,6 +449,32 @@ export class PracticeSessionRunner {
               if (!nextState.unreadFeedbackCarIds.includes(carId)) {
                 nextState.unreadFeedbackCarIds.push(carId)
               }
+            }
+
+            // Etapa 4C2: Observação de Pneu e Conhecimento Progressivo da Equipe
+            if (!nextState.tyreObservations) {
+              nextState.tyreObservations = []
+            }
+            if (!nextState.tyreKnowledge) {
+              nextState.tyreKnowledge = createInitialWeekendTyreKnowledge()
+            }
+
+            const tyreObsId = `tyre_obs_${practiceSessionId}_${stintToClose.id}`
+            const existingTyreObs = nextState.tyreObservations.find(
+              (o) => o.stintId === stintToClose.id || o.id === tyreObsId,
+            )
+
+            if (!existingTyreObs) {
+              const newTyreObs = evaluateTyreStint({
+                sessionId: practiceSessionId,
+                stint: stintToClose,
+                driver: driverObj,
+                weather: context.weather,
+                currentKnowledge: nextState.tyreKnowledge,
+              })
+
+              nextState.tyreObservations.push(newTyreObs)
+              nextState.tyreKnowledge = updateTyreKnowledge(nextState.tyreKnowledge, newTyreObs)
             }
           }
 

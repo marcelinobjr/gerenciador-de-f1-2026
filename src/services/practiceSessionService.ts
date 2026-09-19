@@ -17,6 +17,8 @@ import { carTechnicalService } from '@/services/carTechnicalService'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { createInitialSetupKnowledge } from '@/services/canonicalPracticeFeedbackService'
+import { createInitialWeekendTyreKnowledge } from '@/services/canonicalPracticeTyreService'
+import type { WeekendTyreKnowledge, TyreStintObservation } from '@/types/practice-tyres'
 
 const LEASE_DURATION_MS = 25000 // 25s de lease para exclusividade de executor
 
@@ -80,6 +82,15 @@ export class PracticeSessionService {
     }
 
     // 3. Não existe sessão em andamento: inicializar nova a partir da preparação da 4A
+    // Etapa 4C2: Continuidade no mesmo fim de semana (TL1 -> TL2 -> TL3)
+    // Se for TL2 ou TL3, herdamos o conhecimento de pneus e setup já consolidados de sessões anteriores
+    const inheritedKnowledge = this.resolveInheritedWeekendKnowledge(
+      careerId,
+      seasonId,
+      round,
+      sessionType,
+    )
+
     const freshSession = this.createInitialSessionState({
       careerId,
       seasonId,
@@ -91,6 +102,9 @@ export class PracticeSessionService {
       teamColor: params.teamColor,
       teamChassisRating: params.teamChassisRating,
       engineSupplier: params.engineSupplier,
+      initialTyreKnowledge: inheritedKnowledge.tyreKnowledge,
+      initialTyreObservations: inheritedKnowledge.tyreObservations,
+      initialSetupKnowledge: inheritedKnowledge.setupKnowledge,
     })
 
     await this.saveSessionState(freshSession)
@@ -111,6 +125,9 @@ export class PracticeSessionService {
     teamColor?: string
     teamChassisRating?: number
     engineSupplier?: string
+    initialTyreKnowledge?: WeekendTyreKnowledge
+    initialTyreObservations?: TyreStintObservation[]
+    initialSetupKnowledge?: import('@/types/practice-session').SetupKnowledgeModel
   }): PracticeSessionRecordState {
     const { careerId, seasonId, round, sessionType, preparation } = params
     const pCar1 = preparation.cars[0]
@@ -195,8 +212,12 @@ export class PracticeSessionService {
       leaderboard: initialLeaderboard,
       radioFeed: initialFeed,
       feedbacks: [],
-      knowledge: createInitialSetupKnowledge(),
+      knowledge: params.initialSetupKnowledge || createInitialSetupKnowledge(),
       unreadFeedbackCarIds: [],
+      tyreObservations: params.initialTyreObservations ? [...params.initialTyreObservations] : [],
+      tyreKnowledge: params.initialTyreKnowledge
+        ? JSON.parse(JSON.stringify(params.initialTyreKnowledge))
+        : createInitialWeekendTyreKnowledge(),
       revision: 1,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -456,7 +477,7 @@ export class PracticeSessionService {
     }
   }
 
-  private readFromLocalCache(
+  readFromLocalCache(
     careerId: string,
     seasonId: string,
     round: number,
@@ -471,6 +492,43 @@ export class PracticeSessionService {
     } catch {
       return null
     }
+  }
+
+  /**
+   * Resolve o conhecimento de pneus e setup herdado de sessões anteriores no mesmo fim de semana.
+   * Regra: TP2 herda de TP1; TP3 herda de TP2 (ou TP1).
+   * Idempotente, não transfere conhecimento entre GPs diferentes.
+   */
+  resolveInheritedWeekendKnowledge(
+    careerId: string,
+    seasonId: string,
+    round: number,
+    sessionType: PracticeSessionType,
+  ): {
+    tyreKnowledge?: WeekendTyreKnowledge
+    tyreObservations?: TyreStintObservation[]
+    setupKnowledge?: import('@/types/practice-session').SetupKnowledgeModel
+  } {
+    const sessionOrder: PracticeSessionType[] = ['tp1', 'tp2', 'tp3']
+    const currentIndex = sessionOrder.indexOf(sessionType)
+    if (currentIndex <= 0) {
+      return {}
+    }
+
+    // Busca nas sessões anteriores em ordem reversa (ex: para tp3, olha tp2 depois tp1)
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const prevType = sessionOrder[i]
+      const prevSession = this.readFromLocalCache(careerId, seasonId, round, prevType)
+      if (prevSession && prevSession.tyreKnowledge) {
+        return {
+          tyreKnowledge: prevSession.tyreKnowledge,
+          tyreObservations: prevSession.tyreObservations,
+          setupKnowledge: prevSession.knowledge,
+        }
+      }
+    }
+
+    return {}
   }
 }
 
