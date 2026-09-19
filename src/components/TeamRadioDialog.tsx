@@ -40,7 +40,7 @@ export function TeamRadioDialog({
   queueTotal = 1,
   availableTireSets = [],
   currentTireCompound = 'medio',
-  currentTireWear = 50,
+  currentTireWear,
   onRespond,
 }: TeamRadioDialogProps) {
   const [selectedSetId, setSelectedSetId] = useState<string>('')
@@ -159,7 +159,8 @@ export function TeamRadioDialog({
                           : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
                       }`}
                     >
-                      {formatTireName(currentTireCompound)} ({currentTireWear}% desg.)
+                      {formatTireName(currentTireCompound)} (
+                      {currentTireWear !== undefined ? `${currentTireWear}% desg.` : '—'})
                     </Badge>
                   </div>
                 </div>

@@ -363,6 +363,98 @@ export function formatTireName(compound?: TireCompound): string {
   }
 }
 
+/**
+ * Estado canônico compartilhado para visualização de pneus na UI (DriverLiveOperationsPanel, PitWallRadioDialog, etc.)
+ */
+export interface CarTireDisplayState {
+  hasData: boolean
+  compound: TireCompound | null
+  compoundName: string
+  compoundShort: string
+  tireWearPct: number | null
+  tireWearText: string
+  tireConditionPct: number | null
+  tireConditionText: string
+  lapsOnTire: number | null
+  lapsOnTireText: string
+  isInCliff: boolean
+  isHighDegradation: boolean
+}
+
+/**
+ * Seletor canônico de estado de pneus de um carro para exibição em painéis e diálogos de rádio.
+ * Desgaste 0% é válido (mostra 0% desg. / 100% condição).
+ * Dado ausente (ou carro inexistente) mostra "—" e valores nulos.
+ * Nunca usa defaults arbitrários como 50%.
+ */
+export function selectCarTireDisplayState(
+  car?: {
+    tireCompound?: TireCompound
+    tireWear?: number
+    lapsOnCurrentTire?: number
+    wearMultiplier?: number
+    cliffStatus?: { isCliffReached?: number }
+  } | null,
+): CarTireDisplayState {
+  if (!car) {
+    return {
+      hasData: false,
+      compound: null,
+      compoundName: '—',
+      compoundShort: '—',
+      tireWearPct: null,
+      tireWearText: '—',
+      tireConditionPct: null,
+      tireConditionText: '—',
+      lapsOnTire: null,
+      lapsOnTireText: '—',
+      isInCliff: false,
+      isHighDegradation: false,
+    }
+  }
+
+  const compound = car.tireCompound || null
+  const compoundSpec = compound ? TIRE_SPECS[compound] : undefined
+  const compoundName = compoundSpec ? compoundSpec.name : compound ? compound.toUpperCase() : '—'
+  const compoundShort = compound ? compound.toUpperCase() : '—'
+
+  const hasWear = typeof car.tireWear === 'number' && !Number.isNaN(car.tireWear)
+  const tireWearPct = hasWear ? Math.min(100, Math.max(0, Math.round(car.tireWear!))) : null
+  const tireWearText = tireWearPct !== null ? `${tireWearPct}%` : '—'
+
+  const tireConditionPct = tireWearPct !== null ? Math.max(0, 100 - tireWearPct) : null
+  const tireConditionText = tireConditionPct !== null ? `${tireConditionPct}%` : '—'
+
+  const hasLaps = typeof car.lapsOnCurrentTire === 'number' && !Number.isNaN(car.lapsOnCurrentTire)
+  const lapsOnTire = hasLaps ? Math.max(0, Math.round(car.lapsOnCurrentTire!)) : null
+  const lapsOnTireText = lapsOnTire !== null ? `${lapsOnTire}v` : '—'
+
+  const cliffInfo =
+    compound && lapsOnTire !== null
+      ? isTireInCliff(compound, lapsOnTire, car.wearMultiplier || 1.0, 6)
+      : { inCliff: false }
+  const isInCliff = Boolean(
+    cliffInfo.inCliff || (car.cliffStatus && (car.cliffStatus.isCliffReached || 0) > 0),
+  )
+
+  const isHighDegradation = tireWearPct !== null && tireWearPct > 70
+
+  return {
+    hasData: Boolean(compound || tireWearPct !== null || lapsOnTire !== null),
+    compound,
+    compoundName,
+    compoundShort,
+    tireWearPct,
+    tireWearText,
+    tireConditionPct,
+    tireConditionText,
+    lapsOnTire,
+    lapsOnTireText,
+    isInCliff,
+    isHighDegradation,
+  }
+}
+
 export interface TireCliffStatus {
   isCliffReached: number // 0 = dentro da janela, > 0 = voltas além do cliff
   isCriticalWindow: boolean // Pneu perto ou após o cliff

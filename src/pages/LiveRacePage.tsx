@@ -1384,29 +1384,58 @@ export default function LiveRacePage() {
       />
 
       {/* 5. MODAL DE RÁDIO COM PILOTO */}
-      <PitWallRadioDialog
-        open={pitWallRadioOpen}
-        onClose={() => setPitWallRadioOpen(false)}
-        driverId={pitWallRadioDriverId}
-        driverName={drivers.find((d) => d.id === pitWallRadioDriverId)?.name || 'Piloto'}
-        currentLap={currentLap}
-        onSendTeamOrder={(orderType, reason) => {
-          setLiveEvents((prev) => [
-            {
-              id: `ev_radio_${Date.now()}`,
-              lap: currentLap,
-              type: 'team_radio',
-              message: `📻 PIT WALL: Ordem transmitida: ${orderType} (${reason})`,
-              timestamp: new Date().toLocaleTimeString('pt-BR'),
-            },
-            ...prev,
-          ])
-          setPitWallRadioOpen(false)
-          triggerSaveCheckpoint('Ordem de rádio transmitida')
-        }}
-        onRespondToRequest={() => setPitWallRadioOpen(false)}
-        onSendFollowUp={() => setPitWallRadioOpen(false)}
-      />
+      {(() => {
+        const selectedCar = grid.find((g) => g.driverId === pitWallRadioDriverId)
+        const teammateCar = grid.find((g) => g.isPlayer && g.driverId !== pitWallRadioDriverId)
+        const teammateDriver = teammateCar
+          ? drivers.find((d) => d.id === teammateCar.driverId)
+          : undefined
+
+        const gapSec =
+          selectedCar && teammateCar
+            ? Math.abs((selectedCar.position || 0) - (teammateCar.position || 0)) * 1.5
+            : undefined
+        const isTeammateAhead =
+          selectedCar && teammateCar
+            ? (teammateCar.position || 0) < (selectedCar.position || 0)
+            : false
+
+        return (
+          <PitWallRadioDialog
+            open={pitWallRadioOpen}
+            onClose={() => setPitWallRadioOpen(false)}
+            driverId={pitWallRadioDriverId}
+            driverName={
+              drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
+              selectedCar?.driverName ||
+              'Piloto'
+            }
+            teammateName={teammateDriver?.name || teammateCar?.driverName}
+            teammateId={teammateCar?.driverId}
+            gapToTeammateSec={gapSec}
+            isTeammateAhead={isTeammateAhead}
+            currentTireCompound={selectedCar?.tireCompound}
+            currentTireWear={selectedCar?.tireWear}
+            currentLap={currentLap}
+            onSendTeamOrder={(orderType, reason) => {
+              setLiveEvents((prev) => [
+                {
+                  id: `ev_radio_${Date.now()}`,
+                  lap: currentLap,
+                  type: 'team_radio',
+                  message: `📻 PIT WALL: Ordem transmitida: ${orderType} (${reason})`,
+                  timestamp: new Date().toLocaleTimeString('pt-BR'),
+                },
+                ...prev,
+              ])
+              setPitWallRadioOpen(false)
+              triggerSaveCheckpoint('Ordem de rádio transmitida')
+            }}
+            onRespondToRequest={() => setPitWallRadioOpen(false)}
+            onSendFollowUp={() => setPitWallRadioOpen(false)}
+          />
+        )
+      })()}
     </div>
   )
 }

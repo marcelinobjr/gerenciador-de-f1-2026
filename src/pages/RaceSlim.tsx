@@ -3065,8 +3065,8 @@ export default function RacePage() {
             queueCount={radioQueue.length}
             queueTotal={radioQueueTotal}
             availableTireSets={activeDriverTireSets}
-            currentTireCompound={activeRadioDriver?.tireCompound || 'medio'}
-            currentTireWear={activeRadioDriver?.tireWear || 50}
+            currentTireCompound={activeRadioDriver?.tireCompound}
+            currentTireWear={activeRadioDriver?.tireWear}
             onRespond={(
               type: BossResponseType,
               options?: { tireSetId?: string; chosenCompound?: TireCompound },
@@ -3148,53 +3148,77 @@ export default function RacePage() {
       })()}
 
       {/* 8. Modal de Diálogo de Pit Wall Radio (Iniciado pelo Chefe) */}
-      <PitWallRadioDialog
-        open={pitWallRadioOpen}
-        onClose={() => setPitWallRadioOpen(false)}
-        driverId={pitWallRadioDriverId}
-        driverName={
-          drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
-          liveRaceState?.grid?.find((g) => g.driverId === pitWallRadioDriverId)?.driverName ||
-          'Piloto'
-        }
-        currentLap={liveRaceState?.currentLap || 1}
-        pendingRequest={pendingDriverRequest}
-        activeFollowUp={activeFollowUpState}
-        onSendTeamOrder={(orderType, reason) => {
-          const dName =
-            drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
-            liveRaceState?.grid?.find((g) => g.driverId === pitWallRadioDriverId)?.driverName ||
-            'Piloto'
+      {(() => {
+        const activeCar = liveRaceState?.grid?.find((g) => g.driverId === pitWallRadioDriverId)
+        const teammateCar = liveRaceState?.grid?.find(
+          (g) => g.isPlayer && g.driverId !== pitWallRadioDriverId,
+        )
+        const teammateDriver = teammateCar
+          ? drivers.find((d) => d.id === teammateCar.driverId)
+          : undefined
+        const gapSec =
+          activeCar && teammateCar
+            ? Math.abs((activeCar.position || 0) - (teammateCar.position || 0)) * 1.5
+            : undefined
+        const isTeammateAhead =
+          activeCar && teammateCar ? (teammateCar.position || 0) < (activeCar.position || 0) : false
 
-          const nowStr = new Date().toLocaleTimeString('pt-BR', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          })
-          setLiveEvents((prev) => [
-            {
-              id: `ev_boss_inst_${Date.now()}_${pitWallRadioDriverId}`,
-              lap: liveRaceState?.currentLap || 1,
-              type: 'team_radio',
-              message: `📻 PIT WALL ➔ ${dName}: Ordem de equipe [${orderType} - ${reason}].`,
-              driverName: dName,
-              teamColor: team?.color || '#E10600',
-              isPlayer: true,
-              timestamp: nowStr,
-            },
-            ...prev,
-          ])
-          setPitWallRadioOpen(false)
-        }}
-        onRespondToRequest={() => {
-          setPendingDriverRequest(null)
-          setPitWallRadioOpen(false)
-        }}
-        onSendFollowUp={() => {
-          setActiveFollowUpState(null)
-          setPitWallRadioOpen(false)
-        }}
-      />
+        return (
+          <PitWallRadioDialog
+            open={pitWallRadioOpen}
+            onClose={() => setPitWallRadioOpen(false)}
+            driverId={pitWallRadioDriverId}
+            driverName={
+              drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
+              activeCar?.driverName ||
+              'Piloto'
+            }
+            teammateName={teammateDriver?.name || teammateCar?.driverName}
+            teammateId={teammateCar?.driverId}
+            gapToTeammateSec={gapSec}
+            isTeammateAhead={isTeammateAhead}
+            currentTireCompound={activeCar?.tireCompound}
+            currentTireWear={activeCar?.tireWear}
+            currentLap={liveRaceState?.currentLap || 1}
+            pendingRequest={pendingDriverRequest}
+            activeFollowUp={activeFollowUpState}
+            onSendTeamOrder={(orderType, reason) => {
+              const dName =
+                drivers.find((d) => d.id === pitWallRadioDriverId)?.name ||
+                liveRaceState?.grid?.find((g) => g.driverId === pitWallRadioDriverId)?.driverName ||
+                'Piloto'
+
+              const nowStr = new Date().toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })
+              setLiveEvents((prev) => [
+                {
+                  id: `ev_boss_inst_${Date.now()}_${pitWallRadioDriverId}`,
+                  lap: liveRaceState?.currentLap || 1,
+                  type: 'team_radio',
+                  message: `📻 PIT WALL ➔ ${dName}: Ordem de equipe [${orderType} - ${reason}].`,
+                  driverName: dName,
+                  teamColor: team?.color || '#E10600',
+                  isPlayer: true,
+                  timestamp: nowStr,
+                },
+                ...prev,
+              ])
+              setPitWallRadioOpen(false)
+            }}
+            onRespondToRequest={() => {
+              setPendingDriverRequest(null)
+              setPitWallRadioOpen(false)
+            }}
+            onSendFollowUp={() => {
+              setActiveFollowUpState(null)
+              setPitWallRadioOpen(false)
+            }}
+          />
+        )
+      })()}
 
       {/* 9. Modal Canônico de Simulação Rápida do Fim de Semana (8A) */}
       <SimulateWeekendModal

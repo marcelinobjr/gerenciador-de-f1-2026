@@ -17,7 +17,7 @@ import {
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { DriverModel } from '@/types/f1'
 import { DriverPoster } from '@/components/DriverPoster'
-import { TIRE_SPECS, isTireInCliff } from '@/lib/f1-tire-system'
+import { TIRE_SPECS, selectCarTireDisplayState } from '@/lib/f1-tire-system'
 import type { LiveTacticalMode } from '@/pages/race/RaceOperationsCockpit'
 import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
 
@@ -76,16 +76,14 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
   const lastLap =
     car.lastLapTime || (car.lastLapTimeSec ? `${car.lastLapTimeSec.toFixed(3)}s` : '—')
 
-  // 2. Pneus
-  const compound = car.tireCompound || 'medio'
+  // 2. Pneus (Consumo canônico do selector unificado)
+  const tireDisplay = selectCarTireDisplayState(car)
+  const compound = tireDisplay.compound || 'medio'
   const compSpec = TIRE_SPECS[compound] || TIRE_SPECS.medio
-  const lapsOnTire = car.lapsOnCurrentTire || 0
-  const tireWearPct = Math.min(100, Math.max(0, car.tireWear || 5)) // Desgaste 0 -> 100
-  const tireConditionRemainingPct = Math.max(0, 100 - tireWearPct) // Condição restante 100 -> 0
-
-  const cliffInfo = isTireInCliff(compound, lapsOnTire, car.wearMultiplier || 1.0, 6)
-  const isInCliff =
-    cliffInfo.inCliff || Boolean(car.cliffStatus && car.cliffStatus.isCliffReached > 0)
+  const lapsOnTire = tireDisplay.lapsOnTire ?? 0
+  const tireWearPct = tireDisplay.tireWearPct ?? 0
+  const tireConditionRemainingPct = tireDisplay.tireConditionPct ?? 100
+  const isInCliff = tireDisplay.isInCliff
 
   // 3. Combustível
   const fuelPct = Math.max(0, car.fuelRemaining !== undefined ? Math.round(car.fuelRemaining) : 100)
