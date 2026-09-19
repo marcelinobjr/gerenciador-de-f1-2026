@@ -2,7 +2,6 @@ import React from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Wrench,
   Radio,
@@ -81,7 +80,10 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
     )
   }
 
-  // 1. TOPO: Identificação e Tempos do Piloto
+  // =========================================================================
+  // ÁREA A. CABEÇALHO DO PILOTO
+  // Foto real, Carro 1/Carro 2, nome, número, bandeira, posição, gaps, última/melhor volta
+  // =========================================================================
   const driverNumber = (driver as any).driver_number || (slotNumber === 1 ? 16 : 55)
   const driverName = car.driverName || driver.name
   const countryFlag = getCountryFlag(driver.nationality || (car as any).nationality)
@@ -98,7 +100,9 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
         ? lastLap
         : '—')
 
-  // 2. PNEUS: Consumo canônico sem recalcular e sem fallback 50%
+  // =========================================================================
+  // ÁREA B. BLOCO PNEUS (selectCarTireDisplayState)
+  // =========================================================================
   const tireDisplay = selectCarTireDisplayState(car)
   const compound = tireDisplay.compound
   const compSpec = compound ? TIRE_SPECS[compound] || TIRE_SPECS.medio : null
@@ -126,7 +130,10 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
     remainingWindowText = `${remMin}–${remMax} voltas`
   }
 
-  // 3. COMBUSTÍVEL: Sem nova física, projeção baseada nos dados existentes
+  // =========================================================================
+  // ÁREA B. BLOCO COMBUSTÍVEL
+  // kg restantes, margem projetada, projeção de voltas restante, modo atual
+  // =========================================================================
   const fuelPct =
     car.fuelRemaining !== undefined && car.fuelRemaining !== null
       ? Math.max(0, Math.round(car.fuelRemaining))
@@ -154,7 +161,10 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
   const tacticalModeLabel =
     tacticalMode === 'attack' ? 'Ataque' : tacticalMode === 'save_fuel' ? 'Eco' : 'Padrão'
 
-  // 4. CONDIÇÃO DO CARRO: Integridade geral, danos, falhas, estado resumido PU
+  // =========================================================================
+  // ÁREA C. CONDIÇÃO DO CARRO
+  // Integridade geral, problemas detectados, danos, falhas, status resumido da PU
+  // =========================================================================
   const driverIssues = mechanicalIssues.filter((iss) => iss.driverId === car.driverId && !iss.isDnf)
   const hasWingDmg = Boolean(car.hasWingDamage)
   const brokenParts = partsCondition.filter((p) => p.condition < 40)
@@ -166,8 +176,13 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
     puStatus?.wear ?? (puStatus?.leastWear !== undefined ? 100 - puStatus.leastWear : null)
 
   const hasCarProblems = hasWingDmg || driverIssues.length > 0 || brokenParts.length > 0
+  const hasCarData =
+    avgPartCondition !== null || puWear !== null || mechanicalIssues.length > 0 || hasWingDmg
 
-  // 5. ESTRATÉGIA: Próxima parada, composto previsto, recomendação de engenharia
+  // =========================================================================
+  // ÁREA C. ESTRATÉGIA
+  // Plano atual, janela prevista, composto previsto, confiança, recomendação pendente
+  // =========================================================================
   const driverStrategy = informedPackage?.strategyRecommendations?.[car.driverId] || null
   const nextPitWindow = driverStrategy?.suggestedPitWindows?.[0] || null
   const plannedPitLap = car.pitLap || nextPitWindow?.windowLapMin || null
@@ -181,15 +196,18 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
   const recJustification = (pendingRecPayload.justification ||
     pendingRecommendation?.description) as string | undefined
 
+  const hasStrategyContent = Boolean(
+    headlineStrategy || plannedPitLap || plannedCompound || pendingRecommendation,
+  )
+
   return (
     <Card className="bg-white border border-slate-200/90 shadow-xs rounded-xl overflow-hidden flex flex-col">
       {/* =========================================================================
-          BLOCO 1 — TOPO DO COCKPIT OPERACIONAL
-          Foto real, Carro 1/2, número, nome, bandeira, posição, gaps, tempos
+          ÁREA A. CABEÇALHO DO PILOTO
+          Foto real, Carro 1/Carro 2, nome, número, bandeira, posição, gaps, tempos
          ========================================================================= */}
       <CardHeader className="py-2.5 px-3.5 bg-slate-50 border-b border-slate-200 flex flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Foto/Pôster Real do Piloto */}
           <div className="w-11 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-xs relative">
             <DriverPoster
               name={driverName}
@@ -229,7 +247,7 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
           </div>
         </div>
 
-        {/* Posição, Gaps e Tempos com fonte monoespaçada */}
+        {/* Posição, Gaps e Tempos com tipografia monoespaçada técnica */}
         <div className="text-right shrink-0">
           <div className="inline-flex items-center gap-1.5">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -273,304 +291,329 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
 
       <CardContent className="p-3.5 space-y-3 flex-1 text-xs">
         {/* =========================================================================
-            BLOCO 2 — PNEUS
-            Composto, jogo, condição restante, desgaste, voltas, janela e confiança
+            ÁREA B. PNEUS + COMBUSTÍVEL
+            Grid integrado de 2 colunas no desktop/tablet, empilha em telas estreitas
            ========================================================================= */}
-        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
-              <Disc className="w-3.5 h-3.5 text-amber-500" />
-              Pneus: {compoundName} {compound ? `(${compound.toUpperCase()})` : ''}
-            </span>
-            <span className="font-mono text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 tabular-nums">
-              {lapsOnTire !== null ? `${lapsOnTire} voltas de uso` : lapsOnTireText}
-            </span>
-          </div>
-
-          {/* Condição Restante e Desgaste Acumulado */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-600 font-medium">Condição Restante:</span>
-              <span
-                className={`font-mono font-bold tabular-nums ${
-                  tireConditionRemainingPct !== null && tireConditionRemainingPct < 25
-                    ? 'text-red-600'
-                    : tireConditionRemainingPct !== null && tireConditionRemainingPct < 50
-                      ? 'text-amber-600'
-                      : 'text-emerald-700'
-                }`}
-              >
-                {tireConditionRemainingText}
-              </span>
-            </div>
-
-            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all ${
-                  tireConditionRemainingPct !== null && tireConditionRemainingPct < 25
-                    ? 'bg-red-500'
-                    : tireConditionRemainingPct !== null && tireConditionRemainingPct < 50
-                      ? 'bg-amber-500'
-                      : 'bg-emerald-500'
-                }`}
-                style={{ width: `${tireConditionRemainingPct ?? 0}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5">
-              <span>
-                Desgaste Acumulado:{' '}
-                <strong className="font-mono text-slate-900 tabular-nums">{tireWearText}</strong>
-              </span>
-              {isInCliff ? (
-                <Badge className="bg-red-600 text-white font-mono text-[9px] px-1.5 py-0 animate-pulse">
-                  CLIFF ATINGIDO
-                </Badge>
-              ) : tireWearPct !== null && tireWearPct > 70 ? (
-                <span className="text-amber-600 font-bold">Desgaste Elevado</span>
-              ) : tireWearPct !== null ? (
-                <span className="text-emerald-700 font-medium">Faixa Nominal</span>
-              ) : null}
-            </div>
-
-            {/* Janela restante estimada com base no conhecimento de treinos se existente */}
-            {(remainingWindowText || tyreConfidence) && (
-              <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500 border-t border-slate-200/60">
-                <span>
-                  Janela Restante Estimada:{' '}
-                  <strong className="font-mono text-slate-800">{remainingWindowText || '—'}</strong>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          {/* BLOCO PNEUS */}
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2 flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
+                  <Disc className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  {compoundName} {compound ? `(${compound.toUpperCase()})` : ''}
                 </span>
-                {tyreConfidence && (
-                  <span className="text-slate-400 capitalize">
-                    Confiança: <strong className="text-slate-700">{tyreConfidence}</strong>
-                  </span>
-                )}
+                <span className="font-mono text-[10px] font-bold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 tabular-nums">
+                  {lapsOnTire !== null ? `${lapsOnTire} voltas de uso` : lapsOnTireText}
+                </span>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* =========================================================================
-            BLOCO 3 — COMBUSTÍVEL
-            kg restantes, projeção de voltas, margem estimada +/-, modo atual
-           ========================================================================= */}
-        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
-              <Fuel className="w-3.5 h-3.5 text-cyan-600" />
-              Combustível a Bordo
-            </span>
-            <span className="font-mono text-[11px] font-bold text-slate-800 tabular-nums">
-              {fuelKg !== null ? `${fuelKg} kg` : '—'}{' '}
-              <span className="text-slate-500 font-normal">
-                ({fuelPct !== null ? `${fuelPct}%` : '—'})
-              </span>
-            </span>
-          </div>
+              {/* Condição Restante e Barra */}
+              <div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 font-medium">Condição Restante:</span>
+                  <span
+                    className={`font-mono font-bold tabular-nums ${
+                      tireConditionRemainingPct !== null && tireConditionRemainingPct < 25
+                        ? 'text-red-600'
+                        : tireConditionRemainingPct !== null && tireConditionRemainingPct < 50
+                          ? 'text-amber-600'
+                          : 'text-emerald-700'
+                    }`}
+                  >
+                    {tireConditionRemainingText}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
+                  <div
+                    className={`h-full transition-all ${
+                      tireConditionRemainingPct !== null && tireConditionRemainingPct < 25
+                        ? 'bg-red-500'
+                        : tireConditionRemainingPct !== null && tireConditionRemainingPct < 50
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${tireConditionRemainingPct ?? 0}%` }}
+                  />
+                </div>
+              </div>
 
-          <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-            <div
-              className={`h-full transition-all ${
-                fuelPct !== null && fuelPct < 15
-                  ? 'bg-red-500'
-                  : fuelPct !== null && fuelPct < 35
-                    ? 'bg-amber-500'
-                    : 'bg-cyan-600'
-              }`}
-              style={{ width: `${fuelPct ?? 0}%` }}
-            />
-          </div>
+              {/* Desgaste Acumulado e Status de Cliff */}
+              <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5">
+                <span>
+                  Desgaste:{' '}
+                  <strong className="font-mono text-slate-900 tabular-nums">{tireWearText}</strong>
+                </span>
+                {isInCliff ? (
+                  <Badge className="bg-red-600 text-white font-mono text-[9px] px-1.5 py-0 animate-pulse">
+                    CLIFF ATINGIDO
+                  </Badge>
+                ) : tireWearPct !== null && tireWearPct > 70 ? (
+                  <span className="text-amber-600 font-bold">Elevado</span>
+                ) : tireWearPct !== null ? (
+                  <span className="text-emerald-700 font-medium">Nominal</span>
+                ) : null}
+              </div>
+            </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5">
-            <div className="flex items-center gap-2">
+            {/* Janela estimada e Confiança da Engenharia */}
+            <div className="pt-1.5 flex items-center justify-between text-[10px] text-slate-500 border-t border-slate-200/70">
               <span>
-                Projeção:{' '}
-                <strong className="font-mono text-slate-900 tabular-nums">
-                  {projectedLaps !== null ? `~${projectedLaps} voltas` : '—'}
+                Janela:{' '}
+                <strong className="font-mono text-slate-800">
+                  {remainingWindowText || (informedPackage ? '—' : 'Dados insuficientes')}
                 </strong>
               </span>
-              <span>·</span>
               <span>
-                Modo: <strong className="text-slate-800">{tacticalModeLabel}</strong>
+                Confiança:{' '}
+                <strong className="text-slate-700 capitalize">
+                  {tyreConfidence || (informedPackage ? '—' : 'Dados insuficientes')}
+                </strong>
               </span>
-            </div>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="cursor-help flex items-center gap-1 font-mono tabular-nums">
-                    Margem:{' '}
-                    <strong
-                      className={
-                        fuelMarginPct === null
-                          ? 'text-slate-500'
-                          : fuelMarginPct >= 0
-                            ? 'text-emerald-700 font-bold'
-                            : 'text-red-600 font-bold'
-                      }
-                    >
-                      {fuelMarginPct !== null
-                        ? `${fuelMarginPct >= 0 ? '+' : ''}${fuelMarginPct.toFixed(1)}%`
-                        : '—'}
-                    </strong>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent className="text-xs bg-slate-900 text-white max-w-[220px]">
-                  Estimativa considerando consumo médio e voltas restantes para completar o GP.
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-
-          {isFuelCritical && (
-            <div className="pt-0.5">
-              <Badge className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0 flex items-center gap-1 w-fit animate-pulse">
-                <AlertTriangle className="w-3 h-3" /> ECONOMIZAR COMBUSTÍVEL
-              </Badge>
-            </div>
-          )}
-        </div>
-
-        {/* =========================================================================
-            BLOCO 4 — CONDIÇÃO DO CARRO
-            Integridade geral, danos, falhas, problemas detectados, estado PU
-           ========================================================================= */}
-        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
-              <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
-              Condição do Carro
-            </span>
-            <div className="flex items-center gap-2 font-mono text-[11px] font-bold text-slate-700">
-              {avgPartCondition !== null && <span>Integridade {avgPartCondition}%</span>}
-              {puWear !== null && (
-                <span className="text-[10px] text-slate-500 font-medium">
-                  PU: <strong className="text-slate-800">{Math.round(puWear)}% desg.</strong>
-                </span>
-              )}
             </div>
           </div>
 
-          {hasCarProblems ? (
-            <div className="space-y-1.5 pt-0.5">
-              {hasWingDmg && (
-                <div className="p-1.5 rounded bg-amber-50 border border-amber-300 text-amber-900 text-[11px] flex items-center justify-between">
-                  <span className="font-semibold flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    Asa Dianteira com Danos
-                  </span>
-                  <Badge className="bg-amber-600 text-white text-[9px] px-1 py-0">
-                    Reparo no Box
-                  </Badge>
-                </div>
-              )}
-
-              {driverIssues.map((iss, iIdx) => (
-                <div
-                  key={iIdx}
-                  className="p-1.5 rounded bg-red-50 border border-red-300 text-red-900 text-[11px] flex items-center justify-between"
-                >
-                  <span className="font-semibold flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                    {iss.name} ({iss.severity})
-                  </span>
-                  <span className="text-[10px] font-bold text-red-700">Falha Mecânica</span>
-                </div>
-              ))}
-
-              {brokenParts.map((bp) => (
-                <div
-                  key={bp.id}
-                  className="p-1.5 rounded bg-red-50 border border-red-200 text-red-700 text-[10px] flex items-center justify-between"
-                >
-                  <span>
-                    Componente: <strong>{bp.name}</strong>
-                  </span>
-                  <span className="font-mono font-bold text-red-600">{bp.condition}%</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-1.5">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>Sem problemas detectados.</span>
-            </div>
-          )}
-        </div>
-
-        {/* =========================================================================
-            BLOCO 5 — ESTRATÉGIA
-            Plano atual, próxima parada prevista, composto previsto, confiança,
-            recomendação atual da engenharia se existente (destaque discreto)
-           ========================================================================= */}
-        {(headlineStrategy || plannedPitLap || pendingRecommendation) && (
-          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
-                <Compass className="w-3.5 h-3.5 text-blue-600" />
-                Estratégia de Corrida
-              </span>
-              {strategyConfidence && (
-                <span className="text-[10px] font-semibold text-slate-500 capitalize">
-                  Confiança: <strong className="text-slate-800">{strategyConfidence}</strong>
+          {/* BLOCO COMBUSTÍVEL */}
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2 flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
+                  <Fuel className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
+                  Combustível
                 </span>
-              )}
-            </div>
+                <span className="font-mono text-[11px] font-bold text-slate-800 tabular-nums">
+                  {fuelKg !== null ? `${fuelKg} kg` : '—'}{' '}
+                  <span className="text-slate-500 font-normal">
+                    ({fuelPct !== null ? `${fuelPct}%` : '—'})
+                  </span>
+                </span>
+              </div>
 
-            {headlineStrategy && (
-              <p className="text-[11px] font-medium text-slate-700 leading-snug">
-                {headlineStrategy}
-              </p>
-            )}
+              {/* Barra de Combustível */}
+              <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
+                <div
+                  className={`h-full transition-all ${
+                    fuelPct !== null && fuelPct < 15
+                      ? 'bg-red-500'
+                      : fuelPct !== null && fuelPct < 35
+                        ? 'bg-amber-500'
+                        : 'bg-cyan-600'
+                  }`}
+                  style={{ width: `${fuelPct ?? 0}%` }}
+                />
+              </div>
 
-            {(plannedPitLap || plannedCompound) && (
-              <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5 border-t border-slate-200/60">
+              {/* Projeção e Margem */}
+              <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5">
                 <span>
-                  Próxima parada prevista:{' '}
-                  <strong className="font-mono text-slate-900">
-                    {plannedPitLap ? `Volta ${plannedPitLap}` : '—'}
+                  Projeção:{' '}
+                  <strong className="font-mono text-slate-900 tabular-nums">
+                    {projectedLaps !== null ? `~${projectedLaps} voltas` : '—'}
                   </strong>
                 </span>
-                {plannedCompound && (
-                  <span>
-                    Composto previsto:{' '}
-                    <strong className="capitalize text-slate-900">{plannedCompound}</strong>
-                  </span>
-                )}
-              </div>
-            )}
 
-            {/* Recomendação ativa da engenharia em destaque discreto */}
-            {pendingRecommendation && (
-              <div className="mt-1.5 p-2 rounded-md bg-amber-50/80 border border-amber-300 text-amber-950 space-y-1">
-                <div className="flex items-center justify-between gap-1">
-                  <span className="font-black text-[10px] uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-amber-600" />
-                    Recomendação da Engenharia
-                  </span>
-                  {recConfidence && (
-                    <span className="font-mono text-[9px] font-bold text-amber-800">
-                      Confiança: {recConfidence}
+                <span className="font-mono tabular-nums">
+                  Margem:{' '}
+                  <strong
+                    className={
+                      fuelMarginPct === null
+                        ? 'text-slate-500'
+                        : fuelMarginPct >= 0
+                          ? 'text-emerald-700 font-bold'
+                          : 'text-red-600 font-bold'
+                    }
+                  >
+                    {fuelMarginPct !== null
+                      ? `${fuelMarginPct >= 0 ? '+' : ''}${fuelMarginPct.toFixed(1)}%`
+                      : '—'}
+                  </strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Modo e Alerta de Combustível Crítico */}
+            <div className="pt-1.5 flex items-center justify-between text-[10px] text-slate-500 border-t border-slate-200/70">
+              <span>
+                Modo: <strong className="text-slate-800 font-semibold">{tacticalModeLabel}</strong>
+              </span>
+              {isFuelCritical ? (
+                <Badge className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0 flex items-center gap-1 animate-pulse">
+                  <AlertTriangle className="w-2.5 h-2.5" /> ECONOMIZAR
+                </Badge>
+              ) : (
+                <span className="text-emerald-700 font-medium">Consumo Estável</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* =========================================================================
+            ÁREA C. CONDIÇÃO DO CARRO + ESTRATÉGIA
+            Grid integrado de 2 colunas no desktop/tablet, empilha em telas estreitas
+           ========================================================================= */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          {/* BLOCO CONDIÇÃO DO CARRO */}
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2 flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
+                  <ShieldAlert className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  Condição do Carro
+                </span>
+                <div className="flex items-center gap-2 font-mono text-[10px] font-bold text-slate-700">
+                  {avgPartCondition !== null && <span>Integridade {avgPartCondition}%</span>}
+                  {puWear !== null && (
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      PU: <strong className="text-slate-800">{Math.round(puWear)}% desg.</strong>
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] font-medium leading-relaxed">
-                  {recJustification || pendingRecommendation.title}
-                </p>
-                {recProposedCompound && (
-                  <p className="text-[10px] font-mono text-amber-900 font-bold">
-                    Sugerido: Instalar composto {recProposedCompound.toUpperCase()}
-                  </p>
+              </div>
+
+              {/* Status de Danos e Falhas reais */}
+              {hasCarProblems ? (
+                <div className="space-y-1 pt-0.5">
+                  {hasWingDmg && (
+                    <div className="p-1.5 rounded bg-amber-50 border border-amber-300 text-amber-900 text-[11px] flex items-center justify-between">
+                      <span className="font-semibold flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                        Asa Dianteira com Danos
+                      </span>
+                      <Badge className="bg-amber-600 text-white text-[9px] px-1 py-0">
+                        Reparo no Box
+                      </Badge>
+                    </div>
+                  )}
+
+                  {driverIssues.map((iss, iIdx) => (
+                    <div
+                      key={iIdx}
+                      className="p-1.5 rounded bg-red-50 border border-red-300 text-red-900 text-[11px] flex items-center justify-between"
+                    >
+                      <span className="font-semibold flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
+                        {iss.name} ({iss.severity})
+                      </span>
+                      <span className="text-[10px] font-bold text-red-700">Falha</span>
+                    </div>
+                  ))}
+
+                  {brokenParts.map((bp) => (
+                    <div
+                      key={bp.id}
+                      className="p-1 rounded bg-red-50 border border-red-200 text-red-700 text-[10px] flex items-center justify-between"
+                    >
+                      <span>{bp.name}</span>
+                      <span className="font-mono font-bold text-red-600">{bp.condition}%</span>
+                    </div>
+                  ))}
+                </div>
+              ) : hasCarData ? (
+                <div className="p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Sem problemas detectados.</span>
+                </div>
+              ) : (
+                <div className="p-2 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>Sem dados de telemetria mecânica.</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-1 text-[10px] text-slate-500 border-t border-slate-200/70 flex items-center justify-between">
+              <span>Status Mecânico</span>
+              <span
+                className={`font-semibold ${hasCarProblems ? 'text-red-600' : 'text-emerald-700'}`}
+              >
+                {hasCarProblems ? 'Atenção Necessária' : 'Sistemas Normais'}
+              </span>
+            </div>
+          </div>
+
+          {/* BLOCO ESTRATÉGIA */}
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/90 space-y-2 flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
+                  <Compass className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  Estratégia
+                </span>
+                {strategyConfidence && (
+                  <span className="text-[10px] font-semibold text-slate-500 capitalize">
+                    Confiança: <strong className="text-slate-800">{strategyConfidence}</strong>
+                  </span>
                 )}
               </div>
-            )}
+
+              {headlineStrategy && (
+                <p className="text-[11px] font-medium text-slate-700 leading-snug">
+                  {headlineStrategy}
+                </p>
+              )}
+
+              {(plannedPitLap || plannedCompound) && (
+                <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5">
+                  <span>
+                    Pit previsto:{' '}
+                    <strong className="font-mono text-slate-900">
+                      {plannedPitLap ? `Volta ${plannedPitLap}` : '—'}
+                    </strong>
+                  </span>
+                  {plannedCompound && (
+                    <span>
+                      Próximo:{' '}
+                      <strong className="capitalize text-slate-900">{plannedCompound}</strong>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Recomendação ativa da engenharia em destaque discreto */}
+              {pendingRecommendation && (
+                <div className="mt-1 p-2 rounded-md bg-amber-50/90 border border-amber-300 text-amber-950 space-y-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-black text-[10px] uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-amber-600 shrink-0" />
+                      Recomendação da Engenharia
+                    </span>
+                    {recConfidence && (
+                      <span className="font-mono text-[9px] font-bold text-amber-800">
+                        {recConfidence}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-medium leading-tight">
+                    {recJustification || pendingRecommendation.title}
+                  </p>
+                  {recProposedCompound && (
+                    <p className="text-[10px] font-mono text-amber-900 font-bold">
+                      Sugerido: Composto {recProposedCompound.toUpperCase()}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!hasStrategyContent && (
+                <p className="text-[11px] text-slate-500 italic py-1">
+                  Plano Padrão de Corrida (sem paradas adicionais previstas)
+                </p>
+              )}
+            </div>
+
+            <div className="pt-1 text-[10px] text-slate-500 border-t border-slate-200/70 flex items-center justify-between">
+              <span>Janela de Pit Stop</span>
+              <span className="font-mono font-bold text-slate-800">
+                {plannedPitLap ? `V${plannedPitLap}` : 'Sob demanda'}
+              </span>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* =========================================================================
-            BLOCO 6 — CONTROLES TÁTICOS (RITMO & MODO DA POWER UNIT)
+            ÁREA D. CONTROLES TÁTICOS (RITMO & MODO DA POWER UNIT)
            ========================================================================= */}
-        <div className="space-y-2 pt-1 border-t border-slate-200/70">
+        <div className="space-y-2 pt-1 border-t border-slate-200/80">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
             <span title="Ritmo de pilotagem na pista (poupar, padrão ou empurrar)">
               Ordem de Ritmo{' '}
@@ -657,18 +700,28 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
         </div>
 
         {/* =========================================================================
-            BLOCO 7 — RODAPÉ DE AÇÕES OPERACIONAIS
-            [Rádio Pit Wall] e [Box este giro] com handlers canônicos
+            ÁREA D. AÇÕES CANÔNICAS (RODAPÉ)
+            [Rádio Pit Wall] e [Box este giro]
+            Se houver recomendação pendente, destacar discretamente o botão Rádio Pit Wall
            ========================================================================= */}
         <div className="pt-2 grid grid-cols-2 gap-2 border-t border-slate-200">
           <Button
             size="sm"
             variant="outline"
             onClick={() => onOpenRadio(car.driverId)}
-            className="border-slate-300 text-slate-800 hover:bg-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 h-8.5 shadow-2xs"
+            className={`font-bold text-xs flex items-center justify-center gap-1.5 h-8.5 shadow-2xs transition-all ${
+              pendingRecommendation
+                ? 'border-amber-400 bg-amber-50/60 text-amber-900 hover:bg-amber-100 ring-1 ring-amber-300'
+                : 'border-slate-300 text-slate-800 hover:bg-slate-100'
+            }`}
           >
-            <Radio className="w-3.5 h-3.5 text-indigo-600" />
+            <Radio
+              className={`w-3.5 h-3.5 ${pendingRecommendation ? 'text-amber-600' : 'text-indigo-600'}`}
+            />
             Rádio Pit Wall
+            {pendingRecommendation && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            )}
           </Button>
 
           <Button
