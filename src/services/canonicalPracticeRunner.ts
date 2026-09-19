@@ -15,6 +15,11 @@ import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { getAICompetitors } from '@/lib/f1-data'
+import {
+  evaluateStintFeedback,
+  updateSetupKnowledge,
+  createInitialSetupKnowledge,
+} from '@/services/canonicalPracticeFeedbackService'
 
 export interface PracticeTickContext {
   round: number
@@ -35,6 +40,7 @@ export interface PracticeTickContext {
     defense: number
     morale?: number
     physical_condition?: number
+    technical_feedback?: number
   }>
 }
 
@@ -394,6 +400,49 @@ export class PracticeSessionRunner {
             stintToClose.endedAt = new Date().toISOString()
             stintToClose.finalFuelKg = car.fuelKg
             stintToClose.finalWear = car.tyreWear
+
+            // Etapa 4C1: Gerar feedback do piloto e atualizar conhecimento de setup da equipe
+            if (!nextState.feedbacks) {
+              nextState.feedbacks = []
+            }
+            if (!nextState.knowledge) {
+              nextState.knowledge = createInitialSetupKnowledge()
+            }
+
+            const feedbackId = `feedback_${nextState.careerId}_${nextState.round}_${stintToClose.id}`
+            const existingFeedback = nextState.feedbacks.find(
+              (f) => f.stintId === stintToClose.id || f.id === feedbackId,
+            )
+
+            if (!existingFeedback) {
+              const driverObj = context.drivers.find((d) => d.id === car.driverId) || {
+                id: car.driverId,
+                name: car.driverName,
+                speed: 80,
+                consistency: 80,
+                technical_feedback: 70,
+              }
+
+              const newFeedback = evaluateStintFeedback({
+                sessionId: `${nextState.careerId}_${nextState.seasonId}_${nextState.round}_${nextState.sessionType}`,
+                stint: stintToClose,
+                driver: driverObj,
+                round: context.round,
+                weather: context.weather,
+                currentKnowledge: nextState.knowledge,
+              })
+
+              nextState.feedbacks.push(newFeedback)
+              nextState.knowledge = updateSetupKnowledge(nextState.knowledge, newFeedback)
+
+              // Marca como unread para destaque visual "NOVO FEEDBACK"
+              if (!nextState.unreadFeedbackCarIds) {
+                nextState.unreadFeedbackCarIds = []
+              }
+              if (!nextState.unreadFeedbackCarIds.includes(carId)) {
+                nextState.unreadFeedbackCarIds.push(carId)
+              }
+            }
           }
 
           const evGarage: PracticeRadioFeedEvent = {

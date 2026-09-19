@@ -14,9 +14,15 @@ import {
   Wrench,
   CheckCircle2,
 } from 'lucide-react'
-import type { PracticeCarLiveState, PracticeStint } from '@/types/practice-session'
+import type {
+  PracticeCarLiveState,
+  PracticeStint,
+  StintFeedbackRecord,
+  SetupKnowledgeModel,
+} from '@/types/practice-session'
 import { PRACTICE_PROGRAMS } from '@/types/practice-preparation'
 import { formatTireName } from '@/lib/f1-tire-system'
+import { MessageSquare, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface PracticeCarCockpitCardProps {
   car: PracticeCarLiveState
@@ -24,10 +30,14 @@ interface PracticeCarCockpitCardProps {
   teamColor?: string
   carImageUrl?: string
   currentStint?: PracticeStint
+  latestFeedback?: StintFeedbackRecord
+  hasUnreadFeedback?: boolean
+  knowledge?: SetupKnowledgeModel
   isSessionRunning: boolean
   isSessionCompleted: boolean
   onOrderExitTrack: () => void
   onRequestBox: () => void
+  onMarkFeedbackRead?: () => void
 }
 
 const TRACK_STATUS_LABELS: Record<
@@ -58,16 +68,42 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
   teamColor = '#00A6FB',
   carImageUrl,
   currentStint,
+  latestFeedback,
+  hasUnreadFeedback = false,
+  knowledge,
   isSessionRunning,
   isSessionCompleted,
   onOrderExitTrack,
   onRequestBox,
+  onMarkFeedbackRead,
 }) => {
+  const [showFeedbackDetails, setShowFeedbackDetails] = React.useState<boolean>(true)
   const statusConfig = TRACK_STATUS_LABELS[car.status]
   const programMeta = PRACTICE_PROGRAMS[car.program] || PRACTICE_PROGRAMS.car_setup
 
   const isCarInGarage = car.status === 'garage'
   const isCarOnTrack = !isCarInGarage
+
+  // Formatação segura de confiança por eixo
+  const formatConfidenceBadge = (level: string) => {
+    if (level === 'alta') {
+      return (
+        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[9px]">
+          Alta
+        </Badge>
+      )
+    }
+    if (level === 'media') {
+      return (
+        <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[9px]">
+          Média
+        </Badge>
+      )
+    }
+    return (
+      <Badge className="bg-slate-700/40 text-slate-400 border-slate-600/30 text-[9px]">Baixa</Badge>
+    )
+  }
 
   return (
     <Card className="p-4 bg-[#090D15]/90 border border-[#1F2733] rounded-2xl shadow-xl space-y-4 font-mono">
@@ -201,20 +237,167 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
         </div>
       </div>
 
-      {/* 4. SETUP DO CARRO (SNAPSHOT CONHECIDO DA 4A — FAIXA ABERTA "?" CONFORME ESCOPO) */}
-      <div className="p-3 rounded-xl bg-[#0E1521]/60 border border-[#1A2436] flex flex-wrap items-center justify-between gap-2 text-[11px]">
-        <div className="flex items-center gap-1.5 text-[#8B95A7]">
-          <Wrench className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="font-bold text-white">Setup Mecânico:</span>
-          <span>Asa D: {car.setup.frontWing}</span>
-          <span>• Asa T: {car.setup.rearWing}</span>
-          <span>• Susp: {car.setup.suspension}</span>
-          <span>• Dif: {car.setup.differential}%</span>
+      {/* 4. SETUP DO CARRO & CONHECIMENTO CONSOLIDADO DA EQUIPE */}
+      <div className="p-3 rounded-xl bg-[#0E1521]/60 border border-[#1A2436] space-y-2 text-[11px]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[#8B95A7]">
+            <Wrench className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="font-bold text-white">Setup Atual:</span>
+            <span>Asa D: {car.setup.frontWing}</span>
+            <span>• Asa T: {car.setup.rearWing}</span>
+            <span>• Susp: {car.setup.suspension}</span>
+            <span>• Dif: {car.setup.differential}%</span>
+          </div>
+          <div className="text-[10px] text-[#8B95A7] flex items-center gap-1">
+            <span>Confiança global:</span>
+            {formatConfidenceBadge(knowledge?.overallConfidence || 'baixa')}
+          </div>
         </div>
-        <div className="text-[10px] text-[#8B95A7] italic">
-          Faixa conhecida: <span className="text-cyan-400 font-bold">?</span> (4C)
+
+        {/* Faixas Conhecidas Aprendidas Progressivamente */}
+        <div className="pt-1.5 border-t border-[#141B26] grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+          {/* Asa Dianteira */}
+          <div className="bg-[#141B26]/60 p-2 rounded-lg border border-[#1A2436]/60 flex flex-col justify-between">
+            <span className="text-[#8B95A7]">Asa Dianteira</span>
+            <div className="font-bold text-white mt-0.5">
+              {knowledge?.frontWing.revealed ? (
+                <span className="text-cyan-300 font-mono">
+                  {knowledge.frontWing.minKnown} – {knowledge.frontWing.maxKnown}
+                </span>
+              ) : (
+                <span className="text-slate-500 font-mono">Faixa: ?</span>
+              )}
+            </div>
+          </div>
+
+          {/* Asa Traseira */}
+          <div className="bg-[#141B26]/60 p-2 rounded-lg border border-[#1A2436]/60 flex flex-col justify-between">
+            <span className="text-[#8B95A7]">Asa Traseira</span>
+            <div className="font-bold text-white mt-0.5">
+              {knowledge?.rearWing.revealed ? (
+                <span className="text-cyan-300 font-mono">
+                  {knowledge.rearWing.minKnown} – {knowledge.rearWing.maxKnown}
+                </span>
+              ) : (
+                <span className="text-slate-500 font-mono">Faixa: ?</span>
+              )}
+            </div>
+          </div>
+
+          {/* Suspensão */}
+          <div className="bg-[#141B26]/60 p-2 rounded-lg border border-[#1A2436]/60 flex flex-col justify-between">
+            <span className="text-[#8B95A7]">Suspensão</span>
+            <div className="font-bold text-white mt-0.5">
+              {knowledge?.suspension.revealed ? (
+                <span className="text-cyan-300 font-mono">
+                  {knowledge.suspension.minKnown} – {knowledge.suspension.maxKnown}
+                </span>
+              ) : (
+                <span className="text-slate-500 font-mono">Faixa: ?</span>
+              )}
+            </div>
+          </div>
+
+          {/* Diferencial */}
+          <div className="bg-[#141B26]/60 p-2 rounded-lg border border-[#1A2436]/60 flex flex-col justify-between">
+            <span className="text-[#8B95A7]">Diferencial</span>
+            <div className="font-bold text-white mt-0.5">
+              {knowledge?.differential.revealed ? (
+                <span className="text-cyan-300 font-mono">
+                  {knowledge.differential.minKnown}% – {knowledge.differential.maxKnown}%
+                </span>
+              ) : (
+                <span className="text-slate-500 font-mono">Faixa: ?</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* 4.1 PAINEL DE FEEDBACK TÉCNICO DO PILOTO (AO RETORNAR DOS BOXES) */}
+      {latestFeedback && (
+        <div className="p-3.5 rounded-xl bg-[#0B111C] border border-[#1E293B] space-y-2.5 font-mono">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs font-black text-white uppercase tracking-wider">
+                Feedback Técnico — {car.driverName}
+              </span>
+              {hasUnreadFeedback && (
+                <Badge
+                  onClick={onMarkFeedbackRead}
+                  className="bg-cyan-500/20 text-cyan-300 border-cyan-400/40 text-[9px] font-black uppercase tracking-wider animate-pulse cursor-pointer flex items-center gap-1"
+                >
+                  <Sparkles className="w-2.5 h-2.5" />
+                  NOVO FEEDBACK
+                </Badge>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowFeedbackDetails(!showFeedbackDetails)
+                if (hasUnreadFeedback && onMarkFeedbackRead) onMarkFeedbackRead()
+              }}
+              className="h-6 w-6 p-0 text-[#8B95A7] hover:text-white"
+            >
+              {showFeedbackDetails ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+            </Button>
+          </div>
+
+          <p className="text-[11px] text-[#BAC4D6] italic bg-[#080C14] p-2.5 rounded-lg border border-[#141C2A]">
+            {latestFeedback.generalMessage}
+          </p>
+
+          {showFeedbackDetails &&
+            latestFeedback.axisFeedbacks &&
+            latestFeedback.axisFeedbacks.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                {latestFeedback.axisFeedbacks.map((fb) => (
+                  <div
+                    key={fb.axis}
+                    className="p-2 rounded-lg bg-[#0E1521] border border-[#1A2436] flex flex-col gap-1 text-[10px]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            fb.direction === 'ok'
+                              ? 'bg-emerald-400'
+                              : fb.severity === 'alta'
+                                ? 'bg-rose-400'
+                                : 'bg-amber-400'
+                          }`}
+                        />
+                        {fb.axisLabel}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] text-[#8B95A7]">
+                          Direção:{' '}
+                          <strong className="text-white uppercase">
+                            {fb.direction === 'increase'
+                              ? 'Aumentar'
+                              : fb.direction === 'decrease'
+                                ? 'Diminuir'
+                                : 'Ideal'}
+                          </strong>
+                        </span>
+                        {formatConfidenceBadge(fb.confidence)}
+                      </div>
+                    </div>
+                    <p className="text-[#8B95A7] text-[10px] pl-3">"{fb.message}"</p>
+                  </div>
+                ))}
+              </div>
+            )}
+        </div>
+      )}
 
       {/* 5. AÇÕES TÁTICAS DO CARRO («SAIR PARA A PISTA» OU «CHAMAR AOS BOXES») */}
       <div className="flex items-center justify-between gap-3 pt-1">

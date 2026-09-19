@@ -170,6 +170,7 @@ export const PracticeLiveSessionView: React.FC<PracticeLiveSessionViewProps> = (
       defense: d.defense,
       morale: d.morale,
       physical_condition: d.physical_condition,
+      technical_feedback: d.technical_feedback,
     })),
   }
 
@@ -462,10 +463,29 @@ export const PracticeLiveSessionView: React.FC<PracticeLiveSessionViewProps> = (
             car={sessionState.cars.car1}
             carNumber={1}
             teamColor={team?.color}
+            latestFeedback={
+              sessionState.feedbacks
+                ? [...sessionState.feedbacks].reverse().find((f) => f.carId === 'car1')
+                : undefined
+            }
+            hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car1')}
+            knowledge={sessionState.knowledge}
             isSessionRunning={isRunning}
             isSessionCompleted={isCompleted}
             onOrderExitTrack={() => handleOrderExitTrack('car1')}
             onRequestBox={() => handleRequestBox('car1')}
+            onMarkFeedbackRead={async () => {
+              if (sessionState.unreadFeedbackCarIds?.includes('car1')) {
+                const next = {
+                  ...sessionState,
+                  unreadFeedbackCarIds: sessionState.unreadFeedbackCarIds.filter(
+                    (c) => c !== 'car1',
+                  ),
+                }
+                setSessionState(next)
+                await practiceSessionService.saveSessionState(next)
+              }
+            }}
           />
 
           {/* Painel do Carro 2 */}
@@ -473,10 +493,29 @@ export const PracticeLiveSessionView: React.FC<PracticeLiveSessionViewProps> = (
             car={sessionState.cars.car2}
             carNumber={2}
             teamColor={team?.color}
+            latestFeedback={
+              sessionState.feedbacks
+                ? [...sessionState.feedbacks].reverse().find((f) => f.carId === 'car2')
+                : undefined
+            }
+            hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car2')}
+            knowledge={sessionState.knowledge}
             isSessionRunning={isRunning}
             isSessionCompleted={isCompleted}
             onOrderExitTrack={() => handleOrderExitTrack('car2')}
             onRequestBox={() => handleRequestBox('car2')}
+            onMarkFeedbackRead={async () => {
+              if (sessionState.unreadFeedbackCarIds?.includes('car2')) {
+                const next = {
+                  ...sessionState,
+                  unreadFeedbackCarIds: sessionState.unreadFeedbackCarIds.filter(
+                    (c) => c !== 'car2',
+                  ),
+                }
+                setSessionState(next)
+                await practiceSessionService.saveSessionState(next)
+              }
+            }}
           />
         </div>
       </div>

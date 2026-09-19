@@ -16,6 +16,7 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { carTechnicalService } from '@/services/carTechnicalService'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
+import { createInitialSetupKnowledge } from '@/services/canonicalPracticeFeedbackService'
 
 const LEASE_DURATION_MS = 25000 // 25s de lease para exclusividade de executor
 
@@ -193,6 +194,9 @@ export class PracticeSessionService {
       },
       leaderboard: initialLeaderboard,
       radioFeed: initialFeed,
+      feedbacks: [],
+      knowledge: createInitialSetupKnowledge(),
+      unreadFeedbackCarIds: [],
       revision: 1,
       createdAt: nowIso,
       updatedAt: nowIso,

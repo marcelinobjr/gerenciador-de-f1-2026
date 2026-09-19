@@ -43,6 +43,60 @@ export interface PracticeStint {
   status: 'active' | 'completed'
 }
 
+export type SetupConfidenceLevel = 'baixa' | 'media' | 'alta'
+export type SetupAxisDirection = 'increase' | 'decrease' | 'ok'
+export type SetupAxisSeverity = 'ideal' | 'moderada' | 'alta'
+
+export interface SetupKnowledgeAxis {
+  minKnown: number
+  maxKnown: number
+  confidence: SetupConfidenceLevel
+  confidenceScore: number // 0 a 100 para cálculo interno / info secundária
+  revealed: boolean // se já saiu do estado "?" inicial
+}
+
+export interface SetupKnowledgeModel {
+  frontWing: SetupKnowledgeAxis
+  rearWing: SetupKnowledgeAxis
+  suspension: SetupKnowledgeAxis
+  differential: SetupKnowledgeAxis
+  overallConfidence: SetupConfidenceLevel
+  totalStintsAnalyzed: number
+  lastUpdatedStintId?: string
+  updatedAt: string
+}
+
+export interface StintAxisFeedback {
+  axis: 'frontWing' | 'rearWing' | 'suspension' | 'differential'
+  axisLabel: string
+  direction: SetupAxisDirection
+  severity: SetupAxisSeverity
+  confidence: SetupConfidenceLevel
+  message: string
+}
+
+export interface StintFeedbackRecord {
+  id: string // feedback_{sessionId}_{stintId}
+  sessionId: string
+  stintId: string
+  driverId: string
+  driverName: string
+  carId: 'car1' | 'car2'
+  setupSnapshot: PracticeCarSetup
+  lapsCount: number
+  program: PracticeProgramType
+  timestamp: string
+  quality: 'insufficient' | 'preliminary' | 'reliable'
+  generalMessage: string
+  axisFeedbacks: StintAxisFeedback[]
+  knowledgeDelta?: {
+    frontWing?: { min: number; max: number }
+    rearWing?: { min: number; max: number }
+    suspension?: { min: number; max: number }
+    differential?: { min: number; max: number }
+  }
+}
+
 export interface PracticeCarLiveState {
   carId: 'car1' | 'car2'
   driverId: string
@@ -110,6 +164,9 @@ export interface PracticeSessionRecordState {
   lapHistory: Record<string, PracticeLapRecord[]>
   leaderboard: PracticeTimeEntry[]
   radioFeed: PracticeRadioFeedEvent[]
+  feedbacks: StintFeedbackRecord[]
+  knowledge: SetupKnowledgeModel
+  unreadFeedbackCarIds?: Array<'car1' | 'car2'>
   activeExecutorId?: string
   executorLeaseUntil?: string
   lockHeartbeatAt?: string
