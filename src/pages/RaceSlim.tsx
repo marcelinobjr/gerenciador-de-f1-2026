@@ -92,6 +92,7 @@ import { PageHeader } from '@/components/PageHeader'
 // Sub-componentes modulares da corrida
 import { LiveRaceHUD } from '@/components/race/LiveRaceHUD'
 import { PracticeQualyResults, SessionResultRow } from '@/components/race/PracticeQualyResults'
+import { PracticePreparationView } from '@/components/race/PracticePreparationView'
 import { RaceResultsTable, RaceResultEntry } from '@/components/race/RaceResultsTable'
 import { DecisionModals } from '@/components/race/DecisionModals'
 import { SillySeasonModal } from '@/components/race/SillySeasonModal'
@@ -2686,39 +2687,70 @@ export default function RacePage() {
           const currentSetup = setups[sessKey]
           const isRaceSession = sessKey === 'race'
           const isDone = completedSessions.includes(sessKey)
+          const isPracticeSession = sessKey === 'tp1' || sessKey === 'tp2'
 
           return (
             <TabsContent key={sessKey} value={sessKey} className="space-y-6 mt-4">
-              {/* Setup Configuration Panel for this session (Sub-componente desacoplado) */}
-              <TrackEngineeringAndStrategySection
-                sessKey={sessKey}
-                isRaceSession={isRaceSession}
-                isDone={isDone}
-                isSimulatingSession={isSimulatingSession}
-                currentSetup={currentSetup}
-                updateCurrentSetup={updateCurrentSetup}
-                handleSaveSetup={handleSaveSetup}
-                gpInfo={gpInfo}
-                raceInitialFuelPct={raceInitialFuelPct}
-                setRaceInitialFuelPct={setRaceInitialFuelPct}
-                setupFeedback={setupFeedback}
-                weather={weather}
-                tireStock={tireStock}
-                drivers={drivers}
-                team={team}
-                getStrategyForDriver={getStrategyForDriver}
-                calculateDriverTireWearProfile={calculateDriverTireWearProfile}
-                updateDriverStartCompound={updateDriverStartCompound}
-                addDriverPitStop={addDriverPitStop}
-                updateDriverPitStop={updateDriverPitStop}
-                removeDriverPitStop={removeDriverPitStop}
-                handleStartRace={handleStartRace}
-                simSpeed={simSpeed}
-                setSimSpeed={setSimSpeed}
-                autoSimulateWithoutPause={autoSimulateWithoutPause}
-                setAutoSimulateWithoutPause={setAutoSimulateWithoutPause}
-                handleRunSession={handleRunSession}
-              />
+              {/* PREPARAÇÃO MODERNA DE TREINOS LIVRES (TL1 / TL2) — ETAPA 4A */}
+              {isPracticeSession && !isDone && (
+                <PracticePreparationView
+                  careerId={team?.id || ''}
+                  seasonId={season?.id || ''}
+                  round={currentRound}
+                  sessionType={sessKey as 'tp1' | 'tp2'}
+                  team={team!}
+                  drivers={drivers}
+                  allTiresByDriver={driverTireInventories}
+                  onStartSessionHandoff={(readyPrep) => {
+                    // Sincroniza parâmetros herdados do Carro 1 para manter retrocompatibilidade com o motor de treinos
+                    const c1 = readyPrep.cars[0]
+                    if (c1) {
+                      updateCurrentSetup('wing_level', c1.setup.frontWing)
+                      updateCurrentSetup('suspension_stiffness', c1.setup.suspension)
+                      updateCurrentSetup('pu_electric_ratio', c1.setup.differential)
+                      if (c1.tyreSelection?.compound) {
+                        updateCurrentSetup('tire_compound', c1.tyreSelection.compound)
+                      }
+                    }
+                    // Executa a sessão canônica
+                    handleRunSession(sessKey)
+                  }}
+                  onNavigateToWeekendTab={(tab) => setActiveSession(tab as WeekendSession)}
+                />
+              )}
+
+              {/* Setup Configuration Panel for this session (Sub-componente desacoplado para Q1/Q2/Q3/Race ou após treino concluído) */}
+              {(!isPracticeSession || isDone) && (
+                <TrackEngineeringAndStrategySection
+                  sessKey={sessKey}
+                  isRaceSession={isRaceSession}
+                  isDone={isDone}
+                  isSimulatingSession={isSimulatingSession}
+                  currentSetup={currentSetup}
+                  updateCurrentSetup={updateCurrentSetup}
+                  handleSaveSetup={handleSaveSetup}
+                  gpInfo={gpInfo}
+                  raceInitialFuelPct={raceInitialFuelPct}
+                  setRaceInitialFuelPct={setRaceInitialFuelPct}
+                  setupFeedback={setupFeedback}
+                  weather={weather}
+                  tireStock={tireStock}
+                  drivers={drivers}
+                  team={team}
+                  getStrategyForDriver={getStrategyForDriver}
+                  calculateDriverTireWearProfile={calculateDriverTireWearProfile}
+                  updateDriverStartCompound={updateDriverStartCompound}
+                  addDriverPitStop={addDriverPitStop}
+                  updateDriverPitStop={updateDriverPitStop}
+                  removeDriverPitStop={removeDriverPitStop}
+                  handleStartRace={handleStartRace}
+                  simSpeed={simSpeed}
+                  setSimSpeed={setSimSpeed}
+                  autoSimulateWithoutPause={autoSimulateWithoutPause}
+                  setAutoSimulateWithoutPause={setAutoSimulateWithoutPause}
+                  handleRunSession={handleRunSession}
+                />
+              )}
 
               {/* Simulation Animation Banner & Live Status */}
               {isSimulatingSession && (
