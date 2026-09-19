@@ -20,6 +20,8 @@ import type { LiveRaceEvent } from '@/types/race-events'
 import type { LapRecord } from '@/components/race/LiveStandingsTable'
 import type { TeamModel } from '@/types/f1'
 
+import type { RacePendingDecision, RaceResolvedDecision } from '@/types/race-session'
+
 export interface AdvanceOneLapParams {
   currentLap: number
   totalLaps: number
@@ -46,6 +48,10 @@ export interface AdvanceOneLapParams {
     safetyCarLapsRemaining: number
   }
   lapHistory: Record<string, LapRecord[]>
+  // Etapa 2: Suporte a proteção anti-loop e decisões pendentes no runner
+  sessionId?: string
+  existingPendingDecisions?: RacePendingDecision[]
+  resolvedDecisionIds?: string[] | Set<string>
 }
 
 export interface AdvanceOneLapResult {
@@ -56,6 +62,10 @@ export interface AdvanceOneLapResult {
   nextMechanicalIssues: AdvanceOneLapParams['mechanicalIssues']
   nextRedFlagState: AdvanceOneLapParams['redFlagState']
   isCompleted: boolean
+  // Etapa 2: Decisões geradas e detectadas nesta volta
+  detectedDecisions: RacePendingDecision[]
+  requiresPause: boolean
+  pauseReason?: string
 }
 
 export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOneLapResult {
@@ -411,6 +421,159 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
   const flCar = nextGrid.find((c) => c.driverId === flDriverId)
   if (flCar) flCar.fastestLap = true
 
+  // 7. DETECÇÃO DETERMINÍSTICA DE EVENTOS RELEVANTES E DECISÕES PENDENTES (ETAPA 2)
+  const detectedDecisions: RacePendingDecision[] = []
+  const resolvedSet: Set<string> =
+    params.resolvedDecisionIds instanceof Set
+      ? params.resolvedDecisionIds
+      : new Set(params.resolvedDecisionIds || [])
+  const existingPendingIds = new Set((params.existingPendingDecisions || []).map((d) => d.id))
+
+  const sId = params.sessionId || 'session'
+
+  // Avalia individualmente cada piloto do jogador que permaneça em prova
+  const activePlayerCars = nextGrid.filter((c) => c.isPlayer && !c.dnf)
+
+  for (const pCar of activePlayerCars) {
+    const dId = pCar.driverId
+    const dName = pCar.driverName || 'Piloto'
+
+    // Prioridade 1: Desgaste crítico de pneus (>= 80% ou cliff ativo com perda severa)
+    const isCriticalWear = (pCar.tireWear || 0) >= 80 || (pCar.cliffStatus?.isCliffReached || 0) > 0
+    if (isCriticalWear) {
+      const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_wear`
+      if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
+        detectedDecisions.push({
+          id: eventId,
+          type: 'pit_stop_critical_wear',
+          driverId: dId,
+          driverName: dName,
+          lap: nextLap,
+          createdAt: new Date().toISOString(),
+          title: `Desgaste Crítico de Pneus — ${dName}`,
+          description: `${dName} está com pneus em estado crítico (${pCar.tireWear}% de desgaste). Queda abrupta de ritmo ou furo iminente.`,
+          priority: 1,
+          options: [
+            {
+              id: 'box_now',
+              label: 'Box nesta volta',
+              description: 'Realizar pit stop imediatamente para calçar novos pneus.',
+            },
+            {
+              id: 'stay_out',
+              label: 'Manter na pista',
+              description: 'Continuar na pista por mais voltas assumindo perda de rendimento.',
+            },
+          ],
+          payload: {
+            currentWear: pCar.tireWear,
+            compound: pCar.tireCompound,
+            position: pCar.position,
+          },
+        })
+      }
+    }
+
+    // Prioridade 2: Janela de parada de estratégia programada
+    const isStrategyPitLap = pCar.pitLap === nextLap && (pCar.pitStopsDone || 0) === 0
+    if (isStrategyPitLap && !isCriticalWear) {
+      const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_strategy`
+      if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
+        detectedDecisions.push({
+          id: eventId,
+          type: 'pit_stop_strategy_window',
+          driverId: dId,
+          driverName: dName,
+          lap: nextLap,
+          createdAt: new Date().toISOString(),
+          title: `Janela de Pit Stop Planejada — ${dName}`,
+          description: `A volta ${nextLap} é a janela estratégica ideal de pit stop prevista para ${dName}.`,
+          priority: 2,
+          options: [
+            {
+              id: 'box_now',
+              label: 'Box nesta volta (Confirmar Plano)',
+              description: 'Entrar nos boxes e cumprir a janela estratégica programada.',
+            },
+            {
+              id: 'stay_out',
+              label: 'Estender Stint (Adiar Box)',
+              description: 'Prorrogar o stint na pista por voltas adicionais.',
+            },
+          ],
+          payload: {
+            pitLap: pCar.pitLap,
+            compound: pCar.tireCompound,
+            position: pCar.position,
+          },
+        })
+      }
+    }
+
+    // Prioridade 3: Mudança climática / pneus inadequados para a pista
+    const isSlickInWet =
+      weather !== 'seco' && ['macio', 'medio', 'duro'].includes(pCar.tireCompound || 'medio')
+    const isWetInDry =
+      weather === 'seco' &&
+      ['intermediario', 'chuva_extrema'].includes(pCar.tireCompound || 'medio')
+
+    if ((isSlickInWet || isWetInDry) && !isCriticalWear && !isStrategyPitLap) {
+      const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_weather`
+      if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
+        detectedDecisions.push({
+          id: eventId,
+          type: 'pit_stop_weather_change',
+          driverId: dId,
+          driverName: dName,
+          lap: nextLap,
+          createdAt: new Date().toISOString(),
+          title: `Composto Inadequado ao Clima — ${dName}`,
+          description: `A pista está com condição "${weather}", incompatível com os pneus ${pCar.tireCompound} de ${dName}.`,
+          priority: 1,
+          options: [
+            {
+              id: 'box_now',
+              label: 'Box nesta volta (Ajustar Pneus)',
+              description: 'Instalar composto correto para o asfalto atual.',
+            },
+            {
+              id: 'stay_out',
+              label: 'Aguardar na pista',
+              description: 'Tentar segurar o carro na pista.',
+            },
+          ],
+          payload: {
+            weather,
+            compound: pCar.tireCompound,
+            position: pCar.position,
+          },
+        })
+      }
+    }
+  }
+
+  const requiresPause = detectedDecisions.length > 0
+  const pauseReason = requiresPause
+    ? `Decisão requerida: ${detectedDecisions.map((d) => d.title).join(' | ')}`
+    : undefined
+
+  // Se houver decisões detectadas, gera evento no feed
+  detectedDecisions.forEach((dec) => {
+    newEventsThisLap.push({
+      id: `ev_dec_${dec.id}`,
+      lap: nextLap,
+      type: 'incident',
+      message: `⚠️ DECISÃO ESTRATÉGICA: ${dec.title}`,
+      driverName: dec.driverName,
+      isPlayer: true,
+      timestamp: new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    })
+  })
+
   return {
     nextLap,
     nextGrid,
@@ -419,5 +582,8 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
     nextMechanicalIssues: updatedMechIssues,
     nextRedFlagState: { ...redFlagState },
     isCompleted,
+    detectedDecisions,
+    requiresPause,
+    pauseReason,
   }
 }

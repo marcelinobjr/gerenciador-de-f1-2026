@@ -4,8 +4,11 @@ import type {
   RaceSessionStatus,
   RaceSessionType,
   RaceSessionCheckpointData,
+  RacePendingDecision,
+  RaceResolvedDecision,
 } from '@/types/race-session'
 import type { LapRecord } from '@/components/race/LiveStandingsTable'
+import { calculatePitStopDuration } from '@/lib/f1-tire-system'
 
 const LEASE_DURATION_MS = 25000 // 25s lease timeout
 
@@ -304,6 +307,195 @@ export const raceSessionService = {
     } catch (err) {
       console.error('[raceSessionService] Erro ao marcar sessão como concluída:', err)
       return false
+    }
+  },
+
+  /**
+   * ETAPA 2: Resolução Atômica de Decisão com Proteção Anti-Loop e Concorrência Multi-Aba.
+   * Valida a existência da decisão pendente no servidor.
+   * Rejeita caso o eventId já tenha sido resolvido (evita duplo clique ou concorrência entre abas).
+   * Aplica a consequência esportiva (ex: box now -> novos pneus e pit loss).
+   * Registra no resolvedDecisions histórico e remove de pendingDecisions.
+   * Persiste tudo atomicamente no PocketBase e incrementa a revisão.
+   */
+  async resolveDecision(params: {
+    sessionId: string
+    executorId: string
+    decisionId: string
+    choice: string // ex: 'box_now' | 'stay_out'
+    newCompoundChoice?: 'macio' | 'medio' | 'duro' | 'intermediario' | 'chuva_extrema'
+  }): Promise<{
+    success: boolean
+    alreadyResolved?: boolean
+    error?: string
+    updatedSession?: RaceSessionRecord
+    remainingPendingDecisions?: RacePendingDecision[]
+    resolvedDecision?: RaceResolvedDecision
+  }> {
+    try {
+      const session = await pb
+        .collection('race_sessions')
+        .getOne<RaceSessionRecord>(params.sessionId)
+      const cp = session.checkpoint_data || {
+        grid: [],
+        currentLap: session.current_lap || 1,
+        totalLaps: session.total_laps || 50,
+        weather: 'seco',
+        liveEvents: [],
+        playerCarTactics: {},
+        playerPaceOrders: {},
+        mechanicalIssues: [],
+        penalties: [],
+        lastSavedAt: new Date().toISOString(),
+      }
+
+      const pendingList: RacePendingDecision[] = cp.pendingDecisions || []
+      const resolvedList: RaceResolvedDecision[] = cp.resolvedDecisions || []
+
+      // 1. Verificação anti-duplicidade (Proteção Anti-Loop e Concorrência entre Abas)
+      const alreadyResolved = resolvedList.find((r) => r.eventId === params.decisionId)
+      if (alreadyResolved) {
+        return {
+          success: false,
+          alreadyResolved: true,
+          error: `Operação rejeitada: o evento "${params.decisionId}" já foi resolvido em ${alreadyResolved.resolvedAt}.`,
+          remainingPendingDecisions: pendingList.filter((d) => d.id !== params.decisionId),
+        }
+      }
+
+      // 2. Busca a decisão pendente
+      const targetDecision = pendingList.find((d) => d.id === params.decisionId)
+      if (!targetDecision) {
+        return {
+          success: false,
+          alreadyResolved: false,
+          error: `Decisão pendente "${params.decisionId}" não encontrada no estado da sessão.`,
+        }
+      }
+
+      // 3. Aplicação da consequência esportiva no grid
+      const updatedGrid = [...(cp.grid || [])]
+      const targetDriverId = targetDecision.driverId
+      const targetCar = updatedGrid.find((c) => c.driverId === targetDriverId)
+
+      let consequenceSummary = `Escolha realizada: ${params.choice}`
+
+      if (targetCar && !targetCar.dnf) {
+        if (params.choice === 'box_now') {
+          // Consequência de Pit Stop
+          const chosenCompound =
+            params.newCompoundChoice ||
+            (cp.weather !== 'seco'
+              ? cp.weather === 'chuva_forte'
+                ? 'chuva_extrema'
+                : 'intermediario'
+              : targetCar.tireCompound === 'medio'
+                ? 'duro'
+                : 'medio')
+
+          const pitDuration = calculatePitStopDuration(
+            targetCar.teamName,
+            targetCar.driverName,
+            true,
+            80,
+          )
+
+          targetCar.tireCompound = chosenCompound
+          targetCar.tireWear = 4
+          targetCar.lapsOnCurrentTire = 0
+          targetCar.pitStopsDone = (targetCar.pitStopsDone || 0) + 1
+          targetCar.accumulatedTimeSec =
+            (targetCar.accumulatedTimeSec || 0) + pitDuration.durationSec
+          targetCar.cliffStatus = undefined
+
+          consequenceSummary = `Box realizado: calçou pneus ${chosenCompound} em ${pitDuration.durationSec.toFixed(2)}s.`
+        } else if (params.choice === 'stay_out') {
+          // Consequência de adiar box: estende a janela de pit lap em 4 voltas
+          if (targetCar.pitLap) {
+            targetCar.pitLap = targetCar.pitLap + 4
+          }
+          consequenceSummary = `Permaneceu na pista. Janela estendida.`
+        }
+      }
+
+      // 4. Registro no histórico de decisões resolvidas (Chave de proteção anti-loop persistente)
+      const newResolvedRecord: RaceResolvedDecision = {
+        eventId: targetDecision.id,
+        type: targetDecision.type,
+        driverId: targetDecision.driverId,
+        lap: targetDecision.lap,
+        resolvedAt: new Date().toISOString(),
+        resolvedByExecutorId: params.executorId,
+        choice: params.choice,
+        consequenceSummary,
+      }
+
+      const updatedResolvedList = [...resolvedList, newResolvedRecord]
+      const updatedPendingList = pendingList.filter((d) => d.id !== params.decisionId)
+
+      // Atualiza eventos ao vivo
+      const nowTimeStr = new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+      const resolutionEvent = {
+        id: `ev_res_${Date.now()}_${targetDecision.id}`,
+        lap: targetDecision.lap,
+        type: 'team_radio' as const,
+        message: `📋 DECISÃO RESOLVIDA [${targetDecision.driverName || 'Piloto'}]: ${consequenceSummary}`,
+        driverName: targetDecision.driverName,
+        isPlayer: true,
+        timestamp: nowTimeStr,
+      }
+
+      const updatedCheckpoint: RaceSessionCheckpointData = {
+        ...cp,
+        grid: updatedGrid,
+        pendingDecisions: updatedPendingList,
+        resolvedDecisions: updatedResolvedList,
+        liveEvents: [resolutionEvent, ...(cp.liveEvents || [])].slice(0, 40),
+        lastSavedAt: new Date().toISOString(),
+      }
+
+      // Se ainda houver decisões pendentes de outro piloto, permanece 'awaiting_decision'.
+      // Se não houver mais, vai para 'paused' e o jogador aperta Play quando desejar.
+      const newStatus: RaceSessionStatus =
+        updatedPendingList.length > 0 ? 'awaiting_decision' : 'paused'
+      const newPauseReason =
+        updatedPendingList.length > 0
+          ? `Aguardando decisão para: ${updatedPendingList.map((d) => d.title).join(' | ')}`
+          : 'Decisão resolvida. Aguardando comando de Play do jogador.'
+
+      const nextRevision = (session.revision || 0) + 1
+      const newLease = new Date(Date.now() + LEASE_DURATION_MS).toISOString()
+
+      const updated = await pb
+        .collection('race_sessions')
+        .update<RaceSessionRecord>(params.sessionId, {
+          revision: nextRevision,
+          status: newStatus,
+          pause_reason: newPauseReason,
+          checkpoint_data: updatedCheckpoint,
+          active_executor_id: params.executorId,
+          executor_lease_until: newLease,
+          lock_heartbeat_at: new Date().toISOString(),
+        })
+
+      return {
+        success: true,
+        alreadyResolved: false,
+        updatedSession: updated,
+        remainingPendingDecisions: updatedPendingList,
+        resolvedDecision: newResolvedRecord,
+      }
+    } catch (err: any) {
+      console.error('[raceSessionService] Falha ao resolver decisão atômica:', err)
+      return {
+        success: false,
+        alreadyResolved: false,
+        error: err?.message || 'Falha de comunicação ao resolver decisão.',
+      }
     }
   },
 }

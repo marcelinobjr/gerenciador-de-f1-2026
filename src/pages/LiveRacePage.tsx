@@ -27,7 +27,13 @@ import type { LiveRaceEvent } from '@/types/race-events'
 import type { LapRecord } from '@/components/race/LiveStandingsTable'
 import type { TireCompound, TireAllotment } from '@/types/f1'
 import type { TrackWeatherState } from '@/lib/f1-tire-system'
-import type { RaceSessionRecord, RaceSessionStatus } from '@/types/race-session'
+import type {
+  RaceSessionRecord,
+  RaceSessionStatus,
+  RaceSessionCheckpointData,
+  RacePendingDecision,
+  RaceResolvedDecision,
+} from '@/types/race-session'
 import { RaceOperationsCockpit, type LiveTacticalMode } from '@/pages/race/RaceOperationsCockpit'
 import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
 import { DecisionModals } from '@/components/race/DecisionModals'
@@ -108,6 +114,12 @@ export default function LiveRacePage() {
   const [isRaceFinished, setIsRaceFinished] = useState(false)
   const [raceResults, setRaceResults] = useState<SimDriverEntry[] | null>(null)
 
+  // Etapa 2: Decisões persistentes, fila de decisões e histórico de resoluções
+  const [pendingDecisions, setPendingDecisions] = useState<RacePendingDecision[]>([])
+  const [resolvedDecisions, setResolvedDecisions] = useState<RaceResolvedDecision[]>([])
+  const [isResolvingDecision, setIsResolvingDecision] = useState(false)
+  const [selectedPitCompound, setSelectedPitCompound] = useState<TireCompound>('medio')
+
   // Modais de apoio
   const [forcePitModalOpen, setForcePitModalOpen] = useState(false)
   const [forcePitSelectedDriverId, setForcePitSelectedDriverId] = useState('')
@@ -165,8 +177,18 @@ export default function LiveRacePage() {
           setPenalties(cp.penalties || [])
           if (cp.redFlagState) setRedFlagState(cp.redFlagState)
           if (session.lap_history) setLapHistory(session.lap_history)
-          setIsRacePaused(session.status === 'paused' || session.status === 'awaiting_decision')
-          setPauseReason(session.pause_reason || null)
+          if (cp.pendingDecisions) setPendingDecisions(cp.pendingDecisions)
+          if (cp.resolvedDecisions) setResolvedDecisions(cp.resolvedDecisions)
+
+          const hasBlockingDecisions = (cp.pendingDecisions?.length || 0) > 0
+          setIsRacePaused(
+            session.status === 'paused' ||
+              session.status === 'awaiting_decision' ||
+              hasBlockingDecisions,
+          )
+          setPauseReason(
+            session.pause_reason || (hasBlockingDecisions ? 'Decisão Obrigatória Pendente' : null),
+          )
           setSimSpeed(session.sim_speed || 1)
 
           toast({
@@ -361,7 +383,11 @@ export default function LiveRacePage() {
 
   // 3. PERSISTÊNCIA ATÔMICA DE CHECKPOINT
   const triggerSaveCheckpoint = useCallback(
-    async (reasonStr?: string, forceStatus?: RaceSessionStatus) => {
+    async (
+      reasonStr?: string,
+      forceStatus?: RaceSessionStatus,
+      extraCheckpointPatch?: Partial<RaceSessionCheckpointData>,
+    ) => {
       if (!sessionRecord || isSavingRef.current) {
         pendingSaveRef.current = true
         return
@@ -372,8 +398,18 @@ export default function LiveRacePage() {
       setSyncError(null)
 
       try {
+        const hasDecisions =
+          (extraCheckpointPatch?.pendingDecisions?.length ?? pendingDecisions.length) > 0
+
         const statusToSave: RaceSessionStatus =
-          forceStatus || (isRaceFinished ? 'completed' : isRacePaused ? 'paused' : 'in_progress')
+          forceStatus ||
+          (isRaceFinished
+            ? 'completed'
+            : hasDecisions
+              ? 'awaiting_decision'
+              : isRacePaused
+                ? 'paused'
+                : 'in_progress')
 
         const res = await raceSessionService.saveCheckpoint({
           sessionId: sessionRecord.id,
@@ -384,16 +420,24 @@ export default function LiveRacePage() {
           simSpeed,
           pauseReason: reasonStr || pauseReason || undefined,
           checkpointData: {
-            grid,
-            currentLap,
+            grid: extraCheckpointPatch?.grid || grid,
+            currentLap: extraCheckpointPatch?.currentLap || currentLap,
             totalLaps,
             weather,
-            liveEvents: liveEvents.slice(0, 40),
+            liveEvents: (extraCheckpointPatch?.liveEvents || liveEvents).slice(0, 40),
             playerCarTactics,
             playerPaceOrders,
             mechanicalIssues,
             penalties,
             redFlagState,
+            pendingDecisions:
+              extraCheckpointPatch?.pendingDecisions !== undefined
+                ? extraCheckpointPatch.pendingDecisions
+                : pendingDecisions,
+            resolvedDecisions:
+              extraCheckpointPatch?.resolvedDecisions !== undefined
+                ? extraCheckpointPatch.resolvedDecisions
+                : resolvedDecisions,
             lastSavedAt: new Date().toISOString(),
           },
           lapHistory,
@@ -450,7 +494,8 @@ export default function LiveRacePage() {
 
   // 4. LOOP DE EXECUÇÃO DA CORRIDA COM PLAY/PAUSE/1x/2x/4x
   useEffect(() => {
-    if (isRacePaused || !isExecuting || isRaceFinished) {
+    // REGRA 9 & 4: Se houver pendingDecision != null ou isRacePaused, não avança
+    if (isRacePaused || !isExecuting || isRaceFinished || pendingDecisions.length > 0) {
       if (timerRef.current) {
         clearInterval(timerRef.current)
         timerRef.current = null
@@ -469,7 +514,7 @@ export default function LiveRacePage() {
         return
       }
 
-      // Executa avanço da volta pelo runner canônico
+      // Executa avanço da volta pelo runner canônico com proteção anti-loop
       const res = advanceCanonicalRaceLap({
         currentLap,
         totalLaps,
@@ -485,6 +530,9 @@ export default function LiveRacePage() {
         mechanicalIssues,
         redFlagState,
         lapHistory,
+        sessionId: sessionRecord?.id,
+        existingPendingDecisions: pendingDecisions,
+        resolvedDecisionIds: resolvedDecisions.map((r) => r.eventId),
       })
 
       setCurrentLap(res.nextLap)
@@ -492,12 +540,47 @@ export default function LiveRacePage() {
       setLapHistory(res.nextLapHistory)
       setMechanicalIssues(res.nextMechanicalIssues)
       setRedFlagState(res.nextRedFlagState)
+      const combinedEvents =
+        res.nextEvents.length > 0 ? [...res.nextEvents, ...liveEvents] : liveEvents
       if (res.nextEvents.length > 0) {
-        setLiveEvents((prev) => [...res.nextEvents, ...prev])
+        setLiveEvents(combinedEvents)
+      }
+
+      // REGRA 4: Se o runner detectou eventos que exigem decisão:
+      // 1) salva pendingDecision; 2) muda status para 'awaiting_decision'; 3) pausa; 4) interrompe avanço
+      if (res.requiresPause && res.detectedDecisions.length > 0) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+        }
+
+        const newPendingList = [...pendingDecisions, ...res.detectedDecisions]
+        setPendingDecisions(newPendingList)
+        setIsRacePaused(true)
+        setPauseReason(res.pauseReason || 'Decisão Estratégica Obrigatória')
+
+        // Persiste atomicamente no PocketBase com status awaiting_decision
+        triggerSaveCheckpoint(res.pauseReason, 'awaiting_decision', {
+          grid: res.nextGrid,
+          currentLap: res.nextLap,
+          liveEvents: combinedEvents,
+          pendingDecisions: newPendingList,
+        })
+
+        toast({
+          title: '⏸️ Corrida Pausada Automaticamente',
+          description: `Decisão de pit stop/estratégia necessária na volta ${res.nextLap}.`,
+        })
+
+        return
       }
 
       // Persiste checkpoint a cada volta concluída
-      triggerSaveCheckpoint(`Volta ${res.nextLap} concluída`)
+      triggerSaveCheckpoint(`Volta ${res.nextLap} concluída`, undefined, {
+        grid: res.nextGrid,
+        currentLap: res.nextLap,
+        liveEvents: combinedEvents,
+      })
 
       if (res.isCompleted) {
         if (timerRef.current) clearInterval(timerRef.current)
@@ -533,9 +616,20 @@ export default function LiveRacePage() {
     triggerSaveCheckpoint,
   ])
 
-  // Controles de Play/Pause
+  // REGRA 9: Controles de Play/Pause com bloqueio se houver pendingDecision
   const handleTogglePlayPause = async () => {
     if (isRaceFinished) return
+
+    // Se houver decisão pendente, BLOQUEIA o Play
+    if (pendingDecisions.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Execução Bloqueada',
+        description:
+          'Há decisões estratégicas pendentes para os pilotos. Resolva-as antes de retomar a prova.',
+      })
+      return
+    }
 
     if (isRacePaused) {
       // Quer dar PLAY: precisa antes obter lock exclusivo
@@ -550,6 +644,72 @@ export default function LiveRacePage() {
       setIsRacePaused(true)
       setPauseReason('Pausado pelo usuário')
       triggerSaveCheckpoint('Pausado pelo usuário', 'paused')
+    }
+  }
+
+  // ETAPA 2: Resolução Atômica da Decisão Atual na UI
+  const handleResolvePendingDecision = async (decisionId: string, choice: string) => {
+    if (!sessionRecord || isResolvingDecision) return
+    setIsResolvingDecision(true)
+
+    try {
+      const res = await raceSessionService.resolveDecision({
+        sessionId: sessionRecord.id,
+        executorId,
+        decisionId,
+        choice,
+        newCompoundChoice: choice === 'box_now' ? selectedPitCompound : undefined,
+      })
+
+      if (res.success && res.updatedSession) {
+        setSessionRecord(res.updatedSession)
+        setRevision(res.updatedSession.revision)
+        setSessionStatus(res.updatedSession.status)
+        setPauseReason(res.updatedSession.pause_reason || null)
+
+        const updatedCp = res.updatedSession.checkpoint_data
+        if (updatedCp) {
+          if (updatedCp.grid) setGrid(updatedCp.grid)
+          if (updatedCp.liveEvents) setLiveEvents(updatedCp.liveEvents)
+          if (updatedCp.pendingDecisions) setPendingDecisions(updatedCp.pendingDecisions)
+          else setPendingDecisions([])
+          if (updatedCp.resolvedDecisions) setResolvedDecisions(updatedCp.resolvedDecisions)
+        }
+
+        // REGRA 9: Permanece pausada após a resolução para o jogador pressionar Play
+        setIsRacePaused(true)
+
+        toast({
+          title: 'Decisão Registrada com Sucesso',
+          description:
+            res.remainingPendingDecisions && res.remainingPendingDecisions.length > 0
+              ? 'Decisão gravada. Próxima decisão da fila apresentada.'
+              : 'Decisão aplicada e salva. Pressione Play para continuar a prova.',
+        })
+      } else if (res.alreadyResolved) {
+        // REGRA 8: Duplo clique ou outra aba já resolveu
+        toast({
+          variant: 'destructive',
+          title: 'Decisão Já Processada',
+          description: res.error || 'Esta ocorrência já foi resolvida anteriormente.',
+        })
+        setPendingDecisions((prev) => prev.filter((d) => d.id !== decisionId))
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao Resolver Decisão',
+          description: res.error || 'Não foi possível gravar a decisão no servidor.',
+        })
+      }
+    } catch (err: any) {
+      console.error('[LiveRacePage] Falha ao resolver decisão:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Falha de Comunicação',
+        description: err?.message || 'Erro ao processar resolução.',
+      })
+    } finally {
+      setIsResolvingDecision(false)
     }
   }
 
@@ -698,6 +858,108 @@ export default function LiveRacePage() {
             >
               Reivindicar Controle
             </Button>
+          </div>
+        )}
+
+        {/* ETAPA 2: BANNER PERSISTENTE DE DECISÃO BLOQUEANTE PENDENTE */}
+        {pendingDecisions.length > 0 && (
+          <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border-2 border-amber-500/60 shadow-md animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-500/30 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-amber-500 text-black font-extrabold text-xs">
+                  ⏸️ CORRIDA PAUSADA AUTOMATICAMENTE
+                </span>
+                <Badge className="bg-amber-600 text-white font-mono text-xs">
+                  Fila: {pendingDecisions.length} decisão(ões) pendente(s)
+                </Badge>
+              </div>
+              <span className="text-xs font-mono text-amber-800 font-bold">
+                Volta {pendingDecisions[0].lap} • ID: {pendingDecisions[0].id}
+              </span>
+            </div>
+
+            {/* Conteúdo da Decisão em Destaque */}
+            {(() => {
+              const currentDec = pendingDecisions[0]
+              const car = grid.find((g) => g.driverId === currentDec.driverId)
+              return (
+                <div className="pt-3 space-y-3">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900">{currentDec.title}</h3>
+                      <p className="text-xs text-slate-700 mt-0.5 font-medium">
+                        {currentDec.description}
+                      </p>
+                    </div>
+
+                    {car && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-xs font-mono">
+                        <span className="font-bold text-slate-800">{car.driverName}:</span>
+                        <span className="text-slate-600">P{car.position}</span>
+                        <span>•</span>
+                        <span className="capitalize">
+                          {car.tireCompound} ({car.tireWear}% desg.)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Seleção de composto caso opte por Box */}
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <span className="text-xs font-mono font-bold text-slate-700">
+                      Caso escolha Box, instalar pneu:
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {(
+                        [
+                          'macio',
+                          'medio',
+                          'duro',
+                          'intermediario',
+                          'chuva_extrema',
+                        ] as TireCompound[]
+                      ).map((comp) => (
+                        <button
+                          key={comp}
+                          type="button"
+                          onClick={() => setSelectedPitCompound(comp)}
+                          className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition-all ${
+                            selectedPitCompound === comp
+                              ? 'bg-slate-900 text-white ring-2 ring-amber-500'
+                              : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {formatTireName(comp)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Botões de Decisão */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-500/20">
+                    {(
+                      currentDec.options || [
+                        { id: 'box_now', label: 'Box nesta volta' },
+                        { id: 'stay_out', label: 'Manter na pista' },
+                      ]
+                    ).map((opt) => (
+                      <Button
+                        key={opt.id}
+                        disabled={isResolvingDecision}
+                        onClick={() => handleResolvePendingDecision(currentDec.id, opt.id)}
+                        className={`font-bold text-xs h-9 px-4 ${
+                          opt.id === 'box_now'
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                            : 'bg-slate-800 hover:bg-slate-900 text-white'
+                        }`}
+                      >
+                        {isResolvingDecision ? 'Gravando...' : opt.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
       </div>

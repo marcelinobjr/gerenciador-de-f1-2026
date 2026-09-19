@@ -13,6 +13,41 @@ export type RaceSessionStatus =
 
 export type RaceSessionType = 'race' | 'sprint'
 
+export type RaceDecisionType =
+  | 'pit_stop_critical_wear'
+  | 'pit_stop_strategy_window'
+  | 'pit_stop_weather_change'
+  | 'operational_incident'
+
+export interface RacePendingDecision {
+  id: string
+  type: RaceDecisionType
+  driverId: string
+  driverName?: string
+  lap: number
+  createdAt: string
+  title: string
+  description: string
+  priority?: number
+  options?: Array<{
+    id: string
+    label: string
+    description?: string
+  }>
+  payload: Record<string, unknown>
+}
+
+export interface RaceResolvedDecision {
+  eventId: string
+  type: RaceDecisionType
+  driverId: string
+  lap: number
+  resolvedAt: string
+  resolvedByExecutorId: string
+  choice: string
+  consequenceSummary?: string
+}
+
 export interface RaceSessionCheckpointData {
   grid: SimDriverEntry[]
   currentLap: number
@@ -38,6 +73,9 @@ export interface RaceSessionCheckpointData {
   safetyCarActive?: boolean
   seed?: number
   lastSavedAt: string
+  // Etapa 2: Decisões pendentes e resolvidas persistidas no checkpoint
+  pendingDecisions?: RacePendingDecision[]
+  resolvedDecisions?: RaceResolvedDecision[]
 }
 
 export interface RaceSessionRecord {
