@@ -178,12 +178,12 @@ export const TeamActionsCard: React.FC<TeamActionsCardProps> = ({
   }
 
   return (
-    <Card className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
-      <CardHeader className="py-3 px-4 bg-slate-50 border-b border-slate-200 flex flex-row items-center justify-between">
+    <Card className="bg-white border border-slate-200/90 shadow-xs rounded-xl overflow-hidden">
+      <CardHeader className="py-2.5 px-3.5 bg-slate-50 border-b border-slate-200 flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-[#E10600]" />
+          <span className="w-1.5 h-3.5 rounded-full bg-[#E10600]" />
           <div>
-            <CardTitle className="text-xs font-bold text-slate-900 tracking-wide uppercase">
+            <CardTitle className="text-xs font-black text-slate-900 tracking-wider uppercase">
               Ações de Equipe (Team Orders)
             </CardTitle>
             <p className="text-[10px] text-slate-500">
@@ -191,7 +191,7 @@ export const TeamActionsCard: React.FC<TeamActionsCardProps> = ({
             </p>
           </div>
         </div>
-        <Badge className="bg-slate-100 text-slate-700 border-slate-200 text-[10px] font-mono">
+        <Badge className="bg-slate-100 text-slate-700 border-slate-200 text-[10px] font-mono font-bold">
           Volta {currentLap}
         </Badge>
       </CardHeader>

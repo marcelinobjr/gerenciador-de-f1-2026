@@ -118,51 +118,56 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
       : 88
 
   return (
-    <Card className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden flex flex-col">
-      {/* Cabeçalho do Piloto com Foto, Nome e Posição */}
-      <CardHeader className="py-3 px-4 bg-slate-50 border-b border-slate-200 flex flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+    <Card className="bg-white border border-slate-200/90 shadow-xs rounded-xl overflow-hidden flex flex-col">
+      {/* Cabeçalho do Piloto com Foto, Nome e Posição (Anexo A) */}
+      <CardHeader className="py-2.5 px-3.5 bg-slate-50 border-b border-slate-200 flex flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
           {/* Foto/Pôster do Piloto */}
-          <div className="w-11 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-xs relative">
+          <div className="w-10 h-13 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-xs relative">
             <DriverPoster
               name={driverName}
               driverId={car.driverId}
               className="w-full h-full object-cover object-top"
             />
-            <span className="absolute bottom-0 right-0 bg-slate-900/80 text-white font-mono text-[9px] font-black px-1 rounded-tl">
+            <span className="absolute bottom-0 right-0 bg-slate-950/85 text-white font-mono text-[9px] font-black px-1 rounded-tl">
               #{driverNumber}
             </span>
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-slate-900 text-white font-mono text-[10px] px-1.5 py-0 uppercase">
+            <div className="flex items-center gap-1.5">
+              <span className="px-1.5 py-0.2 rounded bg-slate-900 text-white font-mono text-[10px] font-black uppercase">
                 Carro {slotNumber}
-              </Badge>
-              <span className="font-mono text-xs text-slate-500 font-bold">#{driverNumber}</span>
+              </span>
+              <span className="font-mono text-[11px] text-slate-500 font-bold">
+                #{driverNumber}
+              </span>
+              {car.isPlayer && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" title="Piloto da Equipe" />
+              )}
             </div>
-            <CardTitle className="text-sm font-bold text-slate-900 mt-0.5 leading-tight">
+            <CardTitle className="text-sm font-black text-slate-900 mt-0.5 leading-tight tracking-tight">
               {driverName}
             </CardTitle>
-            <p className="text-[10px] text-slate-500 font-medium truncate">{car.teamName}</p>
+            <p className="text-[10px] text-slate-500 font-semibold truncate">{car.teamName}</p>
           </div>
         </div>
 
         {/* Posição e Intervalo */}
         <div className="text-right">
           <div className="inline-flex items-center gap-1">
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Pos</span>
-            <span className="font-mono text-lg font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">POS</span>
+            <span className="font-mono text-base font-black text-slate-950 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
               {car.dnf ? 'DNF' : `P${position}`}
             </span>
           </div>
-          <div className="text-[10px] font-mono text-slate-500 mt-0.5 space-x-1">
+          <div className="text-[10px] font-mono text-slate-500 mt-0.5 space-x-1.5">
             <span>
-              Frente: <strong className="text-slate-800">{gapFront}</strong>
+              Intervalo: <strong className="text-slate-900">{gapFront}</strong>
             </span>
             <span>·</span>
             <span>
-              Volta: <strong className="text-slate-800">{lastLap}</strong>
+              Última: <strong className="text-slate-900">{lastLap}</strong>
             </span>
           </div>
         </div>

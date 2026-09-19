@@ -781,50 +781,86 @@ export default function LiveRacePage() {
   }
 
   return (
-    <div className="space-y-5 animate-fade-in pb-12">
-      {/* 1. HERO SUPERIOR CLARO E MODERNO (Anexo A / B) */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-4 animate-fade-in pb-12">
+      {/* 1. CABEÇALHO COMPACTO DE CORRIDA — PIT WALL & RACE CONTROL (ANEXO A) */}
+      <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Lado Esquerdo: Identificação do GP, Circuito e Rodada */}
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-[#E10600] text-white font-extrabold text-[10px] px-2 py-0.5 tracking-wider uppercase">
-                CORRIDA AO VIVO — NOVA VERSÃO
-              </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-black text-[10px] tracking-wider uppercase bg-[#E10600] text-white">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                CORRIDA AO VIVO
+              </span>
               <span className="font-mono text-xs text-slate-500 font-bold">
                 TEMPORADA {season?.year || 2026} · RODADA {currentRound}/{totalRounds}
               </span>
+              <Badge
+                variant="outline"
+                className="text-[10px] font-mono border-slate-300 text-slate-700 bg-slate-50"
+              >
+                {gpInfo.circuit}
+              </Badge>
+              {weather && (
+                <span className="text-[11px] font-mono font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {weather === 'seco'
+                    ? '☀️ Pista Seca'
+                    : weather === 'chuva_fraca'
+                      ? '🌦️ Chuva Fraca'
+                      : weather === 'chuva_forte'
+                        ? '🌧️ Chuva Forte'
+                        : weather}
+                </span>
+              )}
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{gpInfo.name}</h1>
-            <p className="text-xs text-slate-600">
-              {gpInfo.circuit} • Sessão Oficial Persistente Compartilhada
-            </p>
+
+            <div className="flex items-baseline gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
+                {gpInfo.name}
+              </h1>
+              <span className="text-xs font-mono font-semibold text-slate-500 hidden sm:inline">
+                Volta {currentLap} de {totalLaps}
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Status discreto de salvamento */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-slate-50 text-xs font-mono font-medium">
+          {/* Lado Direito: Sincronização e Acesso Auxiliar */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Status de Sincronização com o Backend */}
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-mono font-medium transition-colors ${
+                syncState === 'saving'
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : syncState === 'saved'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : syncState === 'error'
+                      ? 'bg-red-50 border-red-200 text-red-800 font-bold'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
+              }`}
+              title={syncError ? `Erro: ${syncError}` : undefined}
+            >
               {syncState === 'saving' && (
                 <>
-                  <RefreshCw className="w-3.5 h-3.5 text-amber-500 animate-spin" />
-                  <span className="text-amber-700">SALVANDO...</span>
+                  <RefreshCw className="w-3 h-3 text-amber-600 animate-spin" />
+                  <span>Salvando...</span>
                 </>
               )}
               {syncState === 'saved' && (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-emerald-700">SALVO (Rev {revision})</span>
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Sincronizado (v{revision})</span>
                 </>
               )}
               {syncState === 'error' && (
                 <>
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
-                  <span className="text-red-700 font-bold">FALHA AO SALVAR</span>
+                  <AlertTriangle className="w-3 h-3 text-red-600" />
+                  <span>Falha ao salvar</span>
                 </>
               )}
               {syncState === 'idle' && (
                 <>
-                  <Save className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-slate-600">SINCRONIZADO</span>
+                  <Save className="w-3 h-3 text-slate-400" />
+                  <span>Pronto</span>
                 </>
               )}
             </div>
@@ -833,11 +869,11 @@ export default function LiveRacePage() {
               variant="outline"
               size="sm"
               asChild
-              className="text-xs border-slate-300 text-slate-700 hover:bg-slate-50 font-bold"
+              className="text-xs h-8 border-slate-300 text-slate-700 hover:bg-slate-50 font-bold"
             >
               <Link to="/race">
                 <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-                Acesso Legado (/race)
+                Painel /race
               </Link>
             </Button>
           </div>
@@ -845,7 +881,7 @@ export default function LiveRacePage() {
 
         {/* ALERTA DE CONFLITO DE EXECUTOR (Se houver outra aba aberta executando) */}
         {executorConflictMessage && (
-          <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5">
+          <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5">
             <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-bold">Execução Bloqueada nesta Janela</p>
@@ -861,20 +897,23 @@ export default function LiveRacePage() {
           </div>
         )}
 
-        {/* ETAPA 2: BANNER PERSISTENTE DE DECISÃO BLOQUEANTE PENDENTE */}
+        {/* ÁREA DE DECISÃO DE CORRIDA EM DESTAQUE PRIORITÁRIO (ANEXO A) */}
         {pendingDecisions.length > 0 && (
-          <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border-2 border-amber-500/60 shadow-md animate-fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-500/30 pb-3">
+          <div className="mt-3.5 rounded-xl border-2 border-amber-500 bg-amber-500/10 shadow-md p-4 animate-in fade-in slide-in-from-top-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/30 pb-2.5">
               <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-amber-500 text-black font-extrabold text-xs">
-                  ⏸️ CORRIDA PAUSADA AUTOMATICAMENTE
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider">
+                  <Pause className="w-3.5 h-3.5 fill-current" />
+                  CORRIDA PAUSADA — DECISÃO OBRIGATÓRIA
                 </span>
-                <Badge className="bg-amber-600 text-white font-mono text-xs">
-                  Fila: {pendingDecisions.length} decisão(ões) pendente(s)
-                </Badge>
+                {pendingDecisions.length > 1 && (
+                  <Badge className="bg-amber-600 text-white font-mono text-xs">
+                    Fila: {pendingDecisions.length} pendentes
+                  </Badge>
+                )}
               </div>
-              <span className="text-xs font-mono text-amber-800 font-bold">
-                Volta {pendingDecisions[0].lap} • ID: {pendingDecisions[0].id}
+              <span className="text-xs font-mono font-bold text-amber-900">
+                Volta {pendingDecisions[0].lap} · #{pendingDecisions[0].id.slice(-8)}
               </span>
             </div>
 
@@ -884,32 +923,35 @@ export default function LiveRacePage() {
               const car = grid.find((g) => g.driverId === currentDec.driverId)
               return (
                 <div className="pt-3 space-y-3">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900">{currentDec.title}</h3>
-                      <p className="text-xs text-slate-700 mt-0.5 font-medium">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <h3 className="text-base sm:text-lg font-black text-slate-950 tracking-tight">
+                        {currentDec.title}
+                      </h3>
+                      <p className="text-xs text-slate-800 leading-relaxed font-medium max-w-2xl">
                         {currentDec.description}
                       </p>
                     </div>
 
                     {car && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-xs font-mono">
-                        <span className="font-bold text-slate-800">{car.driverName}:</span>
-                        <span className="text-slate-600">P{car.position}</span>
-                        <span>•</span>
-                        <span className="capitalize">
-                          {car.tireCompound} ({car.tireWear}% desg.)
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-amber-300 text-xs font-mono shadow-xs shrink-0">
+                        <span className="font-bold text-slate-900">{car.driverName}:</span>
+                        <Badge className="bg-slate-900 text-white font-mono text-[10px] px-1.5">
+                          P{car.position}
+                        </Badge>
+                        <span className="text-slate-600 font-semibold capitalize">
+                          {formatTireName(car.tireCompound)} ({car.tireWear}% desg.)
                         </span>
                       </div>
                     )}
                   </div>
 
                   {/* Seleção de composto caso opte por Box */}
-                  <div className="flex flex-wrap items-center gap-3 pt-1">
-                    <span className="text-xs font-mono font-bold text-slate-700">
-                      Caso escolha Box, instalar pneu:
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1.5 bg-white/70 p-2.5 rounded-lg border border-amber-200">
+                    <span className="text-xs font-bold text-slate-800 font-mono">
+                      Se optar por Box, instalar:
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {(
                         [
                           'macio',
@@ -925,7 +967,7 @@ export default function LiveRacePage() {
                           onClick={() => setSelectedPitCompound(comp)}
                           className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition-all ${
                             selectedPitCompound === comp
-                              ? 'bg-slate-900 text-white ring-2 ring-amber-500'
+                              ? 'bg-slate-950 text-white ring-2 ring-amber-500 shadow-xs'
                               : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
@@ -935,8 +977,8 @@ export default function LiveRacePage() {
                     </div>
                   </div>
 
-                  {/* Botões de Decisão */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-500/20">
+                  {/* Botões de Ação da Decisão */}
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
                     {(
                       currentDec.options || [
                         { id: 'box_now', label: 'Box nesta volta' },
@@ -947,15 +989,18 @@ export default function LiveRacePage() {
                         key={opt.id}
                         disabled={isResolvingDecision}
                         onClick={() => handleResolvePendingDecision(currentDec.id, opt.id)}
-                        className={`font-bold text-xs h-9 px-4 ${
+                        className={`font-black text-xs h-9 px-5 shadow-sm transition-all ${
                           opt.id === 'box_now'
-                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                            : 'bg-slate-800 hover:bg-slate-900 text-white'
+                            ? 'bg-[#E10600] hover:bg-[#C10500] text-white'
+                            : 'bg-slate-900 hover:bg-slate-800 text-white'
                         }`}
                       >
                         {isResolvingDecision ? 'Gravando...' : opt.label}
                       </Button>
                     ))}
+                    <span className="text-[11px] font-mono text-amber-900 ml-1">
+                      A corrida permanecerá em pausa para você revisar o grid após decidir.
+                    </span>
                   </div>
                 </div>
               )

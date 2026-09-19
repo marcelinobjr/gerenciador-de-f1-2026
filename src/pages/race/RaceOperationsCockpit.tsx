@@ -115,18 +115,18 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* BARRA DE CONTROLE DA CORRIDA CLARA E STICKY: PLAY / PAUSE, VELOCIDADES 1x / 2x / 4x, ESTADO */}
-      <Card className="sticky top-2 z-30 bg-white/95 backdrop-blur-md border border-slate-200 shadow-md rounded-xl p-3">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          {/* Controles de Simulação */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+      {/* BARRA DE CONTROLE DA CORRIDA COMPACTA E STICKY — PIT WALL OPERATIONS (ANEXO A) */}
+      <Card className="sticky top-2 z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-xl p-2.5 sm:p-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-4">
+          {/* Controles de Simulação / Play / Pause / Velocidades */}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {!isSimulatingSession && !liveRaceState?.inProgress && !isDone ? (
               <Button
                 size="sm"
                 onClick={handleStartRace}
-                className="bg-[#E10600] hover:bg-[#C10500] text-white font-extrabold text-xs px-4 h-9 shadow-sm flex items-center gap-1.5"
+                className="bg-[#E10600] hover:bg-[#C10500] text-white font-black text-xs px-4 h-9 shadow-sm flex items-center gap-1.5 uppercase tracking-wider"
               >
-                <Play className="w-4 h-4 fill-current" />
+                <Play className="w-3.5 h-3.5 fill-current" />
                 LARGADA // INICIAR CORRIDA
               </Button>
             ) : (
@@ -137,18 +137,18 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
                   disabled={isDone}
                   className={`font-black text-xs px-4 h-9 shadow-sm flex items-center gap-1.5 transition-all ${
                     isRacePaused
-                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
-                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
+                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-amber-500/20'
                   }`}
                 >
                   {isRacePaused ? (
                     <>
-                      <Play className="w-4 h-4 fill-current" />
+                      <Play className="w-3.5 h-3.5 fill-current" />
                       RETOMAR (PLAY)
                     </>
                   ) : (
                     <>
-                      <Pause className="w-4 h-4 fill-current" />
+                      <Pause className="w-3.5 h-3.5 fill-current" />
                       PAUSAR (PAUSE)
                     </>
                   )}
@@ -174,41 +174,46 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
               </div>
             )}
 
-            {/* Status da Corrida */}
-            <div className="hidden md:flex items-center gap-1.5 text-xs font-semibold">
-              <span className="text-slate-500">Estado:</span>
+            {/* Status Visual da Prova */}
+            <div className="flex items-center gap-1.5 text-xs font-semibold">
               {isDone ? (
-                <Badge className="bg-slate-200 text-slate-800 border-slate-300">ENCERRADA</Badge>
+                <Badge className="bg-slate-200 text-slate-800 border-slate-300 font-mono">
+                  ENCERRADA
+                </Badge>
               ) : isRacePaused ? (
-                <Badge className="bg-amber-100 text-amber-900 border-amber-300 animate-pulse">
-                  PAUSADA {pauseReason ? `(${pauseReason})` : ''}
+                <Badge className="bg-amber-100 text-amber-900 border-amber-300 font-mono flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+                  PAUSADA {pauseReason ? `· ${pauseReason}` : ''}
                 </Badge>
               ) : liveRaceState?.inProgress ? (
-                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 flex items-center gap-1">
+                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-mono flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  EM ANDAMENTO
+                  EM ANDAMENTO ({simSpeed}x)
                 </Badge>
               ) : (
-                <Badge className="bg-slate-100 text-slate-700 border-slate-200">
+                <Badge className="bg-slate-100 text-slate-700 border-slate-200 font-mono">
                   AGUARDANDO LARGADA
                 </Badge>
               )}
             </div>
           </div>
 
-          {/* Indicador de Volta e Botão Rápido de Box */}
+          {/* Indicador de Volta em destaque e Ação Rápida de Chamar aos Boxes */}
           <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1.5 rounded-md border border-slate-200">
-              Volta {currentLap}/{totalLaps}
-            </span>
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-900 font-mono text-xs font-black">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">VOLTA</span>
+              <span className="text-slate-900 font-extrabold">{currentLap}</span>
+              <span className="text-slate-400">/</span>
+              <span className="text-slate-600">{totalLaps}</span>
+            </div>
 
             <Button
               size="sm"
               onClick={() => handleOpenForcePitModal()}
               disabled={!liveRaceState?.inProgress || isDone}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-3 h-8.5 shadow-sm flex items-center gap-1.5"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider px-3.5 h-9 shadow-sm flex items-center gap-1.5"
             >
-              <Wrench className="w-3.5 h-3.5" />
+              <Wrench className="w-3.5 h-3.5 text-amber-400" />
               Chamar aos Boxes
             </Button>
           </div>
