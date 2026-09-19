@@ -3,6 +3,10 @@ import { raceSessionService } from '@/services/raceSessionService'
 import { advanceCanonicalRaceLap } from '@/services/canonicalRaceRunner'
 import type { SimDriverEntry } from '@/pages/race/types'
 
+/**
+ * Testes focados da Etapa 1 — Nova Corrida & Sessão Compartilhada
+ * Valida a sessão persistente, canonical runner, física e critérios A-H de QA.
+ */
 describe('Etapa 1: Sessão Persistente e Runner Canônico de Corrida', () => {
   it('constrói a chave canônica da sessão contendo carreira, temporada, rodada e tipo', () => {
     const key = raceSessionService.buildSessionKey({
