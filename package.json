@@ -14,7 +14,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "preview": "vite preview",
-    "test": "vitest run src/test/preparation-informed-4d1.test.ts src/test/practice-stint-feedback-4c1.test.ts src/test/practice-tyre-knowledge-4c2.test.ts src/test/practice-preparation-4a.test.ts src/test/practice-session-runner-4b.test.ts src/test/race-canonical-physics-1b2.test.ts src/test/weekend-simulation-canonical-1b3.test.ts src/test/audi-sideview.test.ts src/test/micro-patch-v0-0-271-assets-roster-dismissals.test.ts src/test/micro-patch-v0-0-279-car-page.test.ts src/test/micro-patch-v0-0-280-car-assets.test.ts src/test/micro-patch-v0-0-282-commercial-assets.test.ts src/test/commercial-finances-f1-2026.test.ts src/test/drivers-page-redesign.test.tsx",
+    "test": "vitest run src/test/live-check-01-integrated-validation.test.ts src/test/canonical-race-grid-initialization.test.ts src/test/race-homologation-scenarios.test.ts src/test/race-shared-session-etapa2.test.ts src/test/financial-ledger-system.test.ts src/test/preparation-informed-4d1.test.ts src/test/practice-stint-feedback-4c1.test.ts src/test/practice-tyre-knowledge-4c2.test.ts src/test/practice-preparation-4a.test.ts src/test/practice-session-runner-4b.test.ts src/test/race-canonical-physics-1b2.test.ts src/test/weekend-simulation-canonical-1b3.test.ts src/test/audi-sideview.test.ts src/test/micro-patch-v0-0-271-assets-roster-dismissals.test.ts src/test/micro-patch-v0-0-279-car-page.test.ts src/test/micro-patch-v0-0-280-car-assets.test.ts src/test/micro-patch-v0-0-282-commercial-assets.test.ts src/test/commercial-finances-f1-2026.test.ts src/test/drivers-page-redesign.test.tsx",
     "test:watch": "vitest"
   },
   "dependencies": {
