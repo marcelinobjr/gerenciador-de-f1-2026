@@ -478,6 +478,9 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
       }
     }
 
+    // Janela de parada de estratégia programada padrão
+    const isStrategyPitLap = pCar.pitLap === nextLap && (pCar.pitStopsDone || 0) === 0
+
     // Prioridade 2: Reavaliação informada com conhecimento aprendido dos treinos (4D.2)
     // Compara desgaste e voltas acumuladas contra usefulWindow e degradation do composto atual.
     const currentComp = (pCar.tireCompound || 'medio') as TireCompound
@@ -567,7 +570,7 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
       if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
         detectedDecisions.push({
           id: eventId,
-          type: 'pit_stop_strategy_window',
+          type: 'pit_stop_informed_recommendation',
           driverId: dId,
           driverName: dName,
           lap: nextLap,
@@ -603,41 +606,37 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
           },
         })
       }
-    } else {
-      // Janela de parada de estratégia programada padrão
-      const isStrategyPitLap = pCar.pitLap === nextLap && (pCar.pitStopsDone || 0) === 0
-      if (isStrategyPitLap && !isCriticalWear) {
-        const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_strategy`
-        if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
-          detectedDecisions.push({
-            id: eventId,
-            type: 'pit_stop_strategy_window',
-            driverId: dId,
-            driverName: dName,
-            lap: nextLap,
-            createdAt: new Date().toISOString(),
-            title: `Janela de Pit Stop Planejada — ${dName}`,
-            description: `A volta ${nextLap} é a janela estratégica ideal de pit stop prevista para ${dName}.`,
-            priority: 2,
-            options: [
-              {
-                id: 'box_now',
-                label: 'Box nesta volta (Confirmar Plano)',
-                description: 'Entrar nos boxes e cumprir a janela estratégica programada.',
-              },
-              {
-                id: 'stay_out',
-                label: 'Estender Stint (Adiar Box)',
-                description: 'Prorrogar o stint na pista por voltas adicionais.',
-              },
-            ],
-            payload: {
-              pitLap: pCar.pitLap,
-              compound: pCar.tireCompound,
-              position: pCar.position,
+    } else if (isStrategyPitLap && !isCriticalWear) {
+      const eventId = `decision_${sId}_${dId}_lap${nextLap}_pit_strategy`
+      if (!resolvedSet.has(eventId) && !existingPendingIds.has(eventId)) {
+        detectedDecisions.push({
+          id: eventId,
+          type: 'pit_stop_strategy_window',
+          driverId: dId,
+          driverName: dName,
+          lap: nextLap,
+          createdAt: new Date().toISOString(),
+          title: `Janela de Pit Stop Planejada — ${dName}`,
+          description: `A volta ${nextLap} é a janela estratégica ideal de pit stop prevista para ${dName}.`,
+          priority: 2,
+          options: [
+            {
+              id: 'box_now',
+              label: 'Box nesta volta (Confirmar Plano)',
+              description: 'Entrar nos boxes e cumprir a janela estratégica programada.',
             },
-          })
-        }
+            {
+              id: 'stay_out',
+              label: 'Estender Stint (Adiar Box)',
+              description: 'Prorrogar o stint na pista por voltas adicionais.',
+            },
+          ],
+          payload: {
+            pitLap: pCar.pitLap,
+            compound: pCar.tireCompound,
+            position: pCar.position,
+          },
+        })
       }
     }
 

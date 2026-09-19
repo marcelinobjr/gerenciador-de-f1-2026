@@ -20,7 +20,7 @@ import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { raceSessionService } from '@/services/raceSessionService'
 import { practiceSessionService } from '@/services/practiceSessionService'
 import {
-  canonicalPreparationInformedService,
+  buildPreparationInformedPackage,
   type PreparationInformedPackage,
 } from '@/services/canonicalPreparationInformedService'
 import { advanceCanonicalRaceLap } from '@/services/canonicalRaceRunner'
@@ -202,18 +202,44 @@ export default function LiveRacePage() {
 
         // 1.1.b ETAPA 4D.2: Carregar conhecimento aprendido nos treinos livres e estoque de pneus
         try {
-          const inherited = await practiceSessionService.resolveInheritedWeekendKnowledge(
+          const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
             team!.id,
             season!.id,
             currentRound,
+            'race' as any,
           )
           if (isMounted && inherited) {
             setInheritedTyreKnowledge(inherited.tyreKnowledge || null)
-            const pkg = canonicalPreparationInformedService.buildPreparationInformedPackage({
-              inheritedKnowledge: inherited,
-              currentRound,
-              circuitKey: gpInfo.circuit,
-              sessionType: 'race',
+            const pkg = buildPreparationInformedPackage({
+              sessionKey: 'race',
+              currentSetup: {
+                team_id: team!.id,
+                season_id: season!.id,
+                round: currentRound,
+                session: 'race',
+                wing_level: 6,
+                suspension_stiffness: 6,
+                pu_electric_ratio: 50,
+                tire_compound: 'medio',
+              },
+              gpInfo: {
+                circuit: gpInfo.circuit,
+                laps: gpInfo.laps,
+                downforceIdeal: gpInfo.downforceIdeal,
+                suspensionIdeal: gpInfo.suspensionIdeal,
+              },
+              weather: 'seco',
+              setupKnowledge: inherited.setupKnowledge || null,
+              tyreKnowledge: inherited.tyreKnowledge || null,
+              feedbacks: null,
+              tireStock: {
+                macio: 3,
+                medio: 3,
+                duro: 2,
+                intermediario: 4,
+                chuva_extrema: 3,
+              },
+              drivers: titularDrivers.map((d) => ({ id: d.id, name: d.name })),
             })
             setInformedPackage(pkg)
           }
