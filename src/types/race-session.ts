@@ -77,6 +77,8 @@ export interface RaceSessionCheckpointData {
   // Etapa 2: Decisões pendentes e resolvidas persistidas no checkpoint
   pendingDecisions?: RacePendingDecision[]
   resolvedDecisions?: RaceResolvedDecision[]
+  // Etapa 4D.2: Estoque e inventário de pneus por piloto sincronizados no checkpoint
+  driverTireInventories?: Record<string, import('@/types/f1').TireSetItem[]>
 }
 
 export interface RaceSessionRecord {

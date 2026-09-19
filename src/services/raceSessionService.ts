@@ -324,6 +324,7 @@ export const raceSessionService = {
     decisionId: string
     choice: string // ex: 'box_now' | 'stay_out'
     newCompoundChoice?: 'macio' | 'medio' | 'duro' | 'intermediario' | 'chuva_extrema'
+    targetSetId?: string
   }): Promise<{
     success: boolean
     alreadyResolved?: boolean
@@ -380,42 +381,94 @@ export const raceSessionService = {
 
       let consequenceSummary = `Escolha realizada: ${params.choice}`
 
-      if (targetCar && !targetCar.dnf) {
-        if (params.choice === 'box_now') {
-          // Consequência de Pit Stop
-          const chosenCompound =
-            params.newCompoundChoice ||
-            (cp.weather !== 'seco'
-              ? cp.weather === 'chuva_forte'
-                ? 'chuva_extrema'
-                : 'intermediario'
-              : targetCar.tireCompound === 'medio'
-                ? 'duro'
-                : 'medio')
-
-          const pitDuration = calculatePitStopDuration(
-            targetCar.teamName,
-            targetCar.driverName,
-            true,
-            80,
-          )
-
-          targetCar.tireCompound = chosenCompound
-          targetCar.tireWear = 4
-          targetCar.lapsOnCurrentTire = 0
-          targetCar.pitStopsDone = (targetCar.pitStopsDone || 0) + 1
-          targetCar.accumulatedTimeSec =
-            (targetCar.accumulatedTimeSec || 0) + pitDuration.durationSec
-          targetCar.cliffStatus = undefined
-
-          consequenceSummary = `Box realizado: calçou pneus ${chosenCompound} em ${pitDuration.durationSec.toFixed(2)}s.`
-        } else if (params.choice === 'stay_out') {
-          // Consequência de adiar box: estende a janela de pit lap em 4 voltas
-          if (targetCar.pitLap) {
-            targetCar.pitLap = targetCar.pitLap + 4
-          }
-          consequenceSummary = `Permaneceu na pista. Janela estendida.`
+      // 3.1 Revalidação Canônica Rigorosa (4D.2)
+      // Conferir se o contexto ainda é válido: piloto em prova, sessão ativa, etc.
+      if (session.status === 'completed') {
+        return {
+          success: false,
+          alreadyResolved: false,
+          error: 'Operação cancelada: a sessão de corrida já foi finalizada.',
         }
+      }
+
+      if (!targetCar || targetCar.dnf) {
+        return {
+          success: false,
+          alreadyResolved: false,
+          error: `O piloto ${targetDecision.driverName || targetDriverId} não está mais apto ou abandonou a prova.`,
+        }
+      }
+
+      const inventories = cp.driverTireInventories ? { ...cp.driverTireInventories } : undefined
+      let updatedDriverSets = inventories?.[targetDriverId] ? [...inventories[targetDriverId]] : undefined
+
+      if (params.choice === 'box_now') {
+        // Obter payload informado se disponível
+        const payload = targetDecision.payload || {}
+        const proposedCompound = (payload.proposedCompound as any) || params.newCompoundChoice
+        const proposedSetId = params.targetSetId || (payload.proposedSetId as string | undefined)
+
+        // Determinar o composto a ser instalado
+        const chosenCompound =
+          params.newCompoundChoice ||
+          proposedCompound ||
+          (cp.weather !== 'seco'
+            ? cp.weather === 'chuva_forte'
+              ? 'chuva_extrema'
+              : 'intermediario'
+            : targetCar.tireCompound === 'medio'
+              ? 'duro'
+              : 'medio')
+
+        // Validar estoque do piloto se inventário existir
+        let chosenSetWear = 4
+        if (updatedDriverSets && updatedDriverSets.length > 0) {
+          let chosenSet = proposedSetId
+            ? updatedDriverSets.find((s) => s.id === proposedSetId && !s.isFitted)
+            : updatedDriverSets.find((s) => s.compound === chosenCompound && !s.isFitted)
+
+          if (!chosenSet) {
+            // Se o jogo específico proposto não estiver disponível, buscar qualquer outro elegível do composto
+            chosenSet = updatedDriverSets.find((s) => s.compound === chosenCompound && !s.isFitted && s.wear < 90)
+          }
+
+          if (chosenSet) {
+            // Desmontar pneu anterior e montar o novo
+            updatedDriverSets = updatedDriverSets.map((s) => {
+              if (s.isFitted) {
+                return { ...s, isFitted: false, wear: Math.min(100, targetCar.tireWear || s.wear) }
+              }
+              if (s.id === chosenSet!.id) {
+                return { ...s, isFitted: true }
+              }
+              return s
+            })
+            chosenSetWear = chosenSet.wear || 4
+          }
+        }
+
+        const pitDuration = calculatePitStopDuration(
+          targetCar.teamName,
+          targetCar.driverName,
+          true,
+          80,
+        )
+
+        targetCar.tireCompound = chosenCompound
+        targetCar.tireWear = chosenSetWear
+        targetCar.lapsOnCurrentTire = 0
+        targetCar.pitStopsDone = (targetCar.pitStopsDone || 0) + 1
+        targetCar.accumulatedTimeSec =
+          (targetCar.accumulatedTimeSec || 0) + pitDuration.durationSec
+        targetCar.cliffStatus = undefined
+
+        consequenceSummary = `Box realizado: calçou pneus ${chosenCompound} em ${pitDuration.durationSec.toFixed(2)}s.`
+      } else if (params.choice === 'stay_out') {
+        // Consequência de adiar box: estende a janela de pit lap em 4 voltas
+        if (targetCar.pitLap) {
+          targetCar.pitLap = targetCar.pitLap + 4
+        }
+        consequenceSummary = `Permaneceu na pista. Janela estendida.`
       }
 
       // 4. Registro no histórico de decisões resolvidas (Chave de proteção anti-loop persistente)
@@ -454,6 +507,9 @@ export const raceSessionService = {
         grid: updatedGrid,
         pendingDecisions: updatedPendingList,
         resolvedDecisions: updatedResolvedList,
+        driverTireInventories: updatedDriverSets && inventories
+          ? { ...inventories, [targetDriverId]: updatedDriverSets }
+          : cp.driverTireInventories,
         liveEvents: [resolutionEvent, ...(cp.liveEvents || [])].slice(0, 40),
         lastSavedAt: new Date().toISOString(),
       }
