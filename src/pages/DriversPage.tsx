@@ -675,6 +675,15 @@ export default function DriversPage() {
     return { races, wins, poles, championships }
   }, [activeSideDriver])
 
+  const selectedPilotVisualIdentity = useMemo(() => {
+    if (!selectedPilotForContract) return null
+    return (
+      (selectedPilotForContract as any)?.procedural_data?.visualIdentity ||
+      (selectedPilotForContract as any)?.visualIdentity ||
+      null
+    )
+  }, [selectedPilotForContract])
+
   // Faixa de mercado e status do piloto ativo
   const activeMarketRange = useMemo(() => {
     if (!activeSideDriver) {
@@ -1354,6 +1363,11 @@ export default function DriversPage() {
               contractStatusType={activeContractStatusInfo.type}
               categoryLabel={formatCategoryLabel(activeSideDriver?.category || 'f1')}
               isPlayerDriverTeam={activeSideDriver?.isPlayerDriver}
+              visualIdentity={
+                (activeSideDriver as any)?.procedural_data?.visualIdentity ||
+                (activeSideDriver as any)?.visualIdentity ||
+                null
+              }
               onOpenFullProfile={(d) => handleOpenPilotProfile(d)}
               onCompareDriver={() => setIsComparisonModalOpen(true)}
               onOpenContract={(d) => handleOpenContractModal(d)}
@@ -1378,6 +1392,11 @@ export default function DriversPage() {
             contractStatusType={activeContractStatusInfo.type}
             categoryLabel={formatCategoryLabel(activeSideDriver?.category || 'f1')}
             isPlayerDriverTeam={activeSideDriver?.isPlayerDriver}
+            visualIdentity={
+              (activeSideDriver as any)?.procedural_data?.visualIdentity ||
+              (activeSideDriver as any)?.visualIdentity ||
+              null
+            }
             isMobileModal={true}
             onClose={() => setIsMobilePanelOpen(false)}
             onOpenFullProfile={(d) => {
@@ -1451,7 +1470,12 @@ export default function DriversPage() {
             <div className="space-y-4 py-2">
               <div className="flex gap-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="w-20 aspect-[3/4] rounded-lg overflow-hidden shrink-0 bg-slate-900">
-                  <DriverPoster name={selectedPilotForContract.name} aspectRatio="tall" />
+                  <DriverPoster
+                    name={selectedPilotForContract.name}
+                    driverId={selectedPilotForContract.id}
+                    visualIdentity={selectedPilotVisualIdentity}
+                    aspectRatio="tall"
+                  />
                 </div>
                 <div className="flex-1 text-xs space-y-1">
                   <div className="font-bold text-base text-slate-900">

@@ -73,7 +73,12 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
                 loading="lazy"
               />
             ) : (
-              <DriverPoster name={prospect.name} className="w-full h-full" />
+              <DriverPoster
+                name={prospect.name}
+                driverId={prospect.driverId}
+                visualIdentity={prospect.visualIdentity || null}
+                className="w-full h-full"
+              />
             )}
           </div>
 

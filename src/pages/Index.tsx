@@ -776,6 +776,12 @@ export default function IndexPage() {
                         <div className="relative shrink-0">
                           <DriverPhotoAvatar
                             name={driver.name}
+                            driverId={driver.id}
+                            visualIdentity={
+                              (driver as any)?.procedural_data?.visualIdentity ||
+                              (driver as any)?.visualIdentity ||
+                              null
+                            }
                             teamColor={team?.color}
                             className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
                             imgClassName={`w-full h-full object-cover ${

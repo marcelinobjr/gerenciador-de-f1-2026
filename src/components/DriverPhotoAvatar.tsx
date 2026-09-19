@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { getLocalDriverPosterCandidates, getInitials } from '@/lib/pilot-posters'
+import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 import { cn } from '@/lib/utils'
 
 export interface DriverPhotoAvatarProps {
@@ -10,6 +11,8 @@ export interface DriverPhotoAvatarProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   alt?: string
   driverId?: string
+  visualIdentity?: DriverVisualAssetIdentity | null
+  portraitAssetId?: string
 }
 
 export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
@@ -20,11 +23,22 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   size = 'md',
   alt,
   driverId,
+  visualIdentity,
+  portraitAssetId,
 }) => {
+  // Constrói objeto de identidade unificado se fornecido via prop
+  const effectiveVisualIdentity = React.useMemo<DriverVisualAssetIdentity | null>(() => {
+    if (visualIdentity) return visualIdentity
+    if (portraitAssetId) {
+      return { portraitAssetId }
+    }
+    return null
+  }, [visualIdentity, portraitAssetId])
+
   // Usa o mesmo resolvedor de fotos canônicas que o DriverPoster
   const candidateUrls = React.useMemo(
-    () => getLocalDriverPosterCandidates(name, driverId),
-    [name, driverId],
+    () => getLocalDriverPosterCandidates(name, driverId, effectiveVisualIdentity),
+    [name, driverId, effectiveVisualIdentity],
   )
 
   const [attemptIndex, setAttemptIndex] = useState<number>(0)
@@ -41,7 +55,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   // Reseta índice de tentativa quando o piloto mudar
   React.useEffect(() => {
     setAttemptIndex(0)
-  }, [name])
+  }, [name, driverId, effectiveVisualIdentity])
 
   const handleError = () => {
     setAttemptIndex((prev) => prev + 1)

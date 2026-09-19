@@ -1,13 +1,16 @@
 import React, { useState, useMemo } from 'react'
 import { getLocalDriverPosterCandidates, getInitials } from '@/lib/pilot-posters'
+import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 import { cn } from '@/lib/utils'
 
-interface DriverPosterProps {
+export interface DriverPosterProps {
   name: string
   className?: string
   aspectRatio?: 'square' | 'poster' | 'tall'
   showInitialsFallback?: boolean
   driverId?: string
+  visualIdentity?: DriverVisualAssetIdentity | null
+  portraitAssetId?: string
 }
 
 export const DriverPoster: React.FC<DriverPosterProps> = ({
@@ -16,17 +19,25 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
   aspectRatio = 'poster',
   showInitialsFallback = true,
   driverId,
+  visualIdentity,
+  portraitAssetId,
 }) => {
+  const effectiveVisualIdentity = useMemo<DriverVisualAssetIdentity | null>(() => {
+    if (visualIdentity) return visualIdentity
+    if (portraitAssetId) return { portraitAssetId }
+    return null
+  }, [visualIdentity, portraitAssetId])
+
   const candidateUrls = useMemo(
-    () => getLocalDriverPosterCandidates(name, driverId),
-    [name, driverId],
+    () => getLocalDriverPosterCandidates(name, driverId, effectiveVisualIdentity),
+    [name, driverId, effectiveVisualIdentity],
   )
   const [candidateIndex, setCandidateIndex] = useState(0)
 
-  // Reset index when name or driverId changes
+  // Reset index when name, driverId or visual identity changes
   React.useEffect(() => {
     setCandidateIndex(0)
-  }, [name, driverId])
+  }, [name, driverId, effectiveVisualIdentity])
 
   const isExhausted = candidateIndex >= candidateUrls.length
   const currentSrc = !isExhausted ? candidateUrls[candidateIndex] : null

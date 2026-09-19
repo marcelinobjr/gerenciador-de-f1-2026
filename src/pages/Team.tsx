@@ -1342,6 +1342,11 @@ export default function TeamPage() {
                     consistency={d1.consistency || 82}
                     contractEndYear={d1.contract_end || 2026}
                     bundledImg={photoSrc}
+                    visualIdentity={
+                      (d1 as any)?.procedural_data?.visualIdentity ||
+                      (d1 as any)?.visualIdentity ||
+                      null
+                    }
                     driverId={d1.id}
                     onOpenDriver={() => {
                       setSelectedPilotForProfile({
@@ -1402,6 +1407,11 @@ export default function TeamPage() {
                     consistency={d2.consistency || 78}
                     contractEndYear={d2.contract_end || 2028}
                     bundledImg={photoSrc}
+                    visualIdentity={
+                      (d2 as any)?.procedural_data?.visualIdentity ||
+                      (d2 as any)?.visualIdentity ||
+                      null
+                    }
                     driverId={d2.id}
                     onOpenDriver={() => {
                       setSelectedPilotForProfile({
@@ -1620,7 +1630,17 @@ export default function TeamPage() {
                             setIsPilotProfileModalOpen(true)
                           }}
                         >
-                          <DriverPhotoAvatar name={d.name} teamColor="#E10600" size="md" />
+                          <DriverPhotoAvatar
+                            name={d.name}
+                            driverId={d.id}
+                            visualIdentity={
+                              (d as any)?.procedural_data?.visualIdentity ||
+                              (d as any)?.visualIdentity ||
+                              null
+                            }
+                            teamColor="#E10600"
+                            size="md"
+                          />
                           <div className="min-w-0">
                             <h3 className="text-sm font-bold text-neutral-900 truncate hover:underline">
                               {d.name}
@@ -1706,6 +1726,11 @@ export default function TeamPage() {
                           <DriverPhotoAvatar
                             name={rd.name}
                             driverId={rd.id}
+                            visualIdentity={
+                              (rd as any)?.procedural_data?.visualIdentity ||
+                              (rd as any)?.visualIdentity ||
+                              null
+                            }
                             teamColor="#D97706"
                             size="md"
                           />
@@ -1967,7 +1992,17 @@ export default function TeamPage() {
                     className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
                   >
                     <div className="flex items-center gap-3">
-                      <DriverPhotoAvatar name={d.name} teamColor="#E10600" size="sm" />
+                      <DriverPhotoAvatar
+                        name={d.name}
+                        driverId={d.id}
+                        visualIdentity={
+                          (d as any)?.procedural_data?.visualIdentity ||
+                          (d as any)?.visualIdentity ||
+                          null
+                        }
+                        teamColor="#E10600"
+                        size="sm"
+                      />
                       <div>
                         <span className="font-bold text-neutral-900 text-sm block">{d.name}</span>
                         <span className="text-[11px] text-neutral-500">

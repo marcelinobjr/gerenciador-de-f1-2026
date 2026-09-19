@@ -14,6 +14,7 @@ import { ProceduralDriverMetadata, ProspectScoutingCardViewModel } from '@/types
 import { DriverModel, TeamModel } from '@/types/f1'
 import { proceduralDriverGenerator } from './proceduralDriverGenerator'
 import { infrastructureCapabilityService } from './infrastructureCapabilityService'
+import { driverVisualAssetService } from './driverVisualAssetService'
 
 export class DriverScoutingService {
   /**
@@ -80,7 +81,10 @@ export class DriverScoutingService {
     const isLinkedPlayer = Boolean(teamId && driver.team_id === teamId)
     const isLinkedRival = Boolean(driver.team_id && driver.team_id !== teamId)
 
-    const posterUrl = meta?.visualIdentity?.posterAssetId
+    const resolvedUrls = meta?.visualIdentity
+      ? driverVisualAssetService.resolveVisualUrls(meta.visualIdentity)
+      : null
+    const posterUrl = resolvedUrls?.displayUrl || meta?.visualIdentity?.posterAssetId
 
     return {
       driverId: driver.id,
@@ -95,6 +99,7 @@ export class DriverScoutingService {
       isLinkedToPlayerAcademy: isLinkedPlayer,
       isLinkedToRivalAcademy: isLinkedRival,
       visualIdentityId: meta?.visualIdentity?.visualIdentityId || driver.id,
+      visualIdentity: meta?.visualIdentity,
       posterUrl,
       gender: meta?.visualIdentity?.gender || 'male',
       perceivedPotentialLabel,

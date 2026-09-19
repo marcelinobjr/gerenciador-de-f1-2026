@@ -379,8 +379,14 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             {/* Foto Grande do Piloto */}
             <div className="w-20 sm:w-32 shrink-0">
               <DriverPoster
-                name={pilot.name}
-                driverId={pilot.id}
+                name={pilot?.name || ''}
+                driverId={pilot?.id}
+                visualIdentity={
+                  (pilot as any)?.procedural_data?.visualIdentity ||
+                  (pilot as any)?.visualIdentity ||
+                  (pilot as any)?.rawDbRecord?.procedural_data?.visualIdentity ||
+                  null
+                }
                 aspectRatio="poster"
                 className="w-full shadow-2xl ring-2 ring-zinc-700/80 rounded-lg"
               />

@@ -6,6 +6,8 @@
  */
 import { getDriverPhotoSources, normalizeSurname } from '@/lib/driver-photos'
 import { getDriveStoragePhotoUrl, DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
+import { driverVisualAssetService } from '@/services/driverVisualAssetService'
+import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 import ricciardoBundledPoster from '@/assets/3-danielricciardo-4d208.jpg'
 
 export function normalizeDriverSurname(fullName: string): string {
@@ -111,12 +113,11 @@ const PILOT_FILE_MAP: Record<string, string[]> = {
  * Prioriza arquivos locais em /pilotos/ com nomes canônicos numerados (.png / .jpg / .webp),
  * eliminando a dependência do Dropbox como fonte primária.
  */
-export function getLocalDriverPosterCandidates(name: string, driverId?: string): string[] {
-  if (!name && !driverId) return []
-  const sources = getDriverPhotoSources(name || '')
-  const norm = name ? normalizeSurname(name) : ''
-  const surname = name ? normalizeDriverSurname(name) : ''
-
+export function getLocalDriverPosterCandidates(
+  name: string,
+  driverId?: string,
+  visualIdentity?: DriverVisualAssetIdentity | null,
+): string[] {
   const candidates: string[] = []
 
   const addCandidate = (url?: string | null) => {
@@ -124,6 +125,28 @@ export function getLocalDriverPosterCandidates(name: string, driverId?: string):
       candidates.push(url)
     }
   }
+
+  // (i) Imagem personalizada do jogador (isCustom)
+  if (visualIdentity?.isCustom && visualIdentity.customImageUrl) {
+    addCandidate(visualIdentity.customImageUrl)
+  }
+
+  // (ii) portraitAssetId persistido resolvido via driverVisualAssetService.resolveVisualUrls / getFictionalPortraitById
+  if (visualIdentity?.portraitAssetId) {
+    const resolved = driverVisualAssetService.resolveVisualUrls(visualIdentity)
+    if (resolved.displayUrl) {
+      addCandidate(resolved.displayUrl)
+    }
+    if (resolved.thumbnailUrl) {
+      addCandidate(resolved.thumbnailUrl)
+    }
+  }
+
+  // (iii) Candidatos atuais por nome/matcher
+  if (!name && !driverId) return candidates
+  const sources = getDriverPhotoSources(name || '')
+  const norm = name ? normalizeSurname(name) : ''
+  const surname = name ? normalizeDriverSurname(name) : ''
 
   // Caso Rafael Câmara (id 'rafael_camara' ou 'mbj-067' ou nome contém camara/câmara)
   if (
@@ -274,8 +297,12 @@ export function getLocalDriverPosterCandidates(name: string, driverId?: string):
 /**
  * Retorna a primeira URL provável de pôster para o piloto
  */
-export function getLocalDriverPosterUrl(name: string, driverId?: string): string | null {
-  const candidates = getLocalDriverPosterCandidates(name, driverId)
+export function getLocalDriverPosterUrl(
+  name: string,
+  driverId?: string,
+  visualIdentity?: DriverVisualAssetIdentity | null,
+): string | null {
+  const candidates = getLocalDriverPosterCandidates(name, driverId, visualIdentity)
   return candidates.length > 0 ? candidates[0] : null
 }
 
@@ -289,8 +316,11 @@ export function getInitials(name: string): string {
 /**
  * Verifica se o piloto possui pôster registrado no projeto ou Google Drive
  */
-export function hasDriverPoster(name: string, driverId?: string): boolean {
-  if (!name && !driverId) return false
-  const candidates = getLocalDriverPosterCandidates(name, driverId)
+export function hasDriverPoster(
+  name: string,
+  driverId?: string,
+  visualIdentity?: DriverVisualAssetIdentity | null,
+): boolean {
+  const candidates = getLocalDriverPosterCandidates(name, driverId, visualIdentity)
   return candidates.length > 0
 }

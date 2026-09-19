@@ -35,6 +35,8 @@ export interface GenerationOptions {
   forcedAge?: number
   seed?: number
   scoutingTeamId?: string
+  femaleRatio?: number // Proporção feminina configurável, default 0.50 (50/50)
+  teamDriverPortraits?: string[] // IDs de retratos já usados na equipe para evitar duplicação
 }
 
 export class ProceduralDriverGenerator {
@@ -139,7 +141,8 @@ export class ProceduralDriverGenerator {
     }
 
     const pool = CULTURAL_NAME_POOLS[selectedRegionKey] || CULTURAL_NAME_POOLS.brasil
-    const isFemale = this.getRandom(seedState) < 0.12 // 12% representatividade feminina
+    const femaleRatio = options.femaleRatio ?? 0.5
+    const isFemale = this.getRandom(seedState) < femaleRatio
     const firstNames = isFemale ? pool.firstNamesFemale : pool.firstNamesMale
     const firstName = firstNames[this.randomInt(0, firstNames.length - 1, seedState)]
     const lastName = pool.lastNames[this.randomInt(0, pool.lastNames.length - 1, seedState)]
@@ -256,13 +259,13 @@ export class ProceduralDriverGenerator {
     const driverId = `drv_proc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
 
     // Criação dos Assets Visuais desacoplados
-    const visualIdentity = driverVisualAssetService.createVisualIdentity({
+    const visualSeed = this.randomInt(1, 999999, seedState)
+    const visualIdentity = driverVisualAssetService.createVisualIdentity(
       driverId,
-      gender: isFemale ? 'female' : 'male',
-      nationality: nationalityObj.name,
-      age,
-      seed: this.randomInt(1, 999999, seedState),
-    })
+      visualSeed,
+      isFemale ? 'female' : 'male',
+      options.teamDriverPortraits || [],
+    )
 
     // Histórico de temporada inicial simulado resumido
     const seasonsHistory = [

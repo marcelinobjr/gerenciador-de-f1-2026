@@ -1,188 +1,236 @@
 /**
- * Provedor e Serviço de Assets Visuais de Pilotos (DriverVisualAssetService)
- * F1 Manager 2026 — Implementação Nº 4C
+ * Serviço de Identidade Visual e Retratos de Pilotos
  *
- * Princípios Fundamentais:
- * - A IMAGEM É UM ASSET DO PILOTO; NÃO É O PILOTO.
- * - Desacoplado: falhas de geração nunca interrompem nem deletam entidades de pilotos.
- * - Permite fallback determinístico para fotos/avatares locais da CDN Curl/Skip.
- * - Suporta troca de equipe (novo poster, mesmo visualIdentityId).
- * - Cache e idempotência: sem regenerações desnecessárias ao abrir páginas.
+ * Regras:
+ * - Novos pilotos usam EXCLUSIVAMENTE o catálogo de retratos fictícios do Google Drive
+ *   (13 retratos da pasta 1q6BV-10CLvFhDdJM9dWNLkcT5a9Z803C).
+ * - Proporção de gênero configurável na criação: 50% homens / 50% mulheres.
+ * - O vínculo de identidade visual gerado é PERSISTENTE e ESTÁVEL (nunca re-sorteado
+ *   ao filtrar, ordenar, carregar save ou trocar de equipe).
+ * - Política de repetição: prioriza retratos não utilizados no save atual;
+ *   evita rostos duplicados dentro da mesma equipe; quando esgotado o catálogo,
+ *   reutiliza os menos frequentes sem loop infinito.
+ * - Sorteio de imagem é ISOLADO de atributos esportivos (nome, idade, talento, nacionalidade).
  */
 
-import { DriverVisualAssetIdentity, VisualGenerationProvider } from '@/types/procedural-driver'
-
-export class PlaceholderVisualProvider implements VisualGenerationProvider {
-  id = 'skip_curling_provider'
-  name = 'Provedor de Avatar Curling Skip'
-
-  async isAvailable(): Promise<boolean> {
-    return true
-  }
-
-  async generateDriverPoster(params: {
-    driverId: string
-    visualIdentity: DriverVisualAssetIdentity
-    teamName: string
-    teamColor: string
-  }): Promise<{ success: boolean; assetUrl?: string; error?: string }> {
-    const seed = params.visualIdentity.visualSeed || 42
-    const gender = params.visualIdentity.gender || 'male'
-    // Utiliza URL permitida pelo sistema de imagens
-    const url = `https://img.usecurling.com/ppl/large?gender=${gender}&seed=${seed}`
-    return {
-      success: true,
-      assetUrl: url,
-    }
-  }
-}
+import {
+  FICTIONAL_PORTRAITS_CATALOG,
+  FictionalPortraitAsset,
+  getAvailableFictionalPortraits,
+  getFictionalPortraitById,
+} from '@/lib/fictional-driver-catalog'
+import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 
 export class DriverVisualAssetService {
-  private provider: VisualGenerationProvider
+  private static instance: DriverVisualAssetService
 
-  constructor(provider?: VisualGenerationProvider) {
-    this.provider = provider || new PlaceholderVisualProvider()
-  }
+  // Registro de alocações em memória por save/sessão
+  private usedPortraitsBySave: Map<string, string[]> = new Map()
 
-  setProvider(provider: VisualGenerationProvider) {
-    this.provider = provider
+  private constructor() {}
+
+  public static getInstance(): DriverVisualAssetService {
+    if (!DriverVisualAssetService.instance) {
+      DriverVisualAssetService.instance = new DriverVisualAssetService()
+    }
+    return DriverVisualAssetService.instance
   }
 
   /**
-   * Cria identidade visual básica consistente com etnia, gênero e características faciais
+   * Retorna a lista de retratos disponíveis para um gênero
    */
-  createVisualIdentity(params: {
-    driverId: string
-    gender?: 'male' | 'female'
-    nationality: string
-    age: number
-    seed?: number
-  }): DriverVisualAssetIdentity {
-    const seed = params.seed || Math.floor(Math.random() * 999999) + 1
-    const gender = params.gender || (seed % 10 === 0 ? 'female' : 'male')
+  public getEligiblePortraits(gender: 'male' | 'female'): FictionalPortraitAsset[] {
+    const available = getAvailableFictionalPortraits(gender)
+    // Se por alguma razão o gênero não tiver assets ativos, recorre aos outros disponíveis
+    if (available.length === 0) {
+      return getAvailableFictionalPortraits()
+    }
+    return available
+  }
 
-    // Mapeamento cultural de tons e cabelos baseado na nacionalidade
-    const nat = params.nationality.toLowerCase()
-    let skinTone: DriverVisualAssetIdentity['skinTone'] = 'light'
-    let hairColor: DriverVisualAssetIdentity['hairColor'] = 'brown'
-    let eyeColor: DriverVisualAssetIdentity['eyeColor'] = 'brown'
-
-    if (nat.includes('brasil') || nat.includes('espanha') || nat.includes('itália')) {
-      skinTone = seed % 3 === 0 ? 'fair' : seed % 3 === 1 ? 'light' : 'medium'
-      hairColor = seed % 4 === 0 ? 'black' : 'dark_brown'
-    } else if (nat.includes('alemanha') || nat.includes('suécia') || nat.includes('dinamarca')) {
-      skinTone = 'fair'
-      hairColor = seed % 2 === 0 ? 'blonde' : 'brown'
-      eyeColor = seed % 2 === 0 ? 'blue' : 'green'
-    } else if (nat.includes('japão') || nat.includes('china')) {
-      skinTone = 'light'
-      hairColor = 'black'
-      eyeColor = 'black'
-    } else if (nat.includes('reino unido') || nat.includes('frança')) {
-      skinTone = seed % 4 === 0 ? 'medium' : 'fair'
-      hairColor = seed % 3 === 0 ? 'auburn' : 'dark_brown'
+  /**
+   * Seleciona o melhor retrato fictício respeitando equipe e save ativo
+   */
+  public selectFictionalPortrait(
+    gender: 'male' | 'female',
+    seed: number,
+    options: {
+      teamDriverPortraits?: string[]
+      usedInSave?: string[]
+    } = {},
+  ): FictionalPortraitAsset {
+    const eligible = this.getEligiblePortraits(gender)
+    if (eligible.length === 0) {
+      // Fallback absoluto: primeiro retrato do catálogo geral
+      return FICTIONAL_PORTRAITS_CATALOG[0]
     }
 
-    const hairStyles: DriverVisualAssetIdentity['hairStyle'][] = [
-      'short',
-      'curly',
-      'wavy',
-      'buzz',
-      'straight',
-    ]
-    const hairStyle = hairStyles[seed % hairStyles.length]
+    const teamUsed = new Set(options.teamDriverPortraits || [])
+    const saveUsed = new Set(options.usedInSave || [])
 
-    const visualIdentityId = `vid_${params.driverId}_${seed}`
+    // 1. Prioridade A: Nem na equipe nem no save
+    const priorityA = eligible.filter((p) => !teamUsed.has(p.id) && !saveUsed.has(p.id))
+    if (priorityA.length > 0) {
+      const idx = Math.abs(seed) % priorityA.length
+      return priorityA[idx]
+    }
+
+    // 2. Prioridade B: Não na mesma equipe (mesmo que usado em outro time)
+    const priorityB = eligible.filter((p) => !teamUsed.has(p.id))
+    if (priorityB.length > 0) {
+      const idx = Math.abs(seed) % priorityB.length
+      return priorityB[idx]
+    }
+
+    // 3. Prioridade C: Catálogo totalmente esgotado -> seleciona por seed
+    const idx = Math.abs(seed) % eligible.length
+    return eligible[idx]
+  }
+
+  /**
+   * Cria uma nova identidade visual para piloto fictício
+   */
+  public createVisualIdentity(
+    driverIdOrParams:
+      | string
+      | {
+          driverId?: string
+          gender?: 'male' | 'female'
+          nationality?: string
+          age?: number
+          seed?: number
+          teamDriverPortraits?: string[]
+        },
+    seedArg?: number,
+    genderArg?: 'male' | 'female',
+    teamDriverPortraitsArg: string[] = [],
+  ): DriverVisualAssetIdentity {
+    let driverId: string
+    let seed: number
+    let gender: 'male' | 'female'
+    let teamDriverPortraits: string[] = []
+
+    if (typeof driverIdOrParams === 'object' && driverIdOrParams !== null) {
+      driverId = driverIdOrParams.driverId || `drv_proc_${Date.now()}`
+      seed = driverIdOrParams.seed ?? (seedArg || 1)
+      gender = driverIdOrParams.gender ?? (genderArg || 'male')
+      teamDriverPortraits = driverIdOrParams.teamDriverPortraits || teamDriverPortraitsArg || []
+    } else {
+      driverId =
+        typeof driverIdOrParams === 'string' && driverIdOrParams
+          ? driverIdOrParams
+          : `drv_proc_${Date.now()}`
+      seed = seedArg ?? 1
+      gender = genderArg ?? 'male'
+      teamDriverPortraits = teamDriverPortraitsArg || []
+    }
+
+    const portrait = this.selectFictionalPortrait(gender, seed, {
+      teamDriverPortraits,
+    })
 
     return {
-      visualIdentityId,
-      portraitAssetId: `https://img.usecurling.com/ppl/thumbnail?gender=${gender}&seed=${seed % 100}`,
-      posterAssetId: `https://img.usecurling.com/ppl/large?gender=${gender}&seed=${seed % 100}`,
+      visualIdentityId: `vis_${driverId}`,
+      portraitAssetId: portrait.id,
+      posterAssetId: portrait.id,
+      helmetAssetId: `helmet_${gender}_${Math.abs(seed) % 8}`,
       gender,
-      skinTone,
-      hairStyle,
-      hairColor,
-      eyeColor,
-      baseAge: params.age,
-      visualSeed: seed,
+      hairColor: 'dark',
+      skinTone: 'neutral',
+      focalPoint: portrait.focalPoint || { x: 50, y: 20 },
+      isCustom: false,
+      visualSeed: Math.abs(seed),
       generationStatus: 'ready',
     }
   }
 
   /**
-   * Gera ou atualiza o pôster de equipe com retry seguro e isolamento de falhas
+   * Atualização de equipe do poster mantendo integridade e visualIdentityId
    */
-  async updateTeamPoster(
+  public async updateTeamPoster(
     visualIdentity: DriverVisualAssetIdentity,
     teamId: string,
-    teamName: string,
-    teamColor: string,
-    driverId: string,
+    _teamName?: string,
+    _teamColor?: string,
+    _driverId?: string,
   ): Promise<{ success: boolean; updatedIdentity: DriverVisualAssetIdentity }> {
-    // Se já estiver com pôster da equipe atual, mantém
-    if (
-      visualIdentity.currentPosterTeamId === teamId &&
-      visualIdentity.generationStatus === 'ready'
-    ) {
-      return { success: true, updatedIdentity: visualIdentity }
+    const updatedIdentity: DriverVisualAssetIdentity = {
+      ...visualIdentity,
+      currentPosterTeamId: teamId,
+      lastGenerationAttempt: new Date().toISOString(),
+    }
+    return { success: true, updatedIdentity }
+  }
+
+  /**
+   * Converte uma identidade visual em URLs concretas de exibição
+   */
+  public resolveVisualUrls(visual?: DriverVisualAssetIdentity | null): {
+    displayUrl: string | null
+    thumbnailUrl: string | null
+    focalPoint: { x: number; y: number }
+  } {
+    const defaultFocal = { x: 50, y: 20 }
+    if (!visual || !visual.portraitAssetId) {
+      return { displayUrl: null, thumbnailUrl: null, focalPoint: defaultFocal }
     }
 
-    try {
-      const isAvailable = await this.provider.isAvailable()
-      if (!isAvailable) {
-        // Fallback gracioso
-        return {
-          success: true,
-          updatedIdentity: {
-            ...visualIdentity,
-            currentPosterTeamId: teamId,
-            generationStatus: 'fallback',
-          },
-        }
-      }
-
-      const outcome = await this.provider.generateDriverPoster({
-        driverId,
-        visualIdentity,
-        teamName,
-        teamColor,
-      })
-
-      if (outcome.success && outcome.assetUrl) {
-        return {
-          success: true,
-          updatedIdentity: {
-            ...visualIdentity,
-            posterAssetId: outcome.assetUrl,
-            currentPosterTeamId: teamId,
-            generationStatus: 'ready',
-            lastGenerationAttempt: new Date().toISOString(),
-          },
-        }
-      }
-
-      // Em caso de retorno falso sem throw
+    // Busca no catálogo de fictícios
+    const asset = getFictionalPortraitById(visual.portraitAssetId)
+    if (asset) {
       return {
-        success: true,
-        updatedIdentity: {
-          ...visualIdentity,
-          currentPosterTeamId: teamId,
-          generationStatus: 'fallback',
-        },
+        displayUrl: asset.displayUrl,
+        thumbnailUrl: asset.thumbnailUrl,
+        focalPoint: visual.focalPoint || asset.focalPoint || defaultFocal,
       }
-    } catch {
-      // Falha nunca propaga e nunca corrompe o piloto
+    }
+
+    // Se o portraitAssetId for uma URL direta
+    if (visual.portraitAssetId.startsWith('http')) {
       return {
-        success: false,
-        updatedIdentity: {
-          ...visualIdentity,
-          currentPosterTeamId: teamId,
-          generationStatus: 'fallback',
-          lastGenerationAttempt: new Date().toISOString(),
-        },
+        displayUrl: visual.portraitAssetId,
+        thumbnailUrl: visual.portraitAssetId,
+        focalPoint: visual.focalPoint || defaultFocal,
       }
+    }
+
+    return { displayUrl: null, thumbnailUrl: null, focalPoint: defaultFocal }
+  }
+
+  /**
+   * Migração idempotente para preencher identidades visuais de pilotos fictícios pré-existentes
+   */
+  public migrateExistingFictionalDriver<
+    T extends { id: string; gender?: string; visualIdentity?: DriverVisualAssetIdentity },
+  >(driver: T, seed: number, existingTeamPortraits: string[] = []): T {
+    // Se já tiver uma identidade visual válida com asset do catálogo ou customizada, não sobrescrever
+    if (
+      driver.visualIdentity?.portraitAssetId &&
+      (getFictionalPortraitById(driver.visualIdentity.portraitAssetId) ||
+        driver.visualIdentity.isCustom)
+    ) {
+      return driver
+    }
+
+    const assignedGender: 'male' | 'female' =
+      driver.gender === 'female' || driver.visualIdentity?.gender === 'female' ? 'female' : 'male'
+
+    const visual = this.createVisualIdentity(driver.id, seed, assignedGender, existingTeamPortraits)
+
+    return {
+      ...driver,
+      gender: assignedGender,
+      visualIdentity: visual,
     }
   }
 }
 
-export const driverVisualAssetService = new DriverVisualAssetService()
+export class PlaceholderVisualProvider {
+  static getPlaceholder(gender: 'male' | 'female' = 'male'): string {
+    return gender === 'female'
+      ? 'https://img.usecurling.com/ppl/medium?gender=female'
+      : 'https://img.usecurling.com/ppl/medium?gender=male'
+  }
+}
+
+export const driverVisualAssetService = DriverVisualAssetService.getInstance()

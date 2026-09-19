@@ -18,6 +18,7 @@ interface DriverSummaryCardProps {
   teamLogoUrl?: string
   isAudi?: boolean
   quote?: string
+  visualIdentity?: any
   onOpenDriver: () => void
 }
 
@@ -36,6 +37,7 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
   teamLogoUrl,
   isAudi = false,
   quote,
+  visualIdentity,
   onOpenDriver,
 }) => {
   const defaultQuote =
@@ -100,7 +102,12 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
-                <DriverPhotoAvatar name={driverName} driverId={driverId} size="lg" />
+                <DriverPhotoAvatar
+                  name={driverName}
+                  driverId={driverId}
+                  visualIdentity={visualIdentity}
+                  size="lg"
+                />
               </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />

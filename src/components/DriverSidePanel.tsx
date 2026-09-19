@@ -44,6 +44,7 @@ interface DriverSidePanelProps {
   categoryLabel: string
   isPlayerDriverTeam?: boolean
   isMobileModal?: boolean
+  visualIdentity?: any
 }
 
 export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
@@ -61,6 +62,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
   categoryLabel,
   isPlayerDriverTeam = false,
   isMobileModal = false,
+  visualIdentity,
 }) => {
   const overall = driver ? getOverallRating(driver) : 0
   const isContracted = contractStatusType === 'contracted' || contractStatusType === 'reserve'
@@ -169,8 +171,14 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
         {/* POSTER VERTICAL DO PILOTO INTEIRO (Proporção vertical clássica do jogo) */}
         <div className="relative w-full aspect-[4/5] sm:aspect-[3/4] max-h-72 rounded-xl overflow-hidden border border-slate-200 shadow-xs bg-slate-950 flex items-center justify-center">
           <DriverPoster
-            name={driver.name}
-            driverId={driver.id}
+            name={driver?.name || ''}
+            driverId={driver?.id}
+            visualIdentity={
+              visualIdentity ||
+              (driver as any)?.procedural_data?.visualIdentity ||
+              (driver as any)?.visualIdentity ||
+              null
+            }
             aspectRatio="tall"
             className="w-full h-full object-cover object-top"
           />

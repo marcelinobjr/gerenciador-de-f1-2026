@@ -101,20 +101,24 @@ export interface CareerMilestone {
  * Atributos visuais para geração e persistência de identidade
  */
 export interface DriverVisualAssetIdentity {
-  visualIdentityId: string // UUID permanente do piloto para consistência
+  visualIdentityId?: string // UUID permanente do piloto para consistência
   portraitAssetId?: string
   posterAssetId?: string
-  gender: 'male' | 'female'
-  skinTone: 'fair' | 'light' | 'medium' | 'olive' | 'brown' | 'dark'
-  hairStyle: 'short' | 'curly' | 'wavy' | 'buzz' | 'ponytail' | 'straight'
-  hairColor: 'black' | 'dark_brown' | 'brown' | 'blonde' | 'auburn' | 'red'
-  eyeColor: 'brown' | 'black' | 'blue' | 'green' | 'hazel'
+  gender?: 'male' | 'female'
+  skinTone?: 'fair' | 'light' | 'medium' | 'olive' | 'brown' | 'dark' | 'neutral'
+  hairStyle?: 'short' | 'curly' | 'wavy' | 'buzz' | 'ponytail' | 'straight'
+  hairColor?: 'black' | 'dark_brown' | 'brown' | 'blonde' | 'auburn' | 'red' | 'dark'
+  eyeColor?: 'brown' | 'black' | 'blue' | 'green' | 'hazel'
   facialFeatures?: string
-  baseAge: number
-  visualSeed: number
+  baseAge?: number
+  visualSeed?: number
+  focalPoint?: { x: number; y: number }
+  isCustom?: boolean
+  customImageUrl?: string
+  helmetAssetId?: string
   currentPosterTeamId?: string
   lastGenerationAttempt?: string
-  generationStatus: 'idle' | 'pending' | 'ready' | 'fallback'
+  generationStatus?: 'idle' | 'pending' | 'ready' | 'fallback'
 }
 
 /**
@@ -203,6 +207,7 @@ export interface ProspectScoutingCardViewModel {
   isLinkedToPlayerAcademy: boolean
   isLinkedToRivalAcademy: boolean
   visualIdentityId: string
+  visualIdentity?: DriverVisualAssetIdentity
   posterUrl?: string
   gender: 'male' | 'female'
 
