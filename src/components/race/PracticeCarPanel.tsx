@@ -44,6 +44,7 @@ interface PracticeCarPanelProps {
   carImageUrl?: string | null
   availableTires: TireSetItem[]
   validation: PracticeCarValidation
+  inheritedKnowledge?: import('@/types/practice-session').SetupKnowledgeModel
   onUpdateProgram: (program: PracticeProgramType) => void
   onSelectTyre: (tire: TireSetItem) => void
   onUpdateFuelKg: (kg: number) => void
@@ -68,6 +69,7 @@ export function PracticeCarPanel({
   onSelectTyre,
   onUpdateFuelKg,
   onUpdateSetupParam,
+  inheritedKnowledge,
   onCopySetupFromOtherCar,
   otherCarNumber,
 }: PracticeCarPanelProps) {
@@ -387,11 +389,17 @@ export function PracticeCarPanel({
             {/* Anti-spoiler obrigatório: NUNCA mostrar o valor ideal */}
             <Badge
               variant="outline"
-              className="font-mono text-[10px] border-[#222E42] text-[#8B95A7] bg-[#0E1521] flex items-center gap-1"
-              title="A revelação progressiva do acerto ideal será obtida através do feedback dinâmico na pista."
+              className={`font-mono text-[10px] flex items-center gap-1 ${
+                inheritedKnowledge && inheritedKnowledge.totalStintsAnalyzed > 0
+                  ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
+                  : 'border-[#222E42] text-[#8B95A7] bg-[#0E1521]'
+              }`}
+              title="A revelação progressiva do acerto ideal é obtida através de feedback dinâmico na pista."
             >
               <HelpCircle className="w-3 h-3 text-[#525E75]" />
-              Faixa conhecida: ?
+              {inheritedKnowledge && inheritedKnowledge.totalStintsAnalyzed > 0
+                ? `Faixa conhecida: Asas [${inheritedKnowledge.frontWing.revealed ? `${inheritedKnowledge.frontWing.minKnown}–${inheritedKnowledge.frontWing.maxKnown}` : '?'}] • Susp [${inheritedKnowledge.suspension.revealed ? `${inheritedKnowledge.suspension.minKnown}–${inheritedKnowledge.suspension.maxKnown}` : '?'}]`
+                : 'Faixa conhecida: ?'}
             </Badge>
           </div>
 

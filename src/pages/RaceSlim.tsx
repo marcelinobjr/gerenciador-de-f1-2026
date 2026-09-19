@@ -126,6 +126,7 @@ import { generateLapNarratedEvents } from '@/pages/race/raceNarratedEvents'
 import { advanceRound } from '@/pages/race/raceAdvance'
 import { TrackEngineeringAndStrategySection } from '@/pages/race/TrackEngineeringAndStrategySection'
 import { RaceOperationsCockpit } from '@/pages/race/RaceOperationsCockpit'
+import { practiceSessionService } from '@/services/practiceSessionService'
 
 export type { WeekendSession, LiveRaceEvent }
 
@@ -2788,37 +2789,76 @@ export default function RacePage() {
               )}
 
               {/* Setup Configuration Panel for this session (Sub-componente desacoplado para Q1/Q2/Q3/Race ou após treino concluído) */}
-              {(!isPracticeSession || isDone) && (
-                <TrackEngineeringAndStrategySection
-                  sessKey={sessKey}
-                  isRaceSession={isRaceSession}
-                  isDone={isDone}
-                  isSimulatingSession={isSimulatingSession}
-                  currentSetup={currentSetup}
-                  updateCurrentSetup={updateCurrentSetup}
-                  handleSaveSetup={handleSaveSetup}
-                  gpInfo={gpInfo}
-                  raceInitialFuelPct={raceInitialFuelPct}
-                  setRaceInitialFuelPct={setRaceInitialFuelPct}
-                  setupFeedback={setupFeedback}
-                  weather={weather}
-                  tireStock={tireStock}
-                  drivers={drivers}
-                  team={team}
-                  getStrategyForDriver={getStrategyForDriver}
-                  calculateDriverTireWearProfile={calculateDriverTireWearProfile}
-                  updateDriverStartCompound={updateDriverStartCompound}
-                  addDriverPitStop={addDriverPitStop}
-                  updateDriverPitStop={updateDriverPitStop}
-                  removeDriverPitStop={removeDriverPitStop}
-                  handleStartRace={handleStartRace}
-                  simSpeed={simSpeed}
-                  setSimSpeed={setSimSpeed}
-                  autoSimulateWithoutPause={autoSimulateWithoutPause}
-                  setAutoSimulateWithoutPause={setAutoSimulateWithoutPause}
-                  handleRunSession={handleRunSession}
-                />
-              )}
+              {(!isPracticeSession || isDone) &&
+                (() => {
+                  const careerKey = (season as any)?.career_id || user?.id || 'career_default'
+                  const seasonKey = season?.id || 'season_default'
+
+                  const inheritedWeekendKnowledge =
+                    practiceSessionService.resolveInheritedWeekendKnowledge(
+                      careerKey,
+                      seasonKey,
+                      currentRound,
+                      sessKey === 'race'
+                        ? 'tp2'
+                        : sessKey === 'q1' || sessKey === 'q2' || sessKey === 'q3'
+                          ? 'tp2'
+                          : (sessKey as any),
+                    )
+
+                  // Recuperar feedbacks mais recentes do TL2 ou TL1
+                  const tp2State = practiceSessionService.readFromLocalCache(
+                    careerKey,
+                    seasonKey,
+                    currentRound,
+                    'tp2',
+                  )
+                  const tp1State = practiceSessionService.readFromLocalCache(
+                    careerKey,
+                    seasonKey,
+                    currentRound,
+                    'tp1',
+                  )
+                  const practiceFeedbacks = tp2State?.feedbacks?.length
+                    ? tp2State.feedbacks
+                    : tp1State?.feedbacks || []
+
+                  return (
+                    <TrackEngineeringAndStrategySection
+                      sessKey={sessKey}
+                      isRaceSession={isRaceSession}
+                      isDone={isDone}
+                      isSimulatingSession={isSimulatingSession}
+                      currentSetup={currentSetup}
+                      updateCurrentSetup={updateCurrentSetup}
+                      handleSaveSetup={handleSaveSetup}
+                      gpInfo={gpInfo}
+                      raceInitialFuelPct={raceInitialFuelPct}
+                      setRaceInitialFuelPct={setRaceInitialFuelPct}
+                      setupFeedback={setupFeedback}
+                      weather={weather}
+                      tireStock={tireStock}
+                      drivers={drivers}
+                      team={team}
+                      setupKnowledge={inheritedWeekendKnowledge.setupKnowledge}
+                      tyreKnowledge={inheritedWeekendKnowledge.tyreKnowledge}
+                      practiceFeedbacks={practiceFeedbacks}
+                      driverTireInventories={driverTireInventories}
+                      getStrategyForDriver={getStrategyForDriver}
+                      calculateDriverTireWearProfile={calculateDriverTireWearProfile}
+                      updateDriverStartCompound={updateDriverStartCompound}
+                      addDriverPitStop={addDriverPitStop}
+                      updateDriverPitStop={updateDriverPitStop}
+                      removeDriverPitStop={removeDriverPitStop}
+                      handleStartRace={handleStartRace}
+                      simSpeed={simSpeed}
+                      setSimSpeed={setSimSpeed}
+                      autoSimulateWithoutPause={autoSimulateWithoutPause}
+                      setAutoSimulateWithoutPause={setAutoSimulateWithoutPause}
+                      handleRunSession={handleRunSession}
+                    />
+                  )
+                })()}
 
               {/* Simulation Animation Banner & Live Status */}
               {isSimulatingSession && (

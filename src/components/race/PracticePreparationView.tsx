@@ -10,6 +10,7 @@ import {
   copyCarSetup,
   calculateEstimatedLaps,
 } from '@/services/practicePreparationService'
+import { practiceSessionService } from '@/services/practiceSessionService'
 import type {
   PracticePreparation,
   PracticeSessionType,
@@ -133,6 +134,16 @@ export function PracticePreparationView({
   const [prep, setPrep] = useState<PracticePreparation | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Resolução do conhecimento herdado (Etapa 4D.1): se for TL2/TL3, herda faixas do TL1/TL2
+  const inheritedKnowledgeData = useMemo(() => {
+    return practiceSessionService.resolveInheritedWeekendKnowledge(
+      careerId,
+      seasonId,
+      round,
+      sessionType,
+    )
+  }, [careerId, seasonId, round, sessionType])
 
   // Carga inicial persistente de `session_setups`
   useEffect(() => {
@@ -604,6 +615,7 @@ export function PracticePreparationView({
           carImageUrl={carImageUrl}
           availableTires={car1Tires}
           validation={overallValidation.car1}
+          inheritedKnowledge={inheritedKnowledgeData.setupKnowledge}
           onUpdateProgram={updateCar1Program}
           onSelectTyre={selectCar1Tyre}
           onUpdateFuelKg={updateCar1FuelKg}
@@ -622,6 +634,7 @@ export function PracticePreparationView({
           carImageUrl={carImageUrl}
           availableTires={car2Tires}
           validation={overallValidation.car2}
+          inheritedKnowledge={inheritedKnowledgeData.setupKnowledge}
           onUpdateProgram={updateCar2Program}
           onSelectTyre={selectCar2Tyre}
           onUpdateFuelKg={updateCar2FuelKg}
