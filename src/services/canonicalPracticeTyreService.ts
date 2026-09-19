@@ -466,6 +466,11 @@ export function formatDegradationLabel(level?: TyreDegradationLevel): string {
   }
 }
 
+/**
+ * Alias de conveniência retrocompatível para formatDegradationLabel.
+ */
+export const formatDegradationLevel = formatDegradationLabel
+
 export function formatConsistencyLabel(level?: TyreConsistencyLevel): string {
   switch (level) {
     case 'muito_boa':

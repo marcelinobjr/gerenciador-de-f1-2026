@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { CircleDot, ChevronDown, ChevronUp, Layers } from 'lucide-react'
 import type { WeekendTyreKnowledge, TyreStintObservation } from '@/types/practice-tyres'
 import {
-  formatDegradationLevel,
+  formatDegradationLabel,
   formatUsefulWindowLabel,
   formatPaceDropLabel,
   formatConsistencyLabel,
@@ -139,7 +139,7 @@ export const PracticeTyreKnowledgeCard: React.FC<PracticeTyreKnowledgeCardProps>
             <div className="font-bold text-white mt-1">
               {activeCompoundData.degradation.revealed ? (
                 <span className="text-amber-300">
-                  {formatDegradationLevel(activeCompoundData.degradation.value)}
+                  {formatDegradationLabel(activeCompoundData.degradation.value)}
                 </span>
               ) : (
                 <span className="text-slate-500">?</span>

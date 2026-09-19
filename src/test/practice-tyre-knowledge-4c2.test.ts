@@ -532,19 +532,22 @@ describe('APEX GP MANAGER — ETAPA 4C2: Conhecimento Progressivo de Pneus e Com
           driverId: 'drv1',
           program: 'race_pace',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's1', compound: 'medio' },
+          tyreSelection: { setId: 's1', compound: 'medio', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
         {
           carId: 'car2',
           driverId: 'drv2',
           program: 'car_setup',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's2', compound: 'duro' },
+          tyreSelection: { setId: 's2', compound: 'duro', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
       ],
-      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
@@ -623,19 +626,22 @@ describe('APEX GP MANAGER — ETAPA 4C2: Conhecimento Progressivo de Pneus e Com
           driverId: 'drv1',
           program: 'tyre_knowledge',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's1', compound: 'medio' },
+          tyreSelection: { setId: 's1', compound: 'medio', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
         {
           carId: 'car2',
           driverId: 'drv2',
           program: 'race_pace',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's2', compound: 'duro' },
+          tyreSelection: { setId: 's2', compound: 'duro', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
       ],
-      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
@@ -667,7 +673,7 @@ describe('APEX GP MANAGER — ETAPA 4C2: Conhecimento Progressivo de Pneus e Com
 
     // Agora abrir TL2 para o mesmo round
     const prep2: PracticePreparation = { ...prep1, sessionType: 'tp2' }
-    const sessionTL2 = await practiceSessionService.getOrCreateSessionState({
+    const sessionTL2 = await practiceSessionService.openOrResumePracticeSession({
       careerId: 'car_tl1_tl2',
       seasonId: 's2026',
       round: 3,
@@ -695,19 +701,22 @@ describe('APEX GP MANAGER — ETAPA 4C2: Conhecimento Progressivo de Pneus e Com
           driverId: 'drv1',
           program: 'race_pace',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's1', compound: 'medio' },
+          tyreSelection: { setId: 's1', compound: 'medio', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
         {
           carId: 'car2',
           driverId: 'drv2',
           program: 'race_pace',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's2', compound: 'medio' },
+          tyreSelection: { setId: 's2', compound: 'medio', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
       ],
-      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
@@ -750,41 +759,59 @@ describe('APEX GP MANAGER — ETAPA 4C2: Conhecimento Progressivo de Pneus e Com
           driverId: 'drv1',
           program: 'race_pace',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's1', compound: 'medio' },
+          tyreSelection: { setId: 's1', compound: 'medio', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
         {
           carId: 'car2',
           driverId: 'drv2',
           program: 'car_setup',
           setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-          tyreSelection: { setId: 's2', compound: 'duro' },
+          tyreSelection: { setId: 's2', compound: 'duro', isReserved: true },
           fuelLoad: { kg: 25, estimatedLaps: 15 },
+          objective: 'Test objective',
+          status: 'ready',
         },
       ],
-      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
-    let session = practiceSessionService.createInitialSessionState({
+    const session = practiceSessionService.createInitialSessionState({
       careerId: 'reg_4b',
       seasonId: 's2026',
       round: 1,
       sessionType: 'tp1',
       preparation: prep,
     })
+    session.status = 'running'
 
-    const orderRes = PracticeSessionRunner.orderCarExitTrack(session, 'car1')
+    const orderRes = PracticeSessionRunner.orderCarExitToTrack(session, 'car1')
     expect(orderRes.success).toBe(true)
-    expect(orderRes.nextState.cars.car1.status).toBe('out_lap')
+    expect(session.cars.car1.status).toBe('out_lap')
 
-    const tickRes = PracticeSessionRunner.advanceSessionTick(orderRes.nextState, 10, {
+    const tickRes = PracticeSessionRunner.tick(session, 10, {
       round: 1,
+      gpName: 'GP Test',
+      circuitName: 'Circuito Test',
+      lengthKm: 5.0,
       weather: 'seco',
       tireAbrasiveness: 6,
       teamChassisRating: 75,
       teamEngineSupplier: 'Audi',
-      drivers: [mockDriverSenior],
+      teamName: 'Audi Test',
+      teamColor: '#E10600',
+      drivers: [
+        {
+          id: mockDriverSenior.id,
+          name: mockDriverSenior.name,
+          speed: mockDriverSenior.speed,
+          consistency: mockDriverSenior.consistency,
+          defense: 80,
+          technical_feedback: mockDriverSenior.technical_feedback,
+        },
+      ],
     })
 
     expect(tickRes.nextState.elapsedTimeSec).toBe(10)
@@ -793,41 +820,51 @@ describe('APEX GP MANAGER — ETAPA 4C2: Conhecimento Progressivo de Pneus e Com
 
   // TESTE S: Regressão Corrida Ao Vivo
   it('Teste S — Regressão Corrida Ao Vivo: advanceCanonicalRaceLap mantém integridade física e esportiva', () => {
+    const dummyGrid = [
+      {
+        position: 1,
+        gridPosition: 1,
+        driverId: 'drv_test',
+        driverName: 'Piloto Teste',
+        teamId: 'team_audi',
+        teamName: 'Equipe Teste',
+        isPlayer: true,
+        score: 85,
+        points: 0,
+        fastestLap: false,
+        usedOvertake: false,
+        accumulatedTimeSec: 80,
+        tireCompound: 'medio' as const,
+        tireWear: 5,
+        pitLap: 25,
+        pitStopsDone: 0,
+      },
+    ]
+
     const raceLapResult = advanceCanonicalRaceLap({
       currentLap: 1,
       totalLaps: 50,
+      grid: dummyGrid,
       weather: 'seco',
-      tireAbrasiveness: 6,
-      grid: [
-        {
-          driverId: 'drv_test',
-          driverName: 'Piloto Teste',
-          teamName: 'Equipe Teste',
-          teamColor: '#00A6FB',
-          position: 1,
-          tireCompound: 'medio',
-          tireWear: 5,
-          lapsOnCurrentTire: 1,
-          fuelRemaining: 70,
-          gapToLeaderSec: 0,
-          intervalToCarAheadSec: 0,
-          isPlayer: true,
-          carId: 'car1',
-          accumulatedTimeSec: 80,
-          pitStopsDone: 0,
-        },
-      ],
-      playerCarTactics: { car1: 'normal' },
-      playerPaceOrders: { car1: 'equilibrado' },
-      teamChassisRating: 75,
-      teamEngineSupplier: 'Audi',
       round: 1,
-      circuitBaseLapSec: 80,
-      safetyCarStatus: 'none',
+      gpName: 'GP Test',
+      circuitName: 'Circuito Test',
+      tireAbrasiveness: 6,
+      team: null,
+      playerCarTactics: { car1: 'normal' },
+      playerPaceOrders: { car1: 'normal' },
+      mechanicalIssues: [],
+      redFlagState: {
+        active: false,
+        ticksFrozen: 0,
+        usedThisRace: false,
+        safetyCarLapsRemaining: 0,
+      },
+      lapHistory: {},
     })
 
     expect(raceLapResult).toBeDefined()
-    expect(raceLapResult.updatedGrid).toHaveLength(1)
-    expect(raceLapResult.updatedGrid[0].tireWear).toBeGreaterThan(5)
+    expect(raceLapResult.nextGrid).toHaveLength(1)
+    expect(raceLapResult.nextGrid[0].tireWear).toBeGreaterThan(5)
   })
 })
