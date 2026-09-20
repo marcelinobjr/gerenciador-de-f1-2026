@@ -33,6 +33,10 @@ import {
   CanonicalPracticeV2Runner,
   type AdvanceStepResult,
 } from '@/services/canonicalPracticeV2Runner'
+import { RookieFP1ManagementCard } from '@/components/race/RookieFP1ManagementCard'
+import { RookiePracticeRequirementService } from '@/services/rookiePracticeRequirementService'
+import type { RookieTemporaryFP1Assignment, RookieEligibilityCheck } from '@/types/rookie-practice'
+import { f1Service } from '@/services/f1Service'
 import {
   canonicalEventRegistrationService,
   type RegistrationValidationResult,
@@ -275,7 +279,31 @@ export default function WeekendV2Page() {
     const pCar2 = reg.snapshot.entriesByCar.playerCar2
     if (!pCar1 || !pCar2) return
 
-    // Buscar pneus disponíveis no mesmo inventário (20 jogos/piloto)
+    // No TL1, carregar novatos temporários se escalados; em TL2/TL3 restaurar sempre os titulares
+    const isTL1 = targetType === 'tp1'
+    const savedRookieC1 = isTL1
+      ? RookiePracticeRequirementService.getTemporaryFP1Assignment(
+          season.id,
+          currentRound,
+          team.id,
+          'car1',
+        )
+      : null
+    const savedRookieC2 = isTL1
+      ? RookiePracticeRequirementService.getTemporaryFP1Assignment(
+          season.id,
+          currentRound,
+          team.id,
+          'car2',
+        )
+      : null
+
+    const activeC1DriverId = savedRookieC1 ? savedRookieC1.rookieDriverId : pCar1.driverId
+    const activeC1DriverName = savedRookieC1 ? savedRookieC1.rookieDriverName : pCar1.driverName
+    const activeC2DriverId = savedRookieC2 ? savedRookieC2.rookieDriverId : pCar2.driverId
+    const activeC2DriverName = savedRookieC2 ? savedRookieC2.rookieDriverName : pCar2.driverName
+
+    // Buscar pneus disponíveis no mesmo inventário compartilhado do assento/titular (20 jogos/piloto)
     const car1Tire =
       inventories[pCar1.driverId]?.find((t) => (t.wear || 0) < 100) ||
       inventories[pCar1.driverId]?.[0]
@@ -283,7 +311,7 @@ export default function WeekendV2Page() {
       inventories[pCar2.driverId]?.find((t) => (t.wear || 0) < 100) ||
       inventories[pCar2.driverId]?.[0]
 
-    // Resolver herança de setup e conhecimento da sessão anterior
+    // Resolver herança de setup e conhecimento da sessão anterior (setup pertence ao CARRO)
     const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
       team.id,
       season.id,
@@ -297,7 +325,7 @@ export default function WeekendV2Page() {
       cars: [
         {
           carId: 'car1' as const,
-          driverId: pCar1.driverId,
+          driverId: activeC1DriverId,
           program: 'car_setup' as const,
           setup: inherited.car1Setup || {
             frontWing: 6,
@@ -313,7 +341,7 @@ export default function WeekendV2Page() {
         },
         {
           carId: 'car2' as const,
-          driverId: pCar2.driverId,
+          driverId: activeC2DriverId,
           program: 'race_pace' as const,
           setup: inherited.car2Setup || {
             frontWing: 6,
@@ -339,16 +367,24 @@ export default function WeekendV2Page() {
       sessionType: targetType,
       preparation: prep as any,
       driverNames: {
-        car1: pCar1.driverName,
-        driver1Id: pCar1.driverId,
-        car2: pCar2.driverName,
-        driver2Id: pCar2.driverId,
+        car1: activeC1DriverName,
+        driver1Id: activeC1DriverId,
+        car2: activeC2DriverName,
+        driver2Id: activeC2DriverId,
       },
       teamName: team.name,
       teamColor: team.color,
       teamChassisRating: team.strength || 75,
       engineSupplier: team.engine_supplier || 'Audi',
     })
+
+    // Se estiver entrando no TL2 ou TL3, garante restauração dos nomes dos titulares no estado
+    if (!isTL1) {
+      session.cars.car1.driverId = pCar1.driverId
+      session.cars.car1.driverName = pCar1.driverName
+      session.cars.car2.driverId = pCar2.driverId
+      session.cars.car2.driverName = pCar2.driverName
+    }
 
     setSessionState(session)
     setSelectedSessionId(targetType)
@@ -624,12 +660,139 @@ export default function WeekendV2Page() {
     }
   }
 
-  // 6. Contexto de simulação do runner (sempre os 2 pilotos reais escalados)
+  // Escalações temporárias de novatos para TL1
+  const [activeRookieCar1, setActiveRookieCar1] = useState<RookieTemporaryFP1Assignment | null>(
+    null,
+  )
+  const [activeRookieCar2, setActiveRookieCar2] = useState<RookieTemporaryFP1Assignment | null>(
+    null,
+  )
+  const [allDriversCatalog, setAllDriversCatalog] = useState<DriverModel[]>([])
+
+  // Carregar catálogo de pilotos para o modal de novatos e assignments salvos
+  useEffect(() => {
+    if (!season?.id || !team?.id) return
+    const a1 = RookiePracticeRequirementService.getTemporaryFP1Assignment(
+      season.id,
+      currentRound,
+      team.id,
+      'car1',
+    )
+    const a2 = RookiePracticeRequirementService.getTemporaryFP1Assignment(
+      season.id,
+      currentRound,
+      team.id,
+      'car2',
+    )
+    setActiveRookieCar1(a1)
+    setActiveRookieCar2(a2)
+
+    f1Service
+      .getMarketDrivers()
+      .then((res) => {
+        if (Array.isArray(res)) {
+          setAllDriversCatalog(res)
+        }
+      })
+      .catch(() => {})
+  }, [season?.id, team?.id, currentRound])
+
+  // Handlers para atribuir ou limpar novato no TL1
+  const handleAssignRookie = (
+    carId: 'car1' | 'car2',
+    rookie: RookieEligibilityCheck,
+    originalDriver: DriverModel,
+  ) => {
+    if (!season?.id || !team?.id) return
+    const assignment: RookieTemporaryFP1Assignment = {
+      seasonId: season.id,
+      round: currentRound,
+      teamId: team.id,
+      carId,
+      rookieDriverId: rookie.driverId,
+      rookieDriverName: rookie.driverName,
+      originalDriverId: originalDriver.id,
+      originalDriverName: originalDriver.name,
+      rookieSpeed: 78,
+      rookieConsistency: 77,
+      rookieTechnicalFeedback: 70,
+    }
+    RookiePracticeRequirementService.setTemporaryFP1Assignment(assignment)
+    if (carId === 'car1') {
+      setActiveRookieCar1(assignment)
+    } else {
+      setActiveRookieCar2(assignment)
+    }
+    toast({
+      title: 'Novato Escalado para o TL1',
+      description: `${rookie.driverName} assumirá o ${carId === 'car1' ? 'Carro 1' : 'Carro 2'} exclusivamente no TL1.`,
+    })
+
+    // Se estiver em TL1 e sessão aberta, atualiza o carro na sessão
+    if (selectedSessionId === 'tp1' && sessionState) {
+      sessionState.cars[carId].driverId = rookie.driverId
+      sessionState.cars[carId].driverName = rookie.driverName
+      practiceSessionService.saveSessionState(sessionState)
+      setSessionState({ ...sessionState })
+    }
+  }
+
+  const handleClearRookieAssignment = (carId: 'car1' | 'car2') => {
+    if (!season?.id || !team?.id || !registration?.snapshot) return
+    RookiePracticeRequirementService.clearTemporaryFP1Assignment(
+      season.id,
+      currentRound,
+      team.id,
+      carId,
+    )
+    if (carId === 'car1') {
+      setActiveRookieCar1(null)
+    } else {
+      setActiveRookieCar2(null)
+    }
+
+    const original =
+      carId === 'car1'
+        ? registration.snapshot.entriesByCar.playerCar1
+        : registration.snapshot.entriesByCar.playerCar2
+
+    if (original && selectedSessionId === 'tp1' && sessionState) {
+      sessionState.cars[carId].driverId = original.driverId
+      sessionState.cars[carId].driverName = original.driverName
+      practiceSessionService.saveSessionState(sessionState)
+      setSessionState({ ...sessionState })
+    }
+
+    toast({
+      title: 'Piloto Titular Restaurado',
+      description: `O titular oficial ${original?.driverName || ''} reassumiu o cockpit.`,
+    })
+  }
+
+  // 6. Contexto de simulação do runner (no TL1, usa o novato temporário se escalado)
   const runnerContext = useMemo(() => {
     if (!team || !registration?.snapshot) return null
 
     const pCar1 = registration.snapshot.entriesByCar.playerCar1
     const pCar2 = registration.snapshot.entriesByCar.playerCar2
+
+    // Substituição temporária restrita ao TL1
+    const isTL1 = selectedSessionId === 'tp1'
+    const c1DriverId =
+      isTL1 && activeRookieCar1 ? activeRookieCar1.rookieDriverId : pCar1?.driverId || 'drv_c1'
+    const c1DriverName =
+      isTL1 && activeRookieCar1
+        ? activeRookieCar1.rookieDriverName
+        : pCar1?.driverName || 'Piloto 1'
+    const c1IsRookie = isTL1 && !!activeRookieCar1
+
+    const c2DriverId =
+      isTL1 && activeRookieCar2 ? activeRookieCar2.rookieDriverId : pCar2?.driverId || 'drv_c2'
+    const c2DriverName =
+      isTL1 && activeRookieCar2
+        ? activeRookieCar2.rookieDriverName
+        : pCar2?.driverName || 'Piloto 2'
+    const c2IsRookie = isTL1 && !!activeRookieCar2
 
     return {
       round: currentRound,
@@ -646,24 +809,35 @@ export default function WeekendV2Page() {
       teamColor: team.color || '#00A6FB',
       drivers: [
         {
-          id: pCar1?.driverId || 'drv_c1',
-          name: pCar1?.driverName || 'Piloto 1',
-          speed: 82,
-          consistency: 80,
-          defense: 78,
-          technical_feedback: 75,
+          id: c1DriverId,
+          name: c1DriverName,
+          speed: c1IsRookie ? 78 : 82,
+          consistency: c1IsRookie ? 77 : 80,
+          defense: c1IsRookie ? 75 : 78,
+          technical_feedback: c1IsRookie ? 70 : 75,
+          isRookie: c1IsRookie,
         },
         {
-          id: pCar2?.driverId || 'drv_c2',
-          name: pCar2?.driverName || 'Piloto 2',
-          speed: 80,
-          consistency: 79,
-          defense: 76,
-          technical_feedback: 72,
+          id: c2DriverId,
+          name: c2DriverName,
+          speed: c2IsRookie ? 77 : 80,
+          consistency: c2IsRookie ? 76 : 79,
+          defense: c2IsRookie ? 74 : 76,
+          technical_feedback: c2IsRookie ? 68 : 72,
+          isRookie: c2IsRookie,
         },
       ],
     }
-  }, [team, registration, currentRound, gpInfo, circuitProfile])
+  }, [
+    team,
+    registration,
+    currentRound,
+    gpInfo,
+    circuitProfile,
+    selectedSessionId,
+    activeRookieCar1,
+    activeRookieCar2,
+  ])
 
   // Contexto completo para o motor de qualificação (inclui rivais e clima)
   const qualifyingTickContext = useMemo<QualifyingTickContext | null>(() => {
@@ -876,12 +1050,44 @@ export default function WeekendV2Page() {
         if (res.nextState.status === 'completed') {
           setIsAutoAdvancing(false)
           const targetTypeUpper = res.nextState.sessionType.toUpperCase()
-          if (season?.id) {
+          if (season?.id && team?.id) {
             const currentStored = readStoredCompletedSessions(season.id, currentRound)
             if (!currentStored.includes(res.nextState.sessionType)) {
               const updated = [...currentStored, res.nextState.sessionType]
               writeStoredCompletedSessions(season.id, currentRound, updated)
               setCompletedSessions(updated)
+            }
+
+            // FW2.1C.1: Se a sessão for TL1, homologar créditos de novato para carros que cumpriram >= 1 volta
+            if (res.nextState.sessionType === 'tp1') {
+              const c1 = res.nextState.cars.car1
+              const c2 = res.nextState.cars.car2
+
+              if (activeRookieCar1 && c1.lapsCompleted >= 1) {
+                RookiePracticeRequirementService.grantRookieFP1Credit({
+                  seasonId: season.id,
+                  round: currentRound,
+                  teamId: team.id,
+                  carId: 'car1',
+                  driverId: activeRookieCar1.rookieDriverId,
+                  driverName: activeRookieCar1.rookieDriverName,
+                  lapsCompleted: c1.lapsCompleted,
+                  isRookieEligible: true,
+                })
+              }
+
+              if (activeRookieCar2 && c2.lapsCompleted >= 1) {
+                RookiePracticeRequirementService.grantRookieFP1Credit({
+                  seasonId: season.id,
+                  round: currentRound,
+                  teamId: team.id,
+                  carId: 'car2',
+                  driverId: activeRookieCar2.rookieDriverId,
+                  driverName: activeRookieCar2.rookieDriverName,
+                  lapsCompleted: c2.lapsCompleted,
+                  isRookieEligible: true,
+                })
+              }
             }
           }
           toast({
@@ -1122,13 +1328,44 @@ export default function WeekendV2Page() {
       setTyreInventories(refreshed)
     }
 
-    // Atualizar sessões concluídas
+    // Atualizar sessões concluídas e homologar créditos de novato no TL1
     if (season?.id && res.nextState.status === 'completed') {
       const currentStored = readStoredCompletedSessions(season.id, currentRound)
       if (!currentStored.includes(res.nextState.sessionType)) {
         const updated = [...currentStored, res.nextState.sessionType]
         writeStoredCompletedSessions(season.id, currentRound, updated)
         setCompletedSessions(updated)
+      }
+
+      if (res.nextState.sessionType === 'tp1' && team?.id) {
+        const c1 = res.nextState.cars.car1
+        const c2 = res.nextState.cars.car2
+
+        if (activeRookieCar1 && c1.lapsCompleted >= 1) {
+          RookiePracticeRequirementService.grantRookieFP1Credit({
+            seasonId: season.id,
+            round: currentRound,
+            teamId: team.id,
+            carId: 'car1',
+            driverId: activeRookieCar1.rookieDriverId,
+            driverName: activeRookieCar1.rookieDriverName,
+            lapsCompleted: c1.lapsCompleted,
+            isRookieEligible: true,
+          })
+        }
+
+        if (activeRookieCar2 && c2.lapsCompleted >= 1) {
+          RookiePracticeRequirementService.grantRookieFP1Credit({
+            seasonId: season.id,
+            round: currentRound,
+            teamId: team.id,
+            carId: 'car2',
+            driverId: activeRookieCar2.rookieDriverId,
+            driverName: activeRookieCar2.rookieDriverName,
+            lapsCompleted: c2.lapsCompleted,
+            isRookieEligible: true,
+          })
+        }
       }
     }
 
@@ -1563,6 +1800,22 @@ export default function WeekendV2Page() {
         // RENDERIZAÇÃO DE TL1 / TL2 / TL3
         sessionState ? (
           <div className="space-y-6">
+            {/* BLOCO REGULAMENTAR DE OBRIGAÇÃO DE NOVATOS (TL1) */}
+            {selectedSessionId === 'tp1' && season?.id && team?.id && (
+              <RookieFP1ManagementCard
+                seasonId={season.id}
+                round={currentRound}
+                teamId={team.id}
+                teamDrivers={playerDrivers}
+                allDriversCatalog={allDriversCatalog}
+                activeAssignmentCar1={activeRookieCar1}
+                activeAssignmentCar2={activeRookieCar2}
+                onAssignRookie={handleAssignRookie}
+                onClearAssignment={handleClearRookieAssignment}
+                isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
+                isSessionCompleted={sessionState.status === 'completed'}
+              />
+            )}
             {/* CONTROLES OPERACIONAIS DO TREINO LIVRE */}
             <Card className="p-4 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs space-y-4">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#F1F5F9] pb-3">
@@ -1739,6 +1992,8 @@ export default function WeekendV2Page() {
                     ).filter((id) => id !== 'car1')
                     setSessionState({ ...sessionState })
                   }}
+                  isRookie={selectedSessionId === 'tp1' && !!activeRookieCar1}
+                  originalDriverName={pCar1?.driverName}
                 />
 
                 <PracticeCarCockpitCard
@@ -1760,6 +2015,8 @@ export default function WeekendV2Page() {
                     ).filter((id) => id !== 'car2')
                     setSessionState({ ...sessionState })
                   }}
+                  isRookie={selectedSessionId === 'tp1' && !!activeRookieCar2}
+                  originalDriverName={pCar2?.driverName}
                 />
               </div>
             )}

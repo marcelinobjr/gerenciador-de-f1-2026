@@ -46,6 +46,7 @@ export interface PracticeTickContext {
     morale?: number
     physical_condition?: number
     technical_feedback?: number
+    isRookie?: boolean
   }>
 }
 
@@ -357,6 +358,7 @@ export class PracticeSessionRunner {
           })
 
           // Atualizar leaderboard oficial
+          const isDriverRookie = !!context.drivers.find((d) => d.id === car.driverId)?.isRookie
           this.updateLeaderboardEntry(nextState.leaderboard, {
             driverId: car.driverId,
             driverName: car.driverName,
@@ -367,6 +369,7 @@ export class PracticeSessionRunner {
             lapFormatted,
             isPlayer: true,
             carId,
+            isRookie: isDriverRookie,
           })
 
           // Decidir próximo estado do carro:
@@ -659,6 +662,7 @@ export class PracticeSessionRunner {
       lapFormatted: string
       isPlayer: boolean
       carId?: 'car1' | 'car2'
+      isRookie?: boolean
     },
   ): void {
     let entry = leaderboard.find((e) => e.driverId === params.driverId)
@@ -676,8 +680,13 @@ export class PracticeSessionRunner {
         gap: '-',
         isPlayer: params.isPlayer,
         carId: params.carId,
+        isRookie: params.isRookie,
       }
       leaderboard.push(entry)
+    }
+
+    if (params.isRookie !== undefined) {
+      entry.isRookie = params.isRookie
     }
 
     entry.laps += 1

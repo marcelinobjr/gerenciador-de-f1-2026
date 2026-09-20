@@ -91,6 +91,11 @@ export const PracticeLeaderboardTable: React.FC<PracticeLeaderboardTableProps> =
                       <span className={isPlayer ? 'text-cyan-300 font-bold' : 'text-white'}>
                         {entry.driverName}
                       </span>
+                      {entry.isRookie && (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[8px] font-black px-1 py-0 h-3.5 tracking-wider">
+                          ROOKIE
+                        </Badge>
+                      )}
                       {isPlayer && (
                         <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-400/30 text-[9px] px-1 py-0 h-4">
                           {entry.carId === 'car1' ? 'Carro 1' : 'Carro 2'}

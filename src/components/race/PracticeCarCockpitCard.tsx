@@ -38,6 +38,8 @@ interface PracticeCarCockpitCardProps {
   onOrderExitTrack: () => void
   onRequestBox: () => void
   onMarkFeedbackRead?: () => void
+  isRookie?: boolean
+  originalDriverName?: string
 }
 
 const TRACK_STATUS_LABELS: Record<
@@ -76,6 +78,8 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
   onOrderExitTrack,
   onRequestBox,
   onMarkFeedbackRead,
+  isRookie = false,
+  originalDriverName,
 }) => {
   const [showFeedbackDetails, setShowFeedbackDetails] = React.useState<boolean>(true)
   const statusConfig = TRACK_STATUS_LABELS[car.status]
@@ -122,7 +126,17 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
               <Badge className="bg-[#141B26] text-[#BAC4D6] border-[#222E42] text-[10px] py-0 px-1.5 font-bold">
                 Carro {carNumber}
               </Badge>
+              {isRookie && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] px-1.5 py-0 font-black tracking-wider">
+                  ROOKIE
+                </Badge>
+              )}
             </div>
+            {isRookie && originalDriverName && (
+              <p className="text-[10px] text-amber-400/90 font-medium">
+                Substituindo temporariamente {originalDriverName} no TL1
+              </p>
+            )}{' '}
             <p className="text-[11px] text-[#8B95A7]">
               Programa ativo: <span className="text-white font-bold">{programMeta.title}</span>
             </p>

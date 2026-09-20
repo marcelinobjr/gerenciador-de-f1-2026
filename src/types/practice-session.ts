@@ -134,6 +134,7 @@ export interface PracticeTimeEntry {
   lastLapTime?: string
   isPlayer: boolean
   carId?: 'car1' | 'car2'
+  isRookie?: boolean
 }
 
 export interface PracticeRadioFeedEvent {
