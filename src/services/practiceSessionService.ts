@@ -91,12 +91,22 @@ export class PracticeSessionService {
       sessionType,
     )
 
+    const freshPreparation = JSON.parse(JSON.stringify(preparation)) as PracticePreparation
+
+    // Se herdamos acertos mecânicos (setup) do Carro 1 e Carro 2 de sessões anteriores (ex: TL1 -> TL2 ou TL2 -> TL3)
+    if (inheritedKnowledge.car1Setup && freshPreparation.cars[0]) {
+      freshPreparation.cars[0].setup = { ...inheritedKnowledge.car1Setup }
+    }
+    if (inheritedKnowledge.car2Setup && freshPreparation.cars[1]) {
+      freshPreparation.cars[1].setup = { ...inheritedKnowledge.car2Setup }
+    }
+
     const freshSession = this.createInitialSessionState({
       careerId,
       seasonId,
       round,
       sessionType,
-      preparation,
+      preparation: freshPreparation,
       driverNames: params.driverNames,
       teamName: params.teamName,
       teamColor: params.teamColor,
@@ -140,11 +150,13 @@ export class PracticeSessionService {
       status: 'garage',
       pitRequested: false,
       program: pCar1.program,
-      setup: { ...pCar1.setup },
+      setup: pCar1.setup
+        ? { ...pCar1.setup }
+        : { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
       currentTyreSetId: pCar1.tyreSelection?.setId || `${careerId}_c1_default_tire`,
       currentCompound: pCar1.tyreSelection?.compound || 'medio',
-      tyreWear: 2, // Pneu novo de treino
-      fuelKg: pCar1.fuelLoad.kg,
+      tyreWear: 2, // Pneu de treino
+      fuelKg: pCar1.fuelLoad?.kg ?? 30,
       lapsInStint: 0,
       totalLaps: 0,
       currentLapProgressPct: 0,
@@ -157,11 +169,13 @@ export class PracticeSessionService {
       status: 'garage',
       pitRequested: false,
       program: pCar2.program,
-      setup: { ...pCar2.setup },
+      setup: pCar2.setup
+        ? { ...pCar2.setup }
+        : { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
       currentTyreSetId: pCar2.tyreSelection?.setId || `${careerId}_c2_default_tire`,
       currentCompound: pCar2.tyreSelection?.compound || 'medio',
       tyreWear: 2,
-      fuelKg: pCar2.fuelLoad.kg,
+      fuelKg: pCar2.fuelLoad?.kg ?? 30,
       lapsInStint: 0,
       totalLaps: 0,
       currentLapProgressPct: 0,
@@ -458,10 +472,25 @@ export class PracticeSessionService {
       id: `ev_finish_${Date.now()}`,
       second: state.elapsedTimeSec,
       type: 'finish',
-      message: 'Bandeira quadriculada. Sessão de Treino Livre encerrada!',
+      message: `Bandeira quadriculada. Sessão de ${state.sessionType.toUpperCase()} encerrada!`,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     }
     state.radioFeed = [finishEvent, ...state.radioFeed].slice(0, 50)
+
+    // Sincronizar com weekendProgressionService (registra sessão concluída no armazenamento canônico)
+    try {
+      const { readStoredCompletedSessions, writeStoredCompletedSessions } =
+        await import('@/services/weekendProgressionService')
+      const currentCompleted = readStoredCompletedSessions(state.seasonId, state.round)
+      if (!currentCompleted.includes(state.sessionType)) {
+        writeStoredCompletedSessions(state.seasonId, state.round, [
+          ...currentCompleted,
+          state.sessionType,
+        ])
+      }
+    } catch (e) {
+      console.warn('[practiceSessionService] Erro ao sincronizar sessão concluída:', e)
+    }
 
     await this.saveSessionState(state)
     return state
@@ -508,6 +537,8 @@ export class PracticeSessionService {
     tyreKnowledge?: WeekendTyreKnowledge
     tyreObservations?: TyreStintObservation[]
     setupKnowledge?: import('@/types/practice-session').SetupKnowledgeModel
+    car1Setup?: PracticeCarLiveState['setup']
+    car2Setup?: PracticeCarLiveState['setup']
   } {
     const sessionOrder: PracticeSessionType[] = ['tp1', 'tp2', 'tp3']
     const currentIndex = sessionOrder.indexOf(sessionType)
@@ -519,11 +550,13 @@ export class PracticeSessionService {
     for (let i = currentIndex - 1; i >= 0; i--) {
       const prevType = sessionOrder[i]
       const prevSession = this.readFromLocalCache(careerId, seasonId, round, prevType)
-      if (prevSession && prevSession.tyreKnowledge) {
+      if (prevSession) {
         return {
           tyreKnowledge: prevSession.tyreKnowledge,
           tyreObservations: prevSession.tyreObservations,
           setupKnowledge: prevSession.knowledge,
+          car1Setup: prevSession.cars?.car1?.setup,
+          car2Setup: prevSession.cars?.car2?.setup,
         }
       }
     }

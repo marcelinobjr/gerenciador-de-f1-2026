@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,8 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import {
   hasSprintWeekend,
   getCanonicalWeekendSchedule,
+  readStoredCompletedSessions,
+  writeStoredCompletedSessions,
   type CanonicalWeekendSession,
 } from '@/services/weekendProgressionService'
 import {
@@ -91,6 +93,19 @@ export default function WeekendV2Page() {
   // Inventário de Pneus persistente
   const [tyreInventories, setTyreInventories] = useState<Record<string, TireSetItem[]>>({})
 
+  // Sessão atualmente selecionada/ativa na esteira do fim de semana
+  const [activeSessionType, setActiveSessionType] = useState<CanonicalWeekendSession>('tp1')
+  // Sessões oficialmente concluídas lidas do armazenamento canônico
+  const [completedSessions, setCompletedSessions] = useState<string[]>([])
+
+  // Função para sincronizar as sessões concluídas do backend/localStorage
+  const refreshCompletedSessions = useCallback(() => {
+    if (!season?.id) return []
+    const stored = readStoredCompletedSessions(season.id, currentRound)
+    setCompletedSessions(stored)
+    return stored
+  }, [season?.id, currentRound])
+
   // 1. Inicializar inscrições canônicas (exatamente 2 assentos por equipe, 12 equipes, 24 pilotos)
   useEffect(() => {
     if (!team || !season) return
@@ -118,7 +133,7 @@ export default function WeekendV2Page() {
           setRegistration(regRes.snapshot)
           setRegistrationErrors([])
 
-          // Carregar ou gerar inventário de pneus para os 2 pilotos do jogador
+          // Carregar ou gerar inventário de pneus para os 2 pilotos do jogador (mesmo inventário para o fim de semana inteiro)
           const pCar1 = regRes.snapshot.entriesByCar.playerCar1
           const pCar2 = regRes.snapshot.entriesByCar.playerCar2
           const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
@@ -131,8 +146,30 @@ export default function WeekendV2Page() {
           })
           setTyreInventories(inventories)
 
-          // Inicializar ou carregar sessão de TL1
-          initializeTL1Session(regRes.snapshot, inventories)
+          const stored = readStoredCompletedSessions(season.id, currentRound)
+          setCompletedSessions(stored)
+
+          // Determinar qual sessão inicializar com base no progresso canônico
+          let targetSession: CanonicalWeekendSession = 'tp1'
+          if (stored.includes('tp1')) {
+            if (stored.includes('tp2')) {
+              targetSession = isSprint ? 'sprint_qualifying' : 'tp3'
+            } else {
+              targetSession = 'tp2'
+            }
+          }
+
+          // Se a sessão for de Treino Livre (TL1, TL2 ou TL3)
+          if (['tp1', 'tp2', 'tp3'].includes(targetSession)) {
+            setActiveSessionType(targetSession)
+            initializePracticeSession(
+              targetSession as 'tp1' | 'tp2' | 'tp3',
+              regRes.snapshot,
+              inventories,
+            )
+          } else {
+            setActiveSessionType(targetSession)
+          }
         }
       })
       .catch((err) => {
@@ -148,10 +185,11 @@ export default function WeekendV2Page() {
     return () => {
       isMounted = false
     }
-  }, [team?.id, season?.id, currentRound])
+  }, [team?.id, season?.id, currentRound, isSprint])
 
-  // 2. Inicializar ou retomar sessão de TL1
-  const initializeTL1Session = async (
+  // 2. Inicializar ou retomar sessão de Treino Livre (TL1, TL2 ou TL3) com herança canônica
+  const initializePracticeSession = async (
+    targetType: 'tp1' | 'tp2' | 'tp3',
     snapshot: EventRegistrationSnapshot,
     inventories: Record<string, TireSetItem[]>,
   ) => {
@@ -161,8 +199,21 @@ export default function WeekendV2Page() {
     const pCar2 = snapshot.entriesByCar.playerCar2
     if (!pCar1 || !pCar2) return
 
-    const car1Tire = inventories[pCar1.driverId]?.[0]
-    const car2Tire = inventories[pCar2.driverId]?.[0]
+    // Buscar pneus disponíveis no mesmo inventário (20 jogos/piloto)
+    const car1Tire =
+      inventories[pCar1.driverId]?.find((t) => (t.wear || 0) < 100) ||
+      inventories[pCar1.driverId]?.[0]
+    const car2Tire =
+      inventories[pCar2.driverId]?.find((t) => (t.wear || 0) < 100) ||
+      inventories[pCar2.driverId]?.[0]
+
+    // Resolver herança de setup e conhecimento da sessão anterior
+    const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
+      team.id,
+      season.id,
+      currentRound,
+      targetType,
+    )
 
     const prep = {
       round: currentRound,
@@ -172,7 +223,12 @@ export default function WeekendV2Page() {
           carId: 'car1' as const,
           driverId: pCar1.driverId,
           program: 'car_setup' as const,
-          setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+          setup: inherited.car1Setup || {
+            frontWing: 6,
+            rearWing: 6,
+            suspension: 6,
+            differential: 50,
+          },
           fuelLoad: { mode: 'medium' as const, kg: 30, estimatedLaps: 18 },
           tyreSelection: {
             setId: car1Tire?.id || `${season.id}_c1_init_tire`,
@@ -183,7 +239,12 @@ export default function WeekendV2Page() {
           carId: 'car2' as const,
           driverId: pCar2.driverId,
           program: 'race_pace' as const,
-          setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+          setup: inherited.car2Setup || {
+            frontWing: 6,
+            rearWing: 6,
+            suspension: 6,
+            differential: 50,
+          },
           fuelLoad: { mode: 'medium' as const, kg: 30, estimatedLaps: 18 },
           tyreSelection: {
             setId: car2Tire?.id || `${season.id}_c2_init_tire`,
@@ -191,7 +252,7 @@ export default function WeekendV2Page() {
           },
         },
       ],
-      overallObjective: 'Homologação e validação canônica de fim de semana',
+      overallObjective: `Homologação e validação canônica de fim de semana (${targetType.toUpperCase()})`,
       confirmedAt: new Date().toISOString(),
     }
 
@@ -199,7 +260,7 @@ export default function WeekendV2Page() {
       careerId: team.id,
       seasonId: season.id,
       round: currentRound,
-      sessionType: 'tp1',
+      sessionType: targetType,
       preparation: prep as any,
       driverNames: {
         car1: pCar1.driverName,
@@ -214,6 +275,65 @@ export default function WeekendV2Page() {
     })
 
     setSessionState(session)
+    setActiveSessionType(targetType)
+    setIsAutoAdvancing(false)
+  }
+
+  // Mudar sessão na esteira
+  const handleSelectSessionFromSchedule = async (sess: CanonicalWeekendSession) => {
+    if (!registration || !team || !season) return
+
+    // Sessões de TL1, TL2 e TL3
+    if (sess === 'tp1' || sess === 'tp2' || sess === 'tp3') {
+      const stored = refreshCompletedSessions()
+
+      // Verificar se pode abrir:
+      // TL1: sempre disponível
+      // TL2: requer TL1 concluído
+      // TL3: requer TL2 concluído (ou TL1 no sprint, embora sprint não tenha TL3)
+      if (sess === 'tp2' && !stored.includes('tp1')) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Bloqueada',
+          description: 'Você precisa concluir o TL1 antes de iniciar o TL2.',
+        })
+        return
+      }
+      if (sess === 'tp3' && !stored.includes('tp2')) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Bloqueada',
+          description: 'Você precisa concluir o TL2 antes de iniciar o TL3.',
+        })
+        return
+      }
+
+      // Parar auto-avanço da sessão anterior
+      setIsAutoAdvancing(false)
+      if (autoAdvanceIntervalRef.current) {
+        clearInterval(autoAdvanceIntervalRef.current)
+      }
+
+      // Recarregar inventário persistente atualizado
+      const pCar1 = registration.entriesByCar.playerCar1
+      const pCar2 = registration.entriesByCar.playerCar2
+      const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
+      const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+        seasonId: season.id,
+        round: currentRound,
+        driverIds,
+        primaryDriverIds: driverIds,
+      })
+      setTyreInventories(invs)
+
+      await initializePracticeSession(sess, registration, invs)
+    } else {
+      toast({
+        title: 'Sessão Bloqueada',
+        description:
+          'Qualificação e Corrida estarão disponíveis nas próximas etapas (FW2.1D e FW2.1E).',
+      })
+    }
   }
 
   // Contexto para o runner
@@ -257,9 +377,18 @@ export default function WeekendV2Page() {
     }
   }, [team, registration, currentRound, gpInfo, circuitProfile])
 
-  // Controles do TL1: PLAY / PAUSE
+  // Controles do Treino Livre: PLAY / PAUSE
   const handleTogglePlay = () => {
-    if (!sessionState || sessionState.status === 'completed') return
+    if (!sessionState) return
+    const stored = refreshCompletedSessions()
+    if (sessionState.status === 'completed' || stored.includes(sessionState.sessionType)) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Concluída',
+        description: 'Não é permitido executar novamente uma sessão oficialmente concluída.',
+      })
+      return
+    }
     if (isAutoAdvancing) {
       setIsAutoAdvancing(false)
       sessionState.status = 'paused'
@@ -324,9 +453,19 @@ export default function WeekendV2Page() {
 
         if (res.nextState.status === 'completed') {
           setIsAutoAdvancing(false)
+          const targetTypeUpper = res.nextState.sessionType.toUpperCase()
+          // Atualizar sessões concluídas
+          if (season?.id) {
+            const currentStored = readStoredCompletedSessions(season.id, currentRound)
+            if (!currentStored.includes(res.nextState.sessionType)) {
+              const updated = [...currentStored, res.nextState.sessionType]
+              writeStoredCompletedSessions(season.id, currentRound, updated)
+              setCompletedSessions(updated)
+            }
+          }
           toast({
             title: 'Sessão Concluída',
-            description: 'TL1 finalizado oficialmente pela bandeira quadriculada.',
+            description: `${targetTypeUpper} finalizado oficialmente pela bandeira quadriculada.`,
           })
         }
 
@@ -344,7 +483,16 @@ export default function WeekendV2Page() {
 
   // Controles: +1 MIN / +5 MIN
   const handleAdvanceStep = (minutes: 1 | 5) => {
-    if (!sessionState || !runnerContext || sessionState.status === 'completed') return
+    if (!sessionState || !runnerContext) return
+    const stored = refreshCompletedSessions()
+    if (sessionState.status === 'completed' || stored.includes(sessionState.sessionType)) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Concluída',
+        description: 'Não é permitido executar novamente uma sessão oficialmente concluída.',
+      })
+      return
+    }
     setIsAutoAdvancing(false)
 
     const seconds = minutes * 60
@@ -381,7 +529,16 @@ export default function WeekendV2Page() {
 
   // Controle: SIMULAR RESTANTE DO TL
   const handleSimulateRemaining = () => {
-    if (!sessionState || !runnerContext || sessionState.status === 'completed') return
+    if (!sessionState || !runnerContext) return
+    const stored = refreshCompletedSessions()
+    if (sessionState.status === 'completed' || stored.includes(sessionState.sessionType)) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Concluída',
+        description: 'Não é permitido executar novamente uma sessão oficialmente concluída.',
+      })
+      return
+    }
     setIsAutoAdvancing(false)
 
     const res: AdvanceStepResult = CanonicalPracticeV2Runner.simulateRemainingSession(
@@ -401,8 +558,19 @@ export default function WeekendV2Page() {
       setTyreInventories(refreshed)
     }
 
+    // Atualizar sessões concluídas
+    if (season?.id && res.nextState.status === 'completed') {
+      const currentStored = readStoredCompletedSessions(season.id, currentRound)
+      if (!currentStored.includes(res.nextState.sessionType)) {
+        const updated = [...currentStored, res.nextState.sessionType]
+        writeStoredCompletedSessions(season.id, currentRound, updated)
+        setCompletedSessions(updated)
+      }
+    }
+
+    const targetTypeUpper = res.nextState.sessionType.toUpperCase()
     toast({
-      title: 'Restante do TL1 Simulado com Sucesso!',
+      title: `Restante do ${targetTypeUpper} Simulado com Sucesso!`,
       description: `Foram computadas todas as voltas, desgaste e aprendizados de setup da sessão.`,
     })
   }
@@ -641,15 +809,36 @@ export default function WeekendV2Page() {
             </span>
             <span className="text-[10px]">
               Etapa ativa:{' '}
-              <strong className="text-cyan-400 font-black">TL1 (TREINO LIVRE 1)</strong>
+              <strong className="text-cyan-400 font-black">
+                {activeSessionType === 'tp1'
+                  ? 'TL1 (TREINO LIVRE 1)'
+                  : activeSessionType === 'tp2'
+                    ? 'TL2 (TREINO LIVRE 2)'
+                    : activeSessionType === 'tp3'
+                      ? 'TL3 (TREINO LIVRE 3)'
+                      : activeSessionType.toUpperCase()}
+              </strong>
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-7 gap-2">
             {schedule.map((sess, idx) => {
-              const isTL1 = sess === 'tp1'
-              const isCompleted = isTL1 && sessionState?.status === 'completed'
-              const isActive = isTL1 && sessionState?.status !== 'completed'
+              const isCurrentActive = sess === activeSessionType
+              const isCompleted =
+                completedSessions.includes(sess) ||
+                (isCurrentActive && sessionState?.status === 'completed')
+
+              // Determinar se está bloqueado ou disponível
+              let isLocked = false
+              if (sess === 'tp2') {
+                isLocked = !completedSessions.includes('tp1') && activeSessionType !== 'tp1'
+              } else if (sess === 'tp3') {
+                isLocked = !completedSessions.includes('tp2') && activeSessionType !== 'tp2'
+              } else if (sess !== 'tp1') {
+                isLocked = true
+              }
+
+              const isAvailable = !isLocked && !isCompleted && !isCurrentActive
 
               const labelMap: Record<string, string> = {
                 tp1: 'TL1',
@@ -661,15 +850,22 @@ export default function WeekendV2Page() {
                 race: 'Corrida',
               }
 
+              const isClickable = ['tp1', 'tp2', 'tp3'].includes(sess) && (!isLocked || isCompleted)
+
               return (
-                <div
+                <button
                   key={sess}
+                  type="button"
+                  disabled={isLocked}
+                  onClick={() => handleSelectSessionFromSchedule(sess)}
                   className={`p-2.5 rounded-xl border text-center transition-all ${
-                    isActive
-                      ? 'bg-cyan-950/40 border-cyan-500 ring-1 ring-cyan-500 text-cyan-300 font-black shadow-md'
+                    isCurrentActive
+                      ? 'bg-cyan-950/40 border-cyan-500 ring-1 ring-cyan-500 text-cyan-300 font-black shadow-md cursor-pointer'
                       : isCompleted
-                        ? 'bg-emerald-950/20 border-emerald-600/40 text-emerald-400 font-bold'
-                        : 'bg-[#0B1019] border-[#182333] text-slate-500 opacity-60 cursor-not-allowed'
+                        ? 'bg-emerald-950/20 border-emerald-600/40 text-emerald-400 font-bold hover:bg-emerald-950/40 cursor-pointer'
+                        : isAvailable
+                          ? 'bg-[#101726] border-cyan-800/60 text-slate-200 font-bold hover:border-cyan-400 cursor-pointer'
+                          : 'bg-[#0B1019] border-[#182333] text-slate-500 opacity-60 cursor-not-allowed'
                   }`}
                 >
                   <div className="text-[10px] font-mono text-slate-400 uppercase">
@@ -677,22 +873,28 @@ export default function WeekendV2Page() {
                   </div>
                   <div className="text-xs font-black mt-0.5">{labelMap[sess] || sess}</div>
                   <div className="text-[9px] mt-1 font-bold">
-                    {isActive ? (
-                      <span className="text-cyan-400 animate-pulse">EM ANDAMENTO</span>
+                    {isCurrentActive ? (
+                      sessionState?.status === 'completed' ? (
+                        <span className="text-emerald-400">CONCLUÍDO</span>
+                      ) : (
+                        <span className="text-cyan-400 animate-pulse">EM ANDAMENTO</span>
+                      )
                     ) : isCompleted ? (
                       <span className="text-emerald-400">CONCLUÍDO</span>
+                    ) : isAvailable ? (
+                      <span className="text-cyan-300">DISPONÍVEL</span>
                     ) : (
                       <span>BLOQUEADO</span>
                     )}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
         </div>
       </div>
 
-      {/* 4. CONTROLES OPERACIONAIS DO TL1 & CRONÔMETRO */}
+      {/* 4. CONTROLES OPERACIONAIS DO TL & CRONÔMETRO */}
       {sessionState && (
         <Card className="p-4 bg-[#090D15]/90 border border-[#1F2733] rounded-2xl shadow-xl space-y-4 font-mono">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1A2333] pb-3">
@@ -703,10 +905,10 @@ export default function WeekendV2Page() {
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
-                  Tempo Restante de Treino Livre
+                  Tempo Restante — {sessionState.sessionType.toUpperCase()}
                 </span>
                 <div className="text-2xl sm:text-3xl font-black text-white tracking-wider flex items-center gap-2">
-                  <span>{formatSessionTime(sessionState.timeRemainingSec)}</span>
+                  <span>{formatSessionTime(sessionState.timeRemainingSec)} RESTANTES</span>
                   <span className="text-xs text-slate-400 font-normal">
                     / {formatSessionTime(sessionState.sessionDurationSec)}
                   </span>
@@ -789,7 +991,7 @@ export default function WeekendV2Page() {
                 className="h-9 px-3.5 text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md gap-1.5"
               >
                 <FastForward className="w-4 h-4" />
-                SIMULAR RESTANTE DO TL1
+                SIMULAR RESTANTE ({sessionState.sessionType.toUpperCase()})
               </Button>
             </div>
           </div>
