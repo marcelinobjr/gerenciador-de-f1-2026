@@ -635,8 +635,17 @@ export default function LiveRacePage() {
 
   // 4. LOOP DE EXECUÇÃO DA CORRIDA COM PLAY/PAUSE/1x/2x/4x
   useEffect(() => {
+    // P1: Guarda de finalização atômica
+    if (isRaceFinished || sessionRecord?.status === 'completed') {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      return
+    }
+
     // REGRA 9 & 4: Se houver pendingDecision != null ou isRacePaused, não avança
-    if (isRacePaused || !isExecuting || isRaceFinished || pendingDecisions.length > 0) {
+    if (isRacePaused || !isExecuting || pendingDecisions.length > 0) {
       if (timerRef.current) {
         clearInterval(timerRef.current)
         timerRef.current = null
@@ -647,6 +656,15 @@ export default function LiveRacePage() {
     const intervalMs = Math.round(5000 / simSpeed)
 
     timerRef.current = setInterval(() => {
+      // P1: Guarda dentro do tick do timer
+      if (isRaceFinished || sessionRecord?.status === 'completed') {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+        }
+        return
+      }
+
       if (currentLap >= totalLaps) {
         if (timerRef.current) clearInterval(timerRef.current)
         setIsRaceFinished(true)
@@ -763,7 +781,7 @@ export default function LiveRacePage() {
 
   // REGRA 9: Controles de Play/Pause com bloqueio se houver pendingDecision
   const handleTogglePlayPause = async () => {
-    if (isRaceFinished) return
+    if (isRaceFinished || sessionRecord?.status === 'completed') return
 
     // Se houver decisão pendente, BLOQUEIA o Play
     if (pendingDecisions.length > 0) {
@@ -860,16 +878,24 @@ export default function LiveRacePage() {
     }
   }
 
-  // Finalização oficial de prova idempotente
+  // Finalização oficial de prova idempotente (P1)
   const handleFinishRace = async (completedGrid?: SimDriverEntry[]) => {
-    if (!sessionRecord) return
-    const finalGrid = completedGrid || grid
+    // P1: Guarda atômica de finalização
+    if (isRaceFinished && raceResults) return
+    if (!sessionRecord || sessionRecord.status === 'completed') return
+
+    // P1: Congelar snapshot final UMA vez antes de marcar como completed
+    const finalGrid = raceResults || completedGrid || grid
     setRaceResults(finalGrid)
+    setIsRaceFinished(true)
+    setIsRacePaused(true)
     setIsFinishing(true)
 
     try {
       await raceSessionService.markSessionCompleted(sessionRecord.id, executorId)
-      await triggerSaveCheckpoint('Corrida Concluída', 'completed')
+      await triggerSaveCheckpoint('Corrida Concluída', 'completed', {
+        grid: finalGrid,
+      })
       toast({
         title: '🏁 Grande Prêmio Concluído!',
         description: `Resultado oficial consolidado para o ${gpInfo.name}.`,

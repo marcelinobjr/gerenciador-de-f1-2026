@@ -219,10 +219,150 @@ export const raceSessionService = {
     newRevision: number
     error?: string
   }> {
+    return this.enqueueSaveCheckpoint(params)
+  },
+
+  /**
+   * P2 (a) & (b): Fila de escrita serializada em memória por sessão com coalescing.
+   */
+  _sessionQueues: new Map<
+    string,
+    {
+      inFlight: boolean
+      promiseChain: Promise<any>
+      pendingParams: {
+        sessionId: string
+        executorId: string
+        expectedRevision: number
+        status: RaceSessionStatus
+        currentLap: number
+        simSpeed: number
+        pauseReason?: string
+        checkpointData: RaceSessionCheckpointData
+        lapHistory?: Record<string, LapRecord[]>
+      } | null
+      latestExpectedRevision: number
+    }
+  >(),
+
+  enqueueSaveCheckpoint(params: {
+    sessionId: string
+    executorId: string
+    expectedRevision: number
+    status: RaceSessionStatus
+    currentLap: number
+    simSpeed: number
+    pauseReason?: string
+    checkpointData: RaceSessionCheckpointData
+    lapHistory?: Record<string, LapRecord[]>
+  }): Promise<{
+    success: boolean
+    newRevision: number
+    error?: string
+  }> {
+    let queue = this._sessionQueues.get(params.sessionId)
+    if (!queue) {
+      queue = {
+        inFlight: false,
+        promiseChain: Promise.resolve(),
+        pendingParams: null,
+        latestExpectedRevision: params.expectedRevision,
+      }
+      this._sessionQueues.set(params.sessionId, queue)
+    }
+
+    queue.latestExpectedRevision = Math.max(queue.latestExpectedRevision, params.expectedRevision)
+
+    // Se já há gravação em voo, atualiza pendingParams com o snapshot mais recente (coalescing)
+    if (queue.inFlight) {
+      queue.pendingParams = {
+        ...params,
+        expectedRevision: queue.latestExpectedRevision,
+      }
+      return new Promise<{ success: boolean; newRevision: number; error?: string }>((resolve) => {
+        queue!.promiseChain = queue!.promiseChain.then(async () => {
+          if (queue!.pendingParams) {
+            const nextParams = queue!.pendingParams
+            queue!.pendingParams = null
+            const res = await this._executeSaveCheckpoint(nextParams)
+            if (res.success) {
+              queue!.latestExpectedRevision = res.newRevision
+            }
+            resolve(res)
+          } else {
+            resolve({ success: true, newRevision: queue!.latestExpectedRevision })
+          }
+        })
+      })
+    }
+
+    queue.inFlight = true
+    return new Promise<{ success: boolean; newRevision: number; error?: string }>((resolve) => {
+      queue!.promiseChain = queue!.promiseChain
+        .then(async () => {
+          const res = await this._executeSaveCheckpoint(params)
+          if (res.success) {
+            queue!.latestExpectedRevision = res.newRevision
+          }
+          return res
+        })
+        .then(async (firstRes) => {
+          // Processa snapshot pendente coalescido se chegou enquanto o primeiro estava em voo
+          if (queue!.pendingParams) {
+            const nextParams = {
+              ...queue!.pendingParams,
+              expectedRevision: queue!.latestExpectedRevision,
+            }
+            queue!.pendingParams = null
+            const coalescedRes = await this._executeSaveCheckpoint(nextParams)
+            if (coalescedRes.success) {
+              queue!.latestExpectedRevision = coalescedRes.newRevision
+            }
+            queue!.inFlight = false
+            resolve(coalescedRes)
+          } else {
+            queue!.inFlight = false
+            resolve(firstRes)
+          }
+        })
+        .catch((err) => {
+          queue!.inFlight = false
+          resolve({
+            success: false,
+            newRevision: params.expectedRevision,
+            error: err?.message || 'Falha na fila de gravação de checkpoint.',
+          })
+        })
+    })
+  },
+
+  async _executeSaveCheckpoint(params: {
+    sessionId: string
+    executorId: string
+    expectedRevision: number
+    status: RaceSessionStatus
+    currentLap: number
+    simSpeed: number
+    pauseReason?: string
+    checkpointData: RaceSessionCheckpointData
+    lapHistory?: Record<string, LapRecord[]>
+  }): Promise<{
+    success: boolean
+    newRevision: number
+    error?: string
+  }> {
     try {
       const current = await pb
         .collection('race_sessions')
         .getOne<RaceSessionRecord>(params.sessionId)
+
+      // P1: Se a sessão já está completed no servidor, retornar sucesso idempotente sem gravar nada
+      if (current.status === 'completed') {
+        return {
+          success: true,
+          newRevision: current.revision,
+        }
+      }
 
       // Validação de executor
       const now = Date.now()
@@ -241,12 +381,38 @@ export const raceSessionService = {
         }
       }
 
-      // Validação de revisão (impede sobrescrita de estado antigo)
+      // P2 (c): No conflito de revisão, recarregar o registro atual e se o payload é um snapshot completo
+      // e mais avançado (mesma volta ou posterior, mesmo status ou posterior), rebasear sobre a revisão
+      // atual do servidor em vez de rejeitar.
       if (current.revision > params.expectedRevision) {
-        return {
-          success: false,
-          newRevision: current.revision,
-          error: `Conflito de revisão: servidor está na rev ${current.revision}, local na rev ${params.expectedRevision}.`,
+        const isAdvancedOrSameLap = params.currentLap >= (current.current_lap || 0)
+        const statusHierarchy: Record<RaceSessionStatus, number> = {
+          not_started: 0,
+          in_progress: 1,
+          paused: 2,
+          awaiting_decision: 2,
+          recovering: 2,
+          completed: 3,
+        }
+        const isAdvancedOrSameStatus =
+          (statusHierarchy[params.status] ?? 0) >= (statusHierarchy[current.status] ?? 0)
+        const hasFullSnapshot =
+          Boolean(params.checkpointData) &&
+          Array.isArray(params.checkpointData.grid) &&
+          params.checkpointData.grid.length > 0
+
+        if (isAdvancedOrSameLap && isAdvancedOrSameStatus && hasFullSnapshot) {
+          // Rebaseia sobre a revisão atual do servidor
+          params = {
+            ...params,
+            expectedRevision: current.revision,
+          }
+        } else {
+          return {
+            success: false,
+            newRevision: current.revision,
+            error: `Conflito de revisão: servidor está na rev ${current.revision}, local na rev ${params.expectedRevision}.`,
+          }
         }
       }
 
