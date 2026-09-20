@@ -327,20 +327,80 @@ describe('NOVA ABA PRINCIPAL CORRIDA — VALIDAÇÃO C1 a C12', () => {
 
   // C11: Exatamente dois carros do jogador aparecem no contexto
   it('C11: Inscrição canônica do evento possui exatamente playerCar1 e playerCar2', () => {
+    const mockAudiTeam = {
+      id: 'team_audi',
+      user_id: 'usr_player1',
+      name: 'Audi F1 Team',
+      country: 'Alemanha',
+      color: '#E10600',
+      secondary_color: '#000000',
+      engine_supplier: 'Audi',
+      budget: 150000000,
+      reputation: 75,
+      strength: 78,
+      chassis_level: 78,
+      aerodynamics_level: 78,
+      aero_level: 78,
+      powertrain_level: 78,
+      reliability_level: 78,
+      strategy_level: 78,
+      created: '2026-01-01',
+      updated: '2026-01-01',
+      team_key: 'audi',
+    } as any
+
+    const mockAudiDrivers = [
+      {
+        id: 'drv_bortoleto',
+        team_id: 'team_audi',
+        name: 'Gabriel Bortoleto',
+        nationality: 'Brasil',
+        age: 21,
+        role: 'titular',
+        license_status: 'nivel_a',
+        superlicense_points: 40,
+        speed: 84,
+        consistency: 82,
+        defense: 80,
+        created: '2026-01-01',
+        updated: '2026-01-01',
+      },
+      {
+        id: 'drv_hulkenberg',
+        team_id: 'team_audi',
+        name: 'Nico Hülkenberg',
+        nationality: 'Alemanha',
+        age: 38,
+        role: 'titular',
+        license_status: 'nivel_a',
+        superlicense_points: 40,
+        speed: 83,
+        consistency: 85,
+        defense: 82,
+        created: '2026-01-01',
+        updated: '2026-01-01',
+      },
+    ] as any
+
     const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
       seasonId,
       round,
-      playerTeamId: 'team_audi',
+      gpName: 'GP do Bahrein',
+      playerTeam: mockAudiTeam,
+      allDrivers: mockAudiDrivers,
+      forceRecalculate: true,
     })
 
-    expect(reg.eligible).toBe(true)
-    expect(reg.entriesByCar.playerCar1).toBeDefined()
-    expect(reg.entriesByCar.playerCar2).toBeDefined()
+    expect(reg.valid).toBe(true)
+    expect(reg.snapshot?.entriesByCar.playerCar1).toBeDefined()
+    expect(reg.snapshot?.entriesByCar.playerCar2).toBeDefined()
 
     // Ambos os carros possuem piloto válido e não hardcoded vazio
-    expect(reg.entriesByCar.playerCar1.driverName.length).toBeGreaterThan(0)
-    expect(reg.entriesByCar.playerCar2.driverName.length).toBeGreaterThan(0)
-    expect(reg.totalDrivers).toBe(24) // 12 equipes x 2 carros
+    expect(reg.snapshot?.entriesByCar.playerCar1?.driverName.length).toBeGreaterThan(0)
+    expect(reg.snapshot?.entriesByCar.playerCar2?.driverName.length).toBeGreaterThan(0)
+    expect(reg.snapshot?.entriesByCar.playerCar1?.driverId).toBe('drv_bortoleto')
+    expect(reg.snapshot?.entriesByCar.playerCar2?.driverId).toBe('drv_hulkenberg')
+    expect(reg.snapshot?.totalEntries).toBe(24) // 12 equipes x 2 carros
   })
 
   // C12: Trocar de subaba não recria evento ou sessão

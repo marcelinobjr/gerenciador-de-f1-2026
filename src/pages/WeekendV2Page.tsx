@@ -56,12 +56,12 @@ import { TyreInventoryPanel } from '@/components/race/TyreInventoryPanel'
 import { PracticeLeaderboardTable } from '@/components/race/PracticeLeaderboardTable'
 import { CarSetupModal } from '@/components/race/CarSetupModal'
 import type { PracticeSessionRecordState, PracticeCarLiveState } from '@/types/practice-session'
-import type { PracticeSessionType } from '@/services/practiceSessionService'
+import type { PracticeSessionType } from '@/types/practice-preparation'
 import type { TireSetItem } from '@/types/f1'
 
 export default function WeekendV2Page() {
   const { user, team, season, isLoading: isAuthLoading } = useAuth()
-  const { currentRound } = useUnifiedSeason()
+  const { currentRound, playerDrivers } = useUnifiedSeason()
   const { toast } = useToast()
 
   // 1. Definição do Grande Prêmio atual
@@ -144,10 +144,12 @@ export default function WeekendV2Page() {
       const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
         seasonId: season.id,
         round: currentRound,
-        playerTeamId: team.id,
+        gpName: gpInfo.name,
+        playerTeam: team,
+        allDrivers: playerDrivers,
       })
 
-      if (!reg.eligible) {
+      if (!reg.valid) {
         if (isMounted) {
           setRegistrationErrors(reg.errors)
           setIsInitializingRegistration(false)
@@ -160,8 +162,8 @@ export default function WeekendV2Page() {
         setRegistrationErrors([])
 
         // 3.2. Carregar inventário persistente de pneus do evento (20 jogos por piloto)
-        const pCar1 = reg.entriesByCar.playerCar1
-        const pCar2 = reg.entriesByCar.playerCar2
+        const pCar1 = reg.snapshot?.entriesByCar.playerCar1
+        const pCar2 = reg.snapshot?.entriesByCar.playerCar2
         const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
 
         const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
@@ -204,7 +206,7 @@ export default function WeekendV2Page() {
     return () => {
       isMounted = false
     }
-  }, [team?.id, season?.id, currentRound, isAuthLoading])
+  }, [team, season?.id, currentRound, isAuthLoading, gpInfo.name, playerDrivers])
 
   // 4. Inicializador de Sessão de Treino Livre (TL1/TL2/TL3)
   const initializePracticeSession = async (
@@ -214,10 +216,10 @@ export default function WeekendV2Page() {
   ) => {
     const reg = currentReg || registration
     const inventories = currentInvs || tyreInventories
-    if (!team || !season || !reg) return
+    if (!team || !season || !reg?.snapshot) return
 
-    const pCar1 = reg.entriesByCar.playerCar1
-    const pCar2 = reg.entriesByCar.playerCar2
+    const pCar1 = reg.snapshot.entriesByCar.playerCar1
+    const pCar2 = reg.snapshot.entriesByCar.playerCar2
     if (!pCar1 || !pCar2) return
 
     // Buscar pneus disponíveis no mesmo inventário (20 jogos/piloto)
@@ -333,8 +335,8 @@ export default function WeekendV2Page() {
     }
 
     // Atualizar inventário de pneus para o contexto
-    const pCar1 = registration.entriesByCar.playerCar1
-    const pCar2 = registration.entriesByCar.playerCar2
+    const pCar1 = registration.snapshot?.entriesByCar.playerCar1
+    const pCar2 = registration.snapshot?.entriesByCar.playerCar2
     const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
     const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
       seasonId: season.id,
@@ -356,10 +358,10 @@ export default function WeekendV2Page() {
 
   // 6. Contexto de simulação do runner (sempre os 2 pilotos reais escalados)
   const runnerContext = useMemo(() => {
-    if (!team || !registration) return null
+    if (!team || !registration?.snapshot) return null
 
-    const pCar1 = registration.entriesByCar.playerCar1
-    const pCar2 = registration.entriesByCar.playerCar2
+    const pCar1 = registration.snapshot.entriesByCar.playerCar1
+    const pCar2 = registration.snapshot.entriesByCar.playerCar2
 
     return {
       round: currentRound,
@@ -733,8 +735,8 @@ export default function WeekendV2Page() {
     )
   }
 
-  const pCar1 = registration?.entriesByCar.playerCar1
-  const pCar2 = registration?.entriesByCar.playerCar2
+  const pCar1 = registration?.snapshot?.entriesByCar.playerCar1
+  const pCar2 = registration?.snapshot?.entriesByCar.playerCar2
   const activeCarForTyres = activeTyresCarId === 'car1' ? pCar1 : pCar2
   const activeTyresList = activeCarForTyres ? tyreInventories[activeCarForTyres.driverId] || [] : []
 
