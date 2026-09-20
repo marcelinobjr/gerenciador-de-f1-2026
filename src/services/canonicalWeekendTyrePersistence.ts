@@ -114,7 +114,13 @@ export const canonicalWeekendTyrePersistence = {
       }
 
       // Regra 17G (Substituição de titular por reserva):
-      // Se este piloto for um reserva assumindo um assento, verificar se existe o titular original
+      // A alocação de 20 jogos (ou 19 no Sprint) pertence à inscrição do carro/assento na etapa,
+      // e NUNCA à pessoa física do piloto individualmente como um bônus.
+      // Se um piloto titular for substituído pelo piloto reserva (por lesão, decisão técnica,
+      // FP1 de novato ou substituição de contrato), o reserva herda integralmente o inventário
+      // restante daquele carro/assento. Todos os jogos já rodados, com desgaste e voltas acumuladas,
+      // permanecem inalterados. Nunca é criada uma segunda alocação de 20 jogos para o carro,
+      // e a troca de piloto nunca reseta pneus nem reverte jogos gastos para 100%.
       const correspondingPrimaryId = primaryDriverIds[i]
       if (
         correspondingPrimaryId &&
@@ -126,7 +132,7 @@ export const canonicalWeekendTyrePersistence = {
         stored.inventoriesByDriver[dId] = stored.inventoriesByDriver[correspondingPrimaryId].map(
           (t) => ({
             ...t,
-            driverId: dId, // aponta para o piloto ativo mas preserva id físico, desgaste e voltas
+            driverId: dId, // aponta para o piloto ativo mas preserva id físico, tyreSetId, desgaste e voltas
           }),
         )
         stored.driverAliases = stored.driverAliases || {}
@@ -220,11 +226,17 @@ export const canonicalWeekendTyrePersistence = {
     if (!stored || !stored.inventoriesByDriver[driverId]) return null
 
     const sets = stored.inventoriesByDriver[driverId]
-    const targetSet = sets.find((s) => s.id === tyreSetId)
+    const targetSet = sets.find((s) => s.id === tyreSetId || s.tyreSetId === tyreSetId)
     if (!targetSet) return null
 
     targetSet.lapsUsed = (targetSet.lapsUsed || 0) + lapsAdded
     targetSet.wear = Math.min(100, Math.max(targetSet.wear || 0, Math.round(finalWearPct)))
+    targetSet.condition = Math.max(0, 100 - targetSet.wear)
+    if (targetSet.wear >= 90) {
+      targetSet.status = 'usado'
+    } else if (targetSet.lapsUsed > 0) {
+      targetSet.status = targetSet.isFitted ? 'instalado' : 'usado'
+    }
 
     this.writeWeekendTireData(stored)
     return targetSet

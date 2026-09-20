@@ -355,13 +355,25 @@ export interface TireAllotment {
   chuva_extrema: number
 }
 
+export type TireSetStatus =
+  | 'disponivel'
+  | 'instalado'
+  | 'reservado'
+  | 'usado'
+  | 'devolvido_indisponivel'
+
 export interface TireSetItem {
   id: string
+  tyreSetId?: string // Alias canônico de id para integridade canônica FIA 2026
   driverId?: string
   compound: TireCompound
+  compoundRole?: TireCompound // Papel canônico (duro, medio, macio, intermediario, chuva_extrema)
+  physicalCompound?: string // Composto físico Pirelli real C1-C5 ou Inter/Wet
   wear: number // 0-100% de desgaste (0% = jogo novo de fábrica)
+  condition?: number // 100 - wear (%)
   lapsUsed: number
   isFitted?: boolean
+  status?: TireSetStatus
 }
 
 export interface PitStopPlan {

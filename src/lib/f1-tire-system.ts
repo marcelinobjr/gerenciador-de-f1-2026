@@ -129,59 +129,149 @@ export function createInitialTireInventory(
   const interCount = 4
   const wetCount = 3
 
-  // Duros
+  const currentRound = options?.round ?? 1
+
+  // Import dinâmico ou resolução do composto físico (C1-C5)
+  // Duro
   for (let i = 1; i <= hardCount; i++) {
+    const setId = `${pfx}duro_${i}`
     inventory.push({
-      id: `${pfx}duro_${i}`,
+      id: setId,
+      tyreSetId: setId,
       driverId,
       compound: 'duro',
+      compoundRole: 'duro',
+      physicalCompound:
+        currentRound === 3 ||
+        currentRound === 4 ||
+        currentRound === 9 ||
+        currentRound === 11 ||
+        currentRound === 14 ||
+        currentRound === 22
+          ? 'C1'
+          : currentRound === 7 ||
+              currentRound === 8 ||
+              currentRound === 10 ||
+              currentRound === 13 ||
+              currentRound === 15 ||
+              currentRound === 16 ||
+              currentRound === 17 ||
+              currentRound === 19 ||
+              currentRound === 21 ||
+              currentRound === 23
+            ? 'C3'
+            : 'C2',
       wear: 0,
+      condition: 100,
       lapsUsed: 0,
       isFitted: false,
+      status: 'disponivel',
     })
   }
   // Médios
   for (let i = 1; i <= mediumCount; i++) {
+    const setId = `${pfx}medio_${i}`
     inventory.push({
-      id: `${pfx}medio_${i}`,
+      id: setId,
+      tyreSetId: setId,
       driverId,
       compound: 'medio',
+      compoundRole: 'medio',
+      physicalCompound:
+        currentRound === 3 ||
+        currentRound === 4 ||
+        currentRound === 9 ||
+        currentRound === 11 ||
+        currentRound === 14 ||
+        currentRound === 22
+          ? 'C2'
+          : currentRound === 7 ||
+              currentRound === 8 ||
+              currentRound === 10 ||
+              currentRound === 13 ||
+              currentRound === 15 ||
+              currentRound === 16 ||
+              currentRound === 17 ||
+              currentRound === 19 ||
+              currentRound === 21 ||
+              currentRound === 23
+            ? 'C4'
+            : 'C3',
       wear: 0,
+      condition: 100,
       lapsUsed: 0,
       isFitted: false,
+      status: 'disponivel',
     })
   }
   // Macios
   for (let i = 1; i <= softCount; i++) {
+    const setId = `${pfx}macio_${i}`
     inventory.push({
-      id: `${pfx}macio_${i}`,
+      id: setId,
+      tyreSetId: setId,
       driverId,
       compound: 'macio',
+      compoundRole: 'macio',
+      physicalCompound:
+        currentRound === 3 ||
+        currentRound === 4 ||
+        currentRound === 9 ||
+        currentRound === 11 ||
+        currentRound === 14 ||
+        currentRound === 22
+          ? 'C3'
+          : currentRound === 7 ||
+              currentRound === 8 ||
+              currentRound === 10 ||
+              currentRound === 13 ||
+              currentRound === 15 ||
+              currentRound === 16 ||
+              currentRound === 17 ||
+              currentRound === 19 ||
+              currentRound === 21 ||
+              currentRound === 23
+            ? 'C5'
+            : 'C4',
       wear: 0,
+      condition: 100,
       lapsUsed: 0,
       isFitted: false,
+      status: 'disponivel',
     })
   }
-  // Intermediários
+  // Intermediários (4 jogos finitos persistentes)
   for (let i = 1; i <= interCount; i++) {
+    const setId = `${pfx}intermediario_${i}`
     inventory.push({
-      id: `${pfx}intermediario_${i}`,
+      id: setId,
+      tyreSetId: setId,
       driverId,
       compound: 'intermediario',
+      compoundRole: 'intermediario',
+      physicalCompound: 'Intermediário (C-Wet Int)',
       wear: 0,
+      condition: 100,
       lapsUsed: 0,
       isFitted: false,
+      status: 'disponivel',
     })
   }
-  // Chuva Extrema
+  // Chuva Extrema (3 jogos finitos persistentes)
   for (let i = 1; i <= wetCount; i++) {
+    const setId = `${pfx}chuva_extrema_${i}`
     inventory.push({
-      id: `${pfx}chuva_extrema_${i}`,
+      id: setId,
+      tyreSetId: setId,
       driverId,
       compound: 'chuva_extrema',
+      compoundRole: 'chuva_extrema',
+      physicalCompound: 'Chuva Extrema (C-Wet Ext)',
       wear: 0,
+      condition: 100,
       lapsUsed: 0,
       isFitted: false,
+      status: 'disponivel',
     })
   }
 

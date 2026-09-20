@@ -930,62 +930,72 @@ export function DecisionModals({
               </div>
 
               <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1 border border-[#1F2733] rounded-lg p-2 bg-[#0B0E14] scrollbar-thin">
-                {availableForcePitSets.map((set) => {
-                  const isSelected = forcePitSelectedSetId === set.id
-                  const spec = TIRE_SPECS[set.compound] || TIRE_SPECS.medio
-                  const isUsed = set.wear > 0
+                {availableForcePitSets.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-[#8B95A7]">
+                    Nenhum jogo sobressalente elegível/disponível com menos de 90% de desgaste.
+                  </div>
+                ) : (
+                  availableForcePitSets.map((set) => {
+                    const isSelected = forcePitSelectedSetId === set.id
+                    const spec = TIRE_SPECS[set.compound] || TIRE_SPECS.medio
+                    const isUsed = (set.wear || 0) > 0 || (set.lapsUsed || 0) > 0
+                    const physLabel = set.physicalCompound ? ` [${set.physicalCompound}]` : ''
 
-                  return (
-                    <button
-                      key={set.id}
-                      type="button"
-                      onClick={() => setForcePitSelectedSetId(set.id)}
-                      className={`w-full p-2.5 rounded-md border text-left font-mono text-xs transition-all flex items-center justify-between ${
-                        isSelected
-                          ? 'border-amber-400 bg-amber-500/20'
-                          : 'border-[#1F2733] bg-[#11161F] hover:border-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-3 h-3 rounded-full"
-                          style={{
-                            backgroundColor: compoundColorMap[set.compound] || '#FFFFFF',
-                          }}
-                        />
-                        <div>
-                          <span className="font-bold text-white capitalize">
-                            {spec.name} ({set.id.toUpperCase()})
-                          </span>
-                          <span className="text-[10px] text-[#8B95A7] block">
-                            Delta estimado:{' '}
-                            {spec.deltaPerLapSec > 0
-                              ? `+${spec.deltaPerLapSec}s`
-                              : `${spec.deltaPerLapSec}s`}{' '}
-                            vs Médio
+                    return (
+                      <button
+                        key={set.id}
+                        type="button"
+                        onClick={() => setForcePitSelectedSetId(set.id)}
+                        className={`w-full p-2.5 rounded-md border text-left font-mono text-xs transition-all flex items-center justify-between ${
+                          isSelected
+                            ? 'border-amber-400 bg-amber-500/20'
+                            : 'border-[#1F2733] bg-[#11161F] hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full"
+                            style={{
+                              backgroundColor: compoundColorMap[set.compound] || '#FFFFFF',
+                            }}
+                          />
+                          <div>
+                            <span className="font-bold text-white capitalize">
+                              {spec.name}
+                              {physLabel} ({set.id.toUpperCase()})
+                            </span>
+                            <span className="text-[10px] text-[#8B95A7] block">
+                              Delta estimado:{' '}
+                              {spec.deltaPerLapSec > 0
+                                ? `+${spec.deltaPerLapSec}s`
+                                : `${spec.deltaPerLapSec}s`}{' '}
+                              vs Médio
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <Badge
+                            className={`text-[10px] font-mono ${
+                              !isUsed
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                : (set.wear || 0) > 50
+                                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            }`}
+                          >
+                            {!isUsed
+                              ? 'NOVO 0%'
+                              : `USADO (${set.wear}% desg. / ${100 - (set.wear || 0)}% cond.)`}
+                          </Badge>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            {set.lapsUsed || 0} voltas rodadas
                           </span>
                         </div>
-                      </div>
-
-                      <div className="text-right">
-                        <Badge
-                          className={`text-[10px] font-mono ${
-                            !isUsed
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              : set.wear > 50
-                                ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                                : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                          }`}
-                        >
-                          {!isUsed ? 'NOVO 0%' : `USADO (${set.wear}% desg.)`}
-                        </Badge>
-                        <span className="text-[10px] text-slate-400 block mt-0.5">
-                          {set.lapsUsed} voltas rodadas
-                        </span>
-                      </div>
-                    </button>
-                  )
-                })}
+                      </button>
+                    )
+                  })
+                )}
               </div>
             </div>
 

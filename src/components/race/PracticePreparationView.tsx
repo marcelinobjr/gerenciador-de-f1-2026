@@ -687,19 +687,45 @@ export function PracticePreparationView({
               </span>
               <span className="text-[10px] text-[#00A6FB]">{car1Tires.length} jogos totais</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(['duro', 'medio', 'macio', 'intermediario', 'chuva_extrema'] as TireCompound[]).map(
+            <div className="space-y-1.5 pt-1">
+              {(['macio', 'medio', 'duro', 'intermediario', 'chuva_extrema'] as TireCompound[]).map(
                 (comp) => {
-                  const qty = car1Tires.filter((t) => t.compound === comp).length
+                  const setsOfComp = car1Tires.filter((t) => t.compound === comp)
+                  const total = setsOfComp.length
+                  const novos = setsOfComp.filter(
+                    (s) => (s.wear || 0) === 0 && (s.lapsUsed || 0) === 0 && !s.isFitted,
+                  ).length
+                  const usados = setsOfComp.filter(
+                    (s) =>
+                      ((s.wear || 0) > 0 || (s.lapsUsed || 0) > 0) &&
+                      !s.isFitted &&
+                      (s.wear || 0) < 90,
+                  ).length
+                  const instalados = setsOfComp.filter((s) => s.isFitted).length
+                  const indisp = setsOfComp.filter((s) => (s.wear || 0) >= 90).length
+
                   return (
-                    <Badge
+                    <div
                       key={comp}
-                      variant="outline"
-                      className="border-[#232F42] bg-[#090D15] text-[#BAC4D6] text-[10px] py-1 px-2.5"
+                      className="flex items-center justify-between p-1.5 rounded-lg bg-[#090D15] border border-[#1E293B] text-[11px]"
                     >
-                      {formatTireName(comp).split(' ')[0]}:{' '}
-                      <span className="text-white font-bold ml-1">{qty}</span>
-                    </Badge>
+                      <span className="text-white font-bold uppercase w-28">
+                        {comp === 'chuva_extrema' ? 'CHUVA' : comp.toUpperCase()}
+                      </span>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="text-[#8B95A7]">
+                          Total: <strong className="text-white">{total}</strong>
+                        </span>
+                        <span className="text-emerald-400 font-semibold">{novos} novos</span>
+                        <span className="text-amber-400 font-semibold">{usados} usados</span>
+                        {instalados > 0 && (
+                          <span className="text-cyan-400 font-semibold">{instalados} inst.</span>
+                        )}
+                        {indisp > 0 && (
+                          <span className="text-rose-400 font-semibold">{indisp} indisp.</span>
+                        )}
+                      </div>
+                    </div>
                   )
                 },
               )}
@@ -714,19 +740,45 @@ export function PracticePreparationView({
               </span>
               <span className="text-[10px] text-[#00A6FB]">{car2Tires.length} jogos totais</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(['duro', 'medio', 'macio', 'intermediario', 'chuva_extrema'] as TireCompound[]).map(
+            <div className="space-y-1.5 pt-1">
+              {(['macio', 'medio', 'duro', 'intermediario', 'chuva_extrema'] as TireCompound[]).map(
                 (comp) => {
-                  const qty = car2Tires.filter((t) => t.compound === comp).length
+                  const setsOfComp = car2Tires.filter((t) => t.compound === comp)
+                  const total = setsOfComp.length
+                  const novos = setsOfComp.filter(
+                    (s) => (s.wear || 0) === 0 && (s.lapsUsed || 0) === 0 && !s.isFitted,
+                  ).length
+                  const usados = setsOfComp.filter(
+                    (s) =>
+                      ((s.wear || 0) > 0 || (s.lapsUsed || 0) > 0) &&
+                      !s.isFitted &&
+                      (s.wear || 0) < 90,
+                  ).length
+                  const instalados = setsOfComp.filter((s) => s.isFitted).length
+                  const indisp = setsOfComp.filter((s) => (s.wear || 0) >= 90).length
+
                   return (
-                    <Badge
+                    <div
                       key={comp}
-                      variant="outline"
-                      className="border-[#232F42] bg-[#090D15] text-[#BAC4D6] text-[10px] py-1 px-2.5"
+                      className="flex items-center justify-between p-1.5 rounded-lg bg-[#090D15] border border-[#1E293B] text-[11px]"
                     >
-                      {formatTireName(comp).split(' ')[0]}:{' '}
-                      <span className="text-white font-bold ml-1">{qty}</span>
-                    </Badge>
+                      <span className="text-white font-bold uppercase w-28">
+                        {comp === 'chuva_extrema' ? 'CHUVA' : comp.toUpperCase()}
+                      </span>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="text-[#8B95A7]">
+                          Total: <strong className="text-white">{total}</strong>
+                        </span>
+                        <span className="text-emerald-400 font-semibold">{novos} novos</span>
+                        <span className="text-amber-400 font-semibold">{usados} usados</span>
+                        {instalados > 0 && (
+                          <span className="text-cyan-400 font-semibold">{instalados} inst.</span>
+                        )}
+                        {indisp > 0 && (
+                          <span className="text-rose-400 font-semibold">{indisp} indisp.</span>
+                        )}
+                      </div>
+                    </div>
                   )
                 },
               )}

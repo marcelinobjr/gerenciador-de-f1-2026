@@ -299,6 +299,10 @@ export default function RacePage() {
     },
   })
 
+  // Identificação do Circuito Atual e Previsão Meteorológica
+  const currentRound = season?.current_round || 1
+  const totalRounds = season?.total_rounds || 24
+
   // Selected driver for individual car setup & telemetry view in practice/qualy/race
   const [selectedDriverSetupId, setSelectedDriverSetupId] = useState<string>('')
 
@@ -686,10 +690,6 @@ export default function RacePage() {
     }
   }
 
-  // Identificação do Circuito Atual e Previsão Meteorológica
-  const currentRound = season?.current_round || 1
-  const totalRounds = season?.total_rounds || 24
-
   const gpInfo = useMemo(() => {
     const calendarItem = F1_2026_CALENDAR.find((c) => c.round === currentRound)
     if (calendarItem) {
@@ -962,11 +962,53 @@ export default function RacePage() {
   }
 
   // Consumir jogo de pneu do estoque
-  const consumeTireSet = (compound: TireCompound) => {
+  const consumeTireSet = (compound: TireCompound, targetDriverId?: string) => {
     setTireStock((prev) => ({
       ...prev,
       [compound]: Math.max(0, (prev[compound] || 0) - 1),
     }))
+
+    // Atualiza também o inventário persistente do piloto correspondente
+    if (season?.id && team?.id) {
+      const dId =
+        targetDriverId ||
+        selectedDriverSetupId ||
+        drivers.find((d) => d.team_id === team.id && d.role !== 'reserva')?.id
+      if (dId && driverTireInventories[dId]) {
+        const sets = driverTireInventories[dId]
+        // Encontra o primeiro jogo livre com menos voltas/desgaste deste composto
+        const freeSet = sets.find(
+          (s) => s.compound === compound && !s.isFitted && (s.wear || 0) < 90,
+        )
+        if (freeSet) {
+          const updatedSets = sets.map((s) => {
+            if (s.id === freeSet.id) {
+              const newWear = Math.min(100, (s.wear || 0) + 20)
+              const newLaps = (s.lapsUsed || 0) + 8
+              return {
+                ...s,
+                wear: newWear,
+                condition: Math.max(0, 100 - newWear),
+                lapsUsed: newLaps,
+                status: 'usado' as const,
+              }
+            }
+            return s
+          })
+          const nextInventories = {
+            ...driverTireInventories,
+            [dId]: updatedSets,
+          }
+          setDriverTireInventories(nextInventories)
+          canonicalWeekendTyrePersistence.updateDriverInventory(
+            season.id,
+            currentRound,
+            dId,
+            updatedSets,
+          )
+        }
+      }
+    }
   }
 
   // Executar Sessão de Treino Livre (TP1, TP2) ou Quali (Q1, Q2, Q3)
@@ -2659,7 +2701,13 @@ export default function RacePage() {
         </Card>
       )}
 
-      <TireStockCard tireStock={tireStock} calculateCompoundLaps={calculateCompoundLaps} />
+      <TireStockCard
+        tireStock={tireStock}
+        calculateCompoundLaps={calculateCompoundLaps}
+        driverTireInventories={driverTireInventories}
+        drivers={drivers.filter((d) => d.team_id === team?.id && d.role !== 'reserva')}
+        currentRound={currentRound}
+      />
 
       {/* WEEKEND TABS: TP1, TP2, Q1, Q2, Q3, CORRIDA */}
       <Tabs
@@ -2744,11 +2792,13 @@ export default function RacePage() {
                   gpInfo={gpInfo}
                   weather={weather}
                   onFinishSession={(finalPracticeState) => {
-                    // Consumir pneus dos carros do jogador que participaram
+                    // Consumir pneus dos carros do jogador que participaram diretamente no piloto respectivo
                     const c1Compound = finalPracticeState.cars.car1.currentCompound
                     const c2Compound = finalPracticeState.cars.car2.currentCompound
-                    consumeTireSet(c1Compound || 'medio')
-                    consumeTireSet(c2Compound || 'medio')
+                    const c1DriverId = finalPracticeState.cars.car1.driverId
+                    const c2DriverId = finalPracticeState.cars.car2.driverId
+                    consumeTireSet(c1Compound || 'medio', c1DriverId)
+                    consumeTireSet(c2Compound || 'medio', c2DriverId)
 
                     // Converter tabela de tempos de treino para sessionResults oficial
                     const convertedResults: SessionTimeResult[] =
@@ -3027,9 +3077,10 @@ export default function RacePage() {
         }
         forcePitSelectedDriverId={forcePitSelectedDriverId}
         setForcePitSelectedDriverId={setForcePitSelectedDriverId}
-        availableForcePitSets={(
-          driverTireInventories[forcePitSelectedDriverId] || playerTireSets
-        ).filter((s) => !s.isFitted && s.wear < 90)}
+        availableForcePitSets={(() => {
+          const rawSets = driverTireInventories[forcePitSelectedDriverId] || playerTireSets
+          return rawSets.filter((s) => !s.isFitted && (s.wear || 0) < 90)
+        })()}
         forcePitSelectedSetId={forcePitSelectedSetId}
         setForcePitSelectedSetId={setForcePitSelectedSetId}
         teamChassisLevel={team?.chassis_level || 75}
