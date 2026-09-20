@@ -46,6 +46,7 @@ import {
   calculateLapPerformanceScoreDelta,
   formatTireName,
 } from '@/lib/f1-tire-system'
+import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { carTechnicalService } from '@/services/carTechnicalService'
@@ -176,11 +177,11 @@ export interface SimDriverEntry extends RaceResultEntry {
 
 export type SessionTimeResult = SessionResultRow & { lapTimeSec?: number }
 
-// Initial tire allotment per weekend per driver
+// Initial tire allotment per weekend per driver (GP Padrão: 2/3/8/4/3 = 20 jogos)
 const INITIAL_ALLOTMENT: TireAllotment = {
   duro: 2,
   medio: 3,
-  macio: 3,
+  macio: 8,
   intermediario: 4,
   chuva_extrema: 3,
 }
@@ -325,23 +326,20 @@ export default function RacePage() {
     return firstKey ? driverTireInventories[firstKey] : createInitialTireInventory()
   }, [driverTireInventories, selectedDriverSetupId])
 
-  // Inicializar inventário individual para cada piloto titular do jogador (13 jogos cada, sem compartilhar)
+  // Recuperar ou inicializar inventário canônico individual persistente por piloto
   useEffect(() => {
-    if (drivers.length > 0 && team?.id) {
-      setDriverTireInventories((prev) => {
-        const next = { ...prev }
-        let changed = false
-        const playerDrivers = drivers.filter((d) => d.team_id === team.id && d.role !== 'reserva')
-        for (const drv of playerDrivers) {
-          if (!next[drv.id] || next[drv.id].length === 0) {
-            next[drv.id] = createInitialTireInventory(drv.id)
-            changed = true
-          }
-        }
-        return changed ? next : prev
+    if (drivers.length > 0 && team?.id && season?.id) {
+      const playerDrivers = drivers.filter((d) => d.team_id === team.id && d.role !== 'reserva')
+      const primaryIds = playerDrivers.map((d) => d.id)
+      const persistentInvs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+        seasonId: season.id,
+        round: currentRound,
+        driverIds: primaryIds,
+        primaryDriverIds: primaryIds,
       })
+      setDriverTireInventories(persistentInvs)
     }
-  }, [drivers, team?.id])
+  }, [drivers, team?.id, season?.id, currentRound])
 
   // Estratégias de corrida personalizadas por piloto (até 4 paradas planejáveis)
   const [driverStrategies, setDriverStrategies] = useState<Record<string, DriverRaceStrategy>>({})

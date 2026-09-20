@@ -51,6 +51,7 @@ import {
   formatTireName,
   createInitialTireInventory,
 } from '@/lib/f1-tire-system'
+import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { buildCanonicalEventGrid } from '@/lib/canonical-race-grid-resolver'
 import {
   checkWeekendRaceAccess,
@@ -171,6 +172,7 @@ export default function LiveRacePage() {
   // Modais de apoio
   const [forcePitModalOpen, setForcePitModalOpen] = useState(false)
   const [forcePitSelectedDriverId, setForcePitSelectedDriverId] = useState('')
+  const [forcePitSelectedSetId, setForcePitSelectedSetId] = useState('')
   const [pitWallRadioOpen, setPitWallRadioOpen] = useState(false)
   const [pitWallRadioDriverId, setPitWallRadioDriverId] = useState('')
 
@@ -253,11 +255,17 @@ export default function LiveRacePage() {
           console.warn('[LiveRacePage] Falha ao herdar conhecimento de treinos:', e)
         }
 
-        // Inicializar inventários de pneus para os pilotos titulares
-        const initialInventories: Record<string, TireSetItem[]> = {}
-        titularDrivers.forEach((d) => {
-          initialInventories[d.id] = createInitialTireInventory(d.id)
-        })
+        // Recuperar ou inicializar inventários canônicos persistentes de pneus por piloto (sem recriar)
+        const primaryIds = titularDrivers.map((d) => d.id)
+        const persistentInventories = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories(
+          {
+            seasonId: season!.id,
+            round: currentRound,
+            driverIds: primaryIds,
+            primaryDriverIds: primaryIds,
+          },
+        )
+        const initialInventories: Record<string, TireSetItem[]> = persistentInventories
         setDriverTireInventories(initialInventories)
 
         // 1.2 GUARD WEEKEND-01A: Verificar se a corrida está liberada na ordem canônica do fim de semana
@@ -1470,25 +1478,71 @@ export default function LiveRacePage() {
         onCloseForcePitModal={() => setForcePitModalOpen(false)}
         activePlayerDrivers={grid.filter((g) => g.isPlayer && !g.dnf)}
         forcePitSelectedDriverId={forcePitSelectedDriverId}
-        setForcePitSelectedDriverId={setForcePitSelectedDriverId}
-        availableForcePitSets={[]}
-        forcePitSelectedSetId=""
-        setForcePitSelectedSetId={() => {}}
+        setForcePitSelectedDriverId={(id) => {
+          setForcePitSelectedDriverId(id)
+          const driverSets = (driverTireInventories[id] || []).filter(
+            (s) => !s.isFitted && s.wear < 90,
+          )
+          if (driverSets.length > 0) {
+            setForcePitSelectedSetId(driverSets[0].id)
+          } else {
+            setForcePitSelectedSetId('')
+          }
+        }}
+        availableForcePitSets={(driverTireInventories[forcePitSelectedDriverId] || []).filter(
+          (s) => !s.isFitted && s.wear < 90,
+        )}
+        forcePitSelectedSetId={forcePitSelectedSetId}
+        setForcePitSelectedSetId={setForcePitSelectedSetId}
         teamChassisLevel={team?.chassis_level || 75}
         onExecuteForcedPitStop={() => {
           if (!forcePitSelectedDriverId) return
           const car = grid.find((g) => g.driverId === forcePitSelectedDriverId)
           if (car) {
+            const driverSets = driverTireInventories[forcePitSelectedDriverId] || []
+            const chosenSet = driverSets.find((s) => s.id === forcePitSelectedSetId)
+            const chosenCompound = chosenSet?.compound || 'duro'
+            const initialWear = chosenSet ? chosenSet.wear : 4
+
             const pitDuration = calculatePitStopDuration(car.teamName, car.driverName, true, 80)
-            car.tireWear = 4
+            car.tireCompound = chosenCompound
+            car.tireWear = initialWear
             car.lapsOnCurrentTire = 0
             car.pitStopsDone = (car.pitStopsDone || 0) + 1
             car.accumulatedTimeSec = (car.accumulatedTimeSec || 0) + pitDuration.durationSec
+
+            // Atualiza inventário do piloto marcando o jogo como instalado
+            const updatedDriverSets = driverSets.map((s) => {
+              if (s.id === forcePitSelectedSetId) {
+                return { ...s, isFitted: true }
+              }
+              if (s.isFitted) {
+                return { ...s, isFitted: false }
+              }
+              return s
+            })
+
+            const updatedInventories = {
+              ...driverTireInventories,
+              [forcePitSelectedDriverId]: updatedDriverSets,
+            }
+            setDriverTireInventories(updatedInventories)
+            if (season?.id) {
+              canonicalWeekendTyrePersistence.updateDriverInventory(
+                season.id,
+                currentRound,
+                forcePitSelectedDriverId,
+                updatedDriverSets,
+              )
+            }
+
             setForcePitModalOpen(false)
-            triggerSaveCheckpoint(`Parada forçada nos boxes para ${car.driverName}`)
+            triggerSaveCheckpoint(`Parada forçada nos boxes para ${car.driverName}`, undefined, {
+              driverTireInventories: updatedInventories,
+            })
             toast({
               title: 'Parada nos Boxes Realizada',
-              description: `${car.driverName} trocou de pneus em ${pitDuration.durationSec.toFixed(2)}s.`,
+              description: `${car.driverName} instalou ${formatTireName(chosenCompound)} em ${pitDuration.durationSec.toFixed(2)}s.`,
             })
           }
         }}

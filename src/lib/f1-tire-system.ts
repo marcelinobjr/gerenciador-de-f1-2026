@@ -106,20 +106,31 @@ export const TIRE_SPECS: Record<TireCompound, CompoundSpeedSpec> = {
 }
 
 /**
- * Cria a alocação oficial da FIA de 13 jogos de pneus 100% individual por piloto:
- * 2 Duros (Branco)
- * 3 Médios (Amarelo)
- * 3 Macios (Vermelho)
- * 4 Intermediários (Verde)
- * 3 Chuva Extrema (Azul)
- * Total: 13 jogos sem compartilhamento entre companheiros de equipe.
+ * Cria o inventário inicial canônico da FIA para o piloto no fim de semana de corrida:
+ * Regulamento Canônico F1 2026:
+ * - GP Padrão: 2 Duros, 3 Médios, 8 Macios, 4 Intermediários, 3 Chuva Extrema = 20 jogos (80 pneus).
+ * - GP Sprint: 2 Duros, 4 Médios, 6 Macios, 4 Intermediários, 3 Chuva Extrema = 19 jogos (76 pneus).
+ * Totalmente individual por piloto (sem compartilhamento).
  */
-export function createInitialTireInventory(driverId?: string): TireSetItem[] {
+export function createInitialTireInventory(
+  driverId?: string,
+  options?: { isSprint?: boolean; round?: number },
+): TireSetItem[] {
   const inventory: TireSetItem[] = []
   const pfx = driverId ? `${driverId}_` : ''
+  const isSprint = options?.isSprint ?? false
 
-  // 2 Duros
-  for (let i = 1; i <= 2; i++) {
+  // Quantidades canônicas:
+  // GP Padrão: Duro 2, Médio 3, Macio 8, Inter 4, Wet 3 = 20 jogos
+  // Sprint:    Duro 2, Médio 4, Macio 6, Inter 4, Wet 3 = 19 jogos
+  const hardCount = 2
+  const mediumCount = isSprint ? 4 : 3
+  const softCount = isSprint ? 6 : 8
+  const interCount = 4
+  const wetCount = 3
+
+  // Duros
+  for (let i = 1; i <= hardCount; i++) {
     inventory.push({
       id: `${pfx}duro_${i}`,
       driverId,
@@ -129,8 +140,8 @@ export function createInitialTireInventory(driverId?: string): TireSetItem[] {
       isFitted: false,
     })
   }
-  // 3 Médios
-  for (let i = 1; i <= 3; i++) {
+  // Médios
+  for (let i = 1; i <= mediumCount; i++) {
     inventory.push({
       id: `${pfx}medio_${i}`,
       driverId,
@@ -140,8 +151,8 @@ export function createInitialTireInventory(driverId?: string): TireSetItem[] {
       isFitted: false,
     })
   }
-  // 3 Macios
-  for (let i = 1; i <= 3; i++) {
+  // Macios
+  for (let i = 1; i <= softCount; i++) {
     inventory.push({
       id: `${pfx}macio_${i}`,
       driverId,
@@ -151,8 +162,8 @@ export function createInitialTireInventory(driverId?: string): TireSetItem[] {
       isFitted: false,
     })
   }
-  // 4 Intermediários
-  for (let i = 1; i <= 4; i++) {
+  // Intermediários
+  for (let i = 1; i <= interCount; i++) {
     inventory.push({
       id: `${pfx}intermediario_${i}`,
       driverId,
@@ -162,8 +173,8 @@ export function createInitialTireInventory(driverId?: string): TireSetItem[] {
       isFitted: false,
     })
   }
-  // 3 Chuva Extrema
-  for (let i = 1; i <= 3; i++) {
+  // Chuva Extrema
+  for (let i = 1; i <= wetCount; i++) {
     inventory.push({
       id: `${pfx}chuva_extrema_${i}`,
       driverId,
@@ -176,7 +187,6 @@ export function createInitialTireInventory(driverId?: string): TireSetItem[] {
 
   return inventory
 }
-
 /**
  * Calcula o tempo de pit stop detalhado para uma equipe/piloto:
  * Varia pela qualidade do pit crew, com 8% de chance de erro/parada lenta (porca presa, macaco escorregando: +4 a +8s)

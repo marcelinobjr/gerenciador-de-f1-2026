@@ -19,6 +19,8 @@ import type {
 } from '@/types/practice-preparation'
 import { PRACTICE_PROGRAMS, DEFAULT_PRACTICE_SETUP } from '@/types/practice-preparation'
 import { createInitialTireInventory, formatTireName } from '@/lib/f1-tire-system'
+import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
+import { hasSprintWeekend } from '@/services/weekendProgressionService'
 import type { DriverModel, TeamModel, TireSetItem, TireCompound } from '@/types/f1'
 import { getCountryFlag } from '@/lib/country-flags'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
@@ -73,20 +75,38 @@ export function PracticePreparationView({
   const driver1 = primaryDrivers[0]
   const driver2 = primaryDrivers[1]
 
-  // Inventário canônico real por piloto (13 jogos cada)
+  // Inventário canônico real e persistente por piloto (20 jogos GP padrão / 19 jogos Sprint)
+  const persistentInventories = useMemo(() => {
+    if (!driver1 || !driver2) return null
+    return canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+      seasonId,
+      round,
+      driverIds: [driver1.id, driver2.id],
+      primaryDriverIds: [driver1.id, driver2.id],
+    })
+  }, [seasonId, round, driver1, driver2])
+
+  const isSprint = useMemo(() => hasSprintWeekend(round), [round])
+
   const car1Tires = useMemo(() => {
     if (driver1 && allTiresByDriver && allTiresByDriver[driver1.id]) {
       return allTiresByDriver[driver1.id]
     }
-    return createInitialTireInventory(driver1?.id || 'd1')
-  }, [driver1, allTiresByDriver])
+    if (driver1 && persistentInventories && persistentInventories[driver1.id]) {
+      return persistentInventories[driver1.id]
+    }
+    return createInitialTireInventory(driver1?.id || 'd1', { isSprint, round })
+  }, [driver1, allTiresByDriver, persistentInventories, isSprint, round])
 
   const car2Tires = useMemo(() => {
     if (driver2 && allTiresByDriver && allTiresByDriver[driver2.id]) {
       return allTiresByDriver[driver2.id]
     }
-    return createInitialTireInventory(driver2?.id || 'd2')
-  }, [driver2, allTiresByDriver])
+    if (driver2 && persistentInventories && persistentInventories[driver2.id]) {
+      return persistentInventories[driver2.id]
+    }
+    return createInitialTireInventory(driver2?.id || 'd2', { isSprint, round })
+  }, [driver2, allTiresByDriver, persistentInventories, isSprint, round])
 
   // Foto do carro da equipe
   const carImageUrl = useMemo(() => {
