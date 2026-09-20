@@ -57,6 +57,22 @@ import { PracticeCarCockpitCard } from '@/components/race/PracticeCarCockpitCard
 import { TyreInventoryPanel } from '@/components/race/TyreInventoryPanel'
 import { PracticeLeaderboardTable } from '@/components/race/PracticeLeaderboardTable'
 import { CarSetupModal } from '@/components/race/CarSetupModal'
+import { QualifyingCarCockpitCard } from '@/components/race/QualifyingCarCockpitCard'
+import { QualifyingLeaderboardTable } from '@/components/race/QualifyingLeaderboardTable'
+import { CompleteQualifyingGridSummary } from '@/components/race/CompleteQualifyingGridSummary'
+import {
+  CanonicalQualifyingRunner,
+  type QualifyingDriverContext,
+  type QualifyingTickContext,
+} from '@/services/canonicalQualifyingRunner'
+import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
+import type {
+  QualifyingStageId,
+  QualifyingStageState,
+  QualifyingStageResult,
+  CompleteQualifyingWeekendResult,
+} from '@/types/canonical-qualifying-types'
+import { CANONICAL_QUALIFYING_RULES } from '@/types/canonical-qualifying-types'
 import type { PracticeSessionRecordState, PracticeCarLiveState } from '@/types/practice-session'
 import type { PracticeSessionType } from '@/types/practice-preparation'
 import type { TireSetItem } from '@/types/f1'
@@ -118,6 +134,11 @@ export default function WeekendV2Page() {
 
   // Estado em memória e no storage da sessão de treino em andamento
   const [sessionState, setSessionState] = useState<PracticeSessionRecordState | null>(null)
+
+  // Estado em memória da sessão de qualificação em andamento (Q1, Q2 ou Q3)
+  const [qualifyingState, setQualifyingState] = useState<QualifyingStageState | null>(null)
+  const [completeQualifyingResult, setCompleteQualifyingResult] =
+    useState<CompleteQualifyingWeekendResult | null>(null)
 
   // Controles de execução da sessão
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
@@ -212,6 +233,18 @@ export default function WeekendV2Page() {
           initialSessionId === 'tp3'
         ) {
           initializePracticeSession(initialSessionId, reg, invs)
+        } else if (
+          initialSessionId === 'q1' ||
+          initialSessionId === 'q2' ||
+          initialSessionId === 'q3'
+        ) {
+          initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
+        } else if (initialSessionId === 'race') {
+          const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+            season.id,
+            currentRound,
+          )
+          setCompleteQualifyingResult(fullGrid)
         }
 
         setIsInitializingRegistration(false)
@@ -348,6 +381,42 @@ export default function WeekendV2Page() {
       return
     }
 
+    if (sess === 'q1' && !stored.includes('tp2')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o TL2 antes de iniciar a Qualificação (Q1).',
+      })
+      return
+    }
+
+    if (sess === 'q2' && !stored.includes('q1')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o Q1 antes de iniciar o Q2.',
+      })
+      return
+    }
+
+    if (sess === 'q3' && !stored.includes('q2')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o Q2 antes de iniciar o Q3.',
+      })
+      return
+    }
+
+    if (sess === 'race' && !stored.includes('q3') && !stored.includes('qualifying')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o Q3 para definir o grid antes de ir para a Corrida.',
+      })
+      return
+    }
+
     // Parar avanço automático anterior
     setIsAutoAdvancing(false)
     if (autoAdvanceIntervalRef.current) {
@@ -369,10 +438,189 @@ export default function WeekendV2Page() {
     // Se for TL1, TL2 ou TL3: carrega/resume o runner de treino
     if (sess === 'tp1' || sess === 'tp2' || sess === 'tp3') {
       await initializePracticeSession(sess, registration, invs)
-    } else {
-      // Q1, Q2, Q3, CORRIDA: seleciona a etapa para renderizar seu placeholder funcional
+      setQualifyingState(null)
+    } else if (sess === 'q1' || sess === 'q2' || sess === 'q3') {
+      // Q1, Q2 ou Q3: inicializa ou carrega a sessão de qualificação canônica
       setSelectedSessionId(sess)
       setSessionState(null)
+      await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
+    } else {
+      // CORRIDA: se Q3 concluído, exibe o grid final P1-P24 ou placeholder
+      setSelectedSessionId(sess)
+      setSessionState(null)
+      setQualifyingState(null)
+      if (season?.id) {
+        const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+          season.id,
+          currentRound,
+        )
+        setCompleteQualifyingResult(fullGrid)
+      }
+    }
+  }
+
+  // Helper para resolver os 24 pilotos oficiais do grid para a qualificação
+  const resolveEligibleQualifyingParticipants = (
+    stageId: QualifyingStageId,
+    reg: RegistrationValidationResult,
+  ): QualifyingDriverContext[] => {
+    if (!season?.id || !reg.snapshot) return []
+    const pCar1 = reg.snapshot.entriesByCar.playerCar1
+    const pCar2 = reg.snapshot.entriesByCar.playerCar2
+    const allSnapshotEntries = reg.snapshot.entries || []
+    const rivalEntries = allSnapshotEntries.filter((e) => !e.isPlayerTeam)
+
+    const all24: QualifyingDriverContext[] = []
+
+    if (pCar1) {
+      all24.push({
+        id: pCar1.driverId,
+        name: pCar1.driverName,
+        speed: 84,
+        consistency: 82,
+        defense: 80,
+        teamId: team?.id || 'player_team',
+        teamName: team?.name || 'Sua Equipe',
+        teamColor: team?.color || '#E10600',
+        carNumber: 1,
+      })
+    }
+    if (pCar2) {
+      all24.push({
+        id: pCar2.driverId,
+        name: pCar2.driverName,
+        speed: 82,
+        consistency: 81,
+        defense: 78,
+        teamId: team?.id || 'player_team',
+        teamName: team?.name || 'Sua Equipe',
+        teamColor: team?.color || '#E10600',
+        carNumber: 2,
+      })
+    }
+
+    rivalEntries.forEach((r, idx) => {
+      all24.push({
+        id: r.driverId,
+        name: r.driverName,
+        speed: 78 + (idx % 8),
+        consistency: 79,
+        defense: 76,
+        teamId: r.teamId || `rival_${idx}`,
+        teamName: r.teamName || `Equipe ${idx + 1}`,
+        teamColor: r.teamColor || '#64748B',
+        carNumber: r.driverNumber || idx + 3,
+      })
+    })
+
+    if (stageId === 'q1') {
+      return all24.slice(0, 24)
+    }
+
+    if (stageId === 'q2') {
+      const q1Res = canonicalQualifyingPersistenceService.readStageResult(
+        season.id,
+        currentRound,
+        'q1',
+      )
+      if (q1Res && q1Res.advancingDriverIds) {
+        return all24.filter((p) => q1Res.advancingDriverIds.includes(p.id))
+      }
+      return all24.slice(0, 18)
+    }
+
+    if (stageId === 'q3') {
+      const q2Res = canonicalQualifyingPersistenceService.readStageResult(
+        season.id,
+        currentRound,
+        'q2',
+      )
+      if (q2Res && q2Res.advancingDriverIds) {
+        return all24.filter((p) => q2Res.advancingDriverIds.includes(p.id))
+      }
+      return all24.slice(0, 10)
+    }
+
+    return all24
+  }
+
+  // Inicializador de sessão de qualificação (Q1, Q2 ou Q3)
+  const initializeQualifyingSession = async (
+    stageId: QualifyingStageId,
+    currentReg?: RegistrationValidationResult | null,
+    currentInvs?: Record<string, TireSetItem[]>,
+  ) => {
+    const reg = currentReg || registration
+    const inventories = currentInvs || tyreInventories
+    if (!team || !season || !reg?.snapshot) return
+
+    const pCar1 = reg.snapshot.entriesByCar.playerCar1
+    const pCar2 = reg.snapshot.entriesByCar.playerCar2
+    if (!pCar1 || !pCar2) return
+
+    const eligible = resolveEligibleQualifyingParticipants(stageId, reg)
+
+    // Buscar pneus disponíveis no mesmo inventário compartilhado de 20 jogos
+    const car1Tire =
+      inventories[pCar1.driverId]?.find((t) => (t.wear || 0) < 100) ||
+      inventories[pCar1.driverId]?.[0]
+    const car2Tire =
+      inventories[pCar2.driverId]?.find((t) => (t.wear || 0) < 100) ||
+      inventories[pCar2.driverId]?.[0]
+
+    // Parc Fermé: setup herdado de TL2
+    const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
+      team.id,
+      season.id,
+      currentRound,
+      'tp2',
+    )
+
+    const qState = CanonicalQualifyingRunner.initializeStage({
+      stageId,
+      seasonId: season.id,
+      round: currentRound,
+      playerCar1: {
+        driverId: pCar1.driverId,
+        driverName: pCar1.driverName,
+        driverNumber: 1,
+        tyreSetId: car1Tire?.id || `${season.id}_c1_init_tire`,
+        compound: car1Tire?.compound || 'macio',
+        wear: car1Tire?.wear || 0,
+        setup: inherited.car1Setup || {
+          frontWing: 6,
+          rearWing: 6,
+          suspension: 6,
+          differential: 50,
+        },
+      },
+      playerCar2: {
+        driverId: pCar2.driverId,
+        driverName: pCar2.driverName,
+        driverNumber: 2,
+        tyreSetId: car2Tire?.id || `${season.id}_c2_init_tire`,
+        compound: car2Tire?.compound || 'macio',
+        wear: car2Tire?.wear || 0,
+        setup: inherited.car2Setup || {
+          frontWing: 6,
+          rearWing: 6,
+          suspension: 6,
+          differential: 50,
+        },
+      },
+      eligibleParticipants: eligible,
+    })
+
+    setQualifyingState(qState)
+    setIsAutoAdvancing(false)
+
+    // Se Q3 já estiver concluído, verificar se já temos o grid final
+    if (stageId === 'q3' && qState.status === 'completed') {
+      const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+        season.id,
+        currentRound,
+      )
+      setCompleteQualifyingResult(fullGrid)
     }
   }
 
@@ -417,8 +665,82 @@ export default function WeekendV2Page() {
     }
   }, [team, registration, currentRound, gpInfo, circuitProfile])
 
-  // 7. Controles de Play / Pause do Treino Livre
+  // Contexto completo para o motor de qualificação (inclui rivais e clima)
+  const qualifyingTickContext = useMemo<QualifyingTickContext | null>(() => {
+    if (!runnerContext || !season?.id || !registration?.snapshot) return null
+
+    const allSnapshotEntries = registration.snapshot.entries || []
+    const rivalEntries = allSnapshotEntries.filter((e) => !e.isPlayerTeam)
+    const rivalDrivers: QualifyingDriverContext[] = rivalEntries.map((r, idx) => ({
+      id: r.driverId,
+      name: r.driverName,
+      speed: 78 + (idx % 8),
+      consistency: 80,
+      defense: 76,
+      teamId: r.teamId || `rival_${idx}`,
+      teamName: r.teamName || `Equipe ${idx + 1}`,
+      teamColor: r.teamColor || '#64748B',
+      carNumber: r.driverNumber || idx + 3,
+    }))
+
+    return {
+      seasonId: season.id,
+      round: currentRound,
+      gpName: runnerContext.gpName,
+      circuitName: runnerContext.circuitName,
+      lengthKm: runnerContext.lengthKm,
+      tireAbrasiveness: runnerContext.tireAbrasiveness,
+      weather: runnerContext.weather,
+      teamChassisRating: runnerContext.teamChassisRating,
+      teamEngineSupplier: runnerContext.teamEngineSupplier,
+      teamName: runnerContext.teamName,
+      teamColor: runnerContext.teamColor,
+      drivers: runnerContext.drivers,
+      rivalDrivers,
+    }
+  }, [runnerContext, season?.id, currentRound, registration])
+
+  // 7. Controles de Play / Pause (Treino Livre ou Qualificação)
   const handleTogglePlay = () => {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (isQuali) {
+      if (!qualifyingState) return
+      const stored = refreshCompletedSessions()
+      if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Concluída',
+          description: 'Não é permitido executar novamente uma fase oficialmente concluída.',
+        })
+        return
+      }
+
+      if (isAutoAdvancing) {
+        setIsAutoAdvancing(false)
+        qualifyingState.status = 'paused'
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(
+            season.id,
+            currentRound,
+            qualifyingState,
+          )
+        }
+      } else {
+        setIsAutoAdvancing(true)
+        qualifyingState.status = 'running'
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(
+            season.id,
+            currentRound,
+            qualifyingState,
+          )
+        }
+      }
+      return
+    }
+
     if (!sessionState) return
     const stored = refreshCompletedSessions()
     if (sessionState.status === 'completed' || stored.includes(sessionState.sessionType)) {
@@ -441,9 +763,12 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Loop contínuo quando Play ativo
+  // Loop contínuo de simulação (TL ou Qualificação)
   useEffect(() => {
-    if (!isAutoAdvancing || !sessionState || !runnerContext) {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (!isAutoAdvancing) {
       if (autoAdvanceIntervalRef.current) {
         clearInterval(autoAdvanceIntervalRef.current)
       }
@@ -451,6 +776,62 @@ export default function WeekendV2Page() {
     }
 
     const intervalMs = Math.round(1000 / selectedSpeed)
+
+    if (isQuali && qualifyingTickContext) {
+      autoAdvanceIntervalRef.current = setInterval(() => {
+        setQualifyingState((prev) => {
+          if (!prev || prev.status !== 'running' || prev.timeRemainingSec <= 0) {
+            setIsAutoAdvancing(false)
+            return prev
+          }
+
+          const deltaSec = 2 * selectedSpeed
+          const res = CanonicalQualifyingRunner.tick(prev, deltaSec, qualifyingTickContext)
+
+          // Sincronizar pneus
+          res.lapsCompletedThisTick.forEach((lapItem) => {
+            if (lapItem.carId) {
+              const car = res.nextState.cars[lapItem.carId]
+              if (car.currentTyreSetId && season?.id) {
+                canonicalWeekendTyrePersistence.recordTyreUsage({
+                  seasonId: season.id,
+                  round: currentRound,
+                  driverId: car.driverId,
+                  tyreSetId: car.currentTyreSetId,
+                  lapsAdded: 1,
+                  finalWearPct: car.tyreWear,
+                })
+              }
+            }
+          })
+
+          if (res.nextState.status === 'completed') {
+            setIsAutoAdvancing(false)
+            handleQualifyingStageCompleted(res.nextState.stageId)
+          }
+
+          if (season?.id) {
+            canonicalQualifyingPersistenceService.saveStageState(
+              season.id,
+              currentRound,
+              res.nextState,
+            )
+          }
+          return res.nextState
+        })
+      }, intervalMs)
+
+      return () => {
+        if (autoAdvanceIntervalRef.current) {
+          clearInterval(autoAdvanceIntervalRef.current)
+        }
+      }
+    }
+
+    if (!sessionState || !runnerContext) {
+      return
+    }
+
     autoAdvanceIntervalRef.current = setInterval(() => {
       setSessionState((prev) => {
         if (!prev || prev.status !== 'running' || prev.timeRemainingSec <= 0) {
@@ -519,10 +900,113 @@ export default function WeekendV2Page() {
         clearInterval(autoAdvanceIntervalRef.current)
       }
     }
-  }, [isAutoAdvancing, selectedSpeed, runnerContext])
+  }, [isAutoAdvancing, selectedSpeed, runnerContext, qualifyingTickContext, selectedSessionId])
 
-  // Controles: +1 MIN / +5 MIN
+  // Conclusão oficial de fase de qualificação
+  const handleQualifyingStageCompleted = (stageId: QualifyingStageId) => {
+    if (!season?.id) return
+    const currentStored = readStoredCompletedSessions(season.id, currentRound)
+    let updated = currentStored
+    if (!currentStored.includes(stageId)) {
+      updated = [...currentStored, stageId]
+      writeStoredCompletedSessions(season.id, currentRound, updated)
+      setCompletedSessions(updated)
+    }
+
+    if (stageId === 'q3') {
+      // Conclusão de Q3: compõe e homologa o grid completo P1-P24
+      const q1Res = canonicalQualifyingPersistenceService.readStageResult(
+        season.id,
+        currentRound,
+        'q1',
+      )
+      const q2Res = canonicalQualifyingPersistenceService.readStageResult(
+        season.id,
+        currentRound,
+        'q2',
+      )
+      const q3Res = canonicalQualifyingPersistenceService.readStageResult(
+        season.id,
+        currentRound,
+        'q3',
+      )
+
+      if (q1Res && q2Res && q3Res) {
+        const fullGrid = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+          seasonId: season.id,
+          round: currentRound,
+          q1Result: q1Res,
+          q2Result: q2Res,
+          q3Result: q3Res,
+        })
+        setCompleteQualifyingResult(fullGrid)
+      }
+
+      // Desbloqueia CORRIDA
+      if (!updated.includes('qualifying')) {
+        updated = [...updated, 'qualifying']
+        writeStoredCompletedSessions(season.id, currentRound, updated)
+        setCompletedSessions(updated)
+      }
+
+      toast({
+        title: 'Classificação Concluída — Grid Formado!',
+        description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
+      })
+    } else {
+      toast({
+        title: `Fase ${stageId.toUpperCase()} Concluída`,
+        description: `Eliminações e classificação oficial registradas. Próxima etapa disponível.`,
+      })
+    }
+  }
+
+  // Controles: +1 MIN / +5 MIN (Treino Livre ou Qualificação)
   const handleAdvanceStep = (minutes: 1 | 5) => {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (isQuali) {
+      if (!qualifyingState || !qualifyingTickContext) return
+      const stored = refreshCompletedSessions()
+      if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Concluída',
+          description: 'Não é permitido executar novamente uma fase oficialmente concluída.',
+        })
+        return
+      }
+      setIsAutoAdvancing(false)
+
+      const seconds = minutes * 60
+      const res = CanonicalQualifyingRunner.advanceBySeconds(
+        qualifyingState,
+        seconds,
+        qualifyingTickContext,
+      )
+      setQualifyingState(res.nextState)
+
+      if (season?.id) {
+        const refreshed = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+          seasonId: season.id,
+          round: currentRound,
+          driverIds: [qualifyingState.cars.car1.driverId, qualifyingState.cars.car2.driverId],
+        })
+        setTyreInventories(refreshed)
+      }
+
+      if (res.nextState.status === 'completed') {
+        handleQualifyingStageCompleted(res.nextState.stageId)
+      }
+
+      toast({
+        title: `+${minutes} Minuto(s) de Qualificação Simulado(s)`,
+        description: `Executados ${res.secondsSimulated}s reais de sessão (${res.lapsCount} volta(s) completada(s)).`,
+      })
+      return
+    }
+
     if (!sessionState || !runnerContext) return
     const stored = refreshCompletedSessions()
     if (sessionState.status === 'completed' || stored.includes(sessionState.sessionType)) {
@@ -567,8 +1051,48 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Controle: SIMULAR RESTANTE DO TL
+  // Controle: SIMULAR RESTANTE (Treino Livre ou Qualificação)
   const handleSimulateRemaining = () => {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (isQuali) {
+      if (!qualifyingState || !qualifyingTickContext) return
+      const stored = refreshCompletedSessions()
+      if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Concluída',
+          description: 'Não é permitido executar novamente uma fase oficialmente concluída.',
+        })
+        return
+      }
+      setIsAutoAdvancing(false)
+
+      const res = CanonicalQualifyingRunner.simulateRemainingSession(
+        qualifyingState,
+        qualifyingTickContext,
+      )
+      setQualifyingState(res.nextState)
+
+      if (season?.id) {
+        const refreshed = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+          seasonId: season.id,
+          round: currentRound,
+          driverIds: [qualifyingState.cars.car1.driverId, qualifyingState.cars.car2.driverId],
+        })
+        setTyreInventories(refreshed)
+      }
+
+      handleQualifyingStageCompleted(res.nextState.stageId)
+
+      toast({
+        title: `Restante do ${qualifyingState.stageId.toUpperCase()} Simulado com Sucesso!`,
+        description: `Foram computadas todas as tentativas, voltas e desempates da fase de classificação.`,
+      })
+      return
+    }
+
     if (!sessionState || !runnerContext) return
     const stored = refreshCompletedSessions()
     if (sessionState.status === 'completed' || stored.includes(sessionState.sessionType)) {
@@ -615,8 +1139,37 @@ export default function WeekendV2Page() {
     })
   }
 
-  // Ações de Carro: Sair para a pista
+  // Ações de Carro: Sair para a pista (Treino ou Qualificação)
   const handleOrderExit = (carId: 'car1' | 'car2') => {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (isQuali) {
+      if (!qualifyingState) return
+      const res = CanonicalQualifyingRunner.orderCarExitToTrack(qualifyingState, carId)
+      if (res.success) {
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(
+            season.id,
+            currentRound,
+            qualifyingState,
+          )
+        }
+        setQualifyingState({ ...qualifyingState })
+        toast({
+          title: 'Carro Liberado para a Pista',
+          description: `${qualifyingState.cars[carId].driverName} saiu em volta de preparação para tentativa rápida.`,
+        })
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Não é possível sair',
+          description: res.error,
+        })
+      }
+      return
+    }
+
     if (!sessionState) return
     const res = PracticeSessionRunner.orderCarExitToTrack(sessionState, carId)
     if (res.success) {
@@ -631,8 +1184,32 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Ações de Carro: Chamar aos boxes
+  // Ações de Carro: Chamar aos boxes (Treino ou Qualificação)
   const handleRequestBox = (carId: 'car1' | 'car2') => {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (isQuali) {
+      if (!qualifyingState) return
+      const res = CanonicalQualifyingRunner.requestCarBox(qualifyingState, carId)
+      if (res.success) {
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(
+            season.id,
+            currentRound,
+            qualifyingState,
+          )
+        }
+        setQualifyingState({ ...qualifyingState })
+        toast({
+          title: 'Chamada de Box Confirmada',
+          description:
+            'O piloto retornará à garagem ao final da volta para ajustes e nova tentativa.',
+        })
+      }
+      return
+    }
+
     if (!sessionState) return
     const res = PracticeSessionRunner.requestCarBox(sessionState, carId)
     if (res.success) {
@@ -665,11 +1242,15 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Troca de Pneus na Garagem
+  // Troca de Pneus na Garagem (Treino ou Qualificação)
   const handleSelectTyreSet = (carId: 'car1' | 'car2', tyreSetId: string) => {
-    if (!sessionState) return
-    const car = sessionState.cars[carId]
-    if (car.status !== 'garage') {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    const targetCar = isQuali ? qualifyingState?.cars[carId] : sessionState?.cars[carId]
+    if (!targetCar) return
+
+    if (targetCar.status !== 'garage') {
       toast({
         variant: 'destructive',
         title: 'Carro em pista',
@@ -678,13 +1259,13 @@ export default function WeekendV2Page() {
       return
     }
 
-    const driverInventory = tyreInventories[car.driverId] || []
+    const driverInventory = tyreInventories[targetCar.driverId] || []
     const selectedSet = driverInventory.find((s) => s.id === tyreSetId)
     if (!selectedSet) return
 
-    car.currentTyreSetId = selectedSet.id
-    car.currentCompound = selectedSet.compound
-    car.tyreWear = selectedSet.wear || 0
+    targetCar.currentTyreSetId = selectedSet.id
+    targetCar.currentCompound = selectedSet.compound
+    targetCar.tyreWear = selectedSet.wear || 0
 
     const updatedInventory: TireSetItem[] = driverInventory.map((s) => ({
       ...s,
@@ -701,17 +1282,29 @@ export default function WeekendV2Page() {
       canonicalWeekendTyrePersistence.updateDriverInventory(
         season.id,
         currentRound,
-        car.driverId,
+        targetCar.driverId,
         updatedInventory,
       )
       setTyreInventories((prev) => ({
         ...prev,
-        [car.driverId]: updatedInventory,
+        [targetCar.driverId]: updatedInventory,
       }))
     }
 
-    practiceSessionService.saveSessionState(sessionState)
-    setSessionState({ ...sessionState })
+    if (isQuali && qualifyingState) {
+      if (season?.id) {
+        canonicalQualifyingPersistenceService.saveStageState(
+          season.id,
+          currentRound,
+          qualifyingState,
+        )
+      }
+      setQualifyingState({ ...qualifyingState })
+    } else if (sessionState) {
+      practiceSessionService.saveSessionState(sessionState)
+      setSessionState({ ...sessionState })
+    }
+
     toast({
       title: 'Jogo de Pneus Instalado',
       description: `Carro #${carId === 'car1' ? 1 : 2} equipado com ${selectedSet.compound.toUpperCase()} (${selectedSet.wear || 0}% desgaste).`,
@@ -788,6 +1381,12 @@ export default function WeekendV2Page() {
 
       if (initialSessionId === 'tp1' || initialSessionId === 'tp2' || initialSessionId === 'tp3') {
         initializePracticeSession(initialSessionId, reg, invs)
+      } else if (
+        initialSessionId === 'q1' ||
+        initialSessionId === 'q2' ||
+        initialSessionId === 'q3'
+      ) {
+        initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
       }
 
       toast({
@@ -881,6 +1480,13 @@ export default function WeekendV2Page() {
     selectedSessionDef.id === 'tp2' ||
     selectedSessionDef.id === 'tp3'
 
+  const isQualifyingSession =
+    selectedSessionDef.id === 'q1' ||
+    selectedSessionDef.id === 'q2' ||
+    selectedSessionDef.id === 'q3'
+
+  const isRaceSession = selectedSessionDef.id === 'race'
+
   return (
     <div className="space-y-6 pb-12">
       {/* 1. CABEÇALHO PADRÃO APEX GP MANAGER */}
@@ -944,7 +1550,11 @@ export default function WeekendV2Page() {
         selectedSessionId={selectedSessionId}
         completedSessions={completedSessions}
         isSessionRunning={isAutoAdvancing}
-        isSessionPaused={sessionState?.status === 'paused'}
+        isSessionPaused={
+          isQualifyingSession
+            ? qualifyingState?.status === 'paused'
+            : sessionState?.status === 'paused'
+        }
         onSelectSession={handleSelectSessionFromSchedule}
       />
 
@@ -1181,9 +1791,239 @@ export default function WeekendV2Page() {
             <p className="text-xs font-bold text-[#64748B]">Carregando sessão...</p>
           </div>
         )
+      ) : isQualifyingSession ? (
+        // RENDERIZAÇÃO CANÔNICA DE QUALIFICAÇÃO (Q1, Q2, Q3)
+        // Sessão real com carros na pista, consumo de pneus, desempate e eliminação
+        !completedSessions.includes('tp2') ? (
+          <SessionPlaceholderCard
+            session={selectedSessionDef}
+            isLocked={true}
+            isPendingDevelopment={false}
+          />
+        ) : selectedSessionDef.id === 'q2' && !completedSessions.includes('q1') ? (
+          <SessionPlaceholderCard
+            session={selectedSessionDef}
+            isLocked={true}
+            isPendingDevelopment={false}
+          />
+        ) : selectedSessionDef.id === 'q3' && !completedSessions.includes('q2') ? (
+          <SessionPlaceholderCard
+            session={selectedSessionDef}
+            isLocked={true}
+            isPendingDevelopment={false}
+          />
+        ) : qualifyingState ? (
+          <div className="space-y-6">
+            {/* CONTROLES OPERACIONAIS DA QUALIFICAÇÃO */}
+            <Card className="p-4 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#F1F5F9] pb-3">
+                {/* Relógio regressivo oficial da fase */}
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-[#E10600]/10 border border-[#E10600]/20 text-[#E10600]">
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">
+                      Cronômetro Oficial — {qualifyingState.stageId.toUpperCase()} (
+                      {CANONICAL_QUALIFYING_RULES[qualifyingState.stageId].durationSec / 60}m)
+                    </span>
+                    <div className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight flex items-center gap-2">
+                      <span>{formatSessionTime(qualifyingState.timeRemainingSec)} RESTANTES</span>
+                      <span className="text-xs text-[#94A3B8] font-medium">
+                        / {formatSessionTime(qualifyingState.sessionDurationSec)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controles: Play/Pause, Velocidades 1x/2x/4x, +1m, +5m, Simular Restante */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    disabled={qualifyingState.status === 'completed'}
+                    onClick={handleTogglePlay}
+                    className={`h-9 px-4 text-xs font-black gap-2 shadow-xs ${
+                      isAutoAdvancing
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                        : 'bg-[#E10600] hover:bg-[#C00400] text-white'
+                    }`}
+                  >
+                    {isAutoAdvancing ? (
+                      <>
+                        <Pause className="w-4 h-4 fill-current" />
+                        PAUSAR
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-current" />
+                        PLAY
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Multiplicadores 1x, 2x, 4x */}
+                  <div className="flex items-center bg-[#F1F5F9] border border-[#E2E8F0] rounded-lg p-0.5">
+                    {([1, 2, 4] as const).map((spd) => (
+                      <button
+                        key={spd}
+                        type="button"
+                        onClick={() => setSelectedSpeed(spd)}
+                        className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${
+                          selectedSpeed === spd
+                            ? 'bg-white text-[#0F172A] shadow-xs font-black'
+                            : 'text-[#64748B] hover:text-[#0F172A]'
+                        }`}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* +1 MIN */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={qualifyingState.status === 'completed'}
+                    onClick={() => handleAdvanceStep(1)}
+                    className="h-9 px-3 text-xs font-bold border-[#CBD5E1] bg-white text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    +1 MIN
+                  </Button>
+
+                  {/* +5 MIN */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={qualifyingState.status === 'completed'}
+                    onClick={() => handleAdvanceStep(5)}
+                    className="h-9 px-3 text-xs font-bold border-[#CBD5E1] bg-white text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    +5 MIN
+                  </Button>
+
+                  {/* SIMULAR RESTANTE */}
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={qualifyingState.status === 'completed'}
+                    onClick={handleSimulateRemaining}
+                    className="h-9 px-3.5 text-xs font-black bg-[#E10600] hover:bg-[#C00400] text-white shadow-xs gap-1.5"
+                  >
+                    <FastForward className="w-4 h-4" />
+                    SIMULAR RESTANTE ({qualifyingState.stageId.toUpperCase()})
+                  </Button>
+                </div>
+              </div>
+
+              {/* Informações de Parc Fermé e Seleção de Pneus da Qualificação */}
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#64748B]">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[#0F172A] flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-[#059669]" />
+                    Parc Fermé Ativo:
+                  </span>
+                  <span className="text-[11px] text-[#475569]">
+                    Configurações aerodinâmicas e mecânicas congeladas a partir do Q1 pela FIA.
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#64748B]">Visualizar Estoque:</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTyresCarId('car1')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                      activeTyresCarId === 'car1'
+                        ? 'bg-[#E10600] text-white'
+                        : 'text-[#64748B] hover:text-[#0F172A]'
+                    }`}
+                  >
+                    Carro 1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTyresCarId('car2')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                      activeTyresCarId === 'car2'
+                        ? 'bg-[#E10600] text-white'
+                        : 'text-[#64748B] hover:text-[#0F172A]'
+                    }`}
+                  >
+                    Carro 2
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            {/* COCKPIT DOS DOIS CARROS DO JOGADOR (CARRO 1 E CARRO 2) */}
+            {pCar1 && pCar2 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <QualifyingCarCockpitCard
+                  car={qualifyingState.cars.car1}
+                  carNumber={1}
+                  teamColor={team?.color || '#E10600'}
+                  isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
+                  isSessionCompleted={qualifyingState.status === 'completed'}
+                  onOrderExitTrack={() => handleOrderExit('car1')}
+                  onRequestBox={() => handleRequestBox('car1')}
+                />
+
+                <QualifyingCarCockpitCard
+                  car={qualifyingState.cars.car2}
+                  carNumber={2}
+                  teamColor={team?.color || '#E10600'}
+                  isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
+                  isSessionCompleted={qualifyingState.status === 'completed'}
+                  onOrderExitTrack={() => handleOrderExit('car2')}
+                  onRequestBox={() => handleRequestBox('car2')}
+                />
+              </div>
+            )}
+
+            {/* ESTOQUE REAL DE PNEUS DO FIM DE SEMANA (MESMO INVENTÁRIO HERDADO) */}
+            {activeCarForTyres && (
+              <TyreInventoryPanel
+                carNumber={activeTyresCarId === 'car1' ? 1 : 2}
+                driverName={activeCarForTyres.driverName}
+                driverId={activeCarForTyres.driverId}
+                tyres={activeTyresList}
+                currentTyreSetId={qualifyingState.cars[activeTyresCarId].currentTyreSetId}
+                isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
+                isCarInGarage={qualifyingState.cars[activeTyresCarId].status === 'garage'}
+                onSelectTyreSet={(setId) => handleSelectTyreSet(activeTyresCarId, setId)}
+              />
+            )}
+
+            {/* TABELA DE CLASSIFICAÇÃO AO VIVO COM LINHA DE CORTE E LOGOS REDUZIDOS */}
+            <QualifyingLeaderboardTable
+              stageId={qualifyingState.stageId}
+              entries={qualifyingState.leaderboard}
+              playerTeamName={team?.name}
+              playerTeamColor={team?.color}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center min-h-[30vh] space-y-3">
+            <div className="w-8 h-8 border-4 border-[#E10600] border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs font-bold text-[#64748B]">
+              Preparando sessão de classificação...
+            </p>
+          </div>
+        )
+      ) : isRaceSession && completeQualifyingResult ? (
+        // RENDERIZAÇÃO DO GRID OFICIAL P1-P24 APÓS QUALIFICAÇÃO HOMOLOGADA
+        <CompleteQualifyingGridSummary
+          result={completeQualifyingResult}
+          onGoToRace={() => {
+            toast({
+              title: 'Corrida Desbloqueada',
+              description:
+                'O Grid Oficial FIA P1–P24 está homologado. A Corrida V2 será ativada na próxima etapa.',
+            })
+          }}
+        />
       ) : (
-        // RENDERIZAÇÃO DOS PLACEHOLDERS FUNCIONAIS (Q1, Q2, Q3, CORRIDA)
-        // Sem fluxos fake, sem botões que executam coisas inexistentes
+        // RENDERIZAÇÃO DOS PLACEHOLDERS (CORRIDA BLOQUEADA ATÉ Q3)
         <SessionPlaceholderCard
           session={selectedSessionDef}
           isLocked={
@@ -1193,9 +2033,7 @@ export default function WeekendV2Page() {
                 ? !completedSessions.includes('tp2')
                 : !completedSessions.includes(selectedSessionDef.id)
           }
-          isPendingDevelopment={
-            selectedSessionDef.category === 'qualifying' && completedSessions.includes('tp2')
-          }
+          isPendingDevelopment={false}
         />
       )}
 

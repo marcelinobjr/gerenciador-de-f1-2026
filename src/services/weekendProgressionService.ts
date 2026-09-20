@@ -62,7 +62,7 @@ export const SESSION_SHORT_LABELS: Record<CanonicalWeekendSession, string> = {
  */
 function normalizeSessionKey(session: string): string {
   const s = session.toLowerCase().trim()
-  if (s === 'q1' || s === 'q2' || s === 'q3' || s === 'qualy' || s === 'quali') {
+  if (s === 'qualy' || s === 'quali') {
     return 'qualifying'
   }
   if (s === 'sq' || s === 'sprint_shootout' || s === 'sprint_qualy') {
@@ -84,6 +84,10 @@ export function normalizeCompletedSessions(completedSessions: string[]): string[
     set.add(item)
     const norm = normalizeSessionKey(item)
     set.add(norm)
+  }
+  // Se q3 foi concluído, o bloco de qualifying inteiro é considerado concluído
+  if (set.has('q3')) {
+    set.add('qualifying')
   }
   return Array.from(set)
 }

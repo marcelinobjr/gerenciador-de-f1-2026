@@ -70,7 +70,7 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       fullName: 'Classificação — Fase 1',
       category: 'qualifying',
       order: 4,
-      isPlayableInV2: false,
+      isPlayableInV2: true,
       blockedMessage: 'Disponível após conclusão do TL2.',
     },
     q2: {
@@ -79,7 +79,7 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       fullName: 'Classificação — Fase 2',
       category: 'qualifying',
       order: 5,
-      isPlayableInV2: false,
+      isPlayableInV2: true,
       blockedMessage: 'Disponível após conclusão do Q1.',
     },
     q3: {
@@ -88,7 +88,7 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       fullName: 'Classificação — Fase 3',
       category: 'qualifying',
       order: 6,
-      isPlayableInV2: false,
+      isPlayableInV2: true,
       blockedMessage: 'Disponível após conclusão do Q2.',
     },
     race: {
@@ -98,7 +98,7 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       category: 'race',
       order: 7,
       isPlayableInV2: false,
-      blockedMessage: 'Disponível após conclusão da classificação.',
+      blockedMessage: 'Disponível após conclusão da classificação (Q3).',
     },
   }
 
