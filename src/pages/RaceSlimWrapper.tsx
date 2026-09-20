@@ -19,6 +19,11 @@ import type {
 } from '@/types/canonical-season-transition'
 import type { WeekendSession } from '@/types/race-events'
 import { f1Service } from '@/services/f1Service'
+import {
+  checkWeekendRaceAccess,
+  readStoredCompletedSessions,
+  writeStoredCompletedSessions,
+} from '@/services/weekendProgressionService'
 
 export default function RaceSlimWrapper() {
   const navigate = useNavigate()
@@ -30,11 +35,26 @@ export default function RaceSlimWrapper() {
   const [isSimulating, setIsSimulating] = useState(false)
   const [simulationSteps, setSimulationSteps] = useState<WeekendSimulationStepProgress[]>([])
   const [simulationStepMessage, setSimulationStepMessage] = useState('')
-  const [completedSessions, setCompletedSessions] = useState<string[]>([])
+  const currentRound = season?.current_round || 1
+
+  const [completedSessions, setCompletedSessions] = useState<string[]>(() => {
+    if (season?.id) {
+      return readStoredCompletedSessions(season.id, currentRound)
+    }
+    return []
+  })
   const [raceRefreshKey, setRaceRefreshKey] = useState(0)
   const [activeSharedSession, setActiveSharedSession] = useState<any>(null)
 
-  const currentRound = season?.current_round || 1
+  // Sincroniza completedSessions caso a temporada/rodada mude ou carregue inicialmente
+  React.useEffect(() => {
+    if (season?.id) {
+      const stored = readStoredCompletedSessions(season.id, currentRound)
+      if (stored.length > 0) {
+        setCompletedSessions((prev) => Array.from(new Set([...prev, ...stored])))
+      }
+    }
+  }, [season?.id, currentRound])
 
   // Detecta se existe uma sessão compartilhada ativa para esta rodada
   React.useEffect(() => {
@@ -62,6 +82,10 @@ export default function RaceSlimWrapper() {
   }, [season?.id, team?.id, currentRound])
   const gpInfo =
     F1_2026_CALENDAR[Math.min(currentRound - 1, F1_2026_CALENDAR.length - 1)] || F1_2026_CALENDAR[0]
+
+  // Guard de autorização canônica para a Corrida Principal (WEEKEND-01A)
+  const raceGate = checkWeekendRaceAccess(currentRound, completedSessions)
+  const isRaceUnlocked = raceGate.allowed || !!activeSharedSession
 
   const hasRaceFinished = completedSessions.includes('race')
   const hasQualyFinished = completedSessions.includes('q3')
@@ -123,8 +147,11 @@ export default function RaceSlimWrapper() {
         },
       })
 
-      const allSessions = ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race']
+      const allSessions = ['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'qualifying', 'race']
       setCompletedSessions(allSessions)
+      if (season?.id) {
+        writeStoredCompletedSessions(season.id, currentRound, allSessions)
+      }
       setSummaryReport(res.report)
       setSummaryModalOpen(true)
       setRaceRefreshKey((prev) => prev + 1)
@@ -158,6 +185,9 @@ export default function RaceSlimWrapper() {
         })
       }
       setCompletedSessions([])
+      if (season.id) {
+        writeStoredCompletedSessions(season.id, currentRound + 1, [])
+      }
       setSummaryReport(null)
       setRaceRefreshKey((prev) => prev + 1)
       toast({
@@ -207,23 +237,44 @@ export default function RaceSlimWrapper() {
         </div>
       )}
 
-      {/* Acesso rápido temporário para a nova página funcional */}
+      {/* Acesso rápido temporário para a nova página funcional com Guard Canônico WEEKEND-01A */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 text-white rounded-lg text-xs">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span className="font-bold">NOVA CORRIDA AO VIVO DISPONÍVEL:</span>
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isRaceUnlocked ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
+            }`}
+          />
+          <span className="font-bold">NOVA CORRIDA AO VIVO:</span>
           <span className="text-slate-300">
-            Layout claro com timing real, controles 1x/2x/4x e checkpoints persistentes.
+            {isRaceUnlocked
+              ? 'Sessão homologada e liberada. Layout claro com timing real, controles 1x/2x/4x e checkpoints persistentes.'
+              : raceGate.blockingReason ||
+                'Conclua ou simule as sessões preliminares para liberar a corrida.'}
           </span>
         </div>
-        <Button
-          asChild
-          size="sm"
-          variant="secondary"
-          className="h-7 text-xs font-bold bg-white text-slate-900 hover:bg-slate-100"
-        >
-          <Link to="/corrida-ao-vivo">Abrir Nova Versão</Link>
-        </Button>
+        {isRaceUnlocked ? (
+          <Button
+            asChild
+            size="sm"
+            variant="secondary"
+            className="h-7 text-xs font-bold bg-white text-slate-900 hover:bg-slate-100"
+          >
+            <Link to="/corrida-ao-vivo">Abrir Nova Versão</Link>
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled
+            className="h-7 text-xs font-bold bg-slate-700 text-slate-400 cursor-not-allowed opacity-60"
+            title={raceGate.blockingReason || 'Sessão bloqueada'}
+          >
+            Bloqueada (
+            {raceGate.nextRequiredSession ? raceGate.nextRequiredSession.toUpperCase() : 'PENDENTE'}
+            )
+          </Button>
+        )}
       </div>
 
       {/* 1. Header Canônico com Botão Visível "SIMULAR FIM DE SEMANA" */}

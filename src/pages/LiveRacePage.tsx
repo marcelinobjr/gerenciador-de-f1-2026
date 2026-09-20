@@ -52,6 +52,11 @@ import {
   createInitialTireInventory,
 } from '@/lib/f1-tire-system'
 import { buildCanonicalEventGrid } from '@/lib/canonical-race-grid-resolver'
+import {
+  checkWeekendRaceAccess,
+  readStoredCompletedSessions,
+  WeekendRaceGateCheck,
+} from '@/services/weekendProgressionService'
 
 export default function LiveRacePage() {
   const navigate = useNavigate()
@@ -62,6 +67,7 @@ export default function LiveRacePage() {
   const [sponsors, setSponsors] = useState<any[]>([])
   const [isLoadingSession, setIsLoadingSession] = useState(true)
   const [initError, setInitError] = useState<string | null>(null)
+  const [raceGateBlock, setRaceGateBlock] = useState<WeekendRaceGateCheck | null>(null)
   const [inconsistentSession, setInconsistentSession] = useState<{
     sessionId: string
     participantsCount: number
@@ -254,13 +260,25 @@ export default function LiveRacePage() {
         })
         setDriverTireInventories(initialInventories)
 
-        // 1.2 Verificar se já existe uma sessão persistida no PocketBase
+        // 1.2 GUARD WEEKEND-01A: Verificar se a corrida está liberada na ordem canônica do fim de semana
+        // Se já houver sessão criada no PocketBase (ex: corrida já em andamento/retomada), permitimos a retomada
         const existingSession = await raceSessionService.getSession({
           seasonId: season!.id,
           teamId: team!.id,
           round: currentRound,
           sessionType: 'race',
         })
+
+        if (!existingSession) {
+          const storedCompleted = readStoredCompletedSessions(season!.id, currentRound)
+          const gate = checkWeekendRaceAccess(currentRound, storedCompleted)
+          if (!gate.allowed) {
+            console.warn('[LiveRacePage] Acesso à corrida bloqueado por progresso pendente:', gate)
+            setRaceGateBlock(gate)
+            setIsLoadingSession(false)
+            return
+          }
+        }
 
         if (!isMounted) return
 
@@ -981,6 +999,71 @@ export default function LiveRacePage() {
           >
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // TELA DE BLOQUEIO CANÔNICO WEEKEND-01A (Acesso direto a /corrida-ao-vivo antes da hora)
+  if (raceGateBlock && !raceGateBlock.allowed) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] bg-white rounded-xl border border-amber-300 p-8 text-center space-y-5 shadow-sm max-w-xl mx-auto my-8">
+        <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shadow-inner">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <div className="space-y-2 max-w-md">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-black text-[10px] tracking-wider uppercase bg-amber-500 text-slate-950">
+            ACESSO BLOQUEADO PELA FIA
+          </span>
+          <h2 className="text-lg font-black text-slate-900 tracking-tight">
+            Sessão de Corrida Não Autorizada
+          </h2>
+          <p className="text-xs text-amber-900 font-bold bg-amber-50 border border-amber-200 rounded-lg p-2.5 leading-relaxed">
+            {raceGateBlock.blockingReason ||
+              'Conclua as sessões anteriores para liberar a corrida.'}
+          </p>
+          <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+            Pelo regulamento oficial da temporada {season?.year || 2026} (GP {gpInfo.name} - Rodada{' '}
+            {currentRound}), nenhuma sessão de corrida ou grid pode ser criada antes da conclusão
+            das fases preliminares.
+          </p>
+        </div>
+
+        <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-left space-y-1.5">
+          <p className="text-[11px] font-bold text-slate-700">
+            Cronograma Oficial do Fim de Semana:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {raceGateBlock.schedule.map((sess) => {
+              const isTarget = sess === raceGateBlock.nextRequiredSession
+              return (
+                <span
+                  key={sess}
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
+                    isTarget
+                      ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400'
+                      : sess === 'race'
+                        ? 'bg-slate-200 text-slate-500'
+                        : 'bg-emerald-100 text-emerald-800'
+                  }`}
+                >
+                  {sess}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-2">
+          <Button
+            asChild
+            className="bg-[#E10600] hover:bg-[#C10500] text-white font-bold text-xs h-9 px-5 shadow-sm"
+          >
+            <Link to="/race">
+              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+              Retornar ao Painel do Fim de Semana
+            </Link>
           </Button>
         </div>
       </div>
