@@ -21,7 +21,9 @@ import {
   Sparkles,
   Users2,
   ShieldCheck,
+  UserCheck,
 } from 'lucide-react'
+import { GPRegistrationScreen } from '@/pages/race/GPRegistrationScreen'
 
 // Serviços canônicos da F1 2026
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
@@ -102,6 +104,8 @@ export default function WeekendV2Page() {
   const [registration, setRegistration] = useState<RegistrationValidationResult | null>(null)
   const [registrationErrors, setRegistrationErrors] = useState<string[]>([])
   const [isInitializingRegistration, setIsInitializingRegistration] = useState(true)
+  const [showRegistrationScreen, setShowRegistrationScreen] = useState(false)
+  const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false)
 
   // Inventário de pneus persistente (20 jogos por piloto)
   const [tyreInventories, setTyreInventories] = useState<Record<string, TireSetItem[]>>({})
@@ -140,7 +144,22 @@ export default function WeekendV2Page() {
     setIsInitializingRegistration(true)
 
     try {
-      // 3.1. Validar elegibilidade e snapshot canônico de 2 carros
+      // 3.1. Verificar se já existe snapshot persistido para este GP
+      const existingSnapshot = canonicalEventRegistrationService.readRegistrationSnapshot(
+        season.id,
+        currentRound,
+      )
+
+      if (!existingSnapshot) {
+        // Sem snapshot gravado: abrir tela formal de inscrição do GP
+        if (isMounted) {
+          setShowRegistrationScreen(true)
+          setIsInitializingRegistration(false)
+        }
+        return
+      }
+
+      // Snapshot existente: carrega e valida
       const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
         seasonId: season.id,
         round: currentRound,
@@ -160,6 +179,7 @@ export default function WeekendV2Page() {
       if (isMounted) {
         setRegistration(reg)
         setRegistrationErrors([])
+        setShowRegistrationScreen(false)
 
         // 3.2. Carregar inventário persistente de pneus do evento (20 jogos por piloto)
         const pCar1 = reg.snapshot?.entriesByCar.playerCar1
@@ -714,23 +734,133 @@ export default function WeekendV2Page() {
     )
   }
 
+  // Callback de confirmação formal da inscrição pelo jogador
+  const handleConfirmGPRegistration = (car1DriverId: string, car2DriverId: string) => {
+    if (!team || !season) return
+    setIsSubmittingRegistration(true)
+
+    try {
+      const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
+        seasonId: season.id,
+        round: currentRound,
+        gpName: gpInfo.name,
+        playerTeam: team,
+        allDrivers: playerDrivers,
+        playerSeatOverrides: {
+          car1DriverId,
+          car2DriverId,
+        },
+        forceRecalculate: true,
+      })
+
+      if (!reg.valid) {
+        setRegistrationErrors(reg.errors)
+        setIsSubmittingRegistration(false)
+        return
+      }
+
+      setRegistration(reg)
+      setRegistrationErrors([])
+      setShowRegistrationScreen(false)
+      setIsSubmittingRegistration(false)
+
+      // Carregar inventário e inicializar sessão
+      const pCar1 = reg.snapshot?.entriesByCar.playerCar1
+      const pCar2 = reg.snapshot?.entriesByCar.playerCar2
+      const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
+
+      const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+        seasonId: season.id,
+        round: currentRound,
+        driverIds,
+        primaryDriverIds: driverIds,
+      })
+      setTyreInventories(invs)
+
+      const stored = readStoredCompletedSessions(season.id, currentRound)
+      setCompletedSessions(stored)
+
+      const initialSessionId = resolveInitialRaceSession({
+        pipeline,
+        completedSessions: stored,
+      })
+      setSelectedSessionId(initialSessionId)
+
+      if (initialSessionId === 'tp1' || initialSessionId === 'tp2' || initialSessionId === 'tp3') {
+        initializePracticeSession(initialSessionId, reg, invs)
+      }
+
+      toast({
+        title: 'Inscrição Confirmada',
+        description: `Pilotos oficialmente homologados pela FIA para o ${gpInfo.name}.`,
+      })
+    } catch (err: any) {
+      setRegistrationErrors([err?.message || 'Falha ao processar inscrição formal do GP.'])
+      setIsSubmittingRegistration(false)
+    }
+  }
+
+  // Se a tela formal de inscrição do GP estiver ativa
+  if (showRegistrationScreen && team && season) {
+    return (
+      <div className="space-y-6 pb-12">
+        <PageHeader
+          title="INSCRIÇÃO OFICIAL DO GP"
+          description={`Homologação formal de pilotos FIA para a Rodada ${currentRound} de 24 — ${gpInfo.name}`}
+        />
+        <GPRegistrationScreen
+          round={currentRound}
+          totalRounds={24}
+          gpName={gpInfo.name}
+          circuitName={gpInfo.circuit}
+          team={team}
+          allDrivers={playerDrivers}
+          onConfirmRegistration={handleConfirmGPRegistration}
+          onCancel={() => setShowRegistrationScreen(false)}
+          isSubmitting={isSubmittingRegistration}
+        />
+      </div>
+    )
+  }
+
   if (registrationErrors.length > 0) {
     return (
       <div className="p-6 max-w-4xl mx-auto space-y-4">
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 space-y-2">
-          <div className="flex items-center gap-2 font-black text-sm">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
-            PENDÊNCIA REGULAMENTAR DE INSCRIÇÃO FIA (EVENTO BLOQUEADO)
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-3">
+          <div className="flex items-center gap-2 font-black text-sm text-[#0F172A]">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            PENDÊNCIA DE INSCRIÇÃO FORMAL FIA
           </div>
-          <ul className="list-disc pl-5 text-xs space-y-1">
+          <p className="text-xs text-[#475569]">
+            A inscrição dos pilotos da equipe para este Grande Prêmio precisa de resolução ou
+            seleção de substituto elegível:
+          </p>
+          <ul className="list-disc pl-5 text-xs space-y-1 font-semibold text-rose-700">
             {registrationErrors.map((err, i) => (
               <li key={i}>{err}</li>
             ))}
           </ul>
         </div>
-        <Button asChild variant="outline" className="text-xs">
-          <Link to="/race">Voltar ao painel anterior</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            onClick={() => {
+              setRegistrationErrors([])
+              setShowRegistrationScreen(true)
+            }}
+            className="text-xs font-black bg-[#E10600] hover:bg-[#C00400] text-white gap-2 shadow-xs"
+          >
+            <UserCheck className="w-4 h-4" />
+            SELECIONAR PILOTOS PARA O GP
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="text-xs font-bold border-[#CBD5E1] text-[#0F172A]"
+          >
+            <Link to="/race">Voltar ao painel anterior</Link>
+          </Button>
+        </div>
       </div>
     )
   }

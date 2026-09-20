@@ -292,9 +292,13 @@ export const f1Service = {
         sort: '-speed',
         expand: 'team_id,reserve_team_id',
       })
-      // Enriquecimento seguro com fallback canônico de homologação
+      // Enriquecimento seguro com fallback canônico de homologação e normalização F1 titular
       return records.map((d) => {
-        if (!d.license_status) {
+        if (d.role === 'titular' && d.category === 'f1') {
+          d.license_status = 'nivel_a'
+          d.homologation_status = 'elegivel'
+          d.superlicense_points = Math.max(d.superlicense_points ?? 0, 40)
+        } else if (!d.license_status) {
           const view = canonicalHomologationAdapter.toCanonicalView(d)
           d.license_status = view.licenseStatus
           d.seat_security = d.seat_security ?? view.seatSecurity
@@ -314,9 +318,13 @@ export const f1Service = {
         filter: `team_id = "${teamId}" || reserve_team_id = "${teamId}"`,
         sort: 'name',
       })
-      // Enriquecimento seguro com fallback canônico de homologação
+      // Enriquecimento seguro com fallback canônico de homologação e normalização F1 titular
       return records.map((d) => {
-        if (!d.license_status) {
+        if (d.role === 'titular' && d.category === 'f1') {
+          d.license_status = 'nivel_a'
+          d.homologation_status = 'elegivel'
+          d.superlicense_points = Math.max(d.superlicense_points ?? 0, 40)
+        } else if (!d.license_status) {
           const view = canonicalHomologationAdapter.toCanonicalView(d)
           d.license_status = view.licenseStatus
           d.seat_security = d.seat_security ?? view.seatSecurity

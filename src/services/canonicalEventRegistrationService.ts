@@ -86,6 +86,67 @@ export class CanonicalEventRegistrationService {
   }
 
   /**
+   * Valida as inscrições e elegibilidade dos dois carros da equipe do jogador.
+   */
+  public validateRegistrationEntries(params: {
+    car1Driver: DriverModel | Partial<DriverModel> | null
+    car2Driver: DriverModel | Partial<DriverModel> | null
+    playerTeam: TeamModel
+  }): { valid: boolean; errors: string[] } {
+    const { car1Driver, car2Driver, playerTeam } = params
+    const errors: string[] = []
+
+    if (!car1Driver) {
+      errors.push('Carro 1 da equipe do jogador não possui piloto escalado.')
+    } else {
+      const isCar1Incapacitated = Boolean(
+        car1Driver.is_incapacitated || (car1Driver.incapacitated_rounds_left ?? 0) > 0,
+      )
+      if (isCar1Incapacitated) {
+        errors.push(
+          `Piloto ${car1Driver.name} no Carro 1 está indisponível (${car1Driver.incapacitated_reason || 'médico/suspenso'}).`,
+        )
+      }
+      const view1 = canonicalHomologationAdapter.toCanonicalView(car1Driver as DriverModel)
+      if (view1.licenseStatus !== 'nivel_a' && !view1.isEligibleForF1Seat) {
+        errors.push(
+          `Piloto ${car1Driver.name} no Carro 1 não possui Licença A / Superlicença FIA válida para disputar o GP.`,
+        )
+      }
+    }
+
+    if (!car2Driver) {
+      errors.push('Carro 2 da equipe do jogador não possui piloto escalado.')
+    } else {
+      const isCar2Incapacitated = Boolean(
+        car2Driver.is_incapacitated || (car2Driver.incapacitated_rounds_left ?? 0) > 0,
+      )
+      if (isCar2Incapacitated) {
+        errors.push(
+          `Piloto ${car2Driver.name} no Carro 2 está indisponível (${car2Driver.incapacitated_reason || 'médico/suspenso'}).`,
+        )
+      }
+      const view2 = canonicalHomologationAdapter.toCanonicalView(car2Driver as DriverModel)
+      if (view2.licenseStatus !== 'nivel_a' && !view2.isEligibleForF1Seat) {
+        errors.push(
+          `Piloto ${car2Driver.name} no Carro 2 não possui Licença A / Superlicença FIA válida para disputar o GP.`,
+        )
+      }
+    }
+
+    if (car1Driver && car2Driver && car1Driver.id === car2Driver.id) {
+      errors.push(
+        `O mesmo piloto (${car1Driver.name}) não pode ser inscrito em ambos os carros da equipe.`,
+      )
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    }
+  }
+
+  /**
    * Lê o snapshot de inscrições já confirmado e persistido para a rodada.
    */
   public readRegistrationSnapshot(
@@ -189,6 +250,14 @@ export class CanonicalEventRegistrationService {
     if (!car1Driver) {
       errors.push('Carro 1 da equipe do jogador não possui piloto escalado.')
     } else {
+      const isCar1Incapacitated = Boolean(
+        car1Driver.is_incapacitated || (car1Driver.incapacitated_rounds_left ?? 0) > 0,
+      )
+      if (isCar1Incapacitated) {
+        errors.push(
+          `Piloto ${car1Driver.name} no Carro 1 está indisponível (${car1Driver.incapacitated_reason || 'médico/suspenso'}).`,
+        )
+      }
       const view1 = canonicalHomologationAdapter.toCanonicalView(car1Driver)
       if (view1.licenseStatus !== 'nivel_a' && !view1.isEligibleForF1Seat) {
         errors.push(
@@ -200,6 +269,14 @@ export class CanonicalEventRegistrationService {
     if (!car2Driver) {
       errors.push('Carro 2 da equipe do jogador não possui piloto escalado.')
     } else {
+      const isCar2Incapacitated = Boolean(
+        car2Driver.is_incapacitated || (car2Driver.incapacitated_rounds_left ?? 0) > 0,
+      )
+      if (isCar2Incapacitated) {
+        errors.push(
+          `Piloto ${car2Driver.name} no Carro 2 está indisponível (${car2Driver.incapacitated_reason || 'médico/suspenso'}).`,
+        )
+      }
       const view2 = canonicalHomologationAdapter.toCanonicalView(car2Driver)
       if (view2.licenseStatus !== 'nivel_a' && !view2.isEligibleForF1Seat) {
         errors.push(
@@ -330,7 +407,7 @@ export class CanonicalEventRegistrationService {
         'car1',
         1,
         {
-          id: `${rival.key}_d1`,
+          id: (rival.driver1 as any).id || `${rival.key}_d1`,
           name: rival.driver1.name,
           number: (rival.driver1 as any).number || 10,
           license_status: 'nivel_a',
@@ -348,7 +425,7 @@ export class CanonicalEventRegistrationService {
         'car2',
         2,
         {
-          id: `${rival.key}_d2`,
+          id: (rival.driver2 as any).id || `${rival.key}_d2`,
           name: rival.driver2.name,
           number: (rival.driver2 as any).number || 11,
           license_status: 'nivel_a',

@@ -299,8 +299,15 @@ export const canonicalHomologationAdapter = {
 
     let licenseStatus: CanonicalLicenseStatus
 
-    // Prioridade 1: Sistema NOVO
-    if (
+    // Normalização canônica de piloto titular oficial de F1:
+    // Pilotos com vínculo canônico titular de equipe F1 2026 (role === 'titular' e category === 'f1')
+    // possuem sempre Licença A / Superlicença plena por regulamento FIA.
+    const isCanonicalF1Titular = driver.role === 'titular' && driver.category === 'f1'
+
+    // Prioridade 1: Titular oficial F1 canônico garante Superlicença FIA A
+    if (isCanonicalF1Titular) {
+      licenseStatus = 'nivel_a'
+    } else if (
       driver.license_status &&
       ['nivel_a', 'nivel_b', 'nivel_c'].includes(driver.license_status)
     ) {
