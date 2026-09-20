@@ -238,35 +238,26 @@ export default function RaceSlimWrapper() {
       )}
 
       {/* Banner Principal de Acesso: NOVA EXPERIÊNCIA DE FIM DE SEMANA (FW2.1) */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gradient-to-r from-cyan-950/80 via-slate-900 to-slate-900 border border-cyan-500/40 text-white rounded-xl text-xs gap-3 shadow-lg">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="font-black text-sm text-cyan-300 uppercase tracking-wide">
-              NOVA EXPERIÊNCIA DE FIM DE SEMANA — BETA (FW2.1)
-            </span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-              VERSÃO ATUAL ABAIXO
-            </span>
-          </div>
-          <p className="text-slate-300 text-xs">
-            Fluxo paralelo de sessões (TL1 operacional completo, inscrição de 24 pilotos, 2 assentos
-            por equipe, alocação de 20 jogos de pneus persistente, controles
-            Play/Pause/+1m/+5m/Simular restante e reacerto na garagem).
-          </p>
+      {/* Aviso discreto de redirecionamento para o módulo oficial CORRIDA */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-2.5 bg-white border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs gap-3 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#E10600]" />
+          <span className="text-xs text-[#475569]">
+            O novo fluxo está disponível na aba <strong className="text-[#0F172A]">CORRIDA</strong>.
+          </span>
         </div>
         <Button
           asChild
           size="sm"
-          className="h-9 px-4 text-xs font-black bg-cyan-400 hover:bg-cyan-300 text-slate-950 shrink-0 shadow-md gap-1.5"
+          variant="outline"
+          className="h-7 px-3 text-xs font-bold border-[#E2E8F0] text-[#0F172A] hover:bg-slate-50 shrink-0 gap-1.5"
         >
-          <Link to="/weekend-v2">
-            <ExternalLink className="w-4 h-4" />
-            [NOVA EXPERIÊNCIA]
+          <Link to="/corrida">
+            <ExternalLink className="w-3.5 h-3.5" />
+            Acessar Corrida
           </Link>
         </Button>
       </div>
-
       {/* Acesso rápido temporário para a nova página funcional com Guard Canônico WEEKEND-01A */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 text-white rounded-lg text-xs">
         <div className="flex items-center gap-2">

@@ -1,202 +1,223 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
+import { useUnifiedSeason } from '@/hooks/use-unified-season'
+import { useAuth } from '@/contexts/AuthContext'
+import { PageHeader } from '@/components/PageHeader'
+import { RaceHeroCompact } from '@/components/race/RaceHeroCompact'
+import { RaceWeekendPipelineBar } from '@/components/race/RaceWeekendPipelineBar'
+import { SessionPlaceholderCard } from '@/components/race/SessionPlaceholderCard'
 import {
   Play,
   Pause,
   FastForward,
-  RotateCcw,
   Clock,
-  ArrowLeft,
-  Sparkles,
-  Layers,
   Wrench,
-  CheckCircle2,
   AlertTriangle,
-  Flag,
-  Calendar,
-  CloudRain,
-  Sun,
+  RotateCcw,
+  Sparkles,
+  Users2,
   ShieldCheck,
-  Disc,
 } from 'lucide-react'
-import { useUnifiedSeason } from '@/hooks/use-unified-season'
-import { f1Service } from '@/services/f1Service'
-import { F1_2026_CALENDAR } from '@/lib/f1-data'
-import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
-import {
-  hasSprintWeekend,
-  getCanonicalWeekendSchedule,
-  readStoredCompletedSessions,
-  writeStoredCompletedSessions,
-  type CanonicalWeekendSession,
-} from '@/services/weekendProgressionService'
-import {
-  canonicalEventRegistrationService,
-  type EventRegistrationSnapshot,
-  type EventDriverEntrySnapshot,
-} from '@/services/canonicalEventRegistrationService'
+
+// Serviços canônicos da F1 2026
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { practiceSessionService } from '@/services/practiceSessionService'
+import { PracticeSessionRunner } from '@/services/canonicalPracticeRunner'
 import {
   CanonicalPracticeV2Runner,
   type AdvanceStepResult,
 } from '@/services/canonicalPracticeV2Runner'
-import { PracticeSessionRunner } from '@/services/canonicalPracticeRunner'
-import type {
-  PracticeSessionRecordState,
-  PracticeCarLiveState,
-  PracticeRadioFeedEvent,
-} from '@/types/practice-session'
-import type { TireSetItem } from '@/types/f1'
-import { PracticeLeaderboardTable } from '@/components/race/PracticeLeaderboardTable'
+import {
+  canonicalEventRegistrationService,
+  type RegistrationValidationResult,
+} from '@/services/canonicalEventRegistrationService'
+import {
+  readStoredCompletedSessions,
+  writeStoredCompletedSessions,
+  hasSprintWeekend,
+} from '@/services/weekendProgressionService'
+import {
+  getRaceWeekendPipeline,
+  resolveInitialRaceSession,
+  CANONICAL_SESSION_DEFINITIONS,
+  type RaceWeekendSessionId,
+  type WeekendSessionDefinition,
+} from '@/services/weekendScheduleConfig'
+import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
+
+// Subcomponentes operacionais
 import { PracticeCarCockpitCard } from '@/components/race/PracticeCarCockpitCard'
-import { CarSetupModal } from '@/components/race/CarSetupModal'
 import { TyreInventoryPanel } from '@/components/race/TyreInventoryPanel'
-import { toast } from '@/hooks/use-toast'
+import { PracticeLeaderboardTable } from '@/components/race/PracticeLeaderboardTable'
+import { CarSetupModal } from '@/components/race/CarSetupModal'
+import type { PracticeSessionRecordState, PracticeCarLiveState } from '@/types/practice-session'
+import type { PracticeSessionType } from '@/services/practiceSessionService'
+import type { TireSetItem } from '@/types/f1'
 
 export default function WeekendV2Page() {
-  const navigate = useNavigate()
-  const { team, season, loading: isAuthLoading } = useUnifiedSeason()
+  const { user, team, season, isLoading: isAuthLoading } = useAuth()
+  const { currentRound } = useUnifiedSeason()
+  const { toast } = useToast()
 
-  const currentRound = season?.current_round || 1
-  const gpInfo =
-    F1_2026_CALENDAR[Math.min(currentRound - 1, F1_2026_CALENDAR.length - 1)] || F1_2026_CALENDAR[0]
-  const circuitProfile = resolveCircuitProfile({ round: currentRound })
-  const isSprint = useMemo(() => hasSprintWeekend(currentRound), [currentRound])
-
-  // Esteira de sessões
-  const schedule: CanonicalWeekendSession[] = useMemo(() => {
-    return getCanonicalWeekendSchedule(currentRound)
+  // 1. Definição do Grande Prêmio atual
+  const gpInfo = useMemo(() => {
+    const calendarItem = F1_2026_CALENDAR.find((c) => c.round === currentRound)
+    return (
+      calendarItem || {
+        round: currentRound || 1,
+        name: 'Grande Prêmio de Abertura',
+        circuit: 'Circuito Internacional',
+        country: 'Bahrain',
+        laps: 57,
+        circuitLengthKm: 5.412,
+      }
+    )
   }, [currentRound])
 
-  // Estado das inscrições do evento
-  const [registration, setRegistration] = useState<EventRegistrationSnapshot | null>(null)
+  const circuitProfile = useMemo(() => {
+    try {
+      return resolveCircuitProfile({ round: currentRound })
+    } catch {
+      return null
+    }
+  }, [currentRound])
+
+  const isSprint = useMemo(() => hasSprintWeekend(currentRound), [currentRound])
+
+  // Esteira canônica do fim de semana (TL1 -> TL2 -> Q1 -> Q2 -> Q3 -> CORRIDA)
+  // TL3 está tecnicamente preservado e pode ser habilitado via config `includePractice3`
+  const pipeline = useMemo(() => {
+    return getRaceWeekendPipeline({
+      format: isSprint ? 'sprint' : 'standard',
+      includePractice3: false,
+    })
+  }, [isSprint])
+
+  // 2. Estados principais da página CORRIDA
+  const [registration, setRegistration] = useState<RegistrationValidationResult | null>(null)
   const [registrationErrors, setRegistrationErrors] = useState<string[]>([])
   const [isInitializingRegistration, setIsInitializingRegistration] = useState(true)
 
-  // Estado do TL1
-  const [sessionState, setSessionState] = useState<PracticeSessionRecordState | null>(null)
-  const [selectedSpeed, setSelectedSpeed] = useState<1 | 2 | 4>(1)
-  const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
-  const autoAdvanceIntervalRef = useRef<any>(null)
-
-  // Modais de Reacerto
-  const [setupModalCarId, setSetupModalCarId] = useState<'car1' | 'car2' | null>(null)
-
-  // Visualização de Pneus
-  const [activeTyresCarId, setActiveTyresCarId] = useState<'car1' | 'car2'>('car1')
-
-  // Inventário de Pneus persistente
+  // Inventário de pneus persistente (20 jogos por piloto)
   const [tyreInventories, setTyreInventories] = useState<Record<string, TireSetItem[]>>({})
 
-  // Sessão atualmente selecionada/ativa na esteira do fim de semana
-  const [activeSessionType, setActiveSessionType] = useState<CanonicalWeekendSession>('tp1')
-  // Sessões oficialmente concluídas lidas do armazenamento canônico
+  // Sessões concluídas salvas no armazenamento
   const [completedSessions, setCompletedSessions] = useState<string[]>([])
 
-  // Função para sincronizar as sessões concluídas do backend/localStorage
-  const refreshCompletedSessions = useCallback(() => {
+  // Sessão atualmente selecionada na esteira
+  const [selectedSessionId, setSelectedSessionId] = useState<RaceWeekendSessionId>('tp1')
+
+  // Estado em memória e no storage da sessão de treino em andamento
+  const [sessionState, setSessionState] = useState<PracticeSessionRecordState | null>(null)
+
+  // Controles de execução da sessão
+  const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
+  const [selectedSpeed, setSelectedSpeed] = useState<1 | 2 | 4>(1)
+  const autoAdvanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Modais de garagem
+  const [setupModalCarId, setSetupModalCarId] = useState<'car1' | 'car2' | null>(null)
+  const [activeTyresCarId, setActiveTyresCarId] = useState<'car1' | 'car2'>('car1')
+
+  // Helper para atualizar lista de concluídas
+  const refreshCompletedSessions = (): string[] => {
     if (!season?.id) return []
     const stored = readStoredCompletedSessions(season.id, currentRound)
     setCompletedSessions(stored)
     return stored
-  }, [season?.id, currentRound])
+  }
 
-  // 1. Inicializar inscrições canônicas (exatamente 2 assentos por equipe, 12 equipes, 24 pilotos)
+  // 3. Inicialização e Inscrição Canônica FIA (24 pilotos, 2 carros por equipe)
   useEffect(() => {
-    if (!team || !season) return
+    if (isAuthLoading || !team || !season) return
 
     let isMounted = true
     setIsInitializingRegistration(true)
 
-    f1Service
-      .getDrivers()
-      .then((allDrivers) => {
-        if (!isMounted) return
+    try {
+      // 3.1. Validar elegibilidade e snapshot canônico de 2 carros
+      const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
+        seasonId: season.id,
+        round: currentRound,
+        playerTeamId: team.id,
+      })
 
-        const regRes = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
+      if (!reg.eligible) {
+        if (isMounted) {
+          setRegistrationErrors(reg.errors)
+          setIsInitializingRegistration(false)
+        }
+        return
+      }
+
+      if (isMounted) {
+        setRegistration(reg)
+        setRegistrationErrors([])
+
+        // 3.2. Carregar inventário persistente de pneus do evento (20 jogos por piloto)
+        const pCar1 = reg.entriesByCar.playerCar1
+        const pCar2 = reg.entriesByCar.playerCar2
+        const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
+
+        const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
           seasonId: season.id,
           round: currentRound,
-          gpName: gpInfo.name,
-          playerTeam: team,
-          allDrivers,
-          forceRecalculate: false,
+          driverIds,
+          primaryDriverIds: driverIds,
         })
+        setTyreInventories(invs)
 
-        if (!regRes.valid) {
-          setRegistrationErrors(regRes.errors)
-        } else if (regRes.snapshot) {
-          setRegistration(regRes.snapshot)
-          setRegistrationErrors([])
+        // 3.3. Carregar sessões concluídas
+        const stored = readStoredCompletedSessions(season.id, currentRound)
+        setCompletedSessions(stored)
 
-          // Carregar ou gerar inventário de pneus para os 2 pilotos do jogador (mesmo inventário para o fim de semana inteiro)
-          const pCar1 = regRes.snapshot.entriesByCar.playerCar1
-          const pCar2 = regRes.snapshot.entriesByCar.playerCar2
-          const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
+        // 3.4. Determinar sessão canônica inicial
+        const initialSessionId = resolveInitialRaceSession({
+          pipeline,
+          completedSessions: stored,
+        })
+        setSelectedSessionId(initialSessionId)
 
-          const inventories = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
-            seasonId: season.id,
-            round: currentRound,
-            driverIds,
-            primaryDriverIds: driverIds,
-          })
-          setTyreInventories(inventories)
-
-          const stored = readStoredCompletedSessions(season.id, currentRound)
-          setCompletedSessions(stored)
-
-          // Determinar qual sessão inicializar com base no progresso canônico
-          let targetSession: CanonicalWeekendSession = 'tp1'
-          if (stored.includes('tp1')) {
-            if (stored.includes('tp2')) {
-              targetSession = isSprint ? 'sprint_qualifying' : 'tp3'
-            } else {
-              targetSession = 'tp2'
-            }
-          }
-
-          // Se a sessão for de Treino Livre (TL1, TL2 ou TL3)
-          if (['tp1', 'tp2', 'tp3'].includes(targetSession)) {
-            setActiveSessionType(targetSession)
-            initializePracticeSession(
-              targetSession as 'tp1' | 'tp2' | 'tp3',
-              regRes.snapshot,
-              inventories,
-            )
-          } else {
-            setActiveSessionType(targetSession)
-          }
+        // 3.5. Se for sessão de treino (TL1/TL2/TL3), carregar ou inicializar
+        if (
+          initialSessionId === 'tp1' ||
+          initialSessionId === 'tp2' ||
+          initialSessionId === 'tp3'
+        ) {
+          initializePracticeSession(initialSessionId, reg, invs)
         }
-      })
-      .catch((err) => {
-        console.error('Erro ao carregar pilotos para inscrição:', err)
-        if (isMounted) {
-          setRegistrationErrors(['Falha ao carregar elenco oficial de pilotos.'])
-        }
-      })
-      .finally(() => {
-        if (isMounted) setIsInitializingRegistration(false)
-      })
+
+        setIsInitializingRegistration(false)
+      }
+    } catch (err: any) {
+      if (isMounted) {
+        setRegistrationErrors([err?.message || 'Falha ao inicializar inscrição do fim de semana.'])
+        setIsInitializingRegistration(false)
+      }
+    }
 
     return () => {
       isMounted = false
     }
-  }, [team?.id, season?.id, currentRound, isSprint])
+  }, [team?.id, season?.id, currentRound, isAuthLoading])
 
-  // 2. Inicializar ou retomar sessão de Treino Livre (TL1, TL2 ou TL3) com herança canônica
+  // 4. Inicializador de Sessão de Treino Livre (TL1/TL2/TL3)
   const initializePracticeSession = async (
-    targetType: 'tp1' | 'tp2' | 'tp3',
-    snapshot: EventRegistrationSnapshot,
-    inventories: Record<string, TireSetItem[]>,
+    targetType: PracticeSessionType,
+    currentReg?: RegistrationValidationResult | null,
+    currentInvs?: Record<string, TireSetItem[]>,
   ) => {
-    if (!team || !season) return
+    const reg = currentReg || registration
+    const inventories = currentInvs || tyreInventories
+    if (!team || !season || !reg) return
 
-    const pCar1 = snapshot.entriesByCar.playerCar1
-    const pCar2 = snapshot.entriesByCar.playerCar2
+    const pCar1 = reg.entriesByCar.playerCar1
+    const pCar2 = reg.entriesByCar.playerCar2
     if (!pCar1 || !pCar2) return
 
     // Buscar pneus disponíveis no mesmo inventário (20 jogos/piloto)
@@ -252,7 +273,7 @@ export default function WeekendV2Page() {
           },
         },
       ],
-      overallObjective: `Homologação e validação canônica de fim de semana (${targetType.toUpperCase()})`,
+      overallObjective: `Gestão e validação canônica da sessão ${targetType.toUpperCase()}`,
       confirmedAt: new Date().toISOString(),
     }
 
@@ -275,68 +296,65 @@ export default function WeekendV2Page() {
     })
 
     setSessionState(session)
-    setActiveSessionType(targetType)
+    setSelectedSessionId(targetType)
     setIsAutoAdvancing(false)
   }
 
-  // Mudar sessão na esteira
-  const handleSelectSessionFromSchedule = async (sess: CanonicalWeekendSession) => {
+  // 5. Selecionar Sessão na Esteira Canônica
+  const handleSelectSessionFromSchedule = async (sessDef: WeekendSessionDefinition) => {
     if (!registration || !team || !season) return
 
-    // Sessões de TL1, TL2 e TL3
-    if (sess === 'tp1' || sess === 'tp2' || sess === 'tp3') {
-      const stored = refreshCompletedSessions()
+    const sess = sessDef.id
+    const stored = refreshCompletedSessions()
 
-      // Verificar se pode abrir:
-      // TL1: sempre disponível
-      // TL2: requer TL1 concluído
-      // TL3: requer TL2 concluído (ou TL1 no sprint, embora sprint não tenha TL3)
-      if (sess === 'tp2' && !stored.includes('tp1')) {
-        toast({
-          variant: 'destructive',
-          title: 'Sessão Bloqueada',
-          description: 'Você precisa concluir o TL1 antes de iniciar o TL2.',
-        })
-        return
-      }
-      if (sess === 'tp3' && !stored.includes('tp2')) {
-        toast({
-          variant: 'destructive',
-          title: 'Sessão Bloqueada',
-          description: 'Você precisa concluir o TL2 antes de iniciar o TL3.',
-        })
-        return
-      }
-
-      // Parar auto-avanço da sessão anterior
-      setIsAutoAdvancing(false)
-      if (autoAdvanceIntervalRef.current) {
-        clearInterval(autoAdvanceIntervalRef.current)
-      }
-
-      // Recarregar inventário persistente atualizado
-      const pCar1 = registration.entriesByCar.playerCar1
-      const pCar2 = registration.entriesByCar.playerCar2
-      const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
-      const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
-        seasonId: season.id,
-        round: currentRound,
-        driverIds,
-        primaryDriverIds: driverIds,
+    // Validações canônicas de bloqueio:
+    if (sess === 'tp2' && !stored.includes('tp1')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o TL1 antes de iniciar o TL2.',
       })
-      setTyreInventories(invs)
+      return
+    }
 
+    if (sess === 'tp3' && !stored.includes('tp2')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o TL2 antes de iniciar o TL3.',
+      })
+      return
+    }
+
+    // Parar avanço automático anterior
+    setIsAutoAdvancing(false)
+    if (autoAdvanceIntervalRef.current) {
+      clearInterval(autoAdvanceIntervalRef.current)
+    }
+
+    // Atualizar inventário de pneus para o contexto
+    const pCar1 = registration.entriesByCar.playerCar1
+    const pCar2 = registration.entriesByCar.playerCar2
+    const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
+    const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+      seasonId: season.id,
+      round: currentRound,
+      driverIds,
+      primaryDriverIds: driverIds,
+    })
+    setTyreInventories(invs)
+
+    // Se for TL1, TL2 ou TL3: carrega/resume o runner de treino
+    if (sess === 'tp1' || sess === 'tp2' || sess === 'tp3') {
       await initializePracticeSession(sess, registration, invs)
     } else {
-      toast({
-        title: 'Sessão Bloqueada',
-        description:
-          'Qualificação e Corrida estarão disponíveis nas próximas etapas (FW2.1D e FW2.1E).',
-      })
+      // Q1, Q2, Q3, CORRIDA: seleciona a etapa para renderizar seu placeholder funcional
+      setSelectedSessionId(sess)
+      setSessionState(null)
     }
   }
 
-  // Contexto para o runner
+  // 6. Contexto de simulação do runner (sempre os 2 pilotos reais escalados)
   const runnerContext = useMemo(() => {
     if (!team || !registration) return null
 
@@ -377,7 +395,7 @@ export default function WeekendV2Page() {
     }
   }, [team, registration, currentRound, gpInfo, circuitProfile])
 
-  // Controles do Treino Livre: PLAY / PAUSE
+  // 7. Controles de Play / Pause do Treino Livre
   const handleTogglePlay = () => {
     if (!sessionState) return
     const stored = refreshCompletedSessions()
@@ -389,6 +407,7 @@ export default function WeekendV2Page() {
       })
       return
     }
+
     if (isAutoAdvancing) {
       setIsAutoAdvancing(false)
       sessionState.status = 'paused'
@@ -400,7 +419,7 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Loop de execução contínua quando Play está ativo
+  // Loop contínuo quando Play ativo
   useEffect(() => {
     if (!isAutoAdvancing || !sessionState || !runnerContext) {
       if (autoAdvanceIntervalRef.current) {
@@ -420,7 +439,7 @@ export default function WeekendV2Page() {
         const deltaSec = 2 * selectedSpeed
         const res = PracticeSessionRunner.tick(prev, deltaSec, runnerContext)
 
-        // Sincronizar pneus
+        // Sincronizar pneus consumidos
         res.lapsCompletedThisTick.forEach((lapItem) => {
           const car = res.nextState.cars[lapItem.carId]
           if (car.currentTyreSetId) {
@@ -435,7 +454,7 @@ export default function WeekendV2Page() {
           }
         })
 
-        // Se ocorreu decisão obrigatória, interrompe
+        // Decisão obrigatória
         const decision = CanonicalPracticeV2Runner.checkMandatoryDecisionEvent(
           prev,
           res.nextState,
@@ -454,7 +473,6 @@ export default function WeekendV2Page() {
         if (res.nextState.status === 'completed') {
           setIsAutoAdvancing(false)
           const targetTypeUpper = res.nextState.sessionType.toUpperCase()
-          // Atualizar sessões concluídas
           if (season?.id) {
             const currentStored = readStoredCompletedSessions(season.id, currentRound)
             if (!currentStored.includes(res.nextState.sessionType)) {
@@ -504,7 +522,7 @@ export default function WeekendV2Page() {
 
     setSessionState(res.nextState)
 
-    // Atualizar inventário de pneus na tela
+    // Atualizar pneus na tela
     if (season?.id) {
       const refreshed = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
         seasonId: season.id,
@@ -605,7 +623,7 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Reacerto de Carro
+  // Reacerto de Carro na garagem
   const handleApplyCarSetup = (carId: 'car1' | 'car2', newSetup: PracticeCarLiveState['setup']) => {
     if (!sessionState) return
     const ok = PracticeSessionRunner.updateCarGarageSetup(sessionState, carId, newSetup)
@@ -625,7 +643,7 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Troca de Jogo de Pneus na Garagem
+  // Troca de Pneus na Garagem
   const handleSelectTyreSet = (carId: 'car1' | 'car2', tyreSetId: string) => {
     if (!sessionState) return
     const car = sessionState.cars[carId]
@@ -646,7 +664,6 @@ export default function WeekendV2Page() {
     car.currentCompound = selectedSet.compound
     car.tyreWear = selectedSet.wear || 0
 
-    // Atualizar status isFitted no armazenamento
     const updatedInventory: TireSetItem[] = driverInventory.map((s) => ({
       ...s,
       isFitted: s.id === tyreSetId,
@@ -679,7 +696,7 @@ export default function WeekendV2Page() {
     })
   }
 
-  // Formatação do timer da sessão
+  // Formatação de cronômetro
   const formatSessionTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -688,21 +705,19 @@ export default function WeekendV2Page() {
 
   if (isAuthLoading || isInitializingRegistration) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] font-mono text-white space-y-4">
-        <div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm font-bold text-slate-400">
-          Carregando Nova Experiência de Fim de Semana (FW2.1)...
-        </p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <div className="w-10 h-10 border-4 border-[#E10600] border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm font-bold text-[#64748B]">Carregando módulo oficial de Corrida...</p>
       </div>
     )
   }
 
   if (registrationErrors.length > 0) {
     return (
-      <div className="p-6 max-w-4xl mx-auto font-mono text-white space-y-4">
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 space-y-2">
+      <div className="p-6 max-w-4xl mx-auto space-y-4">
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 space-y-2">
           <div className="flex items-center gap-2 font-black text-sm">
-            <AlertTriangle className="w-5 h-5 text-red-400" />
+            <AlertTriangle className="w-5 h-5 text-red-600" />
             PENDÊNCIA REGULAMENTAR DE INSCRIÇÃO FIA (EVENTO BLOQUEADO)
           </div>
           <ul className="list-disc pl-5 text-xs space-y-1">
@@ -711,11 +726,8 @@ export default function WeekendV2Page() {
             ))}
           </ul>
         </div>
-        <Button asChild variant="outline" className="border-slate-700 text-xs">
-          <Link to="/race">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar ao painel atual
-          </Link>
+        <Button asChild variant="outline" className="text-xs">
+          <Link to="/race">Voltar ao painel anterior</Link>
         </Button>
       </div>
     )
@@ -726,404 +738,332 @@ export default function WeekendV2Page() {
   const activeCarForTyres = activeTyresCarId === 'car1' ? pCar1 : pCar2
   const activeTyresList = activeCarForTyres ? tyreInventories[activeCarForTyres.driverId] || [] : []
 
+  // Sessão atual selecionada na esteira
+  const selectedSessionDef =
+    pipeline.find((s) => s.id === selectedSessionId) ||
+    CANONICAL_SESSION_DEFINITIONS[selectedSessionId] ||
+    pipeline[0]
+
+  const isPlayablePracticeSession =
+    selectedSessionDef.id === 'tp1' ||
+    selectedSessionDef.id === 'tp2' ||
+    selectedSessionDef.id === 'tp3'
+
   return (
-    <div className="space-y-6 font-mono text-white pb-12">
-      {/* 1. BARRA SUPERIOR DE HOMOLOGAÇÃO & NAVEGAÇÃO COMPARATIVA */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[#090D15] border border-[#1A2333] shadow-lg">
-        <div className="flex items-center gap-3">
-          <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-400/40 text-xs font-black uppercase px-2.5 py-1">
-            NOVA EXPERIÊNCIA — BETA (FW2.1)
-          </Badge>
-          <span className="text-xs text-slate-400 hidden md:inline">
-            Fluxo paralelo homologado. Dados canônicos compartilhados com a carreira.
-          </span>
-        </div>
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-bold h-8"
-        >
-          <Link to="/race">
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-            Voltar ao painel atual
-          </Link>
-        </Button>
-      </div>
+    <div className="space-y-6 pb-12">
+      {/* 1. CABEÇALHO PADRÃO APEX GP MANAGER */}
+      <PageHeader
+        title="CORRIDA"
+        description="Gestão completa do fim de semana de Grande Prêmio: treinos, classificação e corrida."
+      />
 
-      {/* 2. TOPO DO GP (CIRCUITO, METEOROLOGIA, EXTENSÃO E FORMATO) */}
-      <div className="p-5 rounded-2xl bg-[#090D15]/90 border border-[#1F2733] shadow-xl space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1A2333] pb-4">
-          <div className="space-y-1">
+      {/* 2. HERO COMPACTO DO GP ATUAL */}
+      <RaceHeroCompact
+        round={currentRound}
+        totalRounds={24}
+        gpName={gpInfo.name}
+        circuitName={gpInfo.circuit}
+        country={gpInfo.country}
+        circuitProfile={circuitProfile}
+        isSprint={isSprint}
+        dateRange={
+          circuitProfile ? `${circuitProfile.startDate} — ${circuitProfile.endDate}` : undefined
+        }
+        currentCondition="Pista Seca / 28°C"
+        weatherForecast="Estável (Risco de chuva < 15%)"
+        laps={gpInfo.laps || 53}
+        circuitLengthKm={gpInfo.circuitLengthKm || 5.8}
+      />
+
+      {/* 3. CONTEXTO DOS DOIS CARROS INSCRITOS */}
+      {pCar1 && pCar2 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs text-xs">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="font-bold text-[#64748B] uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+              <Users2 className="w-4 h-4 text-[#E10600]" />
+              Pilotos Inscritos ({team?.name}):
+            </span>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-cyan-400 uppercase tracking-widest">
-                RODADA {currentRound} DE 24
-              </span>
-              <Badge className="bg-[#141B26] text-slate-300 border-[#222E42] text-[10px] font-bold">
-                {isSprint ? 'FORMATO SPRINT' : 'GP PADRÃO'}
+              <Badge className="bg-[#0F172A] text-white hover:bg-[#0F172A] text-[10px] font-black">
+                CARRO 1
               </Badge>
+              <strong className="text-[#0F172A]">{pCar1.driverName}</strong>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-white uppercase">
-              {gpInfo.name}
-            </h1>
-            <p className="text-xs text-slate-400 flex items-center gap-1.5">
-              <span>{gpInfo.circuit}</span>
-              <span>•</span>
-              <span>{gpInfo.country}</span>
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="p-2.5 rounded-xl bg-[#0B1019] border border-[#162030]">
-              <span className="text-[10px] text-slate-500 block">Condição da Pista</span>
-              <div className="flex items-center gap-1.5 font-bold text-emerald-400 mt-0.5">
-                <Sun className="w-3.5 h-3.5" />
-                Seco / 28°C
-              </div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#0B1019] border border-[#162030]">
-              <span className="text-[10px] text-slate-500 block">Extensão</span>
-              <span className="font-bold text-white mt-0.5 block">
-                {gpInfo.circuitLengthKm || 5.8} km
-              </span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#0B1019] border border-[#162030]">
-              <span className="text-[10px] text-slate-500 block">Voltas Previstas</span>
-              <span className="font-bold text-white mt-0.5 block">{gpInfo.laps || 53} voltas</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#0B1019] border border-[#162030]">
-              <span className="text-[10px] text-slate-500 block">Inscrições FIA</span>
-              <div className="flex items-center gap-1 font-bold text-cyan-400 mt-0.5">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                24 Pilotos (12 Eq.)
-              </div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-[#0F172A] text-white hover:bg-[#0F172A] text-[10px] font-black">
+                CARRO 2
+              </Badge>
+              <strong className="text-[#0F172A]">{pCar2.driverName}</strong>
             </div>
           </div>
-        </div>
 
-        {/* 3. ESTEIRA DO FIM DE SEMANA (PROGRESSÃO OFICIAL FIA) */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="font-bold uppercase tracking-wider text-[11px] text-slate-300">
-              Cronograma Oficial do Evento
-            </span>
-            <span className="text-[10px]">
-              Etapa ativa:{' '}
-              <strong className="text-cyan-400 font-black">
-                {activeSessionType === 'tp1'
-                  ? 'TL1 (TREINO LIVRE 1)'
-                  : activeSessionType === 'tp2'
-                    ? 'TL2 (TREINO LIVRE 2)'
-                    : activeSessionType === 'tp3'
-                      ? 'TL3 (TREINO LIVRE 3)'
-                      : activeSessionType.toUpperCase()}
-              </strong>
+          <div className="flex items-center gap-2 text-[#64748B]">
+            <ShieldCheck className="w-4 h-4 text-[#059669]" />
+            <span>
+              Inventário FIA Compartilhado: <strong>20 jogos/piloto</strong>
             </span>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-7 gap-2">
-            {schedule.map((sess, idx) => {
-              const isCurrentActive = sess === activeSessionType
-              const isCompleted =
-                completedSessions.includes(sess) ||
-                (isCurrentActive && sessionState?.status === 'completed')
-
-              // Determinar se está bloqueado ou disponível
-              let isLocked = false
-              if (sess === 'tp2') {
-                isLocked = !completedSessions.includes('tp1') && activeSessionType !== 'tp1'
-              } else if (sess === 'tp3') {
-                isLocked = !completedSessions.includes('tp2') && activeSessionType !== 'tp2'
-              } else if (sess !== 'tp1') {
-                isLocked = true
-              }
-
-              const isAvailable = !isLocked && !isCompleted && !isCurrentActive
-
-              const labelMap: Record<string, string> = {
-                tp1: 'TL1',
-                tp2: 'TL2',
-                tp3: 'TL3',
-                sprint_qualifying: 'Quali Sprint',
-                sprint_race: 'Sprint',
-                qualifying: 'Classificação',
-                race: 'Corrida',
-              }
-
-              const isClickable = ['tp1', 'tp2', 'tp3'].includes(sess) && (!isLocked || isCompleted)
-
-              return (
-                <button
-                  key={sess}
-                  type="button"
-                  disabled={isLocked}
-                  onClick={() => handleSelectSessionFromSchedule(sess)}
-                  className={`p-2.5 rounded-xl border text-center transition-all ${
-                    isCurrentActive
-                      ? 'bg-cyan-950/40 border-cyan-500 ring-1 ring-cyan-500 text-cyan-300 font-black shadow-md cursor-pointer'
-                      : isCompleted
-                        ? 'bg-emerald-950/20 border-emerald-600/40 text-emerald-400 font-bold hover:bg-emerald-950/40 cursor-pointer'
-                        : isAvailable
-                          ? 'bg-[#101726] border-cyan-800/60 text-slate-200 font-bold hover:border-cyan-400 cursor-pointer'
-                          : 'bg-[#0B1019] border-[#182333] text-slate-500 opacity-60 cursor-not-allowed'
-                  }`}
-                >
-                  <div className="text-[10px] font-mono text-slate-400 uppercase">
-                    Etapa {idx + 1}
-                  </div>
-                  <div className="text-xs font-black mt-0.5">{labelMap[sess] || sess}</div>
-                  <div className="text-[9px] mt-1 font-bold">
-                    {isCurrentActive ? (
-                      sessionState?.status === 'completed' ? (
-                        <span className="text-emerald-400">CONCLUÍDO</span>
-                      ) : (
-                        <span className="text-cyan-400 animate-pulse">EM ANDAMENTO</span>
-                      )
-                    ) : isCompleted ? (
-                      <span className="text-emerald-400">CONCLUÍDO</span>
-                    ) : isAvailable ? (
-                      <span className="text-cyan-300">DISPONÍVEL</span>
-                    ) : (
-                      <span>BLOQUEADO</span>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
         </div>
-      </div>
+      )}
 
-      {/* 4. CONTROLES OPERACIONAIS DO TL & CRONÔMETRO */}
-      {sessionState && (
-        <Card className="p-4 bg-[#090D15]/90 border border-[#1F2733] rounded-2xl shadow-xl space-y-4 font-mono">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1A2333] pb-3">
-            {/* Relógio da sessão */}
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-                <Clock className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
-                  Tempo Restante — {sessionState.sessionType.toUpperCase()}
-                </span>
-                <div className="text-2xl sm:text-3xl font-black text-white tracking-wider flex items-center gap-2">
-                  <span>{formatSessionTime(sessionState.timeRemainingSec)} RESTANTES</span>
-                  <span className="text-xs text-slate-400 font-normal">
-                    / {formatSessionTime(sessionState.sessionDurationSec)}
-                  </span>
+      {/* 4. ESTEIRA PRINCIPAL DO FIM DE SEMANA */}
+      <RaceWeekendPipelineBar
+        sessions={pipeline}
+        selectedSessionId={selectedSessionId}
+        completedSessions={completedSessions}
+        isSessionRunning={isAutoAdvancing}
+        isSessionPaused={sessionState?.status === 'paused'}
+        onSelectSession={handleSelectSessionFromSchedule}
+      />
+
+      {/* 5. ÁREA DE CONTEÚDO ÚNICA: RENDERIZA SOMENTE A SESSÃO SELECIONADA */}
+      {isPlayablePracticeSession ? (
+        // RENDERIZAÇÃO DE TL1 / TL2 / TL3
+        sessionState ? (
+          <div className="space-y-6">
+            {/* CONTROLES OPERACIONAIS DO TREINO LIVRE */}
+            <Card className="p-4 bg-white border border-[#E2E8F0] rounded-2xl shadow-xs space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#F1F5F9] pb-3">
+                {/* Relógio da sessão */}
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-[#E10600]/10 border border-[#E10600]/20 text-[#E10600]">
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">
+                      Tempo Restante — {sessionState.sessionType.toUpperCase()}
+                    </span>
+                    <div className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight flex items-center gap-2">
+                      <span>{formatSessionTime(sessionState.timeRemainingSec)} RESTANTES</span>
+                      <span className="text-xs text-[#94A3B8] font-medium">
+                        / {formatSessionTime(sessionState.sessionDurationSec)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Controles: Play/Pause, Velocidades, +1m, +5m, Simular Restante */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Play / Pause */}
-              <Button
-                type="button"
-                disabled={sessionState.status === 'completed'}
-                onClick={handleTogglePlay}
-                className={`h-9 px-4 text-xs font-black gap-2 shadow-md ${
-                  isAutoAdvancing
-                    ? 'bg-amber-600 hover:bg-amber-500 text-black'
-                    : 'bg-[#00A6FB] hover:bg-[#0092DC] text-black'
-                }`}
-              >
-                {isAutoAdvancing ? (
-                  <>
-                    <Pause className="w-4 h-4 fill-current" />
-                    PAUSAR
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-current" />
-                    PLAY
-                  </>
-                )}
-              </Button>
-
-              {/* Multiplicadores 1x, 2x, 4x */}
-              <div className="flex items-center bg-[#0B1019] border border-[#182333] rounded-lg p-0.5">
-                {([1, 2, 4] as const).map((spd) => (
-                  <button
-                    key={spd}
+                {/* Controles de Play/Pause, Velocidades, +1m, +5m, Simular Restante */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
                     type="button"
-                    onClick={() => setSelectedSpeed(spd)}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${
-                      selectedSpeed === spd
-                        ? 'bg-cyan-500/30 text-cyan-300 font-black'
-                        : 'text-slate-400 hover:text-white'
+                    disabled={sessionState.status === 'completed'}
+                    onClick={handleTogglePlay}
+                    className={`h-9 px-4 text-xs font-black gap-2 shadow-xs ${
+                      isAutoAdvancing
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                        : 'bg-[#E10600] hover:bg-[#C00400] text-white'
                     }`}
                   >
-                    {spd}x
-                  </button>
-                ))}
+                    {isAutoAdvancing ? (
+                      <>
+                        <Pause className="w-4 h-4 fill-current" />
+                        PAUSAR
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-current" />
+                        PLAY
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Multiplicadores 1x, 2x, 4x */}
+                  <div className="flex items-center bg-[#F1F5F9] border border-[#E2E8F0] rounded-lg p-0.5">
+                    {([1, 2, 4] as const).map((spd) => (
+                      <button
+                        key={spd}
+                        type="button"
+                        onClick={() => setSelectedSpeed(spd)}
+                        className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${
+                          selectedSpeed === spd
+                            ? 'bg-white text-[#0F172A] shadow-xs font-black'
+                            : 'text-[#64748B] hover:text-[#0F172A]'
+                        }`}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* +1 MIN */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={sessionState.status === 'completed'}
+                    onClick={() => handleAdvanceStep(1)}
+                    className="h-9 px-3 text-xs font-bold border-[#CBD5E1] bg-white text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    +1 MIN
+                  </Button>
+
+                  {/* +5 MIN */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={sessionState.status === 'completed'}
+                    onClick={() => handleAdvanceStep(5)}
+                    className="h-9 px-3 text-xs font-bold border-[#CBD5E1] bg-white text-[#0F172A] hover:bg-[#F8FAFC]"
+                  >
+                    +5 MIN
+                  </Button>
+
+                  {/* SIMULAR RESTANTE */}
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={sessionState.status === 'completed'}
+                    onClick={handleSimulateRemaining}
+                    className="h-9 px-3.5 text-xs font-black bg-[#E10600] hover:bg-[#C00400] text-white shadow-xs gap-1.5"
+                  >
+                    <FastForward className="w-4 h-4" />
+                    SIMULAR RESTANTE ({sessionState.sessionType.toUpperCase()})
+                  </Button>
+                </div>
               </div>
 
-              {/* +1 MIN */}
-              <Button
-                type="button"
-                variant="outline"
-                disabled={sessionState.status === 'completed'}
-                onClick={() => handleAdvanceStep(1)}
-                className="h-9 px-3 text-xs font-bold border-slate-700 bg-[#0B1019] text-slate-200 hover:bg-slate-800"
-              >
-                +1 MIN
-              </Button>
+              {/* Ações de Reacerto na Garagem */}
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#64748B]">
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-[#334155]">Reacerto na Garagem:</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSetupModalCarId('car1')}
+                    className="h-7 text-[11px] font-bold border-[#CBD5E1] text-[#0F172A] hover:bg-slate-50 gap-1.5"
+                  >
+                    <Wrench className="w-3.5 h-3.5 text-[#E10600]" />
+                    Carro 1 ({pCar1?.driverName})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSetupModalCarId('car2')}
+                    className="h-7 text-[11px] font-bold border-[#CBD5E1] text-[#0F172A] hover:bg-slate-50 gap-1.5"
+                  >
+                    <Wrench className="w-3.5 h-3.5 text-[#E10600]" />
+                    Carro 2 ({pCar2?.driverName})
+                  </Button>
+                </div>
 
-              {/* +5 MIN */}
-              <Button
-                type="button"
-                variant="outline"
-                disabled={sessionState.status === 'completed'}
-                onClick={() => handleAdvanceStep(5)}
-                className="h-9 px-3 text-xs font-bold border-slate-700 bg-[#0B1019] text-slate-200 hover:bg-slate-800"
-              >
-                +5 MIN
-              </Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#64748B]">Estoque de Pneus:</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTyresCarId('car1')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                      activeTyresCarId === 'car1'
+                        ? 'bg-[#E10600] text-white'
+                        : 'text-[#64748B] hover:text-[#0F172A]'
+                    }`}
+                  >
+                    Carro 1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTyresCarId('car2')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                      activeTyresCarId === 'car2'
+                        ? 'bg-[#E10600] text-white'
+                        : 'text-[#64748B] hover:text-[#0F172A]'
+                    }`}
+                  >
+                    Carro 2
+                  </button>
+                </div>
+              </div>
+            </Card>
 
-              {/* SIMULAR RESTANTE DO TL */}
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={sessionState.status === 'completed'}
-                onClick={handleSimulateRemaining}
-                className="h-9 px-3.5 text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md gap-1.5"
-              >
-                <FastForward className="w-4 h-4" />
-                SIMULAR RESTANTE ({sessionState.sessionType.toUpperCase()})
-              </Button>
-            </div>
-          </div>
+            {/* CARDS DOS DOIS CARROS (CARRO 1 E CARRO 2) */}
+            {pCar1 && pCar2 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <PracticeCarCockpitCard
+                  car={sessionState.cars.car1}
+                  carNumber={1}
+                  teamColor={team?.color || '#E10600'}
+                  knowledge={sessionState.knowledge}
+                  latestFeedback={
+                    sessionState.feedbacks?.filter((f) => f.carId === 'car1').slice(-1)[0]
+                  }
+                  hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car1')}
+                  isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
+                  isSessionCompleted={sessionState.status === 'completed'}
+                  onOrderExitTrack={() => handleOrderExit('car1')}
+                  onRequestBox={() => handleRequestBox('car1')}
+                  onMarkFeedbackRead={() => {
+                    sessionState.unreadFeedbackCarIds = (
+                      sessionState.unreadFeedbackCarIds || []
+                    ).filter((id) => id !== 'car1')
+                    setSessionState({ ...sessionState })
+                  }}
+                />
 
-          {/* Estado dos Carros do Jogador & Ações de Reacerto */}
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
-            <div className="flex items-center gap-3">
-              <span className="font-bold text-slate-300">Ações Rápidas de Garagem:</span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setSetupModalCarId('car1')}
-                className="h-7 text-[11px] font-bold border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/40 gap-1.5"
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                Reacertar Carro 1 ({pCar1?.driverName})
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setSetupModalCarId('car2')}
-                className="h-7 text-[11px] font-bold border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/40 gap-1.5"
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                Reacertar Carro 2 ({pCar2?.driverName})
-              </Button>
-            </div>
+                <PracticeCarCockpitCard
+                  car={sessionState.cars.car2}
+                  carNumber={2}
+                  teamColor={team?.color || '#E10600'}
+                  knowledge={sessionState.knowledge}
+                  latestFeedback={
+                    sessionState.feedbacks?.filter((f) => f.carId === 'car2').slice(-1)[0]
+                  }
+                  hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car2')}
+                  isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
+                  isSessionCompleted={sessionState.status === 'completed'}
+                  onOrderExitTrack={() => handleOrderExit('car2')}
+                  onRequestBox={() => handleRequestBox('car2')}
+                  onMarkFeedbackRead={() => {
+                    sessionState.unreadFeedbackCarIds = (
+                      sessionState.unreadFeedbackCarIds || []
+                    ).filter((id) => id !== 'car2')
+                    setSessionState({ ...sessionState })
+                  }}
+                />
+              </div>
+            )}
 
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400">Ver Estoque:</span>
-              <button
-                type="button"
-                onClick={() => setActiveTyresCarId('car1')}
-                className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                  activeTyresCarId === 'car1'
-                    ? 'bg-cyan-500/30 text-cyan-300'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Carro 1
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTyresCarId('car2')}
-                className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                  activeTyresCarId === 'car2'
-                    ? 'bg-cyan-500/30 text-cyan-300'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Carro 2
-              </button>
-            </div>
-          </div>
-        </Card>
-      )}
+            {/* ESTOQUE DE PNEUS DO FIM DE SEMANA */}
+            {activeCarForTyres && (
+              <TyreInventoryPanel
+                carNumber={activeTyresCarId === 'car1' ? 1 : 2}
+                driverName={activeCarForTyres.driverName}
+                driverId={activeCarForTyres.driverId}
+                tyres={activeTyresList}
+                currentTyreSetId={sessionState.cars[activeTyresCarId].currentTyreSetId}
+                isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
+                isCarInGarage={sessionState.cars[activeTyresCarId].status === 'garage'}
+                onSelectTyreSet={(setId) => handleSelectTyreSet(activeTyresCarId, setId)}
+              />
+            )}
 
-      {/* 5. OPERAÇÃO DOS DOIS CARROS (CARRO 1 E CARRO 2) */}
-      {sessionState && pCar1 && pCar2 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* CARRO 1 */}
-          <div className="space-y-2">
-            <PracticeCarCockpitCard
-              car={sessionState.cars.car1}
-              carNumber={1}
-              teamColor={team?.color || '#00A6FB'}
-              knowledge={sessionState.knowledge}
-              latestFeedback={
-                sessionState.feedbacks?.filter((f) => f.carId === 'car1').slice(-1)[0]
-              }
-              hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car1')}
-              isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
-              isSessionCompleted={sessionState.status === 'completed'}
-              onOrderExitTrack={() => handleOrderExit('car1')}
-              onRequestBox={() => handleRequestBox('car1')}
-              onMarkFeedbackRead={() => {
-                sessionState.unreadFeedbackCarIds = (
-                  sessionState.unreadFeedbackCarIds || []
-                ).filter((id) => id !== 'car1')
-                setSessionState({ ...sessionState })
-              }}
+            {/* TABELA DE TEMPOS OFICIAL DO TREINO LIVRE */}
+            <PracticeLeaderboardTable
+              entries={sessionState.leaderboard}
+              playerTeamName={team?.name}
+              playerTeamColor={team?.color}
             />
           </div>
-
-          {/* CARRO 2 */}
-          <div className="space-y-2">
-            <PracticeCarCockpitCard
-              car={sessionState.cars.car2}
-              carNumber={2}
-              teamColor={team?.color || '#00A6FB'}
-              knowledge={sessionState.knowledge}
-              latestFeedback={
-                sessionState.feedbacks?.filter((f) => f.carId === 'car2').slice(-1)[0]
-              }
-              hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car2')}
-              isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
-              isSessionCompleted={sessionState.status === 'completed'}
-              onOrderExitTrack={() => handleOrderExit('car2')}
-              onRequestBox={() => handleRequestBox('car2')}
-              onMarkFeedbackRead={() => {
-                sessionState.unreadFeedbackCarIds = (
-                  sessionState.unreadFeedbackCarIds || []
-                ).filter((id) => id !== 'car2')
-                setSessionState({ ...sessionState })
-              }}
-            />
+        ) : (
+          <div className="flex flex-col items-center justify-center min-h-[30vh] space-y-3">
+            <div className="w-8 h-8 border-4 border-[#E10600] border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs font-bold text-[#64748B]">Carregando sessão...</p>
           </div>
-        </div>
-      )}
-
-      {/* 6. ESTOQUE DE PNEUS DO FIM DE SEMANA (CANONICAL 20 JOGOS) */}
-      {activeCarForTyres && sessionState && (
-        <TyreInventoryPanel
-          carNumber={activeTyresCarId === 'car1' ? 1 : 2}
-          driverName={activeCarForTyres.driverName}
-          driverId={activeCarForTyres.driverId}
-          tyres={activeTyresList}
-          currentTyreSetId={sessionState.cars[activeTyresCarId].currentTyreSetId}
-          isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
-          isCarInGarage={sessionState.cars[activeTyresCarId].status === 'garage'}
-          onSelectTyreSet={(setId) => handleSelectTyreSet(activeTyresCarId, setId)}
-        />
-      )}
-
-      {/* 7. TABELA DE TEMPOS OFICIAL DO TREINO LIVRE (24 PILOTOS) */}
-      {sessionState && (
-        <PracticeLeaderboardTable
-          entries={sessionState.leaderboard}
-          playerTeamName={team?.name}
-          playerTeamColor={team?.color}
+        )
+      ) : (
+        // RENDERIZAÇÃO DOS PLACEHOLDERS FUNCIONAIS (Q1, Q2, Q3, CORRIDA)
+        // Sem fluxos fake, sem botões que executam coisas inexistentes
+        <SessionPlaceholderCard
+          session={selectedSessionDef}
+          isLocked={
+            selectedSessionDef.id === 'race'
+              ? !completedSessions.includes('q3') && !completedSessions.includes('qualifying')
+              : selectedSessionDef.id === 'q1'
+                ? !completedSessions.includes('tp2')
+                : !completedSessions.includes(selectedSessionDef.id)
+          }
+          isPendingDevelopment={
+            selectedSessionDef.category === 'qualifying' && completedSessions.includes('tp2')
+          }
         />
       )}
 

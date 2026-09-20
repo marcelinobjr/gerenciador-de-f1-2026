@@ -61,7 +61,11 @@ export default function Layout() {
     navigate('/auth', { replace: true })
   }
 
-  const isFullWidthPage = location.pathname === '/' || location.pathname === '/race'
+  const isFullWidthPage =
+    location.pathname === '/' ||
+    location.pathname === '/race' ||
+    location.pathname === '/corrida' ||
+    location.pathname === '/weekend-v2'
   const teamName = team?.name || 'Audi F1 Team'
   const seasonYear = season?.year || 2026
 

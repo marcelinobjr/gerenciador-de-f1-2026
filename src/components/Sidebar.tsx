@@ -20,6 +20,7 @@ import {
   Info,
   Map,
   ShieldAlert,
+  Gauge,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -93,6 +94,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
   {
     title: 'COMPETIÇÃO',
     items: [
+      { name: 'CORRIDA', path: '/corrida', icon: Gauge },
       { name: 'Fim de Semana', path: '/race', icon: Flag },
       { name: 'Campeonato', path: '/standings', icon: Trophy },
       { name: 'Equipes', path: '/paddock', icon: Users },
@@ -112,6 +114,8 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/pistas': 'Circuitos da Temporada',
   '/infraestrutura': 'Infraestrutura & Instalações',
   '/sponsors': 'Comercial & Finanças',
+  '/corrida': 'CORRIDA',
+  '/weekend-v2': 'CORRIDA',
   '/race': 'Fim de Semana',
   '/calendario': 'Calendário Oficial',
   '/standings': 'Campeonato Mundial',
