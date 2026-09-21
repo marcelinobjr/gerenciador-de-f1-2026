@@ -33,6 +33,8 @@ interface CanonicalRaceInitializationPanelProps {
   onSetPaceMode?: (driverId: string, mode: DriverPaceMode) => void
   onSetTargetCompound?: (driverId: string, compound: TireCompound) => void
   onManualSave?: () => void
+  onOfficializeRace?: () => void
+  hasOfficialResult?: boolean
 }
 
 export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializationPanelProps> = ({
@@ -46,6 +48,8 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   onSetPaceMode,
   onSetTargetCompound,
   onManualSave,
+  onOfficializeRace,
+  hasOfficialResult = false,
 }) => {
   const [isSimulating, setIsSimulating] = useState(false)
   const leaderDriver =
@@ -194,13 +198,31 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
               </Button>
             )}
 
+            {isFinished && onOfficializeRace && !hasOfficialResult && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onOfficializeRace}
+                className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black gap-1.5 h-9 px-3.5 shadow-md"
+              >
+                <Trophy className="w-3.5 h-3.5 fill-current" />
+                Oficializar Resultado
+              </Button>
+            )}
+
             {onResetRace && (
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
                 onClick={onResetRace}
-                className="text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-medium gap-1 h-9 px-2"
+                disabled={hasOfficialResult}
+                title={
+                  hasOfficialResult
+                    ? 'A corrida já foi oficializada. Reiniciar está bloqueado.'
+                    : 'Reiniciar a prova a partir do grid oficial'
+                }
+                className="text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-medium gap-1 h-9 px-2 disabled:opacity-40"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Reiniciar

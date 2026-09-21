@@ -349,7 +349,8 @@ export class CanonicalRaceSaveService {
         }
       }
 
-      // Requisito 14: Corrida concluída (FINISHED) não pode ser retomada como corrida ativa
+      // Requisito 14 & FW2.1E-F: Corrida concluída (FINISHED) ou com resultado oficial
+      // não pode ser retomada como corrida ativa.
       const isFinished =
         state.status === 'completed' || state.raceControl?.currentFlag === 'FINISHED'
 
@@ -365,16 +366,39 @@ export class CanonicalRaceSaveService {
 
   /**
    * Remove o snapshot salvo (Requisito 13: Reiniciar Corrida descarta save).
+   * FW2.1E-F (Requisito 18): Se a corrida já possui resultado oficial, NÃO permitir
+   * que seja reiniciada silenciosamente ou que seu save seja descartado.
    */
-  public clearCanonicalRaceState(careerId: string, season: number, round: number): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
+  public clearCanonicalRaceState(
+    careerId: string,
+    season: number,
+    round: number,
+    options?: { force?: boolean },
+  ): { success: boolean; blockedReason?: string } {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return { success: false, blockedReason: 'localStorage indisponível' }
+    }
+
+    // FW2.1E-F Requisito 18: Verificar se existe OfficialRaceResult
+    const officialResultKey = `${CANONICAL_RACE_STORAGE_PREFIX_V2.replace('_canonical_race_v2', '_canonical_official_result')}_${careerId}_s${season}_r${round}`
+    const hasOfficialResult = !!window.localStorage.getItem(officialResultKey)
+
+    if (hasOfficialResult && !options?.force) {
+      const blockedMsg =
+        'A corrida já possui Resultado Oficial homologado. Não é permitido reiniciar a prova para não corromper o histórico da temporada.'
+      console.warn('[CanonicalRaceSaveService]', blockedMsg)
+      return { success: false, blockedReason: blockedMsg }
+    }
+
     try {
       const keyV2 = this.buildStorageKey(careerId, season, round)
       const keyLegacy = this.buildLegacyStorageKey(careerId, season, round)
       window.localStorage.removeItem(keyV2)
       window.localStorage.removeItem(keyLegacy)
-    } catch (e) {
+      return { success: true }
+    } catch (e: any) {
       console.warn('[CanonicalRaceSaveService] Falha ao limpar snapshot:', e)
+      return { success: false, blockedReason: e?.message }
     }
   }
 

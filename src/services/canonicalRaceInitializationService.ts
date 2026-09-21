@@ -270,7 +270,11 @@ export const canonicalRaceInitializationService = {
   /**
    * Remove o estado persistido (ex: ao reiniciar a corrida).
    */
-  clearCanonicalRaceState(careerId: string, season: number, round: number): void {
-    canonicalRaceSaveService.clearCanonicalRaceState(careerId, season, round)
+  clearCanonicalRaceState(
+    careerId: string,
+    season: number,
+    round: number,
+  ): { success: boolean; blockedReason?: string } {
+    return canonicalRaceSaveService.clearCanonicalRaceState(careerId, season, round)
   },
 }

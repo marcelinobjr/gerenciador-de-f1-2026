@@ -290,3 +290,95 @@ export interface InitializeCanonicalRaceParams {
   weather?: TrackWeatherState
   initialFuelKg?: number
 }
+
+/**
+ * FW2.1E-F — OFFICIAL RACE RESULT: TIPOS E CONTRATOS IMUTÁVEIS
+ */
+
+export const OFFICIAL_RACE_RESULT_SCHEMA_VERSION = 'official-race-result-v1' as const
+export type OfficialRaceResultSchemaVersion = typeof OFFICIAL_RACE_RESULT_SCHEMA_VERSION
+
+/**
+ * Entrada individual e imutável de classificação oficial por piloto (P1 a P24).
+ */
+export interface OfficialRaceResultEntry {
+  driverId: string
+  teamId: string
+  driverName: string
+  teamName: string
+  teamColor: string
+  isPlayer: boolean
+  carId?: 'car1' | 'car2'
+  carSlot?: 'car1' | 'car2'
+  gridPosition: number
+  finalPosition: number
+  positionsGainedLost: number
+  lapsCompleted: number
+  raceTime: number
+  raceTimeFormatted?: string
+  gapToWinner: string
+  gapToWinnerSec?: number
+  gapToFrontSec?: number
+  status: CanonicalDriverRaceStatus
+  dnf: boolean
+  dnfReason?: string
+  dnfLap?: number
+  pitStops: number
+  bestLapSec?: number
+  bestLapFormatted?: string
+  bestLap?: string
+  fastestLap: boolean
+  tyreCompound?: TireCompound
+  pointsAwarded: number
+}
+
+/**
+ * Resumo auditável e imutável de eventos relevantes da prova.
+ */
+export interface OfficialRaceEventSummary {
+  safetyCarPeriods: number
+  safetyCarLaps: number
+  vscPeriods: number
+  vscLaps: number
+  redFlagPeriods: number
+  dnfCount: number
+  totalPitStops: number
+  significantIncidents: Array<{
+    lap: number
+    type: 'dnf' | 'safety_car' | 'vsc' | 'red_flag' | 'fastest_lap' | 'info'
+    message: string
+    driverId?: string
+    timestamp: string
+  }>
+}
+
+/**
+ * Snapshot completo e imutável do desfecho da corrida (FW2.1E-F).
+ * Chave lógica única: careerId + season + raceId.
+ */
+export interface OfficialRaceResult {
+  officialResultId: string
+  schemaVersion: OfficialRaceResultSchemaVersion
+  careerId: string
+  season: number
+  round: number
+  raceId: string
+  circuitId: string
+  circuitName: string
+  circuitCountry: string
+  playerTeamId: string
+  officializedAt: string
+  totalLaps: number
+  winnerDriverId: string
+  winnerTeamId: string
+  poleDriverId: string
+  fastestLapDriverId?: string
+  fastestLapSec?: number
+  fastestLapFormatted?: string
+  fastestLapNumber?: number
+  podium: [string, string, string] // [P1, P2, P3] driverIds
+  entries: OfficialRaceResultEntry[]
+  playerEntries: [OfficialRaceResultEntry, OfficialRaceResultEntry] // Os dois carros do jogador isolados
+  eventsSummary: OfficialRaceEventSummary
+  resultHash: string
+}

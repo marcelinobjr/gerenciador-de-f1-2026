@@ -75,10 +75,12 @@ import { QualifyingCarCockpitCard } from '@/components/race/QualifyingCarCockpit
 import { QualifyingLeaderboardTable } from '@/components/race/QualifyingLeaderboardTable'
 import { CompleteQualifyingGridSummary } from '@/components/race/CompleteQualifyingGridSummary'
 import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
+import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPanel'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { raceStrategyService } from '@/services/raceStrategyService'
-import type { CanonicalRaceState } from '@/types/canonical-race-v2'
+import type { CanonicalRaceState, OfficialRaceResult } from '@/types/canonical-race-v2'
 import {
   CanonicalQualifyingRunner,
   type QualifyingDriverContext,
@@ -159,7 +161,7 @@ export default function WeekendV2Page() {
   const [completeQualifyingResult, setCompleteQualifyingResult] =
     useState<CompleteQualifyingWeekendResult | null>(null)
   const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
-
+  const [officialRaceResult, setOfficialRaceResult] = useState<OfficialRaceResult | null>(null)
   // Controles de execução da sessão
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
   const [selectedSpeed, setSelectedSpeed] = useState<1 | 2 | 4>(1)
@@ -522,6 +524,16 @@ export default function WeekendV2Page() {
           currentRound,
         )
         setCanonicalRaceState(savedRace)
+
+        // FW2.1E-F: Verificar resultado oficial
+        const official = canonicalRaceResultService.getOfficialRaceResult(
+          team.id,
+          season.year || 2026,
+          currentRound,
+        )
+        if (official) {
+          setOfficialRaceResult(official)
+        }
       }
     }
   }
@@ -672,6 +684,15 @@ export default function WeekendV2Page() {
         currentRound,
       )
       setCompleteQualifyingResult(fullGrid)
+      // Carregar resultado oficial caso já tenha sido homologado
+      const official = canonicalRaceResultService.getOfficialRaceResult(
+        team.id,
+        season.year || 2026,
+        currentRound,
+      )
+      if (official) {
+        setOfficialRaceResult(official)
+      }
     }
   }
 
@@ -2355,11 +2376,33 @@ export default function WeekendV2Page() {
           </div>
         )
       ) : isRaceSession && completeQualifyingResult ? (
-        // RENDERIZAÇÃO DA CORRIDA V2 (FW2.1E-A: ESTADO CANÔNICO OU GRID OFICIAL)
-        canonicalRaceState ? (
+        // RENDERIZAÇÃO DA CORRIDA V2 (FW2.1E-A / FW2.1E-F: ESTADO CANÔNICO OU RESULTADO OFICIAL)
+        officialRaceResult ? (
+          <div className="space-y-4">
+            <OfficialRaceResultPanel result={officialRaceResult} />
+          </div>
+        ) : canonicalRaceState ? (
           <CanonicalRaceInitializationPanel
             raceState={canonicalRaceState}
+            hasOfficialResult={!!officialRaceResult}
             onResetGrid={() => setCanonicalRaceState(null)}
+            onOfficializeRace={() => {
+              try {
+                const official = canonicalRaceResultService.officializeRace(canonicalRaceState)
+                setOfficialRaceResult(official)
+                toast({
+                  title: 'Corrida Oficializada com Sucesso',
+                  description:
+                    'O resultado oficial imutável foi homologado e arquivado para a temporada.',
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao oficializar corrida',
+                  description: e?.message || 'A prova ainda não pode ser oficializada.',
+                })
+              }
+            }}
             onRequestPit={(driverId, compound) => {
               try {
                 const nextState = raceStrategyService.requestPitStop(
@@ -2478,12 +2521,37 @@ export default function WeekendV2Page() {
             onResetRace={() => {
               try {
                 if (!completeQualifyingResult || !team?.id || !season?.id) return
+                // FW2.1E-F Requisito 18: Se já foi oficializada, bloquear reinício
+                if (
+                  canonicalRaceResultService.hasOfficialRaceResult(
+                    team.id,
+                    season.year || 2026,
+                    currentRound,
+                  )
+                ) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Ação Bloqueada',
+                    description:
+                      'Esta corrida já foi oficializada e homologada. O histórico da temporada é imutável.',
+                  })
+                  return
+                }
+
                 // Descartar save da corrida atual (Requisito 13)
-                canonicalRaceInitializationService.clearCanonicalRaceState(
+                const clearRes = canonicalRaceInitializationService.clearCanonicalRaceState(
                   team.id,
                   season.year || 2026,
                   currentRound,
                 )
+                if (!clearRes.success) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Não é possível reiniciar',
+                    description: clearRes.blockedReason,
+                  })
+                  return
+                }
                 const freshRace =
                   canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
                     careerId: team.id,
