@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -103,6 +103,7 @@ import type { PracticeSessionType } from '@/types/practice-preparation'
 import type { TireSetItem } from '@/types/f1'
 
 export default function WeekendV2Page() {
+  const navigate = useNavigate()
   const { user, team, season, isLoading: isAuthLoading } = useAuth()
   const { currentRound, playerDrivers } = useUnifiedSeason()
   const { toast } = useToast()
@@ -2437,6 +2438,13 @@ export default function WeekendV2Page() {
                     description: e?.message || 'Falha ao aplicar resultado na carreira.',
                   })
                 }
+              }}
+              onViewChampionship={() => {
+                navigate('/classificacao')
+              }}
+              onContinue={() => {
+                // Navega ao calendário ou dashboard ao concluir o fim de semana
+                navigate('/calendario')
               }}
             />
           </div>
