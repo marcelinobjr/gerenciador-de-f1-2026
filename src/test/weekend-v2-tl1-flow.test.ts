@@ -1850,5 +1850,107 @@ describe('NOVA EXPERIÊNCIA DE FIM DE SEMANA — TESTES N1 A N23 (FW2.1)', () =>
       expect(record?.timestamp).toBeDefined()
       expect(record?.creditKey).toBe(`rookie_fp1_credit_${seasonId}_${round}_${teamId}_${carId}`)
     })
+
+    // 7. Ausência de novato elegível (PENDING_NO_ELIGIBLE_ROOKIE): não quebra, sem piloto fantasma, sem crédito espúrio
+    it('Ausência de novato elegível: gera estado canônico PENDING_NO_ELIGIBLE_ROOKIE sem piloto fictício e sem concessão espúria', () => {
+      const seasonId = 'season_no_rookie_available'
+      const rivalTeams = [
+        { id: 'rival_solitary', name: 'Solitary Racing Team', team_key: 'solitary' } as any,
+      ]
+      // Nenhum candidato no catálogo inteiro
+      const emptyDrivers: any[] = []
+
+      const schedules = RookiePracticeRequirementService.getOrGenerateRivalAISchedules(
+        seasonId,
+        rivalTeams,
+        emptyDrivers,
+      )
+
+      const plan = schedules['rival_solitary']
+      expect(plan).toBeDefined()
+      expect(plan.car1RookieDriverId).toBe('PENDING_NO_ELIGIBLE_ROOKIE')
+      expect(plan.car2RookieDriverId).toBe('PENDING_NO_ELIGIBLE_ROOKIE')
+
+      // Simulação da rodada com PENDING_NO_ELIGIBLE_ROOKIE não concede crédito nem cria piloto fantasma
+      RookiePracticeRequirementService.simulateRivalAICreditsForRound(
+        seasonId,
+        plan.car1Rounds[0],
+        rivalTeams,
+        emptyDrivers,
+      )
+
+      const req = RookiePracticeRequirementService.getTeamRequirement(seasonId, 'rival_solitary')
+      expect(req.car1.completed).toBe(0)
+      expect(req.completedTotal).toBe(0)
+      expect(req.isCompliant).toBe(false)
+    })
+
+    // 8. Isolamento de temporada: chave por seasonId sem contaminação entre temporadas
+    it('Transição entre temporadas: cumprimento de créditos na Temporada A não contamina Temporada B', () => {
+      const seasonA = 'season_2026'
+      const seasonB = 'season_2027'
+      const teamId = 'team_apex_f1'
+
+      // Temporada A completa Carro 1 = 2/2
+      RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId: seasonA,
+        round: 3,
+        teamId,
+        carId: 'car1',
+        driverId: 'rookie_2026_a',
+        driverName: 'Rookie 2026 A',
+        lapsCompleted: 15,
+        isRookieEligible: true,
+      })
+      RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId: seasonA,
+        round: 12,
+        teamId,
+        carId: 'car1',
+        driverId: 'rookie_2026_b',
+        driverName: 'Rookie 2026 B',
+        lapsCompleted: 16,
+        isRookieEligible: true,
+      })
+
+      const reqA = RookiePracticeRequirementService.getTeamRequirement(seasonA, teamId)
+      expect(reqA.car1.completed).toBe(2)
+
+      // Temporada B começa limpa: Carro 1 = 0/2
+      const reqB = RookiePracticeRequirementService.getTeamRequirement(seasonB, teamId)
+      expect(reqB.car1.completed).toBe(0)
+      expect(reqB.car2.completed).toBe(0)
+      expect(reqB.completedTotal).toBe(0)
+      expect(reqB.remainingTotal).toBe(4)
+      expect(reqB.isCompliant).toBe(false)
+    })
+
+    // 9. Persistência real entre fins de semana distintos da mesma temporada
+    it('Persistência entre GPs da mesma temporada: GP 1 avança Carro 1 para 1/2; GP 2 mantém 1/2', () => {
+      const seasonId = 'season_gp_persistence'
+      const teamId = 'team_gp_persistence'
+
+      // GP 1 (rodada 1): Novato completa TL1 no Carro 1
+      const resGP1 = RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId,
+        round: 1,
+        teamId,
+        carId: 'car1',
+        driverId: 'rookie_gp1',
+        driverName: 'Rookie GP1',
+        lapsCompleted: 20,
+        isRookieEligible: true,
+      })
+      expect(resGP1.granted).toBe(true)
+
+      // "Recarregando" estado no GP 2 (rodada 2)
+      const reqGP2 = RookiePracticeRequirementService.getTeamRequirement(seasonId, teamId)
+      expect(reqGP2.car1.completed).toBe(1)
+      expect(reqGP2.car1.remaining).toBe(1)
+      expect(reqGP2.car1.completedRounds).toEqual([1])
+      expect(reqGP2.car1.participatingDriverIds).toEqual(['rookie_gp1'])
+      expect(reqGP2.car2.completed).toBe(0)
+      expect(reqGP2.completedTotal).toBe(1)
+    })
   })
 })
