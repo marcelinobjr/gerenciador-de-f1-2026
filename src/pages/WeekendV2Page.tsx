@@ -22,7 +22,15 @@ import {
   Users2,
   ShieldCheck,
   UserCheck,
+  CheckCircle2,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { GPRegistrationScreen } from '@/pages/race/GPRegistrationScreen'
 
 // Serviços canônicos da F1 2026
@@ -38,6 +46,7 @@ import { RookiePracticeRequirementService } from '@/services/rookiePracticeRequi
 import type { RookieTemporaryFP1Assignment, RookieEligibilityCheck } from '@/types/rookie-practice'
 import type { DriverModel } from '@/types/f1'
 import { f1Service } from '@/services/f1Service'
+import { MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
 import {
   canonicalEventRegistrationService,
   type RegistrationValidationResult,
@@ -150,9 +159,12 @@ export default function WeekendV2Page() {
   const [selectedSpeed, setSelectedSpeed] = useState<1 | 2 | 4>(1)
   const autoAdvanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Modais de garagem
+  // Modais de garagem e seleção direta de novato
   const [setupModalCarId, setSetupModalCarId] = useState<'car1' | 'car2' | null>(null)
   const [activeTyresCarId, setActiveTyresCarId] = useState<'car1' | 'car2'>('car1')
+  const [rookieSelectorModalCarId, setRookieSelectorModalCarId] = useState<'car1' | 'car2' | null>(
+    null,
+  )
 
   // Helper para atualizar lista de concluídas
   const refreshCompletedSessions = (): string[] => {
@@ -502,51 +514,35 @@ export default function WeekendV2Page() {
     reg: RegistrationValidationResult,
   ): QualifyingDriverContext[] => {
     if (!season?.id || !reg.snapshot) return []
-    const pCar1 = reg.snapshot.entriesByCar.playerCar1
-    const pCar2 = reg.snapshot.entriesByCar.playerCar2
     const allSnapshotEntries = reg.snapshot.entries || []
-    const rivalEntries = allSnapshotEntries.filter((e) => !e.isPlayerTeam)
+
+    // Constrói os participantes diretamente a partir das entradas canônicas do snapshot
+    // sem reinjetar ou duplicar pilotos do jogador.
+    const playerDriverIds = new Set(
+      [
+        reg.snapshot.entriesByCar?.playerCar1?.driverId,
+        reg.snapshot.entriesByCar?.playerCar2?.driverId,
+      ].filter(Boolean) as string[],
+    )
 
     const all24: QualifyingDriverContext[] = []
+    const seenDriverIds = new Set<string>()
 
-    if (pCar1) {
-      all24.push({
-        id: pCar1.driverId,
-        name: pCar1.driverName,
-        speed: 84,
-        consistency: 82,
-        defense: 80,
-        teamId: team?.id || 'player_team',
-        teamName: team?.name || 'Sua Equipe',
-        teamColor: team?.color || '#E10600',
-        carNumber: 1,
-      })
-    }
-    if (pCar2) {
-      all24.push({
-        id: pCar2.driverId,
-        name: pCar2.driverName,
-        speed: 82,
-        consistency: 81,
-        defense: 78,
-        teamId: team?.id || 'player_team',
-        teamName: team?.name || 'Sua Equipe',
-        teamColor: team?.color || '#E10600',
-        carNumber: 2,
-      })
-    }
+    allSnapshotEntries.forEach((e, idx) => {
+      if (!e.driverId || seenDriverIds.has(e.driverId)) return
+      seenDriverIds.add(e.driverId)
 
-    rivalEntries.forEach((r, idx) => {
+      const isPlayer = e.isPlayerTeam || playerDriverIds.has(e.driverId)
       all24.push({
-        id: r.driverId,
-        name: r.driverName,
-        speed: 78 + (idx % 8),
-        consistency: 79,
-        defense: 76,
-        teamId: r.teamId || `rival_${idx}`,
-        teamName: r.teamName || `Equipe ${idx + 1}`,
-        teamColor: r.teamColor || '#64748B',
-        carNumber: r.driverNumber || idx + 3,
+        id: e.driverId,
+        name: e.driverName,
+        speed: isPlayer ? (e.carId === 'car1' ? 84 : 82) : 78 + (idx % 8),
+        consistency: isPlayer ? (e.carId === 'car1' ? 82 : 81) : 79,
+        defense: isPlayer ? (e.carId === 'car1' ? 80 : 78) : 76,
+        teamId: isPlayer ? team?.id || e.teamId : e.teamId || `rival_${idx}`,
+        teamName: isPlayer ? team?.name || e.teamName : e.teamName || `Equipe ${idx + 1}`,
+        teamColor: isPlayer ? team?.color || e.teamColor || '#E10600' : e.teamColor || '#64748B',
+        carNumber: e.driverNumber || (isPlayer ? (e.carId === 'car1' ? 1 : 2) : idx + 3),
       })
     })
 
@@ -668,7 +664,9 @@ export default function WeekendV2Page() {
   const [activeRookieCar2, setActiveRookieCar2] = useState<RookieTemporaryFP1Assignment | null>(
     null,
   )
-  const [allDriversCatalog, setAllDriversCatalog] = useState<DriverModel[]>([])
+  const [allDriversCatalog, setAllDriversCatalog] = useState<DriverModel[]>(() => {
+    return (MBJ_2026_PILOTS as unknown as DriverModel[]) || []
+  })
 
   // Carregar catálogo de pilotos para o modal de novatos e assignments salvos
   useEffect(() => {
@@ -691,7 +689,7 @@ export default function WeekendV2Page() {
     f1Service
       .getMarketDrivers()
       .then((res) => {
-        if (Array.isArray(res)) {
+        if (Array.isArray(res) && res.length > 0) {
           setAllDriversCatalog(res)
         }
       })
@@ -845,7 +843,15 @@ export default function WeekendV2Page() {
     if (!runnerContext || !season?.id || !registration?.snapshot) return null
 
     const allSnapshotEntries = registration.snapshot.entries || []
-    const rivalEntries = allSnapshotEntries.filter((e) => !e.isPlayerTeam)
+    const playerDriverIds = new Set(
+      [
+        registration.snapshot.entriesByCar?.playerCar1?.driverId,
+        registration.snapshot.entriesByCar?.playerCar2?.driverId,
+      ].filter(Boolean) as string[],
+    )
+    const rivalEntries = allSnapshotEntries.filter(
+      (e) => !e.isPlayerTeam && !playerDriverIds.has(e.driverId),
+    )
     const rivalDrivers: QualifyingDriverContext[] = rivalEntries.map((r, idx) => ({
       id: r.driverId,
       name: r.driverName,
@@ -2051,6 +2057,9 @@ export default function WeekendV2Page() {
                   }}
                   isRookie={selectedSessionId === 'tp1' && !!activeRookieCar1}
                   originalDriverName={pCar1?.driverName}
+                  canToggleRookie={selectedSessionId === 'tp1'}
+                  onOpenRookieSelector={() => setRookieSelectorModalCarId('car1')}
+                  onRestoreTitular={() => handleClearRookieAssignment('car1')}
                 />
 
                 <PracticeCarCockpitCard
@@ -2074,6 +2083,9 @@ export default function WeekendV2Page() {
                   }}
                   isRookie={selectedSessionId === 'tp1' && !!activeRookieCar2}
                   originalDriverName={pCar2?.driverName}
+                  canToggleRookie={selectedSessionId === 'tp1'}
+                  onOpenRookieSelector={() => setRookieSelectorModalCarId('car2')}
+                  onRestoreTitular={() => handleClearRookieAssignment('car2')}
                 />
               </div>
             )}
@@ -2363,6 +2375,96 @@ export default function WeekendV2Page() {
           knowledge={sessionState.knowledge}
           onApplySetup={handleApplyCarSetup}
         />
+      )}
+
+      {/* MODAL DIRETO DE SELEÇÃO DE RESERVA NO COCKPIT (TL1) */}
+      {rookieSelectorModalCarId && (
+        <Dialog
+          open={!!rookieSelectorModalCarId}
+          onOpenChange={(open) => !open && setRookieSelectorModalCarId(null)}
+        >
+          <DialogContent className="max-w-xl bg-[#090D15] border border-[#1F2733] text-white">
+            <DialogHeader>
+              <DialogTitle className="text-base font-black text-white flex items-center gap-2">
+                <Users2 className="w-5 h-5 text-emerald-400" />
+                Escalar Piloto Reserva / Novato no TL1 —{' '}
+                {rookieSelectorModalCarId === 'car1' ? 'Carro 1' : 'Carro 2'}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-400">
+                Titular atual:{' '}
+                <strong className="text-white">
+                  {rookieSelectorModalCarId === 'car1'
+                    ? registration?.snapshot?.entriesByCar.playerCar1?.driverName
+                    : registration?.snapshot?.entriesByCar.playerCar2?.driverName}
+                </strong>
+                . A FIA exige pilotos com no máximo 2 Grandes Prêmios na carreira.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              {(() => {
+                const options = RookiePracticeRequirementService.getRosterRookieOptions(
+                  playerDrivers,
+                  allDriversCatalog,
+                  team?.id,
+                )
+                const targetOriginal =
+                  rookieSelectorModalCarId === 'car1'
+                    ? playerDrivers[0]
+                    : playerDrivers[1] || playerDrivers[0]
+
+                if (options.eligible.length === 0) {
+                  return (
+                    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-400">
+                      Nenhum novato elegível disponível no momento.
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Pilotos Elegíveis Disponíveis ({options.eligible.length})
+                    </p>
+                    {options.eligible.map((rk) => (
+                      <div
+                        key={rk.driverId}
+                        className="p-3 rounded-xl bg-[#0F172A] border border-slate-800 hover:border-emerald-500/50 transition-colors flex items-center justify-between gap-3"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-sm text-white">{rk.driverName}</span>
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px]">
+                              {rk.careerGPs} GP{rk.careerGPs === 1 ? '' : 's'}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-slate-400">
+                            {rk.role ? `Função: ${rk.role} • ` : ''}
+                            {rk.reason}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            if (targetOriginal) {
+                              handleAssignRookie(rookieSelectorModalCarId, rk, targetOriginal)
+                            }
+                            setRookieSelectorModalCarId(null)
+                          }}
+                          className="h-8 px-3 text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Escalar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

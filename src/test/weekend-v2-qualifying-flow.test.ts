@@ -657,6 +657,122 @@ describe('ETAPA FW2.1D: QUALIFICAÇÃO V2 (Q1, Q2, Q3) — TESTES OBRIGATÓRIOS'
       expect(mockPlayerCar1.driverName).toBe('Gabriel Bortoleto')
       expect(mockPlayerCar2.driverName).toBe('Nico Hulkenberg')
     })
+
+    it('BUG 1 REGRESSÃO: Com Audi como equipe humana (Hülkenberg + Bortoleto), o grid oficial P1–P24 não duplica pilotos nem posições', () => {
+      // Cria Q1 com 24 pilotos (incluindo Audi d1=Bortoleto, d2=Hülkenberg e rivais)
+      const eligible = create24Drivers()
+      const audiTeam = {
+        id: 'team_audi',
+        name: 'Audi Revolut F1 Team',
+        team_key: 'audi',
+        color: '#E10600',
+      }
+
+      // Simula resultado canônico de Q1 (24 pilotos, 18 avançam, 6 eliminados P19-P24)
+      const q1Entries = eligible.map((d, idx) => ({
+        position: idx + 1,
+        driverId: d.id,
+        driverName: d.name,
+        teamId: d.teamId,
+        teamName: d.teamName,
+        teamColor: d.teamColor,
+        isPlayer: d.id === 'drv_p1' || d.id === 'drv_p2',
+        bestLapSec: 88.0 + idx * 0.1,
+        bestLapTime: `1:28.${String(idx).padStart(3, '0')}`,
+        compound: 'macio' as const,
+        lapsCount: 6,
+        gapToLeaderSec: idx * 0.1,
+        gapToNextSec: 0.1,
+      }))
+      const q1Result: QualifyingStageResult = {
+        stageId: 'q1',
+        seasonId,
+        round,
+        completedAt: new Date().toISOString(),
+        entries: q1Entries,
+        advancingDriverIds: q1Entries.slice(0, 18).map((e) => e.driverId),
+        eliminatedDriverIds: q1Entries.slice(18, 24).map((e) => e.driverId),
+      }
+
+      // Q2: 18 pilotos (incluindo Audi Bortoleto e Hulkenberg), 10 avançam, 8 eliminados P11-P18
+      // Suponha Bortoleto P11 e Hulkenberg P12 eliminados no Q2 (cenário visto no bug report!)
+      const q2Entries = q1Entries.slice(0, 18).map((e, idx) => ({
+        ...e,
+        position: idx + 1,
+        bestLapSec: 87.0 + idx * 0.1,
+        bestLapTime: `1:27.${String(idx).padStart(3, '0')}`,
+      }))
+      const q2Result: QualifyingStageResult = {
+        stageId: 'q2',
+        seasonId,
+        round,
+        completedAt: new Date().toISOString(),
+        entries: q2Entries,
+        advancingDriverIds: q2Entries.slice(0, 10).map((e) => e.driverId),
+        eliminatedDriverIds: q2Entries.slice(10, 18).map((e) => e.driverId),
+      }
+
+      // Q3: 10 pilotos do top 10
+      const q3Entries = q2Entries.slice(0, 10).map((e, idx) => ({
+        ...e,
+        position: idx + 1,
+        bestLapSec: 86.0 + idx * 0.1,
+        bestLapTime: `1:26.${String(idx).padStart(3, '0')}`,
+      }))
+      const q3Result: QualifyingStageResult = {
+        stageId: 'q3',
+        seasonId,
+        round,
+        completedAt: new Date().toISOString(),
+        entries: q3Entries,
+        advancingDriverIds: [],
+        eliminatedDriverIds: [],
+      }
+
+      // Gera grid combinado oficial P1-P24
+      const combined = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+        seasonId,
+        round,
+        q1Result,
+        q2Result,
+        q3Result,
+      })
+
+      const grid = combined.finalGrid
+
+      // Asserções estritas exigidas:
+      // 1. Grid tem exatamente 24 carros
+      expect(grid.length).toBe(24)
+
+      // 2. new Set(position).size === 24
+      const positions = grid.map((e) => e.gridPosition)
+      expect(new Set(positions).size).toBe(24)
+      expect(positions).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
+
+      // 3. new Set(driverId).size === 24
+      const driverIds = grid.map((e) => e.driverId)
+      expect(new Set(driverIds).size).toBe(24)
+
+      // 4. Audi aparece exatamente 2 vezes no grid
+      const audiEntries = grid.filter((e) => e.teamId === 'audi' || e.teamName.includes('Audi'))
+      expect(audiEntries.length).toBe(2)
+
+      // 5. Gabriel Bortoleto exatamente 1 vez
+      const bortoletoEntries = grid.filter(
+        (e) => e.driverId === 'drv_p1' || e.driverName === 'Gabriel Bortoleto',
+      )
+      expect(bortoletoEntries.length).toBe(1)
+
+      // 6. Nico Hülkenberg exatamente 1 vez
+      const hulkenbergEntries = grid.filter(
+        (e) => e.driverId === 'drv_p2' || e.driverName === 'Nico Hulkenberg',
+      )
+      expect(hulkenbergEntries.length).toBe(1)
+
+      // 7. Não existe nenhuma posição repetida ou faltante
+      expect(Math.min(...positions)).toBe(1)
+      expect(Math.max(...positions)).toBe(24)
+    })
   })
 
   // ==========================================

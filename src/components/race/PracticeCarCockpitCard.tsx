@@ -40,6 +40,9 @@ interface PracticeCarCockpitCardProps {
   onMarkFeedbackRead?: () => void
   isRookie?: boolean
   originalDriverName?: string
+  canToggleRookie?: boolean
+  onOpenRookieSelector?: () => void
+  onRestoreTitular?: () => void
 }
 
 const TRACK_STATUS_LABELS: Record<
@@ -80,6 +83,9 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
   onMarkFeedbackRead,
   isRookie = false,
   originalDriverName,
+  canToggleRookie = false,
+  onOpenRookieSelector,
+  onRestoreTitular,
 }) => {
   const [showFeedbackDetails, setShowFeedbackDetails] = React.useState<boolean>(true)
   const statusConfig = TRACK_STATUS_LABELS[car.status]
@@ -143,8 +149,32 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
           </div>
         </div>
 
-        {/* STATUS ATUAL («O QUE ESTE CARRO ESTÁ FAZENDO AGORA?») */}
-        <div className="flex items-center gap-2">
+        {/* STATUS ATUAL E BOTÃO DE ESCALAÇÃO DO RESERVA (TL1) */}
+        <div className="flex flex-wrap items-center gap-2">
+          {canToggleRookie &&
+            !isSessionRunning &&
+            !isSessionCompleted &&
+            (isRookie ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onRestoreTitular}
+                className="h-7 text-[10px] font-bold border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+              >
+                Restaurar Titular ({originalDriverName})
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onOpenRookieSelector}
+                className="h-7 text-[10px] font-bold border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+              >
+                + Escalar Reserva no TL1
+              </Button>
+            ))}
           <Badge
             className={`text-[10px] font-bold px-2.5 py-1 tracking-wider ${statusConfig.badgeClass}`}
           >

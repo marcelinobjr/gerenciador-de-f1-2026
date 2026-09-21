@@ -294,10 +294,28 @@ export function buildCanonicalEventGrid(params: {
   // 2. Inserir os pilotos das outras 11 equipes
   const isPlayerTeamMatch = (tDef: GridTeamDefinition) => {
     const playerKey = (team.team_key || team.id).toLowerCase()
+    const rivalKey = tDef.key.toLowerCase()
+    const rivalName = tDef.name.toLowerCase()
+    const rivalShort = tDef.shortName.toLowerCase()
+    const teamName = (team.name || '').toLowerCase()
+    const teamShort = (team.short_name || team.name || '').toLowerCase()
+
+    const playerDriverNames = new Set(titulars.map((d) => d.name.toLowerCase().trim()))
+    const rivalD1Name = (tDef.driver1?.name || '').toLowerCase().trim()
+    const rivalD2Name = (tDef.driver2?.name || '').toLowerCase().trim()
+
     return (
-      tDef.key.toLowerCase() === playerKey ||
-      tDef.name.toLowerCase() === team.name.toLowerCase() ||
-      tDef.shortName.toLowerCase() === (team.name || '').toLowerCase()
+      rivalKey === playerKey ||
+      playerKey.includes(rivalKey) ||
+      rivalKey.includes(playerKey) ||
+      rivalKey === (team.id || '').toLowerCase() ||
+      rivalName === teamName ||
+      rivalShort === teamShort ||
+      rivalShort === teamName ||
+      rivalName.includes(teamShort) ||
+      teamName.includes(rivalShort) ||
+      playerDriverNames.has(rivalD1Name) ||
+      playerDriverNames.has(rivalD2Name)
     )
   }
 

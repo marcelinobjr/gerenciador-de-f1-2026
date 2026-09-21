@@ -387,13 +387,50 @@ export class CanonicalEventRegistrationService {
     }
 
     // Registrar as outras 11 equipes
-    for (const rival of participatingTeams) {
-      const isMatch =
-        rival.key.toLowerCase() === playerTeamKey ||
-        rival.name.toLowerCase() === playerTeam.name.toLowerCase() ||
-        rival.shortName.toLowerCase() === (playerTeam.name || '').toLowerCase()
+    // Critério canônico robusto para excluir a equipe do jogador:
+    // Compara teamKey, id, nomes (incluindo normalização/substring) E IDs/nomes dos pilotos já inscritos no playerTeam
+    const playerTeamNameNorm = (playerTeam.name || '').toLowerCase().trim()
+    const playerTeamShortNorm = (playerTeam.short_name || playerTeam.name || '')
+      .toLowerCase()
+      .trim()
+    const playerDriverIds = new Set([car1Driver?.id, car2Driver?.id].filter(Boolean) as string[])
+    const playerDriverNamesNorm = new Set(
+      [car1Driver?.name, car2Driver?.name]
+        .filter(Boolean)
+        .map((n) => (n as string).toLowerCase().trim()),
+    )
 
-      if (isMatch) {
+    for (const rival of participatingTeams) {
+      const rivalKeyNorm = rival.key.toLowerCase().trim()
+      const rivalNameNorm = rival.name.toLowerCase().trim()
+      const rivalShortNorm = rival.shortName.toLowerCase().trim()
+
+      const isKeyMatch =
+        rivalKeyNorm === playerTeamKey ||
+        playerTeamKey.includes(rivalKeyNorm) ||
+        rivalKeyNorm.includes(playerTeamKey) ||
+        rival.key.toLowerCase() === (playerTeam.id || '').toLowerCase()
+
+      const isNameMatch =
+        rivalNameNorm === playerTeamNameNorm ||
+        rivalShortNorm === playerTeamShortNorm ||
+        rivalShortNorm === playerTeamNameNorm ||
+        rivalNameNorm.includes(playerTeamShortNorm) ||
+        playerTeamNameNorm.includes(rivalShortNorm)
+
+      // Identidade de pilotos: se qualquer piloto do rival coincidir por ID ou nome com os pilotos do jogador
+      const rivalD1Id = (rival.driver1 as any).id || `${rival.key}_d1`
+      const rivalD2Id = (rival.driver2 as any).id || `${rival.key}_d2`
+      const rivalD1NameNorm = (rival.driver1.name || '').toLowerCase().trim()
+      const rivalD2NameNorm = (rival.driver2.name || '').toLowerCase().trim()
+
+      const isDriverMatch =
+        playerDriverIds.has(rivalD1Id) ||
+        playerDriverIds.has(rivalD2Id) ||
+        playerDriverNamesNorm.has(rivalD1NameNorm) ||
+        playerDriverNamesNorm.has(rivalD2NameNorm)
+
+      if (isKeyMatch || isNameMatch || isDriverMatch) {
         // Equipe do jogador já foi inscrita acima! NUNCA duplicar ou concatenar novamente
         continue
       }

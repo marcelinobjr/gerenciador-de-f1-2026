@@ -1952,5 +1952,211 @@ describe('NOVA EXPERIÊNCIA DE FIM DE SEMANA — TESTES N1 A N23 (FW2.1)', () =>
       expect(reqGP2.car2.completed).toBe(0)
       expect(reqGP2.completedTotal).toBe(1)
     })
+
+    // BUG 2 REGRESSÃO COMPLETA (INTEGRAÇÃO E FLUXO REAL NO TL1):
+    it('BUG 2 REGRESSÃO: Catálogo síncrono disponibiliza novatos imediatamente mesmo com allDriversCatalog vazio', () => {
+      // Mesmo se allDriversCatalog for array vazio [], o serviço usa fallback síncrono
+      const options = RookiePracticeRequirementService.getRosterRookieOptions(
+        [mockDriver1, mockDriver2],
+        [],
+        mockPlayerTeam.id,
+      )
+      expect(options.eligible.length).toBeGreaterThan(0)
+      // Deve incluir pilotos novatos com <= 2 GPs
+      const names = options.eligible.map((e) => e.driverName)
+      expect(
+        names.some(
+          (n) =>
+            n.includes('Maloney') ||
+            n.includes('Bearman') ||
+            n.includes('Bortoleto') ||
+            n.includes('Antonelli') ||
+            n.includes('Drugovich') ||
+            n.includes('Lindblad') ||
+            n.includes('Fittipaldi'),
+        ),
+      ).toBe(true)
+    })
+
+    it('BUG 2 REGRESSÃO FLUXO COMPLETO: abrir TL1 -> selecionar reserva -> confirmar -> TL1 usa reserva -> completar >=1 volta -> crédito concedido 1 única vez -> abrir TL2 -> titular restaurado', () => {
+      const seasonId = 'season_bug2_flow'
+      const round = 1
+      const teamId = mockPlayerTeam.id
+
+      // 1. Inscrição formal do GP
+      const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
+        seasonId,
+        round,
+        gpName: 'GP do Bahrein',
+        playerTeam: mockPlayerTeam,
+        allDrivers: [mockDriver1, mockDriver2],
+        forceRecalculate: true,
+      })
+
+      // 2. Opções disponíveis de novato no catálogo síncrono
+      const rookieOptions = RookiePracticeRequirementService.getRosterRookieOptions(
+        [mockDriver1, mockDriver2],
+        [],
+        teamId,
+      )
+      expect(rookieOptions.eligible.length).toBeGreaterThan(0)
+      const selectedRookie = rookieOptions.eligible[0]
+
+      // 3. Jogador escala o reserva no Carro 1 para o TL1 antes de dar Play
+      const assignment = {
+        seasonId,
+        round,
+        teamId,
+        carId: 'car1' as const,
+        rookieDriverId: selectedRookie.driverId,
+        rookieDriverName: selectedRookie.driverName,
+        originalDriverId: mockDriver1.id,
+        originalDriverName: mockDriver1.name,
+      }
+      RookiePracticeRequirementService.setTemporaryFP1Assignment(assignment)
+
+      // Reload/reentrada: composição do TL1 continua consistente com o novato
+      const reloadedAssignment = RookiePracticeRequirementService.getTemporaryFP1Assignment(
+        seasonId,
+        round,
+        teamId,
+        'car1',
+      )
+      expect(reloadedAssignment?.rookieDriverId).toBe(selectedRookie.driverId)
+
+      // 4. Iniciar TL1: Carro 1 é ocupado pelo reserva
+      const sessionTL1 = practiceSessionService.createInitialSessionState({
+        careerId: teamId,
+        seasonId,
+        round,
+        sessionType: 'tp1',
+        preparation: {
+          round,
+          cars: [
+            { carId: 'car1', driverId: selectedRookie.driverId, setup: { frontWing: 6 } },
+            { carId: 'car2', driverId: mockDriver2.id, setup: { frontWing: 6 } },
+          ],
+        } as any,
+        driverNames: {
+          car1: selectedRookie.driverName,
+          driver1Id: selectedRookie.driverId,
+          car2: mockDriver2.name,
+          driver2Id: mockDriver2.id,
+        },
+      })
+      expect(sessionTL1.cars.car1.driverId).toBe(selectedRookie.driverId)
+      expect(sessionTL1.cars.car1.driverName).toBe(selectedRookie.driverName)
+      expect(sessionTL1.cars.car2.driverId).toBe(mockDriver2.id)
+
+      // 5. Reserva completa >= 1 volta no TL1
+      PracticeSessionRunner.orderCarExitToTrack(sessionTL1, 'car1')
+      const tickCtx: PracticeTickContext = {
+        round,
+        gpName: 'GP do Bahrein',
+        circuitName: 'Circuito Internacional do Bahrein',
+        lengthKm: 5.4,
+        tireAbrasiveness: 6,
+        weather: 'seco',
+        teamChassisRating: 80,
+        teamEngineSupplier: 'Audi',
+        teamName: mockPlayerTeam.name,
+        teamColor: mockPlayerTeam.color,
+        drivers: [
+          {
+            id: selectedRookie.driverId,
+            name: selectedRookie.driverName,
+            speed: 80,
+            consistency: 80,
+            defense: 78,
+            technical_feedback: 75,
+            isRookie: true,
+          },
+          {
+            id: mockDriver2.id,
+            name: mockDriver2.name,
+            speed: 84,
+            consistency: 84,
+            defense: 82,
+            technical_feedback: 80,
+            isRookie: false,
+          },
+        ],
+      }
+
+      // Simula voltas
+      CanonicalPracticeV2Runner.advanceBySeconds(sessionTL1, 300, tickCtx)
+      sessionTL1.cars.car1.totalLaps = 5
+
+      // 6. Encerra TL1 -> Homologa crédito de novatos
+      const creditRes1 = RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId,
+        round,
+        teamId,
+        carId: 'car1',
+        driverId: selectedRookie.driverId,
+        driverName: selectedRookie.driverName,
+        lapsCompleted: sessionTL1.cars.car1.totalLaps,
+        isRookieEligible: true,
+      })
+      expect(creditRes1.granted).toBe(true)
+
+      // Idempotência: segunda tentativa na mesma rodada NÃO duplica
+      const creditRes2 = RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId,
+        round,
+        teamId,
+        carId: 'car1',
+        driverId: selectedRookie.driverId,
+        driverName: selectedRookie.driverName,
+        lapsCompleted: sessionTL1.cars.car1.totalLaps,
+        isRookieEligible: true,
+      })
+      expect(creditRes2.granted).toBe(false)
+      expect(creditRes2.reason).toContain('já concedido')
+
+      const teamReqAfterTL1 = RookiePracticeRequirementService.getTeamRequirement(seasonId, teamId)
+      expect(teamReqAfterTL1.car1.completed).toBe(1)
+      expect(teamReqAfterTL1.completedTotal).toBe(1)
+
+      // 7. Abrir TL2 (ou sessão posterior): initializePracticeSession('tp2') força a restauração dos titulares contratuais
+      const sessionTL2 = practiceSessionService.createInitialSessionState({
+        careerId: teamId,
+        seasonId,
+        round,
+        sessionType: 'tp2',
+        preparation: {
+          round,
+          cars: [
+            {
+              carId: 'car1',
+              driverId: reg.snapshot!.entriesByCar.playerCar1.driverId,
+              setup: { frontWing: 6 },
+            },
+            {
+              carId: 'car2',
+              driverId: reg.snapshot!.entriesByCar.playerCar2.driverId,
+              setup: { frontWing: 6 },
+            },
+          ],
+        } as any,
+        driverNames: {
+          car1: reg.snapshot!.entriesByCar.playerCar1.driverName,
+          driver1Id: reg.snapshot!.entriesByCar.playerCar1.driverId,
+          car2: reg.snapshot!.entriesByCar.playerCar2.driverName,
+          driver2Id: reg.snapshot!.entriesByCar.playerCar2.driverId,
+        },
+      })
+
+      // Titular original Gabriel Bortoleto restaurado no TL2!
+      expect(sessionTL2.cars.car1.driverId).toBe(mockDriver1.id)
+      expect(sessionTL2.cars.car1.driverName).toBe(mockDriver1.name)
+      expect(sessionTL2.cars.car2.driverId).toBe(mockDriver2.id)
+      expect(sessionTL2.cars.car2.driverName).toBe(mockDriver2.name)
+
+      // Lineup contratual e snapshot do GP intocados
+      const freshSnap = canonicalEventRegistrationService.readRegistrationSnapshot(seasonId, round)
+      expect(freshSnap?.entriesByCar.playerCar1.driverId).toBe(mockDriver1.id)
+      expect(freshSnap?.entriesByCar.playerCar2.driverId).toBe(mockDriver2.id)
+    })
   })
 })

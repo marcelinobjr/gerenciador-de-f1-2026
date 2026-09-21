@@ -201,20 +201,16 @@ export const canonicalQualifyingPersistenceService = {
   }): CompleteQualifyingWeekendResult {
     const { seasonId, round, q1Result, q2Result, q3Result } = params
 
-    // 1. P1 a P10 vêm de Q3
-    const q3Sorted = [...q3Result.entries].sort((a, b) => {
-      if (a.bestLapSec > 0 && b.bestLapSec > 0) {
-        if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
-        return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
-      }
-      if (a.bestLapSec > 0) return -1
-      if (b.bestLapSec > 0) return 1
-      return 0
-    })
+    // Conjunto para assegurar unicidade estrita de driverId conforme regras canônicas da FIA
+    const assignedDriverIds = new Set<string>()
 
-    // 2. P11 a P18 vêm dos eliminados no Q2 (ordenados por seus tempos de Q2)
-    const q2Eliminated = q2Result.entries
-      .filter((e) => q2Result.eliminatedDriverIds.includes(e.driverId))
+    // 1. P1 a P10 vêm de Q3 (quem participou do Q3 não pode figurar no Q2 nem no Q1)
+    const q3Sorted = [...q3Result.entries]
+      .filter((e) => {
+        if (!e.driverId || assignedDriverIds.has(e.driverId)) return false
+        assignedDriverIds.add(e.driverId)
+        return true
+      })
       .sort((a, b) => {
         if (a.bestLapSec > 0 && b.bestLapSec > 0) {
           if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
@@ -225,9 +221,38 @@ export const canonicalQualifyingPersistenceService = {
         return 0
       })
 
-    // 3. P19 a P24 vêm dos eliminados no Q1 (ordenados por seus tempos de Q1)
+    // 2. P11 a P18 vêm dos eliminados no Q2 (quem avançou ao Q3 NUNCA pode estar aqui)
+    const q2Eliminated = q2Result.entries
+      .filter((e) => {
+        if (!e.driverId || assignedDriverIds.has(e.driverId)) return false
+        const isMarkedEliminated = q2Result.eliminatedDriverIds.includes(e.driverId)
+        if (isMarkedEliminated) {
+          assignedDriverIds.add(e.driverId)
+          return true
+        }
+        return false
+      })
+      .sort((a, b) => {
+        if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+          if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+          return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+        }
+        if (a.bestLapSec > 0) return -1
+        if (b.bestLapSec > 0) return 1
+        return 0
+      })
+
+    // 3. P19 a P24 vêm dos eliminados no Q1 (quem avançou ao Q2 ou Q3 NUNCA pode estar aqui)
     const q1Eliminated = q1Result.entries
-      .filter((e) => q1Result.eliminatedDriverIds.includes(e.driverId))
+      .filter((e) => {
+        if (!e.driverId || assignedDriverIds.has(e.driverId)) return false
+        const isMarkedEliminated = q1Result.eliminatedDriverIds.includes(e.driverId)
+        if (isMarkedEliminated) {
+          assignedDriverIds.add(e.driverId)
+          return true
+        }
+        return false
+      })
       .sort((a, b) => {
         if (a.bestLapSec > 0 && b.bestLapSec > 0) {
           if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
@@ -240,7 +265,7 @@ export const canonicalQualifyingPersistenceService = {
 
     const finalGrid: FinalQualifyingGridEntry[] = []
 
-    // Adiciona P1–P10
+    // Adiciona P1–P10 (Q3)
     q3Sorted.forEach((entry, idx) => {
       const q1Entry = q1Result.entries.find((e) => e.driverId === entry.driverId)
       const q2Entry = q2Result.entries.find((e) => e.driverId === entry.driverId)
@@ -264,11 +289,11 @@ export const canonicalQualifyingPersistenceService = {
       })
     })
 
-    // Adiciona P11–P18
+    // Adiciona P11–P18 (Q2)
     q2Eliminated.forEach((entry, idx) => {
       const q1Entry = q1Result.entries.find((e) => e.driverId === entry.driverId)
       finalGrid.push({
-        gridPosition: 10 + idx + 1,
+        gridPosition: finalGrid.length + 1,
         driverId: entry.driverId,
         driverName: entry.driverName,
         teamId: entry.teamId,
@@ -286,10 +311,10 @@ export const canonicalQualifyingPersistenceService = {
       })
     })
 
-    // Adiciona P19–P24
+    // Adiciona P19–P24 (Q1)
     q1Eliminated.forEach((entry, idx) => {
       finalGrid.push({
-        gridPosition: 18 + idx + 1,
+        gridPosition: finalGrid.length + 1,
         driverId: entry.driverId,
         driverName: entry.driverName,
         teamId: entry.teamId,

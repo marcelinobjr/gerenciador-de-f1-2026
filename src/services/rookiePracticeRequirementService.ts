@@ -1,5 +1,5 @@
 import type { DriverModel, TeamModel } from '@/types/f1'
-import { getDriverCareerStats } from '@/lib/mbj-drivers-data'
+import { getDriverCareerStats, MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
 import {
   ROOKIE_MAX_CAREER_STARTS,
   ROOKIE_REQUIRED_PER_CAR,
@@ -384,14 +384,58 @@ export class RookiePracticeRequirementService {
       }
     })
 
-    // 2. Pilotos do catálogo global (reservas, testes, academia vinculados a este teamId ou sem vínculo)
-    if (allDriversCatalog && teamId) {
-      allDriversCatalog.forEach((d) => {
+    // 2. Pilotos do catálogo global ou fallback síncrono canônico (MBJ_2026_PILOTS)
+    // Garante que mesmo sem retorno do backend a lista nunca fique vazia
+    const candidateSource =
+      allDriversCatalog && allDriversCatalog.length > 0
+        ? allDriversCatalog
+        : (MBJ_2026_PILOTS as unknown as Partial<DriverModel>[])
+
+    if (candidateSource && candidateSource.length > 0) {
+      const teamIdNorm = (teamId || '').toLowerCase().replace(/[-_\s]/g, '')
+
+      candidateSource.forEach((d) => {
         if (!d || !d.id || seenIds.has(d.id)) return
-        const isTeamReserve = d.reserve_team_id === teamId || d.team_id === teamId
-        const isAcademy = d.is_academy || (d as any).academy_origin_team_id === teamId
-        const isTest = d.is_test_driver || d.role === 'reserva'
-        if (isTeamReserve || isAcademy || isTest) {
+
+        const dTeamKey = (((d as any).teamKey || d.team_id || '') as string)
+          .toLowerCase()
+          .replace(/[-_\s]/g, '')
+        const dReserveKey = (((d as any).reserve_team_id || '') as string)
+          .toLowerCase()
+          .replace(/[-_\s]/g, '')
+        const dAcademyKey = (((d as any).academy_origin_team_id || '') as string)
+          .toLowerCase()
+          .replace(/[-_\s]/g, '')
+
+        const isTeamAffiliated =
+          teamIdNorm !== '' &&
+          (dTeamKey === teamIdNorm ||
+            dReserveKey === teamIdNorm ||
+            dAcademyKey === teamIdNorm ||
+            (teamId && (d.reserve_team_id === teamId || d.team_id === teamId)))
+
+        const isAcademyOrTest =
+          Boolean(d.is_academy) ||
+          Boolean((d as any).isAcademyProspect) ||
+          d.is_test_driver ||
+          d.role === 'reserva' ||
+          d.category === 'f2' ||
+          d.category === 'f3' ||
+          d.category === 'academy'
+
+        // Pilotos que disputaram <= 2 GPs na carreira
+        const careerGPs = Number((d as any).f1RacesCompleted ?? (d as any).f1_career_starts ?? 0)
+        const isRookieGPCap = careerGPs <= ROOKIE_MAX_CAREER_STARTS
+
+        // Não ser titular de OUTRA equipe de F1
+        const isTitularOfOtherTeam =
+          d.role === 'titular' && dTeamKey !== '' && (!teamIdNorm || dTeamKey !== teamIdNorm)
+
+        if (
+          isRookieGPCap &&
+          !isTitularOfOtherTeam &&
+          (isTeamAffiliated || isAcademyOrTest || !d.team_id)
+        ) {
           seenIds.add(d.id)
           pool.push(d)
         }
