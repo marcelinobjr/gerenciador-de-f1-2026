@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { getTeamAsset, getTeamSideView, TEAM_ASSET_MANIFEST } from '@/data/assets/teamAssets'
 
 describe('Validação Canônica da Vista Lateral da Audi (v0.0.276)', () => {
+  it('debug test execution', () => {
+    throw new Error('TESTS_DO_RUN_HERE')
+  })
   it('garante que a Audi resolve o asset empacotado válido via bundle do Vite', () => {
     const sideView = getTeamSideView('audi')
     expect(sideView).toBeDefined()
