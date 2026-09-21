@@ -1992,14 +1992,23 @@ describe('NOVA EXPERIÊNCIA DE FIM DE SEMANA — TESTES N1 A N23 (FW2.1)', () =>
         defense: 91,
         salary: 18000000,
         contract_end: 2026,
-        career_records: { starts: 390, wins: 32, podiums: 106, poles: 22, championships: 2, points: 2300 },
+        career_records: {
+          starts: 390,
+          wins: 32,
+          podiums: 106,
+          poles: 22,
+          championships: 2,
+          points: 2300,
+        },
       }
       const testWithOptions = RookiePracticeRequirementService.getRosterRookieOptions(
         [mockDriver1, mockDriver2],
         [veteranDriver],
         mockPlayerTeam.id,
       )
-      const veteranCheck = testWithOptions.ineligible.find((i) => i.driverId === 'veteran_driver_test')
+      const veteranCheck = testWithOptions.ineligible.find(
+        (i) => i.driverId === 'veteran_driver_test',
+      )
       expect(veteranCheck).toBeDefined()
       expect(veteranCheck?.isEligible).toBe(false)
       expect(veteranCheck?.reason).toContain('GPs')
