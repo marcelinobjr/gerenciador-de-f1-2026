@@ -27,6 +27,7 @@ import {
   type ChampionshipSnapshot,
 } from '@/services/canonicalChampionshipService'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
+import { PodiumVisualCard } from './PodiumVisualCard'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 
@@ -434,7 +435,7 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
               </div>
             </div>
 
-            {/* Pódio Oficial P1, P2, P3 Visual */}
+            {/* Pódio Oficial P1, P2, P3 Resumo */}
             <div className="pt-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 block">
                 Pódio Homologado FIA
@@ -489,6 +490,11 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
             </div>
           </CardContent>
         </Card>
+
+        {/* ========================================================= */}
+        {/* RACE-END-01.1: BOX VISUAL DO PÓDIO [P2] [P1] [P3]         */}
+        {/* ========================================================= */}
+        <PodiumVisualCard result={result} />
 
         {/* ========================================================= */}
         {/* P3: 2. SEUS DOIS CARROS (CARDS GRANDES INDEPENDENTES)     */}
