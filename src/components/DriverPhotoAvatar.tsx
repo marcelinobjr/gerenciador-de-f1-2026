@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { getLocalDriverPosterCandidates, getInitials } from '@/lib/pilot-posters'
+import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +14,7 @@ export interface DriverPhotoAvatarProps {
   driverId?: string
   visualIdentity?: DriverVisualAssetIdentity | null
   portraitAssetId?: string
+  generatedPortraitProfileId?: string
 }
 
 export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
@@ -25,6 +27,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   driverId,
   visualIdentity,
   portraitAssetId,
+  generatedPortraitProfileId,
 }) => {
   // Constrói objeto de identidade unificado se fornecido via prop
   const effectiveVisualIdentity = React.useMemo<DriverVisualAssetIdentity | null>(() => {
@@ -35,11 +38,41 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
     return null
   }, [visualIdentity, portraitAssetId])
 
-  // Usa o mesmo resolvedor de fotos canônicas que o DriverPoster
-  const candidateUrls = React.useMemo(
-    () => getLocalDriverPosterCandidates(name, driverId, effectiveVisualIdentity),
-    [name, driverId, effectiveVisualIdentity],
-  )
+  // Resolvedor Canônico Central (DRV-DATA-02)
+  const canonicalResolved = React.useMemo(() => {
+    return resolveDriverPhoto({
+      driverId,
+      name,
+      teamColor,
+      visualIdentity: effectiveVisualIdentity,
+      portraitAssetId,
+      generatedPortraitProfileId,
+    })
+  }, [
+    driverId,
+    name,
+    teamColor,
+    effectiveVisualIdentity,
+    portraitAssetId,
+    generatedPortraitProfileId,
+  ])
+
+  // Candidatos ordenados: resolvedor canônico unificado primeiro, seguido dos fallbacks
+  const candidateUrls = React.useMemo(() => {
+    const list: string[] = []
+    if (canonicalResolved.url) {
+      list.push(canonicalResolved.url)
+    }
+    for (const c of canonicalResolved.candidateUrls) {
+      if (!list.includes(c)) list.push(c)
+    }
+    // Fallbacks legados adicionais para retrocompatibilidade
+    const legacy = getLocalDriverPosterCandidates(name, driverId, effectiveVisualIdentity)
+    for (const l of legacy) {
+      if (!list.includes(l)) list.push(l)
+    }
+    return list
+  }, [canonicalResolved, name, driverId, effectiveVisualIdentity])
 
   const [attemptIndex, setAttemptIndex] = useState<number>(0)
 
@@ -55,7 +88,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   // Reseta índice de tentativa quando o piloto mudar
   React.useEffect(() => {
     setAttemptIndex(0)
-  }, [name, driverId, effectiveVisualIdentity])
+  }, [name, driverId, effectiveVisualIdentity, generatedPortraitProfileId])
 
   const handleError = () => {
     setAttemptIndex((prev) => prev + 1)

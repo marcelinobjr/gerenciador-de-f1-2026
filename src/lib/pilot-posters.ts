@@ -7,6 +7,7 @@
 import { getDriverPhotoSources, normalizeSurname } from '@/lib/driver-photos'
 import { getDriveStoragePhotoUrl, DRIVE_STORAGE_PHOTOS } from '@/lib/drive-storage-photos'
 import { driverVisualAssetService } from '@/services/driverVisualAssetService'
+import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 import ricciardoBundledPoster from '@/assets/3-danielricciardo-4d208.jpg'
 
@@ -124,6 +125,20 @@ export function getLocalDriverPosterCandidates(
     if (url && !candidates.includes(url)) {
       candidates.push(url)
     }
+  }
+
+  // (0) Resolvedor Canônico Central DRV-DATA-02
+  const canonical = resolveDriverPhoto({
+    driverId,
+    name,
+    visualIdentity,
+    portraitAssetId: visualIdentity?.portraitAssetId,
+  })
+  if (canonical.url) {
+    addCandidate(canonical.url)
+  }
+  for (const c of canonical.candidateUrls) {
+    addCandidate(c)
   }
 
   // (i) Imagem personalizada do jogador (isCustom)
