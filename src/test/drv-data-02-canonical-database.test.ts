@@ -200,4 +200,34 @@ describe('DRV-DATA-02 — Bloco C: Separação Real vs Gerado e Integração', (
     expect(extractDriverInitials('Alonso')).toBe('AL')
     expect(extractDriverInitials('')).toBe('F1')
   })
+
+  it('Cada DRV_XXXX canônico mapeado resolve para sourceType canonical_real', () => {
+    // Valida que pilotos canônicos mestres sempre retornam canonical_real e URL padronizada
+    const samples = [
+      { id: 'mbj-020', asset: 'DRV_0012' }, // Bortoleto
+      { id: 'mbj-019', asset: 'DRV_0068' }, // Hülkenberg
+      { id: 'mbj-001', asset: 'DRV_0001' }, // Verstappen
+      { id: 'mbj-005', asset: 'DRV_0005' }, // Norris
+      { id: 'mbj-037', asset: 'DRV_0036' }, // Mick Schumacher
+      { id: 'mbj-066', asset: 'DRV_0065' }, // Lindblad
+    ]
+
+    for (const sample of samples) {
+      const res = resolveDriverPhoto({ driverId: sample.id })
+      expect(res.sourceType).toBe('canonical_real')
+      expect(res.assetId).toBe(sample.asset)
+      expect(res.url).toBe(`/pilotos/${sample.asset}.jpg`)
+    }
+  })
+
+  it('Arquivo ausente ou driver desconhecido cai no fallback gracioso sem quebrar', () => {
+    const unknownRes = resolveDriverPhoto({
+      driverId: 'drv_unknown_404',
+      name: 'Piloto Teste',
+      teamColor: '#101010',
+    })
+    expect(unknownRes.sourceType).toBe('fallback_initials')
+    expect(unknownRes.url).toBeNull()
+    expect(unknownRes.fallbackInitials).toBe('PT')
+  })
 })
