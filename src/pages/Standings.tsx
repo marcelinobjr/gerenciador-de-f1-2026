@@ -10,6 +10,7 @@ import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 import { PilotProfileDialog } from '@/components/PilotProfileDialog'
 import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
 import { normalizeDriverSurname } from '@/lib/pilot-posters'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import heroHorizontalAsset from '@/assets/chatgpt-image-10-de-set.de-2026-122312-fc092.png'
 
 export type { DriverStanding, TeamStanding }
@@ -38,6 +39,23 @@ export default function StandingsPage() {
   const seasonYear = season?.year || 2026
   const safeTotalRounds = totalRounds || 24
   const safeCurrentRound = Math.min(safeTotalRounds, Math.max(1, currentRound || 1))
+
+  // Obter snapshot mais recente para checar último GP oficializado
+  const careerId = team?.id || 'default_career'
+  const championshipSnapshot = useMemo(() => {
+    return canonicalChampionshipService.getChampionshipStandings(
+      careerId,
+      seasonYear,
+      undefined,
+      team?.id,
+    )
+  }, [careerId, seasonYear, team?.id, driverStandings])
+
+  const throughRound = championshipSnapshot?.throughRound || 0
+  const lastRecordedGp = useMemo(() => {
+    if (throughRound <= 0) return null
+    return F1_2026_CALENDAR.find((c) => c.round === throughRound) || null
+  }, [throughRound])
 
   // Detalhes do circuito atual a partir do calendário canônico
   const currentGp = useMemo(() => {
@@ -251,16 +269,20 @@ export default function StandingsPage() {
           </div>
           <div className="min-w-0">
             <span className="text-[10px] font-mono font-bold uppercase text-[#64748B] block truncate">
-              Etapa em Disputa
+              {throughRound > 0 ? `Atualizado após GP ${throughRound}` : 'Etapa em Disputa'}
             </span>
             <div className="text-sm font-black text-[#0F172A] truncate">
-              Rodada {safeCurrentRound} de {safeTotalRounds}
+              {throughRound > 0
+                ? `Rodada ${throughRound} de ${safeTotalRounds}`
+                : `Rodada ${safeCurrentRound} de ${safeTotalRounds}`}
             </div>
             <span
               className="text-[11px] text-[#475569] font-medium block truncate"
-              title={currentGp.name}
+              title={lastRecordedGp ? lastRecordedGp.name : currentGp.name}
             >
-              {currentGp.flag} {currentGp.name.replace('Grande Prêmio d', 'GP d')}
+              {lastRecordedGp
+                ? `${lastRecordedGp.flag} ${lastRecordedGp.name.replace('Grande Prêmio d', 'GP d')}`
+                : 'Aguardando primeiro resultado oficial'}
             </span>
           </div>
         </div>
@@ -352,7 +374,7 @@ export default function StandingsPage() {
                   <tr className="border-b border-[#E2E8F0] bg-[#FAFAFA] text-[11px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
                     <th className="py-3 px-4 text-center w-16">POS</th>
                     <th className="py-3 px-4">PILOTO</th>
-                    <th className="py-3 px-4">ESCUDERIA</th>
+                    <th className="py-3 px-4">EQUIPE ATUAL</th>
                     <th className="py-3 px-4 text-center w-24">VITÓRIAS</th>
                     <th className="py-3 px-4 text-center w-24">PÓDIOS</th>
                     <th className="py-3 px-4 text-right w-64">PONTOS</th>
@@ -382,21 +404,34 @@ export default function StandingsPage() {
                             : 'hover:bg-neutral-50'
                         }`}
                       >
-                        {/* POS: Círculo estilizado (1º dourado, 2º prata, 3º bronze, demais neutro) */}
+                        {/* POS: Círculo estilizado (1º dourado, 2º prata, 3º bronze, demais neutro) + variação N vs N-1 */}
                         <td className="py-2.5 px-4 text-center">
-                          <span
-                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
-                              pos === 1
-                                ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
-                                : pos === 2
-                                  ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
-                                  : pos === 3
-                                    ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
-                                    : 'bg-neutral-100 text-[#64748B]'
-                            }`}
-                          >
-                            {pos}
-                          </span>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
+                                pos === 1
+                                  ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
+                                  : pos === 2
+                                    ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
+                                    : pos === 3
+                                      ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
+                                      : 'bg-neutral-100 text-[#64748B]'
+                              }`}
+                            >
+                              {pos}
+                            </span>
+                            {driver.positionDeltaText && driver.positionDeltaText !== '—' && (
+                              <span
+                                className={`text-[10px] font-mono font-bold ${
+                                  driver.positionDeltaText.startsWith('↑')
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600'
+                                }`}
+                              >
+                                {driver.positionDeltaText}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* PILOTO: Bandeira + Nome completo + Badge Sua Equipe se jogador */}
@@ -562,21 +597,34 @@ export default function StandingsPage() {
                         cTeam.isPlayer ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-neutral-50'
                       }`}
                     >
-                      {/* POS */}
+                      {/* POS + Variação N vs N-1 */}
                       <td className="py-2.5 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
-                            pos === 1
-                              ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
-                              : pos === 2
-                                ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
-                                : pos === 3
-                                  ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
-                                  : 'bg-neutral-100 text-[#64748B]'
-                          }`}
-                        >
-                          {pos}
-                        </span>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono font-black text-[11px] shadow-2xs ${
+                              pos === 1
+                                ? 'bg-amber-400 text-amber-950 ring-1 ring-amber-500/50'
+                                : pos === 2
+                                  ? 'bg-slate-300 text-slate-900 ring-1 ring-slate-400/50'
+                                  : pos === 3
+                                    ? 'bg-amber-700 text-white ring-1 ring-amber-800/50'
+                                    : 'bg-neutral-100 text-[#64748B]'
+                            }`}
+                          >
+                            {pos}
+                          </span>
+                          {cTeam.positionDeltaText && cTeam.positionDeltaText !== '—' && (
+                            <span
+                              className={`text-[10px] font-mono font-bold ${
+                                cTeam.positionDeltaText.startsWith('↑')
+                                  ? 'text-emerald-600'
+                                  : 'text-rose-600'
+                              }`}
+                            >
+                              {cTeam.positionDeltaText}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* EQUIPE: Logo reduzida oficial (20-28px) + Nome + Tag Sua Escuderia */}

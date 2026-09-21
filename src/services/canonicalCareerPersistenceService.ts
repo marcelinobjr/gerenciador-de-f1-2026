@@ -16,6 +16,7 @@
 import type { OfficialRaceResult, OfficialRaceResultEntry } from '@/types/canonical-race-v2'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { driverBase2026Service } from '@/services/driverBase2026Service'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import pb from '@/lib/pocketbase/client'
 
 export const CANONICAL_CAREER_RACE_RESULT_PREFIX = 'race_result'
@@ -384,6 +385,22 @@ export class CanonicalCareerPersistenceService {
       journal.completedAt = new Date().toISOString()
       journal.lastError = undefined
       this.saveApplicationJournal(journal)
+
+      // FW2.1E-H: Gerar snapshot do campeonato após rodada oficial registrada
+      try {
+        const sNum =
+          typeof season === 'number'
+            ? season
+            : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
+        canonicalChampionshipService.processAndPersistRoundChampionship(
+          careerId,
+          sNum,
+          round,
+          officialResult.playerTeamId,
+        )
+      } catch (snapErr) {
+        console.warn('[CareerPersistence] Aviso ao gerar snapshot do campeonato:', snapErr)
+      }
 
       // Sincronização assíncrona não bloqueante com PocketBase se houver cliente ativo
       this.syncWithPocketBaseIfAvailable(persistedRecord, journal).catch((e) => {

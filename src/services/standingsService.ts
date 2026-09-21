@@ -6,6 +6,7 @@ import {
 } from '@/lib/f1-standings-calculator'
 import { getCountryFlag } from '@/lib/country-flags'
 import type { TeamModel, DriverModel, RaceResultModel, SeasonModel, PartModel } from '@/types/f1'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 
 export interface DriverStanding {
   id: string
@@ -19,6 +20,15 @@ export interface DriverStanding {
   podiums: number
   bestPosition: number
   isPlayer: boolean
+  secondPlaces?: number
+  thirdPlaces?: number
+  fourthPlaces?: number
+  raceStarts?: number
+  racesCounted?: number
+  finishCounts?: Record<number, number>
+  gapToLeader?: string
+  positionDelta?: number
+  positionDeltaText?: string
   totalPenaltiesSec?: number
   penaltiesCount?: number
 }
@@ -33,6 +43,11 @@ export interface TeamStanding {
   podiums: number
   bestPosition: number
   isPlayer: boolean
+  racesCounted?: number
+  finishCounts?: Record<number, number>
+  gapToLeader?: string
+  positionDelta?: number
+  positionDeltaText?: string
 }
 
 export interface FullStandingsResult {
@@ -104,6 +119,85 @@ export function getTeamMorale(params: GetTeamMoraleParams): number {
 export function calculateStandings(params: CalculateStandingsParams): FullStandingsResult {
   const { raceResults = [], playerDrivers = [], team, season } = params
   const currentRound = season?.current_round || 1
+  const careerId = team?.id || 'default_career'
+  const seasonYear = season?.year || 2026
+
+  // FW2.1E-H: Se houver resultados oficiais ou carreira ativa, verificar se podemos consultar o serviço canônico
+  // Verificamos se há corridas oficiais registradas para a carreira via canonicalChampionshipService
+  const canonicalResults = canonicalChampionshipService.getEligibleOfficialRaceResults(
+    careerId,
+    seasonYear,
+  )
+
+  if (canonicalResults.length > 0) {
+    const snap = canonicalChampionshipService.getChampionshipStandings(
+      careerId,
+      seasonYear,
+      undefined,
+      team?.id,
+    )
+
+    // Converter driverStandings do snapshot para DriverStanding
+    const driverStandings: DriverStanding[] = snap.driverStandings.map((d) => ({
+      id: d.driverId,
+      name: d.driverName,
+      nationality: d.nationality,
+      flag: d.flag,
+      teamName: d.currentTeamName || 'F1 Team',
+      teamColor: d.currentTeamColor || '#E10600',
+      points: d.points,
+      wins: d.wins,
+      secondPlaces: d.secondPlaces,
+      thirdPlaces: d.thirdPlaces,
+      fourthPlaces: d.fourthPlaces,
+      podiums: d.podiums,
+      bestPosition: d.position,
+      isPlayer: !!d.isPlayer,
+      raceStarts: d.raceStarts,
+      racesCounted: d.racesCounted,
+      finishCounts: d.finishCounts,
+      gapToLeader: d.gapToLeader,
+      positionDelta: d.positionDelta,
+      positionDeltaText: d.positionDeltaText,
+    }))
+
+    // Converter constructorStandings do snapshot para TeamStanding
+    const constructorStandings: TeamStanding[] = snap.constructorStandings.map((c) => ({
+      id: c.teamId,
+      name: c.teamName,
+      color: c.teamColor,
+      engine: 'F1 Power Unit',
+      points: c.points,
+      wins: c.wins,
+      podiums: c.podiums,
+      bestPosition: c.position,
+      isPlayer: !!c.isPlayer,
+      racesCounted: c.racesCounted,
+      finishCounts: c.finishCounts,
+      gapToLeader: c.gapToLeader,
+      positionDelta: c.positionDelta,
+      positionDeltaText: c.positionDeltaText,
+    }))
+
+    const playerTeamRank = constructorStandings.findIndex((c) => c.isPlayer) + 1
+    const playerStanding = constructorStandings.find((c) => c.isPlayer)
+
+    const driverPointsMap: Record<string, number> = {}
+    playerDrivers.forEach((d) => {
+      const match = driverStandings.find((sd) => sd.id === d.id || sd.name === d.name)
+      driverPointsMap[d.id] = match?.points || 0
+    })
+
+    return {
+      driverStandings,
+      constructorStandings,
+      driverPointsMap,
+      teamPoints: playerStanding?.points || 0,
+      playerConstructorRank: playerTeamRank > 0 ? playerTeamRank : 1,
+      playerWins: playerStanding?.wins || 0,
+      playerPodiums: playerStanding?.podiums || 0,
+    }
+  }
 
   // Filtrar estritamente resultados da temporada atual para isolamento absoluto
   const filteredResults = season?.id

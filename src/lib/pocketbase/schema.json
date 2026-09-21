@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T11:57:02.877Z",
+  "generatedAt": "2026-09-21T12:13:18.877Z",
   "collections": [
     {
       "name": "users",
@@ -2457,6 +2457,85 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_race_sessions_key ON race_sessions (session_key)",
         "CREATE INDEX idx_race_sessions_lookup ON race_sessions (season_id, round, session_type)"
+      ]
+    },
+    {
+      "name": "championship_snapshots",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "snapshot_key",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "season",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "through_round",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "source_race_ids",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "source_checksums",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "driver_standings",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "constructor_standings",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_championship_snapshot_key ON championship_snapshots (snapshot_key)",
+        "CREATE INDEX idx_championship_career_season ON championship_snapshots (career_id, season)"
       ]
     }
   ]
