@@ -390,7 +390,7 @@ export class CanonicalEventRegistrationService {
     // Critério canônico robusto para excluir a equipe do jogador:
     // Compara teamKey, id, nomes (incluindo normalização/substring) E IDs/nomes dos pilotos já inscritos no playerTeam
     const playerTeamNameNorm = (playerTeam.name || '').toLowerCase().trim()
-    const playerTeamShortNorm = (playerTeam.short_name || playerTeam.name || '')
+    const playerTeamShortNorm = ((playerTeam as any).short_name || playerTeam.name || '')
       .toLowerCase()
       .trim()
     const playerDriverIds = new Set([car1Driver?.id, car2Driver?.id].filter(Boolean) as string[])

@@ -6,7 +6,10 @@ import {
 } from '@/services/canonicalQualifyingRunner'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
-import { CANONICAL_QUALIFYING_RULES } from '@/types/canonical-qualifying-types'
+import {
+  CANONICAL_QUALIFYING_RULES,
+  type QualifyingStageResult,
+} from '@/types/canonical-qualifying-types'
 
 describe('ETAPA FW2.1D: QUALIFICAÇÃO V2 (Q1, Q2, Q3) — TESTES OBRIGATÓRIOS', () => {
   const seasonId = 'season_2026_test'
@@ -661,12 +664,6 @@ describe('ETAPA FW2.1D: QUALIFICAÇÃO V2 (Q1, Q2, Q3) — TESTES OBRIGATÓRIOS'
     it('BUG 1 REGRESSÃO: Com Audi como equipe humana (Hülkenberg + Bortoleto), o grid oficial P1–P24 não duplica pilotos nem posições', () => {
       // Cria Q1 com 24 pilotos (incluindo Audi d1=Bortoleto, d2=Hülkenberg e rivais)
       const eligible = create24Drivers()
-      const audiTeam = {
-        id: 'team_audi',
-        name: 'Audi Revolut F1 Team',
-        team_key: 'audi',
-        color: '#E10600',
-      }
 
       // Simula resultado canônico de Q1 (24 pilotos, 18 avançam, 6 eliminados P19-P24)
       const q1Entries = eligible.map((d, idx) => ({
@@ -679,10 +676,11 @@ describe('ETAPA FW2.1D: QUALIFICAÇÃO V2 (Q1, Q2, Q3) — TESTES OBRIGATÓRIOS'
         isPlayer: d.id === 'drv_p1' || d.id === 'drv_p2',
         bestLapSec: 88.0 + idx * 0.1,
         bestLapTime: `1:28.${String(idx).padStart(3, '0')}`,
+        bestLapRecordedAtSec: 300 + idx * 10,
         compound: 'macio' as const,
         lapsCount: 6,
-        gapToLeaderSec: idx * 0.1,
-        gapToNextSec: 0.1,
+        isEliminated: idx >= 18,
+        eliminatedInStage: idx >= 18 ? ('q1' as const) : undefined,
       }))
       const q1Result: QualifyingStageResult = {
         stageId: 'q1',
@@ -701,6 +699,9 @@ describe('ETAPA FW2.1D: QUALIFICAÇÃO V2 (Q1, Q2, Q3) — TESTES OBRIGATÓRIOS'
         position: idx + 1,
         bestLapSec: 87.0 + idx * 0.1,
         bestLapTime: `1:27.${String(idx).padStart(3, '0')}`,
+        bestLapRecordedAtSec: 200 + idx * 10,
+        isEliminated: idx >= 10,
+        eliminatedInStage: idx >= 10 ? ('q2' as const) : undefined,
       }))
       const q2Result: QualifyingStageResult = {
         stageId: 'q2',
@@ -718,6 +719,9 @@ describe('ETAPA FW2.1D: QUALIFICAÇÃO V2 (Q1, Q2, Q3) — TESTES OBRIGATÓRIOS'
         position: idx + 1,
         bestLapSec: 86.0 + idx * 0.1,
         bestLapTime: `1:26.${String(idx).padStart(3, '0')}`,
+        bestLapRecordedAtSec: 100 + idx * 10,
+        isEliminated: false,
+        eliminatedInStage: undefined,
       }))
       const q3Result: QualifyingStageResult = {
         stageId: 'q3',
@@ -772,6 +776,173 @@ describe('ETAPA FW2.1D: QUALIFICAÇÃO V2 (Q1, Q2, Q3) — TESTES OBRIGATÓRIOS'
       // 7. Não existe nenhuma posição repetida ou faltante
       expect(Math.min(...positions)).toBe(1)
       expect(Math.max(...positions)).toBe(24)
+
+      // 8. Q3 → P1–P10 contém exclusivamente os 10 classificados ao Q3
+      const p1to10 = grid.slice(0, 10)
+      expect(p1to10.every((e) => e.eliminationStage === 'Q3')).toBe(true)
+      const q3DriverIds = q3Entries.map((e) => e.driverId)
+      expect(p1to10.every((e) => q3DriverIds.includes(e.driverId))).toBe(true)
+
+      // 9. Q2 → P11–P18 exclusivamente os 8 eliminados no Q2
+      const p11to18 = grid.slice(10, 18)
+      expect(p11to18.every((e) => e.eliminationStage === 'Q2')).toBe(true)
+      expect(p11to18.every((e) => q2Result.eliminatedDriverIds.includes(e.driverId))).toBe(true)
+
+      // 10. Q1 → P19–P24 exclusivamente os 6 eliminados no Q1
+      const p19to24 = grid.slice(18, 24)
+      expect(p19to24.every((e) => e.eliminationStage === 'Q1')).toBe(true)
+      expect(p19to24.every((e) => q1Result.eliminatedDriverIds.includes(e.driverId))).toBe(true)
+
+      // 11. Nenhum piloto em mais de um bloco
+      const p1to10Ids = new Set(p1to10.map((e) => e.driverId))
+      const p11to18Ids = new Set(p11to18.map((e) => e.driverId))
+      const p19to24Ids = new Set(p19to24.map((e) => e.driverId))
+      for (const id of p1to10Ids) {
+        expect(p11to18Ids.has(id)).toBe(false)
+        expect(p19to24Ids.has(id)).toBe(false)
+      }
+      for (const id of p11to18Ids) {
+        expect(p19to24Ids.has(id)).toBe(false)
+      }
+    })
+
+    it('BUG 1 HOMOLOGAÇÃO: Cenário com OUTRA equipe como equipe humana (Ferrari: Leclerc + Hamilton) garante que a regra não é hardcoded para Audi', () => {
+      // 24 pilotos com Ferrari como equipe do jogador (Leclerc e Hamilton)
+      const ferrariDrivers: QualifyingDriverContext[] = [
+        {
+          id: 'drv_fer_1',
+          name: 'Charles Leclerc',
+          speed: 92,
+          consistency: 90,
+          defense: 89,
+          teamId: 'ferrari',
+          teamName: 'Scuderia Ferrari',
+          teamColor: '#DC0000',
+          carNumber: 16,
+        },
+        {
+          id: 'drv_fer_2',
+          name: 'Lewis Hamilton',
+          speed: 91,
+          consistency: 92,
+          defense: 91,
+          teamId: 'ferrari',
+          teamName: 'Scuderia Ferrari',
+          teamColor: '#DC0000',
+          carNumber: 44,
+        },
+      ]
+      for (let i = 1; i <= 22; i++) {
+        ferrariDrivers.push({
+          id: `drv_other_rival_${i}`,
+          name: `Other Rival ${i}`,
+          speed: 74 + (i % 15),
+          consistency: 78,
+          defense: 76,
+          teamId: `team_other_${Math.ceil(i / 2)}`,
+          teamName: `Other Team ${Math.ceil(i / 2)}`,
+          teamColor: '#2563eb',
+          carNumber: i + 50,
+        })
+      }
+
+      // Q1: 24 pilotos, 18 avançam, 6 eliminados
+      const q1Entries = ferrariDrivers.map((d, idx) => ({
+        position: idx + 1,
+        driverId: d.id,
+        driverName: d.name,
+        teamId: d.teamId,
+        teamName: d.teamName,
+        teamColor: d.teamColor,
+        isPlayer: d.id === 'drv_fer_1' || d.id === 'drv_fer_2',
+        bestLapSec: 85.0 + idx * 0.1,
+        bestLapTime: `1:25.${String(idx).padStart(3, '0')}`,
+        bestLapRecordedAtSec: 400 + idx * 5,
+        compound: 'macio' as const,
+        lapsCount: 5,
+        isEliminated: idx >= 18,
+        eliminatedInStage: idx >= 18 ? ('q1' as const) : undefined,
+      }))
+      const q1Result: QualifyingStageResult = {
+        stageId: 'q1',
+        seasonId,
+        round: 2,
+        completedAt: new Date().toISOString(),
+        entries: q1Entries,
+        advancingDriverIds: q1Entries.slice(0, 18).map((e) => e.driverId),
+        eliminatedDriverIds: q1Entries.slice(18, 24).map((e) => e.driverId),
+      }
+
+      // Q2: 18 pilotos, Leclerc avança ao Q3, Hamilton eliminado em P11
+      const q2Entries = q1Entries.slice(0, 18).map((e, idx) => ({
+        ...e,
+        position: idx + 1,
+        bestLapSec: 84.0 + idx * 0.1,
+        bestLapTime: `1:24.${String(idx).padStart(3, '0')}`,
+        bestLapRecordedAtSec: 250 + idx * 5,
+        isEliminated: idx >= 10,
+        eliminatedInStage: idx >= 10 ? ('q2' as const) : undefined,
+      }))
+      const q2Result: QualifyingStageResult = {
+        stageId: 'q2',
+        seasonId,
+        round: 2,
+        completedAt: new Date().toISOString(),
+        entries: q2Entries,
+        advancingDriverIds: q2Entries.slice(0, 10).map((e) => e.driverId),
+        eliminatedDriverIds: q2Entries.slice(10, 18).map((e) => e.driverId),
+      }
+
+      // Q3: 10 pilotos, Leclerc pole
+      const q3Entries = q2Entries.slice(0, 10).map((e, idx) => ({
+        ...e,
+        position: idx + 1,
+        bestLapSec: 83.0 + idx * 0.1,
+        bestLapTime: `1:23.${String(idx).padStart(3, '0')}`,
+        bestLapRecordedAtSec: 120 + idx * 5,
+        isEliminated: false,
+        eliminatedInStage: undefined,
+      }))
+      const q3Result: QualifyingStageResult = {
+        stageId: 'q3',
+        seasonId,
+        round: 2,
+        completedAt: new Date().toISOString(),
+        entries: q3Entries,
+        advancingDriverIds: [],
+        eliminatedDriverIds: [],
+      }
+
+      const combined = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+        seasonId,
+        round: 2,
+        q1Result,
+        q2Result,
+        q3Result,
+      })
+
+      const grid = combined.finalGrid
+      expect(grid.length).toBe(24)
+      const positions = grid.map((e) => e.gridPosition)
+      expect(positions).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
+      expect(new Set(positions).size).toBe(24)
+      expect(new Set(grid.map((e) => e.driverId)).size).toBe(24)
+
+      // Leclerc aparece exatamente 1x (no Q3, P1)
+      const leclercEntries = grid.filter((e) => e.driverId === 'drv_fer_1')
+      expect(leclercEntries.length).toBe(1)
+      expect(leclercEntries[0].gridPosition).toBe(1)
+      expect(leclercEntries[0].eliminationStage).toBe('Q3')
+
+      // Hamilton aparece exatamente 1x (no Q2, P11)
+      const hamiltonEntries = grid.filter((e) => e.driverId === 'drv_fer_2')
+      expect(hamiltonEntries.length).toBe(1)
+      expect(hamiltonEntries[0].gridPosition).toBe(11)
+      expect(hamiltonEntries[0].eliminationStage).toBe('Q2')
+
+      // Ferrari aparece exatamente 2x no grid
+      const ferrariEntries = grid.filter((e) => e.teamId === 'ferrari')
+      expect(ferrariEntries.length).toBe(2)
     })
   })
 

@@ -298,7 +298,7 @@ export function buildCanonicalEventGrid(params: {
     const rivalName = tDef.name.toLowerCase()
     const rivalShort = tDef.shortName.toLowerCase()
     const teamName = (team.name || '').toLowerCase()
-    const teamShort = (team.short_name || team.name || '').toLowerCase()
+    const teamShort = ((team as any).short_name || team.name || '').toLowerCase()
 
     const playerDriverNames = new Set(titulars.map((d) => d.name.toLowerCase().trim()))
     const rivalD1Name = (tDef.driver1?.name || '').toLowerCase().trim()

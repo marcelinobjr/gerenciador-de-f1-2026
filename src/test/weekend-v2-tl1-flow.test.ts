@@ -1976,6 +1976,34 @@ describe('NOVA EXPERIÊNCIA DE FIM DE SEMANA — TESTES N1 A N23 (FW2.1)', () =>
             n.includes('Fittipaldi'),
         ),
       ).toBe(true)
+
+      // Regra de elegibilidade estrita: nenhum elegível pode ter mais de 2 largadas na F1
+      expect(options.eligible.every((e) => e.careerGPs <= 2)).toBe(true)
+
+      // Se houver piloto com > 2 largadas no catálogo, ele deve constar exclusivamente em ineligible
+      const veteranDriver: DriverModel = {
+        id: 'veteran_driver_test',
+        name: 'Fernando Alonso',
+        nationality: 'Espanha',
+        age: 44,
+        speed: 89,
+        consistency: 90,
+        rain: 90,
+        defense: 91,
+        salary: 18000000,
+        contract_end: 2026,
+        career_records: { starts: 390, wins: 32, podiums: 106, poles: 22, championships: 2, points: 2300 },
+      }
+      const testWithOptions = RookiePracticeRequirementService.getRosterRookieOptions(
+        [mockDriver1, mockDriver2],
+        [veteranDriver],
+        mockPlayerTeam.id,
+      )
+      const veteranCheck = testWithOptions.ineligible.find((i) => i.driverId === 'veteran_driver_test')
+      expect(veteranCheck).toBeDefined()
+      expect(veteranCheck?.isEligible).toBe(false)
+      expect(veteranCheck?.reason).toContain('GPs')
+      expect(testWithOptions.eligible.some((e) => e.driverId === 'veteran_driver_test')).toBe(false)
     })
 
     it('BUG 2 REGRESSÃO FLUXO COMPLETO: abrir TL1 -> selecionar reserva -> confirmar -> TL1 usa reserva -> completar >=1 volta -> crédito concedido 1 única vez -> abrir TL2 -> titular restaurado', () => {

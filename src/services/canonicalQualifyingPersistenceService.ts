@@ -312,7 +312,7 @@ export const canonicalQualifyingPersistenceService = {
     })
 
     // Adiciona P19–P24 (Q1)
-    q1Eliminated.forEach((entry, idx) => {
+    q1Eliminated.forEach((entry) => {
       finalGrid.push({
         gridPosition: finalGrid.length + 1,
         driverId: entry.driverId,
@@ -330,6 +330,40 @@ export const canonicalQualifyingPersistenceService = {
         q1LapTime: entry.bestLapTime,
       })
     })
+
+    // Salvaguarda canônica: se restarem pilotos de Q1/Q2 não incluídos por inconsistência de flags de eliminação,
+    // preencher até 24 de forma estritamente única
+    if (finalGrid.length < 24) {
+      const remainingQ1 = q1Result.entries.filter(
+        (e) => e.driverId && !assignedDriverIds.has(e.driverId),
+      )
+      remainingQ1.sort((a, b) => {
+        if (a.bestLapSec > 0 && b.bestLapSec > 0) return a.bestLapSec - b.bestLapSec
+        if (a.bestLapSec > 0) return -1
+        if (b.bestLapSec > 0) return 1
+        return 0
+      })
+      remainingQ1.forEach((entry) => {
+        if (finalGrid.length >= 24) return
+        assignedDriverIds.add(entry.driverId)
+        finalGrid.push({
+          gridPosition: finalGrid.length + 1,
+          driverId: entry.driverId,
+          driverName: entry.driverName,
+          teamId: entry.teamId,
+          teamName: entry.teamName,
+          teamColor: entry.teamColor,
+          isPlayer: entry.isPlayer,
+          carId: entry.carId,
+          eliminationStage: 'Q1',
+          bestLapSec: entry.bestLapSec,
+          bestLapTime: entry.bestLapTime,
+          bestLapCompound: entry.compound,
+          tyreSetId: entry.tyreSetId,
+          q1LapTime: entry.bestLapTime,
+        })
+      })
+    }
 
     const poleEntry = finalGrid[0]
 

@@ -185,4 +185,93 @@ describe('MICRO-PATCH GRID-01: Inicialização Canônica da Corrida', () => {
     expect(carHulkenberg).toBeDefined()
     expect(carHulkenberg?.driverName).toBe('Nico Hülkenberg')
   })
+
+  // Teste F — Homologação da identificação de outra equipe humana (não hardcoded na Audi)
+  it('TESTE F: Funciona com outra equipe humana (ex: Ferrari, McLaren, Williams), sem duplicação e com exatamente 24 pilotos', () => {
+    const mockFerrariTeam = {
+      id: 'team_ferrari_player',
+      user_id: 'usr_player2',
+      name: 'Scuderia Ferrari',
+      country: 'Itália',
+      color: '#DC0000',
+      secondary_color: '#FFFFFF',
+      engine_supplier: 'Ferrari',
+      budget: 200000000,
+      reputation: 95,
+      strength: 90,
+      chassis_level: 90,
+      aerodynamics_level: 90,
+      aero_level: 90,
+      powertrain_level: 92,
+      reliability_level: 88,
+      strategy_level: 85,
+      created: '2026-01-01',
+      updated: '2026-01-01',
+      team_key: 'ferrari',
+    } as unknown as TeamModel
+
+    const mockFerrariDrivers = [
+      {
+        id: 'drv_ferrari_1',
+        team_id: 'team_ferrari_player',
+        name: 'Charles Leclerc',
+        nationality: 'Mônaco',
+        role: 'titular',
+        speed: 92,
+        consistency: 90,
+        experience: 85,
+        racecraft: 91,
+        defense: 90,
+        rain: 88,
+        morale: 90,
+        physical_condition: 95,
+        salary: 20000000,
+        created: '2026-01-01',
+        updated: '2026-01-01',
+      },
+      {
+        id: 'drv_ferrari_2',
+        team_id: 'team_ferrari_player',
+        name: 'Lewis Hamilton',
+        nationality: 'Reino Unido',
+        role: 'titular',
+        speed: 91,
+        consistency: 92,
+        experience: 98,
+        racecraft: 93,
+        defense: 92,
+        rain: 92,
+        morale: 88,
+        physical_condition: 93,
+        salary: 25000000,
+        created: '2026-01-01',
+        updated: '2026-01-01',
+      },
+    ] as unknown as DriverModel[]
+
+    const res = buildCanonicalEventGrid({
+      team: mockFerrariTeam,
+      playerDrivers: mockFerrariDrivers,
+      currentRound: 1,
+      totalLaps: 57,
+      gpName: 'GP do Bahrein',
+    })
+
+    expect(res.success).toBe(true)
+    expect(res.teamsCount).toBe(12)
+    expect(res.driversCount).toBe(24)
+    expect(res.grid).toHaveLength(24)
+
+    const positions = res.grid.map((g) => g.position)
+    expect(positions).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
+    expect(new Set(positions).size).toBe(24)
+    expect(new Set(res.grid.map((g) => g.driverId)).size).toBe(24)
+
+    // Ferrari aparece apenas 2 vezes (os dois carros do jogador)
+    const ferrariEntries = res.grid.filter(
+      (g) => g.teamId === mockFerrariTeam.id || g.teamName.toLowerCase().includes('ferrari'),
+    )
+    expect(ferrariEntries).toHaveLength(2)
+    expect(ferrariEntries.every((e) => e.isPlayer)).toBe(true)
+  })
 })

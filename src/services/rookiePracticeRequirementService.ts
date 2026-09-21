@@ -420,8 +420,8 @@ export class RookiePracticeRequirementService {
           d.is_test_driver ||
           d.role === 'reserva' ||
           d.category === 'f2' ||
-          d.category === 'f3' ||
-          d.category === 'academy'
+          (d.category as string) === 'f3' ||
+          (d.category as string) === 'academy'
 
         // Pilotos que disputaram <= 2 GPs na carreira
         const careerGPs = Number((d as any).f1RacesCompleted ?? (d as any).f1_career_starts ?? 0)
