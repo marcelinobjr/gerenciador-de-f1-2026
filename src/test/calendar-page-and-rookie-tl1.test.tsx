@@ -743,4 +743,252 @@ describe('ETAPA CAL-01: SUITE DE TESTES DO CALENDÁRIO CANÔNICO E ROOKIES', () 
 
     expect(screen.getByText(/Arquivo Homologado FIA/i)).toBeDefined()
   })
+
+  // -------------------------------------------------------------
+  // TESTES DE PERSISTÊNCIA ADICIONAIS & CENÁRIOS HOMOLOGATÓRIOS
+  // -------------------------------------------------------------
+
+  it('PERSISTÊNCIA A: salvar o mesmo planejamento duas vezes não duplica registros', () => {
+    const rookie = { id: 'rookie_double', name: 'Rookie Double', career_gps: 0 }
+    // Primeira gravação
+    const r1 = RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 7,
+      carId: 'car1',
+      driver: rookie,
+    })
+    expect(r1.success).toBe(true)
+
+    // Segunda gravação idêntica
+    const r2 = RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 7,
+      carId: 'car1',
+      driver: rookie,
+    })
+    expect(r2.success).toBe(true)
+
+    const plans = RookieTl1PlanningService.getPlans('career_test_01', 'season_2026', 'audi')
+    const r7Car1Plans = plans.filter((p) => p.round === 7 && p.carId === 'car1')
+    expect(r7Car1Plans).toHaveLength(1)
+  })
+
+  it('PERSISTÊNCIA B: remover planejamento remove apenas o plano futuro e não afeta créditos já concedidos', () => {
+    // 1. Concede um crédito oficial histórico na rodada 3
+    RookiePracticeRequirementService.grantRookieFP1Credit({
+      seasonId: 'season_2026',
+      round: 3,
+      teamId: 'audi',
+      carId: 'car1',
+      driverId: 'rookie_credited',
+      driverName: 'Rookie Credited',
+      lapsCompleted: 12,
+      isRookieEligible: true,
+    })
+
+    const reqBefore = RookiePracticeRequirementService.getTeamRequirement('season_2026', 'audi')
+    expect(reqBefore.car1.completed).toBe(1)
+
+    // 2. Cria plano futuro na rodada 8
+    RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 8,
+      carId: 'car1',
+      driver: { id: 'rookie_plan_future', name: 'Rookie Future', career_gps: 0 } as any,
+    })
+    expect(
+      RookieTl1PlanningService.getPlanForSeat('career_test_01', 'season_2026', 'audi', 8, 'car1'),
+    ).not.toBeNull()
+
+    // 3. Remove o planejamento da rodada 8
+    RookieTl1PlanningService.clearSeatPlan('career_test_01', 'season_2026', 'audi', 8, 'car1')
+    expect(
+      RookieTl1PlanningService.getPlanForSeat('career_test_01', 'season_2026', 'audi', 8, 'car1'),
+    ).toBeNull()
+
+    // 4. Crédito histórico oficial do Carro 1 na rodada 3 continua intacto
+    const reqAfter = RookiePracticeRequirementService.getTeamRequirement('season_2026', 'audi')
+    expect(reqAfter.car1.completed).toBe(1)
+    expect(reqAfter.car1.completedRounds).toContain(3)
+  })
+
+  it('PERSISTÊNCIA C: alterar piloto antes do TL1 mantém apenas a escolha vigente no storage', () => {
+    const rookieOld = { id: 'rookie_old', name: 'Rookie Antigo', career_gps: 0 }
+    const rookieNew = { id: 'rookie_new', name: 'Rookie Novo', career_gps: 0 }
+
+    RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 9,
+      carId: 'car2',
+      driver: rookieOld,
+    })
+
+    // Altera escolha para rookieNew
+    RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 9,
+      carId: 'car2',
+      driver: rookieNew,
+    })
+
+    const plan = RookieTl1PlanningService.getPlanForSeat(
+      'career_test_01',
+      'season_2026',
+      'audi',
+      9,
+      'car2',
+    )
+    expect(plan?.driverId).toBe('rookie_new')
+    expect(plan?.driverName).toBe('Rookie Novo')
+
+    const allPlans = RookieTl1PlanningService.getPlans('career_test_01', 'season_2026', 'audi')
+    const r9C2 = allPlans.filter((p) => p.round === 9 && p.carId === 'car2')
+    expect(r9C2).toHaveLength(1)
+  })
+
+  it('PERSISTÊNCIA D: isolamento total entre Carreira A e Carreira B', () => {
+    const rookie = { id: 'rookie_iso', name: 'Rookie Iso', career_gps: 0 }
+
+    RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_alpha',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 10,
+      carId: 'car1',
+      driver: rookie,
+    })
+
+    const planCareerAlpha = RookieTl1PlanningService.getPlans('career_alpha', 'season_2026', 'audi')
+    const planCareerBeta = RookieTl1PlanningService.getPlans('career_beta', 'season_2026', 'audi')
+
+    expect(planCareerAlpha).toHaveLength(1)
+    expect(planCareerBeta).toHaveLength(0)
+    expect(
+      RookieTl1PlanningService.getPlanForSeat('career_beta', 'season_2026', 'audi', 10, 'car1'),
+    ).toBeNull()
+  })
+
+  it('CENÁRIO TEMPO: novato atinge 3 GPs antes do GP planejado -> status vira NEEDS_REVIEW na revalidação', () => {
+    // Planeja na rodada 10
+    const rookie = { id: 'rookie_rising', name: 'Piloto Emergente', career_gps: 1 }
+    const setRes = RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 10,
+      carId: 'car1',
+      driver: rookie,
+    })
+    expect(setRes.success).toBe(true)
+
+    // Antes da rodada 10, o piloto disputa outros GPs e passa a ter 3 participações
+    const updatedPilotStats = {
+      id: 'rookie_rising',
+      name: 'Piloto Emergente',
+      career_gps: 3,
+    }
+
+    const plan = RookieTl1PlanningService.getPlanForSeat(
+      'career_test_01',
+      'season_2026',
+      'audi',
+      10,
+      'car1',
+    )
+    const val = RookieTl1PlanningService.validateSeatPlan({
+      plan: plan!,
+      availableDrivers: [updatedPilotStats],
+    })
+
+    expect(val.isValid).toBe(false)
+    expect(val.updatedPlan.status).toBe('NEEDS_REVIEW')
+    expect(val.reason).toContain('3 GPs disputados')
+    // Revalidação NÃO escolhe outro rookie sozinho
+    expect(val.updatedPlan.driverId).toBe('rookie_rising')
+  })
+
+  it('CENÁRIO TRANSFERÊNCIA / DISPENSA: novato sai da equipe ou não está disponível -> pede revisão', () => {
+    const plan = {
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 11,
+      carId: 'car2' as const,
+      driverId: 'rookie_transferred',
+      driverName: 'Piloto Transferido',
+      status: 'PLANNED' as const,
+      createdAt: new Date().toISOString(),
+    }
+
+    // Piloto não consta mais entre os disponíveis da equipe
+    const val = RookieTl1PlanningService.validateSeatPlan({
+      plan,
+      availableDrivers: [{ id: 'other_driver', name: 'Outro Piloto', career_gps: 0 } as any],
+    })
+
+    expect(val.isValid).toBe(false)
+    expect(val.updatedPlan.status).toBe('NEEDS_REVIEW')
+    expect(val.reason).toContain('não encontrado no plantel ou foi dispensado')
+    // Não inventa substituto
+    expect(val.updatedPlan.driverId).toBe('rookie_transferred')
+  })
+
+  it('CENÁRIO SPRINT: formato canônico de Sprint não bloqueia regulamentarmente novato, mas recomendação pontua risco', () => {
+    // Rodada 2 é China (Sprint no formato canônico)
+    const isChinaSprint = hasSprintWeekend(2)
+    expect(isChinaSprint).toBe(true)
+
+    // Piloto elegível pode ser planejado mesmo em fim de semana Sprint
+    const rookie = { id: 'rookie_sprint', name: 'Rookie Sprint', career_gps: 0 }
+    const setRes = RookieTl1PlanningService.setSeatPlan({
+      careerId: 'career_test_01',
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      round: 2,
+      carId: 'car1',
+      driver: rookie,
+    })
+    expect(setRes.success).toBe(true)
+
+    // O helper de recomendação explicita a penalidade por ser Sprint
+    const rec = RookieTl1PlanningService.getRecommendationForRound({
+      round: 2,
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      currentRound: 1,
+    })
+    expect(rec.score).toBeLessThan(60)
+  })
+
+  it('CENÁRIO AUDITORIA DE RECOMENDAÇÃO: helper getRecommendationForRound possui lógica explícita e regras claras', () => {
+    // Monaco (Round 8) é circuito urbano clássico: deve ser 'Evitar' ou pontuação penalizada por muros
+    const recMonaco = RookieTl1PlanningService.getRecommendationForRound({
+      round: 8,
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      currentRound: 4,
+    })
+    expect(recMonaco.label).toBe('Evitar')
+    expect(recMonaco.reason).toContain('urbano')
+
+    // Pista permanente tradicional com 3 treinos livres e muitas rodadas restantes: recomendada
+    const recBarcelona = RookieTl1PlanningService.getRecommendationForRound({
+      round: 9,
+      seasonId: 'season_2026',
+      teamId: 'audi',
+      currentRound: 4,
+    })
+    expect(recBarcelona.isRecommended).toBe(true)
+    expect(recBarcelona.label).toBe('Oportunidade para rookie')
+  })
 })
