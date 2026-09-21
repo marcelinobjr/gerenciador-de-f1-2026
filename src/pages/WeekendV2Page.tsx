@@ -79,6 +79,10 @@ import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPan
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
+import {
+  canonicalCareerPersistenceService,
+  type CareerApplicationStatus,
+} from '@/services/canonicalCareerPersistenceService'
 import { raceStrategyService } from '@/services/raceStrategyService'
 import type { CanonicalRaceState, OfficialRaceResult } from '@/types/canonical-race-v2'
 import {
@@ -162,6 +166,12 @@ export default function WeekendV2Page() {
     useState<CompleteQualifyingWeekendResult | null>(null)
   const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
   const [officialRaceResult, setOfficialRaceResult] = useState<OfficialRaceResult | null>(null)
+  const [careerPersistenceStatus, setCareerPersistenceStatus] =
+    useState<CareerApplicationStatus>('PENDING')
+  const [isPersistingCareer, setIsPersistingCareer] = useState(false)
+  const [careerPersistenceError, setCareerPersistenceError] = useState<string | undefined>(
+    undefined,
+  )
   // Controles de execução da sessão
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
   const [selectedSpeed, setSelectedSpeed] = useState<1 | 2 | 4>(1)
@@ -533,6 +543,15 @@ export default function WeekendV2Page() {
         )
         if (official) {
           setOfficialRaceResult(official)
+          const journal = canonicalCareerPersistenceService.getApplicationJournal(
+            team.id,
+            season.year || 2026,
+            currentRound,
+          )
+          if (journal) {
+            setCareerPersistenceStatus(journal.status)
+            setCareerPersistenceError(journal.lastError)
+          }
         }
       }
     }
@@ -2379,7 +2398,47 @@ export default function WeekendV2Page() {
         // RENDERIZAÇÃO DA CORRIDA V2 (FW2.1E-A / FW2.1E-F: ESTADO CANÔNICO OU RESULTADO OFICIAL)
         officialRaceResult ? (
           <div className="space-y-4">
-            <OfficialRaceResultPanel result={officialRaceResult} />
+            <OfficialRaceResultPanel
+              result={officialRaceResult}
+              careerPersistenceStatus={careerPersistenceStatus}
+              isPersisting={isPersistingCareer}
+              persistenceError={careerPersistenceError}
+              onRegisterInCareer={() => {
+                try {
+                  setIsPersistingCareer(true)
+                  setCareerPersistenceStatus('APPLYING')
+                  const res =
+                    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
+                      officialRaceResult,
+                    )
+                  setCareerPersistenceStatus(res.journal.status)
+                  setIsPersistingCareer(false)
+                  if (res.success) {
+                    toast({
+                      title: 'Resultado Registrado na Carreira',
+                      description:
+                        'Os dados esportivos oficiais foram persistidos e as estatísticas dos pilotos acumuladas.',
+                    })
+                  } else {
+                    setCareerPersistenceError(res.error)
+                    toast({
+                      variant: 'destructive',
+                      title: 'Falha ao registrar na carreira',
+                      description: res.error || 'Erro durante a persistência.',
+                    })
+                  }
+                } catch (e: any) {
+                  setIsPersistingCareer(false)
+                  setCareerPersistenceStatus('FAILED')
+                  setCareerPersistenceError(e?.message)
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erro inesperado',
+                    description: e?.message || 'Falha ao aplicar resultado na carreira.',
+                  })
+                }
+              }}
+            />
           </div>
         ) : canonicalRaceState ? (
           <CanonicalRaceInitializationPanel
@@ -2393,8 +2452,29 @@ export default function WeekendV2Page() {
                 toast({
                   title: 'Corrida Oficializada com Sucesso',
                   description:
-                    'O resultado oficial imutável foi homologado e arquivado para a temporada.',
+                    'O resultado oficial imutável foi homologado. Registrando na carreira...',
                 })
+                // Persistência automática pós-oficialização canônica e idempotente
+                try {
+                  setIsPersistingCareer(true)
+                  setCareerPersistenceStatus('APPLYING')
+                  const res =
+                    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
+                  setCareerPersistenceStatus(res.journal.status)
+                  setIsPersistingCareer(false)
+                  if (res.success) {
+                    toast({
+                      title: 'Registrado na Carreira',
+                      description: 'Estatísticas acumuladas com sucesso.',
+                    })
+                  } else {
+                    setCareerPersistenceError(res.error)
+                  }
+                } catch (applyErr: any) {
+                  setIsPersistingCareer(false)
+                  setCareerPersistenceStatus('FAILED')
+                  setCareerPersistenceError(applyErr?.message)
+                }
               } catch (e: any) {
                 toast({
                   variant: 'destructive',

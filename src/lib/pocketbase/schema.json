@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T11:19:00.174Z",
+  "generatedAt": "2026-09-21T11:57:02.877Z",
   "collections": [
     {
       "name": "users",
@@ -991,6 +991,132 @@
         {
           "name": "grid_position",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "event_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "circuit_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "official_race_result_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "checksum",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "winner_driver_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pole_driver_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fastest_lap_driver_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "officialized_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "car_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "dnf_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "retirement_lap",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "gap_to_winner",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "best_lap",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "best_lap_number",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pit_stops",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "positions_gained",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "result_snapshot",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "application_status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "result_key",
+          "type": "text",
           "required": false,
           "system": false
         }

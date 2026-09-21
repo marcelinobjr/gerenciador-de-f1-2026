@@ -106,6 +106,19 @@ export interface CareerDriverRecord {
     careerFastestLaps: number
     careerDnfs: number
     careerTitles: number
+    // FW2.1E-G — Acumulados detalhados de corrida
+    raceStarts?: number
+    wins?: number
+    podiums?: number
+    poles?: number
+    fastestLaps?: number
+    points?: number
+    dnfs?: number
+    lapsCompleted?: number
+    pitStops?: number
+    positionsGained?: number
+    bestFinish?: number
+    bestGridPosition?: number
   }
 
   updatedAt: string
@@ -239,6 +252,18 @@ export const driverBase2026Service = {
           careerFastestLaps: 0,
           careerDnfs: 0,
           careerTitles: base.f1Championships,
+          raceStarts: base.f1RacesCompleted,
+          wins: base.f1Wins,
+          podiums: 0,
+          poles: base.f1Poles,
+          fastestLaps: 0,
+          points: 0,
+          dnfs: 0,
+          lapsCompleted: 0,
+          pitStops: 0,
+          positionsGained: 0,
+          bestFinish: undefined,
+          bestGridPosition: undefined,
         },
         updatedAt: nowIso,
       }
@@ -301,6 +326,13 @@ export const driverBase2026Service = {
     deltaFastestLaps?: number
     deltaDnfs?: number
     deltaTitles?: number
+    // FW2.1E-G — Acumulados canônicos adicionais
+    deltaRaceStarts?: number
+    deltaLapsCompleted?: number
+    deltaPitStops?: number
+    deltaPositionsGained?: number
+    newFinishPosition?: number
+    newGridPosition?: number
   }): CareerDriverRecord | null {
     const { careerId, driverId } = params
     let all = this.getCareerDrivers(careerId)
@@ -308,17 +340,126 @@ export const driverBase2026Service = {
       all = this.initializeCareerDrivers({ careerId, playerTeamId: 'default' })
     }
 
-    const current = all[driverId]
-    if (!current) return null
+    let current = all[driverId]
+    if (!current) {
+      // Piloto pode ser procedural ou não estar no mapa original
+      const nowIso = new Date().toISOString()
+      current = {
+        careerId,
+        driverId,
+        teamId: 'free_agent',
+        teamName: 'Piloto',
+        role: 'titular',
+        contractEndYear: 2026,
+        salaryUsd: 1000000,
+        ratings: {
+          speed: 80,
+          consistency: 80,
+          rain: 80,
+          defense: 80,
+          qualifying: 80,
+          racePace: 80,
+          tireManagement: 80,
+          energyManagement: 80,
+          feedback: 80,
+          pressure: 80,
+          concentration: 80,
+          resilience: 80,
+        },
+        morale: 80,
+        physicalCondition: 90,
+        superlicensePoints: 40,
+        homologationStatus: 'elegivel',
+        stats: {
+          careerGps: 0,
+          careerWins: 0,
+          careerPoles: 0,
+          careerPodiums: 0,
+          careerPoints: 0,
+          careerFastestLaps: 0,
+          careerDnfs: 0,
+          careerTitles: 0,
+          raceStarts: 0,
+          wins: 0,
+          podiums: 0,
+          poles: 0,
+          fastestLaps: 0,
+          points: 0,
+          dnfs: 0,
+          lapsCompleted: 0,
+          pitStops: 0,
+          positionsGained: 0,
+          bestFinish: undefined,
+          bestGridPosition: undefined,
+        },
+        updatedAt: nowIso,
+      }
+      all[driverId] = current
+    }
 
-    current.stats.careerGps += params.deltaGps || 0
-    current.stats.careerWins += params.deltaWins || 0
-    current.stats.careerPoles += params.deltaPoles || 0
-    current.stats.careerPodiums += params.deltaPodiums || 0
-    current.stats.careerPoints += params.deltaPoints || 0
-    current.stats.careerFastestLaps += params.deltaFastestLaps || 0
-    current.stats.careerDnfs += params.deltaDnfs || 0
+    // Sincronizar contadores legados e FW2.1E-G
+    const dGps =
+      params.deltaRaceStarts !== undefined ? params.deltaRaceStarts : params.deltaGps || 0
+    current.stats.careerGps += dGps
+    current.stats.raceStarts = (current.stats.raceStarts ?? current.stats.careerGps - dGps) + dGps
+
+    const dWins = params.deltaWins || 0
+    current.stats.careerWins += dWins
+    current.stats.wins = (current.stats.wins ?? current.stats.careerWins - dWins) + dWins
+
+    const dPoles = params.deltaPoles || 0
+    current.stats.careerPoles += dPoles
+    current.stats.poles = (current.stats.poles ?? current.stats.careerPoles - dPoles) + dPoles
+
+    const dPodiums = params.deltaPodiums || 0
+    current.stats.careerPodiums += dPodiums
+    current.stats.podiums =
+      (current.stats.podiums ?? current.stats.careerPodiums - dPodiums) + dPodiums
+
+    const dPoints = params.deltaPoints || 0
+    current.stats.careerPoints += dPoints
+    current.stats.points = (current.stats.points ?? current.stats.careerPoints - dPoints) + dPoints
+
+    const dFastestLaps = params.deltaFastestLaps || 0
+    current.stats.careerFastestLaps += dFastestLaps
+    current.stats.fastestLaps =
+      (current.stats.fastestLaps ?? current.stats.careerFastestLaps - dFastestLaps) + dFastestLaps
+
+    const dDnfs = params.deltaDnfs || 0
+    current.stats.careerDnfs += dDnfs
+    current.stats.dnfs = (current.stats.dnfs ?? current.stats.careerDnfs - dDnfs) + dDnfs
+
     current.stats.careerTitles += params.deltaTitles || 0
+
+    // FW2.1E-G campos específicos
+    if (params.deltaLapsCompleted) {
+      current.stats.lapsCompleted = (current.stats.lapsCompleted || 0) + params.deltaLapsCompleted
+    }
+    if (params.deltaPitStops) {
+      current.stats.pitStops = (current.stats.pitStops || 0) + params.deltaPitStops
+    }
+    if (params.deltaPositionsGained) {
+      current.stats.positionsGained =
+        (current.stats.positionsGained || 0) + params.deltaPositionsGained
+    }
+    if (params.newFinishPosition !== undefined && params.newFinishPosition > 0) {
+      if (current.stats.bestFinish === undefined || current.stats.bestFinish === null) {
+        current.stats.bestFinish = params.newFinishPosition
+      } else {
+        current.stats.bestFinish = Math.min(current.stats.bestFinish, params.newFinishPosition)
+      }
+    }
+    if (params.newGridPosition !== undefined && params.newGridPosition > 0) {
+      if (current.stats.bestGridPosition === undefined || current.stats.bestGridPosition === null) {
+        current.stats.bestGridPosition = params.newGridPosition
+      } else {
+        current.stats.bestGridPosition = Math.min(
+          current.stats.bestGridPosition,
+          params.newGridPosition,
+        )
+      }
+    }
+
     current.updatedAt = new Date().toISOString()
 
     this.saveCareerDrivers(careerId, all)

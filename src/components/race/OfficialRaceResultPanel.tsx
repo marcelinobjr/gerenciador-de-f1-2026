@@ -16,9 +16,19 @@ import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 
 interface OfficialRaceResultPanelProps {
   result: OfficialRaceResult
+  careerPersistenceStatus?: 'PENDING' | 'APPLYING' | 'COMPLETE' | 'FAILED'
+  isPersisting?: boolean
+  persistenceError?: string
+  onRegisterInCareer?: () => void
 }
 
-export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = ({ result }) => {
+export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = ({
+  result,
+  careerPersistenceStatus = 'PENDING',
+  isPersisting = false,
+  persistenceError,
+  onRegisterInCareer,
+}) => {
   const winner = result.entries.find((e) => e.finalPosition === 1) || result.entries[0]
   const pole = result.entries.find((e) => e.driverId === result.poleDriverId)
   const fastest = result.fastestLapDriverId
@@ -41,6 +51,29 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 HOMOLOGADO E IMUTÁVEL
               </Badge>
+              {careerPersistenceStatus === 'COMPLETE' ? (
+                <Badge className="bg-emerald-600 text-white border border-emerald-500 text-[10px] font-black flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-white" />
+                  REGISTRADO NA CARREIRA
+                </Badge>
+              ) : isPersisting || careerPersistenceStatus === 'APPLYING' ? (
+                <Badge className="bg-amber-500 text-black border border-amber-400 text-[10px] font-black flex items-center gap-1 animate-pulse">
+                  <Timer className="w-3 h-3 text-black" />
+                  REGISTRANDO...
+                </Badge>
+              ) : careerPersistenceStatus === 'FAILED' ? (
+                <Badge
+                  variant="destructive"
+                  className="text-[10px] font-black flex items-center gap-1"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  FALHA NO REGISTRO
+                </Badge>
+              ) : (
+                <Badge className="bg-blue-600 text-white text-[10px] font-bold">
+                  RESULTADO OFICIAL
+                </Badge>
+              )}
               <Badge
                 variant="outline"
                 className="bg-slate-900 text-slate-300 border-slate-700 text-[10px] font-mono flex items-center gap-1"
@@ -67,6 +100,54 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
               constitui a única fonte de verdade esportiva para a persistência histórica, pontuação
               e estatísticas da temporada.
             </p>
+          </div>
+
+          {/* Banner de Ação de Persistência na Carreira */}
+          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Persistência Canônica de Carreira
+              </span>
+              <p className="text-xs text-slate-200">
+                {careerPersistenceStatus === 'COMPLETE'
+                  ? 'Os dados esportivos oficiais foram persistidos de forma idempotente e as estatísticas dos pilotos foram acumuladas com sucesso.'
+                  : careerPersistenceStatus === 'FAILED'
+                    ? `Falha na aplicação: ${persistenceError || 'Ocorreu um erro no processamento. Você pode tentar novamente com segurança.'}`
+                    : 'A persistência na carreira registra o resultado imutável e atualiza estatísticas acumuladas dos pilotos.'}
+              </p>
+            </div>
+
+            {careerPersistenceStatus !== 'COMPLETE' && onRegisterInCareer && (
+              <div>
+                <button
+                  type="button"
+                  disabled={isPersisting}
+                  onClick={onRegisterInCareer}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                    careerPersistenceStatus === 'FAILED'
+                      ? 'bg-amber-500 hover:bg-amber-400 text-black'
+                      : 'bg-[#E10600] hover:bg-red-600 text-white'
+                  } disabled:opacity-50`}
+                >
+                  {isPersisting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      REGISTRANDO...
+                    </>
+                  ) : careerPersistenceStatus === 'FAILED' ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4 text-black" />
+                      TENTAR NOVAMENTE
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      REGISTRAR RESULTADO NA CARREIRA
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Destaques Esportivos Canônicos */}
