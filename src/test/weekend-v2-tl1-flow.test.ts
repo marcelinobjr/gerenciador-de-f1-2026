@@ -951,6 +951,7 @@ describe('NOVA EXPERIÊNCIA DE FIM DE SEMANA — TESTES N1 A N23 (FW2.1)', () =>
   // =========================================================================
   // SUÍTE REGULAMENTAR DE NOVATOS NO TL1 (RFP1-01 A RFP1-20) + IA RIVAL E URGÊNCIA
   // =========================================================================
+  // Verificação de conformidade do pipeline de testes
   describe('SUÍTE RFP1-01 a RFP1-20: REGRA DE NOVATOS NO TL1 (FIA 2026)', () => {
     // RFP1-01: careerF1GrandPrixStarts = 0 -> ELEGÍVEL
     it('RFP1-01: Piloto com 0 GP disputado na carreira é ELEGÍVEL como novato', () => {
@@ -1191,11 +1192,9 @@ describe('NOVA EXPERIÊNCIA DE FIM DE SEMANA — TESTES N1 A N23 (FW2.1)', () =>
       // Validar checagem canônica de ocupação do outro assento
       const selectedCarForModal: 'car1' | 'car2' = 'car2'
       const candidateRookieId = 'rookie_shared'
-      const isOccupyingOtherCar =
-        (selectedCarForModal === 'car1' &&
-          (activeAssignmentCar1 as any)?.rookieDriverId === candidateRookieId) ||
-        (selectedCarForModal === 'car2' &&
-          activeAssignmentCar1?.rookieDriverId === candidateRookieId)
+      const otherCarAssignment =
+        (selectedCarForModal as string) === 'car1' ? null : activeAssignmentCar1
+      const isOccupyingOtherCar = otherCarAssignment?.rookieDriverId === candidateRookieId
 
       expect(isOccupyingOtherCar).toBe(true)
     })
