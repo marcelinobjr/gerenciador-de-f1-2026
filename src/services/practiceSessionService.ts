@@ -11,6 +11,8 @@ import type {
 import { CANONICAL_PRACTICE_DURATION_SEC } from '@/types/practice-session'
 import type { PracticePreparation, PracticeSessionType } from '@/types/practice-preparation'
 import { getAICompetitors, type AICompetitor } from '@/lib/f1-data'
+import { MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
+import { RookiePracticeRequirementService } from '@/services/rookiePracticeRequirementService'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { carTechnicalService } from '@/services/carTechnicalService'
@@ -184,7 +186,9 @@ export class PracticeSessionService {
     // Gerar tabela inicial com todos os pilotos do grid (IA + 2 do jogador)
     const initialLeaderboard = this.buildInitialLeaderboard({
       careerId,
+      seasonId,
       round,
+      sessionType,
       car1: car1Live,
       car2: car2Live,
       teamName: params.teamName || 'Minha Escuderia',
@@ -244,7 +248,9 @@ export class PracticeSessionService {
    */
   private buildInitialLeaderboard(params: {
     careerId: string
+    seasonId?: string
     round: number
+    sessionType?: PracticeSessionType
     car1: PracticeCarLiveState
     car2: PracticeCarLiveState
     teamName: string
@@ -254,12 +260,68 @@ export class PracticeSessionService {
   }): PracticeTimeEntry[] {
     const aiList = getAICompetitors()
 
+    // Se for TL1 (tp1), verificar se equipes rivais têm escala de novato para a rodada
+    let rivalSchedules: Record<string, import('@/types/rookie-practice').RivalAIRookieSchedule> = {}
+    if (params.sessionType === 'tp1' && params.seasonId) {
+      try {
+        const teamsToSchedule = aiList.map((ai) => ({
+          id: ai.id,
+          name: ai.name,
+          team_key: ai.key,
+        })) as any[]
+        rivalSchedules = RookiePracticeRequirementService.getOrGenerateRivalAISchedules(
+          params.seasonId,
+          teamsToSchedule,
+          [],
+        )
+      } catch {
+        /* fallback síncrono limpo */
+      }
+    }
+
     const aiEntries: PracticeTimeEntry[] = aiList.flatMap((ai) => {
+      const schedule = rivalSchedules[ai.id]
+      const hasRookieC1 =
+        params.sessionType === 'tp1' &&
+        schedule?.car1Rounds?.includes(params.round) &&
+        schedule.car1RookieDriverId &&
+        schedule.car1RookieDriverId !== 'PENDING_NO_ELIGIBLE_ROOKIE'
+      const hasRookieC2 =
+        params.sessionType === 'tp1' &&
+        schedule?.car2Rounds?.includes(params.round) &&
+        schedule.car2RookieDriverId &&
+        schedule.car2RookieDriverId !== 'PENDING_NO_ELIGIBLE_ROOKIE'
+
+      let d1Id = `${ai.id}_d1`
+      let d1Name = ai.driver1.name
+      let isRookie1 = false
+
+      if (hasRookieC1 && schedule) {
+        d1Id = schedule.car1RookieDriverId
+        const mbj = MBJ_2026_PILOTS.find((p) => p.id === d1Id)
+        d1Name = mbj?.name || `Novato TL1 ${ai.name} C1`
+        isRookie1 = true
+      }
+
+      let d2Id = `${ai.id}_d2`
+      let d2Name = ai.driver2.name
+      let isRookie2 = false
+
+      if (hasRookieC2 && schedule) {
+        // Garantir que o mesmo piloto não ocupe C1 e C2 na mesma sessão
+        if (schedule.car2RookieDriverId !== d1Id) {
+          d2Id = schedule.car2RookieDriverId
+          const mbj = MBJ_2026_PILOTS.find((p) => p.id === d2Id)
+          d2Name = mbj?.name || `Novato TL1 ${ai.name} C2`
+          isRookie2 = true
+        }
+      }
+
       return [
         {
           position: 0,
-          driverId: `${ai.id}_d1`,
-          driverName: ai.driver1.name,
+          driverId: d1Id,
+          driverName: d1Name,
           teamName: ai.name,
           teamColor: ai.color,
           compound: 'medio' as const,
@@ -268,11 +330,12 @@ export class PracticeSessionService {
           bestLapTime: '--:--.---',
           gap: '-',
           isPlayer: false,
+          isRookie: isRookie1,
         },
         {
           position: 0,
-          driverId: `${ai.id}_d2`,
-          driverName: ai.driver2.name,
+          driverId: d2Id,
+          driverName: d2Name,
           teamName: ai.name,
           teamColor: ai.color,
           compound: 'medio' as const,
@@ -281,6 +344,7 @@ export class PracticeSessionService {
           bestLapTime: '--:--.---',
           gap: '-',
           isPlayer: false,
+          isRookie: isRookie2,
         },
       ]
     })

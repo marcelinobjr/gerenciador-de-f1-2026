@@ -946,4 +946,142 @@ describe('NOVA EXPERIÊNCIA DE FIM DE SEMANA — TESTES N1 A N23 (FW2.1)', () =>
     expect(inheritedSet?.lapsUsed).toBe(10)
     expect(inheritedSet?.driverId).toBe(reserveId)
   })
+
+  // RFP1-11, RFP1-12, RFP1-13: Idempotência de concessão de crédito TL1 e suporte a IA Rival
+  describe('RFP1-11 a RFP1-13: Idempotência de crédito TL1 e IA Rival', () => {
+    it('RFP1-11: grantRookieFP1Credit é estritamente idempotente pela chave round + team + car', () => {
+      const seasonId = 'season_rfp1_test'
+      const round = 4
+      const teamId = 'team_audi_test'
+      const carId = 'car1'
+      const driverId = 'drv_rookie_bortoleto'
+
+      // Concessão 1
+      const res1 = RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId,
+        round,
+        teamId,
+        carId,
+        driverId,
+        driverName: 'Gabriel Bortoleto',
+        lapsCompleted: 18,
+        isRookieEligible: true,
+      })
+      expect(res1.granted).toBe(true)
+
+      // Concessão 2 (repetida)
+      const res2 = RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId,
+        round,
+        teamId,
+        carId,
+        driverId,
+        driverName: 'Gabriel Bortoleto',
+        lapsCompleted: 22,
+        isRookieEligible: true,
+      })
+      expect(res2.granted).toBe(false)
+      expect(res2.reason).toContain('já foi concedido')
+
+      // Verificar total de créditos gravados: deve ser exatamente 1 para este carro
+      const teamStatus = RookiePracticeRequirementService.getTeamRequirementStatus(
+        seasonId,
+        teamId,
+        'Audi Revolut',
+      )
+      expect(teamStatus.car1Credits).toBe(1)
+      expect(teamStatus.car2Credits).toBe(0)
+      expect(teamStatus.totalCredits).toBe(1)
+    })
+
+    it('RFP1-12: TotalLaps < 1 não concede crédito de novato', () => {
+      const seasonId = 'season_rfp1_zero_laps'
+      const round = 5
+      const teamId = 'team_player'
+
+      const res = RookiePracticeRequirementService.grantRookieFP1Credit({
+        seasonId,
+        round,
+        teamId,
+        carId: 'car2',
+        driverId: 'drv_rookie_test',
+        driverName: 'Test Rookie',
+        lapsCompleted: 0,
+        isRookieEligible: true,
+      })
+
+      expect(res.granted).toBe(false)
+      expect(res.reason).toContain('pelo menos 1 volta')
+    })
+
+    it('RFP1-13: simulateRivalAICreditsForRound concede créditos idempotentes aos rivais com laps >= 1', () => {
+      const seasonId = 'season_rfp1_rivals'
+      const rivalTeams = [
+        { id: 'ferrari', name: 'Ferrari', team_key: 'ferrari' } as any,
+        { id: 'mclaren', name: 'McLaren', team_key: 'mclaren' } as any,
+      ]
+      const allDrivers = [
+        {
+          id: 'rookie_fer_1',
+          name: 'Ferrari Academy Driver',
+          team_id: 'ferrari',
+          role: 'reserva',
+        } as any,
+      ]
+
+      // Gerar escala
+      const schedules = RookiePracticeRequirementService.getOrGenerateRivalAISchedules(
+        seasonId,
+        rivalTeams,
+        allDrivers,
+      )
+      expect(schedules['ferrari']).toBeDefined()
+
+      const scheduledRound = schedules['ferrari'].car1Rounds[0]
+
+      // Simular com leaderboard mock onde o novato deu voltas
+      RookiePracticeRequirementService.simulateRivalAICreditsForRound(
+        seasonId,
+        scheduledRound,
+        rivalTeams,
+        allDrivers,
+        [
+          {
+            driverId: schedules['ferrari'].car1RookieDriverId,
+            laps: 15,
+            driverName: 'Novato Ferrari',
+          },
+        ],
+      )
+
+      const status1 = RookiePracticeRequirementService.getTeamRequirementStatus(
+        seasonId,
+        'ferrari',
+        'Ferrari',
+      )
+      expect(status1.car1Credits).toBe(1)
+
+      // Repetir a chamada para o mesmo round não duplica o crédito
+      RookiePracticeRequirementService.simulateRivalAICreditsForRound(
+        seasonId,
+        scheduledRound,
+        rivalTeams,
+        allDrivers,
+        [
+          {
+            driverId: schedules['ferrari'].car1RookieDriverId,
+            laps: 20,
+            driverName: 'Novato Ferrari',
+          },
+        ],
+      )
+
+      const status2 = RookiePracticeRequirementService.getTeamRequirementStatus(
+        seasonId,
+        'ferrari',
+        'Ferrari',
+      )
+      expect(status2.car1Credits).toBe(1)
+    })
+  })
 })

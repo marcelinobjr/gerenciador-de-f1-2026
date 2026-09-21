@@ -414,25 +414,59 @@ export class RookiePracticeRequirementService {
       // Distribuição razoável nas 24 etapas (ex.: rodadas 4 a 20)
       // Carro 1: uma no terço 1 (rounds 3..9) e uma no terço 2 (rounds 11..17)
       // Carro 2: uma no terço 1 (rounds 4..10) e uma no terço 3 (rounds 15..21)
-      const baseSeed = (idx * 3 + 4) % 6
-      const round1A = 3 + (baseSeed % 5)
-      const round1B = 12 + ((baseSeed + 2) % 5)
-      const round2A = 5 + ((baseSeed + 1) % 5)
-      const round2B = 16 + ((baseSeed + 3) % 5)
+      // Distribuição determinística e distribuída:
+      // Carro 1: janelas R3–R9 (terço 1) e R11–R17 (terço 2)
+      // Carro 2: janelas R4–R10 (terço 1) e R15–R21 (terço 3)
+      const round1A = 3 + (idx % 7) // 3..9
+      const round1B = 11 + ((idx + 2) % 7) // 11..17
+      const round2A = 4 + ((idx + 1) % 7) // 4..10
+      const round2B = 15 + ((idx + 3) % 7) // 15..21
 
-      // Identificar novato associado à equipe ou criar identificador de piloto elegível do plantel/reserva
+      // Identificar novatos elegíveis associados à equipe (ou no catálogo global de reservas)
+      const rivalKey = ((rival as any).team_key || rival.id || '')
+        .toLowerCase()
+        .replace(/[-_\s]/g, '')
       const candidateRookies = allDrivers.filter((d) => {
+        if (!d || !d.id) return false
+        const dTeamId = (d.team_id || '').toLowerCase().replace(/[-_\s]/g, '')
+        const dReserveTeamId = (d.reserve_team_id || '').toLowerCase().replace(/[-_\s]/g, '')
+        const dAcademyId = ((d as any).academy_origin_team_id || '')
+          .toLowerCase()
+          .replace(/[-_\s]/g, '')
+        const dTeamKey = ((d as any).teamKey || '').toLowerCase().replace(/[-_\s]/g, '')
+
         const isAffiliated =
           d.team_id === rival.id ||
           d.reserve_team_id === rival.id ||
-          (d as any).academy_origin_team_id === rival.id
+          (d as any).academy_origin_team_id === rival.id ||
+          (rivalKey &&
+            (dTeamId.includes(rivalKey) ||
+              dReserveTeamId.includes(rivalKey) ||
+              dAcademyId.includes(rivalKey) ||
+              dTeamKey.includes(rivalKey)))
+
+        if (!isAffiliated) return false
         const isEligible = RookiePracticeRequirementService.checkDriverEligibility(d).isEligible
-        return isAffiliated && isEligible
+        return isEligible
       })
 
-      const rookie1 = candidateRookies[0]?.id || `rookie_res_${rival.id}_1`
+      // Se não há candidatos filiados, buscar novatos elegíveis disponíveis sem contrato de titular
+      let availableRookies = [...candidateRookies]
+      if (availableRookies.length < 2) {
+        const unassignedRookies = allDrivers.filter((d) => {
+          if (!d || !d.id || availableRookies.some((c) => c.id === d.id)) return false
+          const isEligible = RookiePracticeRequirementService.checkDriverEligibility(d).isEligible
+          return isEligible && d.role !== 'titular'
+        })
+        availableRookies = [...availableRookies, ...unassignedRookies]
+      }
+
+      // Se não houver candidato elegível real, registrar PENDING_NO_ELIGIBLE_ROOKIE (sem criar piloto fictício)
+      const rookie1 = availableRookies[0]?.id || 'PENDING_NO_ELIGIBLE_ROOKIE'
       const rookie2 =
-        candidateRookies[1]?.id || candidateRookies[0]?.id || `rookie_res_${rival.id}_2`
+        availableRookies[1]?.id && availableRookies[1].id !== rookie1
+          ? availableRookies[1].id
+          : availableRookies[0]?.id || 'PENDING_NO_ELIGIBLE_ROOKIE'
 
       scheduleMap[rival.id] = {
         teamId: rival.id,
@@ -457,42 +491,105 @@ export class RookiePracticeRequirementService {
    * Simula o cumprimento de TL1 da IA para uma rodada concluída, concedendo créditos automáticos
    * se aquela rodada estiver no cronograma planejado da equipe rival.
    */
+  /**
+   * Homologa crédito rival ao fim do TL1 somente com laps >= 1, idempotente pela chave
+   * rookie_fp1_credit_{season}_{round}_{team}_{car}.
+   * Se candidateId for 'PENDING_NO_ELIGIBLE_ROOKIE' ou inexistente, não concede crédito nem cria piloto fictício.
+   * Pode receber entradas reais da tabela de tempos do TL1 (leaderboard entries) para validar voltas reais.
+   */
   public static simulateRivalAICreditsForRound(
     seasonId: string,
     round: number,
     rivalTeams: TeamModel[],
     allDrivers: DriverModel[],
+    leaderboardEntries?: Array<{
+      driverId: string
+      laps: number
+      teamId?: string
+      teamName?: string
+      driverName?: string
+      isRookie?: boolean
+    }>,
   ): void {
     const schedules = this.getOrGenerateRivalAISchedules(seasonId, rivalTeams, allDrivers)
+
+    // Mapa de voltas por driverId a partir do leaderboard real
+    const leaderboardByDriver = new Map<
+      string,
+      { laps: number; driverName: string; teamName?: string }
+    >()
+    if (leaderboardEntries && leaderboardEntries.length > 0) {
+      leaderboardEntries.forEach((entry) => {
+        leaderboardByDriver.set(entry.driverId, {
+          laps: entry.laps || 0,
+          driverName: entry.driverName || '',
+          teamName: entry.teamName,
+        })
+      })
+    }
 
     rivalTeams.forEach((rival) => {
       const plan = schedules[rival.id]
       if (!plan) return
 
+      // Carro 1
       if (plan.car1Rounds.includes(round)) {
-        this.grantRookieFP1Credit({
-          seasonId,
-          round,
-          teamId: rival.id,
-          carId: 'car1',
-          driverId: plan.car1RookieDriverId,
-          driverName: `Novato TL1 ${rival.name} Carro 1`,
-          lapsCompleted: 15,
-          isRookieEligible: true,
-        })
+        const candidateId = plan.car1RookieDriverId
+        if (candidateId && candidateId !== 'PENDING_NO_ELIGIBLE_ROOKIE') {
+          const lbEntry = leaderboardByDriver.get(candidateId)
+          // Se houver tabela de tempos real do TL1, exigir laps >= 1
+          const laps = lbEntry
+            ? lbEntry.laps
+            : leaderboardEntries && leaderboardEntries.length > 0
+              ? 0
+              : 15
+
+          if (laps >= 1) {
+            const foundDriver = allDrivers.find((d) => d.id === candidateId)
+            const driverName =
+              foundDriver?.name || lbEntry?.driverName || `Novato TL1 ${rival.name} C1`
+            this.grantRookieFP1Credit({
+              seasonId,
+              round,
+              teamId: rival.id,
+              carId: 'car1',
+              driverId: candidateId,
+              driverName,
+              lapsCompleted: laps,
+              isRookieEligible: true,
+            })
+          }
+        }
       }
 
+      // Carro 2
       if (plan.car2Rounds.includes(round)) {
-        this.grantRookieFP1Credit({
-          seasonId,
-          round,
-          teamId: rival.id,
-          carId: 'car2',
-          driverId: plan.car2RookieDriverId,
-          driverName: `Novato TL1 ${rival.name} Carro 2`,
-          lapsCompleted: 15,
-          isRookieEligible: true,
-        })
+        const candidateId = plan.car2RookieDriverId
+        if (candidateId && candidateId !== 'PENDING_NO_ELIGIBLE_ROOKIE') {
+          const lbEntry = leaderboardByDriver.get(candidateId)
+          // Se houver tabela de tempos real do TL1, exigir laps >= 1
+          const laps = lbEntry
+            ? lbEntry.laps
+            : leaderboardEntries && leaderboardEntries.length > 0
+              ? 0
+              : 15
+
+          if (laps >= 1) {
+            const foundDriver = allDrivers.find((d) => d.id === candidateId)
+            const driverName =
+              foundDriver?.name || lbEntry?.driverName || `Novato TL1 ${rival.name} C2`
+            this.grantRookieFP1Credit({
+              seasonId,
+              round,
+              teamId: rival.id,
+              carId: 'car2',
+              driverId: candidateId,
+              driverName,
+              lapsCompleted: laps,
+              isRookieEligible: true,
+            })
+          }
+        }
       }
     })
   }

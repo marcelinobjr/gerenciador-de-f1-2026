@@ -1063,7 +1063,7 @@ export default function WeekendV2Page() {
               const c1 = res.nextState.cars.car1
               const c2 = res.nextState.cars.car2
 
-              if (activeRookieCar1 && c1.lapsCompleted >= 1) {
+              if (activeRookieCar1 && c1.totalLaps >= 1) {
                 RookiePracticeRequirementService.grantRookieFP1Credit({
                   seasonId: season.id,
                   round: currentRound,
@@ -1071,12 +1071,12 @@ export default function WeekendV2Page() {
                   carId: 'car1',
                   driverId: activeRookieCar1.rookieDriverId,
                   driverName: activeRookieCar1.rookieDriverName,
-                  lapsCompleted: c1.lapsCompleted,
+                  lapsCompleted: c1.totalLaps,
                   isRookieEligible: true,
                 })
               }
 
-              if (activeRookieCar2 && c2.lapsCompleted >= 1) {
+              if (activeRookieCar2 && c2.totalLaps >= 1) {
                 RookiePracticeRequirementService.grantRookieFP1Credit({
                   seasonId: season.id,
                   round: currentRound,
@@ -1084,9 +1084,36 @@ export default function WeekendV2Page() {
                   carId: 'car2',
                   driverId: activeRookieCar2.rookieDriverId,
                   driverName: activeRookieCar2.rookieDriverName,
-                  lapsCompleted: c2.lapsCompleted,
+                  lapsCompleted: c2.totalLaps,
                   isRookieEligible: true,
                 })
+              }
+
+              // Homologação real das equipes rivais no encerramento contínuo do TL1
+              try {
+                const rivalEntries =
+                  registration?.snapshot?.entries?.filter((e) => !e.isPlayerTeam) || []
+                const rivalsMap = new Map<string, any>()
+                rivalEntries.forEach((r, idx) => {
+                  const rTeamId = r.teamId || `rival_${idx}`
+                  if (!rivalsMap.has(rTeamId)) {
+                    rivalsMap.set(rTeamId, {
+                      id: rTeamId,
+                      name: r.teamName || `Equipe ${idx + 1}`,
+                      team_key: (r as any).teamKey || rTeamId,
+                    })
+                  }
+                })
+                const rivalTeamsList = Array.from(rivalsMap.values())
+                RookiePracticeRequirementService.simulateRivalAICreditsForRound(
+                  season.id,
+                  currentRound,
+                  rivalTeamsList,
+                  allDriversCatalog,
+                  res.nextState.leaderboard,
+                )
+              } catch (e) {
+                console.warn('[WeekendV2Page] Erro ao homologar créditos TL1 dos rivais (tick):', e)
               }
             }
           }
@@ -1341,7 +1368,7 @@ export default function WeekendV2Page() {
         const c1 = res.nextState.cars.car1
         const c2 = res.nextState.cars.car2
 
-        if (activeRookieCar1 && c1.lapsCompleted >= 1) {
+        if (activeRookieCar1 && c1.totalLaps >= 1) {
           RookiePracticeRequirementService.grantRookieFP1Credit({
             seasonId: season.id,
             round: currentRound,
@@ -1349,12 +1376,12 @@ export default function WeekendV2Page() {
             carId: 'car1',
             driverId: activeRookieCar1.rookieDriverId,
             driverName: activeRookieCar1.rookieDriverName,
-            lapsCompleted: c1.lapsCompleted,
+            lapsCompleted: c1.totalLaps,
             isRookieEligible: true,
           })
         }
 
-        if (activeRookieCar2 && c2.lapsCompleted >= 1) {
+        if (activeRookieCar2 && c2.totalLaps >= 1) {
           RookiePracticeRequirementService.grantRookieFP1Credit({
             seasonId: season.id,
             round: currentRound,
@@ -1362,9 +1389,38 @@ export default function WeekendV2Page() {
             carId: 'car2',
             driverId: activeRookieCar2.rookieDriverId,
             driverName: activeRookieCar2.rookieDriverName,
-            lapsCompleted: c2.lapsCompleted,
+            lapsCompleted: c2.totalLaps,
             isRookieEligible: true,
           })
+        }
+
+        // Homologação real das equipes rivais ao simular o restante do TL1
+        try {
+          const rivalEntries = registration?.snapshot?.entries?.filter((e) => !e.isPlayerTeam) || []
+          const rivalsMap = new Map<string, any>()
+          rivalEntries.forEach((r, idx) => {
+            const rTeamId = r.teamId || `rival_${idx}`
+            if (!rivalsMap.has(rTeamId)) {
+              rivalsMap.set(rTeamId, {
+                id: rTeamId,
+                name: r.teamName || `Equipe ${idx + 1}`,
+                team_key: (r as any).teamKey || rTeamId,
+              })
+            }
+          })
+          const rivalTeamsList = Array.from(rivalsMap.values())
+          RookiePracticeRequirementService.simulateRivalAICreditsForRound(
+            season.id,
+            currentRound,
+            rivalTeamsList,
+            allDriversCatalog,
+            res.nextState.leaderboard,
+          )
+        } catch (e) {
+          console.warn(
+            '[WeekendV2Page] Erro ao homologar créditos TL1 dos rivais (simulateRemaining):',
+            e,
+          )
         }
       }
     }

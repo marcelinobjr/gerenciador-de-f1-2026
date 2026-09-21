@@ -601,24 +601,26 @@ export class PracticeSessionRunner {
     const circuitProfile = resolveCircuitProfile({ round: context.round })
     const aiList = getAICompetitors()
 
-    // Amostragem probabilística proporcional ao delta de tempo
-    const chance = Math.min(0.85, (deltaSimSec / 60) * 0.45)
+    // Amostragem probabilística proporcional ao delta de tempo (garantindo acumulação consistente de voltas reais)
+    const chance = Math.min(0.95, Math.max(0.2, (deltaSimSec / 60) * 0.65))
 
     aiEntries.forEach((aiEntry) => {
-      // Pilotos da IA dão entre 12 e 28 voltas ao longo de toda a sessão de 60 min
+      // Pilotos da IA (incluindo novatos com isRookie) dão entre 12 e 28 voltas ao longo de toda a sessão de 60 min
       if (Math.random() < chance && aiEntry.laps < 28) {
         const aiTeam = aiList.find((t) => t.name === aiEntry.teamName)
         const strength = aiTeam?.strengthRating || aiTeam?.strength || 75
-        const driverSkill = aiEntry.driverId.endsWith('d1')
+        // Se for novato, ritmo calibrado ligeiramente conservador (76-78)
+        const defaultSkill = aiEntry.driverId.endsWith('d1')
           ? aiTeam?.driver1.speed || 82
           : aiTeam?.driver2.speed || 80
+        const driverSkill = aiEntry.isRookie ? 77 : defaultSkill
 
         const pace = calculateCombinedPace({
           teamStrength: strength,
           carLevel: strength,
           driver: {
             speed: driverSkill,
-            consistency: 80,
+            consistency: aiEntry.isRookie ? 75 : 80,
             defense: 75,
           },
           weather: context.weather,
