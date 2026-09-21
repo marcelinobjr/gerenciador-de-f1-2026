@@ -188,7 +188,7 @@ describe('ETAPA CAL-01: SUITE DE TESTES DO CALENDÁRIO CANÔNICO E ROOKIES', () 
       teamId: 'audi',
       round: 10,
       carId: 'car1',
-      driver: { id: 'rookie_test', name: 'Rookie Teste', career_gps: 0 },
+      driver: { id: 'rookie_test', name: 'Rookie Teste' } as any,
     })
     expect(res.success).toBe(true)
 
