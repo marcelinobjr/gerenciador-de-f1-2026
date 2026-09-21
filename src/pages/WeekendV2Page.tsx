@@ -43,6 +43,7 @@ import {
 } from '@/services/canonicalPracticeV2Runner'
 import { RookieFP1ManagementCard } from '@/components/race/RookieFP1ManagementCard'
 import { RookiePracticeRequirementService } from '@/services/rookiePracticeRequirementService'
+import { RookieTl1PlanningService } from '@/services/rookieTl1PlanningService'
 import type { RookieTemporaryFP1Assignment, RookieEligibilityCheck } from '@/types/rookie-practice'
 import type { DriverModel } from '@/types/f1'
 import { f1Service } from '@/services/f1Service'
@@ -730,30 +731,129 @@ export default function WeekendV2Page() {
   // Carregar catálogo de pilotos para o modal de novatos e assignments salvos
   useEffect(() => {
     if (!season?.id || !team?.id) return
-    const a1 = RookiePracticeRequirementService.getTemporaryFP1Assignment(
+    let a1 = RookiePracticeRequirementService.getTemporaryFP1Assignment(
       season.id,
       currentRound,
       team.id,
       'car1',
     )
-    const a2 = RookiePracticeRequirementService.getTemporaryFP1Assignment(
+    let a2 = RookiePracticeRequirementService.getTemporaryFP1Assignment(
       season.id,
       currentRound,
       team.id,
       'car2',
     )
-    setActiveRookieCar1(a1)
-    setActiveRookieCar2(a2)
+
+    // Se não há assignment ativo em memória/storage imediato, verifica se existe plano prévio no Calendário
+    const careerId = (season as any)?.career_id || (season as any)?.careerId || 'default_career'
+    const planC1 = RookieTl1PlanningService.getPlanForSeat(
+      careerId,
+      season.id,
+      team.id,
+      currentRound,
+      'car1',
+    )
+    const planC2 = RookieTl1PlanningService.getPlanForSeat(
+      careerId,
+      season.id,
+      team.id,
+      currentRound,
+      'car2',
+    )
 
     f1Service
       .getMarketDrivers()
       .then((res) => {
+        const driversList = Array.isArray(res) && res.length > 0 ? res : allDriversCatalog
         if (Array.isArray(res) && res.length > 0) {
           setAllDriversCatalog(res)
         }
+
+        // Revalidação do plano Carro 1
+        if (planC1 && !a1) {
+          const val1 = RookieTl1PlanningService.validateSeatPlan({
+            plan: planC1,
+            availableDrivers: driversList,
+            raceResults: undefined,
+          })
+          if (val1.isValid) {
+            const originalC1 = registration?.snapshot?.entriesByCar?.playerCar1
+            const newAssignment1: RookieTemporaryFP1Assignment = {
+              seasonId: season.id,
+              round: currentRound,
+              teamId: team.id,
+              carId: 'car1',
+              rookieDriverId: planC1.driverId,
+              rookieDriverName: planC1.driverName || 'Piloto Novato',
+              originalDriverId: originalC1?.driverId || 'drv_c1',
+              originalDriverName: originalC1?.driverName || 'Piloto 1',
+              rookieSpeed: 78,
+              rookieConsistency: 77,
+              rookieTechnicalFeedback: 70,
+            }
+            RookiePracticeRequirementService.setTemporaryFP1Assignment(newAssignment1)
+            a1 = newAssignment1
+            setActiveRookieCar1(newAssignment1)
+          } else {
+            // Salva status como NEEDS_REVIEW e NÃO substitui automaticamente
+            const allPlans = RookieTl1PlanningService.getPlans(careerId, season.id, team.id)
+            const updated = allPlans.map((p) =>
+              p.round === currentRound && p.carId === 'car1' ? val1.updatedPlan : p,
+            )
+            RookieTl1PlanningService.savePlans(careerId, season.id, team.id, updated)
+            toast({
+              variant: 'destructive',
+              title: 'PLANEJAMENTO DE ROOKIE PRECISA DE REVISÃO (Carro 1)',
+              description: val1.reason || 'Piloto não elegível. Escolha um novo novato.',
+            })
+          }
+        }
+
+        // Revalidação do plano Carro 2
+        if (planC2 && !a2) {
+          const val2 = RookieTl1PlanningService.validateSeatPlan({
+            plan: planC2,
+            availableDrivers: driversList,
+            raceResults: undefined,
+          })
+          if (val2.isValid) {
+            const originalC2 = registration?.snapshot?.entriesByCar?.playerCar2
+            const newAssignment2: RookieTemporaryFP1Assignment = {
+              seasonId: season.id,
+              round: currentRound,
+              teamId: team.id,
+              carId: 'car2',
+              rookieDriverId: planC2.driverId,
+              rookieDriverName: planC2.driverName || 'Piloto Novato',
+              originalDriverId: originalC2?.driverId || 'drv_c2',
+              originalDriverName: originalC2?.driverName || 'Piloto 2',
+              rookieSpeed: 77,
+              rookieConsistency: 76,
+              rookieTechnicalFeedback: 68,
+            }
+            RookiePracticeRequirementService.setTemporaryFP1Assignment(newAssignment2)
+            a2 = newAssignment2
+            setActiveRookieCar2(newAssignment2)
+          } else {
+            // Salva status como NEEDS_REVIEW e NÃO substitui automaticamente
+            const allPlans = RookieTl1PlanningService.getPlans(careerId, season.id, team.id)
+            const updated = allPlans.map((p) =>
+              p.round === currentRound && p.carId === 'car2' ? val2.updatedPlan : p,
+            )
+            RookieTl1PlanningService.savePlans(careerId, season.id, team.id, updated)
+            toast({
+              variant: 'destructive',
+              title: 'PLANEJAMENTO DE ROOKIE PRECISA DE REVISÃO (Carro 2)',
+              description: val2.reason || 'Piloto não elegível. Escolha um novo novato.',
+            })
+          }
+        }
       })
       .catch(() => {})
-  }, [season?.id, team?.id, currentRound])
+
+    setActiveRookieCar1(a1)
+    setActiveRookieCar2(a2)
+  }, [season?.id, team?.id, currentRound, registration?.snapshot])
 
   // Handlers para atribuir ou limpar novato no TL1
   const handleAssignRookie = (

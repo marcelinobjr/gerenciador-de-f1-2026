@@ -21,6 +21,7 @@ import {
   Map,
   ShieldAlert,
   Gauge,
+  Calendar,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -94,6 +95,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
   {
     title: 'COMPETIÇÃO',
     items: [
+      { name: 'Calendário', path: '/calendario', icon: Calendar },
       { name: 'CORRIDA', path: '/corrida', icon: Gauge },
       { name: 'Fim de Semana', path: '/race', icon: Flag },
       { name: 'Campeonato', path: '/standings', icon: Trophy },

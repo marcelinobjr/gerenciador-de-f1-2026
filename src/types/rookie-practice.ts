@@ -75,6 +75,22 @@ export interface RookieTemporaryFP1Assignment {
   originalDriverName: string
 }
 
+export type RookiePlanStatus = 'PLANNED' | 'NEEDS_REVIEW' | 'COMPLETED' | 'CANCELLED'
+
+export interface RookieTl1Plan {
+  careerId: string
+  seasonId: string
+  round: number
+  teamId: string
+  carId: 'car1' | 'car2'
+  driverId: string
+  driverName?: string
+  status: RookiePlanStatus
+  createdAt: string
+  updatedAt?: string
+  reviewReason?: string
+}
+
 export const ROOKIE_MAX_CAREER_STARTS = 2
 export const ROOKIE_REQUIRED_PER_CAR = 2
 export const ROOKIE_REQUIRED_TOTAL_TEAM = 4
