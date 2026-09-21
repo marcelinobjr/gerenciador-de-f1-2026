@@ -1,2 +1,2 @@
-// Cleaned up placeholder to satisfy git working tree without node types dependency
+// Cleaned up placeholder
 export {}
