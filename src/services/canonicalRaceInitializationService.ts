@@ -29,9 +29,11 @@ import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-type
 import type {
   CanonicalRaceState,
   CanonicalRaceDriverState,
+  DriverStrategyState,
   InitializeCanonicalRaceParams,
 } from '@/types/canonical-race-v2'
 import type { TrackWeatherState } from '@/lib/f1-tire-system'
+import { raceStrategyService } from '@/services/raceStrategyService'
 
 const RACE_V2_STORAGE_KEY_PREFIX = 'apex_race_v2_canonical_state'
 
@@ -129,12 +131,31 @@ export const canonicalRaceInitializationService = {
     const raceId = this.buildRaceId(careerId, season, round)
     const defaultWeather: TrackWeatherState = params.weather || 'seco'
 
+    // Assinalar carId de forma robusta e independente para os dois pilotos do jogador
+    let playerCarCounter = 0
     const driverLookup: Record<string, CanonicalRaceDriverState> = {}
+    const driverStrategies: Record<string, DriverStrategyState> = {}
+
     const drivers: CanonicalRaceDriverState[] = sortedGrid.map((entry) => {
       const isPlayer = entry.teamId === playerTeamId || entry.isPlayer
+      let carId = entry.carId
+      if (isPlayer) {
+        playerCarCounter++
+        carId = carId || (playerCarCounter === 1 ? 'car1' : 'car2')
+      }
 
       // Pneu de largada padrão da FIA (composto da melhor volta do qualifying ou Médio)
       const startingCompound = entry.bestLapCompound || 'medio'
+
+      // Estratégia canônica individual por piloto (FW2.1E-D)
+      // Carro 1 e Carro 2 recebem instâncias isoladas (deep cloned) com janelas distintas
+      const strat = raceStrategyService.createDefaultDriverStrategy({
+        driverId: entry.driverId,
+        startingCompound,
+        totalLaps,
+        carSlot: carId,
+        stintPlanOffset: carId === 'car2' ? 6 : 0,
+      })
 
       const driverState: CanonicalRaceDriverState = {
         careerId,
@@ -159,14 +180,18 @@ export const canonicalRaceInitializationService = {
         teamName: entry.teamName,
         teamColor: entry.teamColor,
         isPlayer,
-        carId: entry.carId,
+        carId,
         tyreSetId: entry.tyreSetId,
         bestLapSec: entry.bestLapSec || undefined,
         bestLapFormatted: entry.bestLapTime || undefined,
         gapToFrontSec: 0,
         gapToLeaderSec: 0,
+
+        // FW2.1E-D: Estratégia individual
+        strategy: strat,
       }
 
+      driverStrategies[entry.driverId] = strat
       driverLookup[entry.driverId] = driverState
       return driverState
     })
@@ -209,6 +234,7 @@ export const canonicalRaceInitializationService = {
       playerTeamId,
       tactics: {},
       paceOrders: {},
+      driverStrategies,
       raceControl: initialRaceControl,
       revision: 1,
       updatedAt: new Date().toISOString(),

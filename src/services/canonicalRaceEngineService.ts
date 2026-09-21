@@ -47,7 +47,12 @@ import { TIRE_SPECS, calculateTireCliffStatus } from '@/lib/f1-tire-system'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { raceControlService } from '@/services/raceControlService'
-import type { RaceControlState, RaceControlStatus } from '@/types/canonical-race-v2'
+import { raceStrategyService } from '@/services/raceStrategyService'
+import type {
+  RaceControlState,
+  RaceControlStatus,
+  DriverStrategyState,
+} from '@/types/canonical-race-v2'
 
 export interface AdvanceRaceOptions {
   seedOverride?: number
@@ -205,6 +210,10 @@ export class CanonicalRaceEngineService {
     const car = this.resolveCarPerformance(driver)
     const drv = this.resolveDriverAttributes(driver)
 
+    // Modificadores de PaceMode individual (PUSH / NORMAL / CONSERVE)
+    const paceMode = driver.strategy?.paceMode || 'NORMAL'
+    const paceMods = raceStrategyService.getPaceModeModifiers(paceMode)
+
     // Perfil do circuito para calibrar tempo de referência
     // Base padrão de corrida na F1 (~82.0s) ajustada pelo round/circuito
     let baseCircuitSec = 82.0
@@ -287,20 +296,24 @@ export class CanonicalRaceEngineService {
       fuelEffectSec +
       damagePenaltySec +
       controlledVarianceSec +
-      startLapDelaySec
+      startLapDelaySec +
+      paceMods.paceDeltaSec
 
-    // Desgaste da volta
-    const wearMultiplier = Math.max(0.75, Math.min(1.25, (100 - drv.tireManagement) * 0.006 + 0.85))
+    // Desgaste da volta (modulado por piloto + modo de ritmo)
+    const wearMultiplier = Math.max(
+      0.75,
+      Math.min(1.5, ((100 - drv.tireManagement) * 0.006 + 0.85) * paceMods.wearMultiplier),
+    )
     const tireWearInc = Number(
       ((spec.wearFactor * 0.9 * wearMultiplier * (tireAbrasiveness / 5)) / 2).toFixed(1),
     )
 
-    // Consumo de combustível: ~1.75 kg por volta em média (100kg / ~57 voltas)
-    const fuelBurn = 1.75
+    // Consumo de combustível modulado pelo modo de ritmo
+    const fuelBurn = Number((1.75 * paceMods.fuelBurnMultiplier).toFixed(2))
 
     return {
       lapTimeSec: Number(Math.max(60.0, lapTotalSec).toFixed(3)),
-      tireWearIncrement: Math.max(1, tireWearInc),
+      tireWearIncrement: Math.max(1, Math.round(tireWearInc)),
       fuelBurnKg: fuelBurn,
       cliffReached: !!cliff.isCliffReached,
     }
@@ -549,8 +562,46 @@ export class CanonicalRaceEngineService {
       }
     }
 
+    // 1.5. Garantir estratégias e Processar Pit Stops pendentes nesta volta (FW2.1E-D)
+    // Separação de pitRequested x pitExecuted e Suporte a Double Stack
+    let workingDrivers = [...currentState.drivers]
+    let workingStrategies = raceStrategyService.ensureDriverStrategies(currentState)
+
+    // Acoplar estratégias aos pilotos se ainda não existiam
+    workingDrivers = workingDrivers.map((d) => ({
+      ...d,
+      strategy: workingStrategies[d.driverId] || d.strategy,
+    }))
+
+    const pitProcessResult = raceStrategyService.processLapPitStops({
+      raceState: {
+        ...currentState,
+        drivers: workingDrivers,
+        driverStrategies: workingStrategies,
+      },
+      lap: targetLap,
+      rng,
+    })
+
+    workingDrivers = pitProcessResult.updatedDrivers
+    workingStrategies = pitProcessResult.updatedStrategies
+    if (pitProcessResult.newEvents && pitProcessResult.newEvents.length > 0) {
+      pitProcessResult.newEvents.forEach((ev) => {
+        nextEvents.push({
+          id: ev.id,
+          lap: ev.lap,
+          type: ev.type as any,
+          message: ev.message,
+          driverId: ev.driverId,
+          driverName: ev.driverName,
+          teamColor: ev.teamColor,
+          timestamp: ev.timestamp,
+        })
+      })
+    }
+
     // 2. Processar cada piloto para a volta
-    const intermediateDrivers: CanonicalRaceDriverState[] = currentState.drivers.map((drv) => {
+    const intermediateDrivers: CanonicalRaceDriverState[] = workingDrivers.map((drv) => {
       // Se já estava em DNF ou terminado, mantém congelado
       if (drv.raceStatus === 'dnf' || drv.isDnf) {
         return { ...drv }
@@ -761,6 +812,40 @@ export class CanonicalRaceEngineService {
 
     const finalOrderedDrivers = [...activeDrivers, ...dnfDrivers]
 
+    // 4.5. Atualizar avaliações de Tráfego, Undercut e Overcut por piloto (FW2.1E-D)
+    activeDrivers.forEach((driver) => {
+      const strat = workingStrategies[driver.driverId]
+      if (strat) {
+        strat.currentTyre = driver.tyreCompound
+        strat.tyreAge = driver.tyreAge
+
+        const trafficEval = raceStrategyService.evaluateTrafficAndStrategyOpportunities({
+          driver,
+          driversInOrder: finalOrderedDrivers,
+          currentLap: targetLap,
+          strategy: strat,
+        })
+
+        strat.trafficStatus = trafficEval.trafficStatus
+        strat.gapAhead = trafficEval.gapAhead
+        strat.gapBehind = trafficEval.gapBehind
+        strat.undercutOpportunity = trafficEval.undercutOpportunity
+        strat.overcutOpportunity = trafficEval.overcutOpportunity
+
+        // Status da estratégia
+        if (targetLap >= strat.nextPitWindow.startLap && targetLap <= strat.nextPitWindow.endLap) {
+          if (!strat.pitRequested) {
+            strat.strategyStatus = 'WINDOW_OPEN'
+          }
+        } else if (targetLap > strat.nextPitWindow.endLap && driver.pitStops === 0) {
+          strat.strategyStatus = 'OVERDUE'
+        }
+
+        driver.strategy = { ...strat }
+        workingStrategies[driver.driverId] = { ...strat }
+      }
+    })
+
     // 5. Detectar Ultrapassagens Orgânicas (Apenas quando ultrapassagens NÃO estão bloqueadas)
     if (!isNeutralized) {
       const newActiveOrder = activeDrivers.map((d) => d.driverId)
@@ -896,6 +981,7 @@ export class CanonicalRaceEngineService {
       fastestLap: currentFastest,
       raceSeed: lapSeed,
       raceControl: rcState,
+      driverStrategies: workingStrategies,
       revision: currentState.revision + 1,
       updatedAt: new Date().toISOString(),
     }

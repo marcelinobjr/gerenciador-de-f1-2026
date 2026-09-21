@@ -102,6 +102,72 @@ export interface RaceControlState {
  * "currentPosition", "lap", "raceTime", "gap", "tyreCompound", "tyreAge",
  * "fuel", "carCondition", "raceStatus", "pitStops".
  */
+/**
+ * FW2.1E-D: Ritmo por piloto
+ */
+export type DriverPaceMode = 'PUSH' | 'NORMAL' | 'CONSERVE'
+
+/**
+ * FW2.1E-D: Modo de combustível por piloto (se aplicável)
+ */
+export type DriverFuelMode = 'ATTACK' | 'NORMAL' | 'SAVE'
+
+/**
+ * FW2.1E-D: Status do tráfego para avaliação de undercut/overcut
+ */
+export type DriverTrafficStatus = 'CLEAR_AIR' | 'IN_TRAFFIC' | 'DIRTY_AIR'
+
+/**
+ * FW2.1E-D: Planejamento de Stint
+ */
+export interface PlannedStint {
+  stintNumber: number
+  compound: TireCompound
+  startLap: number
+  targetLaps: number
+}
+
+/**
+ * FW2.1E-D: Janela de Pit Planejada
+ */
+export interface PitWindow {
+  startLap: number
+  endLap: number
+  optimalLap: number
+}
+
+/**
+ * FW2.1E-D: Estado Estratégico Canônico Individual por Piloto (driverStrategyState)
+ * Contrato canônico obrigatório FW2.1E-D:
+ * driverId, currentTyre, tyreAge, plannedStints, nextPitWindow,
+ * pitRequested, pitThisLap, targetCompound, paceMode, fuelMode,
+ * ersMode, trafficStatus, gapAhead, gapBehind, undercutOpportunity,
+ * overcutOpportunity, strategyStatus.
+ */
+export interface DriverStrategyState {
+  driverId: string
+  carSlot?: 'car1' | 'car2'
+  currentTyre: TireCompound
+  tyreAge: number
+  plannedStints: PlannedStint[]
+  nextPitWindow: PitWindow
+  pitRequested: boolean
+  pitThisLap: boolean
+  targetCompound?: TireCompound
+  paceMode: DriverPaceMode
+  fuelMode?: DriverFuelMode
+  ersMode?: string
+  trafficStatus: DriverTrafficStatus
+  gapAhead: number // segundos em relação ao carro imediatamente à frente
+  gapBehind: number // segundos em relação ao carro imediatamente atrás
+  undercutOpportunity: boolean
+  overcutOpportunity: boolean
+  strategyStatus: 'OPTIMAL' | 'WINDOW_OPEN' | 'PIT_REQUESTED' | 'BOXING' | 'OVERDUE' | 'EXTENDED'
+  // Suporte a double stack
+  doubleStackDelaySec?: number
+  doubleStackWarning?: string
+}
+
 export interface CanonicalRaceDriverState {
   careerId: string
   season: number
@@ -138,6 +204,9 @@ export interface CanonicalRaceDriverState {
   dnfLap?: number
   gapToFrontSec?: number
   gapToLeaderSec?: number
+
+  // FW2.1E-D: Estado estratégico individual do piloto
+  strategy?: DriverStrategyState
 }
 
 /**
@@ -173,6 +242,11 @@ export interface CanonicalRaceState {
   playerTeamId: string
   tactics: Record<string, 'attack' | 'normal' | 'save_fuel'>
   paceOrders: Record<string, 'normal' | 'empurrar' | 'segurar'>
+
+  // FW2.1E-D: Estratégias individuais por piloto indexadas por driverId (dois pilotos independentes)
+  driverStrategies?: Record<string, DriverStrategyState>
+  // Prioridade de box explícita e configurável ('car1' | 'car2' | driverId)
+  pitPriority?: string
 
   // Histórico de voltas e eventos
   revision: number

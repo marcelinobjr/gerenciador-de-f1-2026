@@ -77,6 +77,7 @@ import { CompleteQualifyingGridSummary } from '@/components/race/CompleteQualify
 import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import { raceStrategyService } from '@/services/raceStrategyService'
 import type { CanonicalRaceState } from '@/types/canonical-race-v2'
 import {
   CanonicalQualifyingRunner,
@@ -2359,6 +2360,79 @@ export default function WeekendV2Page() {
           <CanonicalRaceInitializationPanel
             raceState={canonicalRaceState}
             onResetGrid={() => setCanonicalRaceState(null)}
+            onRequestPit={(driverId, compound) => {
+              try {
+                const nextState = raceStrategyService.requestPitStop(
+                  canonicalRaceState,
+                  driverId,
+                  compound,
+                )
+                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                setCanonicalRaceState(nextState)
+                toast({
+                  title: 'Pit Stop Solicitado',
+                  description: `Box chamado para o piloto nesta volta com composto ${compound || 'alvo'}.`,
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao solicitar pit stop',
+                  description: e?.message,
+                })
+              }
+            }}
+            onCancelPit={(driverId) => {
+              try {
+                const nextState = raceStrategyService.cancelPitRequest(canonicalRaceState, driverId)
+                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                setCanonicalRaceState(nextState)
+                toast({
+                  title: 'Pit Stop Cancelado',
+                  description:
+                    'A chamada para os boxes foi cancelada. O piloto permanece na pista.',
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao cancelar pit stop',
+                  description: e?.message,
+                })
+              }
+            }}
+            onSetPaceMode={(driverId, mode) => {
+              try {
+                const nextState = raceStrategyService.setDriverPaceMode(
+                  canonicalRaceState,
+                  driverId,
+                  mode,
+                )
+                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                setCanonicalRaceState(nextState)
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao alterar ritmo',
+                  description: e?.message,
+                })
+              }
+            }}
+            onSetTargetCompound={(driverId, comp) => {
+              try {
+                const nextState = raceStrategyService.setDriverTargetCompound(
+                  canonicalRaceState,
+                  driverId,
+                  comp,
+                )
+                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                setCanonicalRaceState(nextState)
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao alterar composto',
+                  description: e?.message,
+                })
+              }
+            }}
             onAdvanceOneLap={(opts) => {
               try {
                 const nextState = canonicalRaceEngineService.advanceOneLap(canonicalRaceState, opts)

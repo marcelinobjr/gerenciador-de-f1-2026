@@ -14,8 +14,10 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react'
-import type { CanonicalRaceState } from '@/types/canonical-race-v2'
+import type { CanonicalRaceState, DriverPaceMode } from '@/types/canonical-race-v2'
+import type { TireCompound } from '@/types/f1'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
+import { DriverStrategyCockpitPanel } from './DriverStrategyCockpitPanel'
 
 interface CanonicalRaceInitializationPanelProps {
   raceState: CanonicalRaceState
@@ -26,6 +28,10 @@ interface CanonicalRaceInitializationPanelProps {
   onAdvanceMultipleLaps?: (count: number) => void
   onResetRace?: () => void
   onForceFlag?: (flag: import('@/types/canonical-race-v2').RaceControlStatus) => void
+  onRequestPit?: (driverId: string, compound?: TireCompound) => void
+  onCancelPit?: (driverId: string) => void
+  onSetPaceMode?: (driverId: string, mode: DriverPaceMode) => void
+  onSetTargetCompound?: (driverId: string, compound: TireCompound) => void
 }
 
 export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializationPanelProps> = ({
@@ -34,6 +40,10 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   onAdvanceOneLap,
   onAdvanceMultipleLaps,
   onResetRace,
+  onRequestPit,
+  onCancelPit,
+  onSetPaceMode,
+  onSetTargetCompound,
 }) => {
   const [isSimulating, setIsSimulating] = useState(false)
   const leaderDriver =
@@ -264,6 +274,46 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
           </div>
         </CardContent>
       </Card>
+
+      {/* DOIS PAINÉIS INDEPENDENTES DE ESTRATÉGIA — CARRO 1 E CARRO 2 (FW2.1E-D) */}
+      {playerDrivers.length >= 2 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#E10600] inline-block animate-ping" />
+              Gestão Estratégica Independente da Equipe (
+              {raceState.drivers.find((d) => d.isPlayer)?.teamName || 'Sua Equipe'})
+            </h3>
+            <span className="text-[11px] font-mono text-slate-400">
+              Dois carros 100% autônomos • Ordens individuais
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DriverStrategyCockpitPanel
+              driver={playerDrivers[0]}
+              carSlotName="Carro 1"
+              onRequestPit={(driverId, compound) => onRequestPit?.(driverId, compound)}
+              onCancelPit={(driverId) => onCancelPit?.(driverId)}
+              onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
+              onSetTargetCompound={(driverId, comp) => onSetTargetCompound?.(driverId, comp)}
+              isRaceFinished={isFinished}
+              isRedFlagActive={currentFlag === 'RED_FLAG'}
+            />
+
+            <DriverStrategyCockpitPanel
+              driver={playerDrivers[1]}
+              carSlotName="Carro 2"
+              onRequestPit={(driverId, compound) => onRequestPit?.(driverId, compound)}
+              onCancelPit={(driverId) => onCancelPit?.(driverId)}
+              onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
+              onSetTargetCompound={(driverId, comp) => onSetTargetCompound?.(driverId, comp)}
+              isRaceFinished={isFinished}
+              isRedFlagActive={currentFlag === 'RED_FLAG'}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Banner Informativo da Corrida V2 */}
       <Card className="bg-[#0F172A] text-white border-none shadow-md overflow-hidden rounded-2xl relative">
