@@ -34,6 +34,7 @@ import type {
 } from '@/types/canonical-race-v2'
 import type { TrackWeatherState } from '@/lib/f1-tire-system'
 import { raceStrategyService } from '@/services/raceStrategyService'
+import { canonicalRaceSaveService } from '@/services/canonicalRaceSaveService'
 
 const RACE_V2_STORAGE_KEY_PREFIX = 'apex_race_v2_canonical_state'
 
@@ -50,7 +51,7 @@ export const canonicalRaceInitializationService = {
    * Chave de persistência de estado da Corrida V2 para reload e auditoria.
    */
   getRaceStorageKey(careerId: string, season: number, round: number): string {
-    return `${RACE_V2_STORAGE_KEY_PREFIX}_${careerId}_s${season}_r${round}`
+    return canonicalRaceSaveService.buildStorageKey(careerId, season, round)
   },
 
   /**
@@ -213,6 +214,7 @@ export const canonicalRaceInitializationService = {
 
     const initialRaceState: CanonicalRaceState = {
       version: '2.0',
+      saveSchemaVersion: 'race-save-v1',
       careerId,
       season,
       round,
@@ -247,49 +249,28 @@ export const canonicalRaceInitializationService = {
   },
 
   /**
-   * Salva o estado canônico da corrida em localStorage para recuperação.
+   * Salva o estado canônico da corrida via canonicalRaceSaveService (FW2.1E-E).
    */
   saveCanonicalRaceState(state: CanonicalRaceState): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
-    try {
-      state.updatedAt = new Date().toISOString()
-      const key = this.getRaceStorageKey(state.careerId, state.season, state.round)
-      window.localStorage.setItem(key, JSON.stringify(state))
-    } catch (e) {
-      console.warn('[canonicalRaceInitializationService] Falha ao persistir estado canônico:', e)
-    }
+    canonicalRaceSaveService.saveCanonicalRaceState(state)
   },
 
   /**
-   * Lê o estado canônico persistido de uma corrida.
+   * Lê o estado canônico persistido de uma corrida com validação (FW2.1E-E).
    */
   readCanonicalRaceState(
     careerId: string,
     season: number,
     round: number,
   ): CanonicalRaceState | null {
-    if (typeof window === 'undefined' || !window.localStorage) return null
-    try {
-      const key = this.getRaceStorageKey(careerId, season, round)
-      const raw = window.localStorage.getItem(key)
-      if (!raw) return null
-      return JSON.parse(raw) as CanonicalRaceState
-    } catch (e) {
-      console.warn('[canonicalRaceInitializationService] Falha ao ler estado canônico:', e)
-      return null
-    }
+    const res = canonicalRaceSaveService.loadCanonicalRaceState(careerId, season, round)
+    return res.state
   },
 
   /**
-   * Remove o estado persistido (ex: ao reiniciar o fim de semana).
+   * Remove o estado persistido (ex: ao reiniciar a corrida).
    */
   clearCanonicalRaceState(careerId: string, season: number, round: number): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
-    try {
-      const key = this.getRaceStorageKey(careerId, season, round)
-      window.localStorage.removeItem(key)
-    } catch (e) {
-      console.warn('[canonicalRaceInitializationService] Falha ao limpar estado:', e)
-    }
+    canonicalRaceSaveService.clearCanonicalRaceState(careerId, season, round)
   },
 }

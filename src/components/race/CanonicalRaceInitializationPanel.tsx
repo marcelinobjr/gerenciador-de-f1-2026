@@ -32,6 +32,7 @@ interface CanonicalRaceInitializationPanelProps {
   onCancelPit?: (driverId: string) => void
   onSetPaceMode?: (driverId: string, mode: DriverPaceMode) => void
   onSetTargetCompound?: (driverId: string, compound: TireCompound) => void
+  onManualSave?: () => void
 }
 
 export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializationPanelProps> = ({
@@ -44,6 +45,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   onCancelPit,
   onSetPaceMode,
   onSetTargetCompound,
+  onManualSave,
 }) => {
   const [isSimulating, setIsSimulating] = useState(false)
   const leaderDriver =
@@ -177,6 +179,19 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   {isSimulating ? 'Simulando...' : 'Simular até o Fim'}
                 </Button>
               </>
+            )}
+
+            {onManualSave && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onManualSave}
+                className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                Salvar Sessão
+              </Button>
             )}
 
             {onResetRace && (
@@ -329,6 +344,13 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 className="text-emerald-400 border-emerald-500/40 text-[10px]"
               >
                 24 PILOTOS HOMOLOGADOS
+              </Badge>
+              <Badge
+                variant="outline"
+                className="bg-emerald-950/30 text-emerald-300 border-emerald-600/40 text-[10px] flex items-center gap-1"
+              >
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                AUTOSAVE ATIVO ({raceState.saveSchemaVersion || 'race-save-v1'})
               </Badge>
             </div>
             {onResetGrid && (

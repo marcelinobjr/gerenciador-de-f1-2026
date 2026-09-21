@@ -2460,9 +2460,30 @@ export default function WeekendV2Page() {
                 })
               }
             }}
+            onManualSave={() => {
+              try {
+                canonicalRaceInitializationService.saveCanonicalRaceState(canonicalRaceState)
+                toast({
+                  title: 'Corrida Salva',
+                  description: `Snapshot canônico v1 salvo com sucesso (Volta ${canonicalRaceState.currentLap}).`,
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Erro ao salvar corrida',
+                  description: e?.message,
+                })
+              }
+            }}
             onResetRace={() => {
               try {
                 if (!completeQualifyingResult || !team?.id || !season?.id) return
+                // Descartar save da corrida atual (Requisito 13)
+                canonicalRaceInitializationService.clearCanonicalRaceState(
+                  team.id,
+                  season.year || 2026,
+                  currentRound,
+                )
                 const freshRace =
                   canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
                     careerId: team.id,
@@ -2477,7 +2498,8 @@ export default function WeekendV2Page() {
                 setCanonicalRaceState(freshRace)
                 toast({
                   title: 'Corrida Reiniciada',
-                  description: 'O estado canônico da prova foi reiniciado para o grid de largada.',
+                  description:
+                    'O save anterior foi descartado e a corrida re-inicializada a partir do grid oficial.',
                 })
               } catch (e: any) {
                 toast({

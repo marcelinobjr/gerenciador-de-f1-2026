@@ -215,6 +215,7 @@ export interface CanonicalRaceDriverState {
  */
 export interface CanonicalRaceState {
   version: '2.0'
+  saveSchemaVersion?: 'race-save-v1'
   careerId: string
   season: number
   round: number

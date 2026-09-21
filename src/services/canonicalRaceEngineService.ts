@@ -960,6 +960,7 @@ export class CanonicalRaceEngineService {
 
     const updatedState: CanonicalRaceState = {
       ...currentState,
+      saveSchemaVersion: 'race-save-v1',
       currentLap: Math.min(totalLaps, targetLap + (isRaceFinished ? 0 : 1)),
       status: isRaceFinished
         ? 'completed'
