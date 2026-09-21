@@ -75,6 +75,7 @@ import { QualifyingCarCockpitCard } from '@/components/race/QualifyingCarCockpit
 import { QualifyingLeaderboardTable } from '@/components/race/QualifyingLeaderboardTable'
 import { CompleteQualifyingGridSummary } from '@/components/race/CompleteQualifyingGridSummary'
 import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
+import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import type { CanonicalRaceState } from '@/types/canonical-race-v2'
 import {
@@ -2358,6 +2359,60 @@ export default function WeekendV2Page() {
           <CanonicalRaceInitializationPanel
             raceState={canonicalRaceState}
             onResetGrid={() => setCanonicalRaceState(null)}
+            onAdvanceOneLap={() => {
+              try {
+                const nextState = canonicalRaceEngineService.advanceOneLap(canonicalRaceState)
+                setCanonicalRaceState(nextState)
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Erro ao avançar volta',
+                  description: e?.message || 'Falha na execução do Race Engine.',
+                })
+              }
+            }}
+            onAdvanceMultipleLaps={(count) => {
+              try {
+                const nextState = canonicalRaceEngineService.advanceMultipleLaps(
+                  canonicalRaceState,
+                  count,
+                )
+                setCanonicalRaceState(nextState)
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Erro ao simular voltas',
+                  description: e?.message || 'Falha na execução do Race Engine.',
+                })
+              }
+            }}
+            onResetRace={() => {
+              try {
+                if (!completeQualifyingResult || !team?.id || !season?.id) return
+                const freshRace =
+                  canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+                    careerId: team.id,
+                    season: season.year || 2026,
+                    round: currentRound,
+                    circuitName: gpInfo.circuit,
+                    circuitCountry: gpInfo.country,
+                    totalLaps: gpInfo.laps || 57,
+                    playerTeamId: team.id,
+                    canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
+                  })
+                setCanonicalRaceState(freshRace)
+                toast({
+                  title: 'Corrida Reiniciada',
+                  description: 'O estado canônico da prova foi reiniciado para o grid de largada.',
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Erro ao reiniciar corrida',
+                  description: e?.message || 'Falha ao redefinir estado inicial.',
+                })
+              }
+            }}
           />
         ) : (
           <CompleteQualifyingGridSummary

@@ -111,6 +111,24 @@ export interface CanonicalRaceState {
   // Histórico de voltas e eventos
   revision: number
   updatedAt: string
+  raceSeed?: number
+  events?: Array<{
+    id: string
+    lap: number
+    type: 'overtake' | 'incident' | 'dnf' | 'fastest_lap' | 'info'
+    message: string
+    driverId?: string
+    driverName?: string
+    teamColor?: string
+    timestamp: string
+  }>
+  fastestLap?: {
+    driverId: string
+    driverName: string
+    lapTimeSec: number
+    lapTimeFormatted: string
+    lap: number
+  }
 }
 
 /**
