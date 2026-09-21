@@ -2877,39 +2877,93 @@ export default function WeekendV2Page() {
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       Pilotos Elegíveis Disponíveis ({options.eligible.length})
                     </p>
-                    {options.eligible.map((rk) => (
-                      <div
-                        key={rk.driverId}
-                        className="p-3 rounded-xl bg-[#0F172A] border border-slate-800 hover:border-emerald-500/50 transition-colors flex items-center justify-between gap-3"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-sm text-white">{rk.driverName}</span>
-                            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px]">
-                              {rk.careerGPs} GP{rk.careerGPs === 1 ? '' : 's'}
-                            </Badge>
-                          </div>
-                          <p className="text-[10px] text-slate-400">
-                            {rk.role ? `Função: ${rk.role} • ` : ''}
-                            {rk.reason}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            if (targetOriginal) {
-                              handleAssignRookie(rookieSelectorModalCarId, rk, targetOriginal)
-                            }
-                            setRookieSelectorModalCarId(null)
-                          }}
-                          className="h-8 px-3 text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+                    {options.eligible.map((rk) => {
+                      const isOccupyingOtherCar =
+                        (rookieSelectorModalCarId === 'car1' &&
+                          activeRookieCar2?.rookieDriverId === rk.driverId) ||
+                        (rookieSelectorModalCarId === 'car2' &&
+                          activeRookieCar1?.rookieDriverId === rk.driverId)
+
+                      return (
+                        <div
+                          key={rk.driverId}
+                          className="p-3 rounded-xl bg-[#0F172A] border border-slate-800 hover:border-emerald-500/50 transition-colors flex items-center justify-between gap-3"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Escalar
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-sm text-white">{rk.driverName}</span>
+                              <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px]">
+                                {rk.careerGPs} GP{rk.careerGPs === 1 ? '' : 's'}
+                              </Badge>
+                            </div>
+                            <p className="text-[10px] text-slate-400">
+                              {rk.role ? `Função: ${rk.role} • ` : ''}
+                              {isOccupyingOtherCar ? 'Já escalado no outro carro.' : rk.reason}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isOccupyingOtherCar}
+                            onClick={() => {
+                              if (targetOriginal) {
+                                handleAssignRookie(rookieSelectorModalCarId, rk, targetOriginal)
+                              }
+                              setRookieSelectorModalCarId(null)
+                            }}
+                            className={`h-8 px-3 text-xs font-black gap-1.5 ${
+                              isOccupyingOtherCar
+                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {isOccupyingOtherCar ? 'Em uso no outro carro' : 'Escalar'}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+
+              {/* CANDIDATOS INELEGÍVEIS COM MOTIVO EXPLÍCITO */}
+              {(() => {
+                const options = RookiePracticeRequirementService.getRosterRookieOptions(
+                  playerDrivers,
+                  allDriversCatalog,
+                  team?.id,
+                )
+                if (options.ineligible.length === 0) return null
+
+                return (
+                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                      Pilotos Inelegíveis ({options.ineligible.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {options.ineligible.map((item) => (
+                        <div
+                          key={item.driverId}
+                          className="p-2.5 rounded-lg bg-[#080C14] border border-[#141C2A] flex items-center justify-between text-xs opacity-75"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-300">{item.driverName}</span>
+                            <span className="text-[10px] text-slate-500 ml-2">
+                              ({item.careerGPs} GPs disputados)
+                            </span>
+                            <p className="text-[10px] text-rose-400">{item.reason}</p>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="border-rose-900/40 text-rose-400 text-[9px]"
+                          >
+                            Inelegível
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
               })()}
