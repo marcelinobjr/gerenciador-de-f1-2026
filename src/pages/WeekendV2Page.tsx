@@ -74,6 +74,9 @@ import { CarSetupModal } from '@/components/race/CarSetupModal'
 import { QualifyingCarCockpitCard } from '@/components/race/QualifyingCarCockpitCard'
 import { QualifyingLeaderboardTable } from '@/components/race/QualifyingLeaderboardTable'
 import { CompleteQualifyingGridSummary } from '@/components/race/CompleteQualifyingGridSummary'
+import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
+import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import type { CanonicalRaceState } from '@/types/canonical-race-v2'
 import {
   CanonicalQualifyingRunner,
   type QualifyingDriverContext,
@@ -153,6 +156,7 @@ export default function WeekendV2Page() {
   const [qualifyingState, setQualifyingState] = useState<QualifyingStageState | null>(null)
   const [completeQualifyingResult, setCompleteQualifyingResult] =
     useState<CompleteQualifyingWeekendResult | null>(null)
+  const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
 
   // Controles de execução da sessão
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
@@ -262,6 +266,12 @@ export default function WeekendV2Page() {
             currentRound,
           )
           setCompleteQualifyingResult(fullGrid)
+          const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
+            team.id,
+            season.year || 2026,
+            currentRound,
+          )
+          setCanonicalRaceState(savedRace)
         }
 
         setIsInitializingRegistration(false)
@@ -498,12 +508,18 @@ export default function WeekendV2Page() {
       setSelectedSessionId(sess)
       setSessionState(null)
       setQualifyingState(null)
-      if (season?.id) {
+      if (season?.id && team?.id) {
         const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
           season.id,
           currentRound,
         )
         setCompleteQualifyingResult(fullGrid)
+        const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
+          team.id,
+          season.year || 2026,
+          currentRound,
+        )
+        setCanonicalRaceState(savedRace)
       }
     }
   }
@@ -2337,17 +2353,45 @@ export default function WeekendV2Page() {
           </div>
         )
       ) : isRaceSession && completeQualifyingResult ? (
-        // RENDERIZAÇÃO DO GRID OFICIAL P1-P24 APÓS QUALIFICAÇÃO HOMOLOGADA
-        <CompleteQualifyingGridSummary
-          result={completeQualifyingResult}
-          onGoToRace={() => {
-            toast({
-              title: 'Corrida Desbloqueada',
-              description:
-                'O Grid Oficial FIA P1–P24 está homologado. A Corrida V2 será ativada na próxima etapa.',
-            })
-          }}
-        />
+        // RENDERIZAÇÃO DA CORRIDA V2 (FW2.1E-A: ESTADO CANÔNICO OU GRID OFICIAL)
+        canonicalRaceState ? (
+          <CanonicalRaceInitializationPanel
+            raceState={canonicalRaceState}
+            onResetGrid={() => setCanonicalRaceState(null)}
+          />
+        ) : (
+          <CompleteQualifyingGridSummary
+            result={completeQualifyingResult}
+            onGoToRace={() => {
+              try {
+                if (!team?.id || !season?.id) return
+                const initialRace =
+                  canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+                    careerId: team.id,
+                    season: season.year || 2026,
+                    round: currentRound,
+                    circuitName: gpInfo.circuit,
+                    circuitCountry: gpInfo.country,
+                    totalLaps: gpInfo.laps || 57,
+                    playerTeamId: team.id,
+                    canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
+                  })
+                setCanonicalRaceState(initialRace)
+                toast({
+                  title: 'Corrida V2 Inicializada',
+                  description:
+                    'Grid oficial P1–P24 consumido. Estado canônico da prova homologado com sucesso.',
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha na Inicialização da Corrida',
+                  description: e?.message || 'Erro ao inicializar estado canônico da corrida.',
+                })
+              }
+            }}
+          />
+        )
       ) : (
         // RENDERIZAÇÃO DOS PLACEHOLDERS (CORRIDA BLOQUEADA ATÉ Q3)
         <SessionPlaceholderCard
