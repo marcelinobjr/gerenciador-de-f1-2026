@@ -36,6 +36,7 @@ import {
 import { RookieFP1ManagementCard } from '@/components/race/RookieFP1ManagementCard'
 import { RookiePracticeRequirementService } from '@/services/rookiePracticeRequirementService'
 import type { RookieTemporaryFP1Assignment, RookieEligibilityCheck } from '@/types/rookie-practice'
+import type { DriverModel } from '@/types/f1'
 import { f1Service } from '@/services/f1Service'
 import {
   canonicalEventRegistrationService,

@@ -267,7 +267,7 @@ export class PracticeSessionService {
         const teamsToSchedule = aiList.map((ai) => ({
           id: ai.id,
           name: ai.name,
-          team_key: ai.key,
+          team_key: (ai as any).key || ai.id.replace('ai_', ''),
         })) as any[]
         rivalSchedules = RookiePracticeRequirementService.getOrGenerateRivalAISchedules(
           params.seasonId,

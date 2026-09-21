@@ -51,6 +51,15 @@ export interface RookieEligibilityCheck {
   reason?: string
 }
 
+export interface RivalAIRookieSchedule {
+  teamId: string
+  teamName: string
+  car1Rounds: number[]
+  car2Rounds: number[]
+  car1RookieDriverId: string
+  car2RookieDriverId: string
+}
+
 export interface RookieTemporaryFP1Assignment {
   seasonId: string
   round: number

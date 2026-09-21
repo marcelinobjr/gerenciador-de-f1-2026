@@ -56,7 +56,8 @@ export class RookiePracticeRequirementService {
     })
 
     const careerGPs =
-      stats?.races ?? Number(pilot.f1RacesCompleted ?? (pilot as any).f1_career_starts ?? 0)
+      stats?.races ??
+      Number((pilot as any).f1RacesCompleted ?? (pilot as any).f1_career_starts ?? 0)
 
     const isEligible = careerGPs <= ROOKIE_MAX_CAREER_STARTS
 
@@ -168,6 +169,42 @@ export class RookiePracticeRequirementService {
   /**
    * Salva os requisitos de novatos de uma equipe.
    */
+  /**
+   * Helper simplificado de status regulamentar da equipe (usado em testes e UI).
+   */
+  public static getTeamRequirementStatus(
+    seasonId: string,
+    teamId: string,
+    teamName?: string,
+  ): {
+    seasonId: string
+    teamId: string
+    teamName?: string
+    car1Credits: number
+    car2Credits: number
+    totalCredits: number
+    car1Remaining: number
+    car2Remaining: number
+    totalRemaining: number
+    isCompliant: boolean
+    requirement: RookieTeamRequirement
+  } {
+    const req = this.getTeamRequirement(seasonId, teamId)
+    return {
+      seasonId,
+      teamId,
+      teamName,
+      car1Credits: req.car1.completed,
+      car2Credits: req.car2.completed,
+      totalCredits: req.completedTotal,
+      car1Remaining: req.car1.remaining,
+      car2Remaining: req.car2.remaining,
+      totalRemaining: req.remainingTotal,
+      isCompliant: req.isCompliant,
+      requirement: req,
+    }
+  }
+
   public static saveTeamRequirement(requirement: RookieTeamRequirement): void {
     if (!requirement?.seasonId || !requirement?.teamId) return
     try {
@@ -417,6 +454,7 @@ export class RookiePracticeRequirementService {
       // Distribuição determinística e distribuída:
       // Carro 1: janelas R3–R9 (terço 1) e R11–R17 (terço 2)
       // Carro 2: janelas R4–R10 (terço 1) e R15–R21 (terço 3)
+      // Se restarem <= 6 rodadas (urgência), força alocação nas rodadas imediatas restantes
       const round1A = 3 + (idx % 7) // 3..9
       const round1B = 11 + ((idx + 2) % 7) // 11..17
       const round2A = 4 + ((idx + 1) % 7) // 4..10
@@ -497,6 +535,44 @@ export class RookiePracticeRequirementService {
    * Se candidateId for 'PENDING_NO_ELIGIBLE_ROOKIE' ou inexistente, não concede crédito nem cria piloto fictício.
    * Pode receber entradas reais da tabela de tempos do TL1 (leaderboard entries) para validar voltas reais.
    */
+  /**
+   * Verifica se uma equipe está em regime de urgência regulamentar (<= 6 rodadas restantes com créditos pendentes).
+   */
+  public static isTeamUrgent(
+    seasonId: string,
+    teamId: string,
+    currentRound: number,
+  ): { isUrgent: boolean; car1Urgent: boolean; car2Urgent: boolean; remainingRounds: number } {
+    const remainingRounds = Math.max(0, 24 - currentRound + 1)
+    const req = this.getTeamRequirement(seasonId, teamId)
+    const car1Urgent = req.car1.remaining > 0 && remainingRounds <= 6
+    const car2Urgent = req.car2.remaining > 0 && remainingRounds <= 6
+    return {
+      isUrgent: car1Urgent || car2Urgent,
+      car1Urgent,
+      car2Urgent,
+      remainingRounds,
+    }
+  }
+
+  /**
+   * Retorna o registro auditável de um crédito concedido.
+   */
+  public static getCreditRecord(
+    seasonId: string,
+    round: number,
+    teamId: string,
+    carId: 'car1' | 'car2',
+  ): RookieCreditParticipationRecord | null {
+    try {
+      const creditKey = this.buildCreditKey(seasonId, round, teamId, carId)
+      const raw = localStorage.getItem(creditKey)
+      return raw ? (JSON.parse(raw) as RookieCreditParticipationRecord) : null
+    } catch {
+      return null
+    }
+  }
+
   public static simulateRivalAICreditsForRound(
     seasonId: string,
     round: number,
