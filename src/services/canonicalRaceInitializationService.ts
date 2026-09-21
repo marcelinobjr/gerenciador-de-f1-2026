@@ -171,6 +171,21 @@ export const canonicalRaceInitializationService = {
       return driverState
     })
 
+    const initialRaceControl = {
+      currentFlag: 'GREEN' as const,
+      previousFlag: undefined,
+      lapsRemainingInPhase: 0,
+      activeSector: undefined,
+      safetyCarLaps: 0,
+      vscLaps: 0,
+      redFlagLaps: 0,
+      scQueuedOrder: [],
+      restartPending: false,
+      activeEvents: [],
+      history: [],
+      lastIncidentReason: undefined,
+    }
+
     const initialRaceState: CanonicalRaceState = {
       version: '2.0',
       careerId,
@@ -194,6 +209,7 @@ export const canonicalRaceInitializationService = {
       playerTeamId,
       tactics: {},
       paceOrders: {},
+      raceControl: initialRaceControl,
       revision: 1,
       updatedAt: new Date().toISOString(),
     }

@@ -46,11 +46,20 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { TIRE_SPECS, calculateTireCliffStatus } from '@/lib/f1-tire-system'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import { raceControlService } from '@/services/raceControlService'
+import type { RaceControlState, RaceControlStatus } from '@/types/canonical-race-v2'
 
 export interface AdvanceRaceOptions {
   seedOverride?: number
   burnFuelRateKg?: number
   tireAbrasiveness?: number
+  forceRaceControlStatus?: import('@/types/canonical-race-v2').RaceControlStatus
+  forceIncident?: {
+    type: 'dnf' | 'crash' | 'debris' | 'mechanical_failure'
+    driverId?: string
+    isSevere?: boolean
+    trackBlocked?: boolean
+  }
 }
 
 export interface EngineLapEvent {
@@ -367,12 +376,20 @@ export class CanonicalRaceEngineService {
       second: '2-digit',
     })
 
+    // Garantir estado de Race Control inicial
+    let rcState: RaceControlState = raceControlService.ensureRaceControlState(currentState)
+
     // Registrar largada se corrida estava not_started
     let nextStatus: CanonicalRaceStatus = currentState.status
     let startedAt = currentState.startedAt
     if (currentState.status === 'not_started') {
       nextStatus = 'running'
       startedAt = new Date().toISOString()
+      rcState = {
+        ...rcState,
+        currentFlag: 'GREEN',
+        previousFlag: undefined,
+      }
       nextEvents.push({
         id: `ev_start_${targetLap}`,
         lap: 1,
@@ -382,11 +399,155 @@ export class CanonicalRaceEngineService {
       })
     }
 
-    // Guardar ordem anterior para detectar ultrapassagens
+    // Processar Override de Race Control para Testes/QA
+    if (options?.forceRaceControlStatus) {
+      const activeIds = currentState.drivers
+        .filter((d) => d.raceStatus === 'racing')
+        .sort((a, b) => a.currentPosition - b.currentPosition)
+        .map((d) => d.driverId)
+
+      const trans = raceControlService.transitionStatus(rcState, options.forceRaceControlStatus, {
+        lap: targetLap,
+        reason: 'Comando de QA / Direção de Prova',
+        durationLaps: 3,
+        driversOrder: activeIds,
+      })
+      rcState = trans.updatedRc
+      trans.newEvents.forEach((ev) => {
+        nextEvents.push({
+          id: ev.id,
+          lap: ev.lap,
+          type: ev.type === 'restart' || ev.type === 'green_flag' ? 'info' : 'incident',
+          message: ev.message,
+          timestamp: ev.timestamp,
+        })
+      })
+    }
+
+    // Se estiver em RED FLAG ativa sem override de transição:
+    // A corrida não progride competitivamente; raceTime congela, ordem congela, voltas congelam
+    if (rcState.currentFlag === 'RED_FLAG' && !options?.forceRaceControlStatus) {
+      rcState = {
+        ...rcState,
+        redFlagLaps: rcState.redFlagLaps + 1,
+      }
+      return {
+        ...currentState,
+        status: 'red_flag',
+        redFlagActive: true,
+        safetyCarActive: false,
+        vscActive: false,
+        raceControl: rcState,
+        revision: currentState.revision + 1,
+        updatedAt: new Date().toISOString(),
+      }
+    }
+
+    // Se estiver em fase de relargada (RESTART): transiciona para GREEN nesta volta
+    let isRestartingNow = false
+    if (rcState.currentFlag === 'RESTART') {
+      isRestartingNow = true
+      const trans = raceControlService.transitionStatus(rcState, 'GREEN', {
+        lap: targetLap,
+        reason: 'Bandeira Verde — Relargada Autorizada!',
+        customMessage: '🟢 BANDEIRA VERDE: Relargada autorizada! Pista livre e disputas liberadas!',
+      })
+      rcState = trans.updatedRc
+      trans.newEvents.forEach((ev) => {
+        nextEvents.push({
+          id: ev.id,
+          lap: ev.lap,
+          type: 'info',
+          message: ev.message,
+          timestamp: ev.timestamp,
+        })
+      })
+    }
+
+    // Guardar ordem esportiva anterior para controle de ultrapassagens
     const prevOrder = [...currentState.drivers]
       .filter((d) => d.raceStatus === 'racing')
       .sort((a, b) => a.currentPosition - b.currentPosition)
       .map((d) => d.driverId)
+
+    // Se acabou de entrar em Safety Car ou Red Flag e ainda não tinha congelado a ordem esportiva:
+    if (
+      (rcState.currentFlag === 'SAFETY_CAR' || rcState.currentFlag === 'RED_FLAG') &&
+      (!rcState.scQueuedOrder || rcState.scQueuedOrder.length === 0)
+    ) {
+      rcState.scQueuedOrder = [...prevOrder]
+    }
+
+    // Contabilizar voltas na fase de neutralização atual
+    if (rcState.currentFlag === 'SAFETY_CAR') {
+      rcState.safetyCarLaps += 1
+      if (rcState.lapsRemainingInPhase > 0) {
+        rcState.lapsRemainingInPhase -= 1
+        if (rcState.lapsRemainingInPhase === 0) {
+          // Safety Car in this lap -> preparar relargada (RESTART)
+          const trans = raceControlService.transitionStatus(rcState, 'RESTART', {
+            lap: targetLap,
+            reason: 'Safety Car recolhe nesta volta',
+            customMessage: '🟢 SAFETY CAR IN THIS LAP: Bernd Mayländer recolhe para os boxes!',
+          })
+          rcState = trans.updatedRc
+          trans.newEvents.forEach((ev) => {
+            nextEvents.push({
+              id: ev.id,
+              lap: ev.lap,
+              type: 'info',
+              message: ev.message,
+              timestamp: ev.timestamp,
+            })
+          })
+        }
+      }
+    } else if (rcState.currentFlag === 'VSC') {
+      rcState.vscLaps += 1
+      if (rcState.lapsRemainingInPhase > 0) {
+        rcState.lapsRemainingInPhase -= 1
+        if (rcState.lapsRemainingInPhase === 0) {
+          // Fim do VSC -> Retorno à Bandeira Verde
+          const trans = raceControlService.transitionStatus(rcState, 'GREEN', {
+            lap: targetLap,
+            reason: 'Pista liberada após encerramento do VSC',
+            customMessage: '🟢 VIRTUAL SAFETY CAR ENDING: Pista liberada! Bandeira verde acionada.',
+          })
+          rcState = trans.updatedRc
+          trans.newEvents.forEach((ev) => {
+            nextEvents.push({
+              id: ev.id,
+              lap: ev.lap,
+              type: 'info',
+              message: ev.message,
+              timestamp: ev.timestamp,
+            })
+          })
+        }
+      }
+    } else if (rcState.currentFlag === 'YELLOW_LOCAL' || rcState.currentFlag === 'YELLOW') {
+      if (rcState.lapsRemainingInPhase > 0) {
+        rcState.lapsRemainingInPhase -= 1
+        if (rcState.lapsRemainingInPhase === 0) {
+          // Fim da bandeira amarela -> Bandeira Verde
+          const trans = raceControlService.transitionStatus(rcState, 'GREEN', {
+            lap: targetLap,
+            reason: 'Incidente solucionado',
+            customMessage: '🟢 BANDEIRA VERDE: Traçado desimpedido! Ritmo normal restabelecido.',
+          })
+          rcState = trans.updatedRc
+          trans.newEvents.forEach((ev) => {
+            nextEvents.push({
+              id: ev.id,
+              lap: ev.lap,
+              type: 'info',
+              message: ev.message,
+              timestamp: ev.timestamp,
+            })
+          })
+        }
+      }
+    }
 
     // 2. Processar cada piloto para a volta
     const intermediateDrivers: CanonicalRaceDriverState[] = currentState.drivers.map((drv) => {
@@ -395,8 +556,16 @@ export class CanonicalRaceEngineService {
         return { ...drv }
       }
 
-      // Avaliar DNF nesta volta
-      const dnfCheck = this.evaluateDnfRoll({ driver: drv, lap: targetLap, rng })
+      // Avaliar DNF nesta volta (ou força de incidente QA)
+      let dnfCheck: { isDnf: boolean; reason?: string } = { isDnf: false }
+      if (options?.forceIncident && options.forceIncident.type === 'dnf') {
+        if (!options.forceIncident.driverId || options.forceIncident.driverId === drv.driverId) {
+          dnfCheck = { isDnf: true, reason: 'Falha Crítica de Confiabilidade (Forçada por QA)' }
+        }
+      } else {
+        dnfCheck = this.evaluateDnfRoll({ driver: drv, lap: targetLap, rng })
+      }
+
       if (dnfCheck.isDnf) {
         nextEvents.push({
           id: `ev_dnf_${targetLap}_${drv.driverId}`,
@@ -409,6 +578,44 @@ export class CanonicalRaceEngineService {
           timestamp: timestampStr,
         })
 
+        // RESOLVER RACE CONTROL PARA ESTE DNF (Regras 12 e 13)
+        // Nem todo DNF neutraliza a corrida
+        const rcResponse = raceControlService.resolveRaceControlResponse(
+          {
+            type: 'dnf',
+            driver: drv,
+            reason: dnfCheck.reason,
+            lap: targetLap,
+            isSevereCrash: options?.forceIncident?.isSevere,
+            trackBlocked: options?.forceIncident?.trackBlocked,
+          },
+          rng,
+        )
+
+        if (rcResponse && rcState.currentFlag === 'GREEN') {
+          const trans = raceControlService.transitionStatus(rcState, rcResponse.targetStatus, {
+            lap: targetLap,
+            reason: rcResponse.reason,
+            severity: rcResponse.severity,
+            sector: rcResponse.sector,
+            durationLaps: rcResponse.durationLaps,
+            affectedDriverId: drv.driverId,
+            affectedDriverName: drv.driverName,
+            driversOrder: prevOrder,
+            customMessage: rcResponse.message,
+          })
+          rcState = trans.updatedRc
+          trans.newEvents.forEach((ev) => {
+            nextEvents.push({
+              id: ev.id,
+              lap: ev.lap,
+              type: 'incident',
+              message: ev.message,
+              timestamp: ev.timestamp,
+            })
+          })
+        }
+
         return {
           ...drv,
           raceStatus: 'dnf',
@@ -419,7 +626,14 @@ export class CanonicalRaceEngineService {
         }
       }
 
-      // Calcular ritmo da volta
+      // Modificadores de Pace, Consumo e Pneus de Race Control (Regra 1, 2, 3, 4, 5, 6)
+      const rcMod = raceControlService.computeRaceControlPaceModifier({
+        status: rcState.currentFlag,
+        driver: drv,
+        activeSector: rcState.activeSector,
+      })
+
+      // Calcular ritmo da volta base
       const pace = this.calculateCanonicalLapPace({
         driver: drv,
         lap: targetLap,
@@ -430,25 +644,29 @@ export class CanonicalRaceEngineService {
         rng,
       })
 
-      const newLapTime = pace.lapTimeSec
-      const newAccumulatedTime = drv.raceTime + newLapTime
+      const effectiveLapTime = Number((pace.lapTimeSec + rcMod.extraLapTimeSec).toFixed(3))
+      const newAccumulatedTime = drv.raceTime + effectiveLapTime
       const newLapsCompleted = drv.lap + 1
       const newTyreAge = drv.tyreAge + 1
-      const newFuel = Math.max(0, Number((drv.fuel - pace.fuelBurnKg).toFixed(1)))
+      const fuelBurnEffective = Number((pace.fuelBurnKg * rcMod.fuelBurnMultiplier).toFixed(2))
+      const newFuel = Math.max(0, Number((drv.fuel - fuelBurnEffective).toFixed(1)))
       const newCondition = Math.max(0, Number((drv.carCondition - 0.25).toFixed(1)))
 
-      // Atualizar melhor volta pessoal
+      // Atualizar melhor volta pessoal apenas em ritmo de bandeira verde
+      const isGreenPace = rcState.currentFlag === 'GREEN'
       const bestLapSec =
-        !drv.bestLapSec || newLapTime < drv.bestLapSec ? newLapTime : drv.bestLapSec
+        isGreenPace && (!drv.bestLapSec || effectiveLapTime < drv.bestLapSec)
+          ? effectiveLapTime
+          : drv.bestLapSec
 
       return {
         ...drv,
         lap: newLapsCompleted,
         raceTime: Number(newAccumulatedTime.toFixed(3)),
-        lastLapTimeSec: newLapTime,
-        lastLapTimeFormatted: formatLapTime(newLapTime),
+        lastLapTimeSec: effectiveLapTime,
+        lastLapTimeFormatted: formatLapTime(effectiveLapTime),
         bestLapSec,
-        bestLapFormatted: formatLapTime(bestLapSec),
+        bestLapFormatted: bestLapSec ? formatLapTime(bestLapSec) : undefined,
         tyreAge: newTyreAge,
         fuel: newFuel,
         carCondition: newCondition,
@@ -456,19 +674,57 @@ export class CanonicalRaceEngineService {
       }
     })
 
-    // 3. Ordenação Dinâmica Rigorosa (Regra 6):
-    // Ordem = Carros ativos com MAIS voltas completadas → MENOR raceTime → Abandonados (DNF)
-    // NUNCA ordenar por gridPosition após a largada!
+    // 3. Ordenação Dinâmica e Preservação de Ordem Esportiva (Regras 4, 5, 6, 17):
+    // Durante neutralizações (YELLOW, VSC, SAFETY_CAR, RESTART), ultrapassagens são estritamente
+    // proibidas. Se a neutralização está ativa, a ordem esportiva é PRESERVADA rigorosamente
+    // (carros não se ultrapassam por divergências numéricas de tempo).
     const activeDrivers = intermediateDrivers.filter((d) => d.raceStatus === 'racing')
     const dnfDrivers = intermediateDrivers.filter((d) => d.raceStatus === 'dnf')
 
-    // Ativos: mais voltas primeiro; se mesma volta, menor raceTime
-    activeDrivers.sort((a, b) => {
-      if (b.lap !== a.lap) return b.lap - a.lap
-      return a.raceTime - b.raceTime
-    })
+    const isNeutralized =
+      rcState.currentFlag === 'YELLOW' ||
+      rcState.currentFlag === 'VSC' ||
+      rcState.currentFlag === 'SAFETY_CAR' ||
+      rcState.currentFlag === 'RESTART' ||
+      rcState.currentFlag === 'YELLOW_LOCAL'
 
-    // DNFs: quem completou mais voltas fica na frente; se mesma volta de DNF, quem teve menor tempo
+    if (isNeutralized) {
+      // Ordenação esportiva preservada: mantém estritamente a posição da volta anterior
+      // exceto por carros que abandonaram (DNF)
+      activeDrivers.sort((a, b) => {
+        const prevIdxA = prevOrder.indexOf(a.driverId)
+        const prevIdxB = prevOrder.indexOf(b.driverId)
+        if (prevIdxA !== -1 && prevIdxB !== -1) {
+          return prevIdxA - prevIdxB
+        }
+        return a.currentPosition - b.currentPosition
+      })
+
+      // Se estiver sob Safety Car: agrupar progressivamente o pelotão
+      if (rcState.currentFlag === 'SAFETY_CAR') {
+        raceControlService.compressGapsUnderSafetyCar(activeDrivers, rcState.safetyCarLaps)
+      } else if (rcState.currentFlag === 'VSC') {
+        // No VSC: gaps são amplamente preservados (não convergem)
+        // O raceTime de cada carro progride pelo delta uniforme
+      }
+    } else {
+      // BANDEIRA VERDE: Ordenação pura por voltas completadas e menor raceTime real
+      activeDrivers.sort((a, b) => {
+        if (b.lap !== a.lap) return b.lap - a.lap
+        return a.raceTime - b.raceTime
+      })
+
+      // Se acabou de relargar (RESTART -> GREEN), aplicar variações de largada
+      if (isRestartingNow) {
+        raceControlService.applyRestartVariations(activeDrivers, rng)
+        activeDrivers.sort((a, b) => {
+          if (b.lap !== a.lap) return b.lap - a.lap
+          return a.raceTime - b.raceTime
+        })
+      }
+    }
+
+    // DNFs: quem completou mais voltas fica na frente; se mesma volta, quem teve menor tempo
     dnfDrivers.sort((a, b) => {
       if (b.lap !== a.lap) return b.lap - a.lap
       return a.raceTime - b.raceTime
@@ -505,37 +761,54 @@ export class CanonicalRaceEngineService {
 
     const finalOrderedDrivers = [...activeDrivers, ...dnfDrivers]
 
-    // 5. Detectar Ultrapassagens Orgânicas
-    const newActiveOrder = activeDrivers.map((d) => d.driverId)
-    for (let i = 0; i < newActiveOrder.length; i++) {
-      const driverId = newActiveOrder[i]
-      const oldIndex = prevOrder.indexOf(driverId)
-      if (oldIndex !== -1 && oldIndex > i) {
-        // O piloto avançou na classificação de pista
-        const overtakenDriverId = prevOrder[i]
-        const chasingDriver = finalOrderedDrivers.find((d) => d.driverId === driverId)
-        const defendingDriver = finalOrderedDrivers.find((d) => d.driverId === overtakenDriverId)
+    // 5. Detectar Ultrapassagens Orgânicas (Apenas quando ultrapassagens NÃO estão bloqueadas)
+    if (!isNeutralized) {
+      const newActiveOrder = activeDrivers.map((d) => d.driverId)
+      for (let i = 0; i < newActiveOrder.length; i++) {
+        const driverId = newActiveOrder[i]
+        const oldIndex = prevOrder.indexOf(driverId)
+        if (oldIndex !== -1 && oldIndex > i) {
+          // O piloto avançou na classificação de pista
+          const overtakenDriverId = prevOrder[i]
+          const chasingDriver = finalOrderedDrivers.find((d) => d.driverId === driverId)
+          const defendingDriver = finalOrderedDrivers.find((d) => d.driverId === overtakenDriverId)
 
-        if (
-          chasingDriver &&
-          defendingDriver &&
-          chasingDriver.driverId !== defendingDriver.driverId
-        ) {
-          // Registrar ultrapassagem no feed apenas se relevante (Top 10 ou equipe do jogador)
-          if (chasingDriver.isPlayer || defendingDriver.isPlayer || i <= 5) {
-            nextEvents.push({
-              id: `ev_otk_${targetLap}_${chasingDriver.driverId}_${defendingDriver.driverId}`,
-              lap: targetLap,
-              type: 'overtake',
-              message: `🟢 ULTRAPASSAGEM: ${chasingDriver.driverName} superou ${defendingDriver.driverName} e assumiu P${chasingDriver.currentPosition}!`,
-              driverId: chasingDriver.driverId,
-              driverName: chasingDriver.driverName,
-              teamColor: chasingDriver.teamColor,
-              timestamp: timestampStr,
-            })
+          if (
+            chasingDriver &&
+            defendingDriver &&
+            chasingDriver.driverId !== defendingDriver.driverId
+          ) {
+            // Registrar ultrapassagem no feed apenas se relevante (Top 10 ou equipe do jogador)
+            if (chasingDriver.isPlayer || defendingDriver.isPlayer || i <= 5) {
+              nextEvents.push({
+                id: `ev_otk_${targetLap}_${chasingDriver.driverId}_${defendingDriver.driverId}`,
+                lap: targetLap,
+                type: 'overtake',
+                message: `🟢 ULTRAPASSAGEM: ${chasingDriver.driverName} superou ${defendingDriver.driverName} e assumiu P${chasingDriver.currentPosition}!`,
+                driverId: chasingDriver.driverId,
+                driverName: chasingDriver.driverName,
+                teamColor: chasingDriver.teamColor,
+                timestamp: timestampStr,
+              })
+            }
           }
         }
       }
+    }
+
+    // 5.1 Avaliar Bandeira Azul (Blue Flag) - Regra 10
+    const blueFlagAlerts = raceControlService.evaluateBlueFlags(finalOrderedDrivers, targetLap)
+    if (blueFlagAlerts.length > 0) {
+      blueFlagAlerts.forEach((bf) => {
+        rcState.history.push(bf)
+        nextEvents.push({
+          id: bf.id,
+          lap: bf.lap,
+          type: 'info',
+          message: bf.message,
+          timestamp: bf.timestamp,
+        })
+      })
     }
 
     // 6. Atualizar Volta Mais Rápida da Corrida
@@ -554,7 +827,7 @@ export class CanonicalRaceEngineService {
       }
     }
 
-    // 7. Checar Finalização da Prova (Regra 11)
+    // 7. Checar Finalização da Prova (Regra 11 — Bandeira Quadriculada)
     // Quando o líder completa as voltas regulamentares (totalLaps):
     const leaderLaps = activeDrivers[0]?.lap || 0
     let completedAt = currentState.completedAt
@@ -563,6 +836,13 @@ export class CanonicalRaceEngineService {
       nextStatus = 'completed'
       isRaceFinished = true
       completedAt = new Date().toISOString()
+
+      rcState = {
+        ...rcState,
+        currentFlag: 'FINISHED',
+        previousFlag: rcState.currentFlag,
+        lapsRemainingInPhase: 0,
+      }
 
       // Finalizar todos os demais pilotos ativos com raceStatus = 'finished'
       activeDrivers.forEach((d) => {
@@ -574,7 +854,7 @@ export class CanonicalRaceEngineService {
         id: `ev_finish_${targetLap}`,
         lap: totalLaps,
         type: 'info',
-        message: `🏁 BANDEIRA QUADRICULADA! Vitória espetacular de ${winner?.driverName} (${winner?.teamName})!`,
+        message: `🏁 BANDEIRA QUADRICULADA: GP concluído! Vitória memorável de ${winner?.driverName} (${winner?.teamName})!`,
         driverId: winner?.driverId,
         driverName: winner?.driverName,
         teamColor: winner?.teamColor,
@@ -588,10 +868,26 @@ export class CanonicalRaceEngineService {
       updatedLookup[d.driverId] = d
     })
 
+    // Mapear flags no nível raiz do CanonicalRaceState
+    const isScActive = rcState.currentFlag === 'SAFETY_CAR' || rcState.currentFlag === 'RESTART'
+    const isVscActive = rcState.currentFlag === 'VSC'
+    const isRedActive = rcState.currentFlag === 'RED_FLAG'
+
     const updatedState: CanonicalRaceState = {
       ...currentState,
       currentLap: Math.min(totalLaps, targetLap + (isRaceFinished ? 0 : 1)),
-      status: nextStatus,
+      status: isRaceFinished
+        ? 'completed'
+        : isRedActive
+          ? 'red_flag'
+          : isScActive
+            ? 'safety_car'
+            : isVscActive
+              ? 'virtual_safety_car'
+              : nextStatus,
+      safetyCarActive: isScActive,
+      vscActive: isVscActive,
+      redFlagActive: isRedActive,
       startedAt,
       completedAt,
       drivers: finalOrderedDrivers,
@@ -599,6 +895,7 @@ export class CanonicalRaceEngineService {
       events: nextEvents.slice(-60), // Guarda os 60 eventos mais recentes
       fastestLap: currentFastest,
       raceSeed: lapSeed,
+      raceControl: rcState,
       revision: currentState.revision + 1,
       updatedAt: new Date().toISOString(),
     }

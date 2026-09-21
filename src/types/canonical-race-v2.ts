@@ -30,6 +30,72 @@ export type CanonicalRaceStatus =
 export type CanonicalDriverRaceStatus = 'racing' | 'in_pit' | 'dnf' | 'finished' | 'disqualified'
 
 /**
+ * FW2.1E-C: Status Canônico Unificado de Race Control.
+ * Enum único para todo o controle de corrida.
+ */
+export type RaceControlStatus =
+  | 'GREEN'
+  | 'YELLOW_LOCAL'
+  | 'YELLOW'
+  | 'VSC'
+  | 'SAFETY_CAR'
+  | 'RED_FLAG'
+  | 'RESTART'
+  | 'FINISHED'
+
+/**
+ * Severidade de incidentes em pista
+ */
+export type RaceIncidentSeverity = 'low' | 'medium' | 'high' | 'critical'
+
+/**
+ * Estrutura de evento canônico de Race Control
+ */
+export interface RaceControlEvent {
+  id: string
+  type:
+    | 'green_flag'
+    | 'yellow_flag_local'
+    | 'yellow_flag_full'
+    | 'vsc_deployed'
+    | 'vsc_ending'
+    | 'safety_car_deployed'
+    | 'safety_car_in_lap'
+    | 'red_flag'
+    | 'restart'
+    | 'blue_flag'
+    | 'chequered_flag'
+  lap: number
+  sector?: 1 | 2 | 3
+  affectedDriverId?: string
+  affectedDriverName?: string
+  startedAtLap: number
+  endedAtLap?: number
+  reason: string
+  severity: RaceIncidentSeverity
+  message: string
+  timestamp: string
+}
+
+/**
+ * Estado Canônico de Race Control acoplado ao CanonicalRaceState
+ */
+export interface RaceControlState {
+  currentFlag: RaceControlStatus
+  previousFlag?: RaceControlStatus
+  lapsRemainingInPhase: number // Duração programada em voltas da neutralização
+  activeSector?: 1 | 2 | 3 // Setor com bandeira amarela local ativa
+  safetyCarLaps: number // Contagem de voltas sob SC
+  vscLaps: number // Contagem de voltas sob VSC
+  redFlagLaps: number // Contagem de voltas sob Red Flag
+  scQueuedOrder: string[] // Ordem esportiva congelada no momento da entrada do SC/Red Flag
+  restartPending: boolean // Indica transição ativa para relargada
+  activeEvents: RaceControlEvent[]
+  history: RaceControlEvent[]
+  lastIncidentReason?: string
+}
+
+/**
  * Entidade Canônica Única por carro/piloto na Corrida V2.
  * Obrigatório pela especificação FW2.1E:
  * "careerId", "season", "raceId", "driverId", "teamId", "gridPosition",
@@ -129,6 +195,9 @@ export interface CanonicalRaceState {
     lapTimeFormatted: string
     lap: number
   }
+
+  // FW2.1E-C: Race Control Canônico Integrado
+  raceControl?: RaceControlState
 }
 
 /**

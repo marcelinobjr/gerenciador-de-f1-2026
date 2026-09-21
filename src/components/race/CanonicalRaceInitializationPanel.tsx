@@ -20,9 +20,12 @@ import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 interface CanonicalRaceInitializationPanelProps {
   raceState: CanonicalRaceState
   onResetGrid?: () => void
-  onAdvanceOneLap?: () => void
+  onAdvanceOneLap?: (options?: {
+    forceRaceControlStatus?: import('@/types/canonical-race-v2').RaceControlStatus
+  }) => void
   onAdvanceMultipleLaps?: (count: number) => void
   onResetRace?: () => void
+  onForceFlag?: (flag: import('@/types/canonical-race-v2').RaceControlStatus) => void
 }
 
 export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializationPanelProps> = ({
@@ -38,6 +41,18 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   const playerDrivers = raceState.drivers.filter((d) => d.isPlayer)
   const isFinished = raceState.status === 'completed'
   const isNotStarted = raceState.status === 'not_started'
+  const rc = raceState.raceControl
+  const currentFlag =
+    rc?.currentFlag ||
+    (raceState.safetyCarActive
+      ? 'SAFETY_CAR'
+      : raceState.vscActive
+        ? 'VSC'
+        : raceState.redFlagActive
+          ? 'RED_FLAG'
+          : raceState.status === 'completed'
+            ? 'FINISHED'
+            : 'GREEN')
 
   const handleSimulateRest = () => {
     if (!onAdvanceMultipleLaps || isFinished) return
@@ -57,28 +72,46 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Badge className="bg-[#E10600] text-white text-[10px] font-black uppercase">
-                FW2.1E-B • BASIC RACE ENGINE ATIVO
+                FW2.1E-C • RACE CONTROL INTEGRADO
               </Badge>
+              {/* Badge Dinâmico da Bandeira Atual */}
               <Badge
-                variant="outline"
-                className={`text-[10px] uppercase font-bold ${
-                  isFinished
-                    ? 'text-amber-400 border-amber-500/40 bg-amber-500/10'
-                    : isNotStarted
-                      ? 'text-slate-400 border-slate-600'
-                      : 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
+                className={`text-[10px] uppercase font-black px-2.5 py-0.5 border ${
+                  currentFlag === 'GREEN'
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : currentFlag === 'YELLOW_LOCAL'
+                      ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50'
+                      : currentFlag === 'YELLOW'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                        : currentFlag === 'VSC'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 animate-pulse'
+                          : currentFlag === 'SAFETY_CAR'
+                            ? 'bg-orange-600 text-white border-orange-400 animate-pulse'
+                            : currentFlag === 'RESTART'
+                              ? 'bg-emerald-600 text-white border-emerald-300 animate-pulse'
+                              : currentFlag === 'RED_FLAG'
+                                ? 'bg-red-600 text-white border-red-400 animate-pulse font-extrabold'
+                                : 'bg-slate-800 text-white border-slate-600'
                 }`}
               >
-                {isFinished
-                  ? '🏁 CORRIDA FINALIZADA'
-                  : isNotStarted
-                    ? 'AGUARDANDO LARGADA'
-                    : `🟢 EM ANDAMENTO • VOLTA ${leaderDriver?.lap ?? 0}/${raceState.totalLaps}`}
+                {currentFlag === 'GREEN' && '🟢 BANDEIRA VERDE'}
+                {currentFlag === 'YELLOW_LOCAL' &&
+                  `🟡 AMARELA LOCAL (SETOR ${rc?.activeSector || 2})`}
+                {currentFlag === 'YELLOW' && '🟡 BANDEIRA AMARELA GERAL'}
+                {currentFlag === 'VSC' && '🟡 VIRTUAL SAFETY CAR'}
+                {currentFlag === 'SAFETY_CAR' && '🚨 SAFETY CAR ATIVO'}
+                {currentFlag === 'RESTART' && '🟢 RELARGADA EM ANDAMENTO'}
+                {currentFlag === 'RED_FLAG' && '🔴 BANDEIRA VERMELHA'}
+                {currentFlag === 'FINISHED' && '🏁 BANDEIRA QUADRICULADA'}
               </Badge>
             </div>
             <p className="text-xs text-slate-400">
-              Controles de QA acionam diretamente o motor de física canônica, mantendo 24 pilotos
-              únicos, gaps reais de tempo acumulado e imutabilidade de gridPosition.
+              Race Control canônico: cada bandeira altera ritmo, gaps, consumo e ultrapassagens.
+              {rc?.lastIncidentReason && (
+                <span className="block text-slate-300 font-mono text-[11px] mt-0.5">
+                  Motivo: {rc.lastIncidentReason}
+                </span>
+              )}
             </p>
           </div>
 
@@ -88,7 +121,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 disabled={isFinished || isSimulating}
-                onClick={onAdvanceOneLap}
+                onClick={() => onAdvanceOneLap()}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1.5 h-9 px-3"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
@@ -102,7 +135,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={isFinished || isSimulating}
+                  disabled={isFinished || isSimulating || currentFlag === 'RED_FLAG'}
                   onClick={() => onAdvanceMultipleLaps(5)}
                   className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
                 >
@@ -114,7 +147,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={isFinished || isSimulating}
+                  disabled={isFinished || isSimulating || currentFlag === 'RED_FLAG'}
                   onClick={() => onAdvanceMultipleLaps(10)}
                   className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
                 >
@@ -126,7 +159,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   type="button"
                   size="sm"
                   variant="secondary"
-                  disabled={isFinished || isSimulating}
+                  disabled={isFinished || isSimulating || currentFlag === 'RED_FLAG'}
                   onClick={handleSimulateRest}
                   className="bg-red-600 hover:bg-red-500 text-white text-xs font-black gap-1.5 h-9 px-3"
                 >
@@ -148,6 +181,86 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 Reiniciar
               </Button>
             )}
+          </div>
+
+          {/* Painel de Controles de QA para Forçar Bandeiras / Race Control (Requisito 18) */}
+          <div className="w-full pt-3 mt-1 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              Controles de QA (Forçar Race Control):
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isFinished}
+                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'GREEN' })}
+                className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-emerald-300 border-emerald-700/50 hover:bg-emerald-900/60"
+              >
+                🟢 Green
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isFinished}
+                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW_LOCAL' })}
+                className="h-7 px-2 text-[10px] font-bold bg-yellow-950/40 text-yellow-300 border-yellow-700/50 hover:bg-yellow-900/60"
+              >
+                🟡 Yellow Local
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isFinished}
+                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW' })}
+                className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-700/50 hover:bg-amber-900/60"
+              >
+                🟡 Yellow Geral
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isFinished}
+                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'VSC' })}
+                className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-600/50 hover:bg-amber-900/60"
+              >
+                🟡 VSC
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isFinished}
+                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'SAFETY_CAR' })}
+                className="h-7 px-2 text-[10px] font-bold bg-orange-950/40 text-orange-300 border-orange-600/50 hover:bg-orange-900/60"
+              >
+                🚨 Safety Car
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isFinished}
+                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'RESTART' })}
+                className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-cyan-300 border-cyan-600/50 hover:bg-cyan-900/60"
+              >
+                🟢 SC Restart
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isFinished}
+                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'RED_FLAG' })}
+                className="h-7 px-2 text-[10px] font-bold bg-red-950/50 text-red-300 border-red-600/60 hover:bg-red-900/70"
+              >
+                🔴 Red Flag
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

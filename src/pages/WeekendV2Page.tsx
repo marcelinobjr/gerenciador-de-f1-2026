@@ -2359,9 +2359,9 @@ export default function WeekendV2Page() {
           <CanonicalRaceInitializationPanel
             raceState={canonicalRaceState}
             onResetGrid={() => setCanonicalRaceState(null)}
-            onAdvanceOneLap={() => {
+            onAdvanceOneLap={(opts) => {
               try {
-                const nextState = canonicalRaceEngineService.advanceOneLap(canonicalRaceState)
+                const nextState = canonicalRaceEngineService.advanceOneLap(canonicalRaceState, opts)
                 setCanonicalRaceState(nextState)
               } catch (e: any) {
                 toast({
