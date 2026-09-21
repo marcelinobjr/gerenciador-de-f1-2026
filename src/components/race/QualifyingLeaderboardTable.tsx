@@ -107,156 +107,162 @@ export const QualifyingLeaderboardTable: React.FC<QualifyingLeaderboardTableProp
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1F5F9]">
-              {entries.map((row, idx) => {
+              {entries.flatMap((row) => {
                 const isEliminationZone = row.position > cutoffPos
                 const isCutoffLine = row.position === cutoffPos
                 const logoUrl = getTeamReducedLogoUrl(row.teamName || row.teamId)
 
-                return (
-                  <React.Fragment key={`${row.position}_${row.driverId}`}>
-                    <tr
-                      className={`transition-colors duration-150 ${
-                        row.isPlayer
-                          ? 'bg-red-50/70 hover:bg-red-50 font-bold border-l-4 border-l-[#E10600]'
-                          : isEliminationZone
-                            ? 'bg-rose-50/30 hover:bg-rose-50/50 text-[#64748B]'
-                            : 'hover:bg-slate-50 text-[#0F172A]'
-                      }`}
-                    >
-                      {/* Posição */}
-                      <td className="py-2 px-3 text-center">
+                const mainRow = (
+                  <tr
+                    key={`row_${row.position}_${row.driverId}`}
+                    className={`transition-colors duration-150 ${
+                      row.isPlayer
+                        ? 'bg-red-50/70 hover:bg-red-50 font-bold border-l-4 border-l-[#E10600]'
+                        : isEliminationZone
+                          ? 'bg-rose-50/30 hover:bg-rose-50/50 text-[#64748B]'
+                          : 'hover:bg-slate-50 text-[#0F172A]'
+                    }`}
+                  >
+                    {/* Posição */}
+                    <td className="py-2 px-3 text-center">
+                      <span
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-bold text-[11px] ${
+                          row.position === 1
+                            ? 'bg-amber-400 text-black shadow-xs'
+                            : row.position <= 3
+                              ? 'bg-slate-200 text-[#0F172A]'
+                              : isEliminationZone
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-slate-100 text-[#334155]'
+                        }`}
+                      >
+                        {row.position}
+                      </span>
+                    </td>
+
+                    {/* Piloto */}
+                    <td className="py-2 px-3 font-sans">
+                      <div className="flex items-center gap-1.5">
                         <span
-                          className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-bold text-[11px] ${
-                            row.position === 1
-                              ? 'bg-amber-400 text-black shadow-xs'
-                              : row.position <= 3
-                                ? 'bg-slate-200 text-[#0F172A]'
-                                : isEliminationZone
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : 'bg-slate-100 text-[#334155]'
-                          }`}
+                          className={
+                            row.isPlayer
+                              ? 'text-[#0F172A] font-extrabold'
+                              : 'text-[#1E293B] font-medium'
+                          }
                         >
-                          {row.position}
+                          {row.driverName}
                         </span>
-                      </td>
+                        {row.isPlayer && (
+                          <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-4 uppercase font-black tracking-tight">
+                            Sua Equipe
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
 
-                      {/* Piloto */}
-                      <td className="py-2 px-3 font-sans">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={
-                              row.isPlayer
-                                ? 'text-[#0F172A] font-extrabold'
-                                : 'text-[#1E293B] font-medium'
-                            }
-                          >
-                            {row.driverName}
-                          </span>
-                          {row.isPlayer && (
-                            <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-4 uppercase font-black tracking-tight">
-                              Sua Equipe
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Equipe com Logo Reduzida Canônica */}
-                      <td className="py-2 px-3 font-sans">
-                        <div className="flex items-center gap-2">
-                          {logoUrl ? (
-                            <img
-                              src={logoUrl}
-                              alt={row.teamName}
-                              className="w-5 h-5 rounded-sm object-contain bg-white border border-[#E2E8F0] p-0.5 shrink-0"
-                            />
-                          ) : (
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: row.teamColor || '#94A3B8' }}
-                            />
-                          )}
-                          <span
-                            className="truncate max-w-[120px] text-xs font-semibold"
-                            style={{ color: row.teamColor }}
-                          >
-                            {row.teamName}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Composto */}
-                      <td className="py-2 px-3 text-capitalize text-[11px]">
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-[#334155] uppercase font-bold text-[10px]">
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              row.compound === 'macio'
-                                ? 'bg-[#E10600]'
-                                : row.compound === 'medio'
-                                  ? 'bg-amber-400'
-                                  : 'bg-slate-400'
-                            }`}
+                    {/* Equipe com Logo Reduzida Canônica */}
+                    <td className="py-2 px-3 font-sans">
+                      <div className="flex items-center gap-2">
+                        {logoUrl ? (
+                          <img
+                            src={logoUrl}
+                            alt={row.teamName}
+                            className="w-5 h-5 rounded-sm object-contain bg-white border border-[#E2E8F0] p-0.5 shrink-0"
                           />
-                          {row.compound}
-                        </span>
-                      </td>
-
-                      {/* Status do Carro */}
-                      <td className="py-2 px-3">
+                        ) : (
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: row.teamColor || '#94A3B8' }}
+                          />
+                        )}
                         <span
-                          className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                            row.status === 'flying_lap'
-                              ? 'bg-emerald-100 text-emerald-800 animate-pulse'
-                              : row.status === 'out_lap' || row.status === 'in_lap'
-                                ? 'bg-amber-100 text-amber-800'
-                                : isEliminationZone
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : 'bg-slate-100 text-[#64748B]'
-                          }`}
+                          className="truncate max-w-[120px] text-xs font-semibold"
+                          style={{ color: row.teamColor }}
                         >
-                          {row.status === 'flying_lap'
-                            ? 'EM VOLTA'
-                            : row.status === 'out_lap'
-                              ? 'OUT LAP'
-                              : row.status === 'in_lap'
-                                ? 'IN LAP'
-                                : row.status === 'classified'
-                                  ? 'CLASSIFICADO'
-                                  : row.status === 'eliminated'
-                                    ? 'ELIMINADO'
-                                    : 'BOX'}
+                          {row.teamName}
                         </span>
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* Voltas */}
-                      <td className="py-2 px-3 text-center text-[#64748B] font-bold">
-                        {row.laps || 0}
-                      </td>
+                    {/* Composto */}
+                    <td className="py-2 px-3 text-capitalize text-[11px]">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-[#334155] uppercase font-bold text-[10px]">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            row.compound === 'macio'
+                              ? 'bg-[#E10600]'
+                              : row.compound === 'medio'
+                                ? 'bg-amber-400'
+                                : 'bg-slate-400'
+                          }`}
+                        />
+                        {row.compound}
+                      </span>
+                    </td>
 
-                      {/* Melhor Volta */}
-                      <td className="py-2 px-3 font-bold text-[#0F172A]">
-                        {row.bestLapTime || '--:--.---'}
-                      </td>
+                    {/* Status do Carro */}
+                    <td className="py-2 px-3">
+                      <span
+                        className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                          row.status === 'flying_lap'
+                            ? 'bg-emerald-100 text-emerald-800 animate-pulse'
+                            : row.status === 'out_lap' || row.status === 'in_lap'
+                              ? 'bg-amber-100 text-amber-800'
+                              : isEliminationZone
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-[#64748B]'
+                        }`}
+                      >
+                        {row.status === 'flying_lap'
+                          ? 'EM VOLTA'
+                          : row.status === 'out_lap'
+                            ? 'OUT LAP'
+                            : row.status === 'in_lap'
+                              ? 'IN LAP'
+                              : row.status === 'classified'
+                                ? 'CLASSIFICADO'
+                                : row.status === 'eliminated'
+                                  ? 'ELIMINADO'
+                                  : 'BOX'}
+                      </span>
+                    </td>
 
-                      {/* Gap */}
-                      <td className="py-2 px-3 text-right font-bold text-[#64748B] tabular-nums">
-                        {row.gap}
+                    {/* Voltas */}
+                    <td className="py-2 px-3 text-center text-[#64748B] font-bold">
+                      {row.laps || 0}
+                    </td>
+
+                    {/* Melhor Volta */}
+                    <td className="py-2 px-3 font-bold text-[#0F172A]">
+                      {row.bestLapTime || '--:--.---'}
+                    </td>
+
+                    {/* Gap */}
+                    <td className="py-2 px-3 text-right font-bold text-[#64748B] tabular-nums">
+                      {row.gap}
+                    </td>
+                  </tr>
+                )
+
+                if (isCutoffLine) {
+                  const cutoffRow = (
+                    <tr
+                      key={`cutoff_${row.position}_${row.driverId}`}
+                      className="bg-[#FFF1F2] border-y-2 border-dashed border-[#F43F5E]"
+                    >
+                      <td colSpan={8} className="py-1 px-3 text-center">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#E11D48] flex items-center justify-center gap-1.5 font-sans">
+                          <AlertCircle className="w-3.5 h-3.5 text-[#E11D48]" />
+                          LINHA DE CORTE FIA — ZONA DE ELIMINAÇÃO DO {stageId.toUpperCase()} (P
+                          {cutoffPos + 1}+ ELIMINADOS)
+                        </span>
                       </td>
                     </tr>
+                  )
+                  return [mainRow, cutoffRow]
+                }
 
-                    {/* Linha divisória de Zona de Corte / Eliminação */}
-                    {isCutoffLine && (
-                      <tr className="bg-[#FFF1F2] border-y-2 border-dashed border-[#F43F5E]">
-                        <td colSpan={8} className="py-1 px-3 text-center">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-[#E11D48] flex items-center justify-center gap-1.5 font-sans">
-                            <AlertCircle className="w-3.5 h-3.5 text-[#E11D48]" />
-                            LINHA DE CORTE FIA — ZONA DE ELIMINAÇÃO DO {stageId.toUpperCase()} (P
-                            {cutoffPos + 1}+ ELIMINADOS)
-                          </span>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                )
+                return [mainRow]
               })}
             </tbody>
           </table>
