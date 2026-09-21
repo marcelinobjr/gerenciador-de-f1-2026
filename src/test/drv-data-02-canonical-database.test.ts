@@ -75,6 +75,10 @@ describe('Base Canônica de Pilotos 2026 & Catálogo de Fotos', () => {
     const directAsset = resolveDriverPhoto({ portraitAssetId: 'DRV_0001' })
     expect(directAsset.url).toBe('/pilotos/DRV_0001.jpg')
     expect(directAsset.sourceType).toBe('canonical_real')
+
+    const resLeclerc = resolveDriverPhoto({ driverId: 'mbj-001' })
+    expect(resLeclerc.url).toBe('/pilotos/DRV_0001.jpg')
+    expect(resLeclerc.sourceType).toBe('canonical_real')
   })
 
   it('resolveDriverPhoto resolve pilotos procedurais para /pilotos-gerados/', () => {
