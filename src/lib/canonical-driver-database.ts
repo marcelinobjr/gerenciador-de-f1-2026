@@ -48,15 +48,20 @@ export interface CanonicalDriverMaster {
 export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string> = {
   // Casos canônicos canônicos fixos obrigatórios
   'mbj-020': 'DRV_0012', // Gabriel Bortoleto
+  drv_gabriel_bortoleto: 'DRV_0012',
   'mbj-019': 'DRV_0068', // Nico Hülkenberg
+  drv_nico_hulkenberg: 'DRV_0068',
 
   // Mapeamento canônico determinístico para os demais pilotos mbj-001..mbj-135
   // preenchendo o espaço DRV_0001..DRV_0134 de forma estável
-  'mbj-001': 'DRV_0001', // Max Verstappen
+  'mbj-001': 'DRV_0022', // Max Verstappen
+  drv_max_verstappen: 'DRV_0022',
   'mbj-002': 'DRV_0002', // Liam Lawson
   'mbj-003': 'DRV_0003', // Lewis Hamilton
-  'mbj-004': 'DRV_0004', // Charles Leclerc
-  'mbj-005': 'DRV_0005', // Lando Norris
+  'mbj-004': 'DRV_0047', // Charles Leclerc
+  drv_charles_leclerc: 'DRV_0047',
+  'mbj-005': 'DRV_0019', // Lando Norris
+  drv_lando_norris: 'DRV_0019',
   'mbj-006': 'DRV_0006', // Oscar Piastri
   'mbj-007': 'DRV_0007', // George Russell
   'mbj-008': 'DRV_0008', // Andrea Kimi Antonelli
@@ -64,9 +69,11 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string> = {
   'mbj-010': 'DRV_0010', // Lance Stroll
   'mbj-011': 'DRV_0011', // Pierre Gasly
   // mbj-020 é DRV_0012 (Bortoleto)
-  'mbj-012': 'DRV_0013', // Jack Doohan
+  'mbj-012': 'DRV_0015', // Jack Doohan
+  drv_jack_doohan: 'DRV_0015',
   'mbj-013': 'DRV_0014', // Alexander Albon
-  'mbj-014': 'DRV_0015', // Carlos Sainz Jr
+  'mbj-014': 'DRV_0089', // Carlos Sainz Jr
+  drv_carlos_sainz: 'DRV_0089',
   'mbj-015': 'DRV_0016', // Yuki Tsunoda
   'mbj-016': 'DRV_0017', // Isack Hadjar
   'mbj-017': 'DRV_0018', // Esteban Ocon
@@ -88,7 +95,8 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string> = {
   'mbj-034': 'DRV_0033', // Kevin Magnussen
   'mbj-035': 'DRV_0034', // Daniel Ricciardo
   'mbj-036': 'DRV_0035', // Logan Sargeant
-  'mbj-037': 'DRV_0036', // Mick Schumacher
+  'mbj-037': 'DRV_0105', // Mick Schumacher
+  drv_mick_schumacher: 'DRV_0105',
   'mbj-038': 'DRV_0037', // Theo Pourchaire
   'mbj-039': 'DRV_0038', // Robert Shwartzman
   'mbj-040': 'DRV_0039', // Alex Palou
