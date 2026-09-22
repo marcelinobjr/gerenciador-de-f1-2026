@@ -180,7 +180,23 @@ export class PracticeSessionRunner {
   ): boolean {
     const car = state.cars[carId]
     if (car.status !== 'garage') return false
-    car.fuelKg = Math.max(5, Math.min(110, kg))
+    car.fuelKg = Math.max(1, Math.min(110, kg))
+    return true
+  }
+
+  /**
+   * Instalação de jogo de pneus no carro na garagem durante o treino livre.
+   */
+  static fitTyreSetInGarage(
+    state: PracticeSessionRecordState,
+    carId: 'car1' | 'car2',
+    tyreSet: { id: string; compound: any; wear: number },
+  ): boolean {
+    const car = state.cars[carId]
+    if (car.status !== 'garage') return false
+    car.currentTyreSetId = tyreSet.id
+    car.currentCompound = tyreSet.compound
+    car.tyreWear = tyreSet.wear || 0
     return true
   }
 

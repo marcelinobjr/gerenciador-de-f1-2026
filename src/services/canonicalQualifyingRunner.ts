@@ -325,7 +325,24 @@ export class CanonicalQualifyingRunner {
   ): boolean {
     const car = state.cars[carId]
     if (car.status !== 'garage') return false
-    car.fuelKg = Math.max(5, Math.min(30, kg))
+    car.fuelKg = Math.max(1, Math.min(110, kg))
+    return true
+  }
+
+  /**
+   * Atualização de setup na garagem durante a qualificação (caso Parc Fermé não proíba).
+   */
+  public static updateCarGarageSetup(
+    state: QualifyingStageState,
+    carId: 'car1' | 'car2',
+    partialSetup: Partial<QualifyingCarState['setup']>,
+  ): boolean {
+    const car = state.cars[carId]
+    if (car.status !== 'garage') return false
+    car.setup = {
+      ...car.setup,
+      ...partialSetup,
+    }
     return true
   }
 
