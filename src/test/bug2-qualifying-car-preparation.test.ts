@@ -1,3 +1,4 @@
+// BUG-02 COMMIT B — Suíte de validação canônica de preparação dos carros na qualificação
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   CanonicalQualifyingRunner,
