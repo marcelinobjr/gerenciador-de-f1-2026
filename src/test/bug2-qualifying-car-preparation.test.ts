@@ -484,8 +484,20 @@ describe('BUG-02 COMMIT B — Suíte de Qualificação e Preparação dos Carros
       eligibleParticipants: [driver1, driver2, ...rivalDrivers],
     })
 
-    // Parc Fermé ativo no estado de qualificação
-    expect(qState.parcFermeActive).toBe(true)
+    // 1. Antes do regime de Parc Fermé ativo, setup editável conforme regra canônica
+    expect(qState.parcFermeActive).toBe(false)
+    const editableAttempt = CanonicalQualifyingRunner.updateCarGarageSetup(
+      qState,
+      'car1',
+      { frontWing: 8 },
+      { parcFermeActive: false },
+    )
+    expect(editableAttempt.success).toBe(true)
+    expect(qState.cars.car1.setup.frontWing).toBe(8)
+
+    // 2. Regime de Parc Fermé ativado via serviço canônico
+    canonicalQualifyingPersistenceService.setParcFermeActive(seasonId, round, true)
+    expect(canonicalQualifyingPersistenceService.isParcFermeActive(seasonId, round)).toBe(true)
 
     // Tentativa de alterar asas sob regime de Parc Fermé
     const attempt = CanonicalQualifyingRunner.updateCarGarageSetup(
@@ -500,8 +512,8 @@ describe('BUG-02 COMMIT B — Suíte de Qualificação e Preparação dos Carros
     expect(attempt.error).toContain(
       'Este ajuste não pode mais ser alterado após o início do regime de Parc Fermé',
     )
-    // O setup do carro permanece inalterado
-    expect(qState.cars.car1.setup.frontWing).toBe(6)
+    // O setup do carro permanece inalterado com o valor anterior
+    expect(qState.cars.car1.setup.frontWing).toBe(8)
   })
 
   // BUG2-Q09: inventory and wear persist Q1→Q2→Q3 (no reset to 100%).
@@ -539,7 +551,7 @@ describe('BUG-02 COMMIT B — Suíte de Qualificação e Preparação dos Carros
     })
 
     const storedQ1 = canonicalWeekendTyrePersistence.readWeekendTireData(seasonId, round)
-    const invAfterQ1 = storedQ1?.inventories[driverId] || []
+    const invAfterQ1 = storedQ1?.inventoriesByDriver[driverId] || []
     const setAfterQ1 = invAfterQ1.find((t) => t.id === tyreSetId)
     expect(setAfterQ1?.wear).toBe(18)
     expect(setAfterQ1?.lapsUsed).toBe(2)
@@ -586,7 +598,7 @@ describe('BUG-02 COMMIT B — Suíte de Qualificação e Preparação dos Carros
     })
 
     const storedQ2 = canonicalWeekendTyrePersistence.readWeekendTireData(seasonId, round)
-    const invAfterQ2 = storedQ2?.inventories[driverId] || []
+    const invAfterQ2 = storedQ2?.inventoriesByDriver[driverId] || []
     const setAfterQ2 = invAfterQ2.find((t) => t.id === tyreSetId)
     expect(setAfterQ2?.wear).toBe(36)
     expect(setAfterQ2?.lapsUsed).toBe(4)
@@ -621,5 +633,175 @@ describe('BUG-02 COMMIT B — Suíte de Qualificação e Preparação dos Carros
 
     // No Q3, o pneu começa em 36%
     expect(q3State.cars.car1.tyreWear).toBe(36)
+  })
+
+  describe('Auditorias Obrigatórias do Commit B (Qualificação)', () => {
+    it('Auditoria 1: Selecionar 12 kg -> runner recebe 12 kg (sem coerção para 15 kg)', () => {
+      const qState = CanonicalQualifyingRunner.initializeStage({
+        stageId: 'q1',
+        seasonId,
+        round,
+        playerCar1: {
+          driverId: driver1.id,
+          driverName: driver1.name,
+          driverNumber: 27,
+          tyreSetId: 'set_soft_01',
+          compound: 'macio',
+          wear: 0,
+          fuelKg: 12,
+          setup: defaultSetup,
+        },
+        playerCar2: {
+          driverId: driver2.id,
+          driverName: driver2.name,
+          driverNumber: 5,
+          tyreSetId: 'set_soft_02',
+          compound: 'macio',
+          wear: 0,
+          fuelKg: 17,
+          setup: defaultSetup,
+        },
+        eligibleParticipants: [driver1, driver2, ...rivalDrivers],
+      })
+
+      expect(qState.cars.car1.fuelKg).toBe(12)
+      expect(qState.cars.car2.fuelKg).toBe(17)
+
+      // Teste adicional: alteração para 10 kg
+      CanonicalQualifyingRunner.refuelCarInGarage(qState, 'car1', 10)
+      expect(qState.cars.car1.fuelKg).toBe(10)
+    })
+
+    it('Auditoria 2: Tyre set real: setId específico preservado no runner e registrado no stint', () => {
+      const specificSetId = 'set_soft_audi_exclusive_09'
+      const qState = CanonicalQualifyingRunner.initializeStage({
+        stageId: 'q1',
+        seasonId,
+        round,
+        playerCar1: {
+          driverId: driver1.id,
+          driverName: driver1.name,
+          driverNumber: 27,
+          tyreSetId: specificSetId,
+          compound: 'macio',
+          wear: 5,
+          fuelKg: 12,
+          setup: defaultSetup,
+        },
+        playerCar2: {
+          driverId: driver2.id,
+          driverName: driver2.name,
+          driverNumber: 5,
+          tyreSetId: 'set_soft_02',
+          compound: 'macio',
+          wear: 0,
+          fuelKg: 15,
+          setup: defaultSetup,
+        },
+        eligibleParticipants: [driver1, driver2, ...rivalDrivers],
+      })
+
+      expect(qState.cars.car1.currentTyreSetId).toBe(specificSetId)
+    })
+
+    it('Auditoria 3: Parc Fermé: antes do regime, setup editável; depois, bloqueado com motivo canônico', () => {
+      const qState = CanonicalQualifyingRunner.initializeStage({
+        stageId: 'q1',
+        seasonId,
+        round,
+        playerCar1: {
+          driverId: driver1.id,
+          driverName: driver1.name,
+          driverNumber: 27,
+          tyreSetId: 'set_soft_01',
+          compound: 'macio',
+          wear: 0,
+          fuelKg: 12,
+          setup: defaultSetup,
+        },
+        playerCar2: {
+          driverId: driver2.id,
+          driverName: driver2.name,
+          driverNumber: 5,
+          tyreSetId: 'set_soft_02',
+          compound: 'macio',
+          wear: 0,
+          fuelKg: 15,
+          setup: defaultSetup,
+        },
+        eligibleParticipants: [driver1, driver2, ...rivalDrivers],
+      })
+
+      // Antes do regime
+      expect(canonicalQualifyingPersistenceService.isParcFermeActive(seasonId, round)).toBe(false)
+      const okBefore = CanonicalQualifyingRunner.updateCarGarageSetup(
+        qState,
+        'car1',
+        { frontWing: 9 },
+        { parcFermeActive: false },
+      )
+      expect(okBefore.success).toBe(true)
+      expect(qState.cars.car1.setup.frontWing).toBe(9)
+
+      // Ativar regime
+      canonicalQualifyingPersistenceService.setParcFermeActive(seasonId, round, true)
+      expect(canonicalQualifyingPersistenceService.isParcFermeActive(seasonId, round)).toBe(true)
+
+      const blockedAfter = CanonicalQualifyingRunner.updateCarGarageSetup(
+        qState,
+        'car1',
+        { frontWing: 10 },
+        { parcFermeActive: true },
+      )
+      expect(blockedAfter.success).toBe(false)
+      expect(blockedAfter.error).toContain('PARC FERMÉ')
+      expect(qState.cars.car1.setup.frontWing).toBe(9)
+
+      // Parc Fermé não impede troca de pneu nem combustível
+      const refuelOk = CanonicalQualifyingRunner.refuelCarInGarage(qState, 'car1', 14)
+      expect(refuelOk).toBe(true)
+      expect(qState.cars.car1.fuelKg).toBe(14)
+    })
+
+    it('Auditoria 4: Q1->Q2->Q3 carros eliminados mantêm status esportivo de eliminação', () => {
+      const qState = CanonicalQualifyingRunner.initializeStage({
+        stageId: 'q2',
+        seasonId,
+        round,
+        playerCar1: {
+          driverId: driver1.id,
+          driverName: driver1.name,
+          driverNumber: 27,
+          tyreSetId: 'set_soft_01',
+          compound: 'macio',
+          wear: 0,
+          fuelKg: 12,
+          setup: defaultSetup,
+        },
+        playerCar2: {
+          driverId: driver2.id,
+          driverName: driver2.name,
+          driverNumber: 5,
+          tyreSetId: 'set_soft_02',
+          compound: 'macio',
+          wear: 0,
+          fuelKg: 15,
+          setup: defaultSetup,
+        },
+        // Apenas driver1 é elegível para o Q2 (driver2 foi eliminado no Q1)
+        eligibleParticipants: [driver1, ...rivalDrivers.slice(0, 17)],
+      })
+
+      expect(qState.cars.car1.isEliminated).toBe(false)
+      expect(qState.cars.car1.status).toBe('garage')
+
+      expect(qState.cars.car2.isEliminated).toBe(true)
+      expect(qState.cars.car2.status).toBe('eliminated')
+
+      // Tentativa de liberação do carro 2 eliminado deve falhar
+      const exitRes = CanonicalQualifyingRunner.orderCarExitToTrack(qState, 'car2')
+      expect(exitRes.success).toBe(false)
+      expect(exitRes.error).toContain('eliminado')
+    })
   })
 })

@@ -226,7 +226,7 @@ export class CanonicalQualifyingRunner {
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         },
       ],
-      parcFermeActive: true,
+      parcFermeActive: canonicalQualifyingPersistenceService.isParcFermeActive(seasonId, round),
       revision: 1,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -364,7 +364,8 @@ export class CanonicalQualifyingRunner {
     partialSetup: Partial<QualifyingCarState['setup']>,
     options?: { parcFermeActive?: boolean },
   ): { success: boolean; error?: string } {
-    if (options?.parcFermeActive || state.parcFermeActive) {
+    const isParcFerme = options?.parcFermeActive ?? state.parcFermeActive ?? false
+    if (isParcFerme) {
       return {
         success: false,
         error:

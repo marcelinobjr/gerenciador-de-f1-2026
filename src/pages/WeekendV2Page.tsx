@@ -1711,7 +1711,13 @@ export default function WeekendV2Page() {
 
     if (isQuali) {
       if (!qualifyingState) return
-      const res = CanonicalQualifyingRunner.updateCarGarageSetup(qualifyingState, carId, newSetup)
+      const isPFActive = canonicalQualifyingPersistenceService.isParcFermeActive(
+        season?.id || 'default',
+        currentRound,
+      )
+      const res = CanonicalQualifyingRunner.updateCarGarageSetup(qualifyingState, carId, newSetup, {
+        parcFermeActive: isPFActive,
+      })
       if (res.success) {
         if (season?.id) {
           canonicalQualifyingPersistenceService.saveStageState(
