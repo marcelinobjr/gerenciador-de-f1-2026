@@ -68,6 +68,7 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 
 // Subcomponentes operacionais
+import { SessionCarPreparationPanel } from '@/components/race/SessionCarPreparationPanel'
 import { PracticeCarCockpitCard } from '@/components/race/PracticeCarCockpitCard'
 import { TyreInventoryPanel } from '@/components/race/TyreInventoryPanel'
 import { PracticeLeaderboardTable } from '@/components/race/PracticeLeaderboardTable'
@@ -1723,6 +1724,16 @@ export default function WeekendV2Page() {
     }
   }
 
+  // Reabastecimento na garagem durante treino livre
+  const handleUpdateFuelInPractice = (carId: 'car1' | 'car2', kg: number) => {
+    if (!sessionState) return
+    const ok = PracticeSessionRunner.refuelCarInGarage(sessionState, carId, kg)
+    if (ok) {
+      practiceSessionService.saveSessionState(sessionState)
+      setSessionState({ ...sessionState })
+    }
+  }
+
   // Troca de Pneus na Garagem (Treino ou Qualificação)
   const handleSelectTyreSet = (carId: 'car1' | 'car2', tyreSetId: string) => {
     const isQuali =
@@ -1744,9 +1755,17 @@ export default function WeekendV2Page() {
     const selectedSet = driverInventory.find((s) => s.id === tyreSetId)
     if (!selectedSet) return
 
-    targetCar.currentTyreSetId = selectedSet.id
-    targetCar.currentCompound = selectedSet.compound
-    targetCar.tyreWear = selectedSet.wear || 0
+    if (isQuali && qualifyingState) {
+      targetCar.currentTyreSetId = selectedSet.id
+      targetCar.currentCompound = selectedSet.compound
+      targetCar.tyreWear = selectedSet.wear || 0
+    } else if (sessionState) {
+      PracticeSessionRunner.fitTyreSetInGarage(sessionState, carId, {
+        id: selectedSet.id,
+        compound: selectedSet.compound,
+        wear: selectedSet.wear || 0,
+      })
+    }
 
     const updatedInventory: TireSetItem[] = driverInventory.map((s) => ({
       ...s,
@@ -2214,13 +2233,35 @@ export default function WeekendV2Page() {
               </div>
             </Card>
 
-            {/* CARDS DOS DOIS CARROS (CARRO 1 E CARRO 2) */}
+            {/* CARDS DOS DOIS CARROS (CARRO 1 E CARRO 2) — SessionCarPreparationPanel INDEPENDENTES */}
             {pCar1 && pCar2 && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <PracticeCarCockpitCard
-                  car={sessionState.cars.car1}
-                  carNumber={1}
+                <SessionCarPreparationPanel
+                  sessionType="practice"
+                  car={{
+                    carId: 'car1',
+                    carNumber: 1,
+                    driverId: sessionState.cars.car1.driverId,
+                    driverName: sessionState.cars.car1.driverName,
+                    isRookie: selectedSessionId === 'tp1' && !!activeRookieCar1,
+                    originalDriverName: pCar1.driverName,
+                    status: sessionState.cars.car1.status,
+                    fuelKg: sessionState.cars.car1.fuelKg,
+                    currentCompound: sessionState.cars.car1.currentCompound,
+                    currentTyreSetId: sessionState.cars.car1.currentTyreSetId,
+                    tyreWear: sessionState.cars.car1.tyreWear,
+                    setup: sessionState.cars.car1.setup,
+                    bestLapTime: sessionState.cars.car1.bestLapTime,
+                    bestLapSec: sessionState.cars.car1.bestLapSec,
+                    lastLapTime: sessionState.cars.car1.lastLapTime,
+                    totalLaps: sessionState.cars.car1.totalLaps,
+                    lapsInStint: sessionState.cars.car1.lapsInStint,
+                    currentLapProgressPct: sessionState.cars.car1.currentLapProgressPct,
+                    pitRequested: sessionState.cars.car1.pitRequested,
+                  }}
                   teamColor={team?.color || '#E10600'}
+                  parcFermeActive={false}
+                  inventory={tyreInventories[pCar1.driverId] || []}
                   knowledge={sessionState.knowledge}
                   latestFeedback={
                     sessionState.feedbacks?.filter((f) => f.carId === 'car1').slice(-1)[0]
@@ -2230,23 +2271,46 @@ export default function WeekendV2Page() {
                   isSessionCompleted={sessionState.status === 'completed'}
                   onOrderExitTrack={() => handleOrderExit('car1')}
                   onRequestBox={() => handleRequestBox('car1')}
+                  onUpdateSetup={(newSetup) => handleApplyCarSetup('car1', newSetup)}
+                  onUpdateFuel={(kg) => handleUpdateFuelInPractice('car1', kg)}
+                  onSelectTyreSet={(tyreSetId) => handleSelectTyreSet('car1', tyreSetId)}
                   onMarkFeedbackRead={() => {
                     sessionState.unreadFeedbackCarIds = (
                       sessionState.unreadFeedbackCarIds || []
                     ).filter((id) => id !== 'car1')
                     setSessionState({ ...sessionState })
                   }}
-                  isRookie={selectedSessionId === 'tp1' && !!activeRookieCar1}
-                  originalDriverName={pCar1?.driverName}
                   canToggleRookie={selectedSessionId === 'tp1'}
                   onOpenRookieSelector={() => setRookieSelectorModalCarId('car1')}
                   onRestoreTitular={() => handleClearRookieAssignment('car1')}
                 />
 
-                <PracticeCarCockpitCard
-                  car={sessionState.cars.car2}
-                  carNumber={2}
+                <SessionCarPreparationPanel
+                  sessionType="practice"
+                  car={{
+                    carId: 'car2',
+                    carNumber: 2,
+                    driverId: sessionState.cars.car2.driverId,
+                    driverName: sessionState.cars.car2.driverName,
+                    isRookie: selectedSessionId === 'tp1' && !!activeRookieCar2,
+                    originalDriverName: pCar2.driverName,
+                    status: sessionState.cars.car2.status,
+                    fuelKg: sessionState.cars.car2.fuelKg,
+                    currentCompound: sessionState.cars.car2.currentCompound,
+                    currentTyreSetId: sessionState.cars.car2.currentTyreSetId,
+                    tyreWear: sessionState.cars.car2.tyreWear,
+                    setup: sessionState.cars.car2.setup,
+                    bestLapTime: sessionState.cars.car2.bestLapTime,
+                    bestLapSec: sessionState.cars.car2.bestLapSec,
+                    lastLapTime: sessionState.cars.car2.lastLapTime,
+                    totalLaps: sessionState.cars.car2.totalLaps,
+                    lapsInStint: sessionState.cars.car2.lapsInStint,
+                    currentLapProgressPct: sessionState.cars.car2.currentLapProgressPct,
+                    pitRequested: sessionState.cars.car2.pitRequested,
+                  }}
                   teamColor={team?.color || '#E10600'}
+                  parcFermeActive={false}
+                  inventory={tyreInventories[pCar2.driverId] || []}
                   knowledge={sessionState.knowledge}
                   latestFeedback={
                     sessionState.feedbacks?.filter((f) => f.carId === 'car2').slice(-1)[0]
@@ -2256,14 +2320,15 @@ export default function WeekendV2Page() {
                   isSessionCompleted={sessionState.status === 'completed'}
                   onOrderExitTrack={() => handleOrderExit('car2')}
                   onRequestBox={() => handleRequestBox('car2')}
+                  onUpdateSetup={(newSetup) => handleApplyCarSetup('car2', newSetup)}
+                  onUpdateFuel={(kg) => handleUpdateFuelInPractice('car2', kg)}
+                  onSelectTyreSet={(tyreSetId) => handleSelectTyreSet('car2', tyreSetId)}
                   onMarkFeedbackRead={() => {
                     sessionState.unreadFeedbackCarIds = (
                       sessionState.unreadFeedbackCarIds || []
                     ).filter((id) => id !== 'car2')
                     setSessionState({ ...sessionState })
                   }}
-                  isRookie={selectedSessionId === 'tp1' && !!activeRookieCar2}
-                  originalDriverName={pCar2?.driverName}
                   canToggleRookie={selectedSessionId === 'tp1'}
                   onOpenRookieSelector={() => setRookieSelectorModalCarId('car2')}
                   onRestoreTitular={() => handleClearRookieAssignment('car2')}

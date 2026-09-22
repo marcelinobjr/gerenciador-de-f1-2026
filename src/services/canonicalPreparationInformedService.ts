@@ -129,6 +129,59 @@ const COMPOUND_DISPLAY_NAMES: Record<TireCompound, string> = {
  * Produz a recomendação informada de SETUP baseando-se ESTRITAMENTE no modelo de conhecimento aprendido (4C1).
  * PROIBIDO: Consultar resolveInternalIdealSetup() ou valores ocultos da pista.
  */
+/**
+ * Helper de compatibilidade para SessionCarPreparationPanel
+ */
+export function calculateInformedSetupRecommendation(params: {
+  knowledge?: SetupKnowledgeModel | null
+  currentSetup: { frontWing: number; rearWing: number; suspension: number; differential: number }
+  round?: number
+}): {
+  headline: string
+  observedBasisText: string
+  frontWingTarget: number
+  rearWingTarget: number
+  suspensionTarget: number
+  differentialTarget: number
+} {
+  const { knowledge, currentSetup } = params
+  if (!knowledge) {
+    return {
+      headline: 'Aguardando telemetria inicial',
+      observedBasisText: 'Complete stints para correlacionar o acerto.',
+      frontWingTarget: currentSetup.frontWing,
+      rearWingTarget: currentSetup.rearWing,
+      suspensionTarget: currentSetup.suspension,
+      differentialTarget: currentSetup.differential,
+    }
+  }
+
+  const fwTarget = knowledge.frontWing.revealed
+    ? Math.round((knowledge.frontWing.minKnown + knowledge.frontWing.maxKnown) / 2)
+    : currentSetup.frontWing
+  const rwTarget = knowledge.rearWing.revealed
+    ? Math.round((knowledge.rearWing.minKnown + knowledge.rearWing.maxKnown) / 2)
+    : currentSetup.rearWing
+  const spTarget = knowledge.suspension.revealed
+    ? Math.round((knowledge.suspension.minKnown + knowledge.suspension.maxKnown) / 2)
+    : currentSetup.suspension
+  const dfTarget = knowledge.differential.revealed
+    ? Math.round((knowledge.differential.minKnown + knowledge.differential.maxKnown) / 2)
+    : currentSetup.differential
+
+  return {
+    headline:
+      knowledge.overallConfidence === 'alta'
+        ? 'Recomendação Consolidada da Engenharia'
+        : 'Conhecimento em Desenvolvimento',
+    observedBasisText: `Baseado em ${knowledge.totalStintsAnalyzed} stint(s) de teste.`,
+    frontWingTarget: fwTarget,
+    rearWingTarget: rwTarget,
+    suspensionTarget: spTarget,
+    differentialTarget: dfTarget,
+  }
+}
+
 export function analyzeSetupInformed(
   currentSetup: SessionSetupModel,
   setupKnowledge?: SetupKnowledgeModel | null,
