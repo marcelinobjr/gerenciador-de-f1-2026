@@ -2,7 +2,7 @@
  * race-performance-balance-audit.test.ts
  *
  * Suíte de Diagnóstico Permanente do Balanceamento de Performance:
- * BAL-01..15 cobrindo:
+ * BAL-01..15 (Validação v0.0.397) cobrindo:
  * - Car strength & delta
  * - Driver strength & delta
  * - Matriz Carro x Piloto
