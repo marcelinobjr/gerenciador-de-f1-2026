@@ -1704,8 +1704,37 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Reacerto de Carro na garagem
+  // Reacerto de Carro na garagem (Treino ou Qualificação)
   const handleApplyCarSetup = (carId: 'car1' | 'car2', newSetup: PracticeCarLiveState['setup']) => {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (isQuali) {
+      if (!qualifyingState) return
+      const ok = CanonicalQualifyingRunner.updateCarGarageSetup(qualifyingState, carId, newSetup)
+      if (ok) {
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(
+            season.id,
+            currentRound,
+            qualifyingState,
+          )
+        }
+        setQualifyingState({ ...qualifyingState })
+        toast({
+          title: 'Acerto Atualizado com Sucesso!',
+          description: `Novo setup aplicado no ${carId === 'car1' ? 'Carro 1' : 'Carro 2'}.`,
+        })
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Não é possível reacertar',
+          description: 'Ajuste bloqueado por regime de Parc Fermé ou carro fora da garagem.',
+        })
+      }
+      return
+    }
+
     if (!sessionState) return
     const ok = PracticeSessionRunner.updateCarGarageSetup(sessionState, carId, newSetup)
     if (ok) {
@@ -1724,8 +1753,27 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Reabastecimento na garagem durante treino livre
+  // Reabastecimento na garagem durante treino livre ou qualificação
   const handleUpdateFuelInPractice = (carId: 'car1' | 'car2', kg: number) => {
+    const isQuali =
+      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+
+    if (isQuali) {
+      if (!qualifyingState) return
+      const ok = CanonicalQualifyingRunner.refuelCarInGarage(qualifyingState, carId, kg)
+      if (ok) {
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(
+            season.id,
+            currentRound,
+            qualifyingState,
+          )
+        }
+        setQualifyingState({ ...qualifyingState })
+      }
+      return
+    }
+
     if (!sessionState) return
     const ok = PracticeSessionRunner.refuelCarInGarage(sessionState, carId, kg)
     if (ok) {
@@ -1756,9 +1804,11 @@ export default function WeekendV2Page() {
     if (!selectedSet) return
 
     if (isQuali && qualifyingState) {
-      targetCar.currentTyreSetId = selectedSet.id
-      targetCar.currentCompound = selectedSet.compound
-      targetCar.tyreWear = selectedSet.wear || 0
+      CanonicalQualifyingRunner.fitTyreSetInGarage(qualifyingState, carId, {
+        id: selectedSet.id,
+        compound: selectedSet.compound,
+        wear: selectedSet.wear || 0,
+      })
     } else if (sessionState) {
       PracticeSessionRunner.fitTyreSetInGarage(sessionState, carId, {
         id: selectedSet.id,
@@ -2527,27 +2577,83 @@ export default function WeekendV2Page() {
               </div>
             </Card>
 
-            {/* COCKPIT DOS DOIS CARROS DO JOGADOR (CARRO 1 E CARRO 2) */}
+            {/* PAINEL DE PREPARAÇÃO DOS DOIS CARROS (SESSÃO QUALIFYING) */}
             {pCar1 && pCar2 && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <QualifyingCarCockpitCard
-                  car={qualifyingState.cars.car1}
-                  carNumber={1}
+                <SessionCarPreparationPanel
+                  sessionType="qualifying"
+                  car={{
+                    carId: 'car1',
+                    carNumber: 1,
+                    driverId: qualifyingState.cars.car1.driverId,
+                    driverName: qualifyingState.cars.car1.driverName,
+                    isRookie: false,
+                    status: qualifyingState.cars.car1.status,
+                    fuelKg: qualifyingState.cars.car1.fuelKg,
+                    currentCompound: qualifyingState.cars.car1.currentCompound,
+                    currentTyreSetId: qualifyingState.cars.car1.currentTyreSetId,
+                    tyreWear: qualifyingState.cars.car1.tyreWear,
+                    setup: qualifyingState.cars.car1.setup,
+                    bestLapTime: qualifyingState.cars.car1.bestLapTime,
+                    bestLapSec: qualifyingState.cars.car1.bestLapSec,
+                    lastLapTime: qualifyingState.cars.car1.lastLapTime,
+                    totalLaps: qualifyingState.cars.car1.totalLaps,
+                    lapsInStint: qualifyingState.cars.car1.lapsInStint,
+                    currentLapProgressPct: qualifyingState.cars.car1.currentLapProgressPct,
+                    pitRequested: qualifyingState.cars.car1.pitRequested,
+                  }}
                   teamColor={team?.color || '#E10600'}
+                  isEliminated={qualifyingState.cars.car1.isEliminated}
+                  parcFermeActive={canonicalQualifyingPersistenceService.isParcFermeActive(
+                    season?.id || 'default',
+                    currentRound,
+                  )}
+                  inventory={tyreInventories[pCar1.driverId] || []}
                   isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
                   isSessionCompleted={qualifyingState.status === 'completed'}
                   onOrderExitTrack={() => handleOrderExit('car1')}
                   onRequestBox={() => handleRequestBox('car1')}
+                  onUpdateSetup={(newSetup) => handleApplyCarSetup('car1', newSetup)}
+                  onUpdateFuel={(kg) => handleUpdateFuelInPractice('car1', kg)}
+                  onSelectTyreSet={(tyreSetId) => handleSelectTyreSet('car1', tyreSetId)}
                 />
 
-                <QualifyingCarCockpitCard
-                  car={qualifyingState.cars.car2}
-                  carNumber={2}
+                <SessionCarPreparationPanel
+                  sessionType="qualifying"
+                  car={{
+                    carId: 'car2',
+                    carNumber: 2,
+                    driverId: qualifyingState.cars.car2.driverId,
+                    driverName: qualifyingState.cars.car2.driverName,
+                    isRookie: false,
+                    status: qualifyingState.cars.car2.status,
+                    fuelKg: qualifyingState.cars.car2.fuelKg,
+                    currentCompound: qualifyingState.cars.car2.currentCompound,
+                    currentTyreSetId: qualifyingState.cars.car2.currentTyreSetId,
+                    tyreWear: qualifyingState.cars.car2.tyreWear,
+                    setup: qualifyingState.cars.car2.setup,
+                    bestLapTime: qualifyingState.cars.car2.bestLapTime,
+                    bestLapSec: qualifyingState.cars.car2.bestLapSec,
+                    lastLapTime: qualifyingState.cars.car2.lastLapTime,
+                    totalLaps: qualifyingState.cars.car2.totalLaps,
+                    lapsInStint: qualifyingState.cars.car2.lapsInStint,
+                    currentLapProgressPct: qualifyingState.cars.car2.currentLapProgressPct,
+                    pitRequested: qualifyingState.cars.car2.pitRequested,
+                  }}
                   teamColor={team?.color || '#E10600'}
+                  isEliminated={qualifyingState.cars.car2.isEliminated}
+                  parcFermeActive={canonicalQualifyingPersistenceService.isParcFermeActive(
+                    season?.id || 'default',
+                    currentRound,
+                  )}
+                  inventory={tyreInventories[pCar2.driverId] || []}
                   isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
                   isSessionCompleted={qualifyingState.status === 'completed'}
                   onOrderExitTrack={() => handleOrderExit('car2')}
                   onRequestBox={() => handleRequestBox('car2')}
+                  onUpdateSetup={(newSetup) => handleApplyCarSetup('car2', newSetup)}
+                  onUpdateFuel={(kg) => handleUpdateFuelInPractice('car2', kg)}
+                  onSelectTyreSet={(tyreSetId) => handleSelectTyreSet('car2', tyreSetId)}
                 />
               </div>
             )}

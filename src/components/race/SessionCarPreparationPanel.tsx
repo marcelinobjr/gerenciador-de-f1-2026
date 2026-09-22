@@ -407,6 +407,15 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
               />
             </div>
           )}
+          {isInGarage && car.fuelKg < 4 && (
+            <div className="p-2 rounded bg-rose-50 border border-rose-200 text-rose-800 text-[10px] font-bold flex items-start gap-1.5 mt-1">
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+              <span>
+                COMBUSTÍVEL INSUFICIENTE — Quantidade insuficiente para completar out lap + volta(s)
+                rápida(s) + in lap.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* CRONOMETRAGEM */}
@@ -554,7 +563,7 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
             <span>
               <strong>PARC FERMÉ EM VIGOR:</strong>{' '}
               {parcFermeReason ||
-                'Ajustes aerodinâmicos e mecânicos estão bloqueados pela FIA a partir do início da classificação.'}
+                'PARC FERMÉ — Este ajuste não pode mais ser alterado após o início do regime de Parc Fermé.'}
             </span>
           </div>
         )}
@@ -788,7 +797,7 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
         {isInGarage ? (
           <Button
             type="button"
-            disabled={isSessionCompleted || isEliminated || car.fuelKg < 2}
+            disabled={isSessionCompleted || isEliminated || car.fuelKg < 4}
             onClick={onOrderExitTrack}
             className="w-full text-xs font-black bg-[#E10600] hover:bg-[#C00400] text-white shadow-xs gap-2 h-9"
           >

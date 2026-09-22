@@ -258,8 +258,14 @@ export class CanonicalQualifyingRunner {
     if (car.status !== 'garage') {
       return { success: false, error: 'O carro já está na pista ou em volta de transição.' }
     }
-    if (car.fuelKg < 4) {
-      return { success: false, error: 'Combustível insuficiente para volta rápida com segurança.' }
+    const fuelValidation = this.validateQualifyingFuel(car.fuelKg)
+    if (!fuelValidation.valid) {
+      return {
+        success: false,
+        error:
+          fuelValidation.warning ||
+          'COMBUSTÍVEL INSUFICIENTE — Quantidade insuficiente para completar out lap + volta(s) rápida(s) + in lap.',
+      }
     }
 
     const stintId = `stint_q_${state.stageId}_${carId}_${Date.now()}`
@@ -327,6 +333,24 @@ export class CanonicalQualifyingRunner {
     if (car.status !== 'garage') return false
     car.fuelKg = Math.max(1, Math.min(110, kg))
     return true
+  }
+
+  /**
+   * Valida se a quantidade de combustível é suficiente para a tentativa no qualifying:
+   * out lap + volta(s) rápida(s) + in lap + margem de segurança regulamentar.
+   */
+  public static validateQualifyingFuel(fuelKg: number): {
+    valid: boolean
+    warning?: string
+  } {
+    if (fuelKg < 4) {
+      return {
+        valid: false,
+        warning:
+          'COMBUSTÍVEL INSUFICIENTE — Quantidade insuficiente para completar out lap + volta(s) rápida(s) + in lap.',
+      }
+    }
+    return { valid: true }
   }
 
   /**
