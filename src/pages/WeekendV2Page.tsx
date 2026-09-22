@@ -1711,8 +1711,8 @@ export default function WeekendV2Page() {
 
     if (isQuali) {
       if (!qualifyingState) return
-      const ok = CanonicalQualifyingRunner.updateCarGarageSetup(qualifyingState, carId, newSetup)
-      if (ok) {
+      const res = CanonicalQualifyingRunner.updateCarGarageSetup(qualifyingState, carId, newSetup)
+      if (res.success) {
         if (season?.id) {
           canonicalQualifyingPersistenceService.saveStageState(
             season.id,
@@ -1729,7 +1729,8 @@ export default function WeekendV2Page() {
         toast({
           variant: 'destructive',
           title: 'Não é possível reacertar',
-          description: 'Ajuste bloqueado por regime de Parc Fermé ou carro fora da garagem.',
+          description:
+            res.error || 'Ajuste bloqueado por regime de Parc Fermé ou carro fora da garagem.',
         })
       }
       return
@@ -2589,6 +2590,7 @@ export default function WeekendV2Page() {
                     driverName: qualifyingState.cars.car1.driverName,
                     isRookie: false,
                     status: qualifyingState.cars.car1.status,
+                    isEliminated: qualifyingState.cars.car1.isEliminated,
                     fuelKg: qualifyingState.cars.car1.fuelKg,
                     currentCompound: qualifyingState.cars.car1.currentCompound,
                     currentTyreSetId: qualifyingState.cars.car1.currentTyreSetId,
@@ -2598,12 +2600,10 @@ export default function WeekendV2Page() {
                     bestLapSec: qualifyingState.cars.car1.bestLapSec,
                     lastLapTime: qualifyingState.cars.car1.lastLapTime,
                     totalLaps: qualifyingState.cars.car1.totalLaps,
-                    lapsInStint: qualifyingState.cars.car1.lapsInStint,
                     currentLapProgressPct: qualifyingState.cars.car1.currentLapProgressPct,
                     pitRequested: qualifyingState.cars.car1.pitRequested,
                   }}
                   teamColor={team?.color || '#E10600'}
-                  isEliminated={qualifyingState.cars.car1.isEliminated}
                   parcFermeActive={canonicalQualifyingPersistenceService.isParcFermeActive(
                     season?.id || 'default',
                     currentRound,
@@ -2627,6 +2627,7 @@ export default function WeekendV2Page() {
                     driverName: qualifyingState.cars.car2.driverName,
                     isRookie: false,
                     status: qualifyingState.cars.car2.status,
+                    isEliminated: qualifyingState.cars.car2.isEliminated,
                     fuelKg: qualifyingState.cars.car2.fuelKg,
                     currentCompound: qualifyingState.cars.car2.currentCompound,
                     currentTyreSetId: qualifyingState.cars.car2.currentTyreSetId,
@@ -2636,12 +2637,10 @@ export default function WeekendV2Page() {
                     bestLapSec: qualifyingState.cars.car2.bestLapSec,
                     lastLapTime: qualifyingState.cars.car2.lastLapTime,
                     totalLaps: qualifyingState.cars.car2.totalLaps,
-                    lapsInStint: qualifyingState.cars.car2.lapsInStint,
                     currentLapProgressPct: qualifyingState.cars.car2.currentLapProgressPct,
                     pitRequested: qualifyingState.cars.car2.pitRequested,
                   }}
                   teamColor={team?.color || '#E10600'}
-                  isEliminated={qualifyingState.cars.car2.isEliminated}
                   parcFermeActive={canonicalQualifyingPersistenceService.isParcFermeActive(
                     season?.id || 'default',
                     currentRound,

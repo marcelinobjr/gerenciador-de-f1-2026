@@ -101,6 +101,7 @@ export class CanonicalQualifyingRunner {
       tyreSetId: string
       compound: any
       wear: number
+      fuelKg?: number
       setup: any
     }
     playerCar2: {
@@ -110,6 +111,7 @@ export class CanonicalQualifyingRunner {
       tyreSetId: string
       compound: any
       wear: number
+      fuelKg?: number
       setup: any
     }
     eligibleParticipants: QualifyingDriverContext[]
@@ -144,7 +146,7 @@ export class CanonicalQualifyingRunner {
       currentTyreSetId: playerCar1.tyreSetId,
       currentCompound: playerCar1.compound || 'macio',
       tyreWear: playerCar1.wear || 0,
-      fuelKg: 15, // Carga padrão para classificação (out + flying + in + margem)
+      fuelKg: typeof playerCar1.fuelKg === 'number' ? playerCar1.fuelKg : 15, // Carga padrão ou escolha do jogador
       outLapsDone: 0,
       flyingLapsDone: 0,
       inLapsDone: 0,
@@ -165,7 +167,7 @@ export class CanonicalQualifyingRunner {
       currentTyreSetId: playerCar2.tyreSetId,
       currentCompound: playerCar2.compound || 'macio',
       tyreWear: playerCar2.wear || 0,
-      fuelKg: 15,
+      fuelKg: typeof playerCar2.fuelKg === 'number' ? playerCar2.fuelKg : 15,
       outLapsDone: 0,
       flyingLapsDone: 0,
       inLapsDone: 0,
@@ -360,14 +362,27 @@ export class CanonicalQualifyingRunner {
     state: QualifyingStageState,
     carId: 'car1' | 'car2',
     partialSetup: Partial<QualifyingCarState['setup']>,
-  ): boolean {
+    options?: { parcFermeActive?: boolean },
+  ): { success: boolean; error?: string } {
+    if (options?.parcFermeActive || state.parcFermeActive) {
+      return {
+        success: false,
+        error:
+          'PARC FERMÉ — Este ajuste não pode mais ser alterado após o início do regime de Parc Fermé.',
+      }
+    }
     const car = state.cars[carId]
-    if (car.status !== 'garage') return false
+    if (car.status !== 'garage') {
+      return {
+        success: false,
+        error: 'O carro precisa estar na garagem para ajustes mecânicos.',
+      }
+    }
     car.setup = {
       ...car.setup,
       ...partialSetup,
     }
-    return true
+    return { success: true }
   }
 
   /**
