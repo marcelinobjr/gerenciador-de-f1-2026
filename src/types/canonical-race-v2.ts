@@ -195,6 +195,8 @@ export interface CanonicalRaceDriverState {
   isPlayer: boolean
   carId?: 'car1' | 'car2'
   tyreSetId?: string
+  initialTyreWear?: number
+  initialTyreLapsUsed?: number
   lastLapTimeSec?: number
   lastLapTimeFormatted?: string
   bestLapSec?: number
@@ -289,6 +291,18 @@ export interface InitializeCanonicalRaceParams {
   canonicalQualifyingGrid: FinalQualifyingGridEntry[]
   weather?: TrackWeatherState
   initialFuelKg?: number
+  // BUG-02 COMMIT C: Preparação explícita confirmada por carro
+  carPreparations?: Record<
+    string,
+    {
+      startingTyreSetId?: string
+      startingCompound?: TireCompound
+      startingFuelKg?: number
+      initialTyreWear?: number
+      initialTyreLapsUsed?: number
+      strategyPlan?: import('@/types/canonical-race-preparation').RaceStrategyPlan
+    }
+  >
 }
 
 /**

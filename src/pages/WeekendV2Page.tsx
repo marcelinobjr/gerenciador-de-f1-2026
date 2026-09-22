@@ -77,6 +77,9 @@ import { QualifyingCarCockpitCard } from '@/components/race/QualifyingCarCockpit
 import { QualifyingLeaderboardTable } from '@/components/race/QualifyingLeaderboardTable'
 import { CompleteQualifyingGridSummary } from '@/components/race/CompleteQualifyingGridSummary'
 import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
+import { PreRaceStrategyPreparationPanel } from '@/components/race/PreRaceStrategyPreparationPanel'
+import { canonicalRacePreparationService } from '@/services/canonicalRacePreparationService'
+import type { RacePreparationSnapshot } from '@/types/canonical-race-preparation'
 import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPanel'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
@@ -173,6 +176,8 @@ export default function WeekendV2Page() {
     useState<CompleteQualifyingWeekendResult | null>(null)
   const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
   const [officialRaceResult, setOfficialRaceResult] = useState<OfficialRaceResult | null>(null)
+  // BUG-02 COMMIT C: Estado de navegação interna entre Grid Oficial e Estratégia Pré-Corrida
+  const [showPreRacePreparation, setShowPreRacePreparation] = useState<boolean>(false)
   const [careerPersistenceStatus, setCareerPersistenceStatus] =
     useState<CareerApplicationStatus>('PENDING')
   const [isPersistingCareer, setIsPersistingCareer] = useState(false)
@@ -3020,13 +3025,41 @@ export default function WeekendV2Page() {
               }
             }}
           />
-        ) : (
-          <CompleteQualifyingGridSummary
-            result={completeQualifyingResult}
-            onGoToRace={() => {
+        ) : showPreRacePreparation ? (
+          /* BUG-02 COMMIT C: ETAPA OBRIGATÓRIA "ESTRATÉGIA DE CORRIDA" PRÉ-LARGADA */
+          <PreRaceStrategyPreparationPanel
+            careerId={resolveCanonicalCareerId(season, team)}
+            seasonYear={season?.year || 2026}
+            round={currentRound}
+            teamId={team?.id || 'default_team'}
+            teamColor={team?.color || '#E10600'}
+            totalLaps={gpInfo.laps || 57}
+            canonicalGrid={completeQualifyingResult.finalGrid}
+            inventories={tyreInventories}
+            onCancelToGrid={() => setShowPreRacePreparation(false)}
+            onConfirmAndStartRace={(prepSnapshot: RacePreparationSnapshot) => {
               try {
                 if (!team?.id || !season?.id) return
                 const canonicalCareerId = resolveCanonicalCareerId(season, team)
+
+                // Persistir snapshot race-prep-v1
+                canonicalRacePreparationService.saveSnapshot(prepSnapshot)
+
+                // Mapear preparações por piloto/carro para o canonicalRaceInitializationService
+                const carPreparations: Record<string, any> = {}
+                prepSnapshot.cars.forEach((car) => {
+                  carPreparations[car.driverId] = {
+                    startingTyreSetId: car.startingTyreSetId,
+                    startingCompound: car.startingCompound,
+                    startingFuelKg: car.startingFuelKg,
+                    initialTyreWear: car.initialTyreWear,
+                    initialTyreLapsUsed: car.initialTyreLapsUsed,
+                    strategyPlan: car.strategyPlan,
+                  }
+                  carPreparations[car.carId] = carPreparations[car.driverId]
+                })
+
+                // Inicializar Race Engine com exatamente as escolhas feitas pelo jogador
                 const initialRace =
                   canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
                     careerId: canonicalCareerId,
@@ -3037,12 +3070,16 @@ export default function WeekendV2Page() {
                     totalLaps: gpInfo.laps || 57,
                     playerTeamId: team.id,
                     canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
+                    carPreparations,
                   })
+
                 setCanonicalRaceState(initialRace)
+                setShowPreRacePreparation(false)
+
                 toast({
-                  title: 'Corrida V2 Inicializada',
+                  title: 'Corrida V2 Inicializada com Sucesso',
                   description:
-                    'Grid oficial P1–P24 consumido. Estado canônico da prova homologado com sucesso.',
+                    'Estratégia pré-largada e preparações dos carros 1 e 2 aplicadas ao Race Engine.',
                 })
               } catch (e: any) {
                 toast({
@@ -3051,6 +3088,14 @@ export default function WeekendV2Page() {
                   description: e?.message || 'Erro ao inicializar estado canônico da corrida.',
                 })
               }
+            }}
+          />
+        ) : (
+          <CompleteQualifyingGridSummary
+            result={completeQualifyingResult}
+            onGoToRace={() => {
+              // BUG-02 COMMIT C: Transição obrigatória passa pela etapa de Estratégia de Corrida
+              setShowPreRacePreparation(true)
             }}
           />
         )

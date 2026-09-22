@@ -145,18 +145,58 @@ export const canonicalRaceInitializationService = {
         carId = carId || (playerCarCounter === 1 ? 'car1' : 'car2')
       }
 
-      // Pneu de largada padrão da FIA (composto da melhor volta do qualifying ou Médio)
-      const startingCompound = entry.bestLapCompound || 'medio'
+      // BUG-02 COMMIT C: Se houver preparação confirmada por carro, respeitá-la estritamente!
+      const explicitPrep =
+        params.carPreparations?.[entry.driverId] ||
+        (carId ? params.carPreparations?.[carId] : undefined)
+
+      // Pneu de largada: explicitamente escolhido pelo jogador, ou composto do qualifying / médio
+      const startingCompound = explicitPrep?.startingCompound || entry.bestLapCompound || 'medio'
+
+      const startingFuel =
+        typeof explicitPrep?.startingFuelKg === 'number'
+          ? explicitPrep.startingFuelKg
+          : initialFuelKg
+
+      const startingTyreSetId = explicitPrep?.startingTyreSetId || entry.tyreSetId
+      const initialTyreWear = explicitPrep?.initialTyreWear ?? 0
+      const initialTyreLapsUsed = explicitPrep?.initialTyreLapsUsed ?? 0
 
       // Estratégia canônica individual por piloto (FW2.1E-D)
       // Carro 1 e Carro 2 recebem instâncias isoladas (deep cloned) com janelas distintas
-      const strat = raceStrategyService.createDefaultDriverStrategy({
+      let strat = raceStrategyService.createDefaultDriverStrategy({
         driverId: entry.driverId,
         startingCompound,
         totalLaps,
         carSlot: carId,
         stintPlanOffset: carId === 'car2' ? 6 : 0,
       })
+
+      // Se houver plano de estratégia explícito do jogador, converter para DriverStrategyState
+      if (explicitPrep?.strategyPlan && Array.isArray(explicitPrep.strategyPlan.stints)) {
+        const customStints = explicitPrep.strategyPlan.stints.map((s, idx) => ({
+          stintNumber: s.stintNumber || idx + 1,
+          compound: s.compound,
+          startLap: idx === 0 ? 1 : explicitPrep.strategyPlan!.stints[idx - 1].targetPitLap + 1,
+          targetLaps: s.targetPitLap,
+        }))
+        const firstPitLap =
+          explicitPrep.strategyPlan.stints[0]?.targetPitLap || strat.nextPitWindow.optimalLap
+        const secondCompound = explicitPrep.strategyPlan.stints[1]?.compound || strat.targetCompound
+
+        strat = {
+          ...strat,
+          currentTyre: startingCompound,
+          targetCompound: secondCompound,
+          paceMode: explicitPrep.strategyPlan.paceMode || strat.paceMode,
+          plannedStints: customStints,
+          nextPitWindow: {
+            startLap: Math.max(1, firstPitLap - 3),
+            endLap: Math.min(totalLaps, firstPitLap + 3),
+            optimalLap: firstPitLap,
+          },
+        }
+      }
 
       const driverState: CanonicalRaceDriverState = {
         careerId,
@@ -170,8 +210,8 @@ export const canonicalRaceInitializationService = {
         raceTime: 0.0,
         gap: entry.gridPosition === 1 ? 'LÍDER' : '+0.000s',
         tyreCompound: startingCompound,
-        tyreAge: 0, // jogo montado para a largada
-        fuel: initialFuelKg,
+        tyreAge: initialTyreLapsUsed, // preserva voltas já acumuladas no jogo físico
+        fuel: startingFuel,
         carCondition: 100, // 100% de integridade mecânica na largada
         raceStatus: 'racing',
         pitStops: 0,
@@ -182,7 +222,9 @@ export const canonicalRaceInitializationService = {
         teamColor: entry.teamColor,
         isPlayer,
         carId,
-        tyreSetId: entry.tyreSetId,
+        tyreSetId: startingTyreSetId,
+        initialTyreWear,
+        initialTyreLapsUsed,
         bestLapSec: entry.bestLapSec || undefined,
         bestLapFormatted: entry.bestLapTime || undefined,
         gapToFrontSec: 0,
