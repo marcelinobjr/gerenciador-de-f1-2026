@@ -7,6 +7,7 @@
  * 2. Existência e integridade dos 134 DRV_XXXX.jpg em /pilotos/ e 13 Piloto_XX.jpg em /pilotos-gerados/.
  * 3. Resolução estrita por ID sem lookup fuzzy.
  * 4. Gabriel Bortoleto = DRV_0012, Nico Hülkenberg = DRV_0068.
+ * 5. Homologação LOCAL-PORTRAITS-01.2: base canônica e retratos locais 100% verificados e validados.
  */
 
 import { describe, it, expect } from 'vitest'
