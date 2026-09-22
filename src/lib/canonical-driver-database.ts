@@ -353,3 +353,225 @@ export function auditDriverMasterData(): DriverMasterDataAuditReport {
     hulkenbergAssetId: hulkenberg ? hulkenberg.assetId : null,
   }
 }
+
+/**
+ * Normaliza strings para comparação flexível de identidade (sem acentos, minúsculas, sem prefixos drv_/driver_)
+ */
+function normalizeIdentityToken(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^(drv_|driver_)/, '')
+    .replace(/[_\s-]+/g, '')
+    .trim()
+}
+
+/**
+ * Dicionário canônico de aliases legados e variações conhecidas de driverId
+ */
+const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
+  // Bortoleto
+  bortoleto: [
+    'driver_gabriel_bortoleto',
+    'drv_gabriel_bortoleto',
+    'gabriel_bortoleto',
+    'mbj-020',
+    'drv_0012',
+    'bortoleto',
+  ],
+  driver_gabriel_bortoleto: [
+    'bortoleto',
+    'drv_gabriel_bortoleto',
+    'gabriel_bortoleto',
+    'mbj-020',
+    'drv_0012',
+  ],
+  drv_gabriel_bortoleto: [
+    'bortoleto',
+    'driver_gabriel_bortoleto',
+    'gabriel_bortoleto',
+    'mbj-020',
+    'drv_0012',
+  ],
+  'mbj-020': [
+    'bortoleto',
+    'driver_gabriel_bortoleto',
+    'drv_gabriel_bortoleto',
+    'gabriel_bortoleto',
+    'drv_0012',
+  ],
+  // Hülkenberg
+  hulkenberg: [
+    'driver_nico_hulkenberg',
+    'drv_nico_hulkenberg',
+    'nico_hulkenberg',
+    'mbj-019',
+    'drv_0068',
+  ],
+  driver_nico_hulkenberg: [
+    'hulkenberg',
+    'drv_nico_hulkenberg',
+    'nico_hulkenberg',
+    'mbj-019',
+    'drv_0068',
+  ],
+  // Verstappen
+  verstappen: [
+    'driver_max_verstappen',
+    'drv_max_verstappen',
+    'max_verstappen',
+    'mbj-001',
+    'drv_0022',
+  ],
+  driver_max_verstappen: [
+    'verstappen',
+    'drv_max_verstappen',
+    'max_verstappen',
+    'mbj-001',
+    'drv_0022',
+  ],
+  // Hamilton
+  hamilton: [
+    'driver_lewis_hamilton',
+    'drv_lewis_hamilton',
+    'lewis_hamilton',
+    'mbj-002',
+    'drv_0006',
+  ],
+  driver_lewis_hamilton: [
+    'hamilton',
+    'drv_lewis_hamilton',
+    'lewis_hamilton',
+    'mbj-002',
+    'drv_0006',
+  ],
+  // Leclerc
+  leclerc: [
+    'driver_charles_leclerc',
+    'drv_charles_leclerc',
+    'charles_leclerc',
+    'mbj-003',
+    'drv_0047',
+  ],
+  driver_charles_leclerc: [
+    'leclerc',
+    'drv_charles_leclerc',
+    'charles_leclerc',
+    'mbj-003',
+    'drv_0047',
+  ],
+  // Norris
+  norris: ['driver_lando_norris', 'drv_lando_norris', 'lando_norris', 'mbj-004', 'drv_0019'],
+  driver_lando_norris: ['norris', 'drv_lando_norris', 'lando_norris', 'mbj-004', 'drv_0019'],
+  // Piastri
+  piastri: ['driver_oscar_piastri', 'drv_oscar_piastri', 'oscar_piastri', 'mbj-005', 'drv_0010'],
+  driver_oscar_piastri: ['piastri', 'drv_oscar_piastri', 'oscar_piastri', 'mbj-005', 'drv_0010'],
+  // Russell
+  russell: ['driver_george_russell', 'drv_george_russell', 'george_russell', 'mbj-006', 'drv_0016'],
+  driver_george_russell: ['russell', 'drv_george_russell', 'george_russell', 'mbj-006', 'drv_0016'],
+  // Sainz
+  sainz: ['driver_carlos_sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-007', 'drv_0089'],
+  driver_carlos_sainz: ['sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-007', 'drv_0089'],
+  // Alonso
+  alonso: [
+    'driver_fernando_alonso',
+    'drv_fernando_alonso',
+    'fernando_alonso',
+    'mbj-008',
+    'drv_0048',
+  ],
+  driver_fernando_alonso: [
+    'alonso',
+    'drv_fernando_alonso',
+    'fernando_alonso',
+    'mbj-008',
+    'drv_0048',
+  ],
+}
+
+/**
+ * Resolve a identidade canônica de um piloto em relação a uma lista de classificação de qualificação.
+ * Suporta correspondência exata, normalizada, aliases legados (ex: 'bortoleto' vs 'driver_gabriel_bortoleto'),
+ * e por nome completo ou parcial.
+ * NUNCA inventa posição esportiva; retorna o registro encontrado ou null se irresolvido.
+ */
+export function resolveCanonicalDriverId<
+  T extends { driverId?: string; driverName?: string; position?: number },
+>(targetId: string, qualyGrid: T[], targetName?: string): T | null {
+  if (!targetId && !targetName) return null
+  if (!Array.isArray(qualyGrid) || qualyGrid.length === 0) return null
+
+  // 1. Match exato de driverId
+  if (targetId) {
+    const exact = qualyGrid.find((q) => q.driverId === targetId)
+    if (exact) return exact
+  }
+
+  // 2. Match com case-insensitive / trim
+  if (targetId) {
+    const lowerId = targetId.trim().toLowerCase()
+    const caseMatch = qualyGrid.find((q) => (q.driverId || '').trim().toLowerCase() === lowerId)
+    if (caseMatch) return caseMatch
+  }
+
+  // 3. Match via aliases conhecidos
+  if (targetId) {
+    const rawKey = targetId.toLowerCase().trim()
+    const aliases = CANONICAL_DRIVER_IDENTITY_ALIASES[rawKey] || []
+    for (const alias of aliases) {
+      const aliasMatch = qualyGrid.find(
+        (q) =>
+          (q.driverId || '').toLowerCase().trim() === alias ||
+          normalizeIdentityToken(q.driverId || '') === normalizeIdentityToken(alias),
+      )
+      if (aliasMatch) return aliasMatch
+    }
+  }
+
+  // 4. Match via token normalizado de driverId (ex: bortoleto vs driver_gabriel_bortoleto)
+  if (targetId) {
+    const targetToken = normalizeIdentityToken(targetId)
+    const tokenMatch = qualyGrid.find((q) => {
+      if (!q.driverId) return false
+      const qToken = normalizeIdentityToken(q.driverId)
+      return (
+        qToken === targetToken ||
+        (targetToken.length >= 4 && qToken.includes(targetToken)) ||
+        (qToken.length >= 4 && targetToken.includes(qToken))
+      )
+    })
+    if (tokenMatch) return tokenMatch
+  }
+
+  // 5. Match por nome do piloto (se targetName fornecido)
+  if (targetName) {
+    const normTargetName = normalizeIdentityToken(targetName)
+    const nameMatch = qualyGrid.find((q) => {
+      const qName = q.driverName ? normalizeIdentityToken(q.driverName) : ''
+      const qId = q.driverId ? normalizeIdentityToken(q.driverId) : ''
+      return (
+        qName === normTargetName ||
+        (normTargetName.length >= 4 && qName.includes(normTargetName)) ||
+        (qName.length >= 4 && normTargetName.includes(qName)) ||
+        (normTargetName.length >= 4 && qId.includes(normTargetName))
+      )
+    })
+    if (nameMatch) return nameMatch
+  }
+
+  // 6. Match cruzado se targetId puder ser comparado com driverName da grid
+  if (targetId) {
+    const targetToken = normalizeIdentityToken(targetId)
+    if (targetToken.length >= 4) {
+      const crossMatch = qualyGrid.find((q) => {
+        if (!q.driverName) return false
+        const qNameToken = normalizeIdentityToken(q.driverName)
+        return qNameToken.includes(targetToken) || targetToken.includes(qNameToken)
+      })
+      if (crossMatch) return crossMatch
+    }
+  }
+
+  return null
+}

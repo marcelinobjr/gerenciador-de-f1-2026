@@ -39,6 +39,7 @@ import { technicalOrganizationService } from '@/services/technicalOrganizationSe
 import { financialLedgerService } from '@/services/financialLedgerService'
 import { f1Service } from '@/services/f1Service'
 import { calculateStandings } from '@/services/standingsService'
+import { resolveCanonicalDriverId } from '@/lib/canonical-driver-database'
 import type {
   WeekendSimulationRun,
   WeekendSummaryReport,
@@ -755,9 +756,33 @@ export class WeekendSimulationService {
     // Montar grid de 24 pilotos com atributos e Track Fit canônicos
     const fullGrid: SimDriverEntry[] = []
 
+    // Helper de resolução de posição canônica de qualificação sem fallbacks esportivos fictícios
+    const resolveDriverQualyPos = (
+      driverId: string,
+      driverName: string,
+      teamId: string,
+      seat: 'car1' | 'car2' | string,
+    ): number => {
+      const resolved = resolveCanonicalDriverId(driverId, qualyGrid, driverName)
+      if (resolved) {
+        return resolved.position
+      }
+      const triedAliases = [driverId, driverId.toLowerCase(), driverName, driverName.toLowerCase()]
+      console.error('GRID_IDENTITY_UNRESOLVED', {
+        driverId,
+        driverName,
+        teamId,
+        seat,
+        triedAliases,
+      })
+      throw new Error(
+        `GRID_IDENTITY_UNRESOLVED: driverId="${driverId}", teamId="${teamId}", seat="${seat}". Proibido inventar posição esportiva no grid da corrida.`,
+      )
+    }
+
     // 1. Pilotos do jogador
     titulars.forEach((d, idx) => {
-      const qPos = qualyGrid.find((q) => q.driverId === d.id)?.position || (idx === 0 ? 8 : 14)
+      const qPos = resolveDriverQualyPos(d.id, d.name, team.id, idx === 0 ? 'car1' : 'car2')
       const wearProf = calculateDriverTireWearProfile(d)
 
       fullGrid.push({
@@ -789,11 +814,11 @@ export class WeekendSimulationService {
     })
 
     // 2. Pilotos rivais
-    aiRivals.forEach((ai, tIdx) => {
+    aiRivals.forEach((ai) => {
       const d1Id = `${ai.id}_d1`
       const d2Id = `${ai.id}_d2`
-      const qPos1 = qualyGrid.find((q) => q.driverId === d1Id)?.position || tIdx * 2 + 1
-      const qPos2 = qualyGrid.find((q) => q.driverId === d2Id)?.position || tIdx * 2 + 2
+      const qPos1 = resolveDriverQualyPos(d1Id, ai.driver1.name, ai.id, 'car1')
+      const qPos2 = resolveDriverQualyPos(d2Id, ai.driver2.name, ai.id, 'car2')
 
       fullGrid.push({
         driverId: d1Id,

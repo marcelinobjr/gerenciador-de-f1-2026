@@ -47,6 +47,8 @@ import {
   formatTireName,
 } from '@/lib/f1-tire-system'
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
+import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
+import { resolveCanonicalDriverId } from '@/lib/canonical-driver-database'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { carTechnicalService } from '@/services/carTechnicalService'
@@ -1281,25 +1283,84 @@ export default function RacePage() {
       return
     }
 
-    // Formação inicial do Grid a partir dos resultados do Q3 (se existirem), senão grid simulado
-    const qualyGrid = sessionResults['q3'] || sessionResults['q1']
+    // Formação inicial do Grid: consome o grid canônico consolidado de 24 posições
+    // (CompleteQualifyingWeekendResult.finalGrid), com fallback para o combinado das sessões
     const competitors = getAICompetitors()
     const playerDrivers = drivers.filter((d) => d.team_id === team?.id && d.role !== 'reserva')
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const playerTeamStrength = team?.strength ?? (isCustomTeam ? 58 : 75)
 
+    // 1. Tentar ler o resultado consolidado completo da qualificação pelo storage canônico
+    let completeQualy = season?.id
+      ? canonicalQualifyingPersistenceService.readCompleteQualifyingResult(season.id, currentRound)
+      : null
+
+    // 2. Se não houver persistência completa mas existirem sessões em memória, sintetizar o grid canônico
+    if (!completeQualy && (sessionResults['q1'] || sessionResults['q2'] || sessionResults['q3'])) {
+      const q1Rows = sessionResults['q1'] || []
+      const q2Rows = sessionResults['q2'] || []
+      const q3Rows = sessionResults['q3'] || []
+
+      const toStageResult = (stageId: 'q1' | 'q2' | 'q3', rows: SessionTimeResult[]) => ({
+        stageId,
+        seasonId: season?.id || 'default_season',
+        round: currentRound,
+        completedAt: new Date().toISOString(),
+        entries: rows.map((r, idx) => ({
+          position: r.position || idx + 1,
+          driverId: r.driverId,
+          driverName: r.driverName,
+          teamId: r.isPlayer ? team?.id || 'team_player' : 'team_ai',
+          teamName: r.teamName,
+          teamColor: r.teamColor,
+          bestLapSec: r.lapTimeSec || (r.position ? 80 + r.position * 0.1 : 90),
+          bestLapTime: r.lapTime || '1:30.000',
+          bestLapRecordedAtSec: r.position || idx + 1,
+          compound: (r.tire || 'macio') as TireCompound,
+          tyreSetId: 'set_1',
+          lapsCount: 3,
+          isPlayer: r.isPlayer,
+          isEliminated: !!r.isEliminated,
+          eliminationStage: r.isEliminated ? (stageId.toUpperCase() as 'Q1' | 'Q2') : undefined,
+          assignedGridPosition: r.position || idx + 1,
+          carId: (idx % 2 === 0 ? 'car1' : 'car2') as 'car1' | 'car2',
+        })),
+        advancingDriverIds: rows.filter((r) => !r.isEliminated).map((r) => r.driverId),
+        eliminatedDriverIds: rows.filter((r) => r.isEliminated).map((r) => r.driverId),
+        fastestLapSec: rows[0]?.lapTimeSec || 80.0,
+        fastestLapTime: rows[0]?.lapTime || '1:20.000',
+        fastestDriverId: rows[0]?.driverId || '',
+        fastestDriverName: rows[0]?.driverName || '',
+      })
+
+      if (q1Rows.length > 0 || q2Rows.length > 0 || q3Rows.length > 0) {
+        completeQualy = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+          seasonId: season?.id || 'default_season',
+          round: currentRound,
+          q1Result: toStageResult('q1', q1Rows.length > 0 ? q1Rows : q3Rows),
+          q2Result: toStageResult('q2', q2Rows.length > 0 ? q2Rows : q3Rows),
+          q3Result: toStageResult('q3', q3Rows.length > 0 ? q3Rows : q1Rows),
+        })
+      }
+    }
+
+    const canonicalFinalGrid = completeQualy?.finalGrid
+
     let initialGrid: SimDriverEntry[] = []
 
-    if (qualyGrid && qualyGrid.length > 0) {
-      initialGrid = qualyGrid.map((q, idx) => {
+    if (canonicalFinalGrid && canonicalFinalGrid.length > 0) {
+      // Consumir exatamente as posições canônicas da qualificação P1..P24
+      initialGrid = canonicalFinalGrid.map((q) => {
         const isPlayer = !!q.isPlayer
-        const playerDrv = isPlayer ? playerDrivers.find((pd) => pd.name === q.driverName) : null
+        const playerDrv = isPlayer
+          ? playerDrivers.find((pd) => pd.id === q.driverId || pd.name === q.driverName)
+          : null
         const playerStrat = playerDrv ? getStrategyForDriver(playerDrv) : null
         const startComp: TireCompound = isPlayer
           ? playerStrat?.startCompound || (weather !== 'seco' ? 'intermediario' : 'medio')
           : weather !== 'seco'
             ? 'intermediario'
-            : idx % 2 === 0
+            : q.gridPosition % 2 === 0
               ? 'medio'
               : 'macio'
         const secondComp: TireCompound = isPlayer
@@ -1324,18 +1385,18 @@ export default function RacePage() {
               driverConsistency: 82,
               totalLaps: gpInfo.laps,
               weather,
-              gridPosition: idx + 1,
+              gridPosition: q.gridPosition,
             })
           : undefined
 
         return {
-          position: idx + 1,
-          gridPosition: idx + 1,
-          driverId: isPlayer ? playerDrv?.id || `drv_p_${idx}` : `drv_ai_${idx}`,
+          position: q.gridPosition,
+          gridPosition: q.gridPosition,
+          driverId: q.driverId,
           driverName: q.driverName,
-          teamId: isPlayer ? team?.id || 'team_player' : `team_ai_${idx}`,
+          teamId: q.teamId || (isPlayer ? team?.id || 'team_player' : `team_ai_${q.gridPosition}`),
           teamName: q.teamName,
-          teamColor: q.teamColor,
+          teamColor: q.teamColor || '#E10600',
           isPlayer,
           nationality: playerFlag,
           flag: playerFlag,
@@ -1344,9 +1405,9 @@ export default function RacePage() {
           fastestLap: false,
           usedOvertake: false,
           accumulatedTimeSec: 0,
-          lastLapTimeSec: q.lapTimeSec,
-          lastLapTime: q.lapTime,
-          gapToLeader: idx === 0 ? 'Líder' : '+0.000s',
+          lastLapTimeSec: q.bestLapSec,
+          lastLapTime: q.bestLapTime,
+          gapToLeader: q.gridPosition === 1 ? 'Líder' : '+0.000s',
           gapToFront: '+0.000s',
           tireCompound: startComp,
           secondCompound: secondComp,
