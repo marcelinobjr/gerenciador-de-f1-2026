@@ -100,6 +100,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
       { name: 'Fim de Semana', path: '/race', icon: Flag },
       { name: 'Campeonato', path: '/standings', icon: Trophy },
       { name: 'Equipes', path: '/paddock', icon: Users },
+      { name: 'Regulamento FIA', path: '/regulamento', icon: BookOpen },
       { name: 'Histórico', path: '/historico', icon: BookOpen },
     ],
   },
@@ -124,7 +125,7 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/paddock': 'EQUIPES',
   '/historico': 'Histórico',
   '/teams': 'Grid da Temporada',
-  '/regulamento': 'Regulamento Técnico FIA',
+  '/regulamento': 'Regulamento FIA',
 }
 
 export interface SidebarProps {
