@@ -364,25 +364,31 @@ describe('ETAPA REG-01: SUÍTE DE TESTES DA CENTRAL DE REGULAMENTO FIA', () => {
     expect(licenseRule?.sourceMetadata.authority).toBe('FIA + APEX')
   })
 
-  it('REG-S04: regra parcial (Sprint) é expressamente identificada como SUPORTE PARCIAL', () => {
+  it('REG-S04: regra parcial (Sprint / Bandeira Vermelha) é expressamente identificada como SUPORTE PARCIAL', () => {
     const rules = getRegulationsForSeason(2026)
     const sprintRule = rules.find((r) => r.id === 'reg_sprint_format')
     expect(sprintRule?.status).toBe('SUPORTE PARCIAL')
     expect(sprintRule?.apexExplanation).toContain('suporte parcial no APEX')
+
+    const redFlagRule = rules.find((r) => r.id === 'reg_red_flag_procedure')
+    expect(redFlagRule?.status).toBe('SUPORTE PARCIAL')
+    expect(redFlagRule?.apexExplanation).toContain('suporte parcial no APEX')
   })
 
-  it('REG-S05: auditoria canônica valida integridade de 100% das regras sem erro', () => {
-    const audit = auditRegulationCenter(2026)
-    expect(audit.isValid).toBe(true)
-    expect(audit.issues.filter((i) => i.severity === 'ERROR')).toHaveLength(0)
-    expect(audit.totalRules).toBeGreaterThanOrEqual(15)
+  it('REG-S05: nenhuma adaptação do APEX é rotulada exclusivamente como FIA', () => {
+    const rules = getRegulationsForSeason(2026)
+    for (const rule of rules) {
+      if (rule.sourceType === 'APEX_ADAPTATION' || rule.sourceType === 'GAME_MECHANIC') {
+        expect(rule.sourceMetadata.authority).not.toBe('FIA')
+      }
+    }
   })
 
   // -----------------------------------------------------------------
-  // 5. TESTE CONTRA NÚMEROS ILUSTRATIVOS DO MOCKUP
+  // 5. TESTE CONTRA NÚMEROS ILUSTRATIVOS DO MOCKUP (REG-M01)
   // -----------------------------------------------------------------
 
-  it('REG-MOCKUP-01: números no catálogo são derivados dos serviços canônicos', () => {
+  it('REG-M01: números no catálogo são derivados dos serviços canônicos e não hardcodados do mockup', () => {
     const rules = getRegulationsForSeason(2026)
 
     // Verifica que não há menções hardcodadas aos valores fictícios do mockup
@@ -393,5 +399,16 @@ describe('ETAPA REG-01: SUÍTE DE TESTES DA CENTRAL DE REGULAMENTO FIA', () => {
     const tyreRule = rules.find((r) => r.id === 'reg_tyre_allocation_pirelli')
     expect(tyreRule?.whatItDetermines).toContain('20 jogos')
     expect(tyreRule?.whatItDetermines).toContain('80 pneus')
+
+    const scoringRule = rules.find((r) => r.id === 'reg_fia_scoring_system')
+    expect(scoringRule?.whatItDetermines).toContain('1º: 25 pts')
+    expect(scoringRule?.whatItDetermines).toContain('10º: 1 pt')
+  })
+
+  it('REG-AUDIT-01: auditoria canônica valida integridade de 100% das regras sem erro', () => {
+    const audit = auditRegulationCenter(2026)
+    expect(audit.isValid).toBe(true)
+    expect(audit.issues.filter((i) => i.severity === 'ERROR')).toHaveLength(0)
+    expect(audit.totalRules).toBeGreaterThanOrEqual(16)
   })
 })

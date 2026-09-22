@@ -11,6 +11,7 @@ import type {
   RegulationCategoryMeta,
   RegulationAuditReport,
   RegulationAuditIssue,
+  SeasonRegulationFrameworkMetadata,
 } from '@/types/regulation-center'
 import {
   ROOKIE_REQUIRED_TOTAL_TEAM,
@@ -100,18 +101,27 @@ export const REGULATION_CATEGORIES: RegulationCategoryMeta[] = [
   },
   {
     id: 'safety_car_vsc',
-    label: 'Safety Car & Bandeiras',
-    shortLabel: 'SC / VSC / Bandeiras',
+    label: 'Safety Car & VSC',
+    shortLabel: 'Safety Car / VSC',
     order: 10,
     description:
-      'Procedimentos de neutralização, fila atrás do SC, VSC e interrupção por bandeira vermelha.',
+      'Procedimentos de neutralização de pista, fila atrás do SC e delta obrigatório de velocidade do VSC.',
     iconName: 'ShieldAlert',
+  },
+  {
+    id: 'bandeira_vermelha',
+    label: 'Bandeira Vermelha',
+    shortLabel: 'Bandeira Vermelha',
+    order: 11,
+    description:
+      'Suspensão temporária de sessão, recolhimento obrigatório ao pit lane e reinício controlado.',
+    iconName: 'OctagonAlert',
   },
   {
     id: 'pontuacao',
     label: 'Pontuação',
     shortLabel: 'Pontuação',
-    order: 11,
+    order: 12,
     description: 'Sistema FIA oficial de pontos para Pilotos e Construtores (Top 10).',
     iconName: 'Award',
   },
@@ -119,7 +129,7 @@ export const REGULATION_CATEGORIES: RegulationCategoryMeta[] = [
     id: 'grid_penalidades',
     label: 'Grid & Penalidades',
     shortLabel: 'Grid & Penalidades',
-    order: 12,
+    order: 13,
     description: 'Formação do grid de largada, posições pós-qualificação e punições desportivas.',
     iconName: 'ListOrdered',
   },
@@ -127,7 +137,7 @@ export const REGULATION_CATEGORIES: RegulationCategoryMeta[] = [
     id: 'licencas',
     label: 'Licenças & Superlicença',
     shortLabel: 'Licenças',
-    order: 13,
+    order: 14,
     description: 'Critérios de elegibilidade para assento titular, reserva e sessões oficiais.',
     iconName: 'FileCheck',
   },
@@ -135,7 +145,7 @@ export const REGULATION_CATEGORIES: RegulationCategoryMeta[] = [
     id: 'campeonato',
     label: 'Campeonato Mundial',
     shortLabel: 'Campeonato',
-    order: 14,
+    order: 15,
     description: 'Classificações de Pilotos e Construtores, desempates e critérios de countback.',
     iconName: 'Medal',
   },
@@ -143,12 +153,66 @@ export const REGULATION_CATEGORIES: RegulationCategoryMeta[] = [
     id: 'regulamento_tecnico',
     label: 'Regulamento Técnico',
     shortLabel: 'Técnico',
-    order: 15,
+    order: 16,
     description:
       'Diretrizes de P&D, transição de eras, transferibilidade de conhecimento e túnel de vento.',
     iconName: 'Wrench',
   },
 ]
+
+/**
+ * Estrutura canônica de metadados das seções regulamentares da temporada.
+ * Section A a Section F conforme diretrizes oficiais FIA 2026.
+ */
+export const SEASON_REGULATION_FRAMEWORKS: Record<number, SeasonRegulationFrameworkMetadata> = {
+  2026: {
+    season: 2026,
+    authority: 'FIA',
+    championship: 'FIA Formula One World Championship',
+    versionName: 'FIA F1 2026 Sporting & Technical Framework (Issue Homologated)',
+    officialSections: [
+      {
+        sectionCode: 'Section A',
+        title: 'General Provisions',
+        scope: 'Governança geral, competência dos comissários, inscrições e jurisdição esportiva.',
+      },
+      {
+        sectionCode: 'Section B',
+        title: 'Sporting Regulations',
+        scope:
+          'Cronograma, treinos, novatos no TL1, qualificação, Sprint, corrida, pneus, parc fermé e pontuação.',
+      },
+      {
+        sectionCode: 'Section C',
+        title: 'Technical Regulations',
+        scope:
+          'Chassi, aerodinâmica ativa/passiva, Power Unit turbo-híbrida V6 350kW MGU-K e segurança.',
+      },
+      {
+        sectionCode: 'Section D',
+        title: 'Financial Regulations (Teams)',
+        scope: 'Teto orçamentário de equipes (Cost Cap), limites de gastos e auditoria financeira.',
+      },
+      {
+        sectionCode: 'Section E',
+        title: 'Financial Regulations (PU Manufacturers)',
+        scope: 'Teto de despesas para fornecedoras homologadas de Unidade de Potência.',
+      },
+      {
+        sectionCode: 'Section F',
+        title: 'Operational Regulations',
+        scope:
+          'Horários de toque de recolher (curfew), logística, esteira de transporte e homologações.',
+      },
+    ],
+  },
+}
+
+export function getSeasonRegulationFramework(
+  seasonYear: number,
+): SeasonRegulationFrameworkMetadata | null {
+  return SEASON_REGULATION_FRAMEWORKS[seasonYear] || null
+}
 
 /**
  * Cria o conjunto canônico de regras da temporada 2026.
@@ -445,11 +509,11 @@ export function buildSeasonRegulations2026(): RegulationDefinition[] {
       hasTeamContext: false,
     },
 
-    // 10. SAFETY CAR / VSC / BANDEIRA VERMELHA
+    // 10. SAFETY CAR / VSC
     {
-      id: 'reg_safety_car_vsc_red_flag',
+      id: 'reg_safety_car_vsc',
       category: 'safety_car_vsc',
-      title: 'Neutralizações de Pista: Safety Car, VSC e Bandeira Vermelha',
+      title: 'Safety Car (SC) e Virtual Safety Car (VSC)',
       season: 2026,
       sourceType: 'OFFICIAL_FIA',
       status: 'IMPLEMENTADO',
@@ -457,28 +521,66 @@ export function buildSeasonRegulations2026(): RegulationDefinition[] {
         authority: 'FIA',
         championship: 'FIA Formula One Sporting Regulations 2026',
         season: 2026,
-        section: 'Section B — Sporting Regulations (Art. 55 – 57)',
+        section: 'Section B — Sporting Regulations (Art. 55 & 56)',
         documentTitle: 'FIA Formula One Sporting Regulations 2026',
-        articleRef: 'Art. 55 (SC), Art. 56 (VSC), Art. 57 (Red Flag)',
+        articleRef: 'Art. 55 (SC) & Art. 56 (VSC)',
       },
       tags: [
         'safety car',
         'sc',
         'vsc',
         'virtual safety car',
-        'bandeira vermelha',
         'neutralização',
-        'acidente',
+        'delta',
+        'pit lane',
+        'bandeira verde',
       ],
       whatItDetermines:
-        'Em caso de perigo imediato na pista (detritos pesados, carros acidentados ou chuva torrencial), o Diretor de Prova pode acionar o Virtual Safety Car (VSC, delta de tempo obrigatório sem reagrupamento), o Safety Car físico (agrupamento do pelotão e oportunidade de pit stop com menor perda de tempo) ou Bandeira Vermelha (paralisação total com recolhimento ao pit lane).',
+        'O Diretor de Prova aciona o Virtual Safety Car (VSC) quando há intervenção na pista sem necessidade de agrupamento físico, exigindo obediência a um delta de velocidade mínimo em todos os setores. O Safety Car físico (SC) é acionado quando detritos ou carros imobilizados representam perigo severo, recolhendo e agrupando o pelotão atrás do veículo líder em velocidade controlada até o retorno à bandeira verde.',
       apexExplanation:
-        'O Race Engine do APEX executa eventos dinâmicos de Safety Car e VSC com probabilidade derivada do perfil técnico de cada circuito (circuit-performance-profiles). Quando o SC é acionado, a perda de tempo no pit stop cai de ~24s para ~11s, abrindo modais de decisão tática de parada. Ocorrências de bandeira vermelha são registradas no resumo oficial de eventos do GP (eventsSummary.redFlagPeriods).',
+        'O Race Engine do APEX simula o acionamento estocástico de SC e VSC calibrado pelas características de cada circuito (circuit-performance-profiles). Sob VSC, o delta é aplicado matematicamente aos tempos de volta sem reagrupamento do grid. Sob SC físico, o pelotão é comprimido e a perda de tempo em uma parada de boxes despenca de ~24s para ~11s, disparando modais de decisão tática (DecisionModals) para o jogador decidir se aproveita a janela favorável.',
       teamSituationNote:
-        'Circuitos urbanos como Mônaco (85%) e Singapura (80%) apresentam altíssima propensão a períodos de SC.',
+        'Pistas de rua estreitas (Mônaco 85%, Singapura 80%, Baku 65%) concentram as maiores probabilidades de períodos de bandeira amarela e SC no calendário.',
       relatedService: 'canonicalRaceEngineService & DecisionModals',
       relatedRoute: '/corrida',
       relatedRouteLabel: 'VER CORRIDA AO VIVO',
+      hasTeamContext: false,
+    },
+
+    // 11. BANDEIRA VERMELHA
+    {
+      id: 'reg_red_flag_procedure',
+      category: 'bandeira_vermelha',
+      title: 'Bandeira Vermelha: Suspensão e Reinício de Sessão',
+      season: 2026,
+      sourceType: 'OFFICIAL_FIA',
+      status: 'SUPORTE PARCIAL',
+      sourceMetadata: {
+        authority: 'FIA',
+        championship: 'FIA Formula One Sporting Regulations 2026',
+        season: 2026,
+        section: 'Section B — Sporting Regulations (Art. 57 & 58)',
+        documentTitle: 'FIA Formula One Sporting Regulations 2026',
+        articleRef: 'Art. 57 (Suspension) & Art. 58 (Resumption)',
+      },
+      tags: [
+        'bandeira vermelha',
+        'red flag',
+        'interrupção',
+        'paralisação',
+        'pit lane',
+        'reinício',
+        'troca de pneus',
+      ],
+      whatItDetermines:
+        'Caso a pista fique bloqueada por acidente grave ou condições meteorológicas extremas inviabilizem a visibilidade, a sessão é imediatamente suspensa com bandeira vermelha. Todos os carros devem reduzir a velocidade e dirigir-se ordenadamente ao pit lane, onde reparos limitados e troca livre de pneus são autorizados antes do reinício parado ou lançado.',
+      apexExplanation:
+        'Regra regulamentar / suporte parcial no APEX: O motor de corrida registra incidentes críticos de bandeira vermelha na estrutura canônica de eventos (eventsSummary.redFlagPeriods), interrompendo a contagem do cronômetro da prova e consolidando a ordem de relargada. A execução procedural detalhada do procedimento completo de reparo sob paralisação no pit lane tem escopo parcial no runner de texto.',
+      teamSituationNote:
+        'Se uma prova sofrer interrupção por bandeira vermelha, a classificação da volta anterior à interrupção é utilizada como referência de grid para o reinício.',
+      relatedService: 'canonicalRaceEngineService & raceNarratedEvents',
+      relatedRoute: '/corrida',
+      relatedRouteLabel: 'VER OPERAÇÕES DE CORRIDA',
       hasTeamContext: false,
     },
 
@@ -724,6 +826,9 @@ export function searchRegulations(
     if (normQuery === 'sc' || normQuery === 'safety car') {
       return rule.category === 'safety_car_vsc'
     }
+    if (normQuery === 'bandeira vermelha' || normQuery === 'red flag') {
+      return rule.category === 'bandeira_vermelha'
+    }
     if (normQuery === 'pu' || normQuery === 'motor') {
       return rule.category === 'power_unit'
     }
@@ -764,6 +869,7 @@ export function auditRegulationCenter(seasonYear: number = 2026): RegulationAudi
     power_unit: 0,
     parc_ferme: 0,
     safety_car_vsc: 0,
+    bandeira_vermelha: 0,
     pontuacao: 0,
     grid_penalidades: 0,
     licencas: 0,
@@ -874,6 +980,7 @@ export function auditRegulationCenter(seasonYear: number = 2026): RegulationAudi
 export const regulationCenterService = {
   getCategories: () => REGULATION_CATEGORIES,
   getRegulationsForSeason,
+  getSeasonRegulationFramework,
   searchRegulations,
   auditRegulationCenter,
   normalizeSearchTerm,

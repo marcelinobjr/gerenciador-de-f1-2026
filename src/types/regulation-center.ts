@@ -29,6 +29,7 @@ export type RegulationCategoryId =
   | 'power_unit'
   | 'parc_ferme'
   | 'safety_car_vsc'
+  | 'bandeira_vermelha'
   | 'pontuacao'
   | 'grid_penalidades'
   | 'licencas'
@@ -42,6 +43,20 @@ export interface RegulationCategoryMeta {
   order: number
   description: string
   iconName: string
+}
+
+export interface OfficialFiaSectionMetadata {
+  sectionCode: 'Section A' | 'Section B' | 'Section C' | 'Section D' | 'Section E' | 'Section F'
+  title: string
+  scope: string
+}
+
+export interface SeasonRegulationFrameworkMetadata {
+  season: number
+  authority: 'FIA'
+  championship: string
+  versionName: string
+  officialSections: OfficialFiaSectionMetadata[]
 }
 
 export interface OfficialRegulationSourceMetadata {

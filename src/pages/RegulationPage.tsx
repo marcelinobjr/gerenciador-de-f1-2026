@@ -16,6 +16,7 @@ import {
   Cpu,
   Lock,
   ShieldAlert,
+  OctagonAlert,
   Award,
   ListOrdered,
   FileCheck,
@@ -36,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import {
   REGULATION_CATEGORIES,
   getRegulationsForSeason,
+  getSeasonRegulationFramework,
   searchRegulations,
   auditRegulationCenter,
 } from '@/services/regulationCenterService'
@@ -51,6 +53,8 @@ import {
   SPRINT_GP_TYRE_ALLOCATION,
   getEventPhysicalCompounds,
 } from '@/services/canonicalTyreAllocationService'
+import { CANONICAL_QUALIFYING_RULES } from '@/types/canonical-qualifying-types'
+import { FIA_POINTS_TABLE } from '@/lib/f1-standings-calculator'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 
@@ -65,6 +69,7 @@ const CATEGORY_ICONS: Record<RegulationCategoryId, React.ComponentType<{ classNa
   power_unit: Cpu,
   parc_ferme: Lock,
   safety_car_vsc: ShieldAlert,
+  bandeira_vermelha: OctagonAlert,
   pontuacao: Award,
   grid_penalidades: ListOrdered,
   licencas: FileCheck,
@@ -81,6 +86,12 @@ export default function RegulationPage() {
   const [selectedCategory, setSelectedCategory] = useState<RegulationCategoryId | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>('reg_rookie_fp1_obligation')
+
+  // Catálogo completo da temporada atual
+  // Metadata regulamentar da temporada (Section A a F, versão, etc.)
+  const seasonFramework = useMemo(() => {
+    return getSeasonRegulationFramework(currentSeasonYear)
+  }, [currentSeasonYear])
 
   // Catálogo completo da temporada atual
   const allSeasonRules = useMemo(() => {
@@ -218,8 +229,13 @@ export default function RegulationPage() {
             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">
               REGULAMENTO DA TEMPORADA
             </span>
-            <span className="text-xs font-black text-[#0F172A]">
-              FIA F1 {currentSeasonYear} • Sporting & Technical Regulations
+            <span className="text-xs font-black text-[#0F172A] block">
+              {seasonFramework
+                ? `${seasonFramework.authority} F1 ${seasonFramework.season} • Sporting & Technical`
+                : `FIA F1 ${currentSeasonYear} • Sporting & Technical`}
+            </span>
+            <span className="text-[10px] text-[#64748B] font-mono">
+              {seasonFramework?.versionName || 'Versão Homologada 2026'}
             </span>
           </div>
         </div>
@@ -584,29 +600,83 @@ export default function RegulationPage() {
                     ALOCAÇÃO OFICIAL PIRELLI
                   </span>
                   <div className="text-sm font-extrabold text-[#0F172A] mt-0.5">
-                    GP Padrão: {STANDARD_GP_TYRE_ALLOCATION.totalSetsPerDriver} jogos por piloto (80
-                    pneus)
+                    GP Padrão: {STANDARD_GP_TYRE_ALLOCATION.totalSetsPerDriver} jogos por piloto (
+                    {STANDARD_GP_TYRE_ALLOCATION.totalTyresPerDriver} pneus)
                   </div>
                   <div className="text-[11px] text-[#64748B]">
-                    Sprint: {SPRINT_GP_TYRE_ALLOCATION.totalSetsPerDriver} jogos por piloto (76
-                    pneus)
+                    Sprint: {SPRINT_GP_TYRE_ALLOCATION.totalSetsPerDriver} jogos por piloto (
+                    {SPRINT_GP_TYRE_ALLOCATION.totalTyresPerDriver} pneus)
+                  </div>
+                </div>
+
+                {/* Visual dos Compostos Pirelli */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold text-[#64748B] uppercase block">
+                    Compostos Oficiais da Temporada
+                  </span>
+                  <div className="grid grid-cols-5 gap-1.5 text-center">
+                    <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-2xs flex flex-col items-center">
+                      <div className="w-5 h-5 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center text-[9px] font-black text-slate-800">
+                        H
+                      </div>
+                      <span className="text-[10px] font-bold text-[#0F172A] mt-1">Duro</span>
+                      <span className="text-[9px] text-[#64748B]">
+                        {STANDARD_GP_TYRE_ALLOCATION.slicks.duro} jogos
+                      </span>
+                    </div>
+                    <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-2xs flex flex-col items-center">
+                      <div className="w-5 h-5 rounded-full border-2 border-amber-400 bg-amber-50 flex items-center justify-center text-[9px] font-black text-amber-900">
+                        M
+                      </div>
+                      <span className="text-[10px] font-bold text-[#0F172A] mt-1">Médio</span>
+                      <span className="text-[9px] text-[#64748B]">
+                        {STANDARD_GP_TYRE_ALLOCATION.slicks.medio} jogos
+                      </span>
+                    </div>
+                    <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-2xs flex flex-col items-center">
+                      <div className="w-5 h-5 rounded-full border-2 border-rose-500 bg-rose-50 flex items-center justify-center text-[9px] font-black text-rose-800">
+                        S
+                      </div>
+                      <span className="text-[10px] font-bold text-[#0F172A] mt-1">Macio</span>
+                      <span className="text-[9px] text-[#64748B]">
+                        {STANDARD_GP_TYRE_ALLOCATION.slicks.macio} jogos
+                      </span>
+                    </div>
+                    <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-2xs flex flex-col items-center">
+                      <div className="w-5 h-5 rounded-full border-2 border-emerald-500 bg-emerald-50 flex items-center justify-center text-[9px] font-black text-emerald-800">
+                        I
+                      </div>
+                      <span className="text-[10px] font-bold text-[#0F172A] mt-1">Inter</span>
+                      <span className="text-[9px] text-[#64748B]">
+                        {STANDARD_GP_TYRE_ALLOCATION.wet.intermediario} jogos
+                      </span>
+                    </div>
+                    <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-2xs flex flex-col items-center">
+                      <div className="w-5 h-5 rounded-full border-2 border-blue-500 bg-blue-50 flex items-center justify-center text-[9px] font-black text-blue-800">
+                        W
+                      </div>
+                      <span className="text-[10px] font-bold text-[#0F172A] mt-1">Chuva</span>
+                      <span className="text-[9px] text-[#64748B]">
+                        {STANDARD_GP_TYRE_ALLOCATION.wet.chuva_extrema} jogos
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg space-y-1.5 text-xs">
                   <span className="text-[10px] font-bold text-[#64748B] uppercase block">
-                    Próxima Rodada (R{currentRound}) — Compostos Físicos
+                    Próxima Rodada (R{currentRound}) — Nomeação de Pista
                   </span>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Duro:</span>
+                    <span className="font-semibold text-slate-700">Duro Selecionado:</span>
                     <strong className="text-[#0F172A]">{nextGpNomination.hardPhysical}</strong>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Médio:</span>
+                    <span className="font-semibold text-slate-700">Médio Selecionado:</span>
                     <strong className="text-[#0F172A]">{nextGpNomination.mediumPhysical}</strong>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Macio:</span>
+                    <span className="font-semibold text-slate-700">Macio Selecionado:</span>
                     <strong className="text-[#0F172A]">{nextGpNomination.softPhysical}</strong>
                   </div>
                 </div>
@@ -726,8 +796,12 @@ export default function RegulationPage() {
               PNEUS PIRELLI
             </h4>
             <p className="text-[11px] text-[#64748B] mt-1">
-              {STANDARD_GP_TYRE_ALLOCATION.totalSetsPerDriver} jogos no GP Padrão (2 Duros, 3
-              Médios, 8 Macios, 4 Inters, 3 Wets).
+              {STANDARD_GP_TYRE_ALLOCATION.totalSetsPerDriver} jogos no GP Padrão (
+              {STANDARD_GP_TYRE_ALLOCATION.slicks.duro} Duros,{' '}
+              {STANDARD_GP_TYRE_ALLOCATION.slicks.medio} Médios,{' '}
+              {STANDARD_GP_TYRE_ALLOCATION.slicks.macio} Macios,{' '}
+              {STANDARD_GP_TYRE_ALLOCATION.wet.intermediario} Inters,{' '}
+              {STANDARD_GP_TYRE_ALLOCATION.wet.chuva_extrema} Wets).
             </p>
           </Card>
 
@@ -747,7 +821,10 @@ export default function RegulationPage() {
               QUALIFICAÇÃO
             </h4>
             <p className="text-[11px] text-[#64748B] mt-1">
-              Fases Q1 (18m), Q2 (15m) e Q3 (12m) com eliminação progressiva dos 24 carros.
+              Fases Q1 ({CANONICAL_QUALIFYING_RULES.q1.durationSec / 60}m), Q2 (
+              {CANONICAL_QUALIFYING_RULES.q2.durationSec / 60}m) e Q3 (
+              {CANONICAL_QUALIFYING_RULES.q3.durationSec / 60}m) com eliminação de{' '}
+              {CANONICAL_QUALIFYING_RULES.q1.participantsCount} carros.
             </p>
           </Card>
 
@@ -767,7 +844,7 @@ export default function RegulationPage() {
               PONTUAÇÃO FIA
             </h4>
             <p className="text-[11px] text-[#64748B] mt-1">
-              Top 10: 25, 18, 15, 12, 10, 8, 6, 4, 2, 1 para Pilotos e Construtores.
+              Top 10: {FIA_POINTS_TABLE.join(', ')} para Pilotos e Construtores.
             </p>
           </Card>
 
@@ -787,7 +864,8 @@ export default function RegulationPage() {
               SPRINT SHOOTOUT
             </h4>
             <p className="text-[11px] text-[#64748B] mt-1">
-              Cronograma com 1 TL, alocação de 19 jogos e pontos para o Top 8.
+              Cronograma com 1 TL, alocação de {SPRINT_GP_TYRE_ALLOCATION.totalSetsPerDriver} jogos
+              e pontos para o Top 8.
             </p>
           </Card>
         </div>
