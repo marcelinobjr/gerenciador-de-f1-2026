@@ -308,6 +308,7 @@ export const canonicalQualifyingPersistenceService = {
         tyreSetId: entry.tyreSetId,
         q1LapTime: q1Entry?.bestLapTime,
         q2LapTime: entry.bestLapTime,
+        q3LapTime: undefined,
       })
     })
 
@@ -328,6 +329,8 @@ export const canonicalQualifyingPersistenceService = {
         bestLapCompound: entry.compound,
         tyreSetId: entry.tyreSetId,
         q1LapTime: entry.bestLapTime,
+        q2LapTime: undefined,
+        q3LapTime: undefined,
       })
     })
 
@@ -361,6 +364,8 @@ export const canonicalQualifyingPersistenceService = {
           bestLapCompound: entry.compound,
           tyreSetId: entry.tyreSetId,
           q1LapTime: entry.bestLapTime,
+          q2LapTime: undefined,
+          q3LapTime: undefined,
         })
       })
     }

@@ -125,12 +125,20 @@ export class CanonicalQualifyingRunner {
     const rules = CANONICAL_QUALIFYING_RULES[stageId]
     const nowIso = new Date().toISOString()
 
+    const isCar1Eligible =
+      stageId === 'q1' ? true : eligibleParticipants.some((p) => p.id === playerCar1.driverId)
+    const isCar2Eligible =
+      stageId === 'q1' ? true : eligibleParticipants.some((p) => p.id === playerCar2.driverId)
+
+    const car1EliminationStage = !isCar1Eligible ? (stageId === 'q2' ? 'q1' : 'q2') : undefined
+    const car2EliminationStage = !isCar2Eligible ? (stageId === 'q2' ? 'q1' : 'q2') : undefined
+
     const car1State: QualifyingCarState = {
       carId: 'car1',
       driverId: playerCar1.driverId,
       driverName: playerCar1.driverName,
       driverNumber: playerCar1.driverNumber || 1,
-      status: 'garage',
+      status: isCar1Eligible ? 'garage' : 'eliminated',
       pitRequested: false,
       setup: { ...playerCar1.setup },
       currentTyreSetId: playerCar1.tyreSetId,
@@ -142,7 +150,8 @@ export class CanonicalQualifyingRunner {
       inLapsDone: 0,
       totalLaps: 0,
       currentLapProgressPct: 0,
-      isEliminated: false,
+      isEliminated: !isCar1Eligible,
+      eliminatedInStage: car1EliminationStage,
     }
 
     const car2State: QualifyingCarState = {
@@ -150,7 +159,7 @@ export class CanonicalQualifyingRunner {
       driverId: playerCar2.driverId,
       driverName: playerCar2.driverName,
       driverNumber: playerCar2.driverNumber || 2,
-      status: 'garage',
+      status: isCar2Eligible ? 'garage' : 'eliminated',
       pitRequested: false,
       setup: { ...playerCar2.setup },
       currentTyreSetId: playerCar2.tyreSetId,
@@ -162,7 +171,8 @@ export class CanonicalQualifyingRunner {
       inLapsDone: 0,
       totalLaps: 0,
       currentLapProgressPct: 0,
-      isEliminated: false,
+      isEliminated: !isCar2Eligible,
+      eliminatedInStage: car2EliminationStage,
     }
 
     // Leaderboard inicial com todos os participantes elegíveis desta fase
@@ -239,6 +249,12 @@ export class CanonicalQualifyingRunner {
     }
 
     const car = state.cars[carId]
+    if (car.isEliminated || car.status === 'eliminated') {
+      return {
+        success: false,
+        error: `O piloto ${car.driverName} foi eliminado na fase anterior e não tem permissão esportiva para ir à pista no ${state.stageId.toUpperCase()}.`,
+      }
+    }
     if (car.status !== 'garage') {
       return { success: false, error: 'O carro já está na pista ou em volta de transição.' }
     }
