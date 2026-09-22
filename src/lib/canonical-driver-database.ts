@@ -575,3 +575,147 @@ export function resolveCanonicalDriverId<
 
   return null
 }
+
+/**
+ * Relatório de Auditoria do Starting Grid e da Persistência Canônica (BUG-04B)
+ */
+export interface StartingGridAuditReport {
+  isValid: boolean
+  entries: number
+  uniqueDrivers: boolean
+  positionRange: boolean
+  qualifyingMatchesGrid: boolean
+  snapshotMatchesGrid: boolean
+  officialResultMatchesGrid: boolean
+  unresolvedIdentities: string[]
+  errors: string[]
+}
+
+/**
+ * Executa auditoria completa de integridade entre Qualifying Grid, Starting Grid,
+ * Snapshot persistido e Official Race Result.
+ */
+export function auditStartingGrid(params: {
+  qualifyingGrid?: Array<{ driverId: string; position: number; driverName?: string }>
+  startingGrid?: Array<{ driverId: string; gridPosition: number; driverName?: string }>
+  snapshotDrivers?: Array<{ driverId: string; gridPosition: number; currentPosition?: number }>
+  officialResultEntries?: Array<{ driverId: string; gridPosition: number; finalPosition?: number }>
+}): StartingGridAuditReport {
+  const errors: string[] = []
+  const unresolvedIdentities: string[] = []
+
+  const startingGrid = params.startingGrid || []
+  const entriesCount = startingGrid.length
+
+  // 1. Unicidade de pilotos no Starting Grid
+  const seenDrivers = new Set<string>()
+  for (const s of startingGrid) {
+    if (!s.driverId) {
+      errors.push('Starting grid entry sem driverId')
+      continue
+    }
+    if (seenDrivers.has(s.driverId)) {
+      errors.push(`driverId duplicado no starting grid: ${s.driverId}`)
+    }
+    seenDrivers.add(s.driverId)
+  }
+  const uniqueDrivers = seenDrivers.size === entriesCount && entriesCount > 0
+
+  // 2. Faixa de posições (1..entriesCount sem saltos)
+  const sortedPositions = startingGrid.map((s) => s.gridPosition).sort((a, b) => a - b)
+  let positionRange = entriesCount > 0
+  for (let i = 0; i < entriesCount; i++) {
+    if (sortedPositions[i] !== i + 1) {
+      positionRange = false
+      errors.push(
+        `Posição de grid fora da sequência esperada: esperado ${i + 1}, recebido ${sortedPositions[i]}`,
+      )
+      break
+    }
+  }
+
+  // 3. qualifyingMatchesGrid
+  let qualifyingMatchesGrid = true
+  if (params.qualifyingGrid && params.qualifyingGrid.length > 0) {
+    for (const s of startingGrid) {
+      const qResolved = resolveCanonicalDriverId(s.driverId, params.qualifyingGrid, s.driverName)
+      if (!qResolved) {
+        qualifyingMatchesGrid = false
+        unresolvedIdentities.push(s.driverId)
+        errors.push(`Piloto do starting grid '${s.driverId}' não localizado na qualificação`)
+      } else if (qResolved.position !== s.gridPosition) {
+        qualifyingMatchesGrid = false
+        errors.push(
+          `Posição divergente para '${s.driverId}': qualificação P${qResolved.position} vs grid P${s.gridPosition}`,
+        )
+      }
+    }
+  }
+
+  // 4. snapshotMatchesGrid
+  let snapshotMatchesGrid = true
+  if (params.snapshotDrivers && params.snapshotDrivers.length > 0) {
+    if (params.snapshotDrivers.length !== entriesCount) {
+      snapshotMatchesGrid = false
+      errors.push(
+        `Contagem de pilotos no snapshot difere do grid: ${params.snapshotDrivers.length} vs ${entriesCount}`,
+      )
+    }
+    for (const s of startingGrid) {
+      const snapDriver = params.snapshotDrivers.find((d) => d.driverId === s.driverId)
+      if (!snapDriver) {
+        snapshotMatchesGrid = false
+        errors.push(`Piloto '${s.driverId}' ausente no snapshot da corrida`)
+      } else if (snapDriver.gridPosition !== s.gridPosition) {
+        snapshotMatchesGrid = false
+        errors.push(
+          `gridPosition corrompida no snapshot para '${s.driverId}': esperado P${s.gridPosition}, encontrado P${snapDriver.gridPosition}`,
+        )
+      }
+    }
+  }
+
+  // 5. officialResultMatchesGrid
+  let officialResultMatchesGrid = true
+  if (params.officialResultEntries && params.officialResultEntries.length > 0) {
+    if (params.officialResultEntries.length !== entriesCount) {
+      officialResultMatchesGrid = false
+      errors.push(
+        `Contagem de entradas no resultado oficial difere do grid: ${params.officialResultEntries.length} vs ${entriesCount}`,
+      )
+    }
+    for (const s of startingGrid) {
+      const offEntry = params.officialResultEntries.find((e) => e.driverId === s.driverId)
+      if (!offEntry) {
+        officialResultMatchesGrid = false
+        errors.push(`Piloto '${s.driverId}' ausente no OfficialRaceResult`)
+      } else if (offEntry.gridPosition !== s.gridPosition) {
+        officialResultMatchesGrid = false
+        errors.push(
+          `gridPosition corrompida no OfficialRaceResult para '${s.driverId}': esperado P${s.gridPosition}, encontrado P${offEntry.gridPosition}`,
+        )
+      }
+    }
+  }
+
+  const isValid =
+    errors.length === 0 &&
+    unresolvedIdentities.length === 0 &&
+    uniqueDrivers &&
+    positionRange &&
+    qualifyingMatchesGrid &&
+    snapshotMatchesGrid &&
+    officialResultMatchesGrid
+
+  return {
+    isValid,
+    entries: entriesCount,
+    uniqueDrivers,
+    positionRange,
+    qualifyingMatchesGrid,
+    snapshotMatchesGrid,
+    officialResultMatchesGrid,
+    unresolvedIdentities,
+    errors,
+  }
+}
