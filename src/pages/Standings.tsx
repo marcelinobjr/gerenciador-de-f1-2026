@@ -11,6 +11,8 @@ import { PilotProfileDialog } from '@/components/PilotProfileDialog'
 import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
 import { normalizeDriverSurname } from '@/lib/pilot-posters'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
+import { canonicalChampionshipMigrationService } from '@/services/canonicalChampionshipMigrationService'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 import heroHorizontalAsset from '@/assets/chatgpt-image-10-de-set.de-2026-122312-fc092.png'
 
 export type { DriverStanding, TeamStanding }
@@ -40,8 +42,20 @@ export default function StandingsPage() {
   const safeTotalRounds = totalRounds || 24
   const safeCurrentRound = Math.min(safeTotalRounds, Math.max(1, currentRound || 1))
 
-  // Obter snapshot mais recente para checar último GP oficializado
-  const careerId = team?.id || 'default_career'
+  // Obter snapshot mais recente para checar último GP oficializado via helper canônico
+  const careerId = resolveCanonicalCareerId(season, team)
+
+  // Reconciliação transparente de resultados legados caso existam rodadas salvas sob team.id
+  React.useEffect(() => {
+    if (team?.id && careerId && team.id !== careerId) {
+      canonicalChampionshipMigrationService.reconcileLegacyCareerResults({
+        canonicalCareerId: careerId,
+        legacyCareerIds: [team.id],
+        seasonYear,
+      })
+    }
+  }, [careerId, team?.id, seasonYear])
+
   const championshipSnapshot = useMemo(() => {
     return canonicalChampionshipService.getChampionshipStandings(
       careerId,

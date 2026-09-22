@@ -7,6 +7,8 @@ import {
 import { getCountryFlag } from '@/lib/country-flags'
 import type { TeamModel, DriverModel, RaceResultModel, SeasonModel, PartModel } from '@/types/f1'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
+import { canonicalChampionshipMigrationService } from '@/services/canonicalChampionshipMigrationService'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 
 export interface DriverStanding {
   id: string
@@ -119,8 +121,21 @@ export function getTeamMorale(params: GetTeamMoraleParams): number {
 export function calculateStandings(params: CalculateStandingsParams): FullStandingsResult {
   const { raceResults = [], playerDrivers = [], team, season } = params
   const currentRound = season?.current_round || 1
-  const careerId = team?.id || 'default_career'
+  const careerId = resolveCanonicalCareerId(season, team)
   const seasonYear = season?.year || 2026
+
+  // Reconciliação sob demanda se team.id difere do careerId canônico
+  if (team?.id && team.id !== careerId) {
+    try {
+      canonicalChampionshipMigrationService.reconcileLegacyCareerResults({
+        canonicalCareerId: careerId,
+        legacyCareerIds: [team.id],
+        seasonYear,
+      })
+    } catch {
+      // tolerante a falha de reconciliação
+    }
+  }
 
   // FW2.1E-H: Se houver resultados oficiais ou carreira ativa, verificar se podemos consultar o serviço canônico
   // Verificamos se há corridas oficiais registradas para a carreira via canonicalChampionshipService

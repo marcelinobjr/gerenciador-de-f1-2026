@@ -80,6 +80,10 @@ import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPan
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
+import { canonicalChampionshipMigrationService } from '@/services/canonicalChampionshipMigrationService'
+import { advanceWeekendRound } from '@/services/canonicalRoundAdvanceHelper'
 import {
   canonicalCareerPersistenceService,
   type CareerApplicationStatus,
@@ -105,7 +109,7 @@ import type { TireSetItem } from '@/types/f1'
 
 export default function WeekendV2Page() {
   const navigate = useNavigate()
-  const { user, team, season, isLoading: isAuthLoading } = useAuth()
+  const { user, team, season, refreshTeamAndSeason, isLoading: isAuthLoading } = useAuth()
   const { currentRound, playerDrivers } = useUnifiedSeason()
   const { toast } = useToast()
 
@@ -174,6 +178,7 @@ export default function WeekendV2Page() {
   const [careerPersistenceError, setCareerPersistenceError] = useState<string | undefined>(
     undefined,
   )
+  const [isAdvancingRound, setIsAdvancingRound] = useState(false)
   // Controles de execução da sessão
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
   const [selectedSpeed, setSelectedSpeed] = useState<1 | 2 | 4>(1)
@@ -282,8 +287,9 @@ export default function WeekendV2Page() {
             currentRound,
           )
           setCompleteQualifyingResult(fullGrid)
+          const canonicalCareerId = resolveCanonicalCareerId(season, team)
           const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
-            team.id,
+            canonicalCareerId,
             season.year || 2026,
             currentRound,
           )
@@ -525,13 +531,28 @@ export default function WeekendV2Page() {
       setSessionState(null)
       setQualifyingState(null)
       if (season?.id && team?.id) {
+        const canonicalCareerId = resolveCanonicalCareerId(season, team)
+
+        // Reconciliação legada automática se team.id diferir do canonicalCareerId
+        if (team.id !== canonicalCareerId) {
+          try {
+            canonicalChampionshipMigrationService.reconcileLegacyCareerResults({
+              canonicalCareerId,
+              legacyCareerIds: [team.id],
+              seasonYear: season.year || 2026,
+            })
+          } catch {
+            // Reconciliação tolerante a falhas
+          }
+        }
+
         const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
           season.id,
           currentRound,
         )
         setCompleteQualifyingResult(fullGrid)
         const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
-          team.id,
+          canonicalCareerId,
           season.year || 2026,
           currentRound,
         )
@@ -539,14 +560,14 @@ export default function WeekendV2Page() {
 
         // FW2.1E-F: Verificar resultado oficial
         const official = canonicalRaceResultService.getOfficialRaceResult(
-          team.id,
+          canonicalCareerId,
           season.year || 2026,
           currentRound,
         )
         if (official) {
           setOfficialRaceResult(official)
           const journal = canonicalCareerPersistenceService.getApplicationJournal(
-            team.id,
+            canonicalCareerId,
             season.year || 2026,
             currentRound,
           )
@@ -706,8 +727,9 @@ export default function WeekendV2Page() {
       )
       setCompleteQualifyingResult(fullGrid)
       // Carregar resultado oficial caso já tenha sido homologado
+      const canonicalCareerId = resolveCanonicalCareerId(season, team)
       const official = canonicalRaceResultService.getOfficialRaceResult(
-        team.id,
+        canonicalCareerId,
         season.year || 2026,
         currentRound,
       )
@@ -745,7 +767,7 @@ export default function WeekendV2Page() {
     )
 
     // Se não há assignment ativo em memória/storage imediato, verifica se existe plano prévio no Calendário
-    const careerId = (season as any)?.career_id || (season as any)?.careerId || 'default_career'
+    const careerId = resolveCanonicalCareerId(season, team)
     const planC1 = RookieTl1PlanningService.getPlanForSeat(
       careerId,
       season.id,
@@ -2508,6 +2530,7 @@ export default function WeekendV2Page() {
                 try {
                   setIsPersistingCareer(true)
                   setCareerPersistenceStatus('APPLYING')
+                  const canonicalCareerId = resolveCanonicalCareerId(season, team)
                   const res =
                     canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
                       officialRaceResult,
@@ -2515,6 +2538,11 @@ export default function WeekendV2Page() {
                   setCareerPersistenceStatus(res.journal.status)
                   setIsPersistingCareer(false)
                   if (res.success) {
+                    canonicalChampionshipService.processAndPersistRoundChampionship(
+                      canonicalCareerId,
+                      season?.year || 2026,
+                      currentRound,
+                    )
                     toast({
                       title: 'Resultado Registrado na Carreira',
                       description:
@@ -2542,9 +2570,47 @@ export default function WeekendV2Page() {
               onViewChampionship={() => {
                 navigate('/classificacao')
               }}
-              onContinue={() => {
-                // Navega ao calendário ou dashboard ao concluir o fim de semana
-                navigate('/calendario')
+              onContinue={async () => {
+                // BUG-01 PARTE C: Esteira canônica obrigatória de avanço de rodada
+                if (isAdvancingRound) return
+                if (!season?.id) {
+                  navigate('/calendario')
+                  return
+                }
+
+                setIsAdvancingRound(true)
+                try {
+                  const advanceRes = await advanceWeekendRound({
+                    officialResult: officialRaceResult,
+                    season,
+                    team,
+                    currentRound,
+                    refreshTeamAndSeason,
+                    onError: (err) => {
+                      toast({
+                        variant: 'destructive',
+                        title: 'Falha ao avançar rodada',
+                        description: err.message || 'Erro durante avanço de rodada.',
+                      })
+                    },
+                  })
+
+                  if (advanceRes.success) {
+                    toast({
+                      title: `Rodada ${currentRound} Concluída com Sucesso!`,
+                      description: `Temporada avançada para a rodada ${advanceRes.nextRound}.`,
+                    })
+                    navigate('/calendario')
+                  }
+                } catch (advanceErr: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha no avanço do campeonato',
+                    description: advanceErr?.message || 'Erro inesperado.',
+                  })
+                } finally {
+                  setIsAdvancingRound(false)
+                }
               }}
             />
           </div>
@@ -2555,7 +2621,12 @@ export default function WeekendV2Page() {
             onResetGrid={() => setCanonicalRaceState(null)}
             onOfficializeRace={() => {
               try {
-                const official = canonicalRaceResultService.officializeRace(canonicalRaceState)
+                const canonicalCareerId = resolveCanonicalCareerId(season, team)
+                const stateWithCanonicalId = {
+                  ...canonicalRaceState,
+                  careerId: canonicalCareerId,
+                }
+                const official = canonicalRaceResultService.officializeRace(stateWithCanonicalId)
                 setOfficialRaceResult(official)
                 toast({
                   title: 'Corrida Oficializada com Sucesso',
@@ -2571,6 +2642,12 @@ export default function WeekendV2Page() {
                   setCareerPersistenceStatus(res.journal.status)
                   setIsPersistingCareer(false)
                   if (res.success) {
+                    // Processar e persistir imediatamente o campeonato canônico desta rodada
+                    canonicalChampionshipService.processAndPersistRoundChampionship(
+                      canonicalCareerId,
+                      season?.year || 2026,
+                      currentRound,
+                    )
                     toast({
                       title: 'Registrado na Carreira',
                       description: 'Estatísticas acumuladas com sucesso.',
@@ -2710,9 +2787,10 @@ export default function WeekendV2Page() {
               try {
                 if (!completeQualifyingResult || !team?.id || !season?.id) return
                 // FW2.1E-F Requisito 18: Se já foi oficializada, bloquear reinício
+                const canonicalCareerId = resolveCanonicalCareerId(season, team)
                 if (
                   canonicalRaceResultService.hasOfficialRaceResult(
-                    team.id,
+                    canonicalCareerId,
                     season.year || 2026,
                     currentRound,
                   )
@@ -2728,7 +2806,7 @@ export default function WeekendV2Page() {
 
                 // Descartar save da corrida atual (Requisito 13)
                 const clearRes = canonicalRaceInitializationService.clearCanonicalRaceState(
-                  team.id,
+                  canonicalCareerId,
                   season.year || 2026,
                   currentRound,
                 )
@@ -2742,7 +2820,7 @@ export default function WeekendV2Page() {
                 }
                 const freshRace =
                   canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
-                    careerId: team.id,
+                    careerId: canonicalCareerId,
                     season: season.year || 2026,
                     round: currentRound,
                     circuitName: gpInfo.circuit,
@@ -2772,9 +2850,10 @@ export default function WeekendV2Page() {
             onGoToRace={() => {
               try {
                 if (!team?.id || !season?.id) return
+                const canonicalCareerId = resolveCanonicalCareerId(season, team)
                 const initialRace =
                   canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
-                    careerId: team.id,
+                    careerId: canonicalCareerId,
                     season: season.year || 2026,
                     round: currentRound,
                     circuitName: gpInfo.circuit,
