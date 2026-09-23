@@ -1,4 +1,4 @@
-import { auditTeamPerformanceBaseline } from './services/teamPerformanceBaselineAuditService'
+import { auditTeamPerformanceBaseline } from '../services/teamPerformanceBaselineAuditService'
 
 export function computeAfterBReport() {
   return auditTeamPerformanceBaseline({

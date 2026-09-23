@@ -36,20 +36,24 @@ export interface TeamBaselineStats {
   targetGroup: 'A' | 'B' | 'C' | 'D'
   // Métricas de Qualificação
   avgGridPosition: number
+  medianGridPosition?: number
   poleCount: number
   polePercentage: number
   top3GridCount: number
   top3GridPercentage: number
   top10GridCount: number
   top10GridPercentage: number
+  q3Rate?: number // alias/percentual de Q3 (top10 grid)
   // Métricas de Corrida
   avgFinishPosition: number
+  medianFinishPosition?: number
   winCount: number
   winPercentage: number
   podiumCount: number
   podiumPercentage: number
   top10FinishCount: number
   top10FinishPercentage: number
+  pointsRate?: number // percentual de corridas pontuando
   avgPointsPerRace: number
   totalPoints: number
   dnfCount: number
@@ -424,14 +428,17 @@ export class TeamPerformanceBaselineAuditService {
       string,
       {
         gridPositionsSum: number
+        gridPositionsList: number[]
         poleCount: number
         top3GridCount: number
         top10GridCount: number
         // Corrida
         finishPositionsSum: number
+        finishPositionsList: number[]
         winCount: number
         podiumCount: number
         top10FinishCount: number
+        pointsRacesCount: number
         totalPoints: number
         dnfCount: number
       }
@@ -440,13 +447,16 @@ export class TeamPerformanceBaselineAuditService {
     teams.forEach((t) => {
       teamAggregates.set(t.teamKey, {
         gridPositionsSum: 0,
+        gridPositionsList: [],
         poleCount: 0,
         top3GridCount: 0,
         top10GridCount: 0,
         finishPositionsSum: 0,
+        finishPositionsList: [],
         winCount: 0,
         podiumCount: 0,
         top10FinishCount: 0,
+        pointsRacesCount: 0,
         totalPoints: 0,
         dnfCount: 0,
       })
@@ -468,6 +478,7 @@ export class TeamPerformanceBaselineAuditService {
         for (const qEntry of qResult) {
           const agg = teamAggregates.get(qEntry.teamKey)!
           agg.gridPositionsSum += qEntry.gridPosition
+          agg.gridPositionsList.push(qEntry.gridPosition)
           if (qEntry.gridPosition === 1) agg.poleCount += 1
           if (qEntry.gridPosition <= 3) agg.top3GridCount += 1
           if (qEntry.gridPosition <= 10) agg.top10GridCount += 1
@@ -485,14 +496,27 @@ export class TeamPerformanceBaselineAuditService {
           seed: iterSeed,
         })
 
+        // Rastrear se a equipe pontuou nesta corrida
+        const raceTeamPoints = new Map<string, number>()
+
         for (const rEntry of rResult) {
           const agg = teamAggregates.get(rEntry.teamKey)!
           agg.finishPositionsSum += rEntry.finishPosition
+          agg.finishPositionsList.push(rEntry.finishPosition)
           agg.totalPoints += rEntry.points
           if (rEntry.finishPosition === 1) agg.winCount += 1
           if (rEntry.finishPosition <= 3) agg.podiumCount += 1
           if (rEntry.finishPosition <= 10) agg.top10FinishCount += 1
           if (rEntry.isDnf) agg.dnfCount += 1
+
+          const currentP = raceTeamPoints.get(rEntry.teamKey) || 0
+          raceTeamPoints.set(rEntry.teamKey, currentP + rEntry.points)
+        }
+
+        for (const [tKey, pts] of raceTeamPoints.entries()) {
+          if (pts > 0) {
+            teamAggregates.get(tKey)!.pointsRacesCount += 1
+          }
         }
       }
     }
@@ -507,16 +531,46 @@ export class TeamPerformanceBaselineAuditService {
       const agg = teamAggregates.get(t.teamKey)!
 
       const avgGridPosition = Number((agg.gridPositionsSum / qEntriesPerTeam).toFixed(2))
+      const sortedGrids = [...agg.gridPositionsList].sort((a, b) => a - b)
+      const medianGridPosition =
+        sortedGrids.length > 0
+          ? sortedGrids.length % 2 === 0
+            ? Number(
+                (
+                  (sortedGrids[sortedGrids.length / 2 - 1] + sortedGrids[sortedGrids.length / 2]) /
+                  2
+                ).toFixed(2),
+              )
+            : sortedGrids[Math.floor(sortedGrids.length / 2)]
+          : avgGridPosition
+
       const polePercentage = Number(((agg.poleCount / qIters) * 100).toFixed(2))
       const top3GridPercentage = Number(((agg.top3GridCount / (qIters * 3)) * 100).toFixed(2))
       const top10GridPercentage = Number(((agg.top10GridCount / (qIters * 10)) * 100).toFixed(2))
+      // Q3 rate: taxa de participações de carros no top 10 do grid (relativo ao total de carros da equipe)
+      const q3Rate = Number(((agg.top10GridCount / qEntriesPerTeam) * 100).toFixed(2))
 
       const avgFinishPosition = Number((agg.finishPositionsSum / rEntriesPerTeam).toFixed(2))
+      const sortedFinishes = [...agg.finishPositionsList].sort((a, b) => a - b)
+      const medianFinishPosition =
+        sortedFinishes.length > 0
+          ? sortedFinishes.length % 2 === 0
+            ? Number(
+                (
+                  (sortedFinishes[sortedFinishes.length / 2 - 1] +
+                    sortedFinishes[sortedFinishes.length / 2]) /
+                  2
+                ).toFixed(2),
+              )
+            : sortedFinishes[Math.floor(sortedFinishes.length / 2)]
+          : avgFinishPosition
+
       const winPercentage = Number(((agg.winCount / rIters) * 100).toFixed(2))
       const podiumPercentage = Number(((agg.podiumCount / (rIters * 3)) * 100).toFixed(2))
       const top10FinishPercentage = Number(
         ((agg.top10FinishCount / (rIters * 10)) * 100).toFixed(2),
       )
+      const pointsRate = Number(((agg.pointsRacesCount / rIters) * 100).toFixed(2))
       const avgPointsPerRace = Number((agg.totalPoints / rIters).toFixed(2))
       const dnfPercentage = Number(((agg.dnfCount / rEntriesPerTeam) * 100).toFixed(2))
 
@@ -529,19 +583,23 @@ export class TeamPerformanceBaselineAuditService {
         carPerfRating: t.carPerfRating,
         targetGroup: t.targetGroup,
         avgGridPosition,
+        medianGridPosition,
         poleCount: agg.poleCount,
         polePercentage,
         top3GridCount: agg.top3GridCount,
         top3GridPercentage,
         top10GridCount: agg.top10GridCount,
         top10GridPercentage,
+        q3Rate,
         avgFinishPosition,
+        medianFinishPosition,
         winCount: agg.winCount,
         winPercentage,
         podiumCount: agg.podiumCount,
         podiumPercentage,
         top10FinishCount: agg.top10FinishCount,
         top10FinishPercentage,
+        pointsRate,
         avgPointsPerRace,
         totalPoints: agg.totalPoints,
         dnfCount: agg.dnfCount,
