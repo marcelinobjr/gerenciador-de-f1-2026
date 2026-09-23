@@ -1,13 +1,15 @@
 /**
  * fc02d-baseline-audit.test.ts
  *
- * Suíte de Testes FC02D-01..10 cobrindo:
+ * Suíte de Testes FC02D-01..12 cobrindo:
  * - Auditoria consome a engine canônica existente sem desvios
  * - Monte Carlo determinístico com mesma seed
  * - Tabela BEFORE gerada com as 12 equipes completas
- * - Audi vs Haas medido e reportado como finding
- * - Williams e Andretti medidos e reportados
+ * - Audi vs Haas medido e reportado como finding (observacional, sem scripts artificiais)
+ * - Williams e Andretti medidos e reportados (sem ritmo médio de top-3)
  * - Formato e persistência do relatório BEFORE de referência
+ * - Gaps documentados vs hierarquia alvo 2026
+ * - Gerador de artefatos generateBaselineBeforeArtifacts
  */
 
 import { describe, it, expect } from 'vitest'
@@ -15,6 +17,7 @@ import {
   teamPerformanceBaselineAuditService,
   auditTeamPerformanceBaseline,
 } from '@/services/teamPerformanceBaselineAuditService'
+import { generateBaselineBeforeArtifacts } from '@/scripts/generate-baseline-before'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import baselineBeforeData from '@/data/baseline-2026-before.json'
 
@@ -273,5 +276,18 @@ describe('FC02D — FASE A: Auditoria e Medição do Baseline de Performance 202
     )
     expect(audiHaasFinding).toBeDefined()
     expect(typeof audiHaasFinding.detail).toBe('string')
+
+    // Validar utilitário de geração de artefatos estáticos (dryRun)
+    const generated = generateBaselineBeforeArtifacts({
+      seed: 20260315,
+      qualifyingIterations: 2,
+      raceIterations: 2,
+      totalRaceLaps: 2,
+      dryRun: true,
+    })
+    expect(generated.report.teamsStats).toHaveLength(12)
+    expect(generated.markdownContent).toContain(
+      'FC02D — FASE A: AUDITORIA DO BASELINE DE PERFORMANCE 2026',
+    )
   })
 })
