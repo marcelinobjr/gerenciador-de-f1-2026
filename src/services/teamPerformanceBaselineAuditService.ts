@@ -66,7 +66,7 @@ export interface TargetHierarchyFinding {
 
 export interface TeamPerformanceBaselineReport {
   generatedAt: string
-  phase: 'FASE_A_BEFORE'
+  phase: 'FASE_A_BEFORE' | 'FASE_B_AFTER'
   seed: number
   totalQualifyingSimulations: number
   totalRaceSimulations: number
@@ -90,6 +90,7 @@ export interface RunBaselineAuditOptions {
   raceIterations?: number
   circuitRound?: number
   totalRaceLaps?: number
+  phase?: 'FASE_A_BEFORE' | 'FASE_B_AFTER'
 }
 
 export class TeamPerformanceBaselineAuditService {
@@ -410,6 +411,7 @@ export class TeamPerformanceBaselineAuditService {
     const rIters = options.raceIterations ?? 1000
     const currentRound = options.circuitRound ?? 1
     const totalRaceLaps = options.totalRaceLaps ?? 30 // laps suficientes para estratégia de pit e degradação física
+    const phase = options.phase ?? 'FASE_A_BEFORE'
 
     const rng = this.createRng(seed)
     const circuitProfile = resolveCircuitProfile({ round: currentRound })
@@ -659,8 +661,13 @@ export class TeamPerformanceBaselineAuditService {
           : 'DIVERGÊNCIA: Deslocamento no pelotão do Grupo C.',
     })
 
+    const summaryTitle =
+      phase === 'FASE_B_AFTER'
+        ? `FC02D FASE B — Relatório AFTER de Baseline de Desempenho 2026 (Audi Calibrada)`
+        : `FC02D FASE A — Relatório BEFORE de Baseline de Desempenho 2026`
+
     const summaryText =
-      `FC02D FASE A — Relatório BEFORE de Baseline de Desempenho 2026\n` +
+      `${summaryTitle}\n` +
       `Simulações: ${qIters} Qualificações | ${rIters} Corridas (${totalRaceLaps} voltas) | Seed: ${seed}\n` +
       `Ordem Média de Chegada (P1 a P12 equipes):\n` +
       teamsStats
@@ -672,7 +679,7 @@ export class TeamPerformanceBaselineAuditService {
 
     return {
       generatedAt: new Date().toISOString(),
-      phase: 'FASE_A_BEFORE',
+      phase,
       seed,
       totalQualifyingSimulations: qIters,
       totalRaceSimulations: rIters,

@@ -437,7 +437,7 @@ export interface OfficialGridTeam {
 // As 12 equipes oficiais do grid da F1 2026 com 2 titulares confirmados + 1 piloto reserva real
 // Ordenadas estritamente pela nota de força (0-10) fornecida pelo usuário:
 // Mercedes 10.0 > Ferrari 9.1 > McLaren 8.8 > Red Bull 8.4 > Racing Bulls 6.3 > Alpine 6.1 >
-// Audi 5.2 > Haas 4.8 > Williams 4.2 > Aston Martin 3.7 > Andretti 3.5 > Cadillac 3.0
+// Audi 5.5 > Haas 4.8 > Williams 4.2 > Aston Martin 3.7 > Andretti 3.5 > Cadillac 3.0
 export const OFFICIAL_GRID_TEAMS: OfficialGridTeam[] = [
   {
     key: 'mercedes',
@@ -730,10 +730,10 @@ export const OFFICIAL_GRID_TEAMS: OfficialGridTeam[] = [
     name: 'Audi F1 Team',
     color: '#FF2A00',
     engine: 'Audi',
-    strengthRating: 5.2,
+    strengthRating: 5.5,
     strengthVerdict: 'Claramente evoluindo',
-    strength: 52,
-    carLevel: 52,
+    strength: 55,
+    carLevel: 55,
     budget: 165000000,
     historySummary:
       'A gigante alemã das 24h de Le Mans assumiu o controle integral da Sauber para sua estreia oficial.',
