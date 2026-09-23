@@ -295,7 +295,28 @@ export const driverBase2026Service = {
       const key = this.getCareerDriversStorageKey(careerId)
       const raw = window.localStorage.getItem(key)
       if (!raw) return null
-      return JSON.parse(raw) as Record<string, CareerDriverRecord>
+      const parsed = JSON.parse(raw) as Record<string, CareerDriverRecord>
+      // Se ainda contiver valores legados exatos de baseline nos 4 pilotos, reconcilia sob demanda
+      let needsReconcile = false
+      const checkLeg: Record<string, { s: number; c: number; d: number }> = {
+        'mbj-014': { s: 92, c: 93, d: 94 },
+        'mbj-013': { s: 88, c: 87, d: 89 },
+        'mbj-021': { s: 88, c: 86, d: 91 },
+        'mbj-022': { s: 88, c: 88, d: 87 },
+      }
+      for (const [id, leg] of Object.entries(checkLeg)) {
+        const r = parsed[id]?.ratings
+        if (r && r.speed === leg.s && r.consistency === leg.c && r.defense === leg.d) {
+          needsReconcile = true
+          break
+        }
+      }
+      if (needsReconcile) {
+        this.reconcileLegacyDriverRatings(careerId)
+        const freshRaw = window.localStorage.getItem(key)
+        if (freshRaw) return JSON.parse(freshRaw) as Record<string, CareerDriverRecord>
+      }
+      return parsed
     } catch (e) {
       console.warn('[driverBase2026Service] Erro ao ler career_drivers:', e)
       return null
@@ -309,6 +330,95 @@ export const driverBase2026Service = {
     const all = this.getCareerDrivers(careerId)
     if (!all) return null
     return all[driverId] || null
+  },
+
+  /**
+   * Migração idempotente mínima para reconciliar ratings legados inflados (BUG-06 / PATCH 5).
+   * Corrige os ratings base dos 4 pilotos SOMENTE quando o valor salvo corresponder
+   * EXATAMENTE ao baseline legado conhecido inflado:
+   * - mbj-014 Carlos Sainz: 92/93/83 -> 86/85/83 (legado: speed 92, consistency 93)
+   * - mbj-013 Alex Albon: 88/87/89 -> 83/82/80 (legado: speed 88, consistency 87)
+   * - mbj-021 Sergio Pérez: 88/86/91 -> 79/80/80 (legado: speed 88, consistency 86)
+   * - mbj-022 Valtteri Bottas: 88/88/87 -> 79/81/78 (legado: speed 88, consistency 88)
+   * Se o save já possuir evolução legítima aplicada (valor != baseline legado), NÃO sobrescreve.
+   * Preserva intactos: progressão, aging, development, form, moral, condição, contratos,
+   * resultados e championship.
+   */
+  reconcileLegacyDriverRatings(careerId: string): {
+    reconciled: boolean
+    updatedDrivers: string[]
+  } {
+    const all = this.getCareerDrivers(careerId)
+    if (!all) {
+      return { reconciled: false, updatedDrivers: [] }
+    }
+
+    const legacyBaselines: Record<
+      string,
+      {
+        legacy: { speed: number; consistency: number; defense: number }
+        canonical: { speed: number; consistency: number; rain: number; defense: number }
+      }
+    > = {
+      'mbj-014': {
+        legacy: { speed: 92, consistency: 93, defense: 94 },
+        canonical: { speed: 86, consistency: 85, rain: 82, defense: 83 },
+      },
+      'mbj-013': {
+        legacy: { speed: 88, consistency: 87, defense: 89 },
+        canonical: { speed: 83, consistency: 82, rain: 79, defense: 80 },
+      },
+      'mbj-021': {
+        legacy: { speed: 88, consistency: 86, defense: 91 },
+        canonical: { speed: 79, consistency: 80, rain: 78, defense: 80 },
+      },
+      'mbj-022': {
+        legacy: { speed: 88, consistency: 88, defense: 87 },
+        canonical: { speed: 79, consistency: 81, rain: 78, defense: 78 },
+      },
+    }
+
+    const updatedDrivers: string[] = []
+    let modified = false
+
+    for (const [driverId, baseline] of Object.entries(legacyBaselines)) {
+      const record = all[driverId]
+      if (!record || !record.ratings) continue
+
+      // Verifica correspondência exata com baseline legado inflado
+      const matchesLegacy =
+        record.ratings.speed === baseline.legacy.speed &&
+        record.ratings.consistency === baseline.legacy.consistency &&
+        record.ratings.defense === baseline.legacy.defense
+
+      if (matchesLegacy) {
+        record.ratings.speed = baseline.canonical.speed
+        record.ratings.consistency = baseline.canonical.consistency
+        record.ratings.defense = baseline.canonical.defense
+        if (record.ratings.rain !== undefined) {
+          record.ratings.rain = baseline.canonical.rain
+        }
+        // Se qualifying e racePace eram cópias do speed legado, alinhar também
+        if (record.ratings.qualifying === baseline.legacy.speed) {
+          record.ratings.qualifying = baseline.canonical.speed
+        }
+        if (record.ratings.racePace === baseline.legacy.speed) {
+          record.ratings.racePace = baseline.canonical.speed
+        }
+        record.updatedAt = new Date().toISOString()
+        updatedDrivers.push(driverId)
+        modified = true
+      }
+    }
+
+    if (modified) {
+      this.saveCareerDrivers(careerId, all)
+    }
+
+    return {
+      reconciled: modified,
+      updatedDrivers,
+    }
   },
 
   /**

@@ -471,8 +471,8 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
   russell: ['driver_george_russell', 'drv_george_russell', 'george_russell', 'mbj-006', 'drv_0016'],
   driver_george_russell: ['russell', 'drv_george_russell', 'george_russell', 'mbj-006', 'drv_0016'],
   // Sainz
-  sainz: ['driver_carlos_sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-007', 'drv_0089'],
-  driver_carlos_sainz: ['sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-007', 'drv_0089'],
+  sainz: ['driver_carlos_sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-014', 'drv_0089'],
+  driver_carlos_sainz: ['sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-014', 'drv_0089'],
   // Alonso
   alonso: [
     'driver_fernando_alonso',
@@ -595,6 +595,116 @@ export interface StartingGridAuditReport {
  * Executa auditoria completa de integridade entre Qualifying Grid, Starting Grid,
  * Snapshot persistido e Official Race Result.
  */
+/**
+ * Relatório de Auditoria de Integridade da Fonte de Performance dos Pilotos (BUG-06)
+ */
+export interface DriverPerformanceSourceAuditReport {
+  isValid: boolean
+  effectiveSource: string
+  totalDrivers: number
+  conflictingOverrides: number
+  duplicateDriverIds: number
+  unresolvedIdentities: number
+  engineResolvesToCanonical: boolean
+  errors: string[]
+}
+
+/**
+ * Valida a integridade da fonte esportiva única de pilotos:
+ * - 1 fonte esportiva efetiva (MBJ_2026_PILOTS / CANONICAL_DRIVERS_MASTER)
+ * - 0 overrides conflitantes
+ * - 0 driverIds duplicados
+ * - 0 unresolved
+ * - Engine resolvendo para a fonte canônica esperada
+ */
+export function auditDriverPerformanceSource(): DriverPerformanceSourceAuditReport {
+  const errors: string[] = []
+  const seenIds = new Set<string>()
+  let duplicateDriverIds = 0
+  let unresolvedIdentities = 0
+
+  for (const driver of MBJ_DRIVERS) {
+    if (!driver.id) {
+      errors.push('Registro de piloto sem id')
+      unresolvedIdentities++
+      continue
+    }
+    if (seenIds.has(driver.id)) {
+      errors.push(`driverId duplicado detectado: ${driver.id}`)
+      duplicateDriverIds++
+    }
+    seenIds.add(driver.id)
+  }
+
+  // Verifica se o master foi construído sem perda nem divergência
+  if (CANONICAL_DRIVERS_MASTER.length !== MBJ_DRIVERS.length) {
+    errors.push(
+      `CANONICAL_DRIVERS_MASTER length (${CANONICAL_DRIVERS_MASTER.length}) != MBJ_DRIVERS length (${MBJ_DRIVERS.length})`,
+    )
+  }
+
+  // Overrides conflitantes em CANONICAL_DRIVER_IDENTITY_ALIASES
+  let conflictingOverrides = 0
+  const russellAliases = CANONICAL_DRIVER_IDENTITY_ALIASES['russell'] || []
+  const sainzAliases = CANONICAL_DRIVER_IDENTITY_ALIASES['sainz'] || []
+
+  if (sainzAliases.includes('mbj-007')) {
+    conflictingOverrides++
+    errors.push("Alias de Sainz contém 'mbj-007' (conflito com George Russell)")
+  }
+  if (!sainzAliases.includes('mbj-014')) {
+    errors.push("Alias de Sainz não contém 'mbj-014'")
+  }
+
+  // Testar se os 4 pilotos chave do BUG-06 estão nos valores canônicos esperados
+  const canonicalExpected = {
+    'mbj-014': { speed: 86, consistency: 85, defense: 83 },
+    'mbj-013': { speed: 83, consistency: 82, defense: 80 },
+    'mbj-021': { speed: 79, consistency: 80, defense: 80 },
+    'mbj-022': { speed: 79, consistency: 81, defense: 78 },
+  }
+
+  let engineResolvesToCanonical = true
+  for (const [id, exp] of Object.entries(canonicalExpected)) {
+    const driver = getCanonicalDriverMaster(id)
+    if (!driver) {
+      engineResolvesToCanonical = false
+      unresolvedIdentities++
+      errors.push(`Piloto canônico ${id} não encontrado em CANONICAL_DRIVERS_BY_ID`)
+      continue
+    }
+    if (
+      driver.ratings.speed !== exp.speed ||
+      driver.ratings.consistency !== exp.consistency ||
+      driver.ratings.defense !== exp.defense
+    ) {
+      engineResolvesToCanonical = false
+      conflictingOverrides++
+      errors.push(
+        `Rating divergente em ${id}: recebido (${driver.ratings.speed}/${driver.ratings.consistency}/${driver.ratings.defense}), esperado (${exp.speed}/${exp.consistency}/${exp.defense})`,
+      )
+    }
+  }
+
+  const isValid =
+    errors.length === 0 &&
+    duplicateDriverIds === 0 &&
+    conflictingOverrides === 0 &&
+    unresolvedIdentities === 0 &&
+    engineResolvesToCanonical
+
+  return {
+    isValid,
+    effectiveSource: 'MBJ_2026_PILOTS',
+    totalDrivers: MBJ_DRIVERS.length,
+    conflictingOverrides,
+    duplicateDriverIds,
+    unresolvedIdentities,
+    engineResolvesToCanonical,
+    errors,
+  }
+}
+
 export function auditStartingGrid(params: {
   qualifyingGrid?: Array<{ driverId: string; position: number; driverName?: string }>
   startingGrid?: Array<{ driverId: string; gridPosition: number; driverName?: string }>
