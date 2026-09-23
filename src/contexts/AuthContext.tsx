@@ -4,6 +4,9 @@ import { RecordModel } from 'pocketbase'
 import { f1Service } from '@/services/f1Service'
 import { TeamModel, SeasonModel } from '@/types/f1'
 import { setActivePlayerPitstopCenterLevel } from '@/lib/f1-tire-system'
+import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
+import { canonicalCarRatingsAdapter } from '@/lib/canonical-adapters'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 
 export type CareerPhase = 'loading' | 'auth' | 'lobby' | 'career'
 
@@ -39,12 +42,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (resolvedTeam) {
+        let playerSeason: SeasonModel | null = null
         try {
-          const playerSeason = await f1Service.getSeasonByTeam(resolvedTeam.id)
+          playerSeason = await f1Service.getSeasonByTeam(resolvedTeam.id)
           setSeason(playerSeason)
         } catch (seasonErr) {
           console.warn('[AuthProvider] Falha não impeditiva ao consultar temporada:', seasonErr)
           setSeason(null)
+        }
+
+        // PU-INTEGRATION-01R: Reconciliação transparente de relacionamento e migração de chave legada
+        try {
+          const canonicalCareerId = resolveCanonicalCareerId(playerSeason, resolvedTeam)
+          const seasonYear = playerSeason?.year || 2026
+          const canonicalTeamKey = canonicalCarRatingsAdapter.resolveTeamKey(resolvedTeam)
+          const legacyTeamId = resolvedTeam.id
+
+          if (legacyTeamId && legacyTeamId !== canonicalTeamKey) {
+            canonicalPowerUnitIntegrationService.migrateLegacyStorageKey({
+              careerId: canonicalCareerId,
+              seasonYear,
+              legacyTeamId,
+              canonicalTeamKey,
+            })
+          }
+
+          // Garantir estado ativo reconciliado para a chave canônica
+          const currentState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
+            careerId: canonicalCareerId,
+            seasonYear,
+            teamId: canonicalTeamKey,
+            supplierId: resolvedTeam.engine_supplier,
+          })
+          const reconciledState =
+            canonicalPowerUnitIntegrationService.reconcilePowerUnitIntegrationState(currentState)
+          canonicalPowerUnitIntegrationService.saveIntegrationState(reconciledState)
+        } catch (puReconcileErr) {
+          console.warn(
+            '[AuthProvider] Falha não impeditiva na reconciliação de PU:',
+            puReconcileErr,
+          )
         }
       } else {
         setSeason(null)

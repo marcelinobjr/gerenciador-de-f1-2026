@@ -146,10 +146,11 @@ export async function advanceWeekendRound(
     try {
       const { canonicalPowerUnitIntegrationService } =
         await import('@/services/canonicalPowerUnitIntegrationService')
+      const puTeamId = team?.team_key || team?.id || 'player_team'
       const puState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
         careerId: canonicalCareerId,
         seasonYear,
-        teamId: team?.id || 'player_team',
+        teamId: puTeamId,
       })
       canonicalPowerUnitIntegrationService.progressKnowledge({
         state: puState,

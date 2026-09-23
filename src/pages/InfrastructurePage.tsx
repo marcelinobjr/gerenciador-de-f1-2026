@@ -517,7 +517,7 @@ export default function InfrastructurePage() {
         <div className="space-y-6 animate-fade-in">
           {/* PAINEL DE INTEGRAÇÃO CANÔNICA (PU-INTEGRATION-UI-01) */}
           <PowerUnitIntegrationPanel
-            teamId={team?.id || team?.team_key || 'audi'}
+            teamId={team?.team_key || team?.id || 'audi'}
             careerId={careerId}
             seasonYear={season?.year || 2026}
             supplierName={currentSupplierName}

@@ -20,6 +20,7 @@ import {
   PUIntegrationAuditReport,
 } from '@/types/canonical-pu-integration'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
+import { teamAssetResolver } from '@/lib/team-reduced-logo-resolver'
 
 // Constantes canônicas de caps
 export const FACTORY_MAX_INTEGRATION = 1.0
@@ -347,7 +348,30 @@ class CanonicalPowerUnitIntegrationService {
       andrettiglobal: 'andretti',
     }
 
-    return aliasMap[clean] || clean
+    if (aliasMap[clean]) {
+      return aliasMap[clean]
+    }
+
+    // Se já estiver na matriz canônica oficial
+    if (OFFICIAL_2026_PU_RELATIONSHIPS[clean]) {
+      return clean
+    }
+
+    // Tentar resolver via catálogo canônico de equipes (teamAssetResolver / normalizeKey)
+    try {
+      const resolved = teamAssetResolver.normalizeKey(teamIdOrKey)
+      if (
+        resolved &&
+        resolved !== 'custom_team' &&
+        (OFFICIAL_2026_PU_RELATIONSHIPS[resolved] || aliasMap[resolved])
+      ) {
+        return aliasMap[resolved] || resolved
+      }
+    } catch {
+      // fallback defensivo
+    }
+
+    return clean
   }
 
   /**
@@ -574,9 +598,16 @@ class CanonicalPowerUnitIntegrationService {
    * Salva o estado de integração
    */
   public saveIntegrationState(state: PowerUnitIntegrationState): void {
-    const key = this.buildStorageKey(state.careerId, state.seasonYear, state.teamId)
-    this.inMemoryStates.set(key, state)
-    this.saveToLocalStorage(key, state)
+    const normTeam = this.normalizeTeamId(state.teamId)
+    const targetState: PowerUnitIntegrationState =
+      state.teamId !== normTeam ? { ...state, teamId: normTeam } : state
+    const key = this.buildStorageKey(
+      targetState.careerId,
+      targetState.seasonYear,
+      targetState.teamId,
+    )
+    this.inMemoryStates.set(key, targetState)
+    this.saveToLocalStorage(key, targetState)
   }
 
   /**
@@ -1016,51 +1047,114 @@ class CanonicalPowerUnitIntegrationService {
   }
 
   /**
-   * Reconcilia um estado persistido de integração se for um caso oficial incorreto conhecido.
-   * Regra canônica:
-   * Se for equipe oficial onde metadata oficial 2026 diz FACTORY (ex: Audi com Audi),
-   * mas o estado salvo estiver como CUSTOMER ou com maxIntegration incorreto,
-   * corrige relationshipType e maxIntegration preservando estritamente:
-   * - integrationKnowledge
-   * - generalIntegrationKnowledge
-   * - supplierSpecificKnowledge
-   * - seasonsWithSupplier
-   * - accumulatedExperience
-   * E recalcula effectiveIntegration usando o novo cap de 100% de forma idempotente.
+   * reconcilia qualquer PowerUnitIntegrationState com base na verdade canônica (OFFICIAL_2026_PU_RELATIONSHIPS).
+   * Força relationshipType e maxIntegration (FACTORY=1.00, CUSTOMER=0.90) a partir da metadata canônica.
+   * Recalcula effectiveIntegration a partir de integrationKnowledge e do novo cap.
+   * Preserva intocados: integrationKnowledge, generalIntegrationKnowledge, supplierSpecificKnowledge,
+   * seasonsWithSupplier, accumulatedExperience.
+   * Idempotente: rodar 2x = mesmo estado exato, sem ganho de knowledge, sem drift.
+   */
+  public reconcilePowerUnitIntegrationState(
+    state: PowerUnitIntegrationState,
+  ): PowerUnitIntegrationState {
+    const normTeam = this.normalizeTeamId(state.teamId)
+    const normSupp = this.normalizeSupplier(state.supplierId)
+    const meta = this.getRelationshipMetadata(normTeam, normSupp)
+
+    const expectedRelType = meta.relationshipType
+    const expectedMaxCap = meta.maxIntegration
+
+    // Recalcular effectiveIntegration com o knowledge existente e o cap canônico
+    const resolved = this.resolveEffectivePUIntegration({
+      integrationKnowledge: state.integrationKnowledge,
+      relationshipType: expectedRelType,
+      maxIntegrationOverride: expectedMaxCap,
+    })
+
+    const isDifferent =
+      state.teamId !== normTeam ||
+      state.supplierId !== normSupp ||
+      state.relationshipType !== expectedRelType ||
+      state.maxIntegration !== expectedMaxCap ||
+      state.effectiveIntegration !== resolved.effectiveIntegration
+
+    if (!isDifferent) {
+      return state
+    }
+
+    return {
+      ...state,
+      teamId: normTeam,
+      supplierId: normSupp,
+      relationshipType: expectedRelType,
+      maxIntegration: expectedMaxCap,
+      effectiveIntegration: resolved.effectiveIntegration,
+    }
+  }
+
+  /**
+   * Reconcilia um estado persistido de integração (compatibilidade legada)
    */
   public reconcileLegacyIntegrationState(
     state: PowerUnitIntegrationState,
   ): PowerUnitIntegrationState {
-    const normTeam = this.normalizeTeamId(state.teamId)
-    const officialMeta = OFFICIAL_2026_PU_RELATIONSHIPS[normTeam]
+    return this.reconcilePowerUnitIntegrationState(state)
+  }
 
-    // Se a metadata oficial especifica FACTORY e o fornecedor bate com a fábrica (ex: Audi + Audi)
-    if (
-      officialMeta &&
-      officialMeta.relationshipType === 'FACTORY' &&
-      this.normalizeSupplier(state.supplierId) === this.normalizeSupplier(officialMeta.supplierId)
-    ) {
-      const needsRelationshipCorrection = state.relationshipType !== 'FACTORY'
-      const needsCapCorrection = state.maxIntegration !== FACTORY_MAX_INTEGRATION
+  /**
+   * Migra chave legada (ex: sob hash ou ID não normalizado) para a chave canônica.
+   * Preserva knowledge, atualiza estado canonicamente reconciliado,
+   * remove a chave legada e limpa o cache em memória.
+   */
+  public migrateLegacyStorageKey(params: {
+    careerId: string
+    seasonYear: number
+    legacyTeamId: string
+    canonicalTeamKey: string
+  }): PowerUnitIntegrationState | null {
+    const { careerId, seasonYear, legacyTeamId, canonicalTeamKey } = params
+    const normCanonical = this.normalizeTeamId(canonicalTeamKey)
+    const legacyKey = this.buildStorageKey(careerId, seasonYear, legacyTeamId)
+    const canonicalKey = this.buildStorageKey(careerId, seasonYear, normCanonical)
 
-      if (needsRelationshipCorrection || needsCapCorrection) {
-        // Recomputa effectiveIntegration usando o knowledge real preservado + novo cap de 1.00
-        const resolved = this.resolveEffectivePUIntegration({
-          integrationKnowledge: state.integrationKnowledge,
-          relationshipType: 'FACTORY',
-          maxIntegrationOverride: FACTORY_MAX_INTEGRATION,
-        })
-
-        return {
-          ...state,
-          relationshipType: 'FACTORY',
-          maxIntegration: FACTORY_MAX_INTEGRATION,
-          effectiveIntegration: resolved.effectiveIntegration,
+    const storedLegacy = this.loadFromLocalStorage(legacyKey)
+    if (!storedLegacy) {
+      // Se não havia no legado, verifica se já existe na chave canônica e reconcilia
+      const storedCanonical = this.loadFromLocalStorage(canonicalKey)
+      if (storedCanonical) {
+        const reconciled = this.reconcilePowerUnitIntegrationState(storedCanonical)
+        if (reconciled !== storedCanonical) {
+          this.saveToLocalStorage(canonicalKey, reconciled)
         }
+        this.inMemoryStates.set(canonicalKey, reconciled)
+        return reconciled
       }
+      return null
     }
 
-    return state
+    // Há dados sob a chave legada! Reconciliar e migrar
+    const migratedState: PowerUnitIntegrationState = {
+      ...storedLegacy,
+      teamId: normCanonical,
+    }
+    const reconciled = this.reconcilePowerUnitIntegrationState(migratedState)
+
+    // Salvar na chave canônica
+    this.saveToLocalStorage(canonicalKey, reconciled)
+    this.inMemoryStates.set(canonicalKey, reconciled)
+
+    // Se legacyKey for diferente da canonicalKey, remover a entrada legada
+    if (legacyKey !== canonicalKey && typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem(legacyKey)
+      } catch {
+        // tolerância
+      }
+      this.inMemoryStates.delete(legacyKey)
+    }
+
+    this.clearMemoryCache()
+    return reconciled
   }
 
   /**
@@ -1072,5 +1166,7 @@ class CanonicalPowerUnitIntegrationService {
 }
 
 export const canonicalPowerUnitIntegrationService = new CanonicalPowerUnitIntegrationService()
+export const reconcilePowerUnitIntegrationState = (state: PowerUnitIntegrationState) =>
+  canonicalPowerUnitIntegrationService.reconcilePowerUnitIntegrationState(state)
 export const auditPowerUnitIntegrationSystem = (careerId?: string) =>
   canonicalPowerUnitIntegrationService.auditPowerUnitIntegrationSystem(careerId)
