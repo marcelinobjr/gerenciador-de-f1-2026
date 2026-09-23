@@ -1,8 +1,7 @@
 import React from 'react'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { getCountryFlag } from '@/lib/country-flags'
-import { getDriverPhotoSources } from '@/lib/driver-photos'
-import { getDriverImage } from '@/data/assets/driverAssets'
+import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { getTeamSideView } from '@/data/assets/teamAssets'
 import { getCarroPorEquipeImage } from '@/assets/carroPorEquipe'
 
@@ -35,21 +34,9 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
   const isCustom = Boolean(team?.is_custom)
   const carImage = getTeamSideView(teamKey) || getCarroPorEquipeImage(teamKey, isCustom)
 
-  // Foto do piloto usando pipeline canônico com fallback
-  const driverIdentifier = driver?.id || driver?.name || ''
-  const manifestPhoto = driverIdentifier ? getDriverImage(driverIdentifier) : null
-  const photoSources = driver?.name ? getDriverPhotoSources(driver.name) : null
-  const driverPhoto =
-    manifestPhoto ||
-    photoSources?.bundledImg ||
-    photoSources?.localCandidates?.find(Boolean) ||
-    photoSources?.dropboxUrl ||
-    photoSources?.localPath ||
-    photoSources?.fallbackLocal ||
-    '/pilotos/generico.png'
-
   const driverNationality = driver?.nationality || 'Brasil'
   const driverFlag = getCountryFlag(driverNationality)
+  const teamColor = team?.color || '#E10600'
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-slate-800 transition-all hover:border-slate-300">
@@ -74,17 +61,25 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 items-center">
         {/* Piloto */}
         <div className="md:col-span-4 flex items-center gap-3">
-          <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-200">
-            <img
-              src={driver ? driverPhoto : '/pilotos/generico.png'}
-              alt={driver?.name || 'Cockpit vago'}
-              className="w-full h-full object-cover object-top"
-              onError={(e) => {
-                // Fallback para genérico se falhar
-                ;(e.target as HTMLImageElement).src = '/pilotos/generico.png'
-              }}
-            />
-            <div className="absolute top-0.5 right-1 text-slate-400 font-black text-xs font-mono">
+          <div className="relative shrink-0">
+            {driver ? (
+              <DriverPhotoAvatar
+                name={driver.name}
+                driverId={driver.id}
+                teamColor={teamColor}
+                size="md"
+                className="w-14 h-14 rounded-lg overflow-hidden border border-slate-200"
+              />
+            ) : (
+              <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-200">
+                <img
+                  src="/pilotos/generico.png"
+                  alt="Cockpit vago"
+                  className="w-full h-full object-cover object-top"
+                />
+              </div>
+            )}
+            <div className="absolute top-0.5 right-1 text-slate-400 font-black text-xs font-mono pointer-events-none z-10">
               #{carNumber}
             </div>
           </div>
