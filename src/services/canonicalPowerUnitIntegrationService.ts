@@ -338,6 +338,8 @@ class CanonicalPowerUnitIntegrationService {
       cadillacf1team: 'cadillac',
       audif1: 'audi',
       audif1team: 'audi',
+      sauberaudi: 'audi',
+      audisauber: 'audi',
       alpinef1: 'alpine',
       alpinef1team: 'alpine',
       haasf1: 'haas',
@@ -521,8 +523,13 @@ class CanonicalPowerUnitIntegrationService {
     // 2. localStorage
     const stored = this.loadFromLocalStorage(key)
     if (stored) {
-      this.inMemoryStates.set(key, stored)
-      return stored
+      // Reconciliação transparente de saves legados (ex: Audi/Audi persistido como CUSTOMER 0.90)
+      const reconciled = this.reconcileLegacyIntegrationState(stored)
+      this.inMemoryStates.set(key, reconciled)
+      if (reconciled !== stored) {
+        this.saveToLocalStorage(key, reconciled)
+      }
+      return reconciled
     }
 
     // 3. Inicializar a partir da metadata canônica
@@ -1006,6 +1013,54 @@ class CanonicalPowerUnitIntegrationService {
     } catch {
       // tolerância
     }
+  }
+
+  /**
+   * Reconcilia um estado persistido de integração se for um caso oficial incorreto conhecido.
+   * Regra canônica:
+   * Se for equipe oficial onde metadata oficial 2026 diz FACTORY (ex: Audi com Audi),
+   * mas o estado salvo estiver como CUSTOMER ou com maxIntegration incorreto,
+   * corrige relationshipType e maxIntegration preservando estritamente:
+   * - integrationKnowledge
+   * - generalIntegrationKnowledge
+   * - supplierSpecificKnowledge
+   * - seasonsWithSupplier
+   * - accumulatedExperience
+   * E recalcula effectiveIntegration usando o novo cap de 100% de forma idempotente.
+   */
+  public reconcileLegacyIntegrationState(
+    state: PowerUnitIntegrationState,
+  ): PowerUnitIntegrationState {
+    const normTeam = this.normalizeTeamId(state.teamId)
+    const officialMeta = OFFICIAL_2026_PU_RELATIONSHIPS[normTeam]
+
+    // Se a metadata oficial especifica FACTORY e o fornecedor bate com a fábrica (ex: Audi + Audi)
+    if (
+      officialMeta &&
+      officialMeta.relationshipType === 'FACTORY' &&
+      this.normalizeSupplier(state.supplierId) === this.normalizeSupplier(officialMeta.supplierId)
+    ) {
+      const needsRelationshipCorrection = state.relationshipType !== 'FACTORY'
+      const needsCapCorrection = state.maxIntegration !== FACTORY_MAX_INTEGRATION
+
+      if (needsRelationshipCorrection || needsCapCorrection) {
+        // Recomputa effectiveIntegration usando o knowledge real preservado + novo cap de 1.00
+        const resolved = this.resolveEffectivePUIntegration({
+          integrationKnowledge: state.integrationKnowledge,
+          relationshipType: 'FACTORY',
+          maxIntegrationOverride: FACTORY_MAX_INTEGRATION,
+        })
+
+        return {
+          ...state,
+          relationshipType: 'FACTORY',
+          maxIntegration: FACTORY_MAX_INTEGRATION,
+          effectiveIntegration: resolved.effectiveIntegration,
+        }
+      }
+    }
+
+    return state
   }
 
   /**
