@@ -52,6 +52,7 @@ export interface CarTechnicalInput {
   attributes: TechnicalAttributesMap
   chassisRating?: number
   powerUnitRating?: number
+  effectivePowerUnitRating?: number
   carPerformanceRating?: number
   legacyTeamStrength?: number
   /**
@@ -489,6 +490,7 @@ export function calculateSessionPerformance(
   const carPerformance = calculateCarPerformance({
     chassisRating: car.chassisRating,
     powerUnitRating: car.powerUnitRating,
+    effectivePowerUnitRating: car.effectivePowerUnitRating,
     carPerformanceRating: car.carPerformanceRating,
     legacyTeamStrength: car.legacyTeamStrength,
   })

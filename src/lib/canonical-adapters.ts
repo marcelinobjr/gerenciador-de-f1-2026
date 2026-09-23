@@ -118,7 +118,7 @@ export const canonicalCarRatingsAdapter = {
 
     // PU-INTEGRATION-01: Integração de motor canônica por equipe (FACTORY vs CUSTOMER)
     // PU efetiva = PU nominal × integração efetiva
-    const normTeamId = team.key || team.id || 'audi'
+    const normTeamId = team?.team_key || (team as any)?.key || team?.id || 'audi'
     const puState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
       careerId: 'runtime_career',
       seasonYear: 2026,

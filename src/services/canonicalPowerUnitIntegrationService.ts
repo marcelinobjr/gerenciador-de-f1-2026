@@ -14,12 +14,12 @@ import {
   PUSupplierId,
   PowerUnitRelationshipMetadata,
   PowerUnitIntegrationState,
+  ResolveEffectivePUIntegrationParams,
   ResolveEffectivePUIntegrationResult,
   EffectivePUPerformanceResult,
   PUIntegrationAuditReport,
 } from '@/types/canonical-pu-integration'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
-import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 
 // Constantes canônicas de caps
 export const FACTORY_MAX_INTEGRATION = 1.0
