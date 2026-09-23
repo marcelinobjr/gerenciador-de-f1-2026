@@ -328,6 +328,7 @@ export default function IndexPage() {
           title: `${team?.name || 'Audi'} traz atualização para Suzuka`,
           snippet: 'Novo assoalho com fluxo de ar revisado promete ganho de 0,18s por volta.',
           time: 'Há 2h',
+          category: 'CAR',
           tag: 'CARRO',
         },
         {
@@ -335,6 +336,7 @@ export default function IndexPage() {
           title: `${titularDrivers[1]?.name || 'Bortoleto'} impressiona nos treinos`,
           snippet: 'Desempenho consistente em ritmo de classificação chama atenção da imprensa.',
           time: 'Há 4h',
+          category: 'DRIVER',
           tag: 'PILOTO',
         },
         {
@@ -342,6 +344,7 @@ export default function IndexPage() {
           title: `${team?.name || 'Audi'} reforça programa de longo prazo`,
           snippet: 'Investimentos em infraestrutura avançam com nova bancada de testes.',
           time: 'Há 7h',
+          category: 'TEAM',
           tag: 'EQUIPE',
         },
       ]
@@ -351,13 +354,15 @@ export default function IndexPage() {
       const createdTime = new Date(ev?.created || Date.now()).getTime()
       const diffHours = Math.max(1, Math.floor((Date.now() - createdTime) / 3600000))
       const timeAgo = diffHours < 24 ? `Há ${diffHours}h` : `Há ${Math.floor(diffHours / 24)}d`
+      const rawCategory = ev?.category || ev?.type || 'GENERAL'
 
       return {
         id: ev?.id || `ev-${idx}`,
         title: ev?.message || 'Atualização oficial do paddock',
         snippet: ev?.details || 'Comunicação executiva da equipe no paddock oficial.',
         time: timeAgo,
-        tag: (ev?.type || 'PADDOCK').toUpperCase(),
+        category: rawCategory,
+        tag: (ev?.type || ev?.category || 'PADDOCK').toUpperCase(),
       }
     })
   }, [events, team?.name, titularDrivers])
@@ -1095,7 +1100,7 @@ export default function IndexPage() {
             {/* Lista com Miniaturas Temáticas e Textos Curtos */}
             <div className="space-y-2.5">
               {paddockNews.map((news) => {
-                const iconMeta = resolveNewsIcon(news.tag)
+                const iconMeta = resolveNewsIcon(news.category || news.tag)
                 const IconComponent = iconMeta.lucideIcon
 
                 return (

@@ -158,30 +158,10 @@ export function NotificationBell({
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
-  const getNotificationIcon = (type: F1NotificationType) => {
-    const iconDef = resolveNewsIcon(type)
+  const renderNotificationIcon = (categoryOrType: string) => {
+    const iconDef = resolveNewsIcon(categoryOrType)
     const IconComp = iconDef.lucideIcon
-
-    // Mapeamento de cores de destaque consistentes com tema dark do sino
-    switch (type) {
-      case 'radio':
-        return <IconComp className="w-4 h-4 text-sky-400 shrink-0" />
-      case 'patrocinio':
-        return <IconComp className="w-4 h-4 text-emerald-400 shrink-0" />
-      case 'motor':
-        return <IconComp className="w-4 h-4 text-amber-400 shrink-0" />
-      case 'fia':
-        return <IconComp className="w-4 h-4 text-red-400 shrink-0" />
-      case 'rival':
-        return <IconComp className="w-4 h-4 text-purple-400 shrink-0" />
-      case 'lesao':
-        return <IconComp className="w-4 h-4 text-rose-400 shrink-0" />
-      case 'corrida':
-        return <IconComp className="w-4 h-4 text-yellow-400 shrink-0" />
-      case 'sistema':
-      default:
-        return <IconComp className="w-4 h-4 text-zinc-400 shrink-0" />
-    }
+    return <IconComp className="w-4 h-4 text-zinc-300 shrink-0" />
   }
 
   const activeRound = propRound ?? season?.current_round ?? 1
@@ -283,7 +263,7 @@ export function NotificationBell({
                     }`}
                   >
                     <div className="mt-0.5 p-1.5 rounded-lg bg-[#161D2A] border border-[#1F2733]">
-                      {getNotificationIcon(n.type)}
+                      {renderNotificationIcon(n.type)}
                     </div>
 
                     <div className="flex-1 min-w-0 space-y-1">
