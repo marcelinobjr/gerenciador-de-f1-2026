@@ -13,7 +13,7 @@ import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/car
 import audiCarImg from '@/assets/audi-13288.png'
 import audiGarageHeroImg from '@/assets/audi-e9cff.jpg'
 import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
-import { DRIVE_STORAGE_PHOTOS, getDriveStoragePhotoUrl } from '@/lib/drive-storage-photos'
+import { resolveNewsIcon } from '@/lib/news-icon-catalog'
 import { TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
@@ -1095,80 +1095,16 @@ export default function IndexPage() {
             {/* Lista com Miniaturas Temáticas e Textos Curtos */}
             <div className="space-y-2.5">
               {paddockNews.map((news) => {
-                const textLower = `${news.title} ${news.snippet} ${news.tag}`.toLowerCase()
-
-                // Mapeamento temático conforme especificações do catálogo de estruturas (Drive):
-                // 1. Aerodinâmica / peças -> Asa_Dianteira.jpg, Asa_Traseira.jpg ou Assoalho.jpg
-                // 2. Pit stop / operação de corrida -> Centro_de_Pit_stop.jpg ou Centro_de_operações.jpg
-                // 3. Fábrica / desenvolvimento do carro / túnel / cfd -> Fabrica.jpg, Túnel_de_vento.jpg ou Cluster_CFD.jpg
-                // 4. Piloto / academia -> Academia_de_pilotos.jpg ou foto do piloto
-                let thumbKey = 'Fabrica.jpg'
-
-                if (
-                  textLower.includes('asa') ||
-                  textLower.includes('aerodinâmica') ||
-                  textLower.includes('aero') ||
-                  textLower.includes('peça')
-                ) {
-                  thumbKey = 'Asa_Dianteira.jpg'
-                } else if (
-                  textLower.includes('assoalho') ||
-                  textLower.includes('downforce') ||
-                  textLower.includes('fluxo')
-                ) {
-                  thumbKey = 'Assoalho.jpg'
-                } else if (
-                  textLower.includes('pit') ||
-                  textLower.includes('parada') ||
-                  textLower.includes('operação') ||
-                  textLower.includes('estratégia')
-                ) {
-                  thumbKey = 'Centro_de_Pit_stop.jpg'
-                } else if (textLower.includes('simulador') || textLower.includes('telemetria')) {
-                  thumbKey = 'Simulador.jpg'
-                } else if (
-                  textLower.includes('túnel') ||
-                  textLower.includes('vento') ||
-                  textLower.includes('cfd')
-                ) {
-                  thumbKey = 'Túnel_de_vento.jpg'
-                } else if (
-                  textLower.includes('piloto') ||
-                  textLower.includes('treino') ||
-                  textLower.includes('bortoleto') ||
-                  textLower.includes('ricciardo')
-                ) {
-                  thumbKey = 'Academia_de_pilotos.jpg'
-                } else if (
-                  textLower.includes('fábrica') ||
-                  textLower.includes('longo prazo') ||
-                  textLower.includes('infraestrutura') ||
-                  textLower.includes('equipe')
-                ) {
-                  thumbKey = 'Fabrica.jpg'
-                }
-
-                const thumbSrc =
-                  getDriveStoragePhotoUrl(thumbKey) || DRIVE_STORAGE_PHOTOS[thumbKey] || audiCarImg
+                const iconMeta = resolveNewsIcon(news.tag)
+                const IconComponent = iconMeta.lucideIcon
 
                 return (
                   <div
                     key={news.id}
                     className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-3 hover:bg-neutral-100 transition-colors cursor-pointer"
                   >
-                    <div className="w-12 h-12 rounded-md bg-neutral-900 border border-[#CBD5E1] shrink-0 overflow-hidden flex items-center justify-center p-0">
-                      <img
-                        src={thumbSrc}
-                        alt={news.title}
-                        onError={(e) => {
-                          // Fallback neutro sem quebrar o layout
-                          const target = e.currentTarget
-                          if (target.src !== audiCarImg) {
-                            target.src = audiCarImg
-                          }
-                        }}
-                        className="w-full h-full object-cover object-center bg-neutral-900"
-                      />
+                    <div className="w-12 h-12 rounded-md bg-[#0F172A] border border-[#CBD5E1] shrink-0 overflow-hidden flex items-center justify-center p-0 text-[#E10600]">
+                      <IconComponent className="w-6 h-6" />
                     </div>
 
                     <div className="min-w-0 flex-1">

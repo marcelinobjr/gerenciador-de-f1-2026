@@ -1,18 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import {
-  Bell,
-  CheckCheck,
-  Radio,
-  BadgePercent,
-  Wrench,
-  Scale,
-  Shield,
-  HeartPulse,
-  Flag,
-  Settings,
-  ExternalLink,
-} from 'lucide-react'
+import { Bell, CheckCheck, ExternalLink } from 'lucide-react'
+import { resolveNewsIcon } from '@/lib/news-icon-catalog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -170,24 +159,28 @@ export function NotificationBell({
   const unreadCount = notifications.filter((n) => !n.read).length
 
   const getNotificationIcon = (type: F1NotificationType) => {
+    const iconDef = resolveNewsIcon(type)
+    const IconComp = iconDef.lucideIcon
+
+    // Mapeamento de cores de destaque consistentes com tema dark do sino
     switch (type) {
       case 'radio':
-        return <Radio className="w-4 h-4 text-sky-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-sky-400 shrink-0" />
       case 'patrocinio':
-        return <BadgePercent className="w-4 h-4 text-emerald-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-emerald-400 shrink-0" />
       case 'motor':
-        return <Wrench className="w-4 h-4 text-amber-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-amber-400 shrink-0" />
       case 'fia':
-        return <Scale className="w-4 h-4 text-red-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-red-400 shrink-0" />
       case 'rival':
-        return <Shield className="w-4 h-4 text-purple-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-purple-400 shrink-0" />
       case 'lesao':
-        return <HeartPulse className="w-4 h-4 text-rose-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-rose-400 shrink-0" />
       case 'corrida':
-        return <Flag className="w-4 h-4 text-yellow-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-yellow-400 shrink-0" />
       case 'sistema':
       default:
-        return <Settings className="w-4 h-4 text-zinc-400 shrink-0" />
+        return <IconComp className="w-4 h-4 text-zinc-400 shrink-0" />
     }
   }
 
