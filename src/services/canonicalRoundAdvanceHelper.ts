@@ -141,6 +141,27 @@ export async function advanceWeekendRound(
       )
     }
 
+    // ETAPA 4.5: PU INTEGRATION KNOWLEDGE PROGRESSION
+    // Evolução natural de conhecimento de integração entre equipe e fornecedor de PU
+    try {
+      const { canonicalPowerUnitIntegrationService } =
+        await import('@/services/canonicalPowerUnitIntegrationService')
+      const puState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
+        careerId: canonicalCareerId,
+        seasonYear,
+        teamId: team?.id || 'player_team',
+      })
+      canonicalPowerUnitIntegrationService.progressKnowledge({
+        state: puState,
+        infrastructureFacilityLevel: (team as any)?.factory_level || 5,
+        technicalStaffRating:
+          (team as any)?.technical_organization?.staff?.technicalDirector?.attributes
+            ?.aerodynamics || 75,
+      })
+    } catch (puErr) {
+      console.warn('Aviso: falha não bloqueante na evolução de PU Integration:', puErr)
+    }
+
     // ETAPA 5: ROUND ADVANCE (persistência de current_round + 1 e last_processed_round)
     const nextRound = currentRound + 1
     await f1Service.updateSeason(season.id, {

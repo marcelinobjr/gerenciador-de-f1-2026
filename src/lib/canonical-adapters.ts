@@ -43,6 +43,7 @@ import {
   createDefaultSpecifications,
 } from '@/lib/car-technical-data'
 import { carTechnicalService } from '@/services/carTechnicalService'
+import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
 
 // ============================================================================
 // 1. CAR RATINGS ADAPTER
@@ -112,12 +113,29 @@ export const canonicalCarRatingsAdapter = {
       balanceDeltaVal = calcResult.balanceDelta
     }
 
-    // 5. powerUnitRating
+    // 5. powerUnitRating nominal
     const powerUnitRating = Number((pu.powerRating * 0.6 + pu.reliabilityRating * 0.4).toFixed(1))
 
-    // 6. carPerformanceRating: combinação equilibrada de chassi (70%) + PU (30%)
-    // Preserva consistência técnica para o indicador global unificado sem alterar a corrida ainda
-    const carPerformanceRating = Number((chassisRating * 0.7 + powerUnitRating * 0.3).toFixed(1))
+    // PU-INTEGRATION-01: Integração de motor canônica por equipe (FACTORY vs CUSTOMER)
+    // PU efetiva = PU nominal × integração efetiva
+    const normTeamId = team.key || team.id || 'audi'
+    const puState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
+      careerId: 'runtime_career',
+      seasonYear: 2026,
+      teamId: normTeamId,
+      supplierId: supplier as any,
+    })
+    const effectivePU = canonicalPowerUnitIntegrationService.resolveEffectivePUPerformance({
+      supplierId: supplier as any,
+      effectiveIntegration: puState.effectiveIntegration,
+      relationshipType: puState.relationshipType,
+    })
+
+    // 6. carPerformanceRating: combinação equilibrada de chassi (70%) + PU efetiva (30%)
+    // O componente "motor" passa a consumir effectivePUPerformance, não a PU nominal bruta
+    const carPerformanceRating = Number(
+      (chassisRating * 0.7 + effectivePU.effectivePuRating * 0.3).toFixed(1),
+    )
 
     return {
       chassisRating,

@@ -30,6 +30,7 @@ import { driverDevelopmentService } from '@/services/driverDevelopmentService'
 import { driverRetirementService } from '@/services/driverRetirementService'
 import { newGenerationService } from '@/services/newGenerationService'
 import { regulationTimelineService, regulationService } from '@/services/regulationService'
+import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
 import {
   calculateStandings,
   type DriverStanding,
@@ -557,6 +558,26 @@ export class SeasonTransitionService {
               conceptsGeneratedCount++
             }
           }
+        }
+
+        // PU-INTEGRATION-01: Evolução canônica do Power Unit Integration Knowledge
+        try {
+          const puState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
+            careerId: currentSeason?.id || 'career_main',
+            seasonYear: fromSeasonYear,
+            teamId,
+          })
+          canonicalPowerUnitIntegrationService.advanceSeason({
+            currentState: puState,
+            toSeasonYear,
+            sameSupplier: true,
+            infrastructureFacilityLevel: (playerTeam as any)?.factory_level || 5,
+            technicalStaffRating:
+              (playerTeam as any)?.technical_organization?.staff?.technicalDirector?.attributes
+                ?.aerodynamics || 75,
+          })
+        } catch (err) {
+          console.warn('Alerta na evolução anual de PU Integration:', err)
         }
       } catch (err: any) {
         console.warn('Alerta na geração do novo carro da era:', err)

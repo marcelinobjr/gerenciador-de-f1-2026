@@ -141,6 +141,7 @@ export interface SessionPerformanceOutput {
 export function calculateCarPerformance(ratings: {
   chassisRating?: number
   powerUnitRating?: number
+  effectivePowerUnitRating?: number
   carPerformanceRating?: number
   legacyTeamStrength?: number
 }): number {
@@ -149,7 +150,8 @@ export function calculateCarPerformance(ratings: {
   }
 
   const chassis = ratings.chassisRating ?? ratings.legacyTeamStrength ?? 75
-  const pu = ratings.powerUnitRating ?? 85
+  // O componente "motor" consome effectivePUPerformance, não a PU nominal bruta
+  const pu = ratings.effectivePowerUnitRating ?? ratings.powerUnitRating ?? 85
   const result = chassis * 0.7 + pu * 0.3
   return Number(result.toFixed(2))
 }
