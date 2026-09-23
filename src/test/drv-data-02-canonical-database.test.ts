@@ -16,6 +16,7 @@ import {
   CANONICAL_DRIVER_ID_TO_ASSET_ID,
   getCanonicalDriverMaster,
   getCanonicalAssetId,
+  auditCanonicalDriverPortraitMap,
 } from '@/lib/canonical-driver-database'
 import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import {
@@ -44,18 +45,38 @@ describe('Base Canônica de Pilotos 2026 & Catálogo de Fotos', () => {
     expect(hulkenberg?.resolvedPhotoPath).toBe('/pilotos/DRV_0068.jpg')
   })
 
-  it('cobre 134 IDs de fotos canônicas para todos os pilotos mbj', () => {
+  it('cobre 134 IDs de fotos canônicas para todos os pilotos mbj (com Tony Kanaan mbj-135 como null por design)', () => {
     const keys = Object.keys(CANONICAL_DRIVER_ID_TO_ASSET_ID)
     expect(keys.length).toBeGreaterThanOrEqual(134)
 
-    const assetSet = new Set(Object.values(CANONICAL_DRIVER_ID_TO_ASSET_ID))
+    const nonNullAssets = Object.values(CANONICAL_DRIVER_ID_TO_ASSET_ID).filter(
+      (v): v is string => v !== null,
+    )
+    const assetSet = new Set(nonNullAssets)
     expect(assetSet.size).toBe(134)
+    expect(CANONICAL_DRIVER_ID_TO_ASSET_ID['mbj-135']).toBeNull()
 
     for (let i = 1; i <= 134; i++) {
       const pad = String(i).padStart(4, '0')
       const assetId = `DRV_${pad}`
       expect(assetSet.has(assetId)).toBe(true)
     }
+  })
+
+  it('valida auditoria canônica auditCanonicalDriverPortraitMap com 134 fotos reais e 1 sem retrato por design (mbj-135)', () => {
+    const audit = auditCanonicalDriverPortraitMap()
+    expect(audit).toEqual({
+      canonicalDrivers: 135,
+      realPortraitMappings: 134,
+      driversWithoutPortraitByDesign: 1,
+      duplicateDriverIds: 0,
+      duplicateAssetIds: 0,
+      missingAssetIds: 0,
+      malformedAssetIds: 0,
+      unresolvedRealDrivers: 0,
+      externalRuntimeUrls: 0,
+      driversWithoutPortrait: ['mbj-135'],
+    })
   })
 
   it('resolveDriverPhoto resolve caminhos canônicos absolutos a partir de /pilotos/', () => {
@@ -70,16 +91,25 @@ describe('Base Canônica de Pilotos 2026 & Catálogo de Fotos', () => {
     expect(resHulk.assetId).toBe('DRV_0068')
 
     const resNorris = resolveDriverPhoto({ driverId: 'mbj-005' })
-    expect(resNorris.url).toBe('/pilotos/DRV_0005.jpg')
+    expect(resNorris.url).toBe('/pilotos/DRV_0019.jpg')
     expect(resNorris.sourceType).toBe('canonical_real')
+
+    const resPiastri = resolveDriverPhoto({ driverId: 'mbj-006' })
+    expect(resPiastri.url).toBe('/pilotos/DRV_0108.jpg')
+    expect(resPiastri.sourceType).toBe('canonical_real')
+    expect(resPiastri.assetId).toBe('DRV_0108')
+
+    const resKanaan = resolveDriverPhoto({ driverId: 'mbj-135' })
+    expect(resKanaan.url).toBeNull()
+    expect(resKanaan.sourceType).toBe('fallback_initials')
 
     const directAsset = resolveDriverPhoto({ portraitAssetId: 'DRV_0001' })
     expect(directAsset.url).toBe('/pilotos/DRV_0001.jpg')
     expect(directAsset.sourceType).toBe('canonical_real')
 
-    const resLeclerc = resolveDriverPhoto({ driverId: 'mbj-001' })
-    expect(resLeclerc.url).toBe('/pilotos/DRV_0001.jpg')
-    expect(resLeclerc.sourceType).toBe('canonical_real')
+    const resVerstappen = resolveDriverPhoto({ driverId: 'mbj-001' })
+    expect(resVerstappen.url).toBe('/pilotos/DRV_0022.jpg')
+    expect(resVerstappen.sourceType).toBe('canonical_real')
   })
 
   it('resolveDriverPhoto resolve pilotos procedurais para /pilotos-gerados/', () => {

@@ -15,7 +15,7 @@ export type CanonicalDriverRole = 'titular' | 'reserva' | 'academy' | 'free_agen
 
 export interface CanonicalDriverMaster {
   driverId: string // ex: 'mbj-020'
-  assetId: string // ex: 'DRV_0012'
+  assetId: string | null // ex: 'DRV_0012' ou null
   fullName: string // ex: 'Gabriel Bortoleto'
   shortName: string // ex: 'G. Bortoleto'
   slug: string // ex: 'gabriel-bortoleto'
@@ -34,7 +34,7 @@ export interface CanonicalDriverMaster {
     tireManagement?: number
     feedback?: number
   }
-  resolvedPhotoPath: string // '/pilotos/DRV_XXXX.jpg'
+  resolvedPhotoPath: string | null // '/pilotos/DRV_XXXX.jpg' ou null
   sourceMbjData?: any
 }
 
@@ -45,7 +45,7 @@ export interface CanonicalDriverMaster {
  * Demais pilotos mapeados canonicamente por seus IDs mbj-001..mbj-135
  * garantindo correlação 1:1, determinística e imutável.
  */
-export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string> = {
+export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   // Casos canônicos canônicos fixos obrigatórios
   'mbj-020': 'DRV_0012', // Gabriel Bortoleto
   drv_gabriel_bortoleto: 'DRV_0012',
@@ -62,7 +62,7 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string> = {
   drv_charles_leclerc: 'DRV_0047',
   'mbj-005': 'DRV_0019', // Lando Norris
   drv_lando_norris: 'DRV_0019',
-  'mbj-006': 'DRV_0006', // Oscar Piastri
+  'mbj-006': 'DRV_0108', // Oscar Piastri
   'mbj-007': 'DRV_0007', // George Russell
   'mbj-008': 'DRV_0008', // Andrea Kimi Antonelli
   'mbj-009': 'DRV_0009', // Fernando Alonso
@@ -196,7 +196,7 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string> = {
   'mbj-133': 'DRV_0133', // Megan Gilkes
   'mbj-134': 'DRV_0134', // Alexander Rossi / Helio Castroneves
   // 135º piloto histórico mapeado em caso de 135
-  'mbj-135': 'DRV_0134', // Tony Kanaan / Fallback seguro
+  'mbj-135': null, // Tony Kanaan / Fallback seguro
 }
 
 /**
@@ -234,8 +234,8 @@ function mapDriverRole(role?: string): CanonicalDriverRole {
  * Constrói o banco mestre canônico a partir de MBJ_DRIVERS e do mapeamento fixo
  */
 export const CANONICAL_DRIVERS_MASTER: CanonicalDriverMaster[] = MBJ_DRIVERS.map((driver) => {
-  const assetId = CANONICAL_DRIVER_ID_TO_ASSET_ID[driver.id] || 'DRV_0001'
-  const resolvedPhotoPath = `/pilotos/${assetId}.jpg`
+  const assetId = CANONICAL_DRIVER_ID_TO_ASSET_ID[driver.id] ?? null
+  const resolvedPhotoPath = assetId ? `/pilotos/${assetId}.jpg` : null
 
   return {
     driverId: driver.id,
@@ -274,7 +274,9 @@ export const CANONICAL_DRIVERS_BY_ID = new Map<string, CanonicalDriverMaster>(
  * Índice de busca rápida por assetId (O(1))
  */
 export const CANONICAL_DRIVERS_BY_ASSET_ID = new Map<string, CanonicalDriverMaster>(
-  CANONICAL_DRIVERS_MASTER.map((d) => [d.assetId, d]),
+  CANONICAL_DRIVERS_MASTER.filter(
+    (d): d is CanonicalDriverMaster & { assetId: string } => d.assetId !== null,
+  ).map((d) => [d.assetId, d]),
 )
 
 /**
@@ -325,13 +327,15 @@ export function auditDriverMasterData(): DriverMasterDataAuditReport {
     if (!item.driverId || !item.assetId) {
       invalid++
     }
-    if (!item.assetId.startsWith('DRV_')) {
+    if (item.assetId && !item.assetId.startsWith('DRV_')) {
       unresolved++
     }
-    if (assetIdsSeen.has(item.assetId)) {
-      duplicates++
-    } else {
-      assetIdsSeen.add(item.assetId)
+    if (item.assetId) {
+      if (assetIdsSeen.has(item.assetId)) {
+        duplicates++
+      } else {
+        assetIdsSeen.add(item.assetId)
+      }
     }
   }
 
@@ -436,40 +440,42 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'driver_lewis_hamilton',
     'drv_lewis_hamilton',
     'lewis_hamilton',
-    'mbj-002',
-    'drv_0006',
+    'mbj-003',
+    'drv_0104',
   ],
   driver_lewis_hamilton: [
     'hamilton',
     'drv_lewis_hamilton',
     'lewis_hamilton',
-    'mbj-002',
-    'drv_0006',
+    'mbj-003',
+    'drv_0104',
   ],
   // Leclerc
   leclerc: [
     'driver_charles_leclerc',
     'drv_charles_leclerc',
     'charles_leclerc',
-    'mbj-003',
+    'mbj-004',
     'drv_0047',
   ],
   driver_charles_leclerc: [
     'leclerc',
     'drv_charles_leclerc',
     'charles_leclerc',
-    'mbj-003',
+    'mbj-004',
     'drv_0047',
   ],
   // Norris
-  norris: ['driver_lando_norris', 'drv_lando_norris', 'lando_norris', 'mbj-004', 'drv_0019'],
-  driver_lando_norris: ['norris', 'drv_lando_norris', 'lando_norris', 'mbj-004', 'drv_0019'],
+  norris: ['driver_lando_norris', 'drv_lando_norris', 'lando_norris', 'mbj-005', 'drv_0019'],
+  driver_lando_norris: ['norris', 'drv_lando_norris', 'lando_norris', 'mbj-005', 'drv_0019'],
   // Piastri
-  piastri: ['driver_oscar_piastri', 'drv_oscar_piastri', 'oscar_piastri', 'mbj-005', 'drv_0010'],
-  driver_oscar_piastri: ['piastri', 'drv_oscar_piastri', 'oscar_piastri', 'mbj-005', 'drv_0010'],
+  piastri: ['driver_oscar_piastri', 'drv_oscar_piastri', 'oscar_piastri', 'mbj-006', 'drv_0108'],
+  driver_oscar_piastri: ['piastri', 'drv_oscar_piastri', 'oscar_piastri', 'mbj-006', 'drv_0108'],
+  drv_oscar_piastri: ['piastri', 'driver_oscar_piastri', 'mbj-006', 'drv_0108'],
+  oscar_piastri: ['piastri', 'driver_oscar_piastri', 'mbj-006', 'drv_0108'],
   // Russell
-  russell: ['driver_george_russell', 'drv_george_russell', 'george_russell', 'mbj-006', 'drv_0016'],
-  driver_george_russell: ['russell', 'drv_george_russell', 'george_russell', 'mbj-006', 'drv_0016'],
+  russell: ['driver_george_russell', 'drv_george_russell', 'george_russell', 'mbj-007', 'drv_0096'],
+  driver_george_russell: ['russell', 'drv_george_russell', 'george_russell', 'mbj-007', 'drv_0096'],
   // Sainz
   sainz: ['driver_carlos_sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-014', 'drv_0089'],
   driver_carlos_sainz: ['sainz', 'drv_carlos_sainz', 'carlos_sainz', 'mbj-014', 'drv_0089'],
@@ -478,15 +484,15 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'driver_fernando_alonso',
     'drv_fernando_alonso',
     'fernando_alonso',
-    'mbj-008',
-    'drv_0048',
+    'mbj-009',
+    'drv_0054',
   ],
   driver_fernando_alonso: [
     'alonso',
     'drv_fernando_alonso',
     'fernando_alonso',
-    'mbj-008',
-    'drv_0048',
+    'mbj-009',
+    'drv_0054',
   ],
 }
 
@@ -827,5 +833,79 @@ export function auditStartingGrid(params: {
     officialResultMatchesGrid,
     unresolvedIdentities,
     errors,
+  }
+}
+
+/**
+ * Auditoria do Mapeamento Canônico de Retratos de Pilotos
+ */
+export interface CanonicalDriverPortraitMapAuditReport {
+  canonicalDrivers: number
+  realPortraitMappings: number
+  driversWithoutPortraitByDesign: number
+  duplicateDriverIds: number
+  duplicateAssetIds: number
+  missingAssetIds: number
+  malformedAssetIds: number
+  unresolvedRealDrivers: number
+  externalRuntimeUrls: number
+  driversWithoutPortrait: string[]
+}
+
+export function auditCanonicalDriverPortraitMap(): CanonicalDriverPortraitMapAuditReport {
+  const canonicalDrivers = CANONICAL_DRIVERS_MASTER.length
+  let realPortraitMappings = 0
+  const driversWithoutPortrait: string[] = []
+  const seenDriverIds = new Set<string>()
+  const seenAssetIds = new Set<string>()
+  let duplicateDriverIds = 0
+  let duplicateAssetIds = 0
+  let missingAssetIds = 0
+  let malformedAssetIds = 0
+  let unresolvedRealDrivers = 0
+  let externalRuntimeUrls = 0
+
+  for (const driver of CANONICAL_DRIVERS_MASTER) {
+    if (seenDriverIds.has(driver.driverId)) {
+      duplicateDriverIds++
+    } else {
+      seenDriverIds.add(driver.driverId)
+    }
+
+    if (driver.assetId === null) {
+      driversWithoutPortrait.push(driver.driverId)
+    } else {
+      realPortraitMappings++
+      if (!driver.assetId.startsWith('DRV_') || driver.assetId.length !== 8) {
+        malformedAssetIds++
+      }
+      if (seenAssetIds.has(driver.assetId)) {
+        duplicateAssetIds++
+      } else {
+        seenAssetIds.add(driver.assetId)
+      }
+    }
+
+    if (driver.resolvedPhotoPath) {
+      if (
+        driver.resolvedPhotoPath.startsWith('http://') ||
+        driver.resolvedPhotoPath.startsWith('https://')
+      ) {
+        externalRuntimeUrls++
+      }
+    }
+  }
+
+  return {
+    canonicalDrivers,
+    realPortraitMappings,
+    driversWithoutPortraitByDesign: driversWithoutPortrait.length,
+    duplicateDriverIds,
+    duplicateAssetIds,
+    missingAssetIds,
+    malformedAssetIds,
+    unresolvedRealDrivers,
+    externalRuntimeUrls,
+    driversWithoutPortrait,
   }
 }
