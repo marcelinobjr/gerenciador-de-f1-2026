@@ -26,7 +26,7 @@ describe('PU-INTEGRATION-01: Canonical Power Unit Integration System (PUI-01..22
     }
   })
 
-  // PUI-01: Red Bull+Ford FACTORY max 1.00
+  // PUI-01: Red Bull+Ford FACTORY max 1.00 (Formal Homologation Check)
   it('PUI-01: Red Bull+Ford FACTORY max 1.00', () => {
     const meta = canonicalPowerUnitIntegrationService.getRelationshipMetadata('redbull')
     expect(meta.supplierId).toBe('Ford')
