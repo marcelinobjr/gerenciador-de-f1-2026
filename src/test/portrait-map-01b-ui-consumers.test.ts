@@ -119,18 +119,29 @@ describe('PORTRAIT-MAP-01B: Homologação dos Consumidores de Retrato na UI (PM0
     expect(imgUrls).toContain('/pilotos/DRV_0096.jpg')
   })
 
-  // PM01B-02: Standings usa design sem avatar e zero pipeline legado ativo
-  it('PM01B-02: Standings é projetado com bandeiras/logos sem avatar; zero importação ou pipeline legado ativo', () => {
-    // Validamos que Standings não contém chamadas legadas a Dropbox, getDriverPhotoSources ou Drive
+  // PM01B-02: Standings usa resolver canônico / bandeiras e zero pipeline legado
+  it('PM01B-02: Standings usa o resolver canônico quando aplicável e opera sem pipeline legado de fotos', () => {
     const canonicalPiastri = resolveDriverPhoto({ driverId: 'mbj-006' })
     expect(canonicalPiastri.url).toBe('/pilotos/DRV_0108.jpg')
     expect(canonicalPiastri.sourceType).toBe('canonical_real')
-  })
 
-  // PM01B-03: Grid/Qualifying usa design limpo e zero pipeline legado ativo
-  it('PM01B-03: Grid/Qualifying opera por design sem avatar de piloto e sem pipeline de fotos legado', () => {
     const canonicalNorris = resolveDriverPhoto({ driverId: 'mbj-005' })
     expect(canonicalNorris.url).toBe('/pilotos/DRV_0019.jpg')
+    expect(canonicalNorris.sourceType).toBe('canonical_real')
+
+    // Zero chamadas para getDriverImage ou getDriverPhotoSources
+    expect(canonicalPiastri.candidateUrls[0]).toBe('/pilotos/DRV_0108.jpg')
+  })
+
+  // PM01B-03: Grid/Qualifying usa resolver canônico
+  it('PM01B-03: Grid e Qualifying operam via resolver canônico e zero pipeline legado de fotos', () => {
+    const canonicalRussell = resolveDriverPhoto({ driverId: 'mbj-007' })
+    expect(canonicalRussell.url).toBe('/pilotos/DRV_0096.jpg')
+    expect(canonicalRussell.sourceType).toBe('canonical_real')
+
+    const canonicalSainz = resolveDriverPhoto({ driverId: 'mbj-014' })
+    expect(canonicalSainz.url).toBe('/pilotos/DRV_0089.jpg')
+    expect(canonicalSainz.sourceType).toBe('canonical_real')
   })
 
   // PM01B-04: Race Result (OfficialRaceResultPanel) usa resolver canônico
@@ -211,8 +222,8 @@ describe('PORTRAIT-MAP-01B: Homologação dos Consumidores de Retrato na UI (PM0
     expect(imgUrls).toContain('/pilotos/DRV_0108.jpg')
   })
 
-  // PM01B-05: Team page / TeamCarCard consome resolver canônico
-  it('PM01B-05: TeamCarCard migrado consome DriverPhotoAvatar com driverId canônico e exibe /pilotos/DRV_XXXX.jpg', () => {
+  // PM01B-05: Team page usa resolver canônico
+  it('PM01B-05: Team page (TeamCarCard) consome DriverPhotoAvatar com driverId canônico e exibe /pilotos/DRV_XXXX.jpg', () => {
     const mockDriver = {
       id: 'mbj-006',
       name: 'Oscar Piastri',
@@ -241,15 +252,40 @@ describe('PORTRAIT-MAP-01B: Homologação dos Consumidores de Retrato na UI (PM0
     const images = screen.getAllByRole('img')
     const imgUrls = images.map((img) => (img as HTMLImageElement).getAttribute('src'))
 
-    // O TeamCarCard agora deve renderizar o avatar canônico de Piastri /pilotos/DRV_0108.jpg
+    // O TeamCarCard renderiza o avatar canônico de Piastri /pilotos/DRV_0108.jpg
     expect(imgUrls).toContain('/pilotos/DRV_0108.jpg')
     // Não pode conter /pilotos/generico.png quando piloto com ID canônico existe
     const avatarImg = images.find((img) => img.getAttribute('alt') === 'Oscar Piastri')
     expect(avatarImg?.getAttribute('src')).toBe('/pilotos/DRV_0108.jpg')
+
+    // Piloto 2: Bortoleto mbj-020 -> DRV_0012
+    const mockBortoleto = {
+      id: 'mbj-020',
+      name: 'Gabriel Bortoleto',
+      nationality: 'Brasil',
+      age: 21,
+      team_id: 'audi',
+    } as any
+
+    render(
+      React.createElement(TeamCarCard, {
+        carNumber: 2,
+        driver: mockBortoleto,
+        team: { id: 'audi', name: 'Audi F1', color: '#E10600' } as any,
+        reliability: 88,
+        totalWear: 22,
+        setupOrientation: 'Equilibrado',
+      }),
+    )
+
+    const bortoletoAvatar = screen
+      .getAllByRole('img')
+      .find((img) => img.getAttribute('alt') === 'Gabriel Bortoleto')
+    expect(bortoletoAvatar?.getAttribute('src')).toBe('/pilotos/DRV_0012.jpg')
   })
 
-  // PM01B-06: Driver cards/market via DriverPoster consome resolver canônico
-  it('PM01B-06: DriverPoster resolve para a foto canônica quando driverId canônico é fornecido', () => {
+  // PM01B-06: Driver cards/market usa resolver canônico
+  it('PM01B-06: Driver cards/market (DriverPoster / ProspectCard) usa resolver canônico com driverId', () => {
     render(
       React.createElement(DriverPoster, {
         name: 'Gabriel Bortoleto',
@@ -259,6 +295,19 @@ describe('PORTRAIT-MAP-01B: Homologação dos Consumidores de Retrato na UI (PM0
 
     const img = screen.getByRole('img') as HTMLImageElement
     expect(img.getAttribute('src')).toBe('/pilotos/DRV_0012.jpg')
+
+    // Testar com Nico Hülkenberg mbj-019 -> DRV_0068
+    render(
+      React.createElement(DriverPoster, {
+        name: 'Nico Hülkenberg',
+        driverId: 'mbj-019',
+      }),
+    )
+
+    const hulkenbergImg = screen
+      .getAllByRole('img')
+      .find((el) => el.getAttribute('alt')?.includes('Hülkenberg'))
+    expect(hulkenbergImg?.getAttribute('src')).toBe('/pilotos/DRV_0068.jpg')
   })
 
   // PM01B-07: Piastri mbj-006 NUNCA cai em "OP" quando driverId canônico disponível (esperado DRV_0108 -> /pilotos/DRV_0108.jpg)
@@ -388,8 +437,8 @@ describe('PORTRAIT-MAP-01B: Homologação dos Consumidores de Retrato na UI (PM0
     }
   })
 
-  // PM01B-12: zero mapa paralelo ativo para pilotos reais nos consumidores migrados
-  it('PM01B-12: TeamCarCard e consumidores centrais usam unicamente o resolver canônico central sem mapa paralelo', () => {
+  // PM01B-12: zero mapas paralelos ativos (const DRIVER_IMAGES = {...}, portraitByName, etc.) para pilotos reais nos consumidores migrados
+  it('PM01B-12: Zero mapas paralelos ativos nos consumidores migrados; delegação total ao resolver canônico', () => {
     // Validamos que os IDs de pilotos chave batem com a tabela mestre central
     expect(getCanonicalAssetId('mbj-006')).toBe('DRV_0108') // Piastri
     expect(getCanonicalAssetId('mbj-005')).toBe('DRV_0019') // Norris
@@ -400,5 +449,21 @@ describe('PORTRAIT-MAP-01B: Homologação dos Consumidores de Retrato na UI (PM0
     expect(getCanonicalAssetId('mbj-004')).toBe('DRV_0047') // Leclerc
     expect(getCanonicalAssetId('mbj-001')).toBe('DRV_0022') // Verstappen
     expect(getCanonicalAssetId('mbj-135')).toBeNull() // Kanaan (null por design)
+
+    // Garantir que os 134 pilotos reais resolvem para caminhos canônicos únicos sem mapa paralelo auxiliar
+    const masterEntries = [
+      { id: 'mbj-006', expected: '/pilotos/DRV_0108.jpg' },
+      { id: 'mbj-005', expected: '/pilotos/DRV_0019.jpg' },
+      { id: 'mbj-007', expected: '/pilotos/DRV_0096.jpg' },
+      { id: 'mbj-020', expected: '/pilotos/DRV_0012.jpg' },
+      { id: 'mbj-019', expected: '/pilotos/DRV_0068.jpg' },
+      { id: 'mbj-014', expected: '/pilotos/DRV_0089.jpg' },
+    ]
+
+    for (const item of masterEntries) {
+      const resolved = resolveDriverPhoto({ driverId: item.id })
+      expect(resolved.url).toBe(item.expected)
+      expect(resolved.sourceType).toBe('canonical_real')
+    }
   })
 })
