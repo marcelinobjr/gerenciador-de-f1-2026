@@ -23,6 +23,7 @@ import { carTechnicalService } from '@/services/carTechnicalService'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
+import { raceStrategyService } from '@/services/raceStrategyService'
 import { CanonicalRaceState, CanonicalRaceDriverState } from '@/types/canonical-race-v2'
 
 export interface TeamBaselineStats {
@@ -284,6 +285,15 @@ export class TeamPerformanceBaselineAuditService {
 
     const drivers: CanonicalRaceDriverState[] = qualyResult.map((q) => {
       const t = teamLookup.get(q.teamKey)!
+      const carSlot = q.driverId.endsWith('_d1') ? 'car1' : 'car2'
+      const strat = raceStrategyService.createDefaultDriverStrategy({
+        driverId: q.driverId,
+        startingCompound: 'medio',
+        totalLaps,
+        carSlot,
+        stintPlanOffset: carSlot === 'car2' ? 6 : 0,
+      })
+
       return {
         careerId: 'baseline_audit_career',
         season: 2026,
@@ -305,37 +315,9 @@ export class TeamPerformanceBaselineAuditService {
         teamName: t.teamName,
         teamColor: t.color,
         isPlayer: false,
-        carId: q.driverId.endsWith('_d1') ? 'car1' : 'car2',
+        carId: carSlot,
         bestLapSec: q.lapTimeSec,
-        strategy: {
-          driverId: q.driverId,
-          assignedCar: q.driverId.endsWith('_d1') ? 'car1' : 'car2',
-          currentTyre: 'medio',
-          targetCompound: 'duro',
-          paceMode: 'NORMAL',
-          plannedStints: [
-            {
-              stintNumber: 1,
-              compound: 'medio',
-              startLap: 1,
-              targetLaps: Math.round(totalLaps * 0.45),
-            },
-            {
-              stintNumber: 2,
-              compound: 'duro',
-              startLap: Math.round(totalLaps * 0.45) + 1,
-              targetLaps: totalLaps,
-            },
-          ],
-          pitRequested: false,
-          pitExecuted: false,
-          pitStopCount: 0,
-          nextPitWindow: {
-            startLap: Math.max(1, Math.round(totalLaps * 0.45) - 3),
-            endLap: Math.min(totalLaps, Math.round(totalLaps * 0.45) + 3),
-            optimalLap: Math.round(totalLaps * 0.45),
-          },
-        },
+        strategy: strat,
       }
     })
 
@@ -403,8 +385,8 @@ export class TeamPerformanceBaselineAuditService {
     // Oficializar resultado via canonicalRaceResultService
     const officialResult = canonicalRaceResultService.officializeRace(finishedState)
 
-    // Mapear resultado para cada piloto
-    return officialResult.classification.map((entry) => {
+    // Mapear resultado para cada piloto a partir de officialResult.entries
+    return officialResult.entries.map((entry) => {
       const q = qualyResult.find((dr) => dr.driverId === entry.driverId)
       return {
         teamKey: entry.teamId,
@@ -413,7 +395,7 @@ export class TeamPerformanceBaselineAuditService {
         gridPosition: q?.gridPosition ?? entry.gridPosition,
         finishPosition: entry.finalPosition,
         points: entry.pointsAwarded,
-        isDnf: entry.status === 'dnf',
+        isDnf: entry.dnf,
         dnfReason: entry.dnfReason,
       }
     })
@@ -641,6 +623,42 @@ export class TeamPerformanceBaselineAuditService {
         : `DIVERGÊNCIA: As duas últimas posições médias divergem do Grupo D esperado.`,
     })
 
+    // Regra 6: Posição média do Grupo B (Racing Bulls, Alpine, Audi) deve ser intermediária
+    const groupBKeys = ['racingbulls', 'alpine', 'audi']
+    const groupBRanks = teamsStats
+      .map((t, idx) => ({ key: t.teamKey, rank: idx + 1 }))
+      .filter((t) => groupBKeys.includes(t.key))
+    const groupBAvgRank =
+      groupBRanks.reduce((acc, cur) => acc + cur.rank, 0) / (groupBRanks.length || 1)
+    findings.push({
+      rule: 'HIERARQUIA: Grupo B (Racing Bulls, Alpine, Audi) no pelotão intermediário superior',
+      status: groupBAvgRank >= 4.0 && groupBAvgRank <= 8.5 ? 'SATISFIED' : 'DIVERGENT',
+      actualValue: `Ranks do Grupo B: ${groupBRanks.map((g) => `${g.key} P${g.rank}`).join(', ')} (Média: ${groupBAvgRank.toFixed(1)})`,
+      expectedTarget: 'Ranks entre 5º e 8º construtor',
+      detail:
+        groupBAvgRank >= 4.0 && groupBAvgRank <= 8.5
+          ? 'Grupo B situado adequadamente no pelotão intermediário.'
+          : 'DIVERGÊNCIA: Deslocamento no pelotão intermediário do Grupo B.',
+    })
+
+    // Regra 7: Posição média do Grupo C (Haas, Williams, Aston Martin)
+    const groupCKeys = ['haas', 'williams', 'astonmartin']
+    const groupCRanks = teamsStats
+      .map((t, idx) => ({ key: t.teamKey, rank: idx + 1 }))
+      .filter((t) => groupCKeys.includes(t.key))
+    const groupCAvgRank =
+      groupCRanks.reduce((acc, cur) => acc + cur.rank, 0) / (groupCRanks.length || 1)
+    findings.push({
+      rule: 'HIERARQUIA: Grupo C (Haas, Williams, Aston Martin) no pelotão intermediário inferior',
+      status: groupCAvgRank >= 7.0 && groupCAvgRank <= 11.0 ? 'SATISFIED' : 'DIVERGENT',
+      actualValue: `Ranks do Grupo C: ${groupCRanks.map((g) => `${g.key} P${g.rank}`).join(', ')} (Média: ${groupCAvgRank.toFixed(1)})`,
+      expectedTarget: 'Ranks entre 7º e 10º construtor',
+      detail:
+        groupCAvgRank >= 7.0 && groupCAvgRank <= 11.0
+          ? 'Grupo C situado adequadamente no pelotão intermediário inferior.'
+          : 'DIVERGÊNCIA: Deslocamento no pelotão do Grupo C.',
+    })
+
     const summaryText =
       `FC02D FASE A — Relatório BEFORE de Baseline de Desempenho 2026\n` +
       `Simulações: ${qIters} Qualificações | ${rIters} Corridas (${totalRaceLaps} voltas) | Seed: ${seed}\n` +
@@ -648,7 +666,7 @@ export class TeamPerformanceBaselineAuditService {
       teamsStats
         .map(
           (t, i) =>
-            `${i + 1}. ${t.teamName.padEnd(22)} | Grid Méd: P${t.avgGridPosition.toString().padEnd(5)} | Corrida Méd: P${t.avgFinishPosition.toString().padEnd(5)} | Vitórias: ${t.winPercentage}% | Pontos/GP: ${t.avgPointsPerRace}`,
+            `${(i + 1).toString().padStart(2)}. ${t.teamName.padEnd(22)} | Grupo ${t.targetGroup} | Grid Méd: P${t.avgGridPosition.toFixed(2).padEnd(5)} | Corrida Méd: P${t.avgFinishPosition.toFixed(2).padEnd(5)} | Vitórias: ${t.winPercentage.toFixed(1)}% | Pódios: ${t.podiumPercentage.toFixed(1)}% | Pontos/GP: ${t.avgPointsPerRace.toFixed(1)}`,
         )
         .join('\n')
 

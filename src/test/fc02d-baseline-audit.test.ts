@@ -16,6 +16,7 @@ import {
   auditTeamPerformanceBaseline,
 } from '@/services/teamPerformanceBaselineAuditService'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
+import baselineBeforeData from '@/data/baseline-2026-before.json'
 
 describe('FC02D — FASE A: Auditoria e Medição do Baseline de Performance 2026', () => {
   // --------------------------------------------------------------------------
@@ -223,5 +224,54 @@ describe('FC02D — FASE A: Auditoria e Medição do Baseline de Performance 202
       'FC02D FASE A — Relatório BEFORE de Baseline de Desempenho 2026',
     )
     expect(report.summaryText).toContain('Ordem Média de Chegada')
+  })
+
+  // --------------------------------------------------------------------------
+  // FC02D-11: Arquivo canônico BEFORE gerado e persistido com 12 equipes
+  // --------------------------------------------------------------------------
+  it('FC02D-11: Arquivo canônico baseline-2026-before.json contém 12 equipes e relatório FASE_A_BEFORE', () => {
+    expect(baselineBeforeData).toBeDefined()
+    expect(baselineBeforeData.phase).toBe('FASE_A_BEFORE')
+    expect(baselineBeforeData.teamsCount).toBe(12)
+    expect(baselineBeforeData.totalDriversCount).toBe(24)
+    expect(baselineBeforeData.teamsStats).toHaveLength(12)
+    expect(baselineBeforeData.findings.length).toBeGreaterThanOrEqual(5)
+
+    const keys = baselineBeforeData.teamsStats.map((t: any) => t.teamKey)
+    OFFICIAL_GRID_TEAMS.forEach((t) => {
+      expect(keys).toContain(t.key)
+    })
+  })
+
+  // --------------------------------------------------------------------------
+  // FC02D-12: Análise e auditoria dos Gaps BEFORE vs Hierarquia Alvo 2026
+  // --------------------------------------------------------------------------
+  it('FC02D-12: Identificação de Gaps na tabela BEFORE sem aplicar alterações no baseline', () => {
+    expect(baselineBeforeData.targetHierarchy.groupA).toEqual([
+      'Mercedes',
+      'Ferrari',
+      'McLaren',
+      'Red Bull',
+    ])
+    expect(baselineBeforeData.targetHierarchy.groupB).toEqual(['Racing Bulls', 'Alpine', 'Audi'])
+    expect(baselineBeforeData.targetHierarchy.groupC).toEqual(['Haas', 'Williams', 'Aston Martin'])
+    expect(baselineBeforeData.targetHierarchy.groupD).toEqual(['Cadillac', 'Andretti'])
+
+    // Williams e Andretti não podem ter ritmo médio de top-3
+    const williamsFinding = baselineBeforeData.findings.find((f: any) =>
+      f.rule.includes('Williams NÃO pode ter ritmo médio de top-3'),
+    )
+    const andrettiFinding = baselineBeforeData.findings.find((f: any) =>
+      f.rule.includes('Andretti NÃO pode ter ritmo médio de top-3'),
+    )
+    expect(williamsFinding?.status).toBe('SATISFIED')
+    expect(andrettiFinding?.status).toBe('SATISFIED')
+
+    // Audi vs Haas: registrar status atual (observacional para Fase B futura)
+    const audiHaasFinding = baselineBeforeData.findings.find((f: any) =>
+      f.rule.includes('Audi > Haas'),
+    )
+    expect(audiHaasFinding).toBeDefined()
+    expect(typeof audiHaasFinding.detail).toBe('string')
   })
 })
