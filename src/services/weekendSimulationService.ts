@@ -40,6 +40,12 @@ import { financialLedgerService } from '@/services/financialLedgerService'
 import { f1Service } from '@/services/f1Service'
 import { calculateStandings } from '@/services/standingsService'
 import { resolveCanonicalDriverId } from '@/lib/canonical-driver-database'
+import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
+import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
+import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
+import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-types'
 import type {
   WeekendSimulationRun,
   WeekendSummaryReport,
@@ -693,7 +699,18 @@ export class WeekendSimulationService {
   }
 
   /**
-   * Simulação canônica da corrida com decisões autônomas da IA do Pit Wall
+   * Simulação canônica da corrida como Adapter da engine canônica (BUG-07A)
+   *
+   * Regras esportivas e de integridade:
+   * 1. Preserva a assinatura pública atual para compatibilidade integral com RaceSlim / RaceSlimWrapper.
+   * 2. Converte qualyGrid em grid canônico de 24 posições (FinalQualifyingGridEntry).
+   * 3. Inicializa via canonicalRaceInitializationService.initializeRaceFromCanonicalGrid.
+   * 4. Avança todas as voltas via canonicalRaceEngineService.advanceMultipleLaps.
+   * 5. Oficializa a prova via canonicalRaceResultService.officializeRace (produz OfficialRaceResult imutável).
+   * 6. Se contexto de carreira disponível, persiste via canonicalCareerPersistenceService.
+   * 7. Mapeia o resultado canônico de volta para o formato esperado pelos callers (SimDriverEntry[]).
+   * 8. Remove por completo scores locais (24 - qPos) * 1.5, gridTrafficDelaySec, executionVarianceSec,
+   *    stints sintéticos manuais e ordenações locais arbitrárias.
    */
   private async simulateRaceSessionCanonical(params: {
     team: TeamModel
@@ -713,48 +730,15 @@ export class WeekendSimulationService {
     const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
     const aiRivals = getAICompetitors(team?.team_key, isCustomTeam)
     const titulars = drivers.filter((d) => d.team_id === team.id && d.role !== 'reserva')
-    const totalLaps = gpMeta.laps || 55
+    const totalLaps = Math.max(1, gpMeta.laps || 55)
     const abrasiveness = gpMeta.tireAbrasiveness || 6
 
     const radioHighlights: RadioHighlight[] = []
     const strategicDecisions: string[] = []
     const incidents: string[] = []
 
-    // 1. Resolução canônica de circuito para a corrida simulada (Fase 1B.3 Canônica)
+    // 1. Resolução canônica de circuito para a corrida simulada
     const circuitProfile = resolveCircuitProfile({ round: currentRound })
-
-    // 2. Pré-computação técnica canônica do jogador
-    const playerContext = this.resolveCanonicalTeamTechnicalContext({
-      teamId: team.id,
-      isPlayer: true,
-      teamModel: team,
-    })
-
-    // 3. Pré-computação técnica canônica para cada equipe rival IA
-    const aiTechMap = new Map<
-      string,
-      {
-        techAttributes: any
-        chassisRating: number
-        puRating: number
-        carPerfRating: number
-        engineSupplier: string
-      }
-    >()
-
-    aiRivals.forEach((ai) => {
-      const ctx = this.resolveCanonicalTeamTechnicalContext({
-        teamId: ai.id,
-        isPlayer: false,
-        aiCompetitor: ai,
-      })
-      aiTechMap.set(ai.id, ctx)
-      const cleanKey = ai.id.replace('team_ai_', '').replace('ai_', '')
-      aiTechMap.set(cleanKey, ctx)
-    })
-
-    // Montar grid de 24 pilotos com atributos e Track Fit canônicos
-    const fullGrid: SimDriverEntry[] = []
 
     // Helper de resolução de posição canônica de qualificação sem fallbacks esportivos fictícios
     const resolveDriverQualyPos = (
@@ -780,324 +764,209 @@ export class WeekendSimulationService {
       )
     }
 
-    // 1. Pilotos do jogador
-    titulars.forEach((d, idx) => {
-      const qPos = resolveDriverQualyPos(d.id, d.name, team.id, idx === 0 ? 'car1' : 'car2')
-      const wearProf = calculateDriverTireWearProfile(d)
+    // 2. Montar grid canônico (24 entradas, FinalQualifyingGridEntry) respeitando estritamente BUG-04
+    interface IntermediateGridDraft {
+      driverId: string
+      driverName: string
+      teamId: string
+      teamName: string
+      teamColor: string
+      isPlayer: boolean
+      carId?: 'car1' | 'car2'
+      gridPosition: number
+      bestLapSec: number
+      bestLapTime: string
+      bestLapCompound: 'macio' | 'medio' | 'duro'
+    }
 
-      fullGrid.push({
+    const gridDrafts: IntermediateGridDraft[] = []
+
+    // 2.1 Pilotos do jogador (2 titulares)
+    titulars.forEach((d, idx) => {
+      const seat = idx === 0 ? 'car1' : 'car2'
+      const qPos = resolveDriverQualyPos(d.id, d.name, team.id, seat)
+      const qItem = resolveCanonicalDriverId(d.id, qualyGrid, d.name)
+      gridDrafts.push({
         driverId: d.id,
         driverName: d.name,
         teamId: team.id,
         teamName: team.name,
         teamColor: team.color || '#E10600',
         isPlayer: true,
-        score: (24 - qPos) * 1.5,
-        position: qPos,
+        carId: seat,
         gridPosition: qPos,
-        points: 0,
-        fastestLap: false,
-        usedOvertake: false,
-        dnf: false,
-        totalTime: '',
-        accumulatedTimeSec: 0,
-        lapsCompleted: totalLaps,
-        tireCompound: 'medio',
-        secondCompound: 'duro',
-        pitLap: Math.round(totalLaps * 0.45),
-        tireWear: 5,
-        pitStopsDone: 1,
-        wearMultiplier: wearProf.multiplier,
-        morale: d.morale ?? 80,
-        physicalCondition: d.physical_condition ?? 90,
+        bestLapSec: 80.0 + qPos * 0.08,
+        bestLapTime: qItem?.lapTime || `1:20.${String(qPos).padStart(3, '0')}`,
+        bestLapCompound: 'macio',
       })
     })
 
-    // 2. Pilotos rivais
+    // 2.2 Pilotos rivais da IA
     aiRivals.forEach((ai) => {
       const d1Id = `${ai.id}_d1`
       const d2Id = `${ai.id}_d2`
       const qPos1 = resolveDriverQualyPos(d1Id, ai.driver1.name, ai.id, 'car1')
       const qPos2 = resolveDriverQualyPos(d2Id, ai.driver2.name, ai.id, 'car2')
+      const qItem1 = resolveCanonicalDriverId(d1Id, qualyGrid, ai.driver1.name)
+      const qItem2 = resolveCanonicalDriverId(d2Id, qualyGrid, ai.driver2.name)
 
-      fullGrid.push({
+      gridDrafts.push({
         driverId: d1Id,
         driverName: ai.driver1.name,
         teamId: ai.id,
         teamName: ai.name,
         teamColor: ai.color,
         isPlayer: false,
-        score: (24 - qPos1) * 1.5,
-        position: qPos1,
+        carId: 'car1',
         gridPosition: qPos1,
-        points: 0,
-        fastestLap: false,
-        usedOvertake: false,
-        dnf: false,
-        totalTime: '',
-        accumulatedTimeSec: 0,
-        lapsCompleted: totalLaps,
-        tireCompound: 'medio',
-        secondCompound: 'duro',
-        pitLap: Math.round(totalLaps * 0.43),
-        tireWear: 5,
-        pitStopsDone: 1,
-        wearMultiplier: 1.0,
-        morale: 80,
-        physicalCondition: 90,
+        bestLapSec: 80.0 + qPos1 * 0.08,
+        bestLapTime: qItem1?.lapTime || `1:20.${String(qPos1).padStart(3, '0')}`,
+        bestLapCompound: 'macio',
       })
 
-      fullGrid.push({
+      gridDrafts.push({
         driverId: d2Id,
         driverName: ai.driver2.name,
         teamId: ai.id,
         teamName: ai.name,
         teamColor: ai.color,
         isPlayer: false,
-        score: (24 - qPos2) * 1.5,
-        position: qPos2,
+        carId: 'car2',
         gridPosition: qPos2,
-        points: 0,
-        fastestLap: false,
-        usedOvertake: false,
-        dnf: false,
-        totalTime: '',
-        accumulatedTimeSec: 0,
-        lapsCompleted: totalLaps,
-        tireCompound: 'macio',
-        secondCompound: 'duro',
-        pitLap: Math.round(totalLaps * 0.38),
-        tireWear: 5,
-        pitStopsDone: 1,
-        wearMultiplier: 1.05,
-        morale: 80,
-        physicalCondition: 90,
+        bestLapSec: 80.0 + qPos2 * 0.08,
+        bestLapTime: qItem2?.lapTime || `1:20.${String(qPos2).padStart(3, '0')}`,
+        bestLapCompound: 'macio',
       })
     })
 
-    // SIMULAÇÃO DE CORRIDA NA FUNDAÇÃO FÍSICA CANÔNICA
-    // Cálculo do tempo de prova baseado em stints representativos com calculateFreeLapPaceSec:
-    // Stint 1 (largada até pitLap), Pit Stop, Stint 2 (pitLap até bandeirada)
-    // A posição de largada introduz apenas atraso de grid/largada/tráfego no primeiro stint (+0.08s por posição),
-    // NUNCA como multiplicador sintético de ritmo base do carro.
-    fullGrid.forEach((car) => {
-      const isPlayer = car.isPlayer
-      const context = isPlayer
-        ? playerContext
-        : aiTechMap.get(car.teamId) ||
-          aiTechMap.get(car.teamId.replace('team_ai_', '').replace('ai_', '')) ||
-          playerContext
+    // Ordenar estritamente por gridPosition P1..P24 (BUG-04 é autoridade)
+    gridDrafts.sort((a, b) => a.gridPosition - b.gridPosition)
 
-      // Piloto original para atributos completos quando for do jogador
-      const playerDrv = isPlayer ? titulars.find((d) => d.id === car.driverId) : null
-      const driverObj = {
-        speed: playerDrv?.speed ?? (isPlayer ? 85 : 82),
-        consistency: playerDrv?.consistency ?? 82,
-        defense: playerDrv?.defense ?? 82,
-        morale: car.morale ?? 80,
-        physicalCondition: car.physicalCondition ?? 90,
+    const canonicalQualifyingGrid: FinalQualifyingGridEntry[] = gridDrafts.map((draft) => ({
+      gridPosition: draft.gridPosition,
+      driverId: draft.driverId,
+      driverName: draft.driverName,
+      teamId: draft.teamId,
+      teamName: draft.teamName,
+      teamColor: draft.teamColor,
+      isPlayer: draft.isPlayer,
+      carId: draft.carId,
+      eliminationStage: draft.gridPosition <= 10 ? 'Q3' : draft.gridPosition <= 18 ? 'Q2' : 'Q1',
+      bestLapSec: draft.bestLapSec,
+      bestLapTime: draft.bestLapTime,
+      bestLapCompound: draft.bestLapCompound,
+    }))
+
+    // 3. Inicializar corrida na engine canônica
+    const careerId = resolveCanonicalCareerId(season, team)
+    const seasonNumber = season.year || 2026
+
+    const initialRaceState = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId,
+      season: seasonNumber,
+      round: currentRound,
+      circuitName: gpMeta.name || circuitProfile.circuitName || 'Circuito Oficial',
+      circuitCountry: (gpMeta as any).country || 'Internacional',
+      totalLaps,
+      playerTeamId: team.id,
+      canonicalQualifyingGrid,
+      weather: 'seco',
+    })
+
+    // 4. Avançar todas as voltas via canonicalRaceEngineService
+    const finishedRaceState = canonicalRaceEngineService.advanceMultipleLaps(
+      initialRaceState,
+      totalLaps,
+      {
+        tireAbrasiveness: abrasiveness,
+      },
+    )
+
+    // 5. Oficializar a corrida via canonicalRaceResultService (gera OfficialRaceResult imutável)
+    const officialResult = canonicalRaceResultService.officializeRace(finishedRaceState)
+
+    // 6. Se o contexto de carreira estiver disponível ali, registrar via canonicalCareerPersistenceService
+    try {
+      if (careerId && careerId !== 'default_career') {
+        canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(officialResult)
       }
+    } catch (careerErr) {
+      console.warn('[simulateRaceSessionCanonical] Aviso ao registrar na carreira:', careerErr)
+    }
 
-      // Stint 1: composto inicial
-      const stint1Laps = car.pitLap || Math.round(totalLaps * 0.45)
-      // Amostra início do stint 1 (pneu novo, lap 2)
-      const paceS1_start = calculateFreeLapPaceSec({
-        teamStrength: context.chassisRating,
-        carLevel: context.chassisRating,
-        driver: driverObj,
-        weather: 'seco',
-        tireCompound: (car.tireCompound || 'medio') as any,
-        lapsOnTire: 2,
-        wearPercent: 8,
-        wearMultiplier: car.wearMultiplier || 1.0,
-        trackAbrasiveness: abrasiveness,
-        trackTemp: 35,
-        technicalAttributes: context.techAttributes,
-        circuit: circuitProfile,
-        chassisRating: context.chassisRating,
-        powerUnitRating: context.puRating,
-        carPerformanceRating: context.carPerfRating,
-        noise: 0,
+    // 7. Extrair eventos, decisões estratégicas e rádio dos logs canônicos
+    if (officialResult.eventsSummary?.significantIncidents) {
+      officialResult.eventsSummary.significantIncidents.forEach((inc) => {
+        if (inc.type === 'dnf' || inc.type === 'safety_car' || inc.type === 'red_flag') {
+          incidents.push(`Volta ${inc.lap}: ${inc.message}`)
+        }
       })
+    }
 
-      // Amostra fim do stint 1 (desgaste acumulado)
-      const wearS1End = Math.min(80, Math.round(stint1Laps * 2.2 * (car.wearMultiplier || 1.0)))
-      const paceS1_end = calculateFreeLapPaceSec({
-        teamStrength: context.chassisRating,
-        carLevel: context.chassisRating,
-        driver: driverObj,
-        weather: 'seco',
-        tireCompound: (car.tireCompound || 'medio') as any,
-        lapsOnTire: stint1Laps,
-        wearPercent: wearS1End,
-        wearMultiplier: car.wearMultiplier || 1.0,
-        trackAbrasiveness: abrasiveness,
-        trackTemp: 35,
-        technicalAttributes: context.techAttributes,
-        circuit: circuitProfile,
-        chassisRating: context.chassisRating,
-        powerUnitRating: context.puRating,
-        carPerformanceRating: context.carPerfRating,
-        noise: 0,
-      })
-
-      const avgS1Pace = (paceS1_start.freeLapSec + paceS1_end.freeLapSec) / 2
-      const timeStint1 = avgS1Pace * stint1Laps
-
-      // Pit Stop duration (~22.0s)
-      const pitLossSec = 22.0 + (Math.random() * 0.6 - 0.3)
-
-      // Stint 2: composto secundário (geralmente duro)
-      const stint2Laps = totalLaps - stint1Laps
-      const paceS2_start = calculateFreeLapPaceSec({
-        teamStrength: context.chassisRating,
-        carLevel: context.chassisRating,
-        driver: driverObj,
-        weather: 'seco',
-        tireCompound: (car.secondCompound || 'duro') as any,
-        lapsOnTire: 2,
-        wearPercent: 5,
-        wearMultiplier: car.wearMultiplier || 1.0,
-        trackAbrasiveness: abrasiveness,
-        trackTemp: 35,
-        technicalAttributes: context.techAttributes,
-        circuit: circuitProfile,
-        chassisRating: context.chassisRating,
-        powerUnitRating: context.puRating,
-        carPerformanceRating: context.carPerfRating,
-        noise: 0,
-      })
-
-      const wearS2End = Math.min(85, Math.round(stint2Laps * 1.8 * (car.wearMultiplier || 1.0)))
-      const paceS2_end = calculateFreeLapPaceSec({
-        teamStrength: context.chassisRating,
-        carLevel: context.chassisRating,
-        driver: driverObj,
-        weather: 'seco',
-        tireCompound: (car.secondCompound || 'duro') as any,
-        lapsOnTire: stint2Laps,
-        wearPercent: wearS2End,
-        wearMultiplier: car.wearMultiplier || 1.0,
-        trackAbrasiveness: abrasiveness,
-        trackTemp: 35,
-        technicalAttributes: context.techAttributes,
-        circuit: circuitProfile,
-        chassisRating: context.chassisRating,
-        powerUnitRating: context.puRating,
-        carPerformanceRating: context.carPerfRating,
-        noise: 0,
-      })
-
-      const avgS2Pace = (paceS2_start.freeLapSec + paceS2_end.freeLapSec) / 2
-      const timeStint2 = avgS2Pace * stint2Laps
-
-      // Efeito tático de tráfego/largada da qualificação: carros largando atrás perdem tempo residual na largada e ar sujo
-      const gridTrafficDelaySec = Math.max(0, (car.position - 1) * 0.08)
-
-      // Variação de execução/RNG sobre a baseline canônica (±0.4s no total da corrida)
-      const executionVarianceSec = (Math.random() - 0.5) * 0.8
-
-      car.accumulatedTimeSec = Number(
-        (timeStint1 + pitLossSec + timeStint2 + gridTrafficDelaySec + executionVarianceSec).toFixed(
-          3,
-        ),
-      )
-    })
-
-    // Simulação volta a volta simplificada com os mesmos cálculos do LiveRace
-    // 5% de chance de incidente em pista
-    const hasDnf = Math.random() < 0.25
-    if (hasDnf) {
-      const victim = fullGrid[Math.floor(Math.random() * fullGrid.length)]
-      victim.dnf = true
-      victim.dnfLap = Math.round(totalLaps * 0.6)
-      victim.lapsCompleted = victim.dnfLap
-      victim.totalTime = 'ABANDONO (Falha Mecânica)'
-      incidents.push(
-        `Volta ${victim.dnfLap}: Abandono de ${victim.driverName} (${victim.teamName}) por problema no motor.`,
+    strategicDecisions.push(
+      `GP finalizado via Canonical Race Engine. Vencedor: ${officialResult.winnerDriverId} com ${officialResult.totalLaps} voltas.`,
+    )
+    if (officialResult.poleDriverId) {
+      strategicDecisions.push(
+        `Pole position confirmada pelo grid oficial: ${officialResult.poleDriverId}.`,
       )
     }
 
-    // Interações de Rádio e Team Orders da IA do Pit Wall durante a simulação
+    // Interações de Rádio e Team Orders da IA do Pit Wall durante a simulação (preservadas para a UI)
     if (titulars.length >= 2) {
       const d1 = titulars[0]
       const d2 = titulars[1]
-      const g1 = fullGrid.find((g) => g.driverId === d1.id)
-      const g2 = fullGrid.find((g) => g.driverId === d2.id)
+      const r1 = officialResult.entries.find((e) => e.driverId === d1.id)
+      const r2 = officialResult.entries.find((e) => e.driverId === d2.id)
 
-      if (g1 && g2 && !g1.dnf && !g2.dnf) {
-        // Se um piloto estiver imediatamente atrás do companheiro com ritmo superior
-        const orderResult = driverRaceInteractionService.evaluateTeamOrder(
-          {
-            orderId: `ord_sim_${Date.now()}`,
-            orderType: 'ceder_posicao' as any,
-            targetDriverId: g2.driverId,
-            teammateId: g1.driverId,
-            reason: 'ritmo_superior' as any,
-            lap: Math.round(totalLaps * 0.5),
-            round: currentRound,
-            season: season.year || 2026,
-          },
-          {
-            driverId: g2.driverId,
-            driverName: g2.driverName,
-            teamId: team.id,
-            teamName: team.name,
-            isPlayerTeam: true,
-            round: currentRound,
-            season: season.year || 2026,
-            circuitId: gpMeta.name,
-            currentLap: Math.round(totalLaps * 0.5),
-            totalLaps,
-            position: g2.position,
-            gridTotal: 24,
-            tireCompound: g2.tireCompound || 'medio',
-            tireWear: 55,
-            isInCliff: false,
-            weatherState: 'seco',
-          },
-          d2,
-          team,
-          d1,
-        )
-
+      if (r1 && r2 && !r1.dnf && !r2.dnf) {
         radioHighlights.push({
           id: `rad_sim_${Date.now()}`,
           lap: Math.round(totalLaps * 0.5),
-          driverName: g2.driverName,
+          driverName: r2.driverName,
           teamName: team.name,
           teamColor: team.color || '#E10600',
           type: 'team_order',
-          radioText: `Pit Wall: "Troca de posições autorizada para favorecer a estratégia da equipe."`,
-          reactionText: `${g2.driverName}: "${orderResult.radioMessageText}" (${orderResult.reactionType})`,
+          radioText: `Pit Wall: "Estratégia canônica executada com sucesso para ambos os carros."`,
+          reactionText: `${r2.driverName}: "Entendido, focando na bandeirada." (aceite)`,
         })
-
-        strategicDecisions.push(
-          `Volta ${Math.round(totalLaps * 0.5)}: Pit Wall emitiu ordem de equipe para ${g2.driverName} ceder posição. Reação: ${orderResult.reactionType}.`,
-        )
       }
     }
 
-    // Ordenação final por tempo/laps
-    const active = fullGrid.filter((g) => !g.dnf)
-    active.sort((a, b) => (a.accumulatedTimeSec || 0) - (b.accumulatedTimeSec || 0))
-    const dnfs = fullGrid.filter((g) => g.dnf)
-    dnfs.sort((a, b) => (b.lapsCompleted || 0) - (a.lapsCompleted || 0))
+    // 8. Mapear o resultado canônico oficial de volta para o formato que os callers esperam (SimDriverEntry[])
+    const finalGrid: SimDriverEntry[] = officialResult.entries.map((entry) => {
+      const draft = gridDrafts.find((d) => d.driverId === entry.driverId)
+      const playerDrv = entry.isPlayer ? titulars.find((d) => d.id === entry.driverId) : undefined
 
-    const finalGrid = [...active, ...dnfs]
-    const pointsTable = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-
-    finalGrid.forEach((entry, idx) => {
-      entry.position = idx + 1
-      entry.points = !entry.dnf && idx < pointsTable.length ? pointsTable[idx] : 0
-      if (!entry.dnf) {
-        entry.totalTime = idx === 0 ? '1h 28m 42.100s' : `+${(idx * 2.8).toFixed(3)}s`
+      return {
+        driverId: entry.driverId,
+        driverName: entry.driverName,
+        teamId: entry.teamId,
+        teamName: entry.teamName,
+        teamColor: entry.teamColor,
+        isPlayer: entry.isPlayer,
+        score: playerDrv?.speed ?? 80,
+        position: entry.finalPosition,
+        gridPosition: entry.gridPosition,
+        points: entry.pointsAwarded,
+        fastestLap: entry.fastestLap,
+        usedOvertake: false,
+        dnf: entry.dnf,
+        dnfReason: entry.dnfReason,
+        dnfLap: entry.dnfLap,
+        totalTime: entry.gapToWinner,
+        accumulatedTimeSec: entry.raceTime,
+        lapsCompleted: entry.lapsCompleted,
+        tireCompound: entry.tyreCompound || 'duro',
+        secondCompound: 'duro',
+        pitLap: Math.round(totalLaps * 0.45),
+        tireWear: 15,
+        pitStopsDone: entry.pitStops,
+        wearMultiplier: 1.0,
+        morale: playerDrv?.morale ?? 80,
+        physicalCondition: playerDrv?.physical_condition ?? 90,
       }
     })
-
-    if (active.length > 0) {
-      active[0].fastestLap = true
-    }
 
     return {
       finalGrid,
