@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { DriverPoster } from '@/components/DriverPoster'
 import { getCountryFlag } from '@/lib/country-flags'
 import { checkEligibility, getOverallRating, getDriverCareerStats } from '@/lib/mbj-drivers-data'
+import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import pb from '@/lib/pocketbase/client'
 import {
   GraduationCap,
@@ -192,6 +193,11 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
     })
   }, [pilot])
 
+  // Canonical homologation view do adapter unificado (incondicional no topo)
+  const canonicalView = React.useMemo(() => {
+    return canonicalHomologationAdapter.toCanonicalView(pilot as any)
+  }, [pilot])
+
   if (!pilot || !psychAudit) return null
 
   const ovr = getOverallRating(pilot)
@@ -202,14 +208,21 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   const canonicalTraits = psychAudit.personalityTraits
   const descriptors = getPersonalityDescriptors(canonicalTraits)
 
-  // Sistema de Homologação FIA
+  // Sistema de Homologação FIA: titular oficial do grid F1 2026 nunca está em homologação pendente
   const rawHomologationStatus =
     (pilot as any).rawDbRecord?.homologation_status || pilot.eligibilityStatus
   const homologationSessions = (pilot as any).rawDbRecord?.homologation_sessions_done ?? 0
+  const isStarterF1 =
+    canonicalView.isEligibleForF1Seat ||
+    ((pilot.role ?? '').toLowerCase() === 'titular' &&
+      ((pilot.category ?? '').toLowerCase() === 'f1' || !pilot.category))
   const isHomologation =
-    rawHomologationStatus === 'homologacao' ||
-    eligibility.status === 'homologacao' ||
-    ((pilot.f1RacesCompleted ?? 0) === 0 && (pilot.superlicensePoints ?? 0) < 40 && pilot.age >= 18)
+    !isStarterF1 &&
+    (rawHomologationStatus === 'homologacao' ||
+      eligibility.status === 'homologacao' ||
+      ((pilot.f1RacesCompleted ?? 0) === 0 &&
+        (pilot.superlicensePoints ?? 0) < 40 &&
+        pilot.age >= 18))
 
   // Atributos P: Faixas parciais (ex.: 92-95) a menos que seja da equipe do usuário (V)
   const getAttrDisplay = (value: number) => {
@@ -361,9 +374,10 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
     pilot.teamName !== 'Agente Livre (Sem equipe)',
   )
   const currentTeamDisplay = hasTeam ? pilot.teamName : 'Agente Livre'
+  const effectiveContractEnd = pilot.contractEnd ?? (pilot as any).contract_end
   const contractTermDisplay =
-    hasTeam && pilot.contractEnd && pilot.contractEnd >= 2026
-      ? `Até o fim de ${pilot.contractEnd}`
+    hasTeam && effectiveContractEnd && effectiveContractEnd >= 2026
+      ? `Até o fim de ${effectiveContractEnd}`
       : 'Sem vínculo vigente'
 
   const canonicalContract =
@@ -1069,7 +1083,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                     className="font-mono text-[10px] border-zinc-700 text-zinc-300"
                   >
                     {canonicalContract?.role ||
-                      (pilot.role === 'titular' ? 'EQUAL_STATUS' : 'RESERVE')}
+                      ((pilot.role ?? '').toLowerCase() === 'titular' ? 'EQUAL_STATUS' : 'RESERVE')}
                   </Badge>
                 </div>
                 {pilot.exitClauseUsd && (
@@ -1134,11 +1148,11 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                       variant="outline"
                       className="border-indigo-700 text-indigo-200 text-[9px]"
                     >
-                      {pilot.speed >= 85
+                      {canonicalView.licenseStatus === 'nivel_a'
                         ? 'Licença A (Super Licença)'
-                        : pilot.speed >= 75
-                          ? 'Licença B (Provisória)'
-                          : 'Licença C (Autorização)'}
+                        : canonicalView.licenseStatus === 'nivel_b'
+                          ? 'Licença B'
+                          : 'Licença C'}
                     </Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-800">
@@ -1163,7 +1177,11 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                     <div>
                       <span className="text-slate-400 block">Status Regulamentar:</span>
                       <strong className="text-emerald-400">
-                        {pilot.speed >= 85 ? 'Super Licença' : 'Licença Provisória'}
+                        {canonicalView.licenseStatus === 'nivel_a'
+                          ? 'Super Licença'
+                          : canonicalView.licenseStatus === 'nivel_b'
+                            ? 'Licença Provisória'
+                            : 'Licença em Formação'}
                       </strong>
                     </div>
                   </div>

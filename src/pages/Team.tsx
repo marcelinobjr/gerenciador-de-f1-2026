@@ -1352,9 +1352,10 @@ export default function TeamPage() {
                       setSelectedPilotForProfile({
                         ...d1,
                         teamName,
-                        role: 'Titular',
+                        role: 'titular',
                         isPlayerDriver: true,
                         salaryUsd: (d1 as any).salary ?? (d1 as any).salaryUsd,
+                        contractEnd: d1.contract_end ?? (d1 as any).contractEnd,
                       })
                       setIsPilotProfileModalOpen(true)
                     }}
@@ -1367,7 +1368,7 @@ export default function TeamPage() {
             <div className="flex flex-col min-w-[300px] h-full">
               {(() => {
                 const d2 = titularDrivers[1] || {
-                  id: 'bortoleto-fallback',
+                  id: 'mbj-020',
                   name: 'Gabriel Bortoleto',
                   nationality: 'Brasil',
                   speed: 82,
@@ -1417,9 +1418,10 @@ export default function TeamPage() {
                       setSelectedPilotForProfile({
                         ...d2,
                         teamName,
-                        role: 'Titular',
+                        role: 'titular',
                         isPlayerDriver: true,
                         salaryUsd: (d2 as any).salary ?? (d2 as any).salaryUsd,
+                        contractEnd: d2.contract_end ?? (d2 as any).contractEnd,
                       })
                       setIsPilotProfileModalOpen(true)
                     }}
@@ -1623,9 +1625,10 @@ export default function TeamPage() {
                             setSelectedPilotForProfile({
                               ...d,
                               teamName,
-                              role: 'Titular',
+                              role: 'titular',
                               isPlayerDriver: true,
                               salaryUsd: d.salary,
+                              contractEnd: d.contract_end ?? (d as any).contractEnd,
                             })
                             setIsPilotProfileModalOpen(true)
                           }}
@@ -1716,9 +1719,10 @@ export default function TeamPage() {
                             setSelectedPilotForProfile({
                               ...rd,
                               teamName,
-                              role: 'Reserva',
+                              role: 'reserva',
                               isPlayerDriver: true,
                               salaryUsd: rd.salary,
+                              contractEnd: rd.contract_end ?? (rd as any).contractEnd,
                             })
                             setIsPilotProfileModalOpen(true)
                           }}
