@@ -18,6 +18,13 @@ import type {
 } from '@/types/canonical-race-preparation'
 import type { TireSetItem, TireCompound } from '@/types/f1'
 import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-types'
+import {
+  estimateCompoundLifespanLaps,
+  calculateRecommendedPitWindow,
+  formatCompoundLifespanBadge,
+  type CompoundLifespanEstimate,
+  type RecommendedPitWindowResult,
+} from '@/lib/canonical-tire-strategy'
 
 export const RACE_PREP_STORAGE_KEY_PREFIX = 'apex_race_prep_v1'
 
@@ -220,6 +227,49 @@ export const canonicalRacePreparationService = {
       pitPriority: carId === 'car1' ? 'primary' : 'secondary',
       paceMode: 'NORMAL',
     }
+  },
+
+  /**
+   * FC02C: Obtém estimativa canônica de vida útil para um composto e jogo de pneus.
+   */
+  getTireCompoundLifespan(
+    compound: TireCompound,
+    options?: {
+      driverWearMultiplier?: number
+      trackAbrasiveness?: number
+      initialWearPct?: number
+    },
+  ): CompoundLifespanEstimate {
+    return estimateCompoundLifespanLaps(compound, options)
+  },
+
+  /**
+   * FC02C: Obtém janela recomendada de pit stop para um composto de corrida.
+   */
+  getRecommendedPitWindow(params: {
+    currentStintCompound: TireCompound
+    totalRaceLaps: number
+    driverWearMultiplier?: number
+    trackAbrasiveness?: number
+    initialWearPct?: number
+    stintNumber?: number
+    totalStintsPlanned?: number
+  }): RecommendedPitWindowResult {
+    return calculateRecommendedPitWindow(params)
+  },
+
+  /**
+   * FC02C: Formata o badge de autonomia para exibição na UI de preparação.
+   */
+  formatTireLifespanBadge(
+    compound: TireCompound,
+    options?: {
+      driverWearMultiplier?: number
+      trackAbrasiveness?: number
+      initialWearPct?: number
+    },
+  ): string {
+    return formatCompoundLifespanBadge(compound, options)
   },
 
   /**

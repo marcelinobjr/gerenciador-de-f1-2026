@@ -29,6 +29,12 @@ import type {
 } from '@/types/canonical-race-preparation'
 import { canonicalRacePreparationService } from '@/services/canonicalRacePreparationService'
 import { formatTireName } from '@/lib/f1-tire-system'
+import {
+  estimateCompoundLifespanLaps,
+  calculateRecommendedPitWindow,
+  formatCompoundLifespanBadge,
+} from '@/lib/canonical-tire-strategy'
+import { TireDegradationIndicator } from '@/components/race/TireDegradationIndicator'
 
 export interface PreRaceStrategyPreparationPanelProps {
   careerId: string
@@ -300,31 +306,47 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
             </Button>
           </div>
 
-          <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-[#0F172A] capitalize">
-                {formatTireName(car.startingCompound)}
-              </span>
-              <Badge variant="outline" className="text-[10px] font-mono text-[#475569]">
-                ID: {car.startingTyreSetId}
-              </Badge>
+          <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-[#0F172A] capitalize">
+                  {formatTireName(car.startingCompound)}
+                </span>
+                <Badge variant="outline" className="text-[10px] font-mono text-[#475569]">
+                  ID: {car.startingTyreSetId}
+                </Badge>
+                {/* FC02C: Estimativa Canônica de Autonomia */}
+                <Badge className="bg-slate-900 text-white font-mono text-[10px] font-bold">
+                  {formatCompoundLifespanBadge(car.startingCompound, {
+                    initialWearPct: car.initialTyreWear,
+                  })}
+                </Badge>
+              </div>
+              <div className="text-right">
+                <span
+                  className={`text-xs font-mono font-black ${
+                    car.initialTyreWear >= 60
+                      ? 'text-rose-600'
+                      : car.initialTyreWear >= 25
+                        ? 'text-amber-600'
+                        : 'text-emerald-600'
+                  }`}
+                >
+                  {car.initialTyreWear}% desgaste
+                </span>
+                <p className="text-[10px] text-[#64748B] font-mono">
+                  {car.initialTyreLapsUsed} voltas rodadas
+                </p>
+              </div>
             </div>
-            <div className="text-right">
-              <span
-                className={`text-xs font-mono font-black ${
-                  car.initialTyreWear >= 60
-                    ? 'text-rose-600'
-                    : car.initialTyreWear >= 25
-                      ? 'text-amber-600'
-                      : 'text-emerald-600'
-                }`}
-              >
-                {car.initialTyreWear}% desgaste
-              </span>
-              <p className="text-[10px] text-[#64748B] font-mono">
-                {car.initialTyreLapsUsed} voltas rodadas
-              </p>
-            </div>
+
+            {/* FC02C: Indicador Visual de Degradação Canônico */}
+            <TireDegradationIndicator
+              wearPct={car.initialTyreWear}
+              compound={car.startingCompound}
+              lapsOnTire={car.initialTyreLapsUsed}
+              compact
+            />
           </div>
 
           {/* INVENTÁRIO FÍSICO EXPANSÍVEL */}
@@ -454,56 +476,85 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
               const isFirstStint = idx === 0
               const isLastStint = idx === car.strategyPlan.stints.length - 1
 
+              // FC02C: Janela de pit recomendada canônica para o stint
+              const recommendedWindow = calculateRecommendedPitWindow({
+                currentStintCompound: stint.compound,
+                totalRaceLaps: totalLaps,
+                initialWearPct: isFirstStint ? car.initialTyreWear : 0,
+                stintNumber: idx + 1,
+                totalStintsPlanned: car.strategyPlan.stints.length,
+              })
+
               return (
                 <div
                   key={idx}
-                  className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                  className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] flex flex-col gap-2 text-xs"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-[#0F172A] w-14">
-                      Stint {stint.stintNumber || idx + 1}:
-                    </span>
-                    {/* Composto */}
-                    {isFirstStint ? (
-                      <Badge className="bg-slate-100 text-[#0F172A] border border-slate-300 capitalize text-[11px] font-black">
-                        {formatTireName(stint.compound)} (Largada)
-                      </Badge>
-                    ) : (
-                      <select
-                        value={stint.compound}
-                        onChange={(e) =>
-                          handleUpdateStintCompound(carSlot, idx, e.target.value as TireCompound)
-                        }
-                        className="h-7 text-xs font-bold bg-[#F8FAFC] border border-[#CBD5E1] rounded px-1.5 capitalize text-[#0F172A]"
-                      >
-                        {COMPOUND_ORDER.map((c) => (
-                          <option key={c} value={c}>
-                            {formatTireName(c)}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-[#0F172A] w-14">
+                        Stint {stint.stintNumber || idx + 1}:
+                      </span>
+                      {/* Composto */}
+                      {isFirstStint ? (
+                        <Badge className="bg-slate-100 text-[#0F172A] border border-slate-300 capitalize text-[11px] font-black">
+                          {formatTireName(stint.compound)} (Largada)
+                        </Badge>
+                      ) : (
+                        <select
+                          value={stint.compound}
+                          onChange={(e) =>
+                            handleUpdateStintCompound(carSlot, idx, e.target.value as TireCompound)
+                          }
+                          className="h-7 text-xs font-bold bg-[#F8FAFC] border border-[#CBD5E1] rounded px-1.5 capitalize text-[#0F172A]"
+                        >
+                          {COMPOUND_ORDER.map((c) => (
+                            <option key={c} value={c}>
+                              {formatTireName(c)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px]">
+                      {isLastStint ? (
+                        <span className="text-[#64748B] font-semibold">
+                          Até a bandeirada (Volta {totalLaps})
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[#64748B] font-bold">Pit na volta:</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={totalLaps}
+                            value={stint.targetPitLap}
+                            onChange={(e) =>
+                              handleUpdatePitLap(carSlot, idx, Number(e.target.value))
+                            }
+                            className="w-14 h-7 text-center font-bold font-mono text-xs border-[#CBD5E1] bg-white text-[#0F172A]"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-[11px]">
-                    {isLastStint ? (
-                      <span className="text-[#64748B] font-semibold">
-                        Até a bandeirada (Volta {totalLaps})
+                  {/* FC02C: Janela sugerida e autonomia por stint */}
+                  {!isLastStint && (
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                      <span className="font-mono text-cyan-700 font-bold">
+                        Janela sugerida: {recommendedWindow.windowText.replace('Voltas', 'V')}{' '}
+                        (Ideal: V{recommendedWindow.optimalLap})
                       </span>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[#64748B] font-bold">Pit na volta:</span>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={totalLaps}
-                          value={stint.targetPitLap}
-                          onChange={(e) => handleUpdatePitLap(carSlot, idx, Number(e.target.value))}
-                          className="w-14 h-7 text-center font-bold font-mono text-xs border-[#CBD5E1] bg-white text-[#0F172A]"
-                        />
-                      </div>
-                    )}
-                  </div>
+                      <span className="font-mono text-slate-600">
+                        Autonomia:{' '}
+                        {formatCompoundLifespanBadge(stint.compound, {
+                          initialWearPct: isFirstStint ? car.initialTyreWear : 0,
+                        })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )
             })}

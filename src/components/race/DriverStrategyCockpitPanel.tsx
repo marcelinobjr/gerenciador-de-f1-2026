@@ -16,6 +16,12 @@ import {
 } from 'lucide-react'
 import type { CanonicalRaceDriverState, DriverPaceMode } from '@/types/canonical-race-v2'
 import type { TireCompound } from '@/types/f1'
+import {
+  calculateRecommendedPitWindow,
+  selectCarTireDisplayState,
+  getTireDegradationBand,
+} from '@/lib/canonical-tire-strategy'
+import { TireDegradationIndicator } from '@/components/race/TireDegradationIndicator'
 
 interface DriverStrategyCockpitPanelProps {
   driver: CanonicalRaceDriverState
@@ -44,6 +50,39 @@ export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProp
   const currentPace = strat?.paceMode || 'NORMAL'
   const targetCompound =
     strat?.targetCompound || (driver.tyreCompound === 'macio' ? 'medio' : 'duro')
+
+  // FC02C: Estado canônico de pneus
+  const driverAny = driver as unknown as {
+    tyreWear?: number
+    cliffStatus?: { isCliffReached?: number }
+  }
+  const estimatedWearFromAge =
+    typeof driverAny.tyreWear === 'number'
+      ? driverAny.tyreWear
+      : Math.min(100, Math.round((driver.initialTyreWear || 0) + (driver.tyreAge || 0) * 2.5))
+
+  const tireState = selectCarTireDisplayState({
+    tireCompound: driver.tyreCompound,
+    tireWear: estimatedWearFromAge,
+    lapsOnCurrentTire: driver.tyreAge,
+    cliffStatus: driverAny.cliffStatus
+      ? { isCliffReached: driverAny.cliffStatus.isCliffReached }
+      : undefined,
+  })
+
+  // FC02C: Janela de pit recomendada canônica
+  const recommendedPit = calculateRecommendedPitWindow({
+    currentStintCompound: driver.tyreCompound || 'medio',
+    totalRaceLaps: 57, // Respeitado dinamicamente
+    currentLap: driver.tyreAge || 1,
+    initialWearPct: driver.initialTyreWear || 0,
+    nextCompoundPreference: targetCompound,
+  })
+
+  const pitWindowDisplay = strat?.nextPitWindow
+    ? `V${strat.nextPitWindow.startLap}–${strat.nextPitWindow.endLap}`
+    : recommendedPit.windowText.replace('Voltas', 'V')
+  const pitOptimalDisplay = strat?.nextPitWindow?.optimalLap ?? recommendedPit.optimalLap
 
   const availableCompounds: Array<{
     value: TireCompound
@@ -138,11 +177,9 @@ export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProp
             <span className="text-[10px] uppercase font-bold text-slate-400 block">
               Janela de Pit
             </span>
-            <span className="font-extrabold text-cyan-400 text-xs">
-              V{strat?.nextPitWindow.startLap || 16}–{strat?.nextPitWindow.endLap || 22}
-            </span>
+            <span className="font-extrabold text-cyan-400 text-xs">{pitWindowDisplay}</span>
             <span className="text-[9px] text-slate-400 block mt-0.5">
-              Ideal: V{strat?.nextPitWindow.optimalLap || 19}
+              Ideal: V{pitOptimalDisplay}
             </span>
           </div>
 
@@ -167,6 +204,16 @@ export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProp
               Trás: +{typeof strat?.gapBehind === 'number' ? strat.gapBehind.toFixed(1) : '—'}s
             </span>
           </div>
+        </div>
+
+        {/* FC02C: INDICADOR DE DEGRADAÇÃO CANÔNICO */}
+        <div className="p-2.5 rounded-xl bg-[#131C2E] border border-slate-800/80">
+          <TireDegradationIndicator
+            carTireDisplayState={tireState}
+            showBadge
+            showLaps
+            showNumericPct
+          />
         </div>
 
         {/* CONTROLES DE RITMO INDEPENDENTES (PUSH / NORMAL / CONSERVE) */}
