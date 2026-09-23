@@ -455,6 +455,44 @@ describe('PU-INTEGRATION-01: Canonical Power Unit Integration System (PUI-01..22
     expect(OFFICIAL_POWER_UNITS.Ferrari.reliabilityRating).toBe(94)
   })
 
+  // PUI-23: Golden Cases formais (Ford, Honda, Mercedes, Ferrari)
+  it('PUI-23: Golden Cases formais de fornecedores e caps', () => {
+    // 1. GOLDEN FORD: Red Bull factory max 1.00 vs Racing Bulls customer max 0.90
+    const rbr = canonicalPowerUnitIntegrationService.getRelationshipMetadata('redbull')
+    const rb = canonicalPowerUnitIntegrationService.getRelationshipMetadata('racingbulls')
+    expect(rbr.supplierId).toBe('Ford')
+    expect(rbr.relationshipType).toBe('FACTORY')
+    expect(rbr.maxIntegration).toBe(1.0)
+    expect(rb.supplierId).toBe('Ford')
+    expect(rb.relationshipType).toBe('CUSTOMER')
+    expect(rb.maxIntegration).toBe(0.9)
+
+    // 2. GOLDEN HONDA: Aston Martin customer max 0.90, nunca promovida a factory por exclusividade
+    const am = canonicalPowerUnitIntegrationService.getRelationshipMetadata('astonmartin')
+    expect(am.supplierId).toBe('Honda')
+    expect(am.relationshipType).toBe('CUSTOMER')
+    expect(am.maxIntegration).toBe(0.9)
+
+    // 3. GOLDEN MERCEDES: Mercedes factory 1.00; McLaren/Williams customer 0.90
+    const merc = canonicalPowerUnitIntegrationService.getRelationshipMetadata('mercedes')
+    const mcl = canonicalPowerUnitIntegrationService.getRelationshipMetadata('mclaren')
+    const wil = canonicalPowerUnitIntegrationService.getRelationshipMetadata('williams')
+    expect(merc.relationshipType).toBe('FACTORY')
+    expect(merc.maxIntegration).toBe(1.0)
+    expect(mcl.relationshipType).toBe('CUSTOMER')
+    expect(mcl.maxIntegration).toBe(0.9)
+    expect(wil.relationshipType).toBe('CUSTOMER')
+    expect(wil.maxIntegration).toBe(0.9)
+
+    // 4. GOLDEN FERRARI: Ferrari factory 1.00; Cadillac customer 0.90
+    const fer = canonicalPowerUnitIntegrationService.getRelationshipMetadata('ferrari')
+    const cad = canonicalPowerUnitIntegrationService.getRelationshipMetadata('cadillac')
+    expect(fer.relationshipType).toBe('FACTORY')
+    expect(fer.maxIntegration).toBe(1.0)
+    expect(cad.relationshipType).toBe('CUSTOMER')
+    expect(cad.maxIntegration).toBe(0.9)
+  })
+
   // Auditoria canônica auditPowerUnitIntegrationSystem()
   it('Auditoria formal auditPowerUnitIntegrationSystem() retorna estado 100% correto', () => {
     const report = auditPowerUnitIntegrationSystem(careerId)

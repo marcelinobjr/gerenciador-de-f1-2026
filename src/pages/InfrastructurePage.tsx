@@ -40,6 +40,8 @@ import {
 } from '@/components/commercial/PowerUnitAllocationModal'
 import { PowerUnitNegotiationModal } from '@/components/commercial/PowerUnitNegotiationModal'
 import { FacilityExpandModal } from '@/components/commercial/FacilityExpandModal'
+import { PowerUnitIntegrationPanel } from '@/components/car/PowerUnitIntegrationPanel'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 
 // Imagem oficial de referência salva no projeto
 import puHeroImg from '@/assets/motor-67601.jpg'
@@ -104,6 +106,7 @@ export default function InfrastructurePage() {
     useState<FacilityDefinition | null>(null)
   const [isUpgrading, setIsUpgrading] = useState(false)
 
+  const careerId = resolveCanonicalCareerId(season, team)
   const currentRound = season?.current_round || 1
   const budget = team?.budget ?? 0
   const costCapSpent = team?.cost_cap_spent ?? 0
@@ -512,6 +515,16 @@ export default function InfrastructurePage() {
       {/* ======================================================== */}
       {activeTab === 'pu' && (
         <div className="space-y-6 animate-fade-in">
+          {/* PAINEL DE INTEGRAÇÃO CANÔNICA (PU-INTEGRATION-UI-01) */}
+          <PowerUnitIntegrationPanel
+            teamId={team?.id || team?.team_key || 'audi'}
+            careerId={careerId}
+            seasonYear={season?.year || 2026}
+            supplierName={currentSupplierName}
+            facilityLevel={facilityLevels?.factory ?? 5}
+            staffRating={75}
+          />
+
           {/* CARD PRINCIPAL: PACOTE ATUAL DE MOTOR */}
           <div className="rounded-2xl bg-white border border-[#E2E8F0] p-6 shadow-sm">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
