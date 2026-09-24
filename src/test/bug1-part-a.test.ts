@@ -88,8 +88,8 @@ function createMockFinishedRaceState(params: {
 }
 
 describe('PARTE A & B: MICRO-PATCH BUG-01 — TESTES BUG1-01 a BUG1-08', () => {
-  it('teste quebra proposital', () => {
-    expect('ABC').toBe('XYZ')
+  it('TESTE_PROPOSITAL_BUG1_A', () => {
+    expect(1).toBe(2)
   })
   beforeEach(() => {
     window.localStorage.clear()

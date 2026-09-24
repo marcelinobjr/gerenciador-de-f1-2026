@@ -61,11 +61,8 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     // Validar existência física e integridade do arquivo persistido
     const expectedPath = path.resolve(process.cwd(), 'src/data/baseline-2026-after-phase-b.json')
     expect(fs.existsSync(expectedPath)).toBe(true)
-
-    // Log proposital de dados para registro no relatório
-    const b = result.artifact.audiHaasBalance
     throw new Error(
-      `REGISTRO_FC02D: audiAheadRateRace=${b?.audiAheadRate} audiAheadRateQuali=${b?.audiAheadQualyRate} audiEffPU=${result.artifact.calibration?.audiEffectivePU} haasEffPU=${result.artifact.calibration?.haasEffectivePU} structuralDelta=${result.artifact.calibration?.structuralDelta}`
+      `DEBUG_CWD: cwd=${process.cwd()} expectedPath=${expectedPath} exists=${fs.existsSync(expectedPath)} resultFilePath=${result.filePath}`,
     )
   }, 120000)
 
