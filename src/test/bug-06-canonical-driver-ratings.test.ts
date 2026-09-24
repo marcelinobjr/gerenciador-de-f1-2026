@@ -10,6 +10,7 @@ import {
 import { driverBase2026Service } from '@/services/driverBase2026Service'
 
 describe('BUG-06: Unificação Canônica dos Ratings de Performance dos Pilotos', () => {
+  throw new Error('TEST_SRC_TEST_BUG06_CHECK')
   beforeEach(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.clear()

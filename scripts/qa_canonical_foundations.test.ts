@@ -15,7 +15,6 @@ import type { TeamModel, DriverModel, PartModel } from '@/types/f1'
 import type { ComponentSpecification } from '@/types/car-technical-model'
 
 describe('FASE 0A — SANEAMENTO TÉCNICO E FUNDAÇÕES CANÔNICAS', () => {
-  throw new Error('TEST_SCRIPTS_RUNNING_CHECK')
   // ==========================================================================
   // 1. TESTES DE RATINGS (Canônico, Nova Carreira, Save Antigo, Equipe Custom)
   // ==========================================================================

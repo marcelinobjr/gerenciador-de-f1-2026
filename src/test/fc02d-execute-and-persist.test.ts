@@ -34,12 +34,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       persist: true,
     })
 
-    console.log('FC02D_JSON_PAYLOAD_BEGIN')
-    console.log(result.jsonString)
-    console.log('FC02D_JSON_PAYLOAD_END')
-
-
-
 
 
     const art = result.artifact as any
