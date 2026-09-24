@@ -9,7 +9,6 @@
  * sem estourar timeouts do Vitest / QA.
  */
 
-SYNTAX_ERROR_TRIGGER
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -23,7 +22,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
   it('executa Monte Carlo Fase B com seed 20260315 e persiste baseline-2026-after-phase-b.json', async () => {
     // Executa e verifica se gravou no worker
     const fromCwd = path.resolve(process.cwd(), 'src/data/baseline-2026-after-phase-b.json')
-    console.log('CHECK_IN_TEST_EXISTENCE_BEFORE:', fs.existsSync(fromCwd))
 
     const SEED = 20260315
     const RUNS = 30
@@ -35,12 +33,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       totalLaps: TOTAL_LAPS,
       persist: true,
     })
-
-    expect(result.jsonString.slice(0, 100)).toBe('CAPTURE_BEGIN')
-
-    console.log('FC02D_JSON_PAYLOAD_BEGIN')
-    console.log(result.jsonString)
-    console.log('FC02D_JSON_PAYLOAD_END')
 
     console.log('CHECK_IN_TEST_EXISTENCE_AFTER:', fs.existsSync(fromCwd))
 
