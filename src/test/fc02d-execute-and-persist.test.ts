@@ -69,9 +69,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     expect(parsedMemory.teamsStats).toHaveLength(12)
     expect(parsedMemory.structuralComparison).toHaveLength(12)
     expect(parsedMemory.specialChecks).toBeDefined()
-
-    // SYNTAX_ERROR_TEST_CHECK_IF_TEST_RUNS
-    const x: number = "not-a-number";
   }, 120000)
 
   it('determines identical results when executed with the same seed (determinismo Fase B)', () => {
