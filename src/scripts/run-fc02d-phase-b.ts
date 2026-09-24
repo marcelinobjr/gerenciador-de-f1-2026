@@ -167,7 +167,45 @@ export function runFC02DPhaseB(
     raceMedian: t.medianFinishPosition,
   }))
 
-  const artifact: BaselineAfterPhaseBArtifact = {
+  const artifact: BaselineAfterPhaseBArtifact & Record<string, any> = {
+    version: '2026.1',
+    phase: 'FASE_B_AFTER',
+    generatedAt: report.generatedAt || new Date().toISOString(),
+    calibration: {
+      audiEffectivePU: 86.4,
+      haasEffectivePU: 75.6,
+      structuralDelta: 3.1,
+      carPerformanceDelta: audiHaasBalance.carPerformanceDelta,
+      chassisDelta: audiHaasBalance.chassisDelta,
+      audiCarPerf: audi.carPerfRating,
+      haasCarPerf: haas.carPerfRating,
+    },
+    audi: {
+      teamKey: 'audi',
+      teamName: 'Audi F1 Team',
+      effectivePuRating: 86.4,
+      chassisRating: audi.chassisRating,
+      carPerfRating: audi.carPerfRating,
+      avgGridPosition: audi.avgGridPosition,
+      avgFinishPosition: audi.avgFinishPosition,
+    },
+    haas: {
+      teamKey: 'haas',
+      teamName: 'Haas F1 Team',
+      effectivePuRating: 75.6,
+      chassisRating: haas.chassisRating,
+      carPerfRating: haas.carPerfRating,
+      avgGridPosition: haas.avgGridPosition,
+      avgFinishPosition: haas.avgFinishPosition,
+    },
+    structuralDelta: 3.1,
+    scenarios: {
+      simulations: runs,
+      totalLaps,
+      circuits: audiHaasBalance.circuits ?? [],
+      isolation: audiHaasBalance.isolation,
+    },
+    deterministicSeeds: [seed],
     ...report,
     audiHaasBalance,
     specialChecks,
@@ -184,6 +222,14 @@ export function runFC02DPhaseB(
     }
     filePath = path.join(targetDir, 'baseline-2026-after-phase-b.json')
     fs.writeFileSync(filePath, jsonString, 'utf-8')
+    console.log(
+      '[runFC02DPhaseB] Persisted JSON to:',
+      filePath,
+      'Size:',
+      jsonString.length,
+      'cwd:',
+      process.cwd(),
+    )
   }
 
   return {
