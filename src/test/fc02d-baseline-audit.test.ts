@@ -291,6 +291,5 @@ describe('FC02D — FASE A: Auditoria e Medição do Baseline de Performance 202
     expect(generated.markdownContent).toContain(
       'FC02D — FASE A: AUDITORIA DO BASELINE DE PERFORMANCE 2026',
     )
-    expect(1).toBe(2)
   })
 })
