@@ -24,14 +24,12 @@ import {
  */
 export function getCanonicalPhaseBPath(): string {
   const fromCwd = path.resolve(process.cwd(), 'src/data/baseline-2026-after-phase-b.json')
-  // Se process.cwd() aponta para o repo root (onde package.json ou src/ existe), fromCwd é perfeito
   if (
     fs.existsSync(path.resolve(process.cwd(), 'package.json')) ||
     fs.existsSync(path.resolve(process.cwd(), 'src'))
   ) {
     return fromCwd
   }
-  // Fallback: subir a partir deste arquivo (src/scripts -> src -> repo root)
   const repoRoot = path.resolve(__dirname, '../..')
   return path.resolve(repoRoot, 'src/data/baseline-2026-after-phase-b.json')
 }

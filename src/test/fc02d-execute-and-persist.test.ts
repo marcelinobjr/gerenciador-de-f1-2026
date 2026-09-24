@@ -19,7 +19,6 @@ import {
 } from '@/scripts/run-fc02d-phase-b'
 
 describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente', () => {
-
   it('executa Monte Carlo Fase B com seed 20260315 e persiste baseline-2026-after-phase-b.json', () => {
     // Escala equilibrada: 30 qualificações e 30 corridas com 15 voltas
     const SEED = 20260315
@@ -32,8 +31,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       totalLaps: TOTAL_LAPS,
       persist: true,
     })
-
-    console.log('RESULT_JSON_PAYLOAD_START:' + result.jsonString + ':RESULT_JSON_PAYLOAD_END')
 
     expect(result.artifact).toBeDefined()
     expect(result.artifact.phase).toBe('FASE_B_AFTER')
