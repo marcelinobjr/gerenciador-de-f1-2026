@@ -20,7 +20,10 @@ import {
 
 describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente', () => {
   it('executa Monte Carlo Fase B com seed 20260315 e persiste baseline-2026-after-phase-b.json', async () => {
-    // Escala equilibrada: 30 qualificações e 30 corridas com 15 voltas
+    // Executa e verifica se gravou no worker
+    const fromCwd = path.resolve(process.cwd(), 'src/data/baseline-2026-after-phase-b.json')
+    console.log('CHECK_IN_TEST_EXISTENCE_BEFORE:', fs.existsSync(fromCwd))
+
     const SEED = 20260315
     const RUNS = 30
     const TOTAL_LAPS = 15
@@ -31,6 +34,8 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       totalLaps: TOTAL_LAPS,
       persist: true,
     })
+
+    console.log('CHECK_IN_TEST_EXISTENCE_AFTER:', fs.existsSync(fromCwd))
 
     const art = result.artifact as any
     expect(art.calibration.audiEffectivePU).toBe(86.4)
@@ -63,9 +68,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
 
     // Validar integridade do JSON gerado em memória
     expect(typeof result.jsonString).toBe('string')
-    console.log('FC02D_JSON_PAYLOAD_BEGIN')
-    console.log(result.jsonString)
-    console.log('FC02D_JSON_PAYLOAD_END')
 
     // Capturar o payload diretamente chamando o helper de persistência da suite se fs funcionar no Vitest:
     // Atenção: result foi chamado com persist: true!
@@ -77,6 +79,7 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     //   }
     // Testar se fs.existsSync(resolvedPath) é verdadeiro!
     const canonicalPath = getCanonicalPhaseBPath()
+    // Nota: no worker descartável do Vitest, o arquivo foi gravado via fs.writeFileSync
     const fileExistsInWorker = fs.existsSync(canonicalPath)
     expect(fileExistsInWorker).toBe(true)
 
