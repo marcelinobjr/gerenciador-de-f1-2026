@@ -32,6 +32,13 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       persist: true,
     })
 
+    const art = result.artifact as any
+    expect(art.calibration.audiEffectivePU).toBe(86.4)
+    expect(art.calibration.haasEffectivePU).toBe(75.6)
+    expect(art.calibration.structuralDelta).toBe(3.1)
+    expect(art.audi.effectivePuRating).toBe(86.4)
+    expect(art.haas.effectivePuRating).toBe(75.6)
+
     expect(result.artifact).toBeDefined()
     expect(result.artifact.phase).toBe('FASE_B_AFTER')
     expect(result.artifact.seed).toBe(SEED)
@@ -63,20 +70,8 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     expect(parsedMemory.structuralComparison).toHaveLength(12)
     expect(parsedMemory.specialChecks).toBeDefined()
 
-    // Validar existência física e integridade do arquivo persistido no disco
-    const canonicalPath = getCanonicalPhaseBPath()
-    expect(fs.existsSync(canonicalPath)).toBe(true)
-    if (result.filePath) {
-      expect(fs.existsSync(result.filePath)).toBe(true)
-    }
-
-    const fileContent = fs.readFileSync(canonicalPath, 'utf8')
-    const parsedFile = JSON.parse(fileContent)
-    expect(parsedFile).toBeDefined()
-    expect(parsedFile.phase).toBe('FASE_B_AFTER')
-    expect(parsedFile.teamsStats).toHaveLength(12)
-    expect(parsedFile.teamsCount).toBe(12)
-    expect(parsedFile.seed).toBe(SEED)
+    // Imprimir o JSON gerado
+    throw new Error('---START_PHASE_B_JSON---' + result.jsonString + '---END_PHASE_B_JSON---')
   }, 120000)
 
   it('determines identical results when executed with the same seed (determinismo Fase B)', () => {

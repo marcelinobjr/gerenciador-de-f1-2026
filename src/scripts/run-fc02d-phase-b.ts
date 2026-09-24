@@ -55,6 +55,42 @@ export interface SpecialChecksReport {
 }
 
 export interface BaselineAfterPhaseBArtifact extends TeamPerformanceBaselineReport {
+  version?: string
+  calibration: {
+    audiEffectivePU: number
+    haasEffectivePU: number
+    structuralDelta: number
+    carPerformanceDelta: number
+    chassisDelta: number
+    audiCarPerf: number
+    haasCarPerf: number
+  }
+  audi: {
+    teamKey: string
+    teamName: string
+    effectivePuRating: number
+    chassisRating: number
+    carPerfRating: number
+    avgGridPosition: number
+    avgFinishPosition: number
+  }
+  haas: {
+    teamKey: string
+    teamName: string
+    effectivePuRating: number
+    chassisRating: number
+    carPerfRating: number
+    avgGridPosition: number
+    avgFinishPosition: number
+  }
+  structuralDelta: number
+  scenarios: {
+    simulations: number
+    totalLaps: number
+    circuits: any[]
+    isolation?: any
+  }
+  deterministicSeeds: number[]
   audiHaasBalance: AudiHaasBalanceAuditReport
   specialChecks: SpecialChecksReport
   structuralComparison: Array<{
@@ -241,16 +277,6 @@ export function runFC02DPhaseB(
     }
     filePath = resolvedPath
     fs.writeFileSync(filePath, jsonString, 'utf-8')
-    console.log(
-      '[runFC02DPhaseB] Persisted JSON to:',
-      filePath,
-      'Size:',
-      jsonString.length,
-      'cwd:',
-      process.cwd(),
-      'existsAfterWrite:',
-      fs.existsSync(filePath),
-    )
   }
 
   return {
