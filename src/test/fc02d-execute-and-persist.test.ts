@@ -53,8 +53,14 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     const filePath = path.resolve(process.cwd(), 'src/data/baseline-2026-after-phase-b.json')
     expect(fs.existsSync(filePath)).toBe(true)
 
-    // Forçar uma falha proposital imprimindo o JSON
-    expect(result.jsonString).toBe('PROVOCA_LOG')
+    // Validar integridade do JSON gerado
+    expect(typeof result.jsonString).toBe('string')
+    const parsed = JSON.parse(result.jsonString)
+    expect(parsed).toBeDefined()
+    expect(parsed.phase).toBe('FASE_B_AFTER')
+    expect(parsed.teamsStats).toHaveLength(12)
+    expect(parsed.structuralComparison).toHaveLength(12)
+    expect(parsed.specialChecks).toBeDefined()
   }, 120000)
 
   it('determines identical results when executed with the same seed (determinismo Fase B)', () => {
