@@ -1,18 +1,11 @@
-import { buildCompleteBaselineV0 } from '@/scripts/generate-baseline-v0'
 import { BalanceBaselineV0 } from '@/types/structural-strength'
-import * as fs from 'fs'
-import * as path from 'path'
+import baselineV0Raw from './balance-baseline-v0.json'
 
-// Gera baseline em memória
-export const BASELINE_V0_DATA: BalanceBaselineV0 = buildCompleteBaselineV0()
-
-// Salva em disco de forma síncrona na inicialização do módulo se em ambiente Node / runner
-if (typeof process !== 'undefined' && process.cwd) {
-  try {
-    const jsonPath = path.resolve(process.cwd(), 'src/data/balance-baseline-v0.json')
-    const generated = JSON.stringify(BASELINE_V0_DATA, null, 2)
-    fs.writeFileSync(jsonPath, generated, 'utf-8')
-  } catch {
-    // defende contra ambientes browser puro sem fs
-  }
-}
+/**
+ * BASELINE_V0_DATA: Baseline histórica estática canônica imutável.
+ * Importada diretamente do JSON estático versionado src/data/balance-baseline-v0.json.
+ * Congelada com Object.freeze para prevenir qualquer mutação em runtime.
+ */
+export const BASELINE_V0_DATA: BalanceBaselineV0 = Object.freeze(
+  baselineV0Raw as unknown as BalanceBaselineV0,
+)

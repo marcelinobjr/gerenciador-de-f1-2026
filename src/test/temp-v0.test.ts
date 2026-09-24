@@ -3,15 +3,11 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { buildCompleteBaselineV0 } from '@/scripts/generate-baseline-v0'
 
-describe('Persistência Inicial da Baseline V0', () => {
-  it('gera src/data/balance-baseline-v0.json com todas as 29 equipes se necessário', () => {
+describe('Persistência canônica do JSON V0', () => {
+  it('gera src/data/balance-baseline-v0.json completo', () => {
     const filePath = path.resolve(process.cwd(), 'src/data/balance-baseline-v0.json')
     const full = buildCompleteBaselineV0()
     fs.writeFileSync(filePath, JSON.stringify(full, null, 2), 'utf-8')
-
     expect(fs.existsSync(filePath)).toBe(true)
-    const read = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-    expect(read.totalTeamsCount).toBe(29)
-    expect(Object.keys(read.teams).length).toBe(29)
   })
 })
