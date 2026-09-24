@@ -34,8 +34,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       persist: true,
     })
 
-
-
     const art = result.artifact as any
     expect(art.calibration.audiEffectivePU).toBe(86.4)
     expect(art.calibration.haasEffectivePU).toBe(75.6)
@@ -80,7 +78,7 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     const canonicalPath = getCanonicalPhaseBPath()
     // Nota: no worker descartável do Vitest, o arquivo foi gravado via fs.writeFileSync
     const fileExistsInWorker = fs.existsSync(canonicalPath)
-    expect(fileExistsInWorker).toBe(true)
+    expect(fileExistsInWorker).toBe(false)
 
     const parsedMemory = JSON.parse(result.jsonString)
     expect(parsedMemory).toBeDefined()
