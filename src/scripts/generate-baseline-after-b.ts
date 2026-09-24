@@ -33,5 +33,6 @@ export function generateBaselineAfterBArtifacts(options: GenerateBaselineAfterBO
 
   return {
     report,
+    jsonString: JSON.stringify(report, null, 2),
   }
 }
