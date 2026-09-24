@@ -124,12 +124,15 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   const careerId = resolveCanonicalCareerId(season, team)
   const seasonYear = season?.year || 2026
 
-  // Reconciliação sob demanda se team.id difere do careerId canônico
-  if (team?.id && team.id !== careerId) {
+  // Reconciliação sob demanda síncrona ANTES de consultar getEligibleOfficialRaceResults
+  const legacyCandidateIds = [team?.id, (season as any)?.team_id].filter(
+    (id): id is string => typeof id === 'string' && id.trim() !== '' && id !== careerId,
+  )
+  if (legacyCandidateIds.length > 0) {
     try {
       canonicalChampionshipMigrationService.reconcileLegacyCareerResults({
         canonicalCareerId: careerId,
-        legacyCareerIds: [team.id],
+        legacyCareerIds: legacyCandidateIds,
         seasonYear,
       })
     } catch {
@@ -418,14 +421,79 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   // 3. Teams map (Construtores)
   const tMap: Record<string, TeamStanding> = {}
 
+  // Helper para normalizar identificação e nome de equipe para correspondência resiliente
+  const normalizeTeamKeyOrName = (str: string): string =>
+    str
+      .toLowerCase()
+      .replace(/^ai_/, '')
+      .replace(/f1|team|racing|scuderia|motorsport/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      .trim()
+
   // Equipes da IA
   aiGrid.forEach((aiTeam) => {
+    // 1. Pontos somados inicialmente via dMap dos slots de piloto da IA (se vinculados aos IDs d1/d2)
     const d1 = dMap[`${aiTeam.id}_d1`]
     const d2 = dMap[`${aiTeam.id}_d2`]
-    const pts = (d1?.points || 0) + (d2?.points || 0)
-    const w = (d1?.wins || 0) + (d2?.wins || 0)
-    const pod = (d1?.podiums || 0) + (d2?.podiums || 0)
-    const best = Math.min(d1?.bestPosition ?? 99, d2?.bestPosition ?? 99)
+    let pts = (d1?.points || 0) + (d2?.points || 0)
+    let w = (d1?.wins || 0) + (d2?.wins || 0)
+    let pod = (d1?.podiums || 0) + (d2?.podiums || 0)
+    let best = Math.min(d1?.bestPosition ?? 99, d2?.bestPosition ?? 99)
+
+    // 2. Correspondência resiliente com race_results caso team_id venha com ID do PocketBase ou expand.team_id.name
+    // Ex: team_id alfanumérico do PocketBase, ou ai_{team_key}, ou nome da equipe
+    const aiCleanName = normalizeTeamKeyOrName(aiTeam.name)
+    const aiCleanId = normalizeTeamKeyOrName(aiTeam.id)
+
+    // Agregação a partir dos pilotos associados a esta equipe em dMap cujos nomes ou times casam
+    const matchedDrivers = Object.values(dMap).filter((d) => {
+      if (d.isPlayer) return false
+      if (d.id === `${aiTeam.id}_d1` || d.id === `${aiTeam.id}_d2`) return false
+      const dTeamNorm = normalizeTeamKeyOrName(d.teamName || '')
+      return (
+        dTeamNorm === aiCleanName ||
+        dTeamNorm === aiCleanId ||
+        d.teamName?.toLowerCase() === aiTeam.name.toLowerCase()
+      )
+    })
+
+    if (matchedDrivers.length > 0) {
+      matchedDrivers.forEach((md) => {
+        pts += md.points
+        w += md.wins
+        pod += md.podiums
+        if (md.bestPosition < best) {
+          best = md.bestPosition
+        }
+      })
+    }
+
+    // 3. Se houver race_results gravando team_id ou expand.team_id.name que não casaram pilotos
+    filteredResults.forEach((res) => {
+      const isPlayerResult =
+        res.team_id === team?.id ||
+        res.expand?.team_id?.name === team?.name ||
+        (team?.name && (res as any).teamName === team.name)
+      if (isPlayerResult) return
+
+      const resTeamName = res.expand?.team_id?.name || (res as any).teamName || ''
+      const resTeamId = res.team_id || ''
+      const cleanResName = normalizeTeamKeyOrName(resTeamName)
+      const cleanResId = normalizeTeamKeyOrName(resTeamId)
+
+      const matchesTeam =
+        (cleanResName && (cleanResName === aiCleanName || cleanResName === aiCleanId)) ||
+        (cleanResId && (cleanResId === aiCleanName || cleanResId === aiCleanId))
+
+      // Se bate e o piloto NÃO foi computado em dMap
+      if (matchesTeam && !dMap[res.driver_id]) {
+        const p = calculatePointsForResults(res)
+        pts += p
+        if (res.position === 1) w += 1
+        if (res.position <= 3) pod += 1
+        if (res.position < best) best = res.position
+      }
+    })
 
     tMap[aiTeam.id] = {
       id: aiTeam.id,

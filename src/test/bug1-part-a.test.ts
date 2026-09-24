@@ -380,4 +380,134 @@ describe('PARTE A & B: MICRO-PATCH BUG-01 — TESTES BUG1-01 a BUG1-08', () => {
     const driver = snap.driverStandings.find((d) => d.driverId === 'drv_player_1')
     expect(driver?.points).toBe(25) // Não duplicou para 50 nem 75
   })
+
+  it('BUG1-08B: standingsService reconcilia de forma síncrona antes de consultar resultados elegíveis', () => {
+    const legacyTeamId = 'legacy_team_sync'
+    const canonicalCareerId = 'canonical_career_sync'
+    const seasonYear = 2026
+
+    const season = { id: 'season_sync', career_id: canonicalCareerId, year: seasonYear }
+    const team = { id: legacyTeamId, name: 'Escuderia Brasil' }
+
+    // Salva resultado sob o legacyTeamId
+    const state = createMockFinishedRaceState({
+      careerId: legacyTeamId,
+      season: seasonYear,
+      round: 1,
+    })
+    const official = canonicalRaceResultService.officializeRace(state)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
+
+    // Chamar calculateStandings diretamente: deve reconciliar e retornar os pontos do resultado oficial
+    const standings = calculateStandings({
+      raceResults: [],
+      playerDrivers: [
+        { id: 'drv_player_1', name: 'Gabriel Bortoleto', nationality: 'Brasil' } as any,
+      ],
+      team: team as any,
+      season: season as any,
+    })
+
+    expect(standings.driverStandings.length).toBeGreaterThan(0)
+    const bortoleto = standings.driverStandings.find((d) => d.id === 'drv_player_1')
+    expect(bortoleto?.points).toBe(25)
+  })
+
+  it('BUG1-08C: fallback de construtores faz correspondência resiliente com PocketBase team_id alfanumérico e não deixa Audi 1º com 0 pts', () => {
+    // Cenário onde não há corridas canônicas e standingsService roda no fallback de race_results
+    // Simula registros do PocketBase onde team_id é alfanumérico (ex: 'rec_ferrari_pb_123') e expand traz o nome
+    const mockRaceResults = [
+      {
+        id: 'res_1',
+        season_id: 'season_fb_1',
+        round: 1,
+        driver_id: 'driver_ferrari_1',
+        team_id: 'rec_ferrari_pb_123',
+        position: 1,
+        points: 25,
+        expand: {
+          driver_id: { name: 'Lewis Hamilton' },
+          team_id: { name: 'Scuderia Ferrari' },
+        },
+      },
+      {
+        id: 'res_2',
+        season_id: 'season_fb_1',
+        round: 1,
+        driver_id: 'driver_ferrari_2',
+        team_id: 'rec_ferrari_pb_123',
+        position: 2,
+        points: 18,
+        expand: {
+          driver_id: { name: 'Charles Leclerc' },
+          team_id: { name: 'Scuderia Ferrari' },
+        },
+      },
+    ]
+
+    const standings = calculateStandings({
+      raceResults: mockRaceResults as any,
+      playerDrivers: [],
+      team: { id: 'player_team', name: 'Escuderia Brasil', team_key: 'custom' } as any,
+      season: { id: 'season_fb_1', year: 2026, current_round: 1 } as any,
+    })
+
+    // Ferrari deve ter 43 pontos (25 + 18) e estar em 1º lugar
+    const ferrariStanding = standings.constructorStandings.find(
+      (c) => c.name.toLowerCase().includes('ferrari') || c.id.includes('ferrari'),
+    )
+    expect(ferrariStanding).toBeDefined()
+    expect(ferrariStanding?.points).toBe(43)
+
+    // O 1º colocado dos construtores NÃO pode ser Audi com 0 pontos
+    const firstPlaceConstructor = standings.constructorStandings[0]
+    expect(firstPlaceConstructor.points).toBeGreaterThan(0)
+    expect(firstPlaceConstructor.name).not.toBe('Audi F1 Team')
+  })
+
+  it('BUG1-08D: standings acumulados preservam soma de todas as rodadas (R1 + R2) e não apenas última prova', () => {
+    const careerId = 'career_accum_multi_rounds'
+    const seasonYear = 2026
+
+    // R1: Bortoleto P1 = 25 pts, Drugovich P2 = 18 pts
+    const s1 = createMockFinishedRaceState({ careerId, season: seasonYear, round: 1 })
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
+      canonicalRaceResultService.officializeRace(s1),
+    )
+
+    // R2: Bortoleto P3 = 15 pts, Drugovich P4 = 12 pts
+    const s2 = createMockFinishedRaceState({ careerId, season: seasonYear, round: 2 })
+    s2.drivers[0].currentPosition = 3
+    s2.drivers[0].gridPosition = 3
+    s2.drivers[1].currentPosition = 4
+    s2.drivers[1].gridPosition = 4
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
+      canonicalRaceResultService.officializeRace(s2),
+    )
+
+    // calculateStandings deve refletir soma de R1 + R2:
+    // Bortoleto: 25 + 15 = 40 pts (não 15)
+    // Drugovich: 18 + 12 = 30 pts (não 12)
+    // Escuderia: 43 + 27 = 70 pts
+    const standings = calculateStandings({
+      raceResults: [],
+      playerDrivers: [
+        { id: 'drv_player_1', name: 'Gabriel Bortoleto', nationality: 'Brasil' } as any,
+        { id: 'drv_player_2', name: 'Felipe Drugovich', nationality: 'Brasil' } as any,
+      ],
+      team: { id: 'escuderia_brasil', name: 'Escuderia Brasil' } as any,
+      season: {
+        id: 'season_accum',
+        career_id: careerId,
+        year: seasonYear,
+        current_round: 2,
+      } as any,
+    })
+
+    const bortoleto = standings.driverStandings.find((d) => d.id === 'drv_player_1')
+    const drugovich = standings.driverStandings.find((d) => d.id === 'drv_player_2')
+    expect(bortoleto?.points).toBe(40)
+    expect(drugovich?.points).toBe(30)
+    expect(standings.teamPoints).toBe(70)
+  })
 })

@@ -66,6 +66,67 @@ export default function StandingsPage() {
   }, [careerId, seasonYear, team?.id, driverStandings])
 
   const throughRound = championshipSnapshot?.throughRound || 0
+
+  // Se throughRound > 0 ou se houver resultados canônicos elegíveis, priorizar o snapshot canônico
+  // convertendo-o para as interfaces DriverStanding e TeamStanding com pontos acumulados
+  const effectiveDriverStandings = useMemo<DriverStanding[]>(() => {
+    if (
+      championshipSnapshot &&
+      championshipSnapshot.throughRound > 0 &&
+      championshipSnapshot.driverStandings.length > 0
+    ) {
+      return championshipSnapshot.driverStandings.map((d) => ({
+        id: d.driverId,
+        name: d.driverName,
+        nationality: d.nationality,
+        flag: d.flag,
+        teamName: d.currentTeamName || 'F1 Team',
+        teamColor: d.currentTeamColor || '#E10600',
+        points: d.points,
+        wins: d.wins,
+        podiums: d.podiums,
+        bestPosition: d.position,
+        isPlayer: !!d.isPlayer,
+        secondPlaces: d.secondPlaces,
+        thirdPlaces: d.thirdPlaces,
+        fourthPlaces: d.fourthPlaces,
+        raceStarts: d.raceStarts,
+        racesCounted: d.racesCounted,
+        finishCounts: d.finishCounts,
+        gapToLeader: d.gapToLeader,
+        positionDelta: d.positionDelta,
+        positionDeltaText: d.positionDeltaText,
+      }))
+    }
+    return driverStandings || []
+  }, [championshipSnapshot, driverStandings])
+
+  const effectiveConstructorStandings = useMemo<TeamStanding[]>(() => {
+    if (
+      championshipSnapshot &&
+      championshipSnapshot.throughRound > 0 &&
+      championshipSnapshot.constructorStandings.length > 0
+    ) {
+      return championshipSnapshot.constructorStandings.map((c) => ({
+        id: c.teamId,
+        name: c.teamName,
+        color: c.teamColor,
+        engine: 'F1 Power Unit',
+        points: c.points,
+        wins: c.wins,
+        podiums: c.podiums,
+        bestPosition: c.position,
+        isPlayer: !!c.isPlayer,
+        racesCounted: c.racesCounted,
+        finishCounts: c.finishCounts,
+        gapToLeader: c.gapToLeader,
+        positionDelta: c.positionDelta,
+        positionDeltaText: c.positionDeltaText,
+      }))
+    }
+    return constructorStandings || []
+  }, [championshipSnapshot, constructorStandings])
+
   const lastRecordedGp = useMemo(() => {
     if (throughRound <= 0) return null
     return F1_2026_CALENDAR.find((c) => c.round === throughRound) || null
@@ -78,14 +139,14 @@ export default function StandingsPage() {
 
   // Máximo de pontos para calcular as barras relativas ao líder (líder = 100%)
   const maxDriverPoints = useMemo(() => {
-    if (!driverStandings || driverStandings.length === 0) return 1
-    return Math.max(1, driverStandings[0]?.points || 1)
-  }, [driverStandings])
+    if (!effectiveDriverStandings || effectiveDriverStandings.length === 0) return 1
+    return Math.max(1, effectiveDriverStandings[0]?.points || 1)
+  }, [effectiveDriverStandings])
 
   const maxConstructorPoints = useMemo(() => {
-    if (!constructorStandings || constructorStandings.length === 0) return 1
-    return Math.max(1, constructorStandings[0]?.points || 1)
-  }, [constructorStandings])
+    if (!effectiveConstructorStandings || effectiveConstructorStandings.length === 0) return 1
+    return Math.max(1, effectiveConstructorStandings[0]?.points || 1)
+  }, [effectiveConstructorStandings])
 
   // Mapa de pilotos por equipe para listar os titulares compactos na aba Construtores ("Bortoleto · Ricciardo")
   const teamLineupMap = useMemo(() => {
@@ -104,9 +165,9 @@ export default function StandingsPage() {
       map[pTeamName] = surnames
     }
 
-    // 2. Pilotos agrupados a partir do driverStandings
-    if (driverStandings && driverStandings.length > 0) {
-      driverStandings.forEach((d) => {
+    // 2. Pilotos agrupados a partir do effectiveDriverStandings
+    if (effectiveDriverStandings && effectiveDriverStandings.length > 0) {
+      effectiveDriverStandings.forEach((d) => {
         if (!map[d.teamName]) {
           map[d.teamName] = []
         }
@@ -118,7 +179,7 @@ export default function StandingsPage() {
     }
 
     return map
-  }, [playerDrivers, team, driverStandings])
+  }, [playerDrivers, team, effectiveDriverStandings])
 
   // Handler para abrir perfil de piloto existente
   const handleDriverClick = (driver: DriverStanding) => {
@@ -332,13 +393,13 @@ export default function StandingsPage() {
             </span>
             <div className="text-sm font-black text-[#0F172A] truncate">
               {activeTab === 'drivers'
-                ? `${driverStandings.length} Pilotos Registrados`
-                : `${constructorStandings.length} Construtores`}
+                ? `${effectiveDriverStandings.length} Pilotos Registrados`
+                : `${effectiveConstructorStandings.length} Construtores`}
             </div>
             <span className="text-[11px] text-[#475569] font-medium block truncate">
               {activeTab === 'drivers'
-                ? `${constructorStandings.length} equipes participantes`
-                : `${driverStandings.length} pilotos titulares no grid`}
+                ? `${effectiveConstructorStandings.length} equipes participantes`
+                : `${effectiveDriverStandings.length} pilotos titulares no grid`}
             </span>
           </div>
         </div>
@@ -360,8 +421,8 @@ export default function StandingsPage() {
           </div>
           <span className="text-[11px] font-mono font-bold text-[#64748B]">
             {activeTab === 'drivers'
-              ? `${driverStandings.length} pilotos inscritos`
-              : `${constructorStandings.length} construtores ativos`}
+              ? `${effectiveDriverStandings.length} pilotos inscritos`
+              : `${effectiveConstructorStandings.length} construtores ativos`}
           </span>
         </div>
 
@@ -373,7 +434,7 @@ export default function StandingsPage() {
             ))}
           </div>
         ) : activeTab === 'drivers' ? (
-          driverStandings.length === 0 ? (
+          effectiveDriverStandings.length === 0 ? (
             <div className="p-12 text-center">
               <EmptyState
                 icon={Award}
@@ -395,10 +456,10 @@ export default function StandingsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                  {driverStandings.map((driver, index) => {
+                  {effectiveDriverStandings.map((driver, index) => {
                     const pos = index + 1
                     const logoUrl = getTeamReducedLogoUrl(driver.teamName)
-                    const leaderPts = driverStandings[0]?.points || 0
+                    const leaderPts = effectiveDriverStandings[0]?.points || 0
                     const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - driver.points} pts`
                     const ratio =
                       maxDriverPoints > 0
@@ -563,7 +624,7 @@ export default function StandingsPage() {
               </table>
             </div>
           )
-        ) : constructorStandings.length === 0 ? (
+        ) : effectiveConstructorStandings.length === 0 ? (
           <div className="p-12 text-center">
             <EmptyState
               icon={Trophy}
@@ -585,10 +646,10 @@ export default function StandingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9] text-xs">
-                {constructorStandings.map((cTeam, index) => {
+                {effectiveConstructorStandings.map((cTeam, index) => {
                   const pos = index + 1
                   const logoUrl = getTeamReducedLogoUrl(cTeam.name || cTeam.id)
-                  const leaderPts = constructorStandings[0]?.points || 0
+                  const leaderPts = effectiveConstructorStandings[0]?.points || 0
                   const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - cTeam.points} pts`
                   const ratio =
                     maxConstructorPoints > 0
