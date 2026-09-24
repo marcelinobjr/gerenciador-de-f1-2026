@@ -9,7 +9,6 @@
  * sem estourar timeouts do Vitest / QA.
  */
 
-syntax error in test file
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -20,6 +19,7 @@ import {
 } from '@/scripts/run-fc02d-phase-b'
 
 describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente', () => {
+
   it('executa Monte Carlo Fase B com seed 20260315 e persiste baseline-2026-after-phase-b.json', () => {
     // Escala equilibrada: 30 qualificações e 30 corridas com 15 voltas
     const SEED = 20260315
@@ -32,6 +32,8 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       totalLaps: TOTAL_LAPS,
       persist: true,
     })
+
+    console.log('RESULT_JSON_PAYLOAD_START:' + result.jsonString + ':RESULT_JSON_PAYLOAD_END')
 
     expect(result.artifact).toBeDefined()
     expect(result.artifact.phase).toBe('FASE_B_AFTER')
@@ -78,10 +80,6 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     expect(parsedFile.teamsStats).toHaveLength(12)
     expect(parsedFile.teamsCount).toBe(12)
     expect(parsedFile.seed).toBe(SEED)
-
-    throw new Error(
-      `DEBUG_CWD: cwd=${process.cwd()} canonicalPath=${canonicalPath} exists=${fs.existsSync(canonicalPath)} length=${fileContent.length}`,
-    )
   }, 120000)
 
   it('determines identical results when executed with the same seed (determinismo Fase B)', () => {
