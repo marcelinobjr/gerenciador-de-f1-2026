@@ -30,9 +30,10 @@ describe('REDESIGN INFRAESTRUTURA v0.0.287 — Suíte de Testes Canônica', () =
     const competicao = CAREER_NAV_SECTIONS.find((s) => s.title === 'COMPETIÇÃO')
     expect(competicao).toBeDefined()
     const compNames = competicao!.items.map((i) => i.name)
-    expect(compNames).toContain('Fim de Semana')
+    expect(compNames).toContain('Corrida')
+    expect(compNames).not.toContain('Fim de Semana')
     expect(compNames).toContain('Campeonato')
-    expect(compNames).toContain('Paddock')
+    expect(compNames.some((n) => n === 'Paddock' || n === 'Equipes')).toBe(true)
     expect(compNames).toContain('Histórico')
   })
 

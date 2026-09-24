@@ -31,12 +31,12 @@ export function NotificationBell({
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Ocultar sino durante corrida ao vivo na aba Corrida
-  // Detecta se a aba é /race e se uma simulação ao vivo está ativa no DOM ou storage
+  // Detecta se a aba é /corrida ou /corrida-ao-vivo e se uma simulação ao vivo está ativa no DOM ou storage
   const [isLiveActive, setIsLiveActive] = useState(false)
 
   useEffect(() => {
     const checkLiveState = () => {
-      if (location.pathname !== '/race') {
+      if (location.pathname !== '/corrida' && location.pathname !== '/corrida-ao-vivo') {
         setIsLiveActive(false)
         return
       }
@@ -152,7 +152,10 @@ export function NotificationBell({
     }
   }
   // Ocultar sino durante corrida ao vivo na aba Corrida (requisito do prompt)
-  if (location.pathname === '/race' && isLiveActive) {
+  if (
+    (location.pathname === '/corrida' || location.pathname === '/corrida-ao-vivo') &&
+    isLiveActive
+  ) {
     return null
   }
 

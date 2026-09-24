@@ -61,7 +61,7 @@ export interface SidebarNavGroup {
  * 7. Comercial & Finanças (/sponsors — patrocinadores, receitas, despesas, teto)
  *
  * SEÇÃO COMPETIÇÃO:
- * 8. Fim de Semana (/race — treinos, qualy, sprint, corrida)
+ * 8. Corrida (/corrida — treinos, qualy, sprint, corrida)
  * 9. Campeonato (/standings — calendário, classificação, resultados)
  * 10. Paddock (/paddock — todas as equipes, pilotos, staff, mercado, rumores, comparação)
  * 11. Histórico (/historico — temporadas passadas, recordes, títulos, arquivo)
@@ -96,8 +96,7 @@ export const CAREER_NAV_SECTIONS: NavSection[] = [
     title: 'COMPETIÇÃO',
     items: [
       { name: 'Calendário', path: '/calendario', icon: Calendar },
-      { name: 'CORRIDA', path: '/corrida', icon: Gauge },
-      { name: 'Fim de Semana', path: '/race', icon: Flag },
+      { name: 'Corrida', path: '/corrida', icon: Gauge },
       { name: 'Campeonato', path: '/standings', icon: Trophy },
       { name: 'Equipes', path: '/paddock', icon: Users },
       { name: 'Regulamento FIA', path: '/regulamento', icon: BookOpen },
@@ -117,9 +116,8 @@ export const ROUTE_TITLE_MAP: Record<string, string> = {
   '/pistas': 'Circuitos da Temporada',
   '/infraestrutura': 'Infraestrutura & Instalações',
   '/sponsors': 'Comercial & Finanças',
-  '/corrida': 'CORRIDA',
-  '/weekend-v2': 'CORRIDA',
-  '/race': 'Fim de Semana',
+  '/corrida': 'Corrida',
+  '/weekend-v2': 'Corrida',
   '/calendario': 'Calendário Oficial',
   '/standings': 'Campeonato Mundial',
   '/paddock': 'EQUIPES',

@@ -15,7 +15,6 @@ import TeamPage from './pages/Team'
 import TeamsPage from './pages/Teams'
 import CarPage from './pages/Car'
 import SponsorsPage from './pages/Sponsors'
-import RacePage from './pages/RaceSlimWrapper'
 import LiveRacePage from './pages/LiveRacePage'
 import WeekendV2Page from './pages/WeekendV2Page'
 import SeasonEndPage from './pages/SeasonEndPage'
@@ -62,7 +61,7 @@ const App = () => (
               <Route path="/pistas/:circuitId" element={<TracksPage />} />
               <Route path="/infraestrutura" element={<InfrastructurePage />} />
               <Route path="/sponsors" element={<SponsorsPage />} />
-              <Route path="/race" element={<RacePage />} />
+              <Route path="/race" element={<Navigate to="/corrida" replace />} />
               <Route path="/corrida" element={<WeekendV2Page />} />
               <Route path="/weekend-v2" element={<WeekendV2Page />} />
               <Route path="/corrida-ao-vivo" element={<LiveRacePage />} />

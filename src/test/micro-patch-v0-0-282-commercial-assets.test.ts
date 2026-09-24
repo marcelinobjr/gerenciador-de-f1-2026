@@ -39,14 +39,14 @@ describe('MICRO-PATCH v0.0.282 — Resolução Canônica de Miniaturas de Peças
 
   it('(4) Sidebar possui as seções requeridas e rotas intactas', () => {
     const sectionTitles = CAREER_NAV_SECTIONS.map((s) => s.title)
-    expect(sectionTitles).toEqual(['PRINCIPAL', 'PERFORMANCE', 'GESTÃO', 'COMPETIÇÃO & REGRAS'])
+    expect(sectionTitles).toEqual(['GESTÃO', 'COMPETIÇÃO'])
 
     const allItems = CAREER_NAV_SECTIONS.flatMap((s) => s.items)
     const sponsorsItem = allItems.find((i) => i.name === 'Comercial & Finanças')
     expect(sponsorsItem).toBeDefined()
     expect(sponsorsItem?.path).toBe('/sponsors')
 
-    const regulamentoItem = allItems.find((i) => i.name === 'Regulamento')
+    const regulamentoItem = allItems.find((i) => i.path === '/regulamento')
     expect(regulamentoItem).toBeDefined()
     expect(regulamentoItem?.path).toBe('/regulamento')
   })

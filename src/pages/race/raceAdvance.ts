@@ -285,7 +285,7 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
           title: `🏆 VITÓRIA NO GP! ${playerWinner.driverName} P1`,
           message: `A ${team.name} venceu o ${gpInfo.name}! Desempenho brilhante de ${playerWinner.driverName}.`,
           round: currentRound,
-          link: '/race',
+          link: '/corrida',
         })
       }
     }

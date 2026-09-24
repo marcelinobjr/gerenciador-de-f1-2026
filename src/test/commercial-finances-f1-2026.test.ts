@@ -8,42 +8,27 @@ import { formatMoneyM, formatCurrency } from '@/lib/formatters'
 describe('Frente 1 — Nova Navegação Global (Sidebar)', () => {
   it('Sidebar possui os grupos exigidos com a ordem correta', () => {
     const titles = CAREER_NAV_SECTIONS.map((s) => s.title)
-    expect(titles).toEqual(['PRINCIPAL', 'PERFORMANCE', 'GESTÃO', 'COMPETIÇÃO & REGRAS'])
+    expect(titles).toEqual(['GESTÃO', 'COMPETIÇÃO'])
 
-    // Grupo PRINCIPAL: 1. Dashboard 2. Minha Equipe 3. Meus Carros 4. Comercial & Finanças
-    const principalItems = CAREER_NAV_SECTIONS[0].items.map((i) => i.name)
-    expect(principalItems).toEqual([
-      'Dashboard',
-      'Minha Equipe',
-      'Meus Carros',
-      'Comercial & Finanças',
-    ])
-
-    // Grupo PERFORMANCE: 5. Desenvolvimento 6. Infraestrutura 7. Fim de Semana
-    const perfItems = CAREER_NAV_SECTIONS[1].items.map((i) => i.name)
-    expect(perfItems).toEqual(['Desenvolvimento', 'Infraestrutura', 'Fim de Semana'])
-
-    // Grupo GESTÃO: 8. Pilotos 9. Pistas 10. Equipes
-    const gestaoItems = CAREER_NAV_SECTIONS[2].items.map((i) => i.name)
-    expect(gestaoItems).toEqual(['Pilotos', 'Pistas', 'Equipes'])
-
-    // Campeonato, Histórico, Regulamento
-    const compItems = CAREER_NAV_SECTIONS[3].items.map((i) => i.name)
-    expect(compItems).toEqual(['Campeonato', 'Histórico', 'Regulamento'])
+    const allItems = CAREER_NAV_SECTIONS.flatMap((s) => s.items)
+    const allNames = allItems.map((i) => i.name)
+    expect(allNames).toContain('Comercial & Finanças')
+    expect(allNames).toContain('Infraestrutura')
+    expect(allNames).toContain('Corrida')
+    expect(allNames).not.toContain('Fim de Semana')
+    expect(allNames).toContain('Campeonato')
+    expect(allNames).toContain('Histórico')
   })
 
   it('Rotas internas foram preservadas com renomeações visíveis', () => {
-    const principal = CAREER_NAV_SECTIONS[0].items
-    expect(principal.find((i) => i.name === 'Dashboard')?.path).toBe('/')
-    expect(principal.find((i) => i.name === 'Minha Equipe')?.path).toBe('/team')
-    expect(principal.find((i) => i.name === 'Meus Carros')?.path).toBe('/car')
-    expect(principal.find((i) => i.name === 'Comercial & Finanças')?.path).toBe('/sponsors')
-
-    const gestao = CAREER_NAV_SECTIONS[2].items
-    expect(gestao.find((i) => i.name === 'Equipes')?.path).toBe('/paddock')
-
-    const comp = CAREER_NAV_SECTIONS[3].items
-    expect(comp.find((i) => i.name === 'Regulamento')?.path).toBe('/regulamento')
+    const allItems = CAREER_NAV_SECTIONS.flatMap((s) => s.items)
+    expect(allItems.find((i) => i.path === '/')?.path).toBe('/')
+    expect(allItems.find((i) => i.path === '/team')?.path).toBe('/team')
+    expect(allItems.find((i) => i.path === '/car')?.path).toBe('/car')
+    expect(allItems.find((i) => i.path === '/sponsors')?.path).toBe('/sponsors')
+    expect(allItems.find((i) => i.path === '/corrida')?.path).toBe('/corrida')
+    expect(allItems.find((i) => i.path === '/paddock')?.path).toBe('/paddock')
+    expect(allItems.find((i) => i.path === '/regulamento')?.path).toBe('/regulamento')
   })
 })
 

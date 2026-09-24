@@ -2019,7 +2019,7 @@ export default function WeekendV2Page() {
             variant="outline"
             className="text-xs font-bold border-[#CBD5E1] text-[#0F172A]"
           >
-            <Link to="/race">Voltar ao painel anterior</Link>
+            <Link to="/corrida">Voltar ao painel anterior</Link>
           </Button>
         </div>
       </div>

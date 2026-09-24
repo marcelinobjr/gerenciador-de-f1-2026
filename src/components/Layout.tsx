@@ -63,7 +63,6 @@ export default function Layout() {
 
   const isFullWidthPage =
     location.pathname === '/' ||
-    location.pathname === '/race' ||
     location.pathname === '/corrida' ||
     location.pathname === '/weekend-v2'
   const teamName = team?.name || 'Audi F1 Team'

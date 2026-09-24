@@ -303,7 +303,7 @@ export default function IndexPage() {
       title: `Revisar estratégia para o ${currentGP?.name || 'Próximo GP'}`,
       subtitle: `Alocação de compostos e ritmo de corrida para ${currentGP?.circuit || 'Suzuka'}`,
       actionLabel: 'Revisar',
-      route: '/race',
+      route: '/corrida',
     })
 
     list.push({
@@ -622,7 +622,7 @@ export default function IndexPage() {
           <div className="pt-3 mt-3 border-t border-[#F1F5F9]">
             <Button
               type="button"
-              onClick={() => navigate('/race')}
+              onClick={() => navigate('/corrida')}
               className="w-full bg-[#E10600] hover:bg-[#C50500] text-white font-bold h-11 text-xs uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Preparar GP</span>

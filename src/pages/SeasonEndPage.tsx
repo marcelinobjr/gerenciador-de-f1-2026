@@ -91,7 +91,7 @@ export default function SeasonEndPage() {
           description: 'A virada de ano e o novo regulamento técnico foram aplicados.',
         })
         setTimeout(() => {
-          navigate('/race')
+          navigate('/corrida')
         }, 1200)
       } else {
         toast({

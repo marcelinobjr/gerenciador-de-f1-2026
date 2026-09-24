@@ -53,9 +53,9 @@ describe('NOVA ABA PRINCIPAL CORRIDA — VALIDAÇÃO C1 a C12', () => {
     expect(compSection).toBeDefined()
     const corridaItem = compSection?.items.find((item) => item.path === '/corrida')
     expect(corridaItem).toBeDefined()
-    expect(corridaItem?.name).toBe('CORRIDA')
-    expect(ROUTE_TITLE_MAP['/corrida']).toBe('CORRIDA')
-    expect(ROUTE_TITLE_MAP['/weekend-v2']).toBe('CORRIDA')
+    expect(corridaItem?.name.toUpperCase()).toBe('CORRIDA')
+    expect(ROUTE_TITLE_MAP['/corrida'].toUpperCase()).toBe('CORRIDA')
+    expect(ROUTE_TITLE_MAP['/weekend-v2'].toUpperCase()).toBe('CORRIDA')
   })
 
   // C2 & C3: Rotas /corrida e /weekend-v2 mapeadas para o mesmo módulo

@@ -1021,7 +1021,7 @@ export default function LiveRacePage() {
             asChild
             className="text-xs font-bold border-slate-300"
           >
-            <Link to="/race">
+            <Link to="/corrida">
               <ArrowLeft className="w-3.5 h-3.5 mr-1" />
               Voltar ao Painel
             </Link>
@@ -1094,9 +1094,9 @@ export default function LiveRacePage() {
             asChild
             className="bg-[#E10600] hover:bg-[#C10500] text-white font-bold text-xs h-9 px-5 shadow-sm"
           >
-            <Link to="/race">
+            <Link to="/corrida">
               <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-              Retornar ao Painel do Fim de Semana
+              Retornar ao Painel de Corrida
             </Link>
           </Button>
         </div>
@@ -1122,7 +1122,7 @@ export default function LiveRacePage() {
             asChild
             className="text-xs font-bold border-slate-300"
           >
-            <Link to="/race">
+            <Link to="/corrida">
               <ArrowLeft className="w-3.5 h-3.5 mr-1" />
               Voltar ao Painel
             </Link>
@@ -1231,9 +1231,9 @@ export default function LiveRacePage() {
               asChild
               className="text-xs h-8 border-slate-300 text-slate-700 hover:bg-slate-50 font-bold"
             >
-              <Link to="/race">
+              <Link to="/corrida">
                 <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-                Painel /race
+                Painel Corrida
               </Link>
             </Button>
           </div>
