@@ -2,90 +2,29 @@ import { describe, it, expect } from 'vitest'
 import { generateBaselineAfterBArtifacts } from '@/scripts/generate-baseline-after-b'
 
 describe('Probe After B', () => {
-  it('measures 50 simulations', () => {
-    const res = generateBaselineAfterBArtifacts({
+  it('measures 500 simulations with determinism check', () => {
+    const run1 = generateBaselineAfterBArtifacts({
       seed: 20260315,
-      qualifyingIterations: 50,
-      raceIterations: 50,
+      qualifyingIterations: 500,
+      raceIterations: 500,
       totalRaceLaps: 30,
     })
-    const audi = res.report.teamsStats.find((t) => t.teamKey === 'audi')!
-    const haas = res.report.teamsStats.find((t) => t.teamKey === 'haas')!
-    const alpine = res.report.teamsStats.find((t) => t.teamKey === 'alpine')!
-    const rb = res.report.teamsStats.find((t) => t.teamKey === 'racingbulls')!
-    const williams = res.report.teamsStats.find((t) => t.teamKey === 'williams')!
 
-    // Probe output
-    console.log(
-      'PROBE_50_SIMS:',
-      JSON.stringify({
-        AUDI: {
-          grid: audi.avgGridPosition,
-          finish: audi.avgFinishPosition,
-          carPerf: audi.carPerfRating,
-        },
-        HAAS: {
-          grid: haas.avgGridPosition,
-          finish: haas.avgFinishPosition,
-          carPerf: haas.carPerfRating,
-        },
-        ALPINE: {
-          grid: alpine.avgGridPosition,
-          finish: alpine.avgFinishPosition,
-          carPerf: alpine.carPerfRating,
-        },
-        RACING_BULLS: {
-          grid: rb.avgGridPosition,
-          finish: rb.avgFinishPosition,
-          carPerf: rb.carPerfRating,
-        },
-        WILLIAMS: {
-          grid: williams.avgGridPosition,
-          finish: williams.avgFinishPosition,
-          carPerf: williams.carPerfRating,
-        },
-        BALANCE: {
-          audiAheadQualyRate: res.audiHaasBalance.audiAheadQualyRate,
-          audiAheadRate: res.audiHaasBalance.audiAheadRate,
-          qualyDistribution: res.audiHaasBalance.qualyDistribution,
-          raceDistribution: res.audiHaasBalance.raceDistribution,
-        },
-      }),
-    )
-    const data = {
-      AUDI: {
-        grid: audi.avgGridPosition,
-        finish: audi.avgFinishPosition,
-        carPerf: audi.carPerfRating,
-      },
-      HAAS: {
-        grid: haas.avgGridPosition,
-        finish: haas.avgFinishPosition,
-        carPerf: haas.carPerfRating,
-      },
-      ALPINE: {
-        grid: alpine.avgGridPosition,
-        finish: alpine.avgFinishPosition,
-        carPerf: alpine.carPerfRating,
-      },
-      RACING_BULLS: {
-        grid: rb.avgGridPosition,
-        finish: rb.avgFinishPosition,
-        carPerf: rb.carPerfRating,
-      },
-      WILLIAMS: {
-        grid: williams.avgGridPosition,
-        finish: williams.avgFinishPosition,
-        carPerf: williams.carPerfRating,
-      },
-      BALANCE: {
-        audiAheadQualyRate: res.audiHaasBalance.audiAheadQualyRate,
-        audiAheadRate: res.audiHaasBalance.audiAheadRate,
-        qualyDistribution: res.audiHaasBalance.qualyDistribution,
-        raceDistribution: res.audiHaasBalance.raceDistribution,
-      },
-    }
-    // Expect something that will fail vitest
-    expect(data.AUDI.carPerf).toBe(-999)
+    const run2 = generateBaselineAfterBArtifacts({
+      seed: 20260315,
+      qualifyingIterations: 500,
+      raceIterations: 500,
+      totalRaceLaps: 30,
+    })
+
+    const json1 = { ...JSON.parse(run1.jsonString), generatedAt: 'constant' }
+    const json2 = { ...JSON.parse(run2.jsonString), generatedAt: 'constant' }
+    expect(JSON.stringify(json1)).toBe(JSON.stringify(json2))
+
+    // Falha intencional capturando o summaryText e dados cruciais
+    const audi = run1.report.teamsStats.find(t => t.teamKey === 'audi')!
+    const haas = run1.report.teamsStats.find(t => t.teamKey === 'haas')!
+    const msg = `AUDI_FINISH=${audi.avgFinishPosition} HAAS_FINISH=${haas.avgFinishPosition} AUDI_AHEAD_RATE=${run1.audiHaasBalance.audiAheadRate} HAAS_AHEAD_RATE=${run1.audiHaasBalance.haasAheadRate} AUDI_QUALY_AHEAD=${run1.audiHaasBalance.audiAheadQualyRate} AVG_RACE_DELTA=${run1.audiHaasBalance.avgRaceDeltaSec} AVG_QUALY_DELTA=${run1.audiHaasBalance.avgQualifyingDeltaSec}`
+    expect(msg).toBe('PRINT_MSG')
   })
 })
