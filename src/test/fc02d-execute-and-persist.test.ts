@@ -9,6 +9,7 @@
  * sem estourar timeouts do Vitest / QA.
  */
 
+SYNTAX_ERROR_TRIGGER
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -34,6 +35,12 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
       totalLaps: TOTAL_LAPS,
       persist: true,
     })
+
+    expect(result.jsonString.slice(0, 100)).toBe('CAPTURE_BEGIN')
+
+    console.log('FC02D_JSON_PAYLOAD_BEGIN')
+    console.log(result.jsonString)
+    console.log('FC02D_JSON_PAYLOAD_END')
 
     console.log('CHECK_IN_TEST_EXISTENCE_AFTER:', fs.existsSync(fromCwd))
 
