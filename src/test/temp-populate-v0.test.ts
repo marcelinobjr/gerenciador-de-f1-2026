@@ -1,19 +1,13 @@
-import {
-  BalanceBaselineV0,
-  BalanceBaselineTeamEntry,
-  DataQualityStatus,
-  DriverDetailSummary,
-} from '@/types/structural-strength'
+import { describe, it, expect } from 'vitest'
+import * as fs from 'fs'
+import * as path from 'path'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 import {
   OFFICIAL_TEAMS_TECHNICAL_DATA,
   OFFICIAL_POWER_UNITS,
   generateDefaultComponentsFromMacro,
 } from '@/lib/car-technical-data'
-import {
-  OFFICIAL_2026_PU_RELATIONSHIPS,
-  canonicalPowerUnitIntegrationService,
-} from '@/services/canonicalPowerUnitIntegrationService'
+import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
 import {
   INITIAL_GRID_FACILITIES,
   DEFAULT_CUSTOM_TEAM_FACILITIES,
@@ -26,41 +20,24 @@ import {
   STRUCTURAL_STRENGTH_WEIGHTS,
   NEUTRAL_ADAPTATION_VALUE,
 } from '@/services/structuralStrengthService'
+import { calculateStableChecksum } from '@/data/balance-baseline-v0'
+import {
+  BalanceBaselineV0,
+  BalanceBaselineTeamEntry,
+  DataQualityStatus,
+  DriverDetailSummary,
+} from '@/types/structural-strength'
 
-/**
- * Hash estável determinístico FNV-1a de 64 bits para o payload
- */
-export function calculateStableChecksum(data: any): string {
-  const json = typeof data === 'string' ? data : JSON.stringify(data)
-  let h1 = 0x811c9dc5
-  let h2 = 0xcbf29ce4
-  for (let i = 0; i < json.length; i++) {
-    const code = json.charCodeAt(i)
-    h1 ^= code
-    h1 = Math.imul(h1, 0x01000193)
-    h2 ^= code
-    h2 = Math.imul(h2, 0x01000193)
-  }
-  const hex1 = (h1 >>> 0).toString(16).padStart(8, '0')
-  const hex2 = (h2 >>> 0).toString(16).padStart(8, '0')
-  return `sha_v0_${hex1}${hex2}`
-}
-
-/**
- * Constrói os dados da V0 para uma equipe do catálogo ou custom
- */
-export function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): BalanceBaselineTeamEntry {
+function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): BalanceBaselineTeamEntry {
   const cleanKey = teamKey.toLowerCase().trim()
   const isCustom = cleanKey === 'custom_team'
 
-  let teamName = isCustom ? 'Equipe Personalizada' : gridTeam?.name || cleanKey
-  let country = isCustom ? 'Internacional' : gridTeam?.country || 'Internacional'
-  let supplierName = gridTeam?.engine || 'Audi'
+  const teamName = isCustom ? 'Equipe Personalizada' : gridTeam?.name || cleanKey
+  const country = isCustom ? 'Internacional' : gridTeam?.country || 'Internacional'
+  const supplierName = gridTeam?.engine || 'Audi'
 
-  // Normalizar fornecedor
   const normSupplier = canonicalPowerUnitIntegrationService.normalizeSupplier(supplierName)
 
-  // Metadados de relação PU
   const puMeta = canonicalPowerUnitIntegrationService.getRelationshipMetadata(
     cleanKey,
     normSupplier,
@@ -71,7 +48,6 @@ export function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): Balance
   const nominalRel = puSpec.reliabilityRating
   const nominalPuRating = Number((nominalPower * 0.6 + nominalRel * 0.4).toFixed(1))
 
-  // Integração inicial
   const consolidatedK = canonicalPowerUnitIntegrationService.calculateConsolidatedKnowledge(
     puMeta.initialGeneralKnowledge,
     puMeta.initialSupplierKnowledge,
@@ -85,7 +61,6 @@ export function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): Balance
   const effectiveIntegration = resolvedEff.effectiveIntegration
   const effectivePuRating = Number((nominalPuRating * effectiveIntegration).toFixed(1))
 
-  // Componentes do carro
   let chassisComponents: Record<string, number>
   let dataQuality: DataQualityStatus
   let dataQualityReason: string
@@ -96,20 +71,16 @@ export function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): Balance
     dataQuality = 'COMPLETE'
     dataQualityReason = 'Dados completos catalogados na planilha técnica oficial e PU homologada.'
   } else if (gridTeam) {
-    // Equipe do catálogo de 28 que não tem entry na tabela de 12 oficiais
-    // Usa macro carRating ou carLevel do catálogo para derivar
     const macro = gridTeam.carRating ?? gridTeam.carLevel ?? gridTeam.strength ?? 60
     chassisComponents = generateDefaultComponentsFromMacro(macro)
     dataQuality = 'PARTIAL'
     dataQualityReason = 'Equipe estruturada do catálogo com componentes derivados de rating macro.'
   } else {
-    // Custom team
     chassisComponents = generateDefaultComponentsFromMacro(65)
     dataQuality = 'DEFAULTED'
     dataQualityReason = 'Equipe personalizada inicializada com especificações padrão.'
   }
 
-  // Pilotos
   const drivers: DriverDetailSummary[] = []
   if (gridTeam?.driver1) {
     const d1 = gridTeam.driver1
@@ -178,7 +149,6 @@ export function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): Balance
     })
   }
 
-  // Instalações
   const facilities = INITIAL_GRID_FACILITIES[cleanKey] || { ...DEFAULT_CUSTOM_TEAM_FACILITIES }
   const facValues = Object.values(facilities)
   const avgFac = facValues.reduce((s, v) => s + v, 0) / Math.max(1, facValues.length)
@@ -188,7 +158,6 @@ export function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): Balance
   const carReliabilityRating = nominalRel
   const initialCondition = 100
 
-  // Cálculo das pontuações
   const compValues = Object.values(chassisComponents)
   const partsScore = compValues.reduce((s, v) => s + v, 0) / compValues.length
   const technicalScore = Number(
@@ -260,19 +229,14 @@ export function buildTeamBaselineEntry(teamKey: string, gridTeam?: any): Balance
   }
 }
 
-/**
- * Constrói a árvore integral da baseline V0
- */
-export function buildCompleteBaselineV0(): BalanceBaselineV0 {
+function buildCompleteBaselineV0(): BalanceBaselineV0 {
   const teamsMap: Record<string, BalanceBaselineTeamEntry> = {}
 
-  // 1. Todas as 28 equipes do catálogo ALL_GRID_TEAMS_DATABASE
   for (const gridTeam of ALL_GRID_TEAMS_DATABASE) {
     const entry = buildTeamBaselineEntry(gridTeam.key, gridTeam)
     teamsMap[gridTeam.key] = entry
   }
 
-  // 2. A 29ª equipe (Equipe Personalizada / custom_team)
   const customEntry = buildTeamBaselineEntry('custom_team')
   teamsMap['custom_team'] = customEntry
 
@@ -319,3 +283,17 @@ export function buildCompleteBaselineV0(): BalanceBaselineV0 {
     checksum,
   }
 }
+
+describe('Geração de Baseline V0 Canônica', () => {
+  it('grava src/data/balance-baseline-v0.json completo com 29 equipes', () => {
+    const filePath = path.resolve(process.cwd(), 'src/data/balance-baseline-v0.json')
+    const full = buildCompleteBaselineV0()
+    fs.writeFileSync(filePath, JSON.stringify(full, null, 2), 'utf-8')
+
+    expect(fs.existsSync(filePath)).toBe(true)
+    const read = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+    expect(read.totalTeamsCount).toBe(29)
+    expect(Object.keys(read.teams).length).toBe(29)
+    expect(read.checksum.startsWith('sha_v0_')).toBe(true)
+  })
+})

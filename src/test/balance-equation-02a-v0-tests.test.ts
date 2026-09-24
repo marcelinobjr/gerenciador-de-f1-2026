@@ -9,34 +9,26 @@ import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
 import { structuralStrengthService } from '@/services/structuralStrengthService'
-import { calculateStableChecksum, buildCompleteBaselineV0 } from '@/scripts/generate-baseline-v0'
-import { BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
+import { calculateStableChecksum, BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
 
 describe('V0-01 a V0-07: Homologação da Baseline Histórica V0', () => {
   const filePath = path.resolve(process.cwd(), 'src/data/balance-baseline-v0.json')
 
-  // V0-01: Baseline existe no path canônico ou módulo canônico
+  // V0-01: Baseline existe no path canônico src/data/balance-baseline-v0.json
   it('V0-01: Baseline V0 existe no path canônico src/data/balance-baseline-v0.json', () => {
-    // Garante que o arquivo físico está persistido em disco
-    if (!fs.existsSync(filePath) || fs.readFileSync(filePath, 'utf-8').length < 200) {
-      const full = buildCompleteBaselineV0()
-      fs.writeFileSync(filePath, JSON.stringify(full, null, 2), 'utf-8')
-    }
     expect(fs.existsSync(filePath)).toBe(true)
+    const stat = fs.statSync(filePath)
+    expect(stat.size).toBeGreaterThan(1000)
   })
 
   // V0-02: Baseline parseia perfeitamente e respeita schema
   it('V0-02: Baseline V0 parseia como JSON válido e respeita schema estrutural', () => {
-    if (!fs.existsSync(filePath) || fs.readFileSync(filePath, 'utf-8').length < 200) {
-      const full = buildCompleteBaselineV0()
-      fs.writeFileSync(filePath, JSON.stringify(full, null, 2), 'utf-8')
-    }
     const raw = fs.readFileSync(filePath, 'utf-8')
     const parsed = JSON.parse(raw)
     expect(parsed).toBeDefined()
     expect(parsed.schemaVersion).toBe('v0')
     expect(parsed.baselineId).toBe('balance_baseline_v0_2026')
-    expect(parsed.totalTeamsCount).toBeGreaterThanOrEqual(29)
+    expect(parsed.totalTeamsCount).toBe(29)
     expect(typeof parsed.checksum).toBe('string')
     expect(parsed.checksum.startsWith('sha_v0_')).toBe(true)
     expect(parsed.immutable).toBe(true)
@@ -45,15 +37,12 @@ describe('V0-01 a V0-07: Homologação da Baseline Histórica V0', () => {
 
   // V0-03: Checksum / hash é estável e reproduzível
   it('V0-03: Checksum da V0 é estável, determinístico e confere com os dados', () => {
-    if (!fs.existsSync(filePath) || fs.readFileSync(filePath, 'utf-8').length < 200) {
-      const full = buildCompleteBaselineV0()
-      fs.writeFileSync(filePath, JSON.stringify(full, null, 2), 'utf-8')
-    }
     const raw = fs.readFileSync(filePath, 'utf-8')
     const parsed = JSON.parse(raw)
     const { checksum, ...withoutChecksum } = parsed
     const expectedChecksum = calculateStableChecksum(withoutChecksum)
     expect(checksum).toBe(expectedChecksum)
+    expect(BASELINE_V0_DATA.checksum).toBe(checksum)
   })
 
   // V0-04: Imutabilidade garantida — não é sobrescrita silenciosamente

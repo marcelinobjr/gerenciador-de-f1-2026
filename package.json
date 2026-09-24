@@ -15,7 +15,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "preview": "vite preview",
-    "test": "vitest run --globalSetup ./vitest.global-setup.ts",
+    "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
