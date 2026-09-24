@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "v0",
+  "baselineId": "balance_baseline_v0_2026",
+  "baselineName": "APEX GP Manager 2026 — Balance Baseline Histórica V0",
+  "generatedAt": "2026-03-15T00:00:00.000Z",
+  "immutable": true,
+  "totalTeamsCount": 29,
+  "formulas": {
+    "technical": "PARTS 50% + EFFECTIVE_PU 30% + RELIABILITY 10% + CONDITION 10%",
+    "driver": "DRIVER ATTRIBUTES 80% + MORALE 10% + ADAPTATION 10% (Adaptation neutra/placeholder)",
+    "team": "INFRASTRUCTURE 80% + TEAM MORALE 20%",
+    "structuralStrength": "TECHNICAL × 0.60 + DRIVER × 0.25 + TEAM × 0.15",
+    "weights": {
+      "technicalSub": {
+        "parts": 0.5,
+        "effectivePu": 0.3,
+        "reliability": 0.1,
+        "condition": 0.1
+      },
+      "driverSub": {
+        "driverAttributes": 0.8,
+        "morale": 0.1,
+        "adaptation": 0.1
+      },
+      "teamSub": {
+        "infrastructure": 0.8,
+        "teamMorale": 0.2
+      },
+      "structuralOverall": {
+        "technical": 0.6,
+        "driver": 0.25,
+        "team": 0.15
+      }
+    }
+  },
+  "rngConfiguration": {
+    "deterministicSeed": 20260315,
+    "hasRuntimeRng": false,
+    "rngNotes": "Zero RNG no cálculo de structural strength. Score puramente determinístico."
+  },
+  "prohibitedRulesEnforced": [
+    "PROIBIDO: MGU-K inventado como rating funcional",
+    "PROIBIDO: Team bonus por nome de equipe",
+    "PROIBIDO: RNG no structural score",
+    "PROIBIDO: TrackFit no structural score",
+    "PROIBIDO: Setup, pneu, fuel e chaos no structural score",
+    "PROIBIDO: Alterar ratings canônicos de pilotos",
+    "PROIBIDO: Ligar structural score no race engine nesta fase 02A"
+  ],
+  "teams": {
+    "mercedes": {
+      "teamKey": "mercedes",
+      "teamName": "Mercedes-AMG Petronas",
+      "country": "Alemanha",
+      "engineSupplier": "Mercedes",
+      "relationshipType": "FACTORY",
+      "maxIntegration": 1,
+      "effectiveIntegration": 0.9984,
+      "nominalPuPower": 98,
+      "nominalPuReliability": 96,
+      "nominalPuRating": 97.2,
+      "effectivePuRating": 97,
+      "chassisComponents": {
+        "frontWing": 99,
+        "rearWing": 100,
+        "floor": 100,
+        "diffuser": 99,
+        "sidepods": 98,
+        "chassis": 99,
+        "suspension": 99,
+        "brakes": 98
+      },
+      "carReliabilityRating": 96,
+      "initialCondition": 100,
+      "drivers": [
+        {
+          "name": "George Russell",
+          "role": "driver1",
+          "overallRating": 93,
+          "speed": 94,
+          "consistency": 93,
+          "rain": 90,
+          "defense": 91,
+          "morale": 85
+        },
+        {
+          "name": "Andrea Kimi Antonelli",
+          "role": "driver2",
+          "overallRating": 89,
+          "speed": 91,
+          "consistency": 88,
+          "rain": 86,
+          "defense": 87,
+          "morale": 80
+        },
+        {
+          "name": "Frederik Vesti",
+          "role": "reserve",
+          "overallRating": 80,
+          "speed": 80,
+          "consistency": 81,
+          "rain": 79,
+          "defense": 78,
+          "morale": 78
+        }
+      ],
+      "driverAttributesAverage": 91,
+      "driverMoraleAverage": 82.5,
+      "driverAdaptationValue": 75,
+      "isAdaptationNeutral": true,
+      "facilities": {
+        "factory": 5,
+        "design_centre": 5,
+        "cfd": 5,
+        "wind_tunnel": 5,
+        "manufacturing": 5,
+        "simulator": 5,
+        "operations_centre": 5,
+        "pitstop_center": 4,
+        "youth_academy": 5
+      },
+      "infrastructureRating100": 97.78,
+      "teamMoraleRating": 95,
+      "dataQuality": "COMPLETE",
+      "dataQualityReason": "Dados completos catalogados na planilha técnica oficial e PU homologada.",
+      "technicalScore": 98.2,
+      "driverScore": 88.55,
+      "teamScore": 97.22,
+      "structuralStrengthScore": 95.64
+    }
+  }
+}
