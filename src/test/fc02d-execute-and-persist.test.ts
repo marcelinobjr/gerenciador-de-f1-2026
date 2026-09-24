@@ -12,10 +12,15 @@
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
-import { runFC02DPhaseB } from '@/scripts/run-fc02d-phase-b'
+import {
+  runFC02DPhaseB,
+  FC02D_PHASE_B_AFTER_BASELINE_PATH,
+  getCanonicalPhaseBPath,
+} from '@/scripts/run-fc02d-phase-b'
 
 describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente', () => {
   it('executa Monte Carlo Fase B com seed 20260315 e persiste baseline-2026-after-phase-b.json', () => {
+    // Escala equilibrada: 30 qualificações e 30 corridas com 15 voltas
     const SEED = 20260315
     const RUNS = 30
     const TOTAL_LAPS = 15
@@ -49,21 +54,30 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     expect(checks.audiVsAlpine).toBeDefined()
     expect(checks.audiVsRacingBulls).toBeDefined()
 
-    // Validar integridade do JSON gerado
+    // Validar integridade do JSON gerado em memória
     expect(typeof result.jsonString).toBe('string')
-    const parsed = JSON.parse(result.jsonString)
-    expect(parsed).toBeDefined()
-    expect(parsed.phase).toBe('FASE_B_AFTER')
-    expect(parsed.teamsStats).toHaveLength(12)
-    expect(parsed.structuralComparison).toHaveLength(12)
-    expect(parsed.specialChecks).toBeDefined()
+    const parsedMemory = JSON.parse(result.jsonString)
+    expect(parsedMemory).toBeDefined()
+    expect(parsedMemory.phase).toBe('FASE_B_AFTER')
+    expect(parsedMemory.teamsStats).toHaveLength(12)
+    expect(parsedMemory.structuralComparison).toHaveLength(12)
+    expect(parsedMemory.specialChecks).toBeDefined()
 
-    // Validar existência física e integridade do arquivo persistido
-    const expectedPath = path.resolve(process.cwd(), 'src/data/baseline-2026-after-phase-b.json')
-    expect(fs.existsSync(expectedPath)).toBe(true)
-    throw new Error(
-      `DEBUG_CWD: cwd=${process.cwd()} expectedPath=${expectedPath} exists=${fs.existsSync(expectedPath)} resultFilePath=${result.filePath}`,
-    )
+    // Validar existência física e integridade do arquivo persistido no disco
+    const canonicalPath = getCanonicalPhaseBPath()
+    expect(fs.existsSync(canonicalPath)).toBe(true)
+    if (result.filePath) {
+      expect(fs.existsSync(result.filePath)).toBe(true)
+    }
+
+    const fileContent = fs.readFileSync(canonicalPath, 'utf8')
+    const parsedFile = JSON.parse(fileContent)
+    expect(parsedFile).toBeDefined()
+    expect(parsedFile.phase).toBe('FASE_B_AFTER')
+    expect(parsedFile.teamsStats).toHaveLength(12)
+    expect(parsedFile.teamsCount).toBe(12)
+    expect(parsedFile.seed).toBe(SEED)
+
   }, 120000)
 
   it('determines identical results when executed with the same seed (determinismo Fase B)', () => {

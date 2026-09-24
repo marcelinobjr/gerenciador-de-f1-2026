@@ -18,6 +18,26 @@ import {
   AudiHaasBalanceAuditReport,
 } from '../services/teamPerformanceBaselineAuditService'
 
+/**
+ * Derivação canônica do caminho absoluto de baseline-2026-after-phase-b.json.
+ * Tenta process.cwd()/src/data e fallback relativo a __dirname / import.meta.
+ */
+export function getCanonicalPhaseBPath(): string {
+  const fromCwd = path.resolve(process.cwd(), 'src/data/baseline-2026-after-phase-b.json')
+  // Se process.cwd() aponta para o repo root (onde package.json ou src/ existe), fromCwd é perfeito
+  if (
+    fs.existsSync(path.resolve(process.cwd(), 'package.json')) ||
+    fs.existsSync(path.resolve(process.cwd(), 'src'))
+  ) {
+    return fromCwd
+  }
+  // Fallback: subir a partir deste arquivo (src/scripts -> src -> repo root)
+  const repoRoot = path.resolve(__dirname, '../..')
+  return path.resolve(repoRoot, 'src/data/baseline-2026-after-phase-b.json')
+}
+
+export const FC02D_PHASE_B_AFTER_BASELINE_PATH = getCanonicalPhaseBPath()
+
 export interface PairCheck {
   pair: string
   audiMetric: number
@@ -216,11 +236,12 @@ export function runFC02DPhaseB(
   let filePath: string | undefined
 
   if (persist) {
-    const targetDir = path.resolve(process.cwd(), 'src/data')
+    const resolvedPath = getCanonicalPhaseBPath()
+    const targetDir = path.dirname(resolvedPath)
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true })
     }
-    filePath = path.join(targetDir, 'baseline-2026-after-phase-b.json')
+    filePath = resolvedPath
     fs.writeFileSync(filePath, jsonString, 'utf-8')
     console.log(
       '[runFC02DPhaseB] Persisted JSON to:',

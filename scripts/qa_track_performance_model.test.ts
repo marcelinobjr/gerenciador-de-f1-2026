@@ -44,6 +44,9 @@ import { carTechnicalService } from '@/services/carTechnicalService'
 import { TechnicalAttributesMap } from '@/types/car-technical-model'
 
 describe('FASE 0B — MODELO TÉCNICO DO CARRO APLICADO À PISTA', () => {
+  it('teste provocador', () => {
+    expect('PROVOCA').toBe('FAIL')
+  })
   // ============================================================================
   // 1. VALIDAÇÃO CANÔNICA DOS 24 CIRCUITOS (PLANILHA OFICIAL)
   // ============================================================================
