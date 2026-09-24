@@ -63,6 +63,23 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
 
     // Validar integridade do JSON gerado em memória
     expect(typeof result.jsonString).toBe('string')
+    console.log('FC02D_JSON_PAYLOAD_BEGIN')
+    console.log(result.jsonString)
+    console.log('FC02D_JSON_PAYLOAD_END')
+
+    // Capturar o payload diretamente chamando o helper de persistência da suite se fs funcionar no Vitest:
+    // Atenção: result foi chamado com persist: true!
+    // O runner runFC02DPhaseB faz:
+    //   if (persist) {
+    //     const resolvedPath = getCanonicalPhaseBPath()
+    //     ...
+    //     fs.writeFileSync(filePath, jsonString, 'utf-8')
+    //   }
+    // Testar se fs.existsSync(resolvedPath) é verdadeiro!
+    const canonicalPath = getCanonicalPhaseBPath()
+    const fileExistsInWorker = fs.existsSync(canonicalPath)
+    expect(fileExistsInWorker).toBe(true)
+
     const parsedMemory = JSON.parse(result.jsonString)
     expect(parsedMemory).toBeDefined()
     expect(parsedMemory.phase).toBe('FASE_B_AFTER')
