@@ -20,6 +20,7 @@ import { OFFICIAL_GRID_TEAMS, OfficialGridTeam } from '@/lib/f1-data'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { carTechnicalService } from '@/services/carTechnicalService'
+import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
@@ -791,10 +792,9 @@ export class TeamPerformanceBaselineAuditService {
       status: groupBExpected ? 'SATISFIED' : 'DIVERGENT',
       actualValue: `Ranks do Grupo B: ${groupBRanks.map((g) => `${g.key} P${g.rank}`).join(', ')} (Média: ${groupBAvgRank.toFixed(1)})`,
       expectedTarget: 'Ranks entre 5º e 8º construtor e à frente da Haas',
-      detail:
-        groupBExpected
-          ? 'Grupo B situado adequadamente no pelotão intermediário com Audi à frente da Haas.'
-          : 'DIVERGÊNCIA: Deslocamento no pelotão intermediário do Grupo B.',
+      detail: groupBExpected
+        ? 'Grupo B situado adequadamente no pelotão intermediário com Audi à frente da Haas.'
+        : 'DIVERGÊNCIA: Deslocamento no pelotão intermediário do Grupo B.',
     })
 
     // Regra 7: Posição média do Grupo C (Haas, Williams, Aston Martin)
@@ -810,10 +810,9 @@ export class TeamPerformanceBaselineAuditService {
       status: groupCExpected ? 'SATISFIED' : 'DIVERGENT',
       actualValue: `Ranks do Grupo C: ${groupCRanks.map((g) => `${g.key} P${g.rank}`).join(', ')} (Média: ${groupCAvgRank.toFixed(1)})`,
       expectedTarget: 'Ranks entre 7º e 10º construtor',
-      detail:
-        groupCExpected
-          ? 'Grupo C situado adequadamente no pelotão intermediário inferior.'
-          : 'DIVERGÊNCIA: Deslocamento no pelotão do Grupo C.',
+      detail: groupCExpected
+        ? 'Grupo C situado adequadamente no pelotão intermediário inferior.'
+        : 'DIVERGÊNCIA: Deslocamento no pelotão do Grupo C.',
     })
 
     const summaryTitle =
@@ -856,19 +855,20 @@ export class TeamPerformanceBaselineAuditService {
       summaryText,
     }
   }
-}
 
   /**
    * PASSO 9 & PASSO 3-6: Auditoria Estatística Focada Audi vs Haas
    * Mede diretamente a vantagem estrutural da Audi sobre a Haas sem aplicar scripts arbitrários.
    */
-  public auditAudiHaasBalance(options: {
-    seed?: number
-    simulations?: number
-    totalLaps?: number
-    includeCircuits?: boolean
-    includeIsolation?: boolean
-  } = {}): AudiHaasBalanceAuditReport {
+  public auditAudiHaasBalance(
+    options: {
+      seed?: number
+      simulations?: number
+      totalLaps?: number
+      includeCircuits?: boolean
+      includeIsolation?: boolean
+    } = {},
+  ): AudiHaasBalanceAuditReport {
     const seed = options.seed ?? 20260315
     const sims = options.simulations ?? 1000
     const totalLaps = options.totalLaps ?? 30
@@ -883,18 +883,40 @@ export class TeamPerformanceBaselineAuditService {
     const haasCtx = this.resolveTeamContext(haasOfficial)
 
     // Drivers composite ratings (speed, consistency, rain, defense)
-    const audiD1Comp = (audiCtx.driver1.speed + audiCtx.driver1.consistency + audiCtx.driver1.defense + audiCtx.driver1.rain) / 4
-    const audiD2Comp = (audiCtx.driver2.speed + audiCtx.driver2.consistency + audiCtx.driver2.defense + audiCtx.driver2.rain) / 4
+    const audiD1Comp =
+      (audiCtx.driver1.speed +
+        audiCtx.driver1.consistency +
+        audiCtx.driver1.defense +
+        audiCtx.driver1.rain) /
+      4
+    const audiD2Comp =
+      (audiCtx.driver2.speed +
+        audiCtx.driver2.consistency +
+        audiCtx.driver2.defense +
+        audiCtx.driver2.rain) /
+      4
     const audiDriverComposite = Number(((audiD1Comp + audiD2Comp) / 2).toFixed(2))
 
-    const haasD1Comp = (haasCtx.driver1.speed + haasCtx.driver1.consistency + haasCtx.driver1.defense + haasCtx.driver1.rain) / 4
-    const haasD2Comp = (haasCtx.driver2.speed + haasCtx.driver2.consistency + haasCtx.driver2.defense + haasCtx.driver2.rain) / 4
+    const haasD1Comp =
+      (haasCtx.driver1.speed +
+        haasCtx.driver1.consistency +
+        haasCtx.driver1.defense +
+        haasCtx.driver1.rain) /
+      4
+    const haasD2Comp =
+      (haasCtx.driver2.speed +
+        haasCtx.driver2.consistency +
+        haasCtx.driver2.defense +
+        haasCtx.driver2.rain) /
+      4
     const haasDriverComposite = Number(((haasD1Comp + haasD2Comp) / 2).toFixed(2))
 
     const driverCompositeDelta = Number((audiDriverComposite - haasDriverComposite).toFixed(2))
 
     const chassisDelta = Number((audiCtx.chassisRating - haasCtx.chassisRating).toFixed(2))
-    const effectivePUDelta = Number((audiCtx.effectivePuRating - haasCtx.effectivePuRating).toFixed(2))
+    const effectivePUDelta = Number(
+      (audiCtx.effectivePuRating - haasCtx.effectivePuRating).toFixed(2),
+    )
     const carPerformanceDelta = Number((audiCtx.carPerfRating - haasCtx.carPerfRating).toFixed(2))
 
     // Listas para coletar posições e deltas
@@ -975,9 +997,7 @@ export class TeamPerformanceBaselineAuditService {
     const avgRaceDeltaSec = Number(
       (raceDeltasSec.reduce((a, b) => a + b, 0) / (sims || 1)).toFixed(2),
     )
-    const avgRaceTimeDeltaPerLapSec = Number(
-      (avgRaceDeltaSec / totalLaps).toFixed(3),
-    )
+    const avgRaceTimeDeltaPerLapSec = Number((avgRaceDeltaSec / totalLaps).toFixed(3))
 
     // Estatísticas de distribuição
     const percentile = (arr: number[], p: number) => {
@@ -1026,7 +1046,11 @@ export class TeamPerformanceBaselineAuditService {
       // 3. Equilibrado / Barcelona ou Silverstone
       const balCirc = resolveCircuitProfile({ round: 1 })
 
-      const testCircs: Array<{ name: string; type: 'power' | 'technical' | 'balanced'; prof: any }> = [
+      const testCircs: Array<{
+        name: string
+        type: 'power' | 'technical' | 'balanced'
+        prof: any
+      }> = [
         { name: powerCirc.circuitName || 'Monza (Alta)', type: 'power', prof: powerCirc },
         { name: techCirc.circuitName || 'Mônaco (Travada)', type: 'technical', prof: techCirc },
         { name: balCirc.circuitName || 'Bahrein (Equilibrada)', type: 'balanced', prof: balCirc },
@@ -1041,7 +1065,11 @@ export class TeamPerformanceBaselineAuditService {
         const cSims = Math.min(200, sims)
 
         for (let i = 0; i < cSims; i++) {
-          const qR = this.simulateOneQualifying({ teams: allTeams, circuitProfile: c.prof, rng: cRng })
+          const qR = this.simulateOneQualifying({
+            teams: allTeams,
+            circuitProfile: c.prof,
+            rng: cRng,
+          })
           const aQ = qR.filter((e) => e.teamKey === 'audi')
           const hQ = qR.filter((e) => e.teamKey === 'haas')
           const aBestQ = Math.min(...aQ.map((e) => e.gridPosition))
@@ -1123,7 +1151,10 @@ export class TeamPerformanceBaselineAuditService {
         })
         const aR = rR.filter((e) => e.teamKey === 'audi')
         const hR = rR.filter((e) => e.teamKey === 'haas')
-        if (Math.min(...aR.map((e) => e.finishPosition)) < Math.min(...hR.map((e) => e.finishPosition))) {
+        if (
+          Math.min(...aR.map((e) => e.finishPosition)) <
+          Math.min(...hR.map((e) => e.finishPosition))
+        ) {
           dAheadR++
         }
         dRDeltas.push((hBestLap - aBestLap) * 20)
@@ -1172,7 +1203,10 @@ export class TeamPerformanceBaselineAuditService {
         })
         const aR = rR.filter((e) => e.teamKey === 'audi')
         const hR = rR.filter((e) => e.teamKey === 'haas')
-        if (Math.min(...aR.map((e) => e.finishPosition)) < Math.min(...hR.map((e) => e.finishPosition))) {
+        if (
+          Math.min(...aR.map((e) => e.finishPosition)) <
+          Math.min(...hR.map((e) => e.finishPosition))
+        ) {
           cAheadR++
         }
         cRDeltas.push((hBestLap - aBestLap) * 20)

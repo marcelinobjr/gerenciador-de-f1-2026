@@ -39,9 +39,11 @@ import type {
   CanonicalRaceDriverState,
   CanonicalRaceStatus,
 } from '@/types/canonical-race-v2'
+import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import { driverBase2026Service } from '@/services/driverBase2026Service'
 import { carTechnicalService } from '@/services/carTechnicalService'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
+import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { TIRE_SPECS, calculateTireCliffStatus } from '@/lib/f1-tire-system'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
@@ -125,7 +127,7 @@ export class CanonicalRaceEngineService {
    */
   private resolveCarPerformance(driver: CanonicalRaceDriverState) {
     const officialTeam = OFFICIAL_GRID_TEAMS.find(
-      (t) => t.key === driver.teamId || t.id === driver.teamId,
+      (t) => t.key === driver.teamId,
     )
     const supplier = officialTeam?.engine || 'Ferrari'
     const tech = carTechnicalService.getOrCreateTeamTechnicalData(
