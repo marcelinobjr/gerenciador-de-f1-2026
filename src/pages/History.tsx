@@ -6,15 +6,11 @@ import { raceReportService } from '@/services/raceReportService'
 import { standingsService } from '@/services/standingsService'
 import { eraHistoryService } from '@/services/eraHistoryService'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
-import { formatCurrency } from '@/lib/formatters'
-import { PageHeader } from '@/components/PageHeader'
-import { StatCard } from '@/components/StatCard'
-import { EmptyState } from '@/components/EmptyState'
-import { AmbientBackground } from '@/components/AmbientBackground'
 import { RaceReportModal } from '@/components/race/RaceReportModal'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/EmptyState'
 import {
   History,
   FileText,
@@ -27,6 +23,14 @@ import {
   ArrowDownRight,
   Minus,
   Sparkles,
+  Trophy,
+  Swords,
+  ChevronRight,
+  Flag,
+  Target,
+  BarChart3,
+  ListFilter,
+  ShieldAlert,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -63,6 +67,37 @@ interface RoundHistoryItem {
   rivalPointsAccum: number
 }
 
+// Custom tooltip para gráfico claro
+function CustomChartTooltip({ active, payload, label, teamName, rivalName }: any) {
+  if (!active || !payload || !payload.length) return null
+  return (
+    <div className="bg-white/95 backdrop-blur-sm border border-[#E2E8F0] shadow-lg rounded-xl p-3 text-xs space-y-1.5 min-w-[190px]">
+      <div className="font-bold text-[#0F172A] border-b border-[#F1F5F9] pb-1 flex items-center justify-between">
+        <span className="font-mono text-[11px] text-[#64748B]">RODADA</span>
+        <span className="font-mono font-black text-[#0F172A]">{label}</span>
+      </div>
+      {payload.map((entry: any, index: number) => {
+        const isTeam = entry.dataKey === 'teamPoints'
+        const labelName = isTeam ? teamName : rivalName
+        return (
+          <div key={index} className="flex items-center justify-between gap-3 text-xs">
+            <span className="flex items-center gap-1.5 text-[#475569] font-medium truncate max-w-[120px]">
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="truncate">{labelName}</span>
+            </span>
+            <span className="font-mono font-bold text-[#0F172A] shrink-0">
+              {entry.value} <span className="text-[10px] text-[#94A3B8] font-normal">pts</span>
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function HistoryPage() {
   const { team, season } = useAuth()
 
@@ -72,8 +107,11 @@ export default function HistoryPage() {
   const [reports, setReports] = useState<RaceReportModel[]>([])
   const [selectedReport, setSelectedReport] = useState<RaceReportData | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-
   const [archivedHistories, setArchivedHistories] = useState<any[]>([])
+
+  // Estado de controle das abas do bloco de 2º nível
+  const [activeTab, setActiveTab] = useState<'timeline' | 'rounds' | 'highlights'>('timeline')
+  const [chartRange, setChartRange] = useState<'all' | 'last5'>('all')
 
   // Carregar dados
   useEffect(() => {
@@ -111,7 +149,7 @@ export default function HistoryPage() {
     }
   }, [season?.id, team?.id])
 
-  // Classificação atual unificada para encontrar o rival direto (imediatamente acima)
+  // Classificação atual unificada para encontrar o rival direto
   const standings = useMemo(() => {
     return standingsService.calculateStandings({
       raceResults,
@@ -131,7 +169,7 @@ export default function HistoryPage() {
       return {
         id: rival.id,
         name: rival.name,
-        color: rival.color || '#3B82F6',
+        color: rival.color || '#2563EB',
         points: rival.points,
         rank: playerIdx, // 1-based é playerIdx
         gap: rival.points - (list[playerIdx]?.points || 0),
@@ -341,139 +379,364 @@ export default function HistoryPage() {
     }
   }, [raceResults, playerDrivers, reports, team, season, standings, rivalInfo])
 
+  // Filtragem de dados para o gráfico com base no filtro selecionado
+  const displayedChartData = useMemo(() => {
+    if (chartRange === 'last5' && chartData.length > 5) {
+      return chartData.slice(-5)
+    }
+    return chartData
+  }, [chartData, chartRange])
+
+  // Destaques analíticos da temporada (Opção C)
+  const seasonHighlights = useMemo(() => {
+    const completedItems = historyList.filter((item) => item.isCompleted)
+    if (completedItems.length === 0) {
+      return {
+        bestResult: null,
+        worstResult: null,
+        biggestPoints: null,
+        avgPointsPerCompletedGp: 0,
+        podiumRate: '0%',
+        pointsScoredRounds: 0,
+      }
+    }
+
+    let bestResItem: RoundHistoryItem | null = null
+    let worstResItem: RoundHistoryItem | null = null
+    let maxPtsItem: RoundHistoryItem | null = null
+    let roundsWithPoints = 0
+
+    completedItems.forEach((item) => {
+      if (item.playerPoints > 0) roundsWithPoints++
+
+      if (item.playerBestPos !== null) {
+        if (
+          !bestResItem ||
+          (bestResItem.playerBestPos !== null && item.playerBestPos < bestResItem.playerBestPos)
+        ) {
+          bestResItem = item
+        }
+        if (
+          !worstResItem ||
+          (worstResItem.playerBestPos !== null && item.playerBestPos > worstResItem.playerBestPos)
+        ) {
+          worstResItem = item
+        }
+      }
+
+      if (!maxPtsItem || item.playerPoints > maxPtsItem.playerPoints) {
+        maxPtsItem = item
+      }
+    })
+
+    const avg = statsSummary.totalPoints / Math.max(1, completedItems.length)
+    const podRate = Math.round(
+      (statsSummary.totalPodiums / Math.max(1, completedItems.length * 2)) * 100,
+    )
+
+    return {
+      bestResult: bestResItem,
+      worstResult: worstResItem,
+      biggestPoints: maxPtsItem,
+      avgPointsPerCompletedGp: avg,
+      podiumRate: `${podRate}%`,
+      pointsScoredRounds: roundsWithPoints,
+    }
+  }, [historyList, statsSummary])
+
   const handleOpenReport = (reportData: RaceReportData | null) => {
     if (!reportData) return
     setSelectedReport(reportData)
     setModalOpen(true)
   }
 
+  const teamName = team?.name || 'Sua Equipe'
   const teamColor = team?.color || '#E10600'
-  const rivalColor = rivalInfo.color || '#3B82F6'
+  const rivalColor = rivalInfo.color || '#2563EB'
+  const completedGPs = statsSummary.completedCount
+  const totalGPs = season?.total_rounds || 24
+  const progressPercent = Math.min(100, Math.round((completedGPs / Math.max(1, totalGPs)) * 100))
 
   return (
-    <div className="relative space-y-8 animate-fade-in-up">
-      <AmbientBackground />
+    <div className="space-y-6 pb-16 antialiased text-[#0F172A] select-none">
+      {/* ======================================================== */}
+      {/* 1. HEADER DA PÁGINA COM IDENTIDADE CLARA E REFINADA      */}
+      {/* ======================================================== */}
+      <div className="bg-white rounded-2xl p-6 sm:p-7 border border-[#E2E8F0] shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Título & Contexto Editorial */}
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-bold tracking-wider text-[#E10600] uppercase bg-red-50 border border-red-100 px-2 py-0.5 rounded">
+                RACE OPERATIONS
+              </span>
+              <span className="text-[#CBD5E1]">•</span>
+              <span className="text-[11px] font-mono text-[#64748B] uppercase">
+                ARQUIVO OFICIAL DA TEMPORADA {season?.year || 2026}
+              </span>
+            </div>
 
-      {/* PageHeader padrão Race Operations */}
-      <PageHeader
-        eyebrow="RACE OPERATIONS // HISTÓRICO"
-        title={`Histórico da Temporada ${season?.year || 2026}`}
-        description={
-          <span>
-            Arquivo GP a GP da temporada oficial FIA • Evolução de pontos acumulados, relatórios de
-            debriefing por rodada e linha do tempo de desempenho da {team?.name || 'sua escuderia'}.
-          </span>
-        }
-        badge={
-          <span className="px-2.5 py-1 rounded-md text-xs font-num font-semibold bg-[#11161F] border border-[#1F2733] text-cyan-400 flex items-center gap-1.5">
-            <History className="w-3.5 h-3.5 text-cyan-400" />
-            {statsSummary.completedCount} de {season?.total_rounds || 24} GPs Disputados
-          </span>
-        }
-      />
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0F172A] flex items-center gap-3">
+              <span>Histórico da Temporada {season?.year || 2026}</span>
+            </h1>
 
-      {/* KPIs do Histórico */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          eyebrow="PONTOS ACUMULADOS"
-          value={`${statsSummary.totalPoints} pts`}
-          subtext={`${statsSummary.completedCount} etapas disputadas`}
-          delta={
-            statsSummary.totalPoints > 0
-              ? {
-                  value: `${(statsSummary.totalPoints / Math.max(1, statsSummary.completedCount)).toFixed(1)}/GP`,
-                  trend: 'up',
-                  label: 'média',
-                }
-              : undefined
-          }
-          accentColor="#00A6FB"
-        />
-        <StatCard
-          eyebrow="POSIÇÃO NO MUNDIAL"
-          value={`P${statsSummary.currentRank}`}
-          subtext="De 12 construtores oficiais"
-          accentColor="#22C55E"
-        />
-        <StatCard
-          eyebrow="VITÓRIAS & PÓDIOS"
-          value={`${statsSummary.totalWins}V • ${statsSummary.totalPodiums}P`}
-          subtext="Celebrações de troféu"
-          accentColor="#F59E0B"
-        />
-        <StatCard
-          eyebrow="RIVAL DIRETO NO MUNDIAL"
-          value={rivalInfo.name.split(' ')[0]}
-          subtext={
-            rivalInfo.isLeader
-              ? `Você lidera por ${rivalInfo.gap} pts`
-              : `Diferença de ${rivalInfo.gap} pts`
-          }
-          delta={{
-            value: rivalInfo.isLeader ? 'Líder' : `P${rivalInfo.rank}`,
-            trend: rivalInfo.isLeader ? 'up' : 'neutral',
-          }}
-          accentColor="#EC4899"
-        />
-      </div>
-
-      {/* GRÁFICO SIMPLES E DISCRETO DE EVOLUÇÃO DE PONTOS (Equipe vs Rival Direto) */}
-      <div className="p-5 rounded-xl bg-[#11161F] border border-[#1F2733] space-y-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1F2733] pb-3">
-          <div>
-            <span className="eyebrow text-[#00A6FB] text-[10px] tracking-wider uppercase block">
-              TRAJETÓRIA DO CAMPEONATO // EVOLUÇÃO DE PONTOS
-            </span>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2 mt-0.5">
-              <TrendingUp className="w-4 h-4 text-[#00A6FB]" />
-              Pontuação Acumulada: {team?.name || 'Sua Equipe'} vs. {rivalInfo.name}
-            </h3>
+            <p className="text-xs sm:text-sm text-[#475569] leading-relaxed">
+              Acompanhe a trajetória completa da{' '}
+              <strong className="text-[#0F172A] font-semibold">{teamName}</strong> ao longo do
+              campeonato mundial da FIA. Registro GP a GP de pontuação, debriefings oficiais e
+              comparativo de performance contra o rival direto.
+            </p>
           </div>
-          <div className="flex items-center gap-3 text-xs font-num">
-            <span className="flex items-center gap-1.5 text-white">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: teamColor }} />
-              {team?.name || 'Sua Equipe'}
-            </span>
-            <span className="flex items-center gap-1.5 text-[#8B95A7]">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: rivalColor }} />
-              {rivalInfo.name} (Rival Direto)
+
+          {/* Badge / Resumo de Progresso do Calendário */}
+          <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-2 bg-[#F8FAFC] border border-[#E2E8F0] p-4 rounded-xl shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-mono font-bold text-[#0F172A]">
+                {completedGPs} de {totalGPs} GPs disputados
+              </span>
+            </div>
+
+            <div className="w-full sm:w-44 h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#E10600] to-rose-500 rounded-full transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <span className="text-[10px] text-[#64748B] font-mono">
+              {progressPercent}% do calendário concluído
             </span>
           </div>
         </div>
+      </div>
 
-        {chartData.length > 0 ? (
-          <div className="w-full h-64 pt-2">
+      {/* ======================================================== */}
+      {/* 2. CARDS DE KPI (FUNDO BRANCO, BORDAS SUTIS, DETALHE TOPO) */}
+      {/* ======================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: Pontos Acumulados */}
+        <div className="relative bg-white rounded-xl p-5 border border-[#E2E8F0] shadow-xs overflow-hidden transition-all hover:shadow-sm">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-[#2563EB]" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <span className="text-[10px] font-mono font-bold text-[#64748B] uppercase tracking-wider block truncate">
+                PONTOS ACUMULADOS
+              </span>
+              <div className="font-mono text-2xl lg:text-3xl font-black text-[#0F172A] tracking-tight truncate">
+                {statsSummary.totalPoints}{' '}
+                <span className="text-xs text-[#64748B] font-normal font-sans">pts</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-[#475569] pt-0.5">
+                {statsSummary.totalPoints > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-blue-50 text-[#2563EB] border border-blue-100">
+                    <TrendingUp className="w-3 h-3" />
+                    {(statsSummary.totalPoints / Math.max(1, statsSummary.completedCount)).toFixed(
+                      1,
+                    )}
+                    /GP
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-[#94A3B8] font-mono">0.0/GP</span>
+                )}
+                <span className="text-[11px] text-[#64748B] truncate">
+                  {statsSummary.completedCount} etapas disputadas
+                </span>
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-blue-50 text-[#2563EB] flex items-center justify-center shrink-0 border border-blue-100">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 2: Posição no Mundial */}
+        <div className="relative bg-white rounded-xl p-5 border border-[#E2E8F0] shadow-xs overflow-hidden transition-all hover:shadow-sm">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <span className="text-[10px] font-mono font-bold text-[#64748B] uppercase tracking-wider block truncate">
+                POSIÇÃO NO MUNDIAL
+              </span>
+              <div className="font-mono text-2xl lg:text-3xl font-black text-[#0F172A] tracking-tight truncate">
+                P{statsSummary.currentRank}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-[#475569] pt-0.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  {statsSummary.currentRank === 1 ? 'Líder' : `Top ${statsSummary.currentRank}`}
+                </span>
+                <span className="text-[11px] text-[#64748B] truncate">De 12 construtores</span>
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+              <Trophy className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 3: Vitórias & Pódios */}
+        <div className="relative bg-white rounded-xl p-5 border border-[#E2E8F0] shadow-xs overflow-hidden transition-all hover:shadow-sm">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <span className="text-[10px] font-mono font-bold text-[#64748B] uppercase tracking-wider block truncate">
+                VITÓRIAS & PÓDIOS
+              </span>
+              <div className="font-mono text-2xl lg:text-3xl font-black text-[#0F172A] tracking-tight truncate">
+                {statsSummary.totalWins}V • {statsSummary.totalPodiums}P
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-[#475569] pt-0.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-100">
+                  <Award className="w-3 h-3" />
+                  {statsSummary.totalWins + statsSummary.totalPodiums} troféus
+                </span>
+                <span className="text-[11px] text-[#64748B] truncate">Celebrações de pódio</span>
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+              <Award className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+
+        {/* KPI 4: Rival Direto */}
+        <div className="relative bg-white rounded-xl p-5 border border-[#E2E8F0] shadow-xs overflow-hidden transition-all hover:shadow-sm">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-[#E10600]" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <span className="text-[10px] font-mono font-bold text-[#64748B] uppercase tracking-wider block truncate">
+                RIVAL DIRETO
+              </span>
+              <div className="text-xl lg:text-2xl font-black text-[#0F172A] tracking-tight truncate">
+                {rivalInfo.name}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-[#475569] pt-0.5">
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold ${
+                    rivalInfo.isLeader
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                      : 'bg-rose-50 text-rose-700 border border-rose-100'
+                  }`}
+                >
+                  {rivalInfo.isLeader
+                    ? `+${rivalInfo.gap} pts à frente`
+                    : `-${rivalInfo.gap} pts atrás`}
+                </span>
+                <span className="text-[11px] text-[#64748B] truncate">
+                  {rivalInfo.isLeader ? 'Você lidera' : `Oponente em P${rivalInfo.rank}`}
+                </span>
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-red-50 text-[#E10600] flex items-center justify-center shrink-0 border border-red-100">
+              <Swords className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 3. CARD GRANDE DO GRÁFICO (CLARO, CONTRASTE ALTO, LIMPO)   */}
+      {/* ======================================================== */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6 sm:p-7 space-y-5">
+        {/* Header do Gráfico com Seletor e Legenda */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#F1F5F9] pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#E10600]" />
+              <span className="text-[10px] font-mono font-bold text-[#64748B] uppercase tracking-wider">
+                TRAJETÓRIA DO CAMPEONATO // EVOLUÇÃO DE PONTOS
+              </span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-[#0F172A] flex items-center gap-2">
+              <span>Pontuação Acumulada:</span>
+              <span className="text-[#E10600]">{teamName}</span>
+              <span className="text-[#94A3B8] font-normal">vs.</span>
+              <span className="text-[#2563EB]">{rivalInfo.name}</span>
+            </h3>
+            <p className="text-xs text-[#64748B]">
+              Curva oficial de pontuação rodada a rodada comparando o rendimento da sua equipe com a
+              ameaça direta no Mundial de Construtores.
+            </p>
+          </div>
+
+          {/* Legenda & Seletor de Período */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Legenda visual elegante */}
+            <div className="flex items-center gap-4 text-xs font-mono bg-[#F8FAFC] border border-[#E2E8F0] px-3 py-1.5 rounded-lg">
+              <span className="flex items-center gap-1.5 font-bold text-[#0F172A]">
+                <span
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: teamColor }}
+                />
+                <span>{teamName}</span>
+              </span>
+              <span className="text-[#CBD5E1]">|</span>
+              <span className="flex items-center gap-1.5 font-medium text-[#475569]">
+                <span
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: rivalColor }}
+                />
+                <span>{rivalInfo.name}</span>
+              </span>
+            </div>
+
+            {/* Seletor de período */}
+            {chartData.length > 5 && (
+              <div className="inline-flex items-center p-0.5 rounded-lg bg-[#F1F5F9] border border-[#E2E8F0] text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => setChartRange('all')}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                    chartRange === 'all'
+                      ? 'bg-white text-[#0F172A] shadow-xs'
+                      : 'text-[#64748B] hover:text-[#0F172A]'
+                  }`}
+                >
+                  Todas ({chartData.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartRange('last5')}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                    chartRange === 'last5'
+                      ? 'bg-white text-[#0F172A] shadow-xs'
+                      : 'text-[#64748B] hover:text-[#0F172A]'
+                  }`}
+                >
+                  Últimas 5
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Área do Gráfico */}
+        {displayedChartData.length > 0 ? (
+          <div className="w-full h-72 sm:h-80 pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                <CartesianGrid stroke="#1F2733" strokeDasharray="3 3" vertical={false} />
+              <LineChart
+                data={displayedChartData}
+                margin={{ top: 12, right: 24, left: -6, bottom: 4 }}
+              >
+                <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="gp"
-                  stroke="#6A768A"
+                  stroke="#94A3B8"
                   fontSize={11}
                   tickLine={false}
-                  axisLine={{ stroke: '#1F2733' }}
+                  axisLine={{ stroke: '#E2E8F0' }}
+                  fontFamily="JetBrains Mono, monospace"
                 />
                 <YAxis
-                  stroke="#6A768A"
+                  stroke="#94A3B8"
                   fontSize={11}
                   tickLine={false}
-                  axisLine={{ stroke: '#1F2733' }}
+                  axisLine={{ stroke: '#E2E8F0' }}
+                  fontFamily="JetBrains Mono, monospace"
                   tickFormatter={(val) => `${val}`}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0B0E14',
-                    borderColor: '#1F2733',
-                    borderRadius: '8px',
-                    color: '#FFFFFF',
-                    fontSize: '12px',
-                    fontFamily: 'JetBrains Mono, monospace',
-                  }}
-                  formatter={(value: any, name: any) => [
-                    `${value} pts`,
-                    name === 'teamPoints' ? team?.name || 'Sua Equipe' : rivalInfo.name,
-                  ]}
-                  labelFormatter={(label) => `Rodada: ${label}`}
+                  content={<CustomChartTooltip teamName={teamName} rivalName={rivalInfo.name} />}
                 />
                 <Legend verticalAlign="top" align="right" wrapperStyle={{ display: 'none' }} />
                 <Line
@@ -481,204 +744,533 @@ export default function HistoryPage() {
                   dataKey="teamPoints"
                   name="teamPoints"
                   stroke={teamColor}
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: teamColor }}
-                  activeDot={{ r: 5 }}
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: teamColor, stroke: '#FFFFFF', strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: teamColor, stroke: '#FFFFFF', strokeWidth: 2 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="rivalPoints"
                   name="rivalPoints"
                   stroke={rivalColor}
-                  strokeWidth={2}
+                  strokeWidth={2.2}
                   strokeDasharray="4 4"
-                  dot={{ r: 3, fill: rivalColor }}
-                  activeDot={{ r: 5 }}
+                  dot={{ r: 3.5, fill: rivalColor, stroke: '#FFFFFF', strokeWidth: 1.5 }}
+                  activeDot={{ r: 5, fill: rivalColor, stroke: '#FFFFFF', strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="py-12 text-center text-xs text-[#8B95A7] font-mono">
-            Gráfico de evolução será exibido após a conclusão da 1ª corrida da temporada.
+          <div className="py-14 text-center bg-[#F8FAFC] rounded-xl border border-dashed border-[#CBD5E1] p-6 space-y-2">
+            <div className="w-10 h-10 rounded-full bg-blue-50 text-[#2563EB] flex items-center justify-center mx-auto border border-blue-100">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <h4 className="text-sm font-bold text-[#0F172A]">
+              Aguardando primeira corrida concluída
+            </h4>
+            <p className="text-xs text-[#64748B] max-w-md mx-auto">
+              O gráfico de evolução e comparação contra {rivalInfo.name} será renderizado
+              automaticamente após a oficialização do primeiro Grande Prêmio da temporada.
+            </p>
           </div>
         )}
       </div>
 
-      {/* ARQUIVO GP A GP: LINHA DO TEMPO DA TEMPORADA */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="eyebrow text-[#8B95A7] text-[10px] tracking-wider uppercase block">
-              CALENDÁRIO & RESULTADOS CONSOLIDADOS
-            </span>
-            <h3 className="text-base font-bold text-white flex items-center gap-2 mt-0.5">
-              <Calendar className="w-4 h-4 text-cyan-400" />
-              Arquivo Etapa por Etapa (24 Grandes Prêmios)
-            </h3>
+      {/* ======================================================== */}
+      {/* 4. BLOCO DE SEGUNDO NÍVEL COM SELEÇÃO DE ABAS             */}
+      {/*   [A. Linha do Tempo] [B. Resumo por Rodada] [C. Destaques] */}
+      {/* ======================================================== */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+        {/* Cabeçalho da Seção com Seletor de Visualização */}
+        <div className="p-5 sm:p-6 border-b border-[#E2E8F0] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-neutral-50/80 via-white to-neutral-50/80">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[#E10600]" />
+              <h3 className="text-sm sm:text-base font-black tracking-tight text-[#0F172A] uppercase">
+                DETALHAMENTO GP A GP DA TEMPORADA {season?.year || 2026}
+              </h3>
+            </div>
+            <p className="text-xs text-[#64748B]">
+              Consulte a linha do tempo, tabela de resultados por rodada ou os destaques
+              consolidados.
+            </p>
           </div>
-          <span className="text-xs text-[#8B95A7] font-num">
-            {statsSummary.completedCount}/24 concluídos
-          </span>
+
+          {/* Abas de Navegação */}
+          <div className="inline-flex items-center p-1 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] self-start md:self-auto shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setActiveTab('timeline')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'timeline'
+                  ? 'bg-white text-[#0F172A] shadow-xs'
+                  : 'bg-transparent text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Linha do Tempo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('rounds')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'rounds'
+                  ? 'bg-white text-[#0F172A] shadow-xs'
+                  : 'bg-transparent text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              <span>Resumo por Rodada</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('highlights')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'highlights'
+                  ? 'bg-white text-[#0F172A] shadow-xs'
+                  : 'bg-transparent text-[#64748B] hover:text-[#0F172A]'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Destaques da Temporada</span>
+            </button>
+          </div>
         </div>
 
+        {/* Conteúdo: Carregamento */}
         {loading ? (
-          <div className="space-y-3">
+          <div className="p-6 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton
-                key={i}
-                className="h-20 w-full bg-[#11161F] rounded-xl border border-[#1F2733]"
-              />
+              <Skeleton key={i} className="h-16 w-full bg-neutral-100 rounded-xl" />
             ))}
           </div>
         ) : (
-          <div className="space-y-3">
-            {historyList.map((item) => {
-              return (
-                <div
-                  key={item.round}
-                  className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                    item.isCompleted
-                      ? 'bg-[#11161F] border-[#1F2733] hover:border-[#2A3649]'
-                      : 'bg-[#0B0E14]/60 border-[#1F2733]/50 opacity-60'
-                  }`}
-                >
-                  {/* Info da Corrida */}
-                  <div className="flex items-center gap-3.5">
+          <div>
+            {/* ---------------------------------------------------- */}
+            {/* OPÇÃO A: LINHA DO TEMPO CRONOLÓGICA DE GPS           */}
+            {/* ---------------------------------------------------- */}
+            {activeTab === 'timeline' && (
+              <div className="p-5 sm:p-6 space-y-3">
+                {historyList.map((item) => {
+                  return (
                     <div
-                      className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center font-num font-bold text-xs shrink-0 ${
+                      key={item.round}
+                      className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
                         item.isCompleted
-                          ? 'bg-[#161D29] text-white border border-[#1F2733]'
-                          : 'bg-[#0E131B] text-[#6A768A]'
+                          ? 'bg-white border-[#E2E8F0] shadow-xs hover:border-[#CBD5E1] hover:shadow-sm'
+                          : 'bg-[#FAFAFA] border-[#E2E8F0]/70 opacity-60'
                       }`}
                     >
-                      <span className="text-[10px] text-[#8B95A7] font-mono leading-none">R</span>
-                      <span className="text-sm font-bold leading-tight">{item.round}</span>
-                    </div>
+                      {/* Identificação da Rodada e GP */}
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div
+                          className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center font-mono shrink-0 border ${
+                            item.isCompleted
+                              ? 'bg-neutral-50 text-[#0F172A] border-[#E2E8F0]'
+                              : 'bg-neutral-100 text-[#94A3B8] border-neutral-200'
+                          }`}
+                        >
+                          <span className="text-[10px] text-[#64748B] font-bold leading-none">
+                            R
+                          </span>
+                          <span className="text-sm font-black leading-tight">{item.round}</span>
+                        </div>
 
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{item.flag}</span>
-                        <h4 className="text-sm font-bold text-white tracking-wide">
-                          {item.gpName}
-                        </h4>
-                        {item.isCompleted ? (
-                          <Badge className="bg-[#22C55E]/15 text-[#22C55E] border border-[#22C55E]/30 text-[9px] px-1.5 py-0 font-num">
-                            Concluído
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-[#161D29] text-[#8B95A7] border border-[#1F2733] text-[9px] px-1.5 py-0 font-num">
-                            Pendente
-                          </Badge>
-                        )}
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-base select-none shrink-0" title={item.country}>
+                              {item.flag}
+                            </span>
+                            <h4 className="text-sm font-bold text-[#0F172A] tracking-tight truncate">
+                              {item.gpName}
+                            </h4>
+                            {item.isCompleted ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] px-2 py-0 font-mono font-bold">
+                                Concluído
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-neutral-100 text-[#64748B] border-neutral-200 text-[10px] px-2 py-0 font-mono font-medium">
+                                Pendente
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-[#64748B] truncate">
+                            {item.circuitName} • {item.country} • {item.date}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-[#8B95A7] font-num">
-                        {item.circuitName} • {item.country} • {item.date}
+
+                      {/* Dados da Rodada Concluída ou Estado Aguardando */}
+                      {item.isCompleted ? (
+                        <div className="flex flex-wrap items-center gap-4 sm:gap-6 justify-between md:justify-end">
+                          {/* Posição no Campeonato após a rodada */}
+                          {item.teamRankAfter && (
+                            <div className="text-left sm:text-center">
+                              <span className="text-[10px] text-[#64748B] uppercase font-mono block">
+                                Posição Pós-GP
+                              </span>
+                              <span className="font-mono text-sm font-bold text-[#0F172A]">
+                                P{item.teamRankAfter}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Desempenho dos pilotos da equipe */}
+                          <div className="text-left sm:text-center">
+                            <span className="text-[10px] text-[#64748B] uppercase font-mono block">
+                              Pilotos na Etapa
+                            </span>
+                            <div className="flex items-center gap-1.5 text-xs font-mono">
+                              {item.playerDriversResults.length > 0 ? (
+                                item.playerDriversResults.map((dr, idx) => (
+                                  <span
+                                    key={idx}
+                                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                      dr.position === 1
+                                        ? 'bg-amber-400 text-amber-950 border border-amber-500/30'
+                                        : dr.position <= 3
+                                          ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                          : dr.position <= 10
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                            : 'bg-neutral-100 text-[#64748B] border border-neutral-200'
+                                    }`}
+                                  >
+                                    P{dr.position}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs text-[#64748B]">
+                                  {item.playerBestPos
+                                    ? `Melhor P${item.playerBestPos}`
+                                    : 'Sem dados'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Pontos Marcados no GP */}
+                          <div className="text-right">
+                            <span className="text-[10px] text-[#64748B] uppercase font-mono block">
+                              Pontos FIA
+                            </span>
+                            <span className="font-mono text-sm font-black text-emerald-600">
+                              +{item.playerPoints} pts
+                            </span>
+                          </div>
+
+                          {/* Botão Ver Relatório do GP */}
+                          <div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenReport(item.reportData)}
+                              disabled={!item.hasReport && !item.reportData}
+                              className="bg-white hover:bg-neutral-50 text-[#0F172A] border border-[#CBD5E1] text-xs font-bold px-3 py-1.5 flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
+                              <span>Ver Relatório</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs text-[#94A3B8] font-mono">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Etapa aguardando realização no calendário oficial</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ---------------------------------------------------- */}
+            {/* OPÇÃO B: RESUMO POR RODADA (TABELA EDITORIAL COMPLETA) */}
+            {/* ---------------------------------------------------- */}
+            {activeTab === 'rounds' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[780px]">
+                  <thead>
+                    <tr className="border-b border-[#E2E8F0] bg-[#FAFAFA] text-[11px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                      <th className="py-3 px-4 text-center w-16">RODADA</th>
+                      <th className="py-3 px-4">GRANDE PRÊMIO</th>
+                      <th className="py-3 px-4 text-center">STATUS</th>
+                      <th className="py-3 px-4 text-center">RESULTADO PILOTOS</th>
+                      <th className="py-3 px-4 text-right">PONTOS GP</th>
+                      <th className="py-3 px-4 text-right">TOTAL ACUM.</th>
+                      <th className="py-3 px-4 text-center">POS. PÓS-GP</th>
+                      <th className="py-3 px-4 text-center w-32">RELATÓRIO</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F1F5F9] text-xs">
+                    {historyList.map((item) => (
+                      <tr
+                        key={item.round}
+                        className={`transition-colors ${
+                          item.isCompleted ? 'hover:bg-neutral-50' : 'opacity-60 bg-neutral-50/40'
+                        }`}
+                      >
+                        {/* Rodada */}
+                        <td className="py-3 px-4 text-center font-mono font-bold text-[#64748B]">
+                          R{item.round}
+                        </td>
+
+                        {/* GP */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm select-none">{item.flag}</span>
+                            <span className="font-bold text-[#0F172A]">{item.gpName}</span>
+                          </div>
+                          <span className="text-[11px] text-[#64748B] block">
+                            {item.circuitName}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-4 text-center">
+                          {item.isCompleted ? (
+                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-mono font-bold px-2 py-0">
+                              Oficializado
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-neutral-100 text-[#64748B] border-neutral-200 text-[10px] font-mono px-2 py-0">
+                              Aguardando
+                            </Badge>
+                          )}
+                        </td>
+
+                        {/* Pilotos */}
+                        <td className="py-3 px-4 text-center">
+                          {item.isCompleted ? (
+                            <div className="inline-flex items-center gap-1.5 font-mono text-xs">
+                              {item.playerDriversResults.map((dr, idx) => (
+                                <span
+                                  key={idx}
+                                  className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                                    dr.position === 1
+                                      ? 'bg-amber-400 text-amber-950'
+                                      : dr.position <= 3
+                                        ? 'bg-amber-100 text-amber-900'
+                                        : dr.position <= 10
+                                          ? 'bg-emerald-50 text-emerald-700'
+                                          : 'bg-neutral-100 text-[#64748B]'
+                                  }`}
+                                  title={`${dr.driverName}: P${dr.position} (${dr.points} pts)`}
+                                >
+                                  P{dr.position}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[#94A3B8] font-mono">—</span>
+                          )}
+                        </td>
+
+                        {/* Pontos no GP */}
+                        <td className="py-3 px-4 text-right font-mono font-bold">
+                          {item.isCompleted ? (
+                            <span className="text-emerald-600">+{item.playerPoints}</span>
+                          ) : (
+                            <span className="text-[#94A3B8]">—</span>
+                          )}
+                        </td>
+
+                        {/* Total Acumulado */}
+                        <td className="py-3 px-4 text-right font-mono font-bold text-[#0F172A]">
+                          {item.isCompleted ? `${item.teamPointsAccum} pts` : '—'}
+                        </td>
+
+                        {/* Posição Pós-GP */}
+                        <td className="py-3 px-4 text-center font-mono font-bold">
+                          {item.teamRankAfter ? (
+                            <span className="text-[#0F172A]">P{item.teamRankAfter}</span>
+                          ) : (
+                            <span className="text-[#94A3B8]">—</span>
+                          )}
+                        </td>
+
+                        {/* Botão Relatório */}
+                        <td className="py-3 px-4 text-center">
+                          {item.isCompleted && (item.hasReport || item.reportData) ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenReport(item.reportData)}
+                              className="text-xs h-7 px-2.5 font-mono font-semibold text-[#2563EB] border-[#CBD5E1] hover:bg-blue-50"
+                            >
+                              Relatório
+                            </Button>
+                          ) : (
+                            <span className="text-[#94A3B8] font-mono text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ---------------------------------------------------- */}
+            {/* OPÇÃO C: DESTAQUES ANALÍTICOS DA TEMPORADA           */}
+            {/* ---------------------------------------------------- */}
+            {activeTab === 'highlights' && (
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Melhor Resultado */}
+                  <div className="p-5 rounded-xl bg-emerald-50/50 border border-emerald-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold text-emerald-800 uppercase">
+                        MELHOR RESULTADO
+                      </span>
+                      <Trophy className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    {seasonHighlights.bestResult ? (
+                      <div>
+                        <div className="text-2xl font-mono font-black text-emerald-900">
+                          P{seasonHighlights.bestResult.playerBestPos}
+                        </div>
+                        <p className="text-xs text-emerald-800 mt-0.5">
+                          {seasonHighlights.bestResult.flag} {seasonHighlights.bestResult.gpName} (R
+                          {seasonHighlights.bestResult.round})
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#94A3B8] font-mono">Aguardando corrida oficial</p>
+                    )}
+                  </div>
+
+                  {/* Maior Pontuação em um GP */}
+                  <div className="p-5 rounded-xl bg-blue-50/50 border border-blue-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold text-blue-800 uppercase">
+                        MAIOR PONTUAÇÃO EM UM GP
+                      </span>
+                      <TrendingUp className="w-4 h-4 text-[#2563EB]" />
+                    </div>
+                    {seasonHighlights.biggestPoints ? (
+                      <div>
+                        <div className="text-2xl font-mono font-black text-blue-900">
+                          +{seasonHighlights.biggestPoints.playerPoints} pts
+                        </div>
+                        <p className="text-xs text-blue-800 mt-0.5">
+                          {seasonHighlights.biggestPoints.flag}{' '}
+                          {seasonHighlights.biggestPoints.gpName} (R
+                          {seasonHighlights.biggestPoints.round})
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#94A3B8] font-mono">Aguardando corrida oficial</p>
+                    )}
+                  </div>
+
+                  {/* Frequência na Zona de Pontos */}
+                  <div className="p-5 rounded-xl bg-purple-50/50 border border-purple-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold text-purple-800 uppercase">
+                        EFICIÊNCIA DE PONTUAÇÃO
+                      </span>
+                      <Target className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-mono font-black text-purple-900">
+                        {seasonHighlights.pointsScoredRounds} /{' '}
+                        {Math.max(1, statsSummary.completedCount)} GPs
+                      </div>
+                      <p className="text-xs text-purple-800 mt-0.5">
+                        Corridas com pelo menos 1 carro pontuando na zona oficial da FIA.
                       </p>
                     </div>
                   </div>
-
-                  {/* Resultados ou EmptyState da Rodada */}
-                  {item.isCompleted ? (
-                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 justify-between md:justify-end">
-                      {/* Posição no Campeonato após a rodada */}
-                      {item.teamRankAfter && (
-                        <div className="text-left sm:text-center">
-                          <span className="text-[10px] text-[#8B95A7] uppercase font-mono block">
-                            Posição Pós-GP
-                          </span>
-                          <span className="font-num text-sm font-bold text-white">
-                            P{item.teamRankAfter}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Desempenho dos pilotos */}
-                      <div className="text-left sm:text-center">
-                        <span className="text-[10px] text-[#8B95A7] uppercase font-mono block">
-                          Pilotos no GP
-                        </span>
-                        <div className="flex items-center gap-1.5 text-xs font-num text-[#F5F7FA]">
-                          {item.playerDriversResults.length > 0 ? (
-                            item.playerDriversResults.map((dr, idx) => (
-                              <span
-                                key={idx}
-                                className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
-                                  dr.position === 1
-                                    ? 'bg-amber-400 text-black'
-                                    : dr.position <= 3
-                                      ? 'bg-amber-700 text-white'
-                                      : dr.position <= 10
-                                        ? 'bg-[#161D29] text-[#22C55E] border border-[#22C55E]/30'
-                                        : 'bg-[#161D29] text-[#8B95A7]'
-                                }`}
-                              >
-                                P{dr.position}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-[#8B95A7]">
-                              {item.playerBestPos ? `Melhor P${item.playerBestPos}` : 'Sem dados'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Pontos Marcados */}
-                      <div className="text-right">
-                        <span className="text-[10px] text-[#8B95A7] uppercase font-mono block">
-                          Pontos FIA
-                        </span>
-                        <span className="font-num text-sm font-extrabold text-[#22C55E]">
-                          +{item.playerPoints} pts
-                        </span>
-                      </div>
-
-                      {/* Botão Ver Relatório do GP */}
-                      <div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenReport(item.reportData)}
-                          disabled={!item.hasReport && !item.reportData}
-                          className="bg-[#161D29] hover:bg-[#1f2937] text-cyan-400 border border-cyan-500/30 text-xs font-bold px-3 py-1.5 flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Ver Relatório</span>
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-xs text-[#6A768A] font-mono">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>Etapa aguardando realização no calendário oficial</span>
-                    </div>
-                  )}
                 </div>
-              )
-            })}
+
+                {/* Resumo de Rivalidade Direta */}
+                <div className="p-5 rounded-xl bg-neutral-50 border border-[#E2E8F0] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Swords className="w-4 h-4 text-[#E10600]" />
+                      <h4 className="text-sm font-bold text-[#0F172A] uppercase">
+                        Status do Duelo Direto: {teamName} vs {rivalInfo.name}
+                      </h4>
+                    </div>
+                    <Badge className="bg-white text-[#0F172A] border-[#CBD5E1] text-xs font-mono">
+                      Mundial de Construtores
+                    </Badge>
+                  </div>
+
+                  <p className="text-xs text-[#475569] leading-relaxed">
+                    {rivalInfo.isLeader
+                      ? `Sua equipe detém a vantagem no campeonato com uma frente de ${rivalInfo.gap} pontos sobre a ${rivalInfo.name}. A consistência em todas as sessões será determinante para blindar a liderança.`
+                      : `A diferença atual para a ${rivalInfo.name} é de ${rivalInfo.gap} pontos. A equipe rival ocupa o posto imediatamente superior e é o alvo prioritário de desenvolvimento e estratégia de corrida.`}
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                    <div className="bg-white p-3 rounded-lg border border-[#E2E8F0]">
+                      <span className="text-[10px] text-[#64748B] font-mono uppercase block">
+                        Seus Pontos
+                      </span>
+                      <span className="text-base font-mono font-black text-[#0F172A]">
+                        {statsSummary.totalPoints}
+                      </span>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-[#E2E8F0]">
+                      <span className="text-[10px] text-[#64748B] font-mono uppercase block">
+                        Pontos do Rival
+                      </span>
+                      <span className="text-base font-mono font-black text-[#0F172A]">
+                        {rivalInfo.points}
+                      </span>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-[#E2E8F0]">
+                      <span className="text-[10px] text-[#64748B] font-mono uppercase block">
+                        Diferença
+                      </span>
+                      <span
+                        className={`text-base font-mono font-black ${
+                          rivalInfo.isLeader ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {rivalInfo.isLeader ? `+${rivalInfo.gap}` : `-${rivalInfo.gap}`}
+                      </span>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-[#E2E8F0]">
+                      <span className="text-[10px] text-[#64748B] font-mono uppercase block">
+                        Sua Posição
+                      </span>
+                      <span className="text-base font-mono font-black text-[#0F172A]">
+                        P{statsSummary.currentRank}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* 8C.4: ERA SUMMARY & ARQUIVO HISTÓRICO DE ERAS TÉCNICAS */}
+      {/* ======================================================== */}
+      {/* 5. RESUMO HISTÓRICO DE ERAS TÉCNICAS (ARQUIVO MULTI-ANO)  */}
+      {/* ======================================================== */}
       {archivedHistories.length > 0 && (
-        <div className="space-y-4 pt-4 border-t border-[#1C2330]">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6 sm:p-7 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F1F5F9] pb-4">
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-400" />
+              <h2 className="text-base sm:text-lg font-black text-[#0F172A] flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-500" />
                 Resumo Histórico de Eras Técnicas
               </h2>
-              <p className="text-xs text-[#8B95A7]">
+              <p className="text-xs text-[#64748B]">
                 Linha do tempo oficial de campeões mundiais, dinastias e evolução das gerações de
                 monopostos.
               </p>
             </div>
             <Badge
               variant="outline"
-              className="border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs font-mono"
+              className="border-amber-200 bg-amber-50 text-amber-800 text-xs font-mono self-start sm:self-auto"
             >
-              {archivedHistories.length} Temporadas Concluídas
+              {archivedHistories.length}{' '}
+              {archivedHistories.length === 1 ? 'Temporada Concluída' : 'Temporadas Concluídas'}
             </Badge>
           </div>
 
@@ -703,24 +1295,24 @@ export default function HistoryPage() {
               .map((eraSummary) => (
                 <div
                   key={eraSummary.eraId}
-                  className="p-4 rounded-xl bg-[#0F141C] border border-[#1C2330] space-y-3 font-mono"
+                  className="p-4 rounded-xl bg-neutral-50 border border-[#E2E8F0] space-y-3 font-mono"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white uppercase">
+                    <span className="text-xs font-bold text-[#0F172A] uppercase">
                       {eraSummary.name}
                     </span>
-                    <span className="text-[10px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 px-2 py-0.5 rounded">
+                    <span className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-bold">
                       {eraSummary.durationSeasons}{' '}
                       {eraSummary.durationSeasons === 1 ? 'temporada' : 'temporadas'}
                     </span>
                   </div>
 
                   {eraSummary.dominantTeam && (
-                    <div className="p-2.5 rounded-lg bg-[#090D14] border border-[#1A222F] text-xs">
-                      <span className="text-[10px] text-zinc-400 block uppercase">
+                    <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-xs">
+                      <span className="text-[10px] text-[#64748B] block uppercase">
                         Força Dominante da Era:
                       </span>
-                      <strong className="text-amber-400 text-sm font-bold block">
+                      <strong className="text-amber-700 text-sm font-bold block">
                         {eraSummary.dominantTeam.teamName} ({eraSummary.dominantTeam.titlesCount}{' '}
                         títulos)
                       </strong>
@@ -728,17 +1320,17 @@ export default function HistoryPage() {
                   )}
 
                   <div className="space-y-1.5 text-xs">
-                    <span className="text-[10px] text-zinc-400 block uppercase font-bold">
+                    <span className="text-[10px] text-[#64748B] block uppercase font-bold">
                       Campeões Homologados:
                     </span>
                     <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
                       {eraSummary.constructorsChampions.map((c, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center justify-between text-[11px] bg-[#141B26]/60 p-1.5 rounded"
+                          className="flex items-center justify-between text-[11px] bg-white p-2 rounded border border-[#E2E8F0]"
                         >
-                          <span className="text-zinc-400">{c.season}</span>
-                          <strong className="text-white truncate max-w-[140px]">
+                          <span className="text-[#64748B] font-bold">{c.season}</span>
+                          <strong className="text-[#0F172A] truncate max-w-[140px]">
                             {c.teamName}
                           </strong>
                         </div>
@@ -751,7 +1343,9 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* MODAL DE RELATÓRIO PÓS-CORRIDA */}
+      {/* ======================================================== */}
+      {/* 6. MODAL DE RELATÓRIO PÓS-CORRIDA (PRESERVADO)            */}
+      {/* ======================================================== */}
       <RaceReportModal
         open={modalOpen}
         onOpenChange={setModalOpen}
