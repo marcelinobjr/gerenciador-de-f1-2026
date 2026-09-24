@@ -124,17 +124,36 @@ export class CanonicalRaceEngineService {
    * Recupera ou calcula os atributos de performance do carro.
    */
   private resolveCarPerformance(driver: CanonicalRaceDriverState) {
-    const tech = carTechnicalService.getOrCreateTeamTechnicalData(driver.teamId)
+    const officialTeam = OFFICIAL_GRID_TEAMS.find(
+      (t) => t.key === driver.teamId || t.id === driver.teamId,
+    )
+    const supplier = officialTeam?.engine || 'Ferrari'
+    const tech = carTechnicalService.getOrCreateTeamTechnicalData(
+      driver.teamId,
+      officialTeam?.strengthRating || officialTeam?.strength,
+      supplier,
+    )
     const chassis = tech.calculatedOverall || 75
-    const puSupplier = tech.powerUnitContribution ? 'Ferrari' : 'Audi'
-    const pu = OFFICIAL_POWER_UNITS[puSupplier] || OFFICIAL_POWER_UNITS.Ferrari
-    const puRating = Number((pu.powerRating * 0.6 + pu.reliabilityRating * 0.4).toFixed(1))
-    const carPerf = Number((chassis * 0.7 + puRating * 0.3).toFixed(1))
+
+    // PU-INTEGRATION: PU efetiva canônica via canonicalPowerUnitIntegrationService
+    const puState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
+      careerId: driver.careerId || 'canonical_race_career',
+      seasonYear: driver.season || 2026,
+      teamId: driver.teamId,
+      supplierId: supplier as any,
+    })
+    const effectivePU = canonicalPowerUnitIntegrationService.resolveEffectivePUPerformance({
+      supplierId: supplier as any,
+      effectiveIntegration: puState.effectiveIntegration,
+      relationshipType: puState.relationshipType,
+    })
+
+    const carPerf = Number((chassis * 0.7 + effectivePU.effectivePuRating * 0.3).toFixed(1))
     const reliability = tech.attributes?.reliability ?? 80
 
     return {
       chassisRating: chassis,
-      puRating,
+      puRating: effectivePU.effectivePuRating,
       carPerf,
       reliability,
       technicalAttributes: tech.attributes,

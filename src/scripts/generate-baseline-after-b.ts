@@ -7,7 +7,12 @@
  * Determinístico com seed 20260315 e 1.000 qualificações + 1.000 corridas (30 voltas).
  */
 
-import { auditTeamPerformanceBaseline } from '../services/teamPerformanceBaselineAuditService'
+import {
+  auditTeamPerformanceBaseline,
+  auditAudiHaasBalance,
+  TeamPerformanceBaselineReport,
+  AudiHaasBalanceAuditReport,
+} from '../services/teamPerformanceBaselineAuditService'
 
 export interface GenerateBaselineAfterBOptions {
   seed?: number
@@ -17,7 +22,15 @@ export interface GenerateBaselineAfterBOptions {
   dryRun?: boolean
 }
 
-export function generateBaselineAfterBArtifacts(options: GenerateBaselineAfterBOptions = {}) {
+export interface BaselineAfterBCombinedArtifact {
+  report: TeamPerformanceBaselineReport
+  audiHaasBalance: AudiHaasBalanceAuditReport
+  jsonString: string
+}
+
+export function generateBaselineAfterBArtifacts(
+  options: GenerateBaselineAfterBOptions = {},
+): BaselineAfterBCombinedArtifact {
   const seed = options.seed ?? 20260315
   const qIters = options.qualifyingIterations ?? 1000
   const rIters = options.raceIterations ?? 1000
@@ -31,8 +44,22 @@ export function generateBaselineAfterBArtifacts(options: GenerateBaselineAfterBO
     phase: 'FASE_B_AFTER',
   })
 
+  const audiHaasBalance = auditAudiHaasBalance({
+    seed,
+    simulations: rIters,
+    totalLaps: totalRaceLaps,
+    includeCircuits: true,
+    includeIsolation: true,
+  })
+
+  const combinedPayload = {
+    ...report,
+    audiHaasDetailedAudit: audiHaasBalance,
+  }
+
   return {
     report,
-    jsonString: JSON.stringify(report, null, 2),
+    audiHaasBalance,
+    jsonString: JSON.stringify(combinedPayload, null, 2),
   }
 }

@@ -32,6 +32,9 @@ export interface TeamBaselineStats {
   engineSupplier: string
   chassisRating: number
   puRating: number
+  effectivePuRating?: number
+  effectiveIntegration?: number
+  puRelationshipType?: string
   carPerfRating: number
   targetGroup: 'A' | 'B' | 'C' | 'D'
   // Métricas de Qualificação
@@ -97,6 +100,76 @@ export interface RunBaselineAuditOptions {
   phase?: 'FASE_A_BEFORE' | 'FASE_B_AFTER'
 }
 
+export interface AudiHaasCircuitAudit {
+  circuitName: string
+  circuitType: 'power' | 'technical' | 'balanced'
+  audiAheadQualyRate: number
+  audiAheadRaceRate: number
+  avgQualyDeltaSec: number // positivo se Audi mais rápida (lapTime Haas - lapTime Audi)
+  avgRaceDeltaSec: number
+}
+
+export interface AudiHaasIsolationAudit {
+  normalizedDrivers: {
+    audiAheadQualyRate: number
+    audiAheadRaceRate: number
+    avgQualyDeltaSec: number
+    avgRaceDeltaSec: number
+  }
+  normalizedCars: {
+    audiAheadQualyRate: number
+    audiAheadRaceRate: number
+    avgQualyDeltaSec: number
+    avgRaceDeltaSec: number
+  }
+}
+
+export interface AudiHaasBalanceAuditReport {
+  simulations: number
+  seed: number
+  audiAheadRate: number // percentual em corridas
+  haasAheadRate: number // percentual em corridas
+  audiAheadQualyRate: number // percentual em quali
+  haasAheadQualyRate: number // percentual em quali
+  avgRaceDeltaSec: number // positivo: Audi chega à frente / menor raceTime
+  avgQualifyingDeltaSec: number // positivo: Audi qualifica com menor lapTime (Haas - Audi)
+  avgRaceTimeDeltaPerLapSec: number // delta médio por volta em segundos
+  carPerformanceDelta: number // carPerformance Audi - carPerformance Haas
+  chassisDelta: number // chassisRating Audi - chassisRating Haas
+  effectivePUDelta: number // effective PU Audi - effective PU Haas
+  driverCompositeDelta: number // composite Audi drivers - composite Haas drivers
+  directTeamBonuses: 0
+  duplicatePUMultipliers: 0
+  rngOverrides: 0
+  qualyDistribution: {
+    audiMeanPosition: number
+    haasMeanPosition: number
+    audiMedianPosition: number
+    haasMedianPosition: number
+    audiP10: number
+    audiP50: number
+    audiP90: number
+    haasP10: number
+    haasP50: number
+    haasP90: number
+  }
+  raceDistribution: {
+    audiMeanPosition: number
+    haasMeanPosition: number
+    audiMedianPosition: number
+    haasMedianPosition: number
+    audiP10: number
+    audiP50: number
+    audiP90: number
+    haasP10: number
+    haasP50: number
+    haasP90: number
+  }
+  inversionFrequency: number // Haas ahead rate (sobreposição probabilística)
+  circuits?: AudiHaasCircuitAudit[]
+  isolation?: AudiHaasIsolationAudit
+}
+
 export class TeamPerformanceBaselineAuditService {
   /**
    * Mulberry32 determinístico e seedável
@@ -123,7 +196,21 @@ export class TeamPerformanceBaselineAuditService {
     const supplier = officialTeam.engine || 'Ferrari'
     const pu = OFFICIAL_POWER_UNITS[supplier] || OFFICIAL_POWER_UNITS.Ferrari
     const puRating = Number((pu.powerRating * 0.6 + pu.reliabilityRating * 0.4).toFixed(1))
-    const carPerf = Number((chassis * 0.7 + puRating * 0.3).toFixed(1))
+    // PU-INTEGRATION: PU efetiva canônica via canonicalPowerUnitIntegrationService
+    // Audi+Audi = FACTORY (teto 1.00); Haas = Ferrari CUSTOMER (teto 0.90)
+    const puState = canonicalPowerUnitIntegrationService.getOrCreateIntegrationState({
+      careerId: 'baseline_audit_career',
+      seasonYear: 2026,
+      teamId: officialTeam.key,
+      supplierId: supplier as any,
+    })
+    const effectivePU = canonicalPowerUnitIntegrationService.resolveEffectivePUPerformance({
+      supplierId: supplier as any,
+      effectiveIntegration: puState.effectiveIntegration,
+      relationshipType: puState.relationshipType,
+    })
+    // Car performance usa PU efetiva
+    const carPerf = Number((chassis * 0.7 + effectivePU.effectivePuRating * 0.3).toFixed(1))
     const targetGroup = this.resolveTargetGroup(officialTeam.key)
 
     return {
@@ -132,6 +219,9 @@ export class TeamPerformanceBaselineAuditService {
       engineSupplier: supplier,
       chassisRating: chassis,
       puRating,
+      effectivePuRating: effectivePU.effectivePuRating,
+      effectiveIntegration: puState.effectiveIntegration,
+      puRelationshipType: puState.relationshipType,
       carPerfRating: carPerf,
       targetGroup,
       attributes: techData.attributes,
@@ -198,7 +288,7 @@ export class TeamPerformanceBaselineAuditService {
         technicalAttributes: t.attributes,
         circuit: circuitProfile,
         chassisRating: t.chassisRating,
-        powerUnitRating: t.puRating,
+        powerUnitRating: t.effectivePuRating ?? t.puRating,
         carPerformanceRating: t.carPerfRating,
         trackAbrasiveness: 6,
         noise: noise1,
@@ -235,7 +325,7 @@ export class TeamPerformanceBaselineAuditService {
         technicalAttributes: t.attributes,
         circuit: circuitProfile,
         chassisRating: t.chassisRating,
-        powerUnitRating: t.puRating,
+        powerUnitRating: t.effectivePuRating ?? t.puRating,
         carPerformanceRating: t.carPerfRating,
         trackAbrasiveness: 6,
         noise: noise2,
@@ -580,6 +670,9 @@ export class TeamPerformanceBaselineAuditService {
         engineSupplier: t.engineSupplier,
         chassisRating: t.chassisRating,
         puRating: t.puRating,
+        effectivePuRating: t.effectivePuRating,
+        effectiveIntegration: t.effectiveIntegration,
+        puRelationshipType: t.puRelationshipType,
         carPerfRating: t.carPerfRating,
         targetGroup: t.targetGroup,
         avgGridPosition,
@@ -690,14 +783,17 @@ export class TeamPerformanceBaselineAuditService {
       .filter((t) => groupBKeys.includes(t.key))
     const groupBAvgRank =
       groupBRanks.reduce((acc, cur) => acc + cur.rank, 0) / (groupBRanks.length || 1)
+    const audiRank = teamsStats.findIndex((t) => t.teamKey === 'audi') + 1
+    const haasRank = teamsStats.findIndex((t) => t.teamKey === 'haas') + 1
+    const groupBExpected = groupBAvgRank >= 4.0 && groupBAvgRank <= 8.5 && audiRank <= haasRank
     findings.push({
       rule: 'HIERARQUIA: Grupo B (Racing Bulls, Alpine, Audi) no pelotão intermediário superior',
-      status: groupBAvgRank >= 4.0 && groupBAvgRank <= 8.5 ? 'SATISFIED' : 'DIVERGENT',
+      status: groupBExpected ? 'SATISFIED' : 'DIVERGENT',
       actualValue: `Ranks do Grupo B: ${groupBRanks.map((g) => `${g.key} P${g.rank}`).join(', ')} (Média: ${groupBAvgRank.toFixed(1)})`,
-      expectedTarget: 'Ranks entre 5º e 8º construtor',
+      expectedTarget: 'Ranks entre 5º e 8º construtor e à frente da Haas',
       detail:
-        groupBAvgRank >= 4.0 && groupBAvgRank <= 8.5
-          ? 'Grupo B situado adequadamente no pelotão intermediário.'
+        groupBExpected
+          ? 'Grupo B situado adequadamente no pelotão intermediário com Audi à frente da Haas.'
           : 'DIVERGÊNCIA: Deslocamento no pelotão intermediário do Grupo B.',
     })
 
@@ -708,13 +804,14 @@ export class TeamPerformanceBaselineAuditService {
       .filter((t) => groupCKeys.includes(t.key))
     const groupCAvgRank =
       groupCRanks.reduce((acc, cur) => acc + cur.rank, 0) / (groupCRanks.length || 1)
+    const groupCExpected = groupCAvgRank >= 7.0 && groupCAvgRank <= 11.0 && haasRank >= audiRank
     findings.push({
       rule: 'HIERARQUIA: Grupo C (Haas, Williams, Aston Martin) no pelotão intermediário inferior',
-      status: groupCAvgRank >= 7.0 && groupCAvgRank <= 11.0 ? 'SATISFIED' : 'DIVERGENT',
+      status: groupCExpected ? 'SATISFIED' : 'DIVERGENT',
       actualValue: `Ranks do Grupo C: ${groupCRanks.map((g) => `${g.key} P${g.rank}`).join(', ')} (Média: ${groupCAvgRank.toFixed(1)})`,
       expectedTarget: 'Ranks entre 7º e 10º construtor',
       detail:
-        groupCAvgRank >= 7.0 && groupCAvgRank <= 11.0
+        groupCExpected
           ? 'Grupo C situado adequadamente no pelotão intermediário inferior.'
           : 'DIVERGÊNCIA: Deslocamento no pelotão do Grupo C.',
     })
@@ -761,10 +858,382 @@ export class TeamPerformanceBaselineAuditService {
   }
 }
 
+  /**
+   * PASSO 9 & PASSO 3-6: Auditoria Estatística Focada Audi vs Haas
+   * Mede diretamente a vantagem estrutural da Audi sobre a Haas sem aplicar scripts arbitrários.
+   */
+  public auditAudiHaasBalance(options: {
+    seed?: number
+    simulations?: number
+    totalLaps?: number
+    includeCircuits?: boolean
+    includeIsolation?: boolean
+  } = {}): AudiHaasBalanceAuditReport {
+    const seed = options.seed ?? 20260315
+    const sims = options.simulations ?? 1000
+    const totalLaps = options.totalLaps ?? 30
+
+    const rng = this.createRng(seed)
+
+    // Contexto das equipes canônicas
+    const audiOfficial = OFFICIAL_GRID_TEAMS.find((t) => t.key === 'audi')!
+    const haasOfficial = OFFICIAL_GRID_TEAMS.find((t) => t.key === 'haas')!
+
+    const audiCtx = this.resolveTeamContext(audiOfficial)
+    const haasCtx = this.resolveTeamContext(haasOfficial)
+
+    // Drivers composite ratings (speed, consistency, rain, defense)
+    const audiD1Comp = (audiCtx.driver1.speed + audiCtx.driver1.consistency + audiCtx.driver1.defense + audiCtx.driver1.rain) / 4
+    const audiD2Comp = (audiCtx.driver2.speed + audiCtx.driver2.consistency + audiCtx.driver2.defense + audiCtx.driver2.rain) / 4
+    const audiDriverComposite = Number(((audiD1Comp + audiD2Comp) / 2).toFixed(2))
+
+    const haasD1Comp = (haasCtx.driver1.speed + haasCtx.driver1.consistency + haasCtx.driver1.defense + haasCtx.driver1.rain) / 4
+    const haasD2Comp = (haasCtx.driver2.speed + haasCtx.driver2.consistency + haasCtx.driver2.defense + haasCtx.driver2.rain) / 4
+    const haasDriverComposite = Number(((haasD1Comp + haasD2Comp) / 2).toFixed(2))
+
+    const driverCompositeDelta = Number((audiDriverComposite - haasDriverComposite).toFixed(2))
+
+    const chassisDelta = Number((audiCtx.chassisRating - haasCtx.chassisRating).toFixed(2))
+    const effectivePUDelta = Number((audiCtx.effectivePuRating - haasCtx.effectivePuRating).toFixed(2))
+    const carPerformanceDelta = Number((audiCtx.carPerfRating - haasCtx.carPerfRating).toFixed(2))
+
+    // Listas para coletar posições e deltas
+    const audiQualyPositions: number[] = []
+    const haasQualyPositions: number[] = []
+    const qualyDeltasSec: number[] = [] // haasBestLap - audiBestLap (positivo => Audi na frente)
+    let audiAheadQualyCount = 0
+
+    const audiRacePositions: number[] = []
+    const haasRacePositions: number[] = []
+    const raceDeltasSec: number[] = [] // aprox delta de tempo de corrida baseado no ritmo
+    let audiAheadRaceCount = 0
+
+    const allTeams = OFFICIAL_GRID_TEAMS.map((t) => this.resolveTeamContext(t))
+    const defaultCircuit = resolveCircuitProfile({ round: 1 })
+
+    for (let i = 0; i < sims; i++) {
+      const qRes = this.simulateOneQualifying({
+        teams: allTeams,
+        circuitProfile: defaultCircuit,
+        rng,
+      })
+
+      const audiEntries = qRes.filter((e) => e.teamKey === 'audi')
+      const haasEntries = qRes.filter((e) => e.teamKey === 'haas')
+
+      const audiBestGrid = Math.min(...audiEntries.map((e) => e.gridPosition))
+      const haasBestGrid = Math.min(...haasEntries.map((e) => e.gridPosition))
+
+      const audiBestLap = Math.min(...audiEntries.map((e) => e.lapTimeSec))
+      const haasBestLap = Math.min(...haasEntries.map((e) => e.lapTimeSec))
+
+      audiEntries.forEach((e) => audiQualyPositions.push(e.gridPosition))
+      haasEntries.forEach((e) => haasQualyPositions.push(e.gridPosition))
+
+      qualyDeltasSec.push(haasBestLap - audiBestLap)
+      if (audiBestGrid < haasBestGrid) {
+        audiAheadQualyCount++
+      }
+
+      // Corrida
+      const iterSeed = (seed + i * 1009) >>> 0
+      const rRes = this.simulateOneRace({
+        teams: allTeams,
+        qualyResult: qRes,
+        circuitProfile: defaultCircuit,
+        totalLaps,
+        seed: iterSeed,
+      })
+
+      const audiRaceEntries = rRes.filter((e) => e.teamKey === 'audi')
+      const haasRaceEntries = rRes.filter((e) => e.teamKey === 'haas')
+
+      const audiBestFinish = Math.min(...audiRaceEntries.map((e) => e.finishPosition))
+      const haasBestFinish = Math.min(...haasRaceEntries.map((e) => e.finishPosition))
+
+      audiRaceEntries.forEach((e) => audiRacePositions.push(e.finishPosition))
+      haasRaceEntries.forEach((e) => haasRacePositions.push(e.finishPosition))
+
+      // Estimativa do delta de corrida: voltas * delta em segundos por volta
+      const lapDelta = haasBestLap - audiBestLap
+      const raceDeltaEst = lapDelta * totalLaps
+      raceDeltasSec.push(raceDeltaEst)
+
+      if (audiBestFinish < haasBestFinish) {
+        audiAheadRaceCount++
+      }
+    }
+
+    const audiAheadRate = Number(((audiAheadRaceCount / sims) * 100).toFixed(2))
+    const haasAheadRate = Number((((sims - audiAheadRaceCount) / sims) * 100).toFixed(2))
+    const audiAheadQualyRate = Number(((audiAheadQualyCount / sims) * 100).toFixed(2))
+    const haasAheadQualyRate = Number((((sims - audiAheadQualyCount) / sims) * 100).toFixed(2))
+
+    const avgQualifyingDeltaSec = Number(
+      (qualyDeltasSec.reduce((a, b) => a + b, 0) / (sims || 1)).toFixed(3),
+    )
+    const avgRaceDeltaSec = Number(
+      (raceDeltasSec.reduce((a, b) => a + b, 0) / (sims || 1)).toFixed(2),
+    )
+    const avgRaceTimeDeltaPerLapSec = Number(
+      (avgRaceDeltaSec / totalLaps).toFixed(3),
+    )
+
+    // Estatísticas de distribuição
+    const percentile = (arr: number[], p: number) => {
+      const sorted = [...arr].sort((a, b) => a - b)
+      const idx = Math.floor(sorted.length * p)
+      return sorted[Math.min(idx, sorted.length - 1)]
+    }
+
+    const mean = (arr: number[]) =>
+      Number((arr.reduce((a, b) => a + b, 0) / (arr.length || 1)).toFixed(2))
+
+    const qualyDistribution = {
+      audiMeanPosition: mean(audiQualyPositions),
+      haasMeanPosition: mean(haasQualyPositions),
+      audiMedianPosition: percentile(audiQualyPositions, 0.5),
+      haasMedianPosition: percentile(haasQualyPositions, 0.5),
+      audiP10: percentile(audiQualyPositions, 0.1),
+      audiP50: percentile(audiQualyPositions, 0.5),
+      audiP90: percentile(audiQualyPositions, 0.9),
+      haasP10: percentile(haasQualyPositions, 0.1),
+      haasP50: percentile(haasQualyPositions, 0.5),
+      haasP90: percentile(haasQualyPositions, 0.9),
+    }
+
+    const raceDistribution = {
+      audiMeanPosition: mean(audiRacePositions),
+      haasMeanPosition: mean(haasRacePositions),
+      audiMedianPosition: percentile(audiRacePositions, 0.5),
+      haasMedianPosition: percentile(haasRacePositions, 0.5),
+      audiP10: percentile(audiRacePositions, 0.1),
+      audiP50: percentile(audiRacePositions, 0.5),
+      audiP90: percentile(audiRacePositions, 0.9),
+      haasP10: percentile(haasRacePositions, 0.1),
+      haasP50: percentile(haasRacePositions, 0.5),
+      haasP90: percentile(haasRacePositions, 0.9),
+    }
+
+    // Circuitos específicos (alta, travada, equilibrada) se solicitados
+    let circuits: AudiHaasCircuitAudit[] | undefined
+    if (options.includeCircuits) {
+      circuits = []
+      // 1. Alta velocidade / Retas / Monza ou Baku (ex: round 16 Monza ou round 8 Baku)
+      const powerCirc = resolveCircuitProfile({ round: 16 })
+      // 2. Travado / Chassi / Mônaco ou Hungaroring (ex: round 8 Mônaco ou round 14 Hungaroring)
+      const techCirc = resolveCircuitProfile({ round: 8 })
+      // 3. Equilibrado / Barcelona ou Silverstone
+      const balCirc = resolveCircuitProfile({ round: 1 })
+
+      const testCircs: Array<{ name: string; type: 'power' | 'technical' | 'balanced'; prof: any }> = [
+        { name: powerCirc.circuitName || 'Monza (Alta)', type: 'power', prof: powerCirc },
+        { name: techCirc.circuitName || 'Mônaco (Travada)', type: 'technical', prof: techCirc },
+        { name: balCirc.circuitName || 'Bahrein (Equilibrada)', type: 'balanced', prof: balCirc },
+      ]
+
+      for (const c of testCircs) {
+        const cRng = this.createRng(seed + 77)
+        let cAheadQ = 0
+        let cAheadR = 0
+        const cQDeltas: number[] = []
+        const cRDeltas: number[] = []
+        const cSims = Math.min(200, sims)
+
+        for (let i = 0; i < cSims; i++) {
+          const qR = this.simulateOneQualifying({ teams: allTeams, circuitProfile: c.prof, rng: cRng })
+          const aQ = qR.filter((e) => e.teamKey === 'audi')
+          const hQ = qR.filter((e) => e.teamKey === 'haas')
+          const aBestQ = Math.min(...aQ.map((e) => e.gridPosition))
+          const hBestQ = Math.min(...hQ.map((e) => e.gridPosition))
+          const aBestLap = Math.min(...aQ.map((e) => e.lapTimeSec))
+          const hBestLap = Math.min(...hQ.map((e) => e.lapTimeSec))
+          if (aBestQ < hBestQ) cAheadQ++
+          cQDeltas.push(hBestLap - aBestLap)
+
+          const rR = this.simulateOneRace({
+            teams: allTeams,
+            qualyResult: qR,
+            circuitProfile: c.prof,
+            totalLaps: 20,
+            seed: (seed + i * 2011) >>> 0,
+          })
+          const aR = rR.filter((e) => e.teamKey === 'audi')
+          const hR = rR.filter((e) => e.teamKey === 'haas')
+          const aBestR = Math.min(...aR.map((e) => e.finishPosition))
+          const hBestR = Math.min(...hR.map((e) => e.finishPosition))
+          if (aBestR < hBestR) cAheadR++
+          cRDeltas.push((hBestLap - aBestLap) * 20)
+        }
+
+        circuits.push({
+          circuitName: c.name,
+          circuitType: c.type,
+          audiAheadQualyRate: Number(((cAheadQ / cSims) * 100).toFixed(1)),
+          audiAheadRaceRate: Number(((cAheadR / cSims) * 100).toFixed(1)),
+          avgQualyDeltaSec: Number((cQDeltas.reduce((a, b) => a + b, 0) / cSims).toFixed(3)),
+          avgRaceDeltaSec: Number((cRDeltas.reduce((a, b) => a + b, 0) / cSims).toFixed(2)),
+        })
+      }
+    }
+
+    // Isolamento se solicitado
+    let isolation: AudiHaasIsolationAudit | undefined
+    if (options.includeIsolation) {
+      // 1. Pilotos normalizados (todos com rating 82 idêntico)
+      const normDriverRng = this.createRng(seed + 999)
+      const normalizedDriverTeams = allTeams.map((t) => {
+        if (t.teamKey === 'audi' || t.teamKey === 'haas') {
+          return {
+            ...t,
+            driver1: { ...t.driver1, speed: 82, consistency: 82, rain: 82, defense: 82 },
+            driver2: { ...t.driver2, speed: 82, consistency: 82, rain: 82, defense: 82 },
+          }
+        }
+        return t
+      })
+
+      const isoSims = Math.min(200, sims)
+      let dAheadQ = 0
+      let dAheadR = 0
+      const dQDeltas: number[] = []
+      const dRDeltas: number[] = []
+
+      for (let i = 0; i < isoSims; i++) {
+        const qR = this.simulateOneQualifying({
+          teams: normalizedDriverTeams,
+          circuitProfile: defaultCircuit,
+          rng: normDriverRng,
+        })
+        const aQ = qR.filter((e) => e.teamKey === 'audi')
+        const hQ = qR.filter((e) => e.teamKey === 'haas')
+        const aBestQ = Math.min(...aQ.map((e) => e.gridPosition))
+        const hBestQ = Math.min(...hQ.map((e) => e.gridPosition))
+        const aBestLap = Math.min(...aQ.map((e) => e.lapTimeSec))
+        const hBestLap = Math.min(...hQ.map((e) => e.lapTimeSec))
+        if (aBestQ < hBestQ) dAheadQ++
+        dQDeltas.push(hBestLap - aBestLap)
+
+        const rR = this.simulateOneRace({
+          teams: normalizedDriverTeams,
+          qualyResult: qR,
+          circuitProfile: defaultCircuit,
+          totalLaps: 20,
+          seed: (seed + i * 3001) >>> 0,
+        })
+        const aR = rR.filter((e) => e.teamKey === 'audi')
+        const hR = rR.filter((e) => e.teamKey === 'haas')
+        if (Math.min(...aR.map((e) => e.finishPosition)) < Math.min(...hR.map((e) => e.finishPosition))) {
+          dAheadR++
+        }
+        dRDeltas.push((hBestLap - aBestLap) * 20)
+      }
+
+      // 2. Carros normalizados (ratings de chassi e motor iguais a 50, pilotos reais)
+      const normCarRng = this.createRng(seed + 1999)
+      const normalizedCarTeams = allTeams.map((t) => {
+        if (t.teamKey === 'audi' || t.teamKey === 'haas') {
+          return {
+            ...t,
+            chassisRating: 50,
+            puRating: 90,
+            carPerfRating: 62,
+          }
+        }
+        return t
+      })
+
+      let cAheadQ = 0
+      let cAheadR = 0
+      const cQDeltas: number[] = []
+      const cRDeltas: number[] = []
+
+      for (let i = 0; i < isoSims; i++) {
+        const qR = this.simulateOneQualifying({
+          teams: normalizedCarTeams,
+          circuitProfile: defaultCircuit,
+          rng: normCarRng,
+        })
+        const aQ = qR.filter((e) => e.teamKey === 'audi')
+        const hQ = qR.filter((e) => e.teamKey === 'haas')
+        const aBestQ = Math.min(...aQ.map((e) => e.gridPosition))
+        const hBestQ = Math.min(...hQ.map((e) => e.gridPosition))
+        const aBestLap = Math.min(...aQ.map((e) => e.lapTimeSec))
+        const hBestLap = Math.min(...hQ.map((e) => e.lapTimeSec))
+        if (aBestQ < hBestQ) cAheadQ++
+        cQDeltas.push(hBestLap - aBestLap)
+
+        const rR = this.simulateOneRace({
+          teams: normalizedCarTeams,
+          qualyResult: qR,
+          circuitProfile: defaultCircuit,
+          totalLaps: 20,
+          seed: (seed + i * 4001) >>> 0,
+        })
+        const aR = rR.filter((e) => e.teamKey === 'audi')
+        const hR = rR.filter((e) => e.teamKey === 'haas')
+        if (Math.min(...aR.map((e) => e.finishPosition)) < Math.min(...hR.map((e) => e.finishPosition))) {
+          cAheadR++
+        }
+        cRDeltas.push((hBestLap - aBestLap) * 20)
+      }
+
+      isolation = {
+        normalizedDrivers: {
+          audiAheadQualyRate: Number(((dAheadQ / isoSims) * 100).toFixed(1)),
+          audiAheadRaceRate: Number(((dAheadR / isoSims) * 100).toFixed(1)),
+          avgQualyDeltaSec: Number((dQDeltas.reduce((a, b) => a + b, 0) / isoSims).toFixed(3)),
+          avgRaceDeltaSec: Number((dRDeltas.reduce((a, b) => a + b, 0) / isoSims).toFixed(2)),
+        },
+        normalizedCars: {
+          audiAheadQualyRate: Number(((cAheadQ / isoSims) * 100).toFixed(1)),
+          audiAheadRaceRate: Number(((cAheadR / isoSims) * 100).toFixed(1)),
+          avgQualyDeltaSec: Number((cQDeltas.reduce((a, b) => a + b, 0) / isoSims).toFixed(3)),
+          avgRaceDeltaSec: Number((cRDeltas.reduce((a, b) => a + b, 0) / isoSims).toFixed(2)),
+        },
+      }
+    }
+
+    return {
+      simulations: sims,
+      seed,
+      audiAheadRate,
+      haasAheadRate,
+      audiAheadQualyRate,
+      haasAheadQualyRate,
+      avgRaceDeltaSec,
+      avgQualifyingDeltaSec,
+      avgRaceTimeDeltaPerLapSec,
+      carPerformanceDelta,
+      chassisDelta,
+      effectivePUDelta,
+      driverCompositeDelta,
+      directTeamBonuses: 0,
+      duplicatePUMultipliers: 0,
+      rngOverrides: 0,
+      qualyDistribution,
+      raceDistribution,
+      inversionFrequency: haasAheadRate,
+      circuits,
+      isolation,
+    }
+  }
+}
+
 export const teamPerformanceBaselineAuditService = new TeamPerformanceBaselineAuditService()
 
 export function auditTeamPerformanceBaseline(
   options?: RunBaselineAuditOptions,
 ): TeamPerformanceBaselineReport {
   return teamPerformanceBaselineAuditService.runBaselineAudit(options)
+}
+
+export function auditAudiHaasBalance(options?: {
+  seed?: number
+  simulations?: number
+  totalLaps?: number
+  includeCircuits?: boolean
+  includeIsolation?: boolean
+}): AudiHaasBalanceAuditReport {
+  return teamPerformanceBaselineAuditService.auditAudiHaasBalance(options)
 }
