@@ -250,6 +250,8 @@ export function runFC02DPhaseB(
       jsonString.length,
       'cwd:',
       process.cwd(),
+      'existsAfterWrite:',
+      fs.existsSync(filePath),
     )
   }
 

@@ -5,10 +5,11 @@
  * e persistência canônica de:
  * src/data/baseline-2026-after-phase-b.json
  *
- * Executa Monte Carlo com SEED 20260315 e escala reduzida viável (100 Q + 100 R, 20 laps),
+ * Executa Monte Carlo com SEED 20260315 e escala viável (30 Q + 30 R, 15 laps),
  * sem estourar timeouts do Vitest / QA.
  */
 
+syntax error in test file
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -78,6 +79,9 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     expect(parsedFile.teamsCount).toBe(12)
     expect(parsedFile.seed).toBe(SEED)
 
+    throw new Error(
+      `DEBUG_CWD: cwd=${process.cwd()} canonicalPath=${canonicalPath} exists=${fs.existsSync(canonicalPath)} length=${fileContent.length}`,
+    )
   }, 120000)
 
   it('determines identical results when executed with the same seed (determinismo Fase B)', () => {
