@@ -10,11 +10,8 @@ export const BASELINE_V0_DATA: BalanceBaselineV0 = buildCompleteBaselineV0()
 if (typeof process !== 'undefined' && process.cwd) {
   try {
     const jsonPath = path.resolve(process.cwd(), 'src/data/balance-baseline-v0.json')
-    const current = fs.existsSync(jsonPath) ? fs.readFileSync(jsonPath, 'utf-8') : ''
     const generated = JSON.stringify(BASELINE_V0_DATA, null, 2)
-    if (current !== generated) {
-      fs.writeFileSync(jsonPath, generated, 'utf-8')
-    }
+    fs.writeFileSync(jsonPath, generated, 'utf-8')
   } catch {
     // defende contra ambientes browser puro sem fs
   }
