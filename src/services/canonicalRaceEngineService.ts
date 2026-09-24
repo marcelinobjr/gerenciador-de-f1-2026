@@ -126,9 +126,7 @@ export class CanonicalRaceEngineService {
    * Recupera ou calcula os atributos de performance do carro.
    */
   private resolveCarPerformance(driver: CanonicalRaceDriverState) {
-    const officialTeam = OFFICIAL_GRID_TEAMS.find(
-      (t) => t.key === driver.teamId,
-    )
+    const officialTeam = OFFICIAL_GRID_TEAMS.find((t) => t.key === driver.teamId)
     const supplier = officialTeam?.engine || 'Ferrari'
     const tech = carTechnicalService.getOrCreateTeamTechnicalData(
       driver.teamId,

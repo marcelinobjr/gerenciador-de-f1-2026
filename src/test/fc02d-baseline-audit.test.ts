@@ -194,7 +194,9 @@ describe('FC02D — FASE A: Auditoria e Medição do Baseline de Performance 202
     })
 
     report.teamsStats.forEach((t) => {
-      const expectedCarPerf = Number((t.chassisRating * 0.7 + t.puRating * 0.3).toFixed(1))
+      const expectedCarPerf = Number(
+        (t.chassisRating * 0.7 + (t.effectivePuRating ?? t.puRating) * 0.3).toFixed(1),
+      )
       expect(Math.abs(t.carPerfRating - expectedCarPerf)).toBeLessThanOrEqual(0.1)
     })
   })
