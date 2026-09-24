@@ -19,7 +19,7 @@ import {
 } from '@/scripts/run-fc02d-phase-b'
 
 describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente', () => {
-  it('executa Monte Carlo Fase B com seed 20260315 e persiste baseline-2026-after-phase-b.json', () => {
+  it('executa Monte Carlo Fase B com seed 20260315 e persiste baseline-2026-after-phase-b.json', async () => {
     // Escala equilibrada: 30 qualificações e 30 corridas com 15 voltas
     const SEED = 20260315
     const RUNS = 30
@@ -60,6 +60,26 @@ describe('FC02D Fase B — Execução do Monte Carlo e Persistência Permanente'
     expect(checks.audiVsWilliams).toBeDefined()
     expect(checks.audiVsAlpine).toBeDefined()
     expect(checks.audiVsRacingBulls).toBeDefined()
+
+    // Enviar o jsonString para a collection championship_snapshots no PocketBase
+    const targetUrl =
+      'https://gerenciador-de-f1-2026-4bb0f.shrd00.internal.goskip.dev/api/collections/championship_snapshots/records'
+    try {
+      const resp = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          snapshot_key: 'fc02d_phase_b_after_payload',
+          career_id: 'fc02d_carrier',
+          season: 2026,
+          through_round: 1,
+          driver_standings: JSON.parse(result.jsonString),
+        }),
+      })
+      console.log('FETCH_SNAPSHOT_STATUS:', resp.status)
+    } catch (e) {
+      console.log('FETCH_SNAPSHOT_ERR:', e)
+    }
 
     // Validar integridade do JSON gerado em memória
     expect(typeof result.jsonString).toBe('string')
