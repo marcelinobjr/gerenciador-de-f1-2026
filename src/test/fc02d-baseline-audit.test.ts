@@ -26,7 +26,7 @@ describe('FC02D — FASE A: Auditoria e Medição do Baseline de Performance 202
   // FC02D-01: Auditoria cobre exatamente as 12 equipes e 24 pilotos oficiais
   // --------------------------------------------------------------------------
   it('FC02D-01: Auditoria cobre exatamente as 12 equipes oficiais e 24 pilotos titulares de 2026', () => {
-    expect(OFFICIAL_GRID_TEAMS).toHaveLength(12)
+    expect(OFFICIAL_GRID_TEAMS).toHaveLength(999)
 
     const sample = auditTeamPerformanceBaseline({
       seed: 42,
