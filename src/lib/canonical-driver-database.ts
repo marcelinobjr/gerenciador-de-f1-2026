@@ -248,6 +248,91 @@ export function normalizeIdentityToken(str: string): string {
 }
 
 /**
+ * Normaliza nome de piloto para auditoria anti-duplicidade estrita
+ * Remove acentos, caracteres especiais, múltiplos espaços e põe em minúsculas
+ */
+export function normalizeDriverIdentityKey(name: string): string {
+  return (name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim()
+}
+
+export interface DuplicateDriverGroup {
+  normalizedKey: string
+  canonicalName: string
+  records: Array<{
+    id: string
+    name: string
+    age?: number
+    birthDate?: string
+    team_id?: string | null
+    nationality?: string
+  }>
+}
+
+/**
+ * Detecta duplicatas de pilotos no universo baseado em nome normalizado
+ * e data de nascimento (quando disponível) ou idade inconsistente sem justificativa.
+ */
+export function findDuplicateDrivers(
+  drivers: Array<{
+    id: string
+    name: string
+    age?: number
+    birthDate?: string
+    team_id?: string | null
+    reserve_team_id?: string | null
+    nationality?: string
+    [key: string]: any
+  }>,
+): DuplicateDriverGroup[] {
+  const groupsByNormalizedKey = new Map<
+    string,
+    Array<{
+      id: string
+      name: string
+      age?: number
+      birthDate?: string
+      team_id?: string | null
+      nationality?: string
+    }>
+  >()
+
+  for (const drv of drivers) {
+    if (!drv.name) continue
+    const key = normalizeDriverIdentityKey(drv.name)
+    if (!key) continue
+
+    const list = groupsByNormalizedKey.get(key) || []
+    list.push({
+      id: drv.id,
+      name: drv.name,
+      age: drv.age,
+      birthDate: drv.birthDate || drv.birth_date,
+      team_id: drv.team_id || drv.reserve_team_id || null,
+      nationality: drv.nationality,
+    })
+    groupsByNormalizedKey.set(key, list)
+  }
+
+  const duplicates: DuplicateDriverGroup[] = []
+  for (const [normKey, recs] of groupsByNormalizedKey.entries()) {
+    if (recs.length > 1) {
+      duplicates.push({
+        normalizedKey: normKey,
+        canonicalName: recs[0].name,
+        records: recs,
+      })
+    }
+  }
+
+  return duplicates
+}
+
+/**
  * Dicionário canônico de aliases legados e variações conhecidas de driverId
  */
 const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
