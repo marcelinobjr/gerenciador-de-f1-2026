@@ -111,42 +111,45 @@ export function StepCustomGrid({
   return (
     <div className="max-w-6xl mx-auto space-y-8 py-6 sm:py-8 animate-fade-in-up">
       {/* Cabeçalho */}
-      <div className="text-center space-y-2 pb-4 border-b border-[#1F2733]">
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-mono font-bold uppercase">
+      <div className="text-center space-y-2 pb-4 border-b border-[#E2E8F0]">
+        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-700 text-xs font-mono font-bold uppercase">
           <SlidersHorizontal className="w-3.5 h-3.5" /> Etapa 3 // Monte seu Grid
         </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F5F7FA]">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A]">
           Monte seu Campeonato Sob Medida
         </h2>
-        <p className="text-xs sm:text-sm text-[#8B95A7] max-w-3xl mx-auto">
+        <p className="text-xs sm:text-sm text-[#64748B] max-w-3xl mx-auto">
           Adicione e remova escuderias da base de 28 equipes até totalizar{' '}
-          <strong className="text-cyan-400">exatamente 12 equipes</strong>. Em seguida, marque qual
+          <strong className="text-cyan-700">exatamente 12 equipes</strong>. Em seguida, marque qual
           delas você comandará ou use{' '}
-          <strong className="text-emerald-400">+ Criar Minha Equipe</strong>.
+          <strong className="text-emerald-700">+ Criar Minha Equipe</strong>.
         </p>
       </div>
 
       {/* Barra de Status do Grid (Contador X/12) */}
-      <div className="p-4 rounded-xl bg-[#11161F] border border-[#1F2733] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+      <div className="p-4 rounded-xl bg-white border border-[#E2E8F0] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3">
           <div
             className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono font-black text-sm ${
               isGridComplete
-                ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
-                : 'bg-[#161D29] text-cyan-400 border border-cyan-500/30'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200'
+                : 'bg-cyan-50 text-cyan-700 border border-cyan-200'
             }`}
           >
             {selectedTeams.length}/12
           </div>
           <div>
-            <div className="text-xs font-mono font-bold text-[#F5F7FA] uppercase flex items-center gap-2">
+            <div className="text-xs font-mono font-bold text-[#0F172A] uppercase flex items-center gap-2">
               <span>Seu Grid: {selectedTeams.length} de 12 equipes</span>
               {isGridComplete ? (
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
+                <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px]">
                   Grid Completo
                 </Badge>
               ) : selectedTeams.length < 12 ? (
-                <Badge variant="outline" className="border-amber-500/40 text-amber-400 text-[10px]">
+                <Badge
+                  variant="outline"
+                  className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]"
+                >
                   Faltam {12 - selectedTeams.length}
                 </Badge>
               ) : (
@@ -155,7 +158,7 @@ export function StepCustomGrid({
                 </Badge>
               )}
             </div>
-            <p className="text-[11px] text-[#8B95A7]">
+            <p className="text-[11px] text-[#64748B]">
               {isGridComplete
                 ? 'Grid válido! Agora escolha qual das equipes você comandará abaixo.'
                 : 'O botão de continuar só é liberado com EXATAMENTE 12 equipes e uma equipe do jogador selecionada.'}
@@ -167,7 +170,7 @@ export function StepCustomGrid({
         <Button
           type="button"
           onClick={() => setCustomTeamModalOpen(true)}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs h-9 shadow-md flex items-center gap-1.5 shrink-0"
+          className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs h-9 shadow-md flex items-center gap-1.5 shrink-0"
         >
           <Sparkles className="w-3.5 h-3.5" /> + Criar Minha Equipe
         </Button>
@@ -178,20 +181,20 @@ export function StepCustomGrid({
         {/* COLUNA 1: Equipes Disponíveis (5 colunas) */}
         <div className="lg:col-span-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[#F5F7FA] uppercase tracking-wider font-mono flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-cyan-400" /> Base Disponível (
+            <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider font-mono flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-cyan-600" /> Base Disponível (
               {filteredAvailable.length})
             </h3>
           </div>
 
           {/* Campo de Busca */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#8B95A7]" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#94A3B8]" />
             <Input
               placeholder="Buscar equipe, país ou motor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-[#11161F] border-[#1F2733] pl-9 text-xs text-[#F5F7FA] h-9"
+              className="bg-white border-[#CBD5E1] pl-9 text-xs text-[#0F172A] h-9"
             />
           </div>
 
@@ -200,11 +203,11 @@ export function StepCustomGrid({
             {filteredAvailable.map((team) => (
               <div
                 key={team.key}
-                className="p-3 rounded-lg bg-[#11161F] border border-[#1F2733] hover:border-[#8B95A7]/60 transition-all flex items-center justify-between gap-3 text-xs"
+                className="p-3 rounded-lg bg-white border border-[#E2E8F0] hover:border-[#CBD5E1] transition-all flex items-center justify-between gap-3 text-xs shadow-xs"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   {team.logoUrl ? (
-                    <div className="w-8 h-8 rounded bg-[#0B0E14] border border-[#1F2733] p-1 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded bg-[#F8FAFC] border border-[#E2E8F0] p-1 flex items-center justify-center shrink-0">
                       <img
                         src={team.logoUrl}
                         alt={team.name}
@@ -222,8 +225,8 @@ export function StepCustomGrid({
                   )}
 
                   <div className="min-w-0">
-                    <p className="font-bold text-[#F5F7FA] truncate">{team.name}</p>
-                    <p className="text-[10px] font-mono text-[#8B95A7]">
+                    <p className="font-bold text-[#0F172A] truncate">{team.name}</p>
+                    <p className="text-[10px] font-mono text-[#64748B]">
                       {team.country} {team.flag} • Motor {team.engine} • Nota {team.strengthRating}
                     </p>
                   </div>
@@ -235,7 +238,7 @@ export function StepCustomGrid({
                   variant="outline"
                   disabled={selectedTeams.length >= 12}
                   onClick={() => onAddTeamToGrid(team)}
-                  className="border-[#1F2733] text-cyan-400 hover:text-white hover:bg-cyan-600 h-7 px-2.5 text-xs shrink-0"
+                  className="border-[#CBD5E1] text-cyan-700 hover:text-white hover:bg-cyan-600 h-7 px-2.5 text-xs shrink-0 bg-white"
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
                 </Button>
@@ -243,7 +246,7 @@ export function StepCustomGrid({
             ))}
 
             {filteredAvailable.length === 0 && (
-              <div className="p-6 text-center text-xs text-[#8B95A7] border border-dashed border-[#1F2733] rounded-lg">
+              <div className="p-6 text-center text-xs text-[#64748B] border border-dashed border-[#CBD5E1] bg-white rounded-lg">
                 Nenhuma equipe disponível encontrada com esse filtro.
               </div>
             )}
@@ -253,18 +256,18 @@ export function StepCustomGrid({
         {/* COLUNA 2: Seu Campeonato (12 Equipes) (7 colunas) */}
         <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[#F5F7FA] uppercase tracking-wider font-mono flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-400" /> Seu Campeonato ({selectedTeams.length}
+            <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider font-mono flex items-center gap-2">
+              <Users className="w-4 h-4 text-emerald-600" /> Seu Campeonato ({selectedTeams.length}
               /12)
             </h3>
-            <span className="text-[11px] font-mono text-[#8B95A7]">
+            <span className="text-[11px] font-mono text-[#64748B]">
               Marque o rádio da equipe que você comandará
             </span>
           </div>
 
           {/* Equipe própria placeholder se estiver ativa */}
           {playerTeam.isCustom && (
-            <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#00A6FB]/20 to-[#11161F] border border-[#00A6FB] flex items-center justify-between gap-3 text-xs">
+            <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-300 flex items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-3">
                 <span
                   className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-xs shadow"
@@ -274,14 +277,14 @@ export function StepCustomGrid({
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <strong className="text-[#F5F7FA] text-sm">
+                    <strong className="text-[#0F172A] text-sm">
                       {playerTeam.customName || 'Minha Escuderia'}
                     </strong>
                     <Badge className="bg-[#00A6FB] text-white text-[9px] py-0 px-1.5">
                       SUA EQUIPE
                     </Badge>
                   </div>
-                  <p className="text-[10px] font-mono text-[#8B95A7]">
+                  <p className="text-[10px] font-mono text-[#64748B]">
                     Motor {playerTeam.customEngine} • Modelo{' '}
                     {playerTeam.customCarDesign || 'Carro1'}
                   </p>
@@ -293,7 +296,7 @@ export function StepCustomGrid({
                 variant="ghost"
                 size="sm"
                 onClick={() => setCustomTeamModalOpen(true)}
-                className="text-xs text-cyan-400 hover:text-cyan-300 h-8"
+                className="text-xs text-cyan-700 hover:text-cyan-800 h-8"
               >
                 Editar
               </Button>
@@ -309,14 +312,14 @@ export function StepCustomGrid({
                 <div
                   key={team.key}
                   onClick={() => onSelectPlayerTeamKey(team.key)}
-                  className={`p-3 rounded-lg transition-all cursor-pointer flex items-center justify-between gap-3 text-xs ${
+                  className={`p-3 rounded-lg transition-all cursor-pointer flex items-center justify-between gap-3 text-xs shadow-xs ${
                     isPlayerChosen
-                      ? 'bg-[#161D29] border-2 border-[#E10600] shadow-md shadow-[#E10600]/10'
-                      : 'bg-[#11161F] border border-[#1F2733] hover:border-[#8B95A7]/60'
+                      ? 'bg-red-50/70 border-2 border-[#E10600] shadow-md shadow-red-100'
+                      : 'bg-white border border-[#E2E8F0] hover:border-[#CBD5E1]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-[10px] font-mono text-[#8B95A7] w-4 text-center">
+                    <span className="text-[10px] font-mono text-[#64748B] w-4 text-center">
                       {idx + 1}
                     </span>
 
@@ -325,14 +328,14 @@ export function StepCustomGrid({
                       className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                         isPlayerChosen
                           ? 'border-[#E10600] bg-[#E10600]'
-                          : 'border-[#8B95A7]/40 bg-[#0B0E14]'
+                          : 'border-[#CBD5E1] bg-white'
                       }`}
                     >
                       {isPlayerChosen && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                     </div>
 
                     {team.logoUrl ? (
-                      <div className="w-8 h-8 rounded bg-[#0B0E14] border border-[#1F2733] p-1 flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 rounded bg-[#F8FAFC] border border-[#E2E8F0] p-1 flex items-center justify-center shrink-0">
                         <img
                           src={team.logoUrl}
                           alt={team.name}
@@ -351,14 +354,14 @@ export function StepCustomGrid({
 
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <strong className="text-[#F5F7FA] truncate">{team.name}</strong>
+                        <strong className="text-[#0F172A] truncate">{team.name}</strong>
                         {isPlayerChosen && (
                           <Badge className="bg-[#E10600] text-white text-[9px] py-0 px-1.5">
                             SUA EQUIPE
                           </Badge>
                         )}
                       </div>
-                      <p className="text-[10px] font-mono text-[#8B95A7]">
+                      <p className="text-[10px] font-mono text-[#64748B]">
                         {team.country} {team.flag} • Motor {team.engine} • Nota{' '}
                         {team.strengthRating}
                       </p>
@@ -374,7 +377,7 @@ export function StepCustomGrid({
                         e.stopPropagation()
                         onRemoveTeamFromGrid(team.key)
                       }}
-                      className="text-[#8B95A7] hover:text-red-400 hover:bg-red-500/10 h-7 w-7 p-0"
+                      className="text-[#64748B] hover:text-rose-600 hover:bg-rose-50 h-7 w-7 p-0"
                       title="Remover do campeonato"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -385,8 +388,8 @@ export function StepCustomGrid({
             })}
 
             {selectedTeams.length === 0 && (
-              <div className="p-8 text-center text-xs text-[#8B95A7] border border-dashed border-[#1F2733] rounded-lg space-y-2">
-                <AlertCircle className="w-6 h-6 text-amber-400 mx-auto" />
+              <div className="p-8 text-center text-xs text-[#64748B] border border-dashed border-[#CBD5E1] bg-white rounded-lg space-y-2">
+                <AlertCircle className="w-6 h-6 text-amber-500 mx-auto" />
                 <p>Nenhuma equipe adicionada ao campeonato ainda.</p>
                 <p className="text-[11px]">
                   Clique em <strong>+ Adicionar</strong> nas equipes da coluna esquerda até
@@ -400,12 +403,12 @@ export function StepCustomGrid({
 
       {/* Modal "+ Criar Minha Equipe" (Placeholder Funcional) */}
       <Dialog open={customTeamModalOpen} onOpenChange={setCustomTeamModalOpen}>
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-lg">
+        <DialogContent className="bg-white border-[#E2E8F0] text-[#0F172A] max-w-lg shadow-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-cyan-400" /> Criar Minha Equipe Própria
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-[#0F172A]">
+              <Sparkles className="w-5 h-5 text-cyan-600" /> Criar Minha Equipe Própria
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
+            <DialogDescription className="text-xs text-[#64748B]">
               Configure o placeholder funcional da sua escuderia para este campeonato personalizado.
             </DialogDescription>
           </DialogHeader>
@@ -413,20 +416,20 @@ export function StepCustomGrid({
           <div className="space-y-4 py-2 text-xs">
             {/* Nome */}
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-mono uppercase text-[#8B95A7]">
+              <Label className="text-[11px] font-mono uppercase text-[#64748B]">
                 Nome da Escuderia *
               </Label>
               <Input
                 placeholder="Ex: Escuderia Brasil, Lotus F1..."
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
-                className="bg-[#0B0E14] border-[#1F2733] text-xs text-[#F5F7FA]"
+                className="bg-white border-[#CBD5E1] text-xs text-[#0F172A]"
               />
             </div>
 
             {/* Cor */}
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-mono uppercase text-[#8B95A7]">
+              <Label className="text-[11px] font-mono uppercase text-[#64748B]">
                 Cor da Identidade
               </Label>
               <div className="flex items-center gap-3">
@@ -434,15 +437,15 @@ export function StepCustomGrid({
                   type="color"
                   value={customColor}
                   onChange={(e) => setCustomColor(e.target.value)}
-                  className="w-10 h-8 rounded bg-transparent border border-[#1F2733] cursor-pointer"
+                  className="w-10 h-8 rounded bg-white border border-[#CBD5E1] cursor-pointer p-0.5"
                 />
-                <span className="font-mono text-xs text-[#8B95A7]">{customColor}</span>
+                <span className="font-mono text-xs text-[#64748B]">{customColor}</span>
               </div>
             </div>
 
             {/* Modelo do Carro */}
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-mono uppercase text-[#8B95A7]">
+              <Label className="text-[11px] font-mono uppercase text-[#64748B]">
                 Design do Monoposto (Carro 1 a 5)
               </Label>
               <div className="grid grid-cols-5 gap-2">
@@ -453,8 +456,8 @@ export function StepCustomGrid({
                     onClick={() => setSelectedCarModel(car.id)}
                     className={`p-2 rounded border text-center text-xs font-bold transition-all ${
                       selectedCarModel === car.id
-                        ? 'border-cyan-500 bg-cyan-500/20 text-white'
-                        : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
+                        ? 'border-cyan-600 bg-cyan-50 text-cyan-700 shadow-xs'
+                        : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B]'
                     }`}
                   >
                     {car.id}
@@ -465,7 +468,7 @@ export function StepCustomGrid({
 
             {/* Motor */}
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-mono uppercase text-[#8B95A7]">
+              <Label className="text-[11px] font-mono uppercase text-[#64748B]">
                 Fornecedor de Motor 50/50
               </Label>
               <div className="grid grid-cols-3 gap-2">
@@ -476,8 +479,8 @@ export function StepCustomGrid({
                     onClick={() => setCustomEngine(eng.name)}
                     className={`p-2 rounded border text-center text-xs font-bold transition-all ${
                       customEngine === eng.name
-                        ? 'border-cyan-500 bg-cyan-500/20 text-white'
-                        : 'border-[#1F2733] bg-[#0B0E14] text-[#8B95A7]'
+                        ? 'border-cyan-600 bg-cyan-50 text-cyan-700 shadow-xs'
+                        : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B]'
                     }`}
                   >
                     {eng.name}
@@ -493,7 +496,7 @@ export function StepCustomGrid({
               variant="outline"
               size="sm"
               onClick={() => setCustomTeamModalOpen(false)}
-              className="border-[#1F2733] text-[#8B95A7]"
+              className="border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9]"
             >
               Cancelar
             </Button>
@@ -502,7 +505,7 @@ export function StepCustomGrid({
               size="sm"
               onClick={handleConfirmCustomModal}
               disabled={!isCustomValid}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+              className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold"
             >
               Confirmar Minha Equipe
             </Button>
@@ -516,7 +519,7 @@ export function StepCustomGrid({
           type="button"
           variant="outline"
           onClick={onBack}
-          className="border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA] h-10 text-xs sm:text-sm flex items-center gap-1.5"
+          className="border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] h-10 text-xs sm:text-sm flex items-center gap-1.5"
         >
           <ChevronLeft className="w-4 h-4" /> Voltar ao Universo
         </Button>
@@ -525,7 +528,7 @@ export function StepCustomGrid({
           type="button"
           onClick={onNext}
           disabled={!canContinue}
-          className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-bold h-10 px-6 text-xs sm:text-sm shadow-md shadow-[#E10600]/25 flex items-center gap-1.5"
+          className="bg-[#E10600] hover:bg-[#C60500] text-white font-bold h-10 px-6 text-xs sm:text-sm shadow-md shadow-red-200 flex items-center gap-1.5"
         >
           Continuar para Configurações <ChevronRight className="w-4 h-4" />
         </Button>

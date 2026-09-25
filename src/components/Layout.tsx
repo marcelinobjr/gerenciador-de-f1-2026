@@ -167,29 +167,29 @@ export default function Layout() {
         open={resetDialogOpen}
         onOpenChange={(open) => !isResetting && setResetDialogOpen(open)}
       >
-        <AlertDialogContent className="bg-[#0F141C] border-[#1F2733] text-[#F5F7FA] max-w-md">
+        <AlertDialogContent className="bg-white border-[#E2E8F0] text-[#0F172A] max-w-md shadow-xl">
           <AlertDialogHeader>
-            <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
-              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="flex items-center gap-2 text-amber-600 font-bold mb-1">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
               <span>Reiniciar Progresso do Jogo?</span>
             </div>
-            <AlertDialogTitle className="text-lg font-bold text-white">
+            <AlertDialogTitle className="text-lg font-bold text-[#0F172A]">
               Deseja zerar sua carreira nesta temporada?
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="text-xs text-[#8B95A7] space-y-2 mt-2 font-normal leading-relaxed">
+              <div className="text-xs text-[#64748B] space-y-2 mt-2 font-normal leading-relaxed">
                 <p>
-                  Esta ação é <strong className="text-[#EF4444]">irreversível</strong> e apagará
+                  Esta ação é <strong className="text-rose-600">irreversível</strong> e apagará
                   todos os dados da sua escuderia atual:
                 </p>
-                <ul className="list-disc pl-5 space-y-1 text-[#CBD5E1]">
+                <ul className="list-disc pl-5 space-y-1 text-[#475569]">
                   <li>Sua equipe atual e orçamento acumulado</li>
                   <li>Temporada {seasonYear} e resultados de todas as corridas</li>
                   <li>Patrocínios ativos e peças desenvolvidas no P&D</li>
                   <li>Contratos de pilotos (eles voltam disponíveis para o mercado)</li>
                   <li>Histórico de comunicados e eventos</li>
                 </ul>
-                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] mt-2">
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] mt-2">
                   ✓ <strong>Sua conta e login serão mantidos</strong> ({user?.email}). Você será
                   direcionado para escolher ou criar uma nova equipe imediatamente.
                 </div>
@@ -199,7 +199,7 @@ export default function Layout() {
           <AlertDialogFooter className="mt-4 gap-2">
             <AlertDialogCancel
               disabled={isResetting}
-              className="bg-[#0B0E14] border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#1F2733]"
+              className="bg-white border-[#CBD5E1] text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
             >
               Cancelar
             </AlertDialogCancel>

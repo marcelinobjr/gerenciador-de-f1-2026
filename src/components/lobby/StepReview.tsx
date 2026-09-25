@@ -52,14 +52,14 @@ export function StepReview({
   return (
     <div className="max-w-4xl mx-auto space-y-8 py-6 sm:py-8 animate-fade-in-up">
       {/* Cabeçalho */}
-      <div className="text-center space-y-2 pb-4 border-b border-[#1F2733]">
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold uppercase">
+      <div className="text-center space-y-2 pb-4 border-b border-[#E2E8F0]">
+        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-mono font-bold uppercase">
           <CheckCircle2 className="w-3.5 h-3.5" /> Etapa Final // Revisão do Contrato
         </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F5F7FA]">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A]">
           Revisão Final da Carreira
         </h2>
-        <p className="text-xs sm:text-sm text-[#8B95A7] max-w-2xl mx-auto">
+        <p className="text-xs sm:text-sm text-[#64748B] max-w-2xl mx-auto">
           Confira o resumo das suas escolhas antes da assinatura definitiva do contrato. Nenhuma
           alteração no banco de dados foi feita até aqui.
         </p>
@@ -67,18 +67,18 @@ export function StepReview({
 
       <div className="space-y-4">
         {/* Bloco 1: Manager & Perfil */}
-        <Card className="bg-[#11161F] border-[#1F2733] shadow-lg">
-          <CardHeader className="pb-3 border-b border-[#1F2733]/60">
+        <Card className="bg-white border-[#E2E8F0] shadow-xs">
+          <CardHeader className="pb-3 border-b border-[#E2E8F0]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-[#E10600]" />
-                <CardTitle className="text-sm font-bold text-[#F5F7FA] uppercase font-mono">
+                <CardTitle className="text-sm font-bold text-[#0F172A] uppercase font-mono">
                   Chefe de Equipe
                 </CardTitle>
               </div>
               <Badge
                 variant="outline"
-                className="text-[10px] font-mono text-[#E10600] border-[#E10600]/30"
+                className="text-[10px] font-mono text-[#E10600] border-red-200 bg-red-50"
               >
                 {managerProfile.archetype}
               </Badge>
@@ -86,33 +86,33 @@ export function StepReview({
           </CardHeader>
           <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
             <div>
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Nome:</span>
-              <strong className="text-[#F5F7FA] text-sm font-sans">{manager.name}</strong>
-              <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+              <span className="text-[#64748B] text-[10px] uppercase block">Nome:</span>
+              <strong className="text-[#0F172A] text-sm font-sans">{manager.name}</strong>
+              <span className="text-[10px] text-[#64748B] block mt-0.5">
                 {manager.nationality} {manager.age ? `• ${manager.age} anos` : ''}
               </span>
             </div>
 
             <div>
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Perfil Escolhido:</span>
-              <strong className="text-cyan-400 text-sm font-sans">{managerProfile.title}</strong>
-              <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+              <span className="text-[#64748B] text-[10px] uppercase block">Perfil Escolhido:</span>
+              <strong className="text-cyan-700 text-sm font-sans">{managerProfile.title}</strong>
+              <span className="text-[10px] text-[#64748B] block mt-0.5">
                 {managerProfile.specialty}
               </span>
             </div>
 
             <div>
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Bônus & Fraqueza:</span>
+              <span className="text-[#64748B] text-[10px] uppercase block">Bônus & Fraqueza:</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {managerProfile.bonuses.map((b, i) => (
                   <Badge
                     key={i}
-                    className="bg-emerald-500/10 text-emerald-400 text-[9px] py-0 px-1.5"
+                    className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] py-0 px-1.5"
                   >
                     {b.attribute} +{b.value}
                   </Badge>
                 ))}
-                <Badge className="bg-red-500/10 text-red-400 text-[9px] py-0 px-1.5">
+                <Badge className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] py-0 px-1.5">
                   {managerProfile.weakness.attribute} {managerProfile.weakness.value}
                 </Badge>
               </div>
@@ -121,18 +121,18 @@ export function StepReview({
         </Card>
 
         {/* Bloco 2: Escuderia do Jogador & Universo */}
-        <Card className="bg-[#11161F] border-[#1F2733] shadow-lg">
-          <CardHeader className="pb-3 border-b border-[#1F2733]/60">
+        <Card className="bg-white border-[#E2E8F0] shadow-xs">
+          <CardHeader className="pb-3 border-b border-[#E2E8F0]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-cyan-400" />
-                <CardTitle className="text-sm font-bold text-[#F5F7FA] uppercase font-mono">
+                <Trophy className="w-4 h-4 text-cyan-600" />
+                <CardTitle className="text-sm font-bold text-[#0F172A] uppercase font-mono">
                   Sua Escuderia & Campeonato
                 </CardTitle>
               </div>
               <Badge
                 variant="outline"
-                className="text-[10px] font-mono text-cyan-400 border-cyan-500/30"
+                className="text-[10px] font-mono text-cyan-700 border-cyan-200 bg-cyan-50"
               >
                 {universeType === 'championship_2026'
                   ? 'CAMPEONATO 2026'
@@ -143,24 +143,26 @@ export function StepReview({
           <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
             <div className="flex items-center gap-3">
               <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white text-xs shadow shrink-0"
+                className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white text-xs shadow-xs shrink-0"
                 style={{ backgroundColor: teamColor }}
               >
                 {teamDisplayName.slice(0, 3).toUpperCase()}
               </div>
               <div>
-                <span className="text-[#8B95A7] text-[10px] uppercase block">Escuderia:</span>
-                <strong className="text-[#F5F7FA] text-sm font-sans">{teamDisplayName}</strong>
-                <span className="text-[10px] text-cyan-400 block mt-0.5">Motor {teamEngine}</span>
+                <span className="text-[#64748B] text-[10px] uppercase block">Escuderia:</span>
+                <strong className="text-[#0F172A] text-sm font-sans">{teamDisplayName}</strong>
+                <span className="text-[10px] text-cyan-700 block mt-0.5 font-semibold">
+                  Motor {teamEngine}
+                </span>
               </div>
             </div>
 
             <div>
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Grid Selecionado:</span>
-              <strong className="text-[#F5F7FA] text-sm font-sans">
+              <span className="text-[#64748B] text-[10px] uppercase block">Grid Selecionado:</span>
+              <strong className="text-[#0F172A] text-sm font-sans">
                 {selectedTeams.length} Escuderias
               </strong>
-              <span className="text-[10px] text-[#8B95A7] block mt-0.5">
+              <span className="text-[10px] text-[#64748B] block mt-0.5">
                 {universeType === 'championship_2026'
                   ? 'Grid Oficial de 2026'
                   : 'Grid Customizado 12/12'}
@@ -168,13 +170,13 @@ export function StepReview({
             </div>
 
             <div>
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Pilotos Titulares:</span>
+              <span className="text-[#64748B] text-[10px] uppercase block">Pilotos Titulares:</span>
               {playerTeam.isCustom ? (
-                <span className="text-amber-400 text-xs font-sans block mt-1">
+                <span className="text-amber-700 text-xs font-sans block mt-1 font-medium">
                   A contratar pós-criação na aba Equipe
                 </span>
               ) : (
-                <div className="space-y-0.5 mt-0.5 text-[11px] font-sans text-[#F5F7FA]">
+                <div className="space-y-0.5 mt-0.5 text-[11px] font-sans text-[#0F172A] font-medium">
                   <div>1. {playerTeam.officialTeam?.driver1.name}</div>
                   <div>2. {playerTeam.officialTeam?.driver2.name}</div>
                 </div>
@@ -184,9 +186,9 @@ export function StepReview({
         </Card>
 
         {/* Bloco 3: Grid das 12 Equipes do Campeonato */}
-        <Card className="bg-[#11161F] border-[#1F2733]">
+        <Card className="bg-white border-[#E2E8F0] shadow-xs">
           <CardHeader className="pb-2">
-            <span className="text-[10px] font-mono text-[#8B95A7] uppercase">
+            <span className="text-[10px] font-mono text-[#64748B] uppercase">
               As 12 Escuderias do Campeonato:
             </span>
           </CardHeader>
@@ -200,10 +202,10 @@ export function StepReview({
                 return (
                   <div
                     key={team.key}
-                    className={`p-2 rounded-lg border text-xs font-mono flex items-center gap-2 ${
+                    className={`p-2 rounded-lg border text-xs font-mono flex items-center gap-2 shadow-xs ${
                       isUserTeam
-                        ? 'bg-[#161D29] border-[#E10600] text-white shadow-sm'
-                        : 'bg-[#0B0E14] border-[#1F2733] text-[#8B95A7]'
+                        ? 'bg-red-50/80 border-[#E10600] text-[#0F172A]'
+                        : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#475569]'
                     }`}
                   >
                     <span
@@ -221,37 +223,37 @@ export function StepReview({
         </Card>
 
         {/* Bloco 4: Configurações da Carreira */}
-        <Card className="bg-[#11161F] border-[#1F2733]">
-          <CardHeader className="pb-3 border-b border-[#1F2733]/60">
+        <Card className="bg-white border-[#E2E8F0] shadow-xs">
+          <CardHeader className="pb-3 border-b border-[#E2E8F0]">
             <div className="flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-purple-400" />
-              <CardTitle className="text-sm font-bold text-[#F5F7FA] uppercase font-mono">
+              <Sliders className="w-4 h-4 text-purple-600" />
+              <CardTitle className="text-sm font-bold text-[#0F172A] uppercase font-mono">
                 Regras & Dificuldade
               </CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-            <div className="p-2.5 rounded bg-[#0B0E14] border border-[#1F2733]">
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Dificuldade IA:</span>
-              <strong className="text-cyan-400 text-xs uppercase">
+            <div className="p-2.5 rounded bg-[#F8FAFC] border border-[#E2E8F0]">
+              <span className="text-[#64748B] text-[10px] uppercase block">Dificuldade IA:</span>
+              <strong className="text-cyan-700 text-xs uppercase">
                 {careerSettings.aiDifficulty}
               </strong>
             </div>
-            <div className="p-2.5 rounded bg-[#0B0E14] border border-[#1F2733]">
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Mercado:</span>
-              <strong className="text-emerald-400 text-xs uppercase">
+            <div className="p-2.5 rounded bg-[#F8FAFC] border border-[#E2E8F0]">
+              <span className="text-[#64748B] text-[10px] uppercase block">Mercado:</span>
+              <strong className="text-emerald-700 text-xs uppercase">
                 {careerSettings.marketBehavior}
               </strong>
             </div>
-            <div className="p-2.5 rounded bg-[#0B0E14] border border-[#1F2733]">
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Eventos/Crises:</span>
-              <strong className="text-amber-400 text-xs uppercase">
+            <div className="p-2.5 rounded bg-[#F8FAFC] border border-[#E2E8F0]">
+              <span className="text-[#64748B] text-[10px] uppercase block">Eventos/Crises:</span>
+              <strong className="text-amber-700 text-xs uppercase">
                 {careerSettings.eventFrequency}
               </strong>
             </div>
-            <div className="p-2.5 rounded bg-[#0B0E14] border border-[#1F2733]">
-              <span className="text-[#8B95A7] text-[10px] uppercase block">Velocidade P&D:</span>
-              <strong className="text-purple-400 text-xs uppercase">
+            <div className="p-2.5 rounded bg-[#F8FAFC] border border-[#E2E8F0]">
+              <span className="text-[#64748B] text-[10px] uppercase block">Velocidade P&D:</span>
+              <strong className="text-purple-700 text-xs uppercase">
                 {careerSettings.devSpeed}
               </strong>
             </div>
@@ -260,12 +262,12 @@ export function StepReview({
       </div>
 
       {/* Caixa de Confirmação Final */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-[#E10600]/15 via-[#11161F] to-emerald-500/15 border border-[#1F2733] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-red-50 via-white to-emerald-50 border border-[#E2E8F0] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
         <div className="space-y-1 text-center sm:text-left">
-          <h4 className="text-base font-bold text-[#F5F7FA] flex items-center justify-center sm:justify-start gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-400" /> Pronto para assumir o comando?
+          <h4 className="text-base font-bold text-[#0F172A] flex items-center justify-center sm:justify-start gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-600" /> Pronto para assumir o comando?
           </h4>
-          <p className="text-xs text-[#8B95A7]">
+          <p className="text-xs text-[#64748B]">
             Ao clicar em <strong>COMEÇAR CARREIRA</strong>, seu save será criado definitivamente no
             backend Skip Cloud e o pit wall da F1 2026 será aberto.
           </p>
@@ -275,7 +277,7 @@ export function StepReview({
           type="button"
           disabled={isSubmitting}
           onClick={onConfirmCreateCareer}
-          className="w-full sm:w-auto bg-[#E10600] hover:bg-[#FF2E25] text-white font-extrabold text-sm h-12 px-8 shadow-xl shadow-[#E10600]/30 shrink-0 uppercase tracking-wider"
+          className="w-full sm:w-auto bg-[#E10600] hover:bg-[#C60500] text-white font-extrabold text-sm h-12 px-8 shadow-md shadow-red-200 shrink-0 uppercase tracking-wider"
         >
           {isSubmitting ? (
             <span className="inline-flex items-center">
@@ -294,7 +296,7 @@ export function StepReview({
           variant="outline"
           disabled={isSubmitting}
           onClick={onBack}
-          className="border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA] h-10 text-xs sm:text-sm flex items-center gap-1.5"
+          className="border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] h-10 text-xs sm:text-sm flex items-center gap-1.5"
         >
           <ChevronLeft className="w-4 h-4" /> Voltar às Configurações
         </Button>
@@ -304,7 +306,7 @@ export function StepReview({
           variant="ghost"
           disabled={isSubmitting}
           onClick={onCancel}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs sm:text-sm"
+          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs sm:text-sm"
         >
           Cancelar e Descartar Escolhas
         </Button>

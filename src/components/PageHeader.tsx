@@ -28,20 +28,20 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        'flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1F2733]',
+        'flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E2E8F0]',
         className,
       )}
     >
       <div className="space-y-1 min-w-0">
-        {eyebrow && <div className="eyebrow text-[#8B95A7]">{eyebrow}</div>}
+        {eyebrow && <div className="eyebrow text-[#64748B]">{eyebrow}</div>}
 
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F5F7FA]">{title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#0F172A]">{title}</h1>
           {badge && <div className="shrink-0">{badge}</div>}
         </div>
 
         {description && (
-          <p className="text-xs sm:text-sm text-[#8B95A7] leading-relaxed max-w-3xl">
+          <p className="text-xs sm:text-sm text-[#64748B] leading-relaxed max-w-3xl">
             {description}
           </p>
         )}

@@ -55,26 +55,26 @@ export function LobbyLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-[#F5F7FA] flex flex-col selection:bg-[#E10600] selection:text-white font-sans antialiased">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col selection:bg-[#E10600] selection:text-white font-sans antialiased">
       {/* Topbar do Lobby */}
-      <header className="h-16 border-b border-[#1F2733] bg-[#11161F]/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40 shadow-lg">
+      <header className="h-16 border-b border-[#E2E8F0] bg-white/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40 shadow-xs">
         {/* Logo / Marca */}
         <div className="flex items-center gap-3">
           <div
             onClick={() => navigate('/lobby')}
             className="flex items-center gap-2.5 cursor-pointer group"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#E10600] flex items-center justify-center font-black text-white text-xs tracking-tighter shadow-md shadow-[#E10600]/30 group-hover:scale-105 transition-transform">
+            <div className="w-8 h-8 rounded-lg bg-[#E10600] flex items-center justify-center font-black text-white text-xs tracking-tighter shadow-md shadow-red-200 group-hover:scale-105 transition-transform">
               F1
             </div>
             <div>
               <div className="flex items-center gap-1.5 leading-none">
-                <span className="font-extrabold text-sm tracking-tight text-[#F5F7FA]">
+                <span className="font-extrabold text-sm tracking-tight text-[#0F172A]">
                   MANAGER
                 </span>
                 <span className="text-xs font-mono font-bold text-[#E10600]">2026</span>
               </div>
-              <span className="text-[10px] font-mono text-[#8B95A7] tracking-wider uppercase block">
+              <span className="text-[10px] font-mono text-[#64748B] tracking-wider uppercase block">
                 Ambiente Lobby
               </span>
             </div>
@@ -85,13 +85,13 @@ export function LobbyLayout() {
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Indicador de Carreira Ativa */}
           {team && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#161D29] border border-[#1F2733] text-xs">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#F8FAFC] border border-[#E2E8F0] text-xs">
               <span
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: team.color || '#E10600' }}
               />
-              <span className="text-[#8B95A7] font-mono">Save Ativo:</span>
-              <strong className="text-[#F5F7FA] truncate max-w-[140px]">{team.name}</strong>
+              <span className="text-[#64748B] font-mono">Save Ativo:</span>
+              <strong className="text-[#0F172A] truncate max-w-[140px]">{team.name}</strong>
             </div>
           )}
 
@@ -101,13 +101,13 @@ export function LobbyLayout() {
             variant="ghost"
             size="icon"
             onClick={() => setSoundEnabled((v) => !v)}
-            className="text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29] h-9 w-9"
+            className="text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] h-9 w-9"
             title={soundEnabled ? 'Desativar efeitos sonoros' : 'Ativar efeitos sonoros'}
           >
             {soundEnabled ? (
               <Volume2 className="w-4 h-4" />
             ) : (
-              <VolumeX className="w-4 h-4 text-red-400" />
+              <VolumeX className="w-4 h-4 text-rose-600" />
             )}
           </Button>
 
@@ -117,9 +117,9 @@ export function LobbyLayout() {
               type="button"
               size="sm"
               onClick={() => navigate('/')}
-              className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-9 px-3 text-xs shadow-md shadow-emerald-500/20 hidden md:flex items-center gap-1.5"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 px-3 text-xs shadow-md shadow-emerald-200 hidden md:flex items-center gap-1.5"
             >
-              <Play className="w-3.5 h-3.5 fill-black" /> Voltar ao Pit Wall
+              <Play className="w-3.5 h-3.5 fill-white" /> Voltar ao Pit Wall
             </Button>
           )}
 
@@ -130,7 +130,7 @@ export function LobbyLayout() {
               variant="outline"
               size="sm"
               onClick={() => setResetModalOpen(true)}
-              className="border-[#1F2733] text-red-400 hover:text-red-300 hover:bg-red-500/10 h-9 px-2.5 text-xs flex items-center gap-1.5"
+              className="border-[#E2E8F0] bg-white text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-9 px-2.5 text-xs flex items-center gap-1.5"
               title="Apagar save da carreira e recomeçar"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -144,7 +144,7 @@ export function LobbyLayout() {
             variant="ghost"
             size="icon"
             onClick={handleLogout}
-            className="text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29] h-9 w-9"
+            className="text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] h-9 w-9"
             title="Encerrar sessão"
           >
             <LogOut className="w-4 h-4" />
@@ -158,30 +158,30 @@ export function LobbyLayout() {
       </main>
 
       {/* Rodapé do Lobby */}
-      <footer className="border-t border-[#1F2733] bg-[#11161F]/60 py-3 px-6 text-center text-xs font-mono text-[#8B95A7] flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="border-t border-[#E2E8F0] bg-white/60 py-3 px-6 text-center text-xs font-mono text-[#64748B] flex flex-col sm:flex-row items-center justify-between gap-2">
         <span>APEX GP Manager • Temporada 2026</span>
         <span>FIA Formula 1 World Championship™ Simulation • Skip Cloud</span>
       </footer>
 
       {/* Modal de Confirmação de Reset de Carreira */}
       <Dialog open={resetModalOpen} onOpenChange={setResetModalOpen}>
-        <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-md">
+        <DialogContent className="bg-white border-[#E2E8F0] text-[#0F172A] max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-red-400 flex items-center gap-2">
-              <RotateCcw className="w-5 h-5 text-red-400" /> Confirmar Reinício de Carreira
+            <DialogTitle className="text-lg font-bold text-rose-600 flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-rose-600" /> Confirmar Reinício de Carreira
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
+            <DialogDescription className="text-xs text-[#64748B]">
               Esta ação removerá todos os dados da carreira atual no servidor.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-3 text-xs leading-relaxed text-[#8B95A7]">
+          <div className="py-4 space-y-3 text-xs leading-relaxed text-[#64748B]">
             <p>
               Você está prestes a apagar permanentemente a escuderia{' '}
-              <strong className="text-[#F5F7FA]">{team?.name}</strong>, incluindo pilotos, peças,
+              <strong className="text-[#0F172A]">{team?.name}</strong>, incluindo pilotos, peças,
               patrocinadores e histórico de corridas de 2026.
             </p>
-            <p className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300">
+            <p className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">
               Esta ação não pode ser desfeita. Após o reinício, você voltará à tela inicial para
               iniciar um Novo Jogo.
             </p>
@@ -194,7 +194,7 @@ export function LobbyLayout() {
               size="sm"
               disabled={resetting}
               onClick={() => setResetModalOpen(false)}
-              className="border-[#1F2733] text-[#8B95A7]"
+              className="border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9]"
             >
               Cancelar
             </Button>
@@ -203,7 +203,7 @@ export function LobbyLayout() {
               size="sm"
               disabled={resetting}
               onClick={handleResetCareer}
-              className="bg-red-600 hover:bg-red-500 text-white font-bold"
+              className="bg-[#E10600] hover:bg-[#C60500] text-white font-bold"
             >
               {resetting ? 'Apagando Carreira...' : 'Sim, Reiniciar do Zero'}
             </Button>

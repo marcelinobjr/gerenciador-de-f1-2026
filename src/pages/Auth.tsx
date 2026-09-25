@@ -157,41 +157,41 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 bg-[#0B0E14] text-[#F5F7FA] overflow-hidden">
-      {/* Imagem de fundo: Garagem oficial F1 2026 com carro branco e iluminação neon */}
+    <div className="min-h-screen relative flex items-center justify-center p-4 bg-[#F8FAFC] text-[#0F172A] overflow-hidden">
+      {/* Fotografia de F1 como hero de fundo, com overlay claro */}
       <div
-        className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_35%] md:bg-center bg-no-repeat pointer-events-none"
+        className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_35%] md:bg-center bg-no-repeat pointer-events-none opacity-25"
         style={{ backgroundImage: `url(${heroGarageBg})` }}
       />
-      {/* Overlay escuro em Camada 0 com textura sutil em grade */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#06080E]/90 via-[#0B0E14]/85 to-[#06080E]/95 pointer-events-none" />
+      {/* Overlay claro translúcido */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-[#F8FAFC]/85 to-white/90 pointer-events-none" />
       <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
           backgroundImage:
-            'linear-gradient(to right, #F5F7FA 1px, transparent 1px), linear-gradient(to bottom, #F5F7FA 1px, transparent 1px)',
+            'linear-gradient(to right, #0F172A 1px, transparent 1px), linear-gradient(to bottom, #0F172A 1px, transparent 1px)',
           backgroundSize: '32px 32px',
         }}
       />
 
-      {/* Main card em Camada 1 com borda #1F2733 */}
-      <div className="relative z-10 w-full max-w-md bg-[#11161F] border border-[#1F2733] rounded-2xl p-6 md:p-8 shadow-2xl">
+      {/* Card de login branco */}
+      <div className="relative z-10 w-full max-w-md bg-white border border-[#E2E8F0] rounded-2xl p-6 md:p-8 shadow-xl shadow-slate-200/60">
         {/* Header with Title */}
         <div className="text-center mb-6 space-y-2">
-          <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#E10600] text-white mb-1 shadow-md shadow-[#E10600]/20">
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#E10600] text-white mb-1 shadow-md shadow-red-200">
             <Flag className="w-5 h-5" />
           </div>
-          <div className="eyebrow text-[#8B95A7]">APEX GP MANAGER // ACESSO</div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[#F5F7FA]">
+          <div className="eyebrow text-[#64748B]">APEX GP MANAGER // ACESSO</div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[#0F172A]">
             APEX GP Manager
           </h1>
-          <p className="text-xs text-[#8B95A7]">Gestão Executiva de Motorsport • Temporada 2026</p>
+          <p className="text-xs text-[#64748B]">Gestão Executiva de Motorsport • Temporada 2026</p>
         </div>
 
         {/* Seed credential alert banner */}
-        <div className="mb-6 p-3 rounded-lg bg-[#161D29] border border-[#1F2733] text-xs text-[#8B95A7]">
-          <div className="flex items-center justify-between font-semibold text-[#F5F7FA] mb-1.5">
-            <span className="flex items-center gap-1.5 text-amber-400">
+        <div className="mb-6 p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-[#64748B]">
+          <div className="flex items-center justify-between font-semibold text-[#0F172A] mb-1.5">
+            <span className="flex items-center gap-1.5 text-amber-600">
               <Sparkles className="w-3.5 h-3.5" />
               Credenciais de demonstração
             </span>
@@ -203,34 +203,34 @@ export default function AuthPage() {
               Preencher
             </button>
           </div>
-          <p className="text-xs text-[#8B95A7]">
-            E-mail: <span className="font-num text-[#F5F7FA]">m.blasques@multi.br.com</span>
+          <p className="text-xs text-[#64748B]">
+            E-mail: <span className="font-num text-[#0F172A]">m.blasques@multi.br.com</span>
           </p>
-          <p className="text-xs text-[#8B95A7]">
-            Senha: <span className="font-num text-[#F5F7FA]">Skip@Pass</span>
+          <p className="text-xs text-[#64748B]">
+            Senha: <span className="font-num text-[#0F172A]">Skip@Pass</span>
           </p>
         </div>
 
         {/* Global error message */}
         {generalError && (
-          <div className="mb-4 p-3 rounded-lg bg-red-950/50 border border-red-500/50 text-red-200 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+          <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
             <span>{generalError}</span>
           </div>
         )}
 
         {/* Tabs: Entrar / Criar Conta */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-[#0B0E14] border border-[#1F2733] mb-6">
+          <TabsList className="grid w-full grid-cols-2 bg-[#F1F5F9] border border-[#E2E8F0] mb-6">
             <TabsTrigger
               value="login"
-              className="data-[state=active]:bg-[#E10600] data-[state=active]:text-white transition-all font-medium text-xs py-2"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#E10600] data-[state=active]:shadow-xs data-[state=active]:border data-[state=active]:border-[#FECACA] transition-all font-medium text-xs py-2"
             >
               Entrar
             </TabsTrigger>
             <TabsTrigger
               value="register"
-              className="data-[state=active]:bg-[#E10600] data-[state=active]:text-white transition-all font-medium text-xs py-2"
+              className="data-[state=active]:bg-white data-[state=active]:text-[#E10600] data-[state=active]:shadow-xs data-[state=active]:border data-[state=active]:border-[#FECACA] transition-all font-medium text-xs py-2"
             >
               Criar Conta
             </TabsTrigger>
@@ -240,44 +240,44 @@ export default function AuthPage() {
           <TabsContent value="login">
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="login-email" className="text-xs font-medium text-[#8B95A7]">
+                <Label htmlFor="login-email" className="text-xs font-medium text-[#475569]">
                   E-mail institucional
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B95A7]" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
                   <Input
                     id="login-email"
                     type="email"
                     value={email}
                     onChange={(e) => validateEmail(e.target.value)}
                     placeholder="chefe@equipe.f1.com"
-                    className="pl-9 bg-[#0B0E14] border-[#1F2733] focus-visible:ring-[#E10600] text-sm text-[#F5F7FA]"
+                    className="pl-9 bg-white border-[#CBD5E1] focus-visible:ring-[#E10600] text-sm text-[#0F172A] placeholder:text-[#94A3B8]"
                   />
                 </div>
                 {emailError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> {emailError}
                   </p>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="login-password" className="text-xs font-medium text-[#8B95A7]">
+                <Label htmlFor="login-password" className="text-xs font-medium text-[#475569]">
                   Senha de acesso
                 </Label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B95A7]" />
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
                   <Input
                     id="login-password"
                     type="password"
                     value={password}
                     onChange={(e) => validatePassword(e.target.value)}
                     placeholder="Mínimo 8 caracteres"
-                    className="pl-9 bg-[#0B0E14] border-[#1F2733] focus-visible:ring-[#E10600] text-sm text-[#F5F7FA]"
+                    className="pl-9 bg-white border-[#CBD5E1] focus-visible:ring-[#E10600] text-sm text-[#0F172A] placeholder:text-[#94A3B8]"
                   />
                 </div>
                 {passwordError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> {passwordError}
                   </p>
                 )}
@@ -286,7 +286,7 @@ export default function AuthPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full mt-2 bg-[#E10600] hover:bg-[#FF2E25] text-white font-semibold py-2.5 shadow-md shadow-[#E10600]/20 transition-all active:scale-[0.98]"
+                className="w-full mt-2 bg-[#E10600] hover:bg-[#C60500] text-white font-semibold py-2.5 shadow-md shadow-red-200 transition-all active:scale-[0.98]"
               >
                 {isSubmitting ? 'Acessando paddock...' : 'Acessar Paddock'}
               </Button>
@@ -297,66 +297,66 @@ export default function AuthPage() {
           <TabsContent value="register">
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="reg-name" className="text-xs font-medium text-[#8B95A7]">
+                <Label htmlFor="reg-name" className="text-xs font-medium text-[#475569]">
                   Nome do chefe de equipe
                 </Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B95A7]" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
                   <Input
                     id="reg-name"
                     type="text"
                     value={name}
                     onChange={(e) => validateName(e.target.value)}
                     placeholder="Ex.: Ayrton da Silva"
-                    className="pl-9 bg-[#0B0E14] border-[#1F2733] focus-visible:ring-[#E10600] text-sm text-[#F5F7FA]"
+                    className="pl-9 bg-white border-[#CBD5E1] focus-visible:ring-[#E10600] text-sm text-[#0F172A] placeholder:text-[#94A3B8]"
                   />
                 </div>
                 {nameError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> {nameError}
                   </p>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="reg-email" className="text-xs font-medium text-[#8B95A7]">
+                <Label htmlFor="reg-email" className="text-xs font-medium text-[#475569]">
                   E-mail
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B95A7]" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
                   <Input
                     id="reg-email"
                     type="email"
                     value={email}
                     onChange={(e) => validateEmail(e.target.value)}
                     placeholder="chefe@equipe.f1.com"
-                    className="pl-9 bg-[#0B0E14] border-[#1F2733] focus-visible:ring-[#E10600] text-sm text-[#F5F7FA]"
+                    className="pl-9 bg-white border-[#CBD5E1] focus-visible:ring-[#E10600] text-sm text-[#0F172A] placeholder:text-[#94A3B8]"
                   />
                 </div>
                 {emailError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> {emailError}
                   </p>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="reg-password" className="text-xs font-medium text-[#8B95A7]">
+                <Label htmlFor="reg-password" className="text-xs font-medium text-[#475569]">
                   Senha
                 </Label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B95A7]" />
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
                   <Input
                     id="reg-password"
                     type="password"
                     value={password}
                     onChange={(e) => validatePassword(e.target.value)}
                     placeholder="Mínimo 8 caracteres"
-                    className="pl-9 bg-[#0B0E14] border-[#1F2733] focus-visible:ring-[#E10600] text-sm text-[#F5F7FA]"
+                    className="pl-9 bg-white border-[#CBD5E1] focus-visible:ring-[#E10600] text-sm text-[#0F172A] placeholder:text-[#94A3B8]"
                   />
                 </div>
                 {passwordError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-rose-600 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> {passwordError}
                   </p>
                 )}
@@ -365,7 +365,7 @@ export default function AuthPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full mt-2 bg-[#E10600] hover:bg-[#FF2E25] text-white font-semibold py-2.5 shadow-md shadow-[#E10600]/20 transition-all active:scale-[0.98]"
+                className="w-full mt-2 bg-[#E10600] hover:bg-[#C60500] text-white font-semibold py-2.5 shadow-md shadow-red-200 transition-all active:scale-[0.98]"
               >
                 {isSubmitting ? 'Fundando escuderia...' : 'Fundar Escuderia & Iniciar 2026'}
               </Button>
@@ -374,7 +374,7 @@ export default function AuthPage() {
         </Tabs>
 
         {/* Footer info */}
-        <div className="mt-6 text-center text-xs text-[#8B95A7]">
+        <div className="mt-6 text-center text-xs text-[#64748B]">
           <p>APEX GP Manager • Gestão Profissional de Motorsport</p>
         </div>
       </div>

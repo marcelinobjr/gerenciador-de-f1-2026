@@ -35,16 +35,16 @@ export function ProgressBar({
 
   // Semântica de cor fixa ou explícita
   let colorClass = 'bg-emerald-500'
-  let textColorClass = 'text-emerald-400'
+  let textColorClass = 'text-emerald-600'
   if (color === 'danger' || (!color && percentage < 40)) {
     colorClass = 'bg-red-500'
-    textColorClass = 'text-red-400'
+    textColorClass = 'text-rose-600'
   } else if (color === 'warning' || (!color && percentage < 70)) {
     colorClass = 'bg-amber-500'
-    textColorClass = 'text-amber-400'
+    textColorClass = 'text-amber-600'
   } else if (color === 'default') {
     colorClass = 'bg-[#00A6FB]'
-    textColorClass = 'text-[#00A6FB]'
+    textColorClass = 'text-sky-600'
   }
 
   const heightClass = {
@@ -60,7 +60,7 @@ export function ProgressBar({
       {(label || showValue) && (
         <div className="flex items-center justify-between text-xs leading-none">
           {label && (
-            <span className="text-[#8B95A7] font-medium text-[11px] truncate">{label}</span>
+            <span className="text-[#64748B] font-medium text-[11px] truncate">{label}</span>
           )}
           {showValue && (
             <span className={cn('font-num tabular-nums font-semibold text-[11px]', textColorClass)}>
@@ -72,7 +72,7 @@ export function ProgressBar({
 
       <div
         className={cn(
-          'w-full bg-[#161D29] border border-[#1F2733] rounded-full overflow-hidden',
+          'w-full bg-[#E2E8F0] border border-[#CBD5E1] rounded-full overflow-hidden',
           heightClass,
           trackClassName,
         )}

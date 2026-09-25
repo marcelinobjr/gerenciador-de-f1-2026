@@ -16,17 +16,17 @@ export function AmbientBackground({ className = '', opacity = 1 }: AmbientBackgr
   return (
     <div
       aria-hidden="true"
-      className={`fixed inset-0 pointer-events-none -z-10 overflow-hidden bg-[#0B0E14] ${className}`}
+      className={`fixed inset-0 pointer-events-none -z-10 overflow-hidden bg-[#F8FAFC] ${className}`}
       style={{ opacity }}
     >
-      {/* Imagem de fundo: Garagem técnica oficial com overlay escuro consistente */}
+      {/* Imagem de fundo: Garagem técnica oficial com overlay claro consistente */}
       <div
-        className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_35%] md:bg-center bg-no-repeat pointer-events-none opacity-40 mix-blend-luminosity"
+        className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_35%] md:bg-center bg-no-repeat pointer-events-none opacity-10 mix-blend-multiply"
         style={{ backgroundImage: `url(${heroGarageBg})` }}
       />
 
-      {/* Camada de superfície 0 lisa - Camada #0B0E14 limpa sem glows decorativos */}
-      <div className="absolute inset-0 bg-[#0B0E14]/85 pointer-events-none" />
+      {/* Camada de superfície lisa off-white */}
+      <div className="absolute inset-0 bg-[#F8FAFC]/90 pointer-events-none" />
     </div>
   )
 }

@@ -67,14 +67,14 @@ export function StepManager({
   return (
     <div className="max-w-5xl mx-auto space-y-8 py-6 sm:py-8 animate-fade-in-up">
       {/* Cabeçalho */}
-      <div className="text-center space-y-2 pb-4 border-b border-[#1F2733]">
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#E10600]/10 border border-[#E10600]/30 text-[#E10600] text-xs font-mono font-bold uppercase">
+      <div className="text-center space-y-2 pb-4 border-b border-[#E2E8F0]">
+        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-50 border border-red-200 text-[#E10600] text-xs font-mono font-bold uppercase">
           <User className="w-3.5 h-3.5" /> Etapa 1 // Chefe de Equipe
         </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F5F7FA]">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A]">
           Escolha seu Perfil de Manager
         </h2>
-        <p className="text-xs sm:text-sm text-[#8B95A7] max-w-2xl mx-auto">
+        <p className="text-xs sm:text-sm text-[#64748B] max-w-2xl mx-auto">
           Cada perfil molda a identidade de comando da escuderia, com bônus de gestão e estilos
           estratégicos únicos.
         </p>
@@ -90,10 +90,10 @@ export function StepManager({
             <Card
               key={profile.id}
               onClick={() => onSelectProfile(profile)}
-              className={`bg-[#11161F] transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+              className={`bg-white transition-all duration-200 cursor-pointer flex flex-col justify-between relative overflow-hidden shadow-xs ${
                 isSelected
-                  ? 'border-[#E10600] ring-2 ring-[#E10600]/30 shadow-xl shadow-[#E10600]/10'
-                  : 'border-[#1F2733] hover:border-[#8B95A7]/60'
+                  ? 'border-[#E10600] ring-2 ring-red-100 shadow-md'
+                  : 'border-[#E2E8F0] hover:border-[#CBD5E1] hover:bg-neutral-50/50'
               }`}
             >
               {isSelected && (
@@ -105,7 +105,7 @@ export function StepManager({
               <CardContent className="p-4 sm:p-5 space-y-4">
                 {/* Avatar e Título */}
                 <div className="flex items-center gap-3">
-                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-[#0B0E14] border border-[#1F2733] shrink-0">
+                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-[#F8FAFC] border border-[#E2E8F0] shrink-0">
                     <img
                       src={avatarAsset?.dropboxUrl}
                       alt={profile.title}
@@ -114,11 +114,11 @@ export function StepManager({
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] font-mono text-[#8B95A7] uppercase">
+                    <span className="text-[10px] font-mono text-[#64748B] uppercase">
                       #{profile.number} • {profile.archetype}
                     </span>
-                    <h3 className="text-base font-bold text-[#F5F7FA]">{profile.title}</h3>
-                    <span className="text-[11px] font-mono text-cyan-400 block">
+                    <h3 className="text-base font-bold text-[#0F172A]">{profile.title}</h3>
+                    <span className="text-[11px] font-mono text-cyan-700 font-medium block">
                       {profile.specialty}
                     </span>
                   </div>
@@ -126,25 +126,25 @@ export function StepManager({
 
                 {/* Estilo & Descrição */}
                 <div className="space-y-1.5 text-xs">
-                  <div className="text-[10px] font-mono uppercase text-[#8B95A7]">
-                    Estilo: <strong className="text-[#F5F7FA] font-sans">{profile.style}</strong>
+                  <div className="text-[10px] font-mono uppercase text-[#64748B]">
+                    Estilo: <strong className="text-[#0F172A] font-sans">{profile.style}</strong>
                   </div>
-                  <p className="text-[#8B95A7] text-[11px] leading-relaxed line-clamp-3">
+                  <p className="text-[#64748B] text-[11px] leading-relaxed line-clamp-3">
                     {profile.description}
                   </p>
                 </div>
 
                 {/* Bônus Principais */}
                 <div className="space-y-1.5 pt-1">
-                  <div className="text-[10px] font-mono uppercase text-[#8B95A7] flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3 text-emerald-400" /> Bônus Principais:
+                  <div className="text-[10px] font-mono uppercase text-[#64748B] flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3 text-emerald-600" /> Bônus Principais:
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {profile.bonuses.map((b, idx) => (
                       <Badge
                         key={idx}
                         variant="outline"
-                        className="text-[10px] font-mono bg-emerald-500/10 border-emerald-500/30 text-emerald-400 py-0.5 px-2"
+                        className="text-[10px] font-mono bg-emerald-50 border-emerald-200 text-emerald-700 py-0.5 px-2"
                       >
                         {b.attribute} +{b.value}
                       </Badge>
@@ -154,12 +154,12 @@ export function StepManager({
 
                 {/* Fraqueza */}
                 <div className="pt-1">
-                  <div className="text-[10px] font-mono uppercase text-[#8B95A7] flex items-center gap-1 mb-1">
-                    <AlertTriangle className="w-3 h-3 text-amber-400" /> Fraqueza:
+                  <div className="text-[10px] font-mono uppercase text-[#64748B] flex items-center gap-1 mb-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-600" /> Fraqueza:
                   </div>
                   <Badge
                     variant="outline"
-                    className="text-[10px] font-mono bg-red-500/10 border-red-500/30 text-red-400 py-0.5 px-2"
+                    className="text-[10px] font-mono bg-rose-50 border-rose-200 text-rose-700 py-0.5 px-2"
                   >
                     {profile.weakness.attribute} {profile.weakness.value}
                   </Badge>
@@ -171,11 +171,11 @@ export function StepManager({
       </div>
 
       {/* Personalização dos Dados do Jogador */}
-      <Card className="bg-[#11161F] border-[#1F2733] shadow-lg">
+      <Card className="bg-white border-[#E2E8F0] shadow-sm">
         <CardContent className="p-6 space-y-6">
-          <div className="flex items-center gap-2 pb-2 border-b border-[#1F2733]">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-sm font-bold text-[#F5F7FA] uppercase tracking-wider font-mono">
+          <div className="flex items-center gap-2 pb-2 border-b border-[#E2E8F0]">
+            <Sparkles className="w-4 h-4 text-cyan-600" />
+            <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider font-mono">
               Dados Pessoais do Chefe de Equipe
             </h3>
           </div>
@@ -183,7 +183,7 @@ export function StepManager({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Nome */}
             <div className="space-y-2">
-              <Label htmlFor="managerName" className="text-xs font-mono uppercase text-[#8B95A7]">
+              <Label htmlFor="managerName" className="text-xs font-mono uppercase text-[#64748B]">
                 Nome do Manager *
               </Label>
               <Input
@@ -191,23 +191,25 @@ export function StepManager({
                 placeholder="Ex: Ayrton da Silva, Jean Todt..."
                 value={managerData.name}
                 onChange={(e) => onUpdateManagerData({ name: e.target.value })}
-                className="bg-[#0B0E14] border-[#1F2733] text-[#F5F7FA] text-sm focus-visible:ring-[#E10600]"
+                className="bg-white border-[#CBD5E1] text-[#0F172A] text-sm focus-visible:ring-[#E10600]"
               />
               {!isNameValid && (
-                <p className="text-[11px] text-red-400 font-mono">Informe ao menos 2 caracteres.</p>
+                <p className="text-[11px] text-rose-600 font-mono">
+                  Informe ao menos 2 caracteres.
+                </p>
               )}
             </div>
 
             {/* Nacionalidade */}
             <div className="space-y-2">
-              <Label htmlFor="managerNat" className="text-xs font-mono uppercase text-[#8B95A7]">
+              <Label htmlFor="managerNat" className="text-xs font-mono uppercase text-[#64748B]">
                 Nacionalidade
               </Label>
               <select
                 id="managerNat"
                 value={managerData.nationality}
                 onChange={(e) => onUpdateManagerData({ nationality: e.target.value })}
-                className="w-full h-9 rounded-md bg-[#0B0E14] border border-[#1F2733] px-3 py-1 text-sm text-[#F5F7FA] focus:outline-none focus:border-[#E10600]"
+                className="w-full h-9 rounded-md bg-white border border-[#CBD5E1] px-3 py-1 text-sm text-[#0F172A] focus:outline-none focus:border-[#E10600]"
               >
                 {NATIONALITIES.map((n) => (
                   <option key={n} value={n}>
@@ -219,7 +221,7 @@ export function StepManager({
 
             {/* Idade (Opcional) */}
             <div className="space-y-2">
-              <Label htmlFor="managerAge" className="text-xs font-mono uppercase text-[#8B95A7]">
+              <Label htmlFor="managerAge" className="text-xs font-mono uppercase text-[#64748B]">
                 Idade (Opcional)
               </Label>
               <Input
@@ -234,17 +236,17 @@ export function StepManager({
                     age: e.target.value ? parseInt(e.target.value, 10) : undefined,
                   })
                 }
-                className="bg-[#0B0E14] border-[#1F2733] text-[#F5F7FA] text-sm focus-visible:ring-[#E10600]"
+                className="bg-white border-[#CBD5E1] text-[#0F172A] text-sm focus-visible:ring-[#E10600]"
               />
             </div>
           </div>
 
           {/* Toggle para ver os 28 atributos estruturados do Manager.pdf */}
-          <div className="pt-2 border-t border-[#1F2733]/60 space-y-3">
+          <div className="pt-2 border-t border-[#E2E8F0] space-y-3">
             <button
               type="button"
               onClick={() => setShowAllAttributes((v) => !v)}
-              className="text-xs font-mono text-cyan-400 hover:text-cyan-300 underline underline-offset-4 cursor-pointer"
+              className="text-xs font-mono text-cyan-700 hover:text-cyan-800 underline underline-offset-4 cursor-pointer"
             >
               {showAllAttributes
                 ? '▲ Ocultar atributos detalhados'
@@ -252,10 +254,10 @@ export function StepManager({
             </button>
 
             {showAllAttributes && (
-              <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1F2733] space-y-3 animate-fade-in">
-                <p className="text-[11px] text-[#8B95A7] leading-relaxed">
+              <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3 animate-fade-in">
+                <p className="text-[11px] text-[#64748B] leading-relaxed">
                   Os valores abaixo vêm da matriz oficial de características (escala 0-100) para o
-                  perfil <strong className="text-[#F5F7FA]">{selectedProfile.title}</strong>. Nesta
+                  perfil <strong className="text-[#0F172A]">{selectedProfile.title}</strong>. Nesta
                   Fase 2, os atributos ficam devidamente registrados e salvos na carreira,
                   preparando os futuros cálculos profundos de liderança, moral e negociação.
                 </p>
@@ -264,12 +266,12 @@ export function StepManager({
                   {Object.entries(selectedProfile.baseAttributes).map(([key, val]) => (
                     <div
                       key={key}
-                      className="p-2 rounded bg-[#161D29]/60 border border-[#1F2733] flex items-center justify-between"
+                      className="p-2 rounded bg-white border border-[#E2E8F0] flex items-center justify-between"
                     >
-                      <span className="text-[#8B95A7] text-[10px] truncate">
+                      <span className="text-[#64748B] text-[10px] truncate">
                         {BASE_MANAGER_ATTRIBUTES[key] || key}:
                       </span>
-                      <strong className="text-[#F5F7FA] text-xs ml-1">{val}</strong>
+                      <strong className="text-[#0F172A] text-xs ml-1">{val}</strong>
                     </div>
                   ))}
                 </div>
@@ -285,7 +287,7 @@ export function StepManager({
           type="button"
           variant="outline"
           onClick={onBack}
-          className="border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA] h-10 text-xs sm:text-sm flex items-center gap-1.5"
+          className="border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] h-10 text-xs sm:text-sm flex items-center gap-1.5"
         >
           <ChevronLeft className="w-4 h-4" /> Voltar ao Início
         </Button>
@@ -294,7 +296,7 @@ export function StepManager({
           type="button"
           onClick={onNext}
           disabled={!isNameValid}
-          className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-bold h-10 px-6 text-xs sm:text-sm shadow-md shadow-[#E10600]/25 flex items-center gap-1.5"
+          className="bg-[#E10600] hover:bg-[#C60500] text-white font-bold h-10 px-6 text-xs sm:text-sm shadow-md shadow-red-200 flex items-center gap-1.5"
         >
           Continuar para Universo <ChevronRight className="w-4 h-4" />
         </Button>

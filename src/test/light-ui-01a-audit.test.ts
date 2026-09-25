@@ -100,12 +100,12 @@ describe('LIGHT-UI-01A — Auditoria Global de Identidade Visual', () => {
     })
   })
 
-  it('LUI01A-05: Lista explícita de telas escuras contém os alvos corretos', () => {
-    expect(DARK_SCREENS_EXPLICT_LIST.length).toBe(10)
+  it('LUI01A-05: Lista explícita de telas escuras remanescentes contém os alvos corretos pós LUI-01B', () => {
+    expect(DARK_SCREENS_EXPLICT_LIST.length).toBe(7)
     const combined = DARK_SCREENS_EXPLICT_LIST.join(' ')
 
-    expect(combined).toContain('/auth')
-    expect(combined).toContain('/lobby')
+    expect(combined).not.toContain('/auth')
+    expect(combined).not.toContain('/lobby')
     expect(combined).toContain('/pistas')
     expect(combined).toContain('/teams')
     expect(combined).toContain('/season-end')

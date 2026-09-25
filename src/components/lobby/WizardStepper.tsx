@@ -31,7 +31,7 @@ export function WizardStepper({ currentStep, onStepClick, canNavigateTo }: Wizar
   const currentIndex = STEPS.findIndex((s) => s.id === currentStep)
 
   return (
-    <div className="w-full bg-[#11161F]/80 backdrop-blur border-b border-[#1F2733] px-4 py-3">
+    <div className="w-full bg-white/90 backdrop-blur border-b border-[#E2E8F0] px-4 py-3 shadow-xs">
       <div className="max-w-4xl mx-auto">
         <nav
           aria-label="Progresso da criação de carreira"
@@ -68,10 +68,10 @@ export function WizardStepper({ currentStep, onStepClick, canNavigateTo }: Wizar
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-mono font-bold transition-all ${
                       isCompleted
-                        ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200'
                         : isCurrent
-                          ? 'bg-[#E10600] text-white ring-4 ring-[#E10600]/20 shadow-md shadow-[#E10600]/30 font-black'
-                          : 'bg-[#161D29] text-[#8B95A7] border border-[#1F2733]'
+                          ? 'bg-[#E10600] text-white ring-4 ring-red-100 shadow-md shadow-red-200 font-black'
+                          : 'bg-[#F1F5F9] text-[#64748B] border border-[#CBD5E1]'
                     }`}
                   >
                     {isCompleted ? (
@@ -85,15 +85,15 @@ export function WizardStepper({ currentStep, onStepClick, canNavigateTo }: Wizar
                     <p
                       className={`text-xs font-bold transition-colors ${
                         isCurrent
-                          ? 'text-[#F5F7FA]'
+                          ? 'text-[#0F172A]'
                           : isCompleted
-                            ? 'text-[#F5F7FA]/90'
-                            : 'text-[#8B95A7]'
+                            ? 'text-[#334155]'
+                            : 'text-[#64748B]'
                       }`}
                     >
                       {step.label}
                     </p>
-                    <p className="text-[10px] font-mono text-[#8B95A7]">{step.subLabel}</p>
+                    <p className="text-[10px] font-mono text-[#94A3B8]">{step.subLabel}</p>
                   </div>
                 </button>
 
@@ -101,7 +101,7 @@ export function WizardStepper({ currentStep, onStepClick, canNavigateTo }: Wizar
                 {index < STEPS.length - 1 && (
                   <div
                     className={`flex-1 mx-2 sm:mx-3 h-[2px] rounded-full transition-colors ${
-                      currentIndex > index ? 'bg-emerald-500/60' : 'bg-[#1F2733]'
+                      currentIndex > index ? 'bg-emerald-500' : 'bg-[#E2E8F0]'
                     }`}
                   />
                 )}

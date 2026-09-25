@@ -46,14 +46,14 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'w-full overflow-hidden rounded-xl border border-[#1F2733] bg-[#11161F]',
+        'w-full overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-xs',
         className,
       )}
     >
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
-          {/* Header Sticky */}
-          <thead className="sticky top-0 z-10 bg-[#0E131B] border-b border-[#1F2733] text-[#8B95A7]">
+          {/* Header Sticky Claro */}
+          <thead className="sticky top-0 z-10 bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B]">
             <tr>
               {/* Espaço para a barra lateral de 3px */}
               <th className="w-[3px] p-0" />
@@ -66,7 +66,7 @@ export function DataTable<T>({
                     scope="col"
                     style={{ width: col.width }}
                     className={cn(
-                      'px-3 py-2.5 font-semibold text-[11px] uppercase tracking-wider select-none text-[#8B95A7]',
+                      'px-3 py-2.5 font-semibold text-[11px] uppercase tracking-wider select-none text-[#64748B]',
                       isRight && 'text-right',
                       isCenter && 'text-center',
                       col.className,
@@ -79,12 +79,12 @@ export function DataTable<T>({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-[#1F2733]/60 text-[#F5F7FA]">
+          <tbody className="divide-y divide-[#E2E8F0] text-[#0F172A]">
             {data.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length + 1}
-                  className="px-4 py-8 text-center text-xs text-[#8B95A7]"
+                  className="px-4 py-8 text-center text-xs text-[#64748B]"
                 >
                   {emptyMessage}
                 </td>
@@ -101,7 +101,7 @@ export function DataTable<T>({
                     className={cn(
                       'group transition-colors duration-150',
                       onRowClick && 'cursor-pointer',
-                      isPlayer ? 'bg-[#E10600]/10 hover:bg-[#E10600]/15' : 'hover:bg-[#161D29]',
+                      isPlayer ? 'bg-red-50/70 hover:bg-red-50' : 'hover:bg-[#F8FAFC]',
                     )}
                   >
                     {/* Barra lateral de 3px com a cor da equipe */}
@@ -127,13 +127,13 @@ export function DataTable<T>({
                             col.isNumeric && 'font-num tabular-nums text-right font-medium',
                             isRight && 'text-right',
                             isCenter && 'text-center',
-                            isPlayer && 'font-medium',
+                            isPlayer && 'font-medium text-[#0F172A]',
                             col.className,
                           )}
                         >
                           {content}
                           {isPlayer && col.key === columns[0]?.key && playerBadgeLabel && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-[#E10600]/20 text-red-300 border border-[#E10600]/40 align-middle">
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-red-100 text-[#E10600] border border-red-200 align-middle">
                               {playerBadgeLabel}
                             </span>
                           )}

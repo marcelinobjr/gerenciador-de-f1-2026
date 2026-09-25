@@ -48,29 +48,29 @@ export function SettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#11161F] border-[#1F2733] text-[#F5F7FA] max-w-lg p-0 overflow-hidden rounded-xl shadow-2xl backdrop-blur-md">
+      <DialogContent className="bg-white border-[#E2E8F0] text-[#0F172A] max-w-lg p-0 overflow-hidden rounded-xl shadow-xl">
         {/* Header do Modal */}
-        <div className="p-5 border-b border-[#1F2733] bg-[#0E131B]">
+        <div className="p-5 border-b border-[#E2E8F0] bg-[#F8FAFC]">
           <DialogHeader>
-            <div className="eyebrow text-[#8B95A7]">APEX GP Manager</div>
-            <DialogTitle className="text-xl font-bold tracking-tight text-[#F5F7FA]">
+            <div className="eyebrow text-[#64748B]">APEX GP Manager</div>
+            <DialogTitle className="text-xl font-bold tracking-tight text-[#0F172A]">
               Configurações
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
+            <DialogDescription className="text-xs text-[#64748B]">
               Gerencie as preferências da sua conta e o progresso da carreira da sua escuderia.
             </DialogDescription>
           </DialogHeader>
 
           {/* Abas Conta / Carreira */}
-          <div className="flex items-center gap-2 mt-4 pt-2 border-t border-[#1F2733]/70">
+          <div className="flex items-center gap-2 mt-4 pt-2 border-t border-[#E2E8F0]">
             <button
               type="button"
               onClick={() => setActiveTab('carreira')}
               className={cn(
                 'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer',
                 activeTab === 'carreira'
-                  ? 'bg-[#161D29] text-white border border-[#2C3849]'
-                  : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]/50 border border-transparent',
+                  ? 'bg-white text-[#E10600] border border-[#FECACA] shadow-xs'
+                  : 'text-[#64748B] hover:text-[#0F172A] hover:bg-neutral-100 border border-transparent',
               )}
             >
               <Shield className="w-3.5 h-3.5 text-[#E10600]" />
@@ -83,11 +83,11 @@ export function SettingsModal({
               className={cn(
                 'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer',
                 activeTab === 'conta'
-                  ? 'bg-[#161D29] text-white border border-[#2C3849]'
-                  : 'text-[#8B95A7] hover:text-[#F5F7FA] hover:bg-[#161D29]/50 border border-transparent',
+                  ? 'bg-white text-cyan-700 border border-cyan-200 shadow-xs'
+                  : 'text-[#64748B] hover:text-[#0F172A] hover:bg-neutral-100 border border-transparent',
               )}
             >
-              <User className="w-3.5 h-3.5 text-cyan-400" />
+              <User className="w-3.5 h-3.5 text-cyan-600" />
               <span>Conta & Acesso</span>
             </button>
           </div>
@@ -98,28 +98,28 @@ export function SettingsModal({
           {activeTab === 'carreira' && (
             <div className="space-y-4">
               {/* Resumo da Escuderia */}
-              <div className="p-3.5 rounded-xl bg-[#161D29] border border-[#1F2733] space-y-2">
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="eyebrow">Escuderia Ativa</span>
+                  <span className="eyebrow text-[#64748B]">Escuderia Ativa</span>
                   <Badge
                     variant="outline"
-                    className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-[10px] font-semibold"
+                    className="border-emerald-200 text-emerald-700 bg-emerald-50 text-[10px] font-semibold"
                   >
                     Em Competição
                   </Badge>
                 </div>
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-9 h-9 rounded-lg border border-[#1F2733] flex items-center justify-center font-bold text-sm text-white shrink-0"
+                    className="w-9 h-9 rounded-lg border border-[#E2E8F0] flex items-center justify-center font-bold text-sm text-white shrink-0 shadow-xs"
                     style={{ backgroundColor: team?.primary_color || '#E10600' }}
                   >
                     {team?.name?.[0] || 'F1'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-bold text-[#F5F7FA] truncate">
+                    <h4 className="text-sm font-bold text-[#0F172A] truncate">
                       {team?.name || 'Escuderia F1'}
                     </h4>
-                    <p className="text-xs text-[#8B95A7] truncate">
+                    <p className="text-xs text-[#64748B] truncate">
                       Temporada {season?.year || 2026} • Rodada {currentRound} de {totalRounds}
                     </p>
                   </div>
@@ -128,28 +128,28 @@ export function SettingsModal({
 
               {/* Informações da Temporada */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
-                  <span className="text-[10px] text-[#8B95A7] uppercase block font-medium">
+                <div className="p-3 rounded-lg bg-white border border-[#E2E8F0]">
+                  <span className="text-[10px] text-[#64748B] uppercase block font-medium">
                     Regulamento
                   </span>
-                  <strong className="text-[#F5F7FA] text-xs font-semibold block mt-0.5">
+                  <strong className="text-[#0F172A] text-xs font-semibold block mt-0.5">
                     FIA 2026 (50/50 Híbrido)
                   </strong>
                 </div>
-                <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#1F2733]">
-                  <span className="text-[10px] text-[#8B95A7] uppercase block font-medium">
+                <div className="p-3 rounded-lg bg-white border border-[#E2E8F0]">
+                  <span className="text-[10px] text-[#64748B] uppercase block font-medium">
                     Calendário
                   </span>
-                  <strong className="font-num text-[#F5F7FA] text-xs font-semibold block mt-0.5 tabular-nums">
+                  <strong className="font-num text-[#0F172A] text-xs font-semibold block mt-0.5 tabular-nums">
                     {totalRounds} Grandes Prêmios
                   </strong>
                 </div>
               </div>
 
               {/* Zona de Reset da Carreira */}
-              <div className="pt-3 border-t border-[#1F2733] space-y-2.5">
-                <div className="flex items-start gap-2 text-xs text-[#8B95A7]">
-                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="pt-3 border-t border-[#E2E8F0] space-y-2.5">
+                <div className="flex items-start gap-2 text-xs text-[#64748B]">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <p className="text-[11px] leading-relaxed">
                     Deseja reiniciar sua trajetória nesta temporada? Você pode reiniciar sua
                     carreira a qualquer momento mantendo sua conta de usuário ativa.
@@ -164,7 +164,7 @@ export function SettingsModal({
                     onOpenResetDialog()
                   }}
                   disabled={isResetting}
-                  className="w-full flex items-center justify-center gap-2 border-amber-500/40 text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 text-xs font-semibold h-9"
+                  className="w-full flex items-center justify-center gap-2 border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 text-xs font-semibold h-9"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Reiniciar Carreira (Zerar Temporada)</span>
@@ -176,32 +176,32 @@ export function SettingsModal({
           {activeTab === 'conta' && (
             <div className="space-y-4">
               {/* Dados do Usuário */}
-              <div className="p-3.5 rounded-xl bg-[#161D29] border border-[#1F2733] space-y-3">
-                <div className="eyebrow">Dados do Chefe de Equipe</div>
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+                <div className="eyebrow text-[#64748B]">Dados do Chefe de Equipe</div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center gap-2.5 text-[#F5F7FA]">
-                    <User className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <div className="flex items-center gap-2.5 text-[#0F172A]">
+                    <User className="w-4 h-4 text-cyan-600 shrink-0" />
                     <div>
-                      <span className="text-[10px] text-[#8B95A7] block leading-none">Nome</span>
+                      <span className="text-[10px] text-[#64748B] block leading-none">Nome</span>
                       <span className="font-medium">{user?.name || 'Chefe de Equipe'}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 text-[#F5F7FA]">
-                    <Mail className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <div className="flex items-center gap-2.5 text-[#0F172A]">
+                    <Mail className="w-4 h-4 text-cyan-600 shrink-0" />
                     <div>
-                      <span className="text-[10px] text-[#8B95A7] block leading-none">E-mail</span>
+                      <span className="text-[10px] text-[#64748B] block leading-none">E-mail</span>
                       <span className="font-medium font-num tabular-nums">
                         {user?.email || '—'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 text-[#F5F7FA]">
-                    <Calendar className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <div className="flex items-center gap-2.5 text-[#0F172A]">
+                    <Calendar className="w-4 h-4 text-cyan-600 shrink-0" />
                     <div>
-                      <span className="text-[10px] text-[#8B95A7] block leading-none">
+                      <span className="text-[10px] text-[#64748B] block leading-none">
                         Membro desde
                       </span>
                       <span className="font-num tabular-nums">
@@ -215,7 +215,7 @@ export function SettingsModal({
               </div>
 
               {/* Botão de Logout */}
-              <div className="pt-2 border-t border-[#1F2733]">
+              <div className="pt-2 border-t border-[#E2E8F0]">
                 <Button
                   type="button"
                   variant="destructive"
@@ -223,7 +223,7 @@ export function SettingsModal({
                     onOpenChange(false)
                     onLogout()
                   }}
-                  className="w-full flex items-center justify-center gap-2 bg-red-600/90 hover:bg-red-600 text-white text-xs font-semibold h-9"
+                  className="w-full flex items-center justify-center gap-2 bg-[#E10600] hover:bg-[#C60500] text-white text-xs font-semibold h-9"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Encerrar Sessão</span>

@@ -37,18 +37,18 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center text-center rounded-xl border border-dashed border-[#1F2733] bg-[#11161F]/60 text-[#8B95A7]',
+        'flex flex-col items-center justify-center text-center rounded-xl border border-dashed border-[#CBD5E1] bg-white/70 text-[#64748B]',
         compact ? 'p-6 space-y-2.5' : 'p-10 sm:p-12 space-y-3',
         className,
       )}
     >
-      <div className="p-3 rounded-xl bg-[#161D29] border border-[#1F2733] text-[#8B95A7]">
+      <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B]">
         <Icon className={compact ? 'w-5 h-5' : 'w-7 h-7'} />
       </div>
 
       <div className="space-y-1 max-w-sm">
-        <h3 className="text-sm sm:text-base font-semibold text-[#F5F7FA]">{title}</h3>
-        {description && <p className="text-xs text-[#8B95A7] leading-relaxed">{description}</p>}
+        <h3 className="text-sm sm:text-base font-semibold text-[#0F172A]">{title}</h3>
+        {description && <p className="text-xs text-[#64748B] leading-relaxed">{description}</p>}
       </div>
 
       {action && <div className="pt-2">{action}</div>}

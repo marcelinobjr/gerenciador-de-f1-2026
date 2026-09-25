@@ -33,7 +33,7 @@ export function StatCard({
   delta,
   subtext,
   icon: Icon,
-  iconColor = 'text-[#8B95A7]',
+  iconColor = 'text-[#64748B]',
   accentColor,
   className,
   onClick,
@@ -42,8 +42,8 @@ export function StatCard({
     <Card
       onClick={onClick}
       className={cn(
-        'relative bg-[#11161F] border-[#1F2733] p-4 rounded-xl transition-all duration-150',
-        onClick && 'cursor-pointer hover:bg-[#161D29] hover:border-[#2C3849]',
+        'relative bg-white border-[#E2E8F0] shadow-xs p-4 rounded-xl transition-all duration-150',
+        onClick && 'cursor-pointer hover:bg-neutral-50/80 hover:border-[#CBD5E1]',
         className,
       )}
     >
@@ -57,21 +57,23 @@ export function StatCard({
 
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1.5 flex-1 min-w-0">
-          <div className="eyebrow truncate text-[#8B95A7]">{eyebrow}</div>
+          <div className="eyebrow truncate text-[#64748B]">{eyebrow}</div>
 
-          <div className="font-num text-2xl lg:text-3xl font-bold tracking-tight text-[#F5F7FA] tabular-nums truncate">
+          <div className="font-num text-2xl lg:text-3xl font-bold tracking-tight text-[#0F172A] tabular-nums truncate">
             {value}
           </div>
 
           {(delta || subtext) && (
-            <div className="flex items-center gap-1.5 text-xs text-[#8B95A7] pt-0.5 truncate">
+            <div className="flex items-center gap-1.5 text-xs text-[#64748B] pt-0.5 truncate">
               {delta && (
                 <span
                   className={cn(
                     'font-num font-semibold tabular-nums text-[11px] px-1.5 py-0.5 rounded',
-                    delta.trend === 'up' && 'text-emerald-400 bg-emerald-500/10',
-                    delta.trend === 'down' && 'text-red-400 bg-red-500/10',
-                    (!delta.trend || delta.trend === 'neutral') && 'text-slate-300 bg-slate-800/40',
+                    delta.trend === 'up' &&
+                      'text-emerald-700 bg-emerald-50 border border-emerald-100',
+                    delta.trend === 'down' && 'text-rose-700 bg-rose-50 border border-rose-100',
+                    (!delta.trend || delta.trend === 'neutral') &&
+                      'text-slate-600 bg-slate-100 border border-slate-200',
                   )}
                 >
                   {delta.trend === 'up' && '+'}
@@ -87,7 +89,7 @@ export function StatCard({
         {Icon && (
           <div
             className={cn(
-              'p-2.5 rounded-lg bg-[#161D29] border border-[#1F2733] shrink-0',
+              'p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] shrink-0',
               iconColor,
             )}
           >

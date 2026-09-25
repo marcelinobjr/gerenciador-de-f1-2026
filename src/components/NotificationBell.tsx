@@ -195,17 +195,17 @@ export function NotificationBell({
       <button
         type="button"
         onClick={handleToggleOpen}
-        className={`relative w-8 h-8 rounded-lg bg-[#0F141F] border transition-colors flex items-center justify-center ${
+        className={`relative w-8 h-8 rounded-lg bg-white border transition-colors flex items-center justify-center ${
           open
-            ? 'border-[#E10600] text-white'
-            : 'border-[#1F2733] text-[#8B95A7] hover:text-white hover:border-[#E10600]/40'
+            ? 'border-[#E10600] text-[#0F172A]'
+            : 'border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A] hover:border-[#E10600]/40'
         }`}
         title="Notificações e Avisos"
         aria-label="Abrir notificações"
       >
         <Bell className="w-3.5 h-3.5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#E10600] text-[10px] font-bold text-white shadow-[0_0_8px_#E10600]">
+          <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#E10600] text-[10px] font-bold text-white shadow-xs">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -213,12 +213,12 @@ export function NotificationBell({
 
       {/* Dropdown de Notificações: mobile full width, desktop painel elegante */}
       {open && (
-        <div className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-[380px] z-50 bg-[#0B0E14] border border-[#1F2733] rounded-xl shadow-2xl backdrop-blur-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-[380px] z-50 bg-white border border-[#E2E8F0] rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Header do Dropdown */}
-          <div className="px-4 py-3 border-b border-[#1F2733] flex items-center justify-between bg-[#0F141F]">
+          <div className="px-4 py-3 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-[#E10600]" />
-              <span className="font-bold text-sm text-white">Notificações</span>
+              <span className="font-bold text-sm text-[#0F172A]">Notificações</span>
               {unreadCount > 0 ? (
                 <Badge className="bg-[#E10600] text-white text-[10px] px-1.5 py-0 h-4">
                   {unreadCount} nova{unreadCount > 1 ? 's' : ''}
@@ -226,7 +226,7 @@ export function NotificationBell({
               ) : (
                 <Badge
                   variant="outline"
-                  className="border-[#1F2733] text-[#8B95A7] text-[10px] px-1.5 py-0 h-4"
+                  className="border-[#CBD5E1] text-[#64748B] text-[10px] px-1.5 py-0 h-4"
                 >
                   Todas lidas
                 </Badge>
@@ -237,7 +237,7 @@ export function NotificationBell({
               variant="ghost"
               size="sm"
               onClick={handleMarkAllAsRead}
-              className="text-xs h-7 text-[#8B95A7] hover:text-white hover:bg-[#1A2230] flex items-center gap-1.5"
+              className="text-xs h-7 text-[#64748B] hover:text-[#0F172A] hover:bg-neutral-100 flex items-center gap-1.5"
             >
               <CheckCheck className="w-3.5 h-3.5" />
               <span>Marcar todas como lidas</span>
@@ -245,12 +245,12 @@ export function NotificationBell({
           </div>
 
           {/* Lista de Notificações com Scroll Interno (máx 30 itens) */}
-          <ScrollArea className="max-h-[380px] overflow-y-auto divide-y divide-[#1F2733]/60">
+          <ScrollArea className="max-h-[380px] overflow-y-auto divide-y divide-[#E2E8F0]">
             {notifications.length === 0 ? (
-              <div className="py-12 px-4 text-center text-[#8B95A7] text-xs space-y-1">
-                <Bell className="w-6 h-6 mx-auto text-[#1F2733] mb-2" />
-                <p className="font-medium text-white">Nenhuma notificação no momento</p>
-                <p className="text-[11px] text-[#8B95A7]">
+              <div className="py-12 px-4 text-center text-[#64748B] text-xs space-y-1">
+                <Bell className="w-6 h-6 mx-auto text-[#CBD5E1] mb-2" />
+                <p className="font-medium text-[#0F172A]">Nenhuma notificação no momento</p>
+                <p className="text-[11px] text-[#64748B]">
                   Eventos de corrida, rádio, patrocínios e motor aparecerão aqui.
                 </p>
               </div>
@@ -261,11 +261,11 @@ export function NotificationBell({
                   <div
                     key={n.id}
                     onClick={() => handleNotificationClick(n)}
-                    className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 text-left hover:bg-[#111622] ${
-                      isUnread ? 'bg-[#0E1522]' : 'bg-transparent'
+                    className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 text-left hover:bg-[#F8FAFC] ${
+                      isUnread ? 'bg-red-50/40' : 'bg-transparent'
                     }`}
                   >
-                    <div className="mt-0.5 p-1.5 rounded-lg bg-[#161D2A] border border-[#1F2733]">
+                    <div className="mt-0.5 p-1.5 rounded-lg bg-neutral-50 border border-[#E2E8F0]">
                       {renderNotificationIcon(n.type)}
                     </div>
 
@@ -273,17 +273,17 @@ export function NotificationBell({
                       <div className="flex items-baseline justify-between gap-2">
                         <h4
                           className={`text-xs font-semibold truncate ${
-                            isUnread ? 'text-white font-bold' : 'text-[#BAC4D6]'
+                            isUnread ? 'text-[#0F172A] font-bold' : 'text-[#475569]'
                           }`}
                         >
                           {n.title}
                         </h4>
-                        <span className="text-[10px] font-mono text-[#6A768A] shrink-0">
+                        <span className="text-[10px] font-mono text-[#94A3B8] shrink-0">
                           {getRelativeTimeText(n)}
                         </span>
                       </div>
 
-                      <p className="text-[11px] text-[#8B95A7] leading-relaxed line-clamp-2">
+                      <p className="text-[11px] text-[#64748B] leading-relaxed line-clamp-2">
                         {n.message}
                       </p>
 
