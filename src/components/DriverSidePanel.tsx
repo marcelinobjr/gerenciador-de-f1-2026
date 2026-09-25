@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { DriverPoster } from '@/components/DriverPoster'
-import { getCountryFlag, CountryFlagChip } from '@/lib/country-flags'
+import { getCountryFlag } from '@/lib/country-flags'
+import { CountryFlagChip } from '@/components/CountryFlagChip'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { getOverallRating } from '@/lib/mbj-drivers-data'

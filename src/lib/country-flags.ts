@@ -676,6 +676,10 @@ export function getCountryCode(
   return 'F1'
 }
 
+// Re-export canonical visual chip from components to prevent missing export errors
+export { CountryFlagChip } from '@/components/CountryFlagChip'
+export type { CountryFlagChipProps } from '@/components/CountryFlagChip'
+
 export function getCountryFlag(nationality?: string | null): string {
   if (!nationality) return '🏁'
   const clean = nationality
