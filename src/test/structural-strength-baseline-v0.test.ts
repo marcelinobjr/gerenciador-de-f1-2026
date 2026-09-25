@@ -81,7 +81,6 @@ describe('Structural Strength Baseline V0', () => {
     const { checksum, ...payloadWithoutChecksum } = parsed
     const expectedChecksum = calculateStableChecksum(payloadWithoutChecksum)
 
-    // Lança erro caso o checksum no arquivo não bata com o esperado
-    // Isso nos dará o hash exato na mensagem de falha se for diferente!
     expect(checksum).toBe(expectedChecksum)
-  })})
+  })
+})

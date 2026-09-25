@@ -1,6 +1,8 @@
 import { BalanceBaselineV0 } from '@/types/structural-strength'
 import baselineV0Raw from './balance-baseline-v0.json'
 
+
+
 /**
  * Hash estável determinístico FNV-1a de 64 bits para o payload
  */
@@ -18,6 +20,14 @@ export function calculateStableChecksum(data: unknown): string {
   const hex1 = (h1 >>> 0).toString(16).padStart(8, '0')
   const hex2 = (h2 >>> 0).toString(16).padStart(8, '0')
   return `sha_v0_${hex1}${hex2}`
+}
+
+const _probeObj = JSON.parse(JSON.stringify(baselineV0Raw))
+delete (_probeObj as any).checksum
+const _expected = calculateStableChecksum(_probeObj)
+const _actual = (baselineV0Raw as any).checksum
+if (_actual !== _expected) {
+  throw new Error(`CHECKSUM_MISMATCH: expected ${_expected} but found ${_actual}`)
 }
 
 /**
