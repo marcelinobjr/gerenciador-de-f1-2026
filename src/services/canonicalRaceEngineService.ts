@@ -50,6 +50,7 @@ import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { raceControlService } from '@/services/raceControlService'
 import { raceStrategyService } from '@/services/raceStrategyService'
+import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
 import type {
   RaceControlState,
   RaceControlStatus,
@@ -291,8 +292,13 @@ export class CanonicalRaceEngineService {
     // Cada 10kg a mais de combustível custa ~0.3s por volta
     const fuelEffectSec = (driver.fuel / 100.0) * 1.5
 
-    // 5. Condição do Carro
-    const damagePenaltySec = (100 - driver.carCondition) * 0.04
+    // 5. Condição do Carro e Desgaste da PU (BALANCE-EQUATION-02B Regras 7, 9, 10, 29)
+    // O desgaste da PU reduz performance progressivamente via engineWearPenalty
+    const puWearPercent = (100 - driver.carCondition) * 0.85 // Derivação controlada da integridade da PU
+    const puPenalty = structuralMissingFactorsService.calculatePUWearPenalty(puWearPercent)
+    const engineWearPenaltySec = puPenalty.engineWearPenalty
+
+    const damagePenaltySec = (100 - driver.carCondition) * 0.04 + engineWearPenaltySec
 
     // 6. Efeito da Largada (Volta 1)
     // Na primeira volta, o grid parte parado: tempo de reação + aceleração inicial
@@ -354,13 +360,29 @@ export class CanonicalRaceEngineService {
     }
 
     const car = this.resolveCarPerformance(driver)
-    const reliability = car.reliability ?? 80
+    const carReliability = car.reliability ?? 80
 
-    // Probabilidade base controlada por volta: ~0.15% para confiabilidade 90, até ~0.60% para 60
-    const baseFailureRisk = Math.max(0.001, (100 - reliability) * 0.00015)
-    // Se condição física do carro caiu, risco sobe
-    const conditionRisk = (100 - driver.carCondition) * 0.0005
-    const totalRisk = baseFailureRisk + conditionRisk
+    // BALANCE-EQUATION-02B (Regras 26, 27, 28):
+    // Conectar puReliability separada ao risco mecânico canônico unificado
+    const officialTeam = OFFICIAL_GRID_TEAMS.find((t) => t.key === driver.teamId)
+    const supplier = officialTeam?.engine || 'Ferrari'
+    const puSep = structuralMissingFactorsService.resolvePURatingsSeparation({
+      supplier,
+      integrationFactor: 0.95,
+    })
+    const puReliability = puSep.nominalReliability
+
+    const paceMode = driver.strategy?.paceMode || 'NORMAL'
+    const puWearPercent = (100 - driver.carCondition) * 0.85
+
+    const riskResult = structuralMissingFactorsService.calculateMechanicalFailureRisk({
+      carReliability,
+      puReliability,
+      carCondition: driver.carCondition,
+      puWear: puWearPercent,
+      paceMode,
+    })
+    const totalRisk = riskResult.totalRiskPerLap
 
     const roll = rng()
     if (roll < totalRisk) {

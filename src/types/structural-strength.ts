@@ -54,6 +54,10 @@ export interface TechnicalScoreBreakdown {
   puSupplier: string
   effectiveIntegration: number
   nominalPuRating: number
+  // BALANCE-EQUATION-02B: Extensões canônicas
+  mguKScore?: number
+  puReliabilityScore?: number
+  puWear?: number
   notes?: string
 }
 
@@ -66,6 +70,8 @@ export interface DriverScoreBreakdown {
   adaptationStatus: 'NEUTRAL_PLACEHOLDER' | 'ACTIVE'
   weights: DriverScoreWeights
   drivers: DriverDetailSummary[]
+  // BALANCE-EQUATION-02B: Extensões canônicas
+  driverAdaptation?: number
   notes?: string
 }
 
@@ -76,6 +82,8 @@ export interface TeamScoreBreakdown {
   weights: TeamScoreWeights
   facilitiesLevels: Record<string, number>
   averageFacilityLevel: number
+  // BALANCE-EQUATION-02B: Extensões canônicas
+  teamMorale?: number
   notes?: string
 }
 
@@ -93,6 +101,14 @@ export interface StructuralStrengthBreakdown {
   dataQuality: DataQualityStatus
   dataQualityNotes: string
   calculatedAt: string
+  // BALANCE-EQUATION-02B: Breakdown consolidado dos fatores faltantes
+  factors02B?: {
+    mguK: number
+    puWear: number
+    driverAdaptation: number
+    puReliability: number
+    teamMorale: number
+  }
 }
 
 export interface TeamRankingEntry {

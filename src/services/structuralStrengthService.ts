@@ -39,6 +39,7 @@ import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
 import { getOverallRating } from '@/lib/mbj-drivers-data'
 import { BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
 import { balanceBaselineService } from '@/services/balanceBaselineService'
+import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
 
 // Constantes de Pesos Oficiais
 export const TECHNICAL_WEIGHTS: TechnicalScoreWeights = {
@@ -102,6 +103,20 @@ export class StructuralStrengthService {
       ).toFixed(2),
     )
 
+    // BALANCE-EQUATION-02B: MGU-K & PU Reliability & PU Wear
+    const supplier = params.puSupplier || 'Ferrari'
+    const integrationFactor = params.effectiveIntegration ?? 0.9
+    const teamMGUK = structuralMissingFactorsService.resolveTeamMGUK({
+      teamKey: 'eval_team',
+      supplier,
+      integrationFactor,
+    })
+    const puSep = structuralMissingFactorsService.resolvePURatingsSeparation({
+      supplier,
+      integrationFactor,
+    })
+    const puWear = (100 - (params.condition ?? 100)) * 0.85
+
     return {
       partsScore,
       effectivePuScore,
@@ -113,6 +128,9 @@ export class StructuralStrengthService {
       puSupplier: params.puSupplier || 'Desconhecido',
       effectiveIntegration: params.effectiveIntegration ?? 0.9,
       nominalPuRating: params.nominalPuRating ?? 88,
+      mguKScore: teamMGUK.effectiveMGUK,
+      puReliabilityScore: puSep.nominalReliability,
+      puWear,
     }
   }
 
@@ -152,16 +170,23 @@ export class StructuralStrengthService {
       ).toFixed(2),
     )
 
+    const isNeutral =
+      params.adaptationOverride === undefined ||
+      params.adaptationOverride === NEUTRAL_ADAPTATION_VALUE
+
     return {
       driverAttributesScore,
       moraleScore,
       adaptationScore,
       driverScore,
-      isAdaptationNeutral: true,
-      adaptationStatus: 'NEUTRAL_PLACEHOLDER',
+      isAdaptationNeutral: isNeutral,
+      adaptationStatus: isNeutral ? 'NEUTRAL_PLACEHOLDER' : 'ACTIVE',
       weights: DRIVER_WEIGHTS,
       drivers: params.drivers.map((d) => ({ ...d })),
-      notes: 'Adaptation é neutra/placeholder (75) sem valor funcional inventado.',
+      driverAdaptation: adaptationScore,
+      notes: isNeutral
+        ? 'Adaptation é neutra/placeholder (75) sem valor funcional inventado.'
+        : `Adaptation ativa com valor ${adaptationScore}.`,
     }
   }
 
@@ -197,6 +222,7 @@ export class StructuralStrengthService {
       weights: TEAM_WEIGHTS,
       facilitiesLevels: { ...params.facilities },
       averageFacilityLevel: Number(avgFacility.toFixed(2)),
+      teamMorale: teamMoraleScore,
     }
   }
 
@@ -263,6 +289,13 @@ export class StructuralStrengthService {
       dataQuality: params.dataQuality ?? 'COMPLETE',
       dataQualityNotes: params.dataQualityNotes || 'Dados canônicos íntegros.',
       calculatedAt: new Date().toISOString(),
+      factors02B: {
+        mguK: technicalBreakdown.mguKScore ?? 85,
+        puWear: technicalBreakdown.puWear ?? 0,
+        driverAdaptation: driverBreakdown.adaptationScore,
+        puReliability: technicalBreakdown.puReliabilityScore ?? 90,
+        teamMorale: teamBreakdown.teamMoraleScore,
+      },
     }
   }
 
