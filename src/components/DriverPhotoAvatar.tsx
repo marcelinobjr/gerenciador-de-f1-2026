@@ -66,10 +66,12 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
     for (const c of canonicalResolved.candidateUrls) {
       if (!list.includes(c)) list.push(c)
     }
-    // Fallbacks legados adicionais para retrocompatibilidade
-    const legacy = getLocalDriverPosterCandidates(name, driverId, effectiveVisualIdentity)
-    for (const l of legacy) {
-      if (!list.includes(l)) list.push(l)
+    // Fallbacks legados adicionais para retrocompatibilidade apenas se não tiver resolvido canônico
+    if (list.length === 0) {
+      const legacy = getLocalDriverPosterCandidates(name, driverId, effectiveVisualIdentity)
+      for (const l of legacy) {
+        if (!list.includes(l)) list.push(l)
+      }
     }
     return list
   }, [canonicalResolved, name, driverId, effectiveVisualIdentity])
@@ -90,31 +92,38 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
     setAttemptIndex(0)
   }, [name, driverId, effectiveVisualIdentity, generatedPortraitProfileId])
 
-  const handleError = () => {
-    setAttemptIndex((prev) => prev + 1)
-  }
-
-  // Previne loop ou tentativas fora do array
   const currentSrc = attemptIndex < candidateUrls.length ? candidateUrls[attemptIndex] : null
   const isExhausted = attemptIndex >= candidateUrls.length || !currentSrc
 
+  const handleError = () => {
+    console.warn('[DriverPhotoAvatar] Falha ao carregar retrato:', {
+      driverId,
+      name,
+      currentSrc,
+      attemptIndex,
+    })
+    setAttemptIndex((prev) => prev + 1)
+  }
+
   if (isExhausted) {
-    // Fallback: Iniciais estilizadas sobre fundo na cor da equipe
+    // Fallback honesto: Iniciais estilizadas de alto contraste sobre fundo na cor da equipe (NUNCA bloco escuro sólido)
+    const initials = canonicalResolved.fallbackInitials || getInitials(name)
     return (
       <div
+        data-testid="driver-fallback-initials"
         className={cn(
-          'relative rounded-xl flex items-center justify-center font-black select-none shrink-0 border border-white/10 shadow-md',
+          'relative rounded-xl flex items-center justify-center font-black select-none shrink-0 border border-white/20 shadow-md',
           sizeClasses[size],
           className,
         )}
         style={{
-          backgroundColor: teamColor || '#1F2733',
+          backgroundColor: teamColor || '#E10600',
           color: '#FFFFFF',
           textShadow: '0 1px 3px rgba(0,0,0,0.7)',
         }}
         title={name}
       >
-        <span>{getInitials(name)}</span>
+        <span className="tracking-wider">{initials}</span>
       </div>
     )
   }
@@ -122,12 +131,13 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   return (
     <div
       className={cn(
-        'relative rounded-xl overflow-hidden bg-[#161D29] border border-[#1F2733] select-none shrink-0 shadow-md flex items-center justify-center',
+        'relative rounded-xl overflow-hidden border border-slate-200/60 select-none shrink-0 shadow-sm flex items-center justify-center',
         sizeClasses[size],
         className,
       )}
       style={{
-        boxShadow: `0 0 0 1px ${teamColor}33, 0 4px 12px rgba(0,0,0,0.5)`,
+        backgroundColor: `${teamColor}15`,
+        boxShadow: `0 0 0 1px ${teamColor}33, 0 2px 8px rgba(0,0,0,0.15)`,
       }}
     >
       <img
@@ -140,7 +150,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
           name.toLowerCase().includes('ricciardo') ? 'object-[50%_12%]' : 'object-top',
           imgClassName,
         )}
-      />{' '}
+      />
     </div>
   )
 }
