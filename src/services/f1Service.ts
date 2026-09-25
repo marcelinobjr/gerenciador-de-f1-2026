@@ -3537,7 +3537,7 @@ export const f1Service = {
               message: n.message,
               round: newRound,
               read: false,
-              link: '/carro',
+              link: '/car',
             })
           } catch {
             /* ignored */

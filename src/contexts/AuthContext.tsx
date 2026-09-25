@@ -132,7 +132,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false)
     }
 
+    // Timer de segurança contra travamento eterno em careerPhase === 'loading'
+    const authSafetyTimer = setTimeout(() => {
+      setIsLoading(false)
+    }, 4000)
+
     return () => {
+      clearTimeout(authSafetyTimer)
       unsub()
     }
   }, [])

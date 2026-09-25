@@ -388,28 +388,49 @@ export default function CarPage() {
     rdPenaltyRounds: 0,
   })
 
-  // Carrega dados necessários do save com resiliência a offline, erros e timeouts
+  // Carrega dados necessários do save com resiliência a offline, erros, promessas penduradas e timeouts
   const loadCarData = async () => {
+    // Timeout de 2.5s para promessas individuais penduradas
+    const withTimeout = <T,>(p: Promise<T>, fallback: T, ms: number = 2500): Promise<T> => {
+      return Promise.race([p, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))])
+    }
+
     try {
       if (!team?.id) {
         // Se ainda não há team ou em transição, carrega apenas lista de pilotos se possível
-        const dList = await f1Service.getDrivers().catch(() => [])
+        const dList = await withTimeout(
+          f1Service.getDrivers().catch(() => []),
+          [],
+          2500,
+        )
         if (dList && dList.length > 0) {
           setAllDrivers(dList)
         }
         return
       }
 
-      const [pList, dList] = await Promise.all([
-        f1Service.getTeamParts(team.id).catch((err) => {
-          console.warn('Aviso ao carregar peças do carro (fallback para array vazio):', err)
-          return []
-        }),
-        f1Service.getDrivers().catch((err) => {
-          console.warn('Aviso ao carregar pilotos (fallback para array vazio):', err)
-          return []
-        }),
+      const results = await Promise.allSettled([
+        withTimeout(
+          f1Service.getTeamParts(team.id).catch((err) => {
+            console.warn('Aviso ao carregar peças do carro (fallback para array vazio):', err)
+            return [] as PartModel[]
+          }),
+          [] as PartModel[],
+          2500,
+        ),
+        withTimeout(
+          f1Service.getDrivers().catch((err) => {
+            console.warn('Aviso ao carregar pilotos (fallback para array vazio):', err)
+            return [] as DriverModel[]
+          }),
+          [] as DriverModel[],
+          2500,
+        ),
       ])
+
+      const pList = results[0].status === 'fulfilled' ? results[0].value : []
+      const dList = results[1].status === 'fulfilled' ? results[1].value : []
+
       setParts(pList || [])
       setAllDrivers(dList || [])
     } catch (err) {
@@ -435,7 +456,7 @@ export default function CarPage() {
   useEffect(() => {
     const safetyTimer = setTimeout(() => {
       setLoading(false)
-    }, 1200)
+    }, 1500)
     return () => clearTimeout(safetyTimer)
   }, [])
 

@@ -2749,7 +2749,7 @@ export default function WeekendV2Page() {
                 }
               }}
               onViewChampionship={() => {
-                navigate('/classificacao')
+                navigate('/standings')
               }}
               onContinue={async () => {
                 // BUG-01 PARTE C: Esteira canônica obrigatória de avanço de rodada
