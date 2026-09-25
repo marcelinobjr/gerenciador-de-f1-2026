@@ -29,6 +29,9 @@ describe('Dump Relatório CALIBRATION-01A', () => {
     )
     fs.writeFileSync(targetPath, JSON.stringify(data, null, 2), 'utf-8')
     expect(fs.existsSync(targetPath)).toBe(true)
+    console.warn(
+      `[CALIBRATION-01A] balance-audit-post02c.json escrito com sucesso em: ${targetPath}`,
+    )
 
     // Dump completo para extração fiel no relatório final
     console.warn('=== REAL NUMBERS FOR REPORT EXTRACTION ===')
