@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProspectScoutingCardViewModel } from '@/types/procedural-driver'
-import { DriverPoster } from '@/components/DriverPoster'
+import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import {
   Sparkles,
   Search,
@@ -31,6 +31,26 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
   onRunTest,
   isProcessing = false,
 }) => {
+  const [imageFailed, setImageFailed] = React.useState(false)
+
+  const resolvedPhoto = React.useMemo(() => {
+    return resolveDriverPhoto({
+      driverId: prospect.driverId,
+      name: prospect.name,
+      visualIdentity: prospect.visualIdentity,
+      generatedPortraitProfileId:
+        prospect.generatedPortraitProfileId ||
+        prospect.visualIdentity?.generatedPortraitProfileId ||
+        (prospect.visualIdentity?.portraitAssetId?.startsWith('GEN_')
+          ? prospect.visualIdentity.portraitAssetId
+          : undefined),
+    })
+  }, [
+    prospect.driverId,
+    prospect.name,
+    prospect.visualIdentity,
+    prospect.generatedPortraitProfileId,
+  ])
   const getPotentialBadgeColor = (label: string) => {
     switch (label) {
       case 'Excepcional':
@@ -65,20 +85,29 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
         {/* Top Header Card */}
         <div className="p-4 border-b border-neutral-800/80 bg-neutral-900/30 flex items-start gap-3">
           <div className="w-16 h-20 rounded-lg overflow-hidden border border-neutral-800 shrink-0 bg-neutral-950">
-            {prospect.posterUrl ? (
+            {resolvedPhoto.url && !imageFailed ? (
               <img
-                src={prospect.posterUrl}
+                src={resolvedPhoto.url}
                 alt={prospect.name}
                 className="w-full h-full object-cover object-top"
                 loading="lazy"
+                onError={() => setImageFailed(true)}
               />
             ) : (
-              <DriverPoster
-                name={prospect.name}
-                driverId={prospect.driverId}
-                visualIdentity={prospect.visualIdentity || null}
-                className="w-full h-full"
-              />
+              <div
+                className="w-full h-full flex flex-col items-center justify-center font-bold text-lg select-none text-white border"
+                style={{
+                  backgroundColor: `${resolvedPhoto.teamColor}20`,
+                  borderColor: `${resolvedPhoto.teamColor}50`,
+                  color: resolvedPhoto.teamColor || '#FFFFFF',
+                }}
+                data-testid={`prospect-fallback-${prospect.driverId}`}
+              >
+                <span>{resolvedPhoto.fallbackInitials}</span>
+                <span className="text-[9px] uppercase tracking-wider opacity-60 font-mono mt-0.5">
+                  ACAD
+                </span>
+              </div>
             )}
           </div>
 

@@ -100,6 +100,13 @@ export class DriverScoutingService {
       isLinkedToRivalAcademy: isLinkedRival,
       visualIdentityId: meta?.visualIdentity?.visualIdentityId || driver.id,
       visualIdentity: meta?.visualIdentity,
+      generatedPortraitProfileId:
+        (driver as any).generatedPortraitProfileId ||
+        meta?.visualIdentity?.generatedPortraitProfileId ||
+        (meta as any)?.generatedPortraitProfileId ||
+        (meta?.visualIdentity?.portraitAssetId?.startsWith('GEN_')
+          ? meta.visualIdentity.portraitAssetId
+          : undefined),
       posterUrl,
       gender: meta?.visualIdentity?.gender || 'male',
       perceivedPotentialLabel,

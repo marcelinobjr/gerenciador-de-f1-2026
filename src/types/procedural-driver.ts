@@ -103,6 +103,7 @@ export interface CareerMilestone {
 export interface DriverVisualAssetIdentity {
   visualIdentityId?: string // UUID permanente do piloto para consistência
   portraitAssetId?: string
+  generatedPortraitProfileId?: string
   posterAssetId?: string
   gender?: 'male' | 'female'
   skinTone?: 'fair' | 'light' | 'medium' | 'olive' | 'brown' | 'dark' | 'neutral'
@@ -208,6 +209,7 @@ export interface ProspectScoutingCardViewModel {
   isLinkedToRivalAcademy: boolean
   visualIdentityId: string
   visualIdentity?: DriverVisualAssetIdentity
+  generatedPortraitProfileId?: string
   posterUrl?: string
   gender: 'male' | 'female'
 
