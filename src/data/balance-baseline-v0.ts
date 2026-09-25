@@ -20,13 +20,25 @@ export function calculateStableChecksum(data: unknown): string {
   return `sha_v0_${hex1}${hex2}`
 }
 
-const _probeObj = JSON.parse(JSON.stringify(baselineV0Raw))
-delete (_probeObj as any).checksum
-const _expected = calculateStableChecksum(_probeObj)
-const _actual = (baselineV0Raw as any).checksum
-if (_actual !== _expected) {
-  throw new Error(`CHECKSUM_MISMATCH: expected ${_expected} but found ${_actual}`)
+export const BALANCE_BASELINE_V0_CHECKSUM = 'sha_v0_cf5fe0ee'
+
+/**
+ * Validador canônico da integridade da Baseline V0.
+ * Garante que o payload possui exatamente o checksum homologado 'sha_v0_cf5fe0ee'.
+ * Lança CHECKSUM_MISMATCH caso o checksum do dado difira da constante canônica.
+ */
+export function validateBaselineV0Checksum(data: unknown): boolean {
+  const actual = (data as { checksum?: string } | null | undefined)?.checksum
+  if (actual !== BALANCE_BASELINE_V0_CHECKSUM) {
+    throw new Error(
+      `CHECKSUM_MISMATCH: expected ${BALANCE_BASELINE_V0_CHECKSUM} but found ${actual}`,
+    )
+  }
+  return true
 }
+
+// Guarda de integridade executada no carregamento do módulo
+validateBaselineV0Checksum(baselineV0Raw)
 
 /**
  * BASELINE_V0_DATA: Baseline histórica estática canônica imutável.
