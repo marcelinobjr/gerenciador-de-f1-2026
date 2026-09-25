@@ -200,7 +200,7 @@ describe('FASE 0A — SANEAMENTO TÉCNICO E FUNDAÇÕES CANÔNICAS', () => {
 
   // ==========================================================================
   // 3. TESTES DE HOMOLOGAÇÃO (Canônico vs Legado)
-  // ==========================================================================
+// ==========================================================================
   describe('3. Homologação e Licenças de Piloto', () => {
     it('Sistema NOVO (license_status) tem prioridade absoluta quando presente', () => {
       const driverWithNewSystem: Partial<DriverModel> = {
