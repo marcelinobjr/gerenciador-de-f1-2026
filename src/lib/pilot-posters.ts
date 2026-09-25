@@ -9,7 +9,6 @@ import { getDriveStoragePhotoUrl, DRIVE_STORAGE_PHOTOS } from '@/lib/drive-stora
 import { driverVisualAssetService } from '@/services/driverVisualAssetService'
 import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
-import ricciardoBundledPoster from '@/assets/3-danielricciardo-4d208.jpg'
 
 export function normalizeDriverSurname(fullName: string): string {
   if (!fullName) return ''
@@ -167,7 +166,6 @@ export function getLocalDriverPosterCandidates(
   if (!name && !driverId) return candidates
   const sources = getDriverPhotoSources(name || '')
 
-  // Asset empacotado no bundle se houver
   if (sources.bundledImg) {
     addCandidate(sources.bundledImg)
   }

@@ -69,8 +69,6 @@ import { technicalOrganizationService } from '@/services/technicalOrganizationSe
 import { ROLE_DISPLAY_NAMES } from '@/types/canonical-staff'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 import audiGarageHeroImg from '@/assets/audi-e9cff.jpg'
-import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
-import bortoletoBundledImg from '@/assets/05-gabrielbortoleto-ed602.png'
 import { TeamHeroBanner } from '@/components/team/TeamHeroBanner'
 import { AboutTeamCard } from '@/components/team/AboutTeamCard'
 import { ManagerExecutiveCard } from '@/components/team/ManagerExecutiveCard'
@@ -1312,8 +1310,6 @@ export default function TeamPage() {
                   contract_end: 2026,
                 }
                 const ovr1 = Math.round(((d1.speed || 87) + (d1.consistency || 82)) / 2)
-                const isRicciardo = d1.name.toLowerCase().includes('ricciardo')
-                const photoSrc = isRicciardo ? ricciardoBundledImg : undefined
                 const mbj1 = MBJ_2026_PILOTS.find(
                   (p) =>
                     p.id === d1.id ||
@@ -1341,7 +1337,6 @@ export default function TeamPage() {
                     forma={d1.physical_condition || 85}
                     consistency={d1.consistency || 82}
                     contractEndYear={d1.contract_end || 2026}
-                    bundledImg={photoSrc}
                     visualIdentity={
                       (d1 as any)?.procedural_data?.visualIdentity ||
                       (d1 as any)?.visualIdentity ||
@@ -1378,8 +1373,6 @@ export default function TeamPage() {
                   contract_end: 2028,
                 }
                 const ovr2 = Math.round(((d2.speed || 82) + (d2.consistency || 78)) / 2)
-                const isBortoleto = d2.name.toLowerCase().includes('bortoleto')
-                const photoSrc = isBortoleto ? bortoletoBundledImg : undefined
                 const mbj2 = MBJ_2026_PILOTS.find(
                   (p) =>
                     p.id === d2.id ||
@@ -1407,7 +1400,6 @@ export default function TeamPage() {
                     forma={d2.physical_condition || 80}
                     consistency={d2.consistency || 78}
                     contractEndYear={d2.contract_end || 2028}
-                    bundledImg={photoSrc}
                     visualIdentity={
                       (d2 as any)?.procedural_data?.visualIdentity ||
                       (d2 as any)?.visualIdentity ||

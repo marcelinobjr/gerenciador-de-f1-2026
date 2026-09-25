@@ -1,7 +1,5 @@
 // Service for driver photos mapping and URLs
 // Public Dropbox direct URLs for 32 drivers with dl=1
-import bortoletoBundledImg from '@/assets/05-gabrielbortoleto-ed602.png'
-import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
 
 export interface DriverPhotoInfo {
   filename: string
@@ -43,7 +41,7 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
     filename: '3-Daniel_Ricciardo.png',
     normalizedKey: 'ricciardo',
     surnameVariants: ['ricciardo', 'daniel ricciardo'],
-    bundledImg: ricciardoBundledImg,
+    bundledImg: undefined,
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AHAV-5uijNsZFeC30VyS5lY/3-Daniel_Ricciardo.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },
@@ -72,7 +70,7 @@ export const DRIVER_PHOTOS: DriverPhotoInfo[] = [
       'g. bortoleto',
       'g bortoleto',
     ],
-    bundledImg: bortoletoBundledImg,
+    bundledImg: undefined,
     dropboxUrl:
       'https://www.dropbox.com/scl/fo/ro5v23ii5qqb8q79eoq1c/AIzc-ON2kz8-VpQLZ1bQRow/5-Gabriel_Bortoleto.png?rlkey=tfr62lrgs1tahapuduonocp99&dl=1',
   },

@@ -38,10 +38,7 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
     })
   }, [name, driverId, effectiveVisualIdentity, portraitAssetId])
 
-  const candidateUrls = useMemo(
-    () => resolvedPhoto.candidateUrls,
-    [resolvedPhoto],
-  )
+  const candidateUrls = useMemo(() => resolvedPhoto.candidateUrls, [resolvedPhoto])
   const [candidateIndex, setCandidateIndex] = useState(0)
 
   // Reset index when name, driverId or visual identity changes
