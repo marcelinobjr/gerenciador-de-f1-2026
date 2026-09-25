@@ -34,6 +34,11 @@ export interface CanonicalRaceSimulationAuditReport {
  * para verificar se o caminho canônico é único, livre de geradores sintéticos,
  * sem duplicações e sem bônus artificiais por posição de grid.
  */
+export {
+  auditLegacyWeekendDependencies,
+  type LegacyWeekendAuditReport,
+} from '@/services/legacyWeekendAudit'
+
 export function auditCanonicalRaceSimulationPath(sources?: {
   raceSlim?: string
   raceSlimWrapper?: string

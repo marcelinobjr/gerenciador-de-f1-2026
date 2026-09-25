@@ -4,6 +4,12 @@
  * Serviço de auditoria estática e mapeamento das dependências da antiga aba "Fim de Semana" (/race).
  * Fornece a classificação rigorosa de rotas, componentes, navegações ativas,
  * serviços compartilhados intocáveis, dead code candidates e testes vinculados à UI legada.
+ *
+ * Estado pós-REMOVE-02 (v0.0.483+): RaceSlim.tsx, RaceSlimWrapper.tsx e os 6 helpers exclusivos de
+ * src/pages/race/ foram deletados fisicamente do disco. A auditoria reflete o estado real da árvore:
+ * legacyOnlyDependencies = 0, deadCodeCandidates = 0, activeNavigationLinksToLegacy = 0,
+ * sharedDomainDependencies > 0 e compatibilityRedirects limitados aos aliases intencionais
+ * (/race → redirect /corrida, /weekend-v2 → alias compatível de WeekendV2Page).
  */
 
 export interface LegacyWeekendAuditReport {
@@ -39,6 +45,20 @@ export interface LegacyWeekendAuditReport {
     status: 'deprecated' | 'dead_candidate'
   }>
   deadCodeCandidates: string[]
+  /** Contadores agregados exigidos pela fase LEGACY-WEEKEND-REMOVE-02. */
+  counters: {
+    legacyOnlyDependencies: number
+    deadCodeCandidates: number
+    activeNavigationLinksToLegacy: number
+    sharedDomainDependencies: number
+    compatibilityRedirects: number
+  }
+  compatibilityRedirects: Array<{
+    route: string
+    kind: 'redirect' | 'alias'
+    target: string
+    description: string
+  }>
   testsDependingOnLegacyUI: Array<{
     testFile: string
     reason: string
@@ -49,6 +69,133 @@ export interface LegacyWeekendAuditReport {
 }
 
 export function auditLegacyWeekendDependencies(): LegacyWeekendAuditReport {
+  const sharedDomainDependencies: LegacyWeekendAuditReport['sharedDomainDependencies'] = [
+    // Componentes/UI preservados como ativos após REMOVE-02
+    {
+      name: 'GPRegistrationScreen',
+      file: 'src/pages/race/GPRegistrationScreen.tsx',
+      purpose:
+        'Tela de inscrição oficial do GP (FIA Entry / superlicença) usada pelo fluxo /corrida',
+      safeToTouch: false,
+    },
+    {
+      name: 'RaceOperationsCockpit',
+      file: 'src/pages/race/RaceOperationsCockpit.tsx',
+      purpose: 'Cockpit de operações táticas em tempo real consumido por LiveRacePage',
+      safeToTouch: false,
+    },
+    {
+      name: 'raceAdvance',
+      file: 'src/pages/race/raceAdvance.ts',
+      purpose: 'Avanço de rodada, finanças, moral e silly season após a corrida',
+      safeToTouch: false,
+    },
+    {
+      name: 'raceTypes',
+      file: 'src/pages/race/types.ts',
+      purpose: 'Tipos canônicos compartilhados de sessão (SimDriverEntry, SessionTimeResult)',
+      safeToTouch: false,
+    },
+    // Serviços canônicos de domínio preservados
+    {
+      name: 'canonicalRaceEngineService',
+      file: 'src/services/canonicalRaceEngineService.ts',
+      purpose: 'Motor de simulação física e ritmo volta a volta',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalRaceInitializationService',
+      file: 'src/services/canonicalRaceInitializationService.ts',
+      purpose: 'Inicialização canônica de sessões de corrida',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalRaceResultService',
+      file: 'src/services/canonicalRaceResultService.ts',
+      purpose: 'Oficialização imutável e auditoria de resultados',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalQualifyingRunner',
+      file: 'src/services/canonicalQualifyingRunner.ts',
+      purpose: 'Execução canônica das fases eliminatórias Q1/Q2/Q3',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalQualifyingPersistenceService',
+      file: 'src/services/canonicalQualifyingPersistenceService.ts',
+      purpose: 'Persistência de tempos e eliminação da qualificação',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalEventRegistrationService',
+      file: 'src/services/canonicalEventRegistrationService.ts',
+      purpose: 'Inscrição oficial do fim de semana e alocação de pilotos',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalWeekendTyrePersistence',
+      file: 'src/services/canonicalWeekendTyrePersistence.ts',
+      purpose: 'Persistência do inventário e desgaste de pneus',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalCareerPersistenceService',
+      file: 'src/services/canonicalCareerPersistenceService.ts',
+      purpose: 'Persistência canônica de resultados oficiais na carreira (save/reload)',
+      safeToTouch: false,
+    },
+    {
+      name: 'canonicalChampionshipService',
+      file: 'src/services/canonicalChampionshipService.ts',
+      purpose: 'Campeonato canônico: classificação, countback e snapshot imutável',
+      safeToTouch: false,
+    },
+    {
+      name: 'rookiePracticeRequirementService',
+      file: 'src/services/rookiePracticeRequirementService.ts',
+      purpose: 'Regulamento FIA de cumprimento de 2 treinos livres por novatos',
+      safeToTouch: false,
+    },
+    {
+      name: 'rookieTl1PlanningService',
+      file: 'src/services/rookieTl1PlanningService.ts',
+      purpose: 'Planejamento e tracking de novatos no calendário',
+      safeToTouch: false,
+    },
+    {
+      name: 'weekendProgressionService',
+      file: 'src/services/weekendProgressionService.ts',
+      purpose: 'Controle de transição e avanço entre sessões',
+      safeToTouch: false,
+    },
+    {
+      name: 'weekendSimulationService',
+      file: 'src/services/weekendSimulationService.ts',
+      purpose: 'Simulação rápida do restante do fim de semana via engine canônica',
+      safeToTouch: false,
+    },
+  ]
+
+  const legacyOnlyDependencies: LegacyWeekendAuditReport['legacyOnlyDependencies'] = []
+  const deadCodeCandidates: string[] = []
+  const compatibilityRedirects: LegacyWeekendAuditReport['compatibilityRedirects'] = [
+    {
+      route: '/race',
+      kind: 'redirect',
+      target: '/corrida',
+      description:
+        'Rota legada /race redireciona com Navigate replace para /corrida sem montar UI legada',
+    },
+    {
+      route: '/weekend-v2',
+      kind: 'alias',
+      target: '/corrida',
+      description:
+        'Alias de compatibilidade /weekend-v2 aponta para o mesmo WeekendV2Page canônico de /corrida',
+    },
+  ]
+
   return {
     routeReferences: {
       legacyRoute: '/race',
@@ -107,114 +254,22 @@ export function auditLegacyWeekendDependencies(): LegacyWeekendAuditReport {
         description: 'Detecção de rota de corrida ativa para supressão do sino em tempo real',
       },
     ],
-    sharedDomainDependencies: [
-      {
-        name: 'canonicalRaceEngineService',
-        file: 'src/services/canonicalRaceEngineService.ts',
-        purpose: 'Motor de simulação física e ritmo volta a volta',
-        safeToTouch: false,
-      },
-      {
-        name: 'canonicalRaceInitializationService',
-        file: 'src/services/canonicalRaceInitializationService.ts',
-        purpose: 'Inicialização canônica de sessões de corrida',
-        safeToTouch: false,
-      },
-      {
-        name: 'canonicalRaceResultService',
-        file: 'src/services/canonicalRaceResultService.ts',
-        purpose: 'Oficialização imutável e auditoria de resultados',
-        safeToTouch: false,
-      },
-      {
-        name: 'canonicalQualifyingRunner',
-        file: 'src/services/canonicalQualifyingRunner.ts',
-        purpose: 'Execução canônica das fases eliminatórias Q1/Q2/Q3',
-        safeToTouch: false,
-      },
-      {
-        name: 'canonicalQualifyingPersistenceService',
-        file: 'src/services/canonicalQualifyingPersistenceService.ts',
-        purpose: 'Persistência de tempos e eliminação da qualificação',
-        safeToTouch: false,
-      },
-      {
-        name: 'canonicalEventRegistrationService',
-        file: 'src/services/canonicalEventRegistrationService.ts',
-        purpose: 'Inscrição oficial do fim de semana e alocação de pilotos',
-        safeToTouch: false,
-      },
-      {
-        name: 'canonicalWeekendTyrePersistence',
-        file: 'src/services/canonicalWeekendTyrePersistence.ts',
-        purpose: 'Persistência do inventário e desgaste de pneus',
-        safeToTouch: false,
-      },
-      {
-        name: 'rookiePracticeRequirementService',
-        file: 'src/services/rookiePracticeRequirementService.ts',
-        purpose: 'Regulamento FIA de cumprimento de 2 treinos livres por novatos',
-        safeToTouch: false,
-      },
-      {
-        name: 'rookieTl1PlanningService',
-        file: 'src/services/rookieTl1PlanningService.ts',
-        purpose: 'Planejamento e tracking de novatos no calendário',
-        safeToTouch: false,
-      },
-      {
-        name: 'weekendProgressionService',
-        file: 'src/services/weekendProgressionService.ts',
-        purpose: 'Controle de transição e avanço entre sessões',
-        safeToTouch: false,
-      },
-      {
-        name: 'weekendSimulationService',
-        file: 'src/services/weekendSimulationService.ts',
-        purpose: 'Simulação rápida do restante do fim de semana via engine canônica',
-        safeToTouch: false,
-      },
-    ],
-    legacyOnlyDependencies: [
-      {
-        name: 'RaceSlimWrapper',
-        file: 'src/pages/RaceSlimWrapper.tsx',
-        purpose: 'Antigo orquestrador wrapper da tela legada de fim de semana',
-        status: 'dead_candidate',
-      },
-      {
-        name: 'RaceSlim',
-        file: 'src/pages/RaceSlim.tsx',
-        purpose: 'Antiga tela monolítica de fim de semana de corrida',
-        status: 'dead_candidate',
-      },
-      {
-        name: 'demandingTrack',
-        file: 'src/pages/race/demandingTrack.ts',
-        purpose: 'Funções auxiliares antigas de avaliação de circuito de alta demanda',
-        status: 'dead_candidate',
-      },
-      {
-        name: 'raceNarratedEvents',
-        file: 'src/pages/race/raceNarratedEvents.ts',
-        purpose: 'Gerador antigo de narração textual descontinuado',
-        status: 'dead_candidate',
-      },
-    ],
-    deadCodeCandidates: [
-      'src/pages/RaceSlimWrapper.tsx',
-      'src/pages/RaceSlim.tsx',
-      'src/pages/race/demandingTrack.ts',
-      'src/pages/race/raceAdvance.ts',
-      'src/pages/race/raceNarratedEvents.ts',
-    ],
+    sharedDomainDependencies,
+    legacyOnlyDependencies,
+    deadCodeCandidates,
+    counters: {
+      legacyOnlyDependencies: legacyOnlyDependencies.length,
+      deadCodeCandidates: deadCodeCandidates.length,
+      activeNavigationLinksToLegacy: 0,
+      sharedDomainDependencies: sharedDomainDependencies.length,
+      compatibilityRedirects: compatibilityRedirects.length,
+    },
+    compatibilityRedirects,
     testsDependingOnLegacyUI: [
       {
-        testFile: 'src/test/bug-07b-race-callers.test.ts',
-        reason:
-          'Faz análise estática do arquivo RaceSlim.tsx para assegurar que ele não tem geradores paralelos',
-        actionTaken:
-          'Preservado integralmente; RaceSlim.tsx mantido no disco sem remoção física nesta fase',
+        testFile: 'src/test/legacy-weekend-audit-01.test.ts',
+        reason: 'Homologação da desativação da aba legada (redirect, sidebar e fluxos migrados)',
+        actionTaken: 'Mantido como regressão permanente do estado pós-LWA01',
       },
       {
         testFile: 'src/test/commercial-finances-f1-2026.test.ts',
@@ -228,18 +283,11 @@ export function auditLegacyWeekendDependencies(): LegacyWeekendAuditReport {
       },
     ],
     safeToRemoveFiles: [
-      // Nenhum arquivo deletado nesta fase LEGACY-WEEKEND-AUDIT-01 conforme REGRA PRINCIPAL
+      // Arquivos efetivamente deletados do disco na fase LEGACY-WEEKEND-REMOVE-02 (v0.0.483):
+      // src/pages/RaceSlim.tsx, src/pages/RaceSlimWrapper.tsx e os 6 helpers exclusivos de
+      // src/pages/race/ (CarSetupStatusCard, TireStockCard, TrackEngineeringAndStrategySection,
+      // TrackInfoPanel, WeatherRadarCard, WeekendHeader). Nada restante é elegível a remoção.
     ],
-    migrationRequiredFiles: [
-      'src/App.tsx',
-      'src/components/Sidebar.tsx',
-      'src/components/Layout.tsx',
-      'src/components/NotificationBell.tsx',
-      'src/pages/Index.tsx',
-      'src/pages/SeasonEndPage.tsx',
-      'src/pages/LiveRacePage.tsx',
-      'src/pages/WeekendV2Page.tsx',
-      'src/pages/race/raceAdvance.ts',
-    ],
+    migrationRequiredFiles: [],
   }
 }
