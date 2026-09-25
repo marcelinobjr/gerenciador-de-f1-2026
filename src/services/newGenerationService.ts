@@ -22,6 +22,7 @@ import pb from '@/lib/pocketbase/client'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { proceduralDriverGenerator } from './proceduralDriverGenerator'
 import { UniverseEcologyReport } from '@/types/driver-development'
+import { preservePortraitFields } from '@/lib/preservePortraitFields'
 
 export interface AnnualGenerationClassResult {
   seasonYear: number
@@ -176,7 +177,10 @@ export class NewGenerationService {
           perceived_potential: d.perceived_potential,
           evaluation_confidence: d.evaluation_confidence,
           career_status: 'prospect',
-          procedural_data: (d as any).procedural_data,
+          procedural_data: preservePortraitFields(
+            (d as any).procedural_data,
+            (d as any).procedural_data,
+          ),
         })
       } catch (err) {
         // Tolerância para testes / offline

@@ -14,6 +14,7 @@ import { ProceduralDriverMetadata, ProspectScoutingCardViewModel } from '@/types
 import { DriverModel, TeamModel } from '@/types/f1'
 import { proceduralDriverGenerator } from './proceduralDriverGenerator'
 import { infrastructureCapabilityService } from './infrastructureCapabilityService'
+import { preservePortraitFields } from '@/lib/preservePortraitFields'
 import { driverVisualAssetService } from './driverVisualAssetService'
 
 export class DriverScoutingService {
@@ -224,13 +225,16 @@ export class DriverScoutingService {
       scoutingNotes: `Reavaliado pela equipe técnica. Confiança elevada para ${newConfidence}%. Potencial estimado refinado para ${newPerceived}.`,
     }
 
-    const updatedMeta: ProceduralDriverMetadata = {
+    const baseUpdatedMeta: ProceduralDriverMetadata = {
       ...meta,
       scoutingRecords: {
         ...(meta.scoutingRecords || {}),
         [team.id]: updatedScoutingRecord,
       },
     }
+
+    // Blindagem de retrato: preserva generatedPortraitProfileId e visualIdentity.portraitAssetId do objeto persistido
+    const updatedMeta = preservePortraitFields(meta, baseUpdatedMeta)
 
     const updatedDriver: DriverModel = {
       ...driver,

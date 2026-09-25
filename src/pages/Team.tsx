@@ -57,6 +57,7 @@ import { ProspectCard } from '@/components/ProspectCard'
 import { ProspectDebugAuditModal } from '@/components/ProspectDebugAuditModal'
 import { driverScoutingService } from '@/services/driverScoutingService'
 import { proceduralDriverProgressService } from '@/services/proceduralDriverProgressService'
+import { preservePortraitFields } from '@/lib/preservePortraitFields'
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
 import { teamRosterService } from '@/services/teamRosterService'
@@ -363,7 +364,10 @@ export default function TeamPage() {
           evaluation_confidence: (candidate as any).evaluation_confidence,
           academy_origin_team_id: team.id,
           career_status: 'academy',
-          procedural_data: (candidate as any).procedural_data,
+          procedural_data: preservePortraitFields(
+            (candidate as any).procedural_data,
+            (candidate as any).procedural_data,
+          ),
         })
       }
 
@@ -446,6 +450,10 @@ export default function TeamPage() {
     try {
       for (const d of teamAcademyPilots) {
         const prog = proceduralDriverProgressService.advanceSeasonForJuniorDriver(d, team, 2026)
+        const safeProceduralData = preservePortraitFields(
+          (d as any)?.procedural_data,
+          prog.updatedMetadata,
+        )
         await pb.collection('drivers').update(d.id, {
           age: prog.updatedDriver.age,
           speed: prog.updatedDriver.speed,
@@ -455,7 +463,7 @@ export default function TeamPage() {
           technical_feedback: prog.updatedDriver.technical_feedback,
           superlicense_points: prog.updatedDriver.superlicense_points,
           category: prog.updatedDriver.category,
-          procedural_data: prog.updatedMetadata,
+          procedural_data: safeProceduralData,
         })
       }
 
