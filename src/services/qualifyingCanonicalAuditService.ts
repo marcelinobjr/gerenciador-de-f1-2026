@@ -177,9 +177,14 @@ export function auditLiveQualifyingCanonicalIntegration(
     carPerformanceRating: carPerfRating,
     legacyTeamStrength: chassisRating,
   })
-  const expectedCanonicalCarFactor = Number(
-    (expectedCarPerf * 0.55 + trackFitScore * 0.45).toFixed(1),
+  // BALANCE-EQUATION-02C: normalização de TrackFit como modificador centrado em zero
+  const neutralFitRef = 75.0
+  const trackFitScale = 0.22
+  const normalizedTrackFitDelta = Math.max(
+    -6.5,
+    Math.min(6.5, (trackFitScore - neutralFitRef) * trackFitScale),
   )
+  const expectedCanonicalCarFactor = Number((expectedCarPerf + normalizedTrackFitDelta).toFixed(1))
 
   const legacyFallbackCarFactor = Number((chassisRating * 0.6 + chassisRating * 0.4).toFixed(1))
 
@@ -274,7 +279,7 @@ export function explainQualifyingPace(
     `[Qualifying Pace Breakdown - R${round} ${circuitProfile.circuitName}]\n` +
     `Piloto: ${driverId} (Speed: ${driver.speed}) | Equipe Chassi: ${chassisRating.toFixed(1)} | PU: ${supplier} (${pu.powerRating} pts)\n` +
     `Car Performance: ${carPerfRating.toFixed(1)} | Track Fit Score: ${trackFitScore.toFixed(2)}\n` +
-    `Car Factor (55% Car + 45% Fit): ${paceRes.carFactor} | Driver Factor: ${paceRes.driverFactor}\n` +
+    `Car Factor (CarPerf + TrackFitMod): ${paceRes.carFactor} | Driver Factor: ${paceRes.driverFactor}\n` +
     `Combined Performance (70% Car + 30% Driver): ${paceRes.combinedPerformance} -> Lap Score: ${paceRes.lapScore} (${paceRes.paceVerdict})\n` +
     `Tempo Estimado de Volta Padrão: ${paceRes.lapTimeSec.toFixed(3)}s`
 
@@ -292,8 +297,8 @@ export function explainQualifyingPace(
     weights: {
       carShare: 0.7,
       driverShare: 0.3,
-      intrinsicCarShare: 0.55,
-      trackFitShare: 0.45,
+      intrinsicCarShare: 0.85,
+      trackFitShare: 0.15,
     },
     breakdown: {
       topSpeedAdvantageSec: Number(topSpeedAdv.toFixed(3)),

@@ -154,9 +154,16 @@ export function calculateCombinedPace(params: PaceCalculationParams): PaceResult
       legacyTeamStrength: normCarStrength,
     })
 
-    // Carro efetivo na pista = 55% qualidade intrínseca + 45% adequação ao traçado
-    carFactor = carPerf * 0.55 + trackFitScore * 0.45
-
+    // BALANCE-EQUATION-02C: TrackFit agora é um modificador de circuito centrado em zero
+    // A maior parte do carFactor vem da qualidade intrínseca (base estrutural ~80-85%)
+    // e o trackFit entra normalizado como modificador (aprox ±3 a ±6 pontos).
+    const neutralFitRef = 75.0
+    const trackFitScale = 0.22
+    const normalizedTrackFitDelta = Math.max(
+      -6.5,
+      Math.min(6.5, (trackFitScore - neutralFitRef) * trackFitScale),
+    )
+    carFactor = carPerf + normalizedTrackFitDelta
     // Penalidade física de danos/fadiga se especificada
     if (params.hasFrontWingDamage) {
       carFactor -= 3.5

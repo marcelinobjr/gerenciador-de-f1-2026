@@ -33,6 +33,7 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
+import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegrationService'
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 import { carTechnicalService } from '@/services/carTechnicalService'
@@ -63,6 +64,8 @@ export interface QualifyingTickContext {
   teamEngineSupplier: string
   teamName: string
   teamColor: string
+  teamId?: string
+  teamTechnicalAttributes?: any
   drivers: QualifyingDriverContext[]
   rivalDrivers: QualifyingDriverContext[]
 }
@@ -642,38 +645,29 @@ export class CanonicalQualifyingRunner {
     const { car, driver, context, circuitBaseSec } = params
 
     const circuitProfile = resolveCircuitProfile({ round: context.round })
-    const playerPu = OFFICIAL_POWER_UNITS[context.teamEngineSupplier] || OFFICIAL_POWER_UNITS.Audi
-    const playerPuRating = Number(
-      (playerPu.powerRating * 0.6 + playerPu.reliabilityRating * 0.4).toFixed(1),
-    )
-    const playerCarPerfRating = Number(
-      (context.teamChassisRating * 0.7 + playerPuRating * 0.3).toFixed(1),
-    )
 
-    const pace = calculateCombinedPace({
-      teamStrength: context.teamChassisRating,
-      carLevel: context.teamChassisRating,
-      driver: {
+    // BALANCE-EQUATION-02C: Integração canônica da Força Estrutural no Qualifying
+    const playerTeamKey = context.teamId || driver?.teamId || 'custom_team'
+    const integratedPace = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: playerTeamKey,
+      driverId: car.driverId,
+      circuitProfile,
+      carTechnicalAttributes: context.teamTechnicalAttributes,
+      driverAttributes: {
         speed: driver?.speed || 80,
         consistency: driver?.consistency || 80,
-        defense: driver?.defense || 75,
+        rain: driver?.speed || 80,
         morale: driver?.morale || 85,
         physicalCondition: driver?.physical_condition || 90,
       },
+      tyreCompound: car.currentCompound,
+      tyreWearPct: car.tyreWear,
+      fuelKg: car.fuelKg,
       weather: context.weather,
-      tireCompound: car.currentCompound,
-      lapsOnTire: car.outLapsDone,
-      wearPercent: car.tyreWear,
-      trackAbrasiveness: context.tireAbrasiveness,
-      circuit: circuitProfile,
-      chassisRating: context.teamChassisRating,
-      powerUnitRating: playerPuRating,
-      carPerformanceRating: playerCarPerfRating,
-      isQualifying: true,
       noise: (Math.random() - 0.5) * 0.15,
     })
 
-    let lapSec = pace.lapTimeSec || circuitBaseSec
+    let lapSec = integratedPace.lapTimeSec || circuitBaseSec
 
     // Bônus/penalidade de combustível leve de quali (~10-15kg)
     const fuelDeltaSec = (car.fuelKg - 12) * 0.035
@@ -703,30 +697,27 @@ export class CanonicalQualifyingRunner {
       // Pilotos da IA fazem até 2 ou 3 tentativas por fase
       if (Math.random() < chance && aiEntry.laps < 3) {
         const rivalObj = context.rivalDrivers.find((r) => r.id === aiEntry.driverId)
-        const strength = rivalObj ? rivalObj.speed : 78
+        const rivalTeamKey = aiEntry.teamId || 'haas'
 
-        const pace = calculateCombinedPace({
-          teamStrength: strength,
-          carLevel: strength,
-          driver: {
+        // BALANCE-EQUATION-02C: IA rival também consome a Força Estrutural canônica no Qualifying
+        const integratedAiPace = canonicalPaceIntegrationService.computeQualifyingPace({
+          teamKey: rivalTeamKey,
+          driverId: aiEntry.driverId,
+          circuitProfile,
+          driverAttributes: {
             speed: rivalObj?.speed || 80,
             consistency: rivalObj?.consistency || 80,
-            defense: 75,
+            rain: rivalObj?.speed || 80,
             morale: 85,
             physicalCondition: 90,
           },
+          tyreCompound: 'macio',
+          fuelKg: 12,
           weather: context.weather,
-          tireCompound: 'macio',
-          trackAbrasiveness: context.tireAbrasiveness,
-          circuit: circuitProfile,
-          chassisRating: strength,
-          powerUnitRating: 85,
-          carPerformanceRating: strength,
-          isQualifying: true,
           noise: (Math.random() - 0.5) * 0.25,
         })
 
-        const lapSec = Number((pace.lapTimeSec || circuitBaseSec).toFixed(3))
+        const lapSec = Number((integratedAiPace.lapTimeSec || circuitBaseSec).toFixed(3))
         aiEntry.laps += 1
 
         const isPb = !aiEntry.bestLapSec || lapSec < aiEntry.bestLapSec

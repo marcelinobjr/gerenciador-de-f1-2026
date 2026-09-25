@@ -1463,7 +1463,14 @@ export function auditWeekendSimulationCanonicalIntegration(
   // Checar se teamStrength primário foi usado no lugar de dados canônicos:
   // Se dados canônicos estão presentes, carFactor deve incorporar carPerfRating e trackFitScore
   const legacyFallbackFactor = Number((chassisRating * 0.6 + chassisRating * 0.4).toFixed(1))
-  const expectedCanonicalFactor = Number((carPerfRating * 0.55 + trackFitScore * 0.45).toFixed(1))
+  // BALANCE-EQUATION-02C: normalização de TrackFit como modificador centrado em zero
+  const neutralFitRef = 75.0
+  const trackFitScale = 0.22
+  const normalizedTrackFitDelta = Math.max(
+    -6.5,
+    Math.min(6.5, (trackFitScore - neutralFitRef) * trackFitScale),
+  )
+  const expectedCanonicalFactor = Number((carPerfRating + normalizedTrackFitDelta).toFixed(1))
   const teamStrengthPrimaryUsed =
     hasTechAttrs &&
     Math.abs(qualyPace.carFactor - legacyFallbackFactor) < 0.01 &&

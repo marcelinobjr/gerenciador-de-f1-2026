@@ -553,8 +553,16 @@ export function calculateSessionPerformance(
   // effectiveCarScore = carPerformance * 0.55 + trackFitScore * 0.45
   // A união Carro × Piloto mantém o equilíbrio esportivo comprovado:
   // Carro efetivo (70%) + Piloto (30%)
+  // BALANCE-EQUATION-02C: TrackFit agora é um modificador de circuito centrado em zero
+  // A ordem natural vem da estrutura real, não de compor 45% do carro diretamente.
+  const neutralFitRef = 75.0
+  const trackFitScale = 0.22
+  const normalizedTrackFitDelta = Math.max(
+    -6.5,
+    Math.min(6.5, (trackFitScore - neutralFitRef) * trackFitScale),
+  )
   const effectiveCarScore =
-    carPerformance * 0.55 + trackFitScore * 0.45 + physicalEffect.performanceDelta
+    carPerformance + normalizedTrackFitDelta + physicalEffect.performanceDelta
   const rawSessionIndex = effectiveCarScore * 0.7 + driverScore * 0.3
 
   const sessionPerformanceIndex = Number(Math.max(30, Math.min(100, rawSessionIndex)).toFixed(1))

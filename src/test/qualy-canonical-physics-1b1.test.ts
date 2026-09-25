@@ -267,8 +267,9 @@ describe('Micro-Patch Bloco 1B.1 — Física Canônica da Qualificação', () =>
       noise: 0,
     })
 
-    // Car factor canônico = 55% carPerf + 45% trackFit
-    const expectedCanonicalCarFactor = Number((carPerf * 0.55 + tf * 0.45).toFixed(1))
+    // Car factor canônico 02C = carPerf + trackFitModifier normalizado
+    const tfDelta = Math.max(-6.5, Math.min(6.5, (tf - 75.0) * 0.22))
+    const expectedCanonicalCarFactor = Number((carPerf + tfDelta).toFixed(1))
     // Car factor legado = 60% level + 40% strength (sem trackFit)
     const legacyFallbackFactor = Number((chassis * 0.6 + chassis * 0.4).toFixed(1))
 

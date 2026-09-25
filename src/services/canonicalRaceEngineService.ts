@@ -46,6 +46,8 @@ import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { TIRE_SPECS, calculateTireCliffStatus } from '@/lib/f1-tire-system'
+import { calculateTrackFit } from '@/lib/car-session-performance-engine'
+import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegrationService'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { raceControlService } from '@/services/raceControlService'
@@ -247,17 +249,39 @@ export class CanonicalRaceEngineService {
       baseCircuitSec = 82.0
     }
 
-    // 1. Performance Base Combinada (70% Carro, 30% Piloto)
-    // Piloto skill = racePace 50% + speed 35% + physical/morale 15%
-    const driverSkill =
-      drv.racePace * 0.5 +
-      drv.speed * 0.35 +
-      ((drv.morale - 80) * 0.08 + (drv.physicalCondition - 85) * 0.07)
-    const combinedPerf = car.carPerf * 0.7 + driverSkill * 0.3
+    // BALANCE-EQUATION-02C: Integração canônica da Força Estrutural (PaceBreakdown / 02C)
+    // A base principal é a força estrutural da equipe, modulada por TrackFit centrado em zero,
+    // pilotos nos fatores específicos de sessão, pneus/fuel como eventos e desgaste de PU/condição.
+    let circuitProf: any = null
+    try {
+      circuitProf = resolveCircuitProfile({ round, circuitName })
+    } catch {
+      circuitProf = null
+    }
 
-    // Delta de performance em relação a um carro perfeito (100)
-    // Escala: ~0.080s por ponto de performance
-    const performanceGapSec = (100 - combinedPerf) * 0.08
+    // Calcula trackFitModifier centrado em zero
+    let trackFitModifier = 0
+    if (car.technicalAttributes && circuitProf) {
+      const { trackFitScore } = calculateTrackFit(car.technicalAttributes, circuitProf)
+      const norm = canonicalPaceIntegrationService.normalizeTrackFit({
+        rawTrackFitScore: trackFitScore,
+      })
+      trackFitModifier = norm.trackFitModifier
+    }
+
+    // Resolve a Força Estrutural da equipe (Camada Canônica 1)
+    const structuralStrength = canonicalPaceIntegrationService.resolveBaseStructuralStrength(
+      driver.teamId,
+    )
+
+    // Fatores de sessão do piloto (racePace, physical, morale - sem duplicar o overall estável)
+    const driverSessionDelta =
+      (drv.racePace - 85) * 0.06 + ((drv.morale - 80) * 0.04 + (drv.physicalCondition - 85) * 0.03)
+
+    // Base de performance canônica do 02C:
+    // StructuralStrength (~80-85% da hierarquia base) + trackFitModifier (±3 a ±6) + driverSessionDelta
+    const integratedBaseStrength = structuralStrength + trackFitModifier + driverSessionDelta
+    const performanceGapSec = (100 - integratedBaseStrength) * 0.08
 
     // 2. Modulação por Consistência do Piloto
     // Alta consistência (ex: 95) => desvio padrão pequeno (~0.10s)
