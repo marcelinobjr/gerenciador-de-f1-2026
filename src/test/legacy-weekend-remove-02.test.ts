@@ -8,10 +8,7 @@ import {
 } from '@/services/legacyWeekendAudit'
 
 // Imports estáticos dos domínios canônicos para comprovação de presença e integridade (LWR02-09..15)
-import {
-  CanonicalQualifyingRunner,
-  canonicalQualifyingRunner,
-} from '@/services/canonicalQualifyingRunner'
+import { CanonicalQualifyingRunner } from '@/services/canonicalQualifyingRunner'
 import {
   CanonicalRaceEngineService,
   canonicalRaceEngineService,
@@ -212,14 +209,18 @@ describe('LEGACY-WEEKEND-REMOVE-02 — Fechamento da Remoção do Legado de Corr
   })
 
   // =========================================================================
-  // LWR02-09: Qualifying canônico (canonicalQualifyingRunner) presente e íntegro
+  // LWR02-09: Qualifying canônico (CanonicalQualifyingRunner) presente e íntegro
   // =========================================================================
-  it('LWR02-09: Qualifying canônico (canonicalQualifyingRunner) presente, importável e operacional', () => {
-    expect(canonicalQualifyingRunner).toBeDefined()
+  it('LWR02-09: Qualifying canônico (CanonicalQualifyingRunner) presente, importável e operacional', () => {
     expect(CanonicalQualifyingRunner).toBeDefined()
-    expect(typeof canonicalQualifyingRunner.simulateStage).toBe('function')
-    expect(typeof canonicalQualifyingRunner.tickSession).toBe('function')
-    expect(typeof canonicalQualifyingRunner.advanceStep).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.initializeStage).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.orderCarExitToTrack).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.requestCarBox).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.tick).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.sortLeaderboard).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.finalizeStage).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.advanceBySeconds).toBe('function')
+    expect(typeof CanonicalQualifyingRunner.simulateRemainingSession).toBe('function')
   })
 
   // =========================================================================
@@ -228,9 +229,11 @@ describe('LEGACY-WEEKEND-REMOVE-02 — Fechamento da Remoção do Legado de Corr
   it('LWR02-10: Race Engine canônica (canonicalRaceEngineService) presente, importável e operacional', () => {
     expect(canonicalRaceEngineService).toBeDefined()
     expect(CanonicalRaceEngineService).toBeDefined()
-    expect(typeof canonicalRaceEngineService.advanceLap).toBe('function')
+    expect(typeof canonicalRaceEngineService.advanceOneLap).toBe('function')
     expect(typeof canonicalRaceEngineService.advanceMultipleLaps).toBe('function')
     expect(typeof canonicalRaceEngineService.calculateCanonicalLapPace).toBe('function')
+    expect(typeof canonicalRaceEngineService.evaluateDnfRoll).toBe('function')
+    expect(typeof canonicalRaceEngineService.assertRaceInvariants).toBe('function')
   })
 
   // =========================================================================
@@ -270,7 +273,10 @@ describe('LEGACY-WEEKEND-REMOVE-02 — Fechamento da Remoção do Legado de Corr
     expect(canonicalWeekendTyrePersistence).toBeDefined()
     expect(typeof canonicalWeekendTyrePersistence.getOrCreateWeekendInventories).toBe('function')
     expect(typeof canonicalWeekendTyrePersistence.recordTyreUsage).toBe('function')
-    expect(typeof canonicalWeekendTyrePersistence.getTyreStorageKey).toBe('function')
+    expect(typeof canonicalWeekendTyrePersistence.readWeekendTireData).toBe('function')
+    expect(typeof canonicalWeekendTyrePersistence.writeWeekendTireData).toBe('function')
+    expect(typeof canonicalWeekendTyrePersistence.updateDriverInventory).toBe('function')
+    expect(typeof canonicalWeekendTyrePersistence.updateAllInventories).toBe('function')
   })
 
   // =========================================================================
@@ -280,16 +286,23 @@ describe('LEGACY-WEEKEND-REMOVE-02 — Fechamento da Remoção do Legado de Corr
     expect(canonicalRaceResultService).toBeDefined()
     expect(CanonicalRaceResultService).toBeDefined()
     expect(typeof canonicalRaceResultService.officializeRace).toBe('function')
-    expect(typeof canonicalRaceResultService.auditOfficialRaceResult).toBe('function')
-    expect(typeof canonicalRaceResultService.getPersistedOfficialResult).toBe('function')
+    expect(typeof canonicalRaceResultService.createOfficialRaceResult).toBe('function')
+    expect(typeof canonicalRaceResultService.verifyResultIntegrity).toBe('function')
+    expect(typeof canonicalRaceResultService.getOfficialRaceResult).toBe('function')
+    expect(typeof canonicalRaceResultService.saveOfficialRaceResult).toBe('function')
+    expect(typeof canonicalRaceResultService.hasOfficialRaceResult).toBe('function')
 
     // Validação estática da tipagem OfficialRaceResult
     const typeCheck: Partial<OfficialRaceResult> = {
       officialResultId: 'offres_test',
-      status: 'official',
+      schemaVersion: 'official-race-result-v1',
       totalLaps: 50,
+      careerId: 'test_career',
+      season: 2026,
+      round: 1,
     }
     expect(typeCheck.officialResultId).toBe('offres_test')
+    expect(typeCheck.schemaVersion).toBe('official-race-result-v1')
   })
 
   // =========================================================================
@@ -298,9 +311,12 @@ describe('LEGACY-WEEKEND-REMOVE-02 — Fechamento da Remoção do Legado de Corr
   it('LWR02-15: Campeonato canônico (canonicalChampionshipService) e dependências compartilhadas preservados', () => {
     expect(canonicalChampionshipService).toBeDefined()
     expect(CanonicalChampionshipService).toBeDefined()
-    expect(typeof canonicalChampionshipService.computeChampionshipSnapshot).toBe('function')
-    expect(typeof canonicalChampionshipService.applyOfficialRaceResult).toBe('function')
-    expect(typeof canonicalChampionshipService.auditChampionshipIntegrity).toBe('function')
+    expect(typeof canonicalChampionshipService.getChampionshipStandings).toBe('function')
+    expect(typeof canonicalChampionshipService.processAndPersistRoundChampionship).toBe('function')
+    expect(typeof canonicalChampionshipService.rebuildChampionshipStandings).toBe('function')
+    expect(typeof canonicalChampionshipService.auditChampionshipStandings).toBe('function')
+    expect(typeof canonicalChampionshipService.getSnapshot).toBe('function')
+    expect(typeof canonicalChampionshipService.saveSnapshot).toBe('function')
 
     // Confirmação dos componentes e utilitários preservados em src/pages/race/
     expect(GPRegistrationScreen).toBeDefined()
