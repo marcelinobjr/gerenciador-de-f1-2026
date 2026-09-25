@@ -929,7 +929,7 @@ export class BalanceAuditService {
       )
     }
 
-    return {
+    const finalReport: BalanceAuditReport = {
       auditId: 'BALANCE-AUDIT-01',
       baselineVersion: baseline.schemaVersion,
       baselineChecksum: baseline.checksum,
@@ -990,6 +990,8 @@ export class BalanceAuditService {
         recommendations,
       },
     }
+
+    return finalReport
   }
 }
 
