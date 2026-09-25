@@ -303,7 +303,13 @@ export class StructuralStrengthService {
    * Avalia a Força Estrutural para uma dada chave de equipe (usando catálogo ou baseline).
    */
   public getTeamStructuralStrength(teamKey: string): StructuralStrengthBreakdown {
-    const cleanKey = teamKey.toLowerCase().trim()
+    let cleanKey = teamKey.toLowerCase().trim()
+    // Aliases comuns para casar chaves alternativas com o baseline V0
+    if (cleanKey === 'red_bull' || cleanKey === 'rbr') cleanKey = 'redbull'
+    if (cleanKey === 'aston_martin' || cleanKey === 'amr') cleanKey = 'astonmartin'
+    if (cleanKey === 'racing_bulls' || cleanKey === 'rb' || cleanKey === 'vcarb')
+      cleanKey = 'racingbulls'
+
     const baseline = this.getBaselineV0()
     const baselineEntry = baseline.teams[cleanKey]
 

@@ -358,14 +358,46 @@ describe('BALANCE-EQUATION-02C: Structural Strength -> Pace Integration', () => 
 
   // BE02C-20: restore V0 reverte arquitetura de balanceamento sem tocar na carreira
   it('BE02C-20: restore V0 reverte arquitetura de balanceamento sem tocar na carreira', () => {
+    // 1. Simular mutação de arquitetura
     balanceBaselineService.applyGlobalOverride('architecture.testParam', 999)
-    const res = balanceBaselineService.restoreBalanceBaseline('v0')
-    expect(res.success).toBe(true)
-    expect(res.restoredTeams).toBe(29)
-    expect(res.checksumValidated).toBe(true)
+    const preDiff = balanceBaselineService.compareBalanceWithBaseline('v0')
+    expect(preDiff.hasDifferences).toBe(true)
 
+    // 2. Dry-run não altera o estado de mutação
+    const dryRunRes = balanceBaselineService.restoreBalanceBaseline('v0', { dryRun: true })
+    expect(dryRunRes.success).toBe(true)
+    expect(dryRunRes.dryRun).toBe(true)
+    const afterDryRunCmp = balanceBaselineService.compareBalanceWithBaseline('v0')
+    expect(afterDryRunCmp.hasDifferences).toBe(true)
+
+    // 3. Mock de dados protegidos de carreira (saves, resultados, histórico, contratos)
+    const mockSaveKey = 'f1_career_active_session_state'
+    const mockCareerData = JSON.stringify({ careerId: 'career_be02c', season: 2026, round: 5 })
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(mockSaveKey, mockCareerData)
+    }
+
+    // 4. Restore real idempotente
+    const res1 = balanceBaselineService.restoreBalanceBaseline('v0')
+    expect(res1.success).toBe(true)
+    expect(res1.restoredTeams).toBe(29)
+    expect(res1.checksumValidated).toBe(true)
+    expect(res1.dryRun).toBe(false)
+
+    // Idempotência
+    const res2 = balanceBaselineService.restoreBalanceBaseline('v0')
+    expect(res2.success).toBe(true)
+
+    // Zero diferenças após ciclo mutação -> compare -> restore
     const afterCmp = balanceBaselineService.compareBalanceWithBaseline('v0')
     expect(afterCmp.hasDifferences).toBe(false)
+    expect(afterCmp.checksumValid).toBe(true)
+
+    // Preservação do save de carreira
+    if (typeof window !== 'undefined' && window.localStorage) {
+      expect(window.localStorage.getItem(mockSaveKey)).toBe(mockCareerData)
+      window.localStorage.removeItem(mockSaveKey)
+    }
   })
 
   // GOLDENS (Itens 35–39)
