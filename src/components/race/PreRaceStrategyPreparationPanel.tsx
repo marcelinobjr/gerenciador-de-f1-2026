@@ -35,6 +35,7 @@ import {
   formatCompoundLifespanBadge,
 } from '@/lib/canonical-tire-strategy'
 import { TireDegradationIndicator } from '@/components/race/TireDegradationIndicator'
+import { getTyreImage, getTyreMeta } from '@/lib/tyre-assets'
 
 export interface PreRaceStrategyPreparationPanelProps {
   careerId: string
@@ -308,19 +309,33 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
 
           <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-[#0F172A] capitalize">
-                  {formatTireName(car.startingCompound)}
-                </span>
-                <Badge variant="outline" className="text-[10px] font-mono text-[#475569]">
-                  ID: {car.startingTyreSetId}
-                </Badge>
-                {/* FC02C: Estimativa Canônica de Autonomia */}
-                <Badge className="bg-slate-900 text-white font-mono text-[10px] font-bold">
-                  {formatCompoundLifespanBadge(car.startingCompound, {
-                    initialWearPct: car.initialTyreWear,
-                  })}
-                </Badge>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                  <img
+                    src={getTyreImage(car.startingCompound)}
+                    alt={getTyreMeta(car.startingCompound).name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black text-[#0F172A]">
+                      {getTyreMeta(car.startingCompound).name} (
+                      {getTyreMeta(car.startingCompound).code})
+                    </span>
+                    <Badge variant="outline" className="text-[10px] font-mono text-[#475569]">
+                      ID: {car.startingTyreSetId}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    {/* FC02C: Estimativa Canônica de Autonomia */}
+                    <Badge className="bg-slate-900 text-white font-mono text-[10px] font-bold">
+                      {formatCompoundLifespanBadge(car.startingCompound, {
+                        initialWearPct: car.initialTyreWear,
+                      })}
+                    </Badge>
+                  </div>
+                </div>
               </div>
               <div className="text-right">
                 <span
@@ -371,6 +386,13 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
                       }`}
                     >
                       <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded bg-slate-900 p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
+                          <img
+                            src={getTyreImage(tyre.compound)}
+                            alt={formatTireName(tyre.compound)}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
                         <span className="capitalize font-black text-white">
                           {formatTireName(tyre.compound)}
                         </span>

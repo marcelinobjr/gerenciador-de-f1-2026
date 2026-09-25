@@ -70,7 +70,7 @@ import { F1_2026_CALENDAR } from '@/lib/f1-data'
 // Subcomponentes operacionais
 import { SessionCarPreparationPanel } from '@/components/race/SessionCarPreparationPanel'
 import { PracticeCarCockpitCard } from '@/components/race/PracticeCarCockpitCard'
-import { TyreInventoryPanel } from '@/components/race/TyreInventoryPanel'
+
 import { PracticeLeaderboardTable } from '@/components/race/PracticeLeaderboardTable'
 import { CarSetupModal } from '@/components/race/CarSetupModal'
 import { QualifyingCarCockpitCard } from '@/components/race/QualifyingCarCockpitCard'
@@ -2398,20 +2398,6 @@ export default function WeekendV2Page() {
               </div>
             )}
 
-            {/* ESTOQUE DE PNEUS DO FIM DE SEMANA */}
-            {activeCarForTyres && (
-              <TyreInventoryPanel
-                carNumber={activeTyresCarId === 'car1' ? 1 : 2}
-                driverName={activeCarForTyres.driverName}
-                driverId={activeCarForTyres.driverId}
-                tyres={activeTyresList}
-                currentTyreSetId={sessionState.cars[activeTyresCarId].currentTyreSetId}
-                isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
-                isCarInGarage={sessionState.cars[activeTyresCarId].status === 'garage'}
-                onSelectTyreSet={(setId) => handleSelectTyreSet(activeTyresCarId, setId)}
-              />
-            )}
-
             {/* TABELA DE TEMPOS OFICIAL DO TREINO LIVRE */}
             <PracticeLeaderboardTable
               entries={sessionState.leaderboard}
@@ -2666,20 +2652,6 @@ export default function WeekendV2Page() {
                   onSelectTyreSet={(tyreSetId) => handleSelectTyreSet('car2', tyreSetId)}
                 />
               </div>
-            )}
-
-            {/* ESTOQUE REAL DE PNEUS DO FIM DE SEMANA (MESMO INVENTÁRIO HERDADO) */}
-            {activeCarForTyres && (
-              <TyreInventoryPanel
-                carNumber={activeTyresCarId === 'car1' ? 1 : 2}
-                driverName={activeCarForTyres.driverName}
-                driverId={activeCarForTyres.driverId}
-                tyres={activeTyresList}
-                currentTyreSetId={qualifyingState.cars[activeTyresCarId].currentTyreSetId}
-                isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
-                isCarInGarage={qualifyingState.cars[activeTyresCarId].status === 'garage'}
-                onSelectTyreSet={(setId) => handleSelectTyreSet(activeTyresCarId, setId)}
-              />
             )}
 
             {/* TABELA DE CLASSIFICAÇÃO AO VIVO COM LINHA DE CORTE E LOGOS REDUZIDOS */}

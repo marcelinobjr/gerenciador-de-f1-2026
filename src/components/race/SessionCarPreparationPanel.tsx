@@ -28,6 +28,7 @@ import type { TireSetItem, TireCompound } from '@/types/f1'
 import type { StintFeedbackRecord, SetupKnowledgeModel } from '@/types/practice-session'
 import { formatTireName } from '@/lib/f1-tire-system'
 import { calculateInformedSetupRecommendation } from '@/services/canonicalPreparationInformedService'
+import { getTyreImage, getTyreMeta } from '@/lib/tyre-assets'
 
 export interface CarPreparationCarData {
   carId: 'car1' | 'car2'
@@ -336,7 +337,7 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
       {/* 3. QUADRICULADO RESUMO: PNEUS, COMBUSTÍVEL, MELHOR TEMPO */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* PNEU ATUAL */}
-        <div className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
+        <div className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-1.5">
           <div className="flex items-center justify-between text-[10px] font-bold text-[#64748B] uppercase">
             <span className="flex items-center gap-1">
               <Disc className="w-3.5 h-3.5 text-[#E10600]" />
@@ -354,13 +355,27 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
               {car.tyreWear}% uso
             </span>
           </div>
-          <div className="text-xs font-black text-[#0F172A] flex items-center justify-between">
-            <span className="capitalize">{formatTireName(car.currentCompound)}</span>
-            {fittedTyreSet && (
-              <span className="text-[10px] text-[#64748B] font-mono">
-                {fittedTyreSet.lapsUsed || 0} voltas
-              </span>
-            )}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-md bg-slate-900 border border-slate-800 p-0.5 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+              <img
+                src={getTyreImage(car.currentCompound)}
+                alt={getTyreMeta(car.currentCompound).name}
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-black text-[#0F172A] flex items-center justify-between">
+                <span className="truncate">{getTyreMeta(car.currentCompound).name}</span>
+                {fittedTyreSet && (
+                  <span className="text-[10px] text-[#64748B] font-mono shrink-0 ml-1">
+                    {fittedTyreSet.lapsUsed || 0}v
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-[#64748B]">
+                {getTyreMeta(car.currentCompound).code}
+              </div>
+            </div>
           </div>
           {isInGarage && (
             <Button
@@ -447,78 +462,155 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
             </Badge>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {COMPOUND_ORDER.map((comp) => {
               const sets = inventory.filter((t) => t.compound === comp)
-              if (sets.length === 0) return null
+              const meta = getTyreMeta(comp)
+              const tyreImg = getTyreImage(comp)
+              const isSelectedCompound = car.currentCompound === comp
+              const newSetsCount = sets.filter((s) => (s.lapsUsed || 0) === 0).length
+              const usedSetsCount = sets.filter(
+                (s) => (s.lapsUsed || 0) > 0 && s.id !== car.currentTyreSetId,
+              ).length
+              const installedCount = sets.filter(
+                (s) => s.id === car.currentTyreSetId || (s.isFitted && s.driverId === car.driverId),
+              ).length
 
               return (
-                <div key={comp} className="space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] flex items-center justify-between">
-                    <span>{formatTireName(comp)}</span>
-                    <span>{sets.length} jogo(s)</span>
+                <div
+                  key={comp}
+                  className={`p-2.5 rounded-xl border transition-all ${
+                    isSelectedCompound
+                      ? 'bg-red-50/50 border-[#E10600] ring-1 ring-[#E10600]'
+                      : 'bg-white border-[#E2E8F0]'
+                  }`}
+                >
+                  {/* CABEÇALHO DO COMPOSTO: IMAGEM LOCAL + NOME + ESTOQUE + BADGE SELECIONADO */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F1F5F9] pb-2 mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-slate-900 border border-slate-800 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                        <img
+                          src={tyreImg}
+                          alt={`${meta.name} (${meta.code})`}
+                          className="w-full h-full object-contain"
+                          loading="lazy"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-black text-xs text-[#0F172A] tracking-wide">
+                            {meta.name}{' '}
+                            <span className="text-[#64748B] font-semibold">({meta.code})</span>
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[9px] font-bold px-1.5 py-0 ${meta.badgeBg} ${meta.badgeText}`}
+                          >
+                            {meta.shortLabel}
+                          </Badge>
+                          {isSelectedCompound && (
+                            <Badge className="bg-[#E10600] text-white text-[9px] font-black px-1.5 py-0 flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              SELECIONADO
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-[#64748B] mt-0.5">
+                          <span>
+                            Total: <strong className="text-[#0F172A]">{sets.length}</strong> jogos
+                          </span>
+                          {sets.length > 0 && (
+                            <span>
+                              (
+                              <span className="text-emerald-600 font-bold">
+                                {newSetsCount} novos
+                              </span>
+                              ,{' '}
+                              <span className="text-amber-600 font-bold">
+                                {usedSetsCount} usados
+                              </span>
+                              {installedCount > 0 && (
+                                <span className="text-[#E10600] font-bold">, 1 no carro</span>
+                              )}
+                              )
+                            </span>
+                          )}
+                          {sets.length === 0 && (
+                            <span className="text-slate-400 italic">Esgotado nesta sessão</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                    {sets.map((set, idx) => {
-                      const isFitted =
-                        set.id === car.currentTyreSetId ||
-                        (set.isFitted && set.driverId === car.driverId)
-                      const isExhausted = (set.wear || 0) >= 90
-                      const isNew = (set.lapsUsed || 0) === 0
 
-                      return (
-                        <button
-                          key={set.id}
-                          type="button"
-                          disabled={isFitted || isExhausted}
-                          onClick={() => {
-                            if (onSelectTyreSet) onSelectTyreSet(set.id)
-                          }}
-                          className={`p-2 rounded-lg border text-left transition-all flex flex-col justify-between gap-1 text-[10px] ${
-                            isFitted
-                              ? 'bg-red-50 border-[#E10600] ring-1 ring-[#E10600]'
-                              : isExhausted
-                                ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed'
-                                : 'bg-white border-[#CBD5E1] hover:border-[#E10600] cursor-pointer'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-[9px] text-[#64748B]">
-                              SET #{idx + 1}
-                            </span>
-                            {isFitted ? (
-                              <Badge className="bg-[#E10600] text-white text-[8px] h-3.5 px-1 py-0">
-                                INSTALADO
-                              </Badge>
-                            ) : isNew ? (
-                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[8px] h-3.5 px-1 py-0">
-                                NOVO
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-amber-50 text-amber-700 border-amber-300 text-[8px] h-3.5 px-1 py-0">
-                                USADO
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between font-bold text-[#0F172A]">
-                            <span>{set.lapsUsed || 0}v</span>
-                            <span
-                              className={
-                                (set.wear || 0) >= 70
-                                  ? 'text-rose-600'
-                                  : (set.wear || 0) >= 40
-                                    ? 'text-amber-600'
-                                    : 'text-emerald-600'
-                              }
-                            >
-                              {set.wear || 0}%
-                            </span>
-                          </div>
-                          <Progress value={set.wear || 0} className="h-1 bg-slate-100" />
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {/* GRID DOS JOGOS ESPECÍFICOS DESTE COMPOSTO */}
+                  {sets.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                      {sets.map((set, idx) => {
+                        const isFitted =
+                          set.id === car.currentTyreSetId ||
+                          (set.isFitted && set.driverId === car.driverId)
+                        const isExhausted = (set.wear || 0) >= 90
+                        const isNew = (set.lapsUsed || 0) === 0
+
+                        return (
+                          <button
+                            key={set.id}
+                            type="button"
+                            disabled={isFitted || isExhausted}
+                            onClick={() => {
+                              if (onSelectTyreSet) onSelectTyreSet(set.id)
+                            }}
+                            className={`p-2 rounded-lg border text-left transition-all flex flex-col justify-between gap-1 text-[10px] ${
+                              isFitted
+                                ? 'bg-red-50 border-[#E10600] ring-1 ring-[#E10600]'
+                                : isExhausted
+                                  ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed'
+                                  : 'bg-white border-[#CBD5E1] hover:border-[#E10600] cursor-pointer'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-[9px] text-[#64748B]">
+                                SET #{idx + 1}
+                              </span>
+                              {isFitted ? (
+                                <Badge className="bg-[#E10600] text-white text-[8px] h-3.5 px-1 py-0">
+                                  INSTALADO
+                                </Badge>
+                              ) : isNew ? (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[8px] h-3.5 px-1 py-0">
+                                  NOVO
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-50 text-amber-700 border-amber-300 text-[8px] h-3.5 px-1 py-0">
+                                  USADO
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between font-bold text-[#0F172A]">
+                              <span>{set.lapsUsed || 0}v</span>
+                              <span
+                                className={
+                                  (set.wear || 0) >= 70
+                                    ? 'text-rose-600'
+                                    : (set.wear || 0) >= 40
+                                      ? 'text-amber-600'
+                                      : 'text-emerald-600'
+                                }
+                              >
+                                {set.wear || 0}%
+                              </span>
+                            </div>
+                            <Progress value={set.wear || 0} className="h-1 bg-slate-100" />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-2 text-center text-[10px] text-slate-400">
+                      Nenhum jogo disponível deste composto para o piloto.
+                    </div>
+                  )}
                 </div>
               )
             })}
