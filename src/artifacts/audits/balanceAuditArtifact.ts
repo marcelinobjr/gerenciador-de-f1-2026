@@ -1,4 +1,4 @@
-import { balanceAuditService } from '../services/balanceAuditService'
+import { balanceAuditService } from '../../services/balanceAuditService'
 
 const report = balanceAuditService.runFullAudit()
 

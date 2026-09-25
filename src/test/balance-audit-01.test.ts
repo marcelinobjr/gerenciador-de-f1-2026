@@ -17,18 +17,25 @@ describe('BALANCE-AUDIT-01: Auditoria Esportiva & Diagnóstico BE02C (Baseline v
   // Executa o audit canônico
   const report = balanceAuditService.runFullAudit()
 
-  // Geração / Garantia do artefato de auditoria em src/artifacts/audits/balance-audit-01.json
-  it('BA01-00: salva artefato canônico balance-audit-01.json em src/artifacts/audits/', async () => {
+  // Verificação do artefato canônico balance-audit-01.json em src/artifacts/audits/
+  it('BA01-00: assegura e verifica artefato canônico balance-audit-01.json em src/artifacts/audits/', async () => {
     const fs = await import('node:fs')
     const path = await import('node:path')
-    // Usar caminho relativo direto ao diretório do arquivo de teste
-    const dir = path.resolve(__dirname, '../artifacts/audits')
+    const dir = path.resolve(process.cwd(), 'src/artifacts/audits')
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
     }
     const filePath = path.join(dir, 'balance-audit-01.json')
-    fs.writeFileSync(filePath, JSON.stringify(report, null, 2), 'utf-8')
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, JSON.stringify(report, null, 2), 'utf-8')
+    }
     expect(fs.existsSync(filePath)).toBe(true)
+    const content = fs.readFileSync(filePath, 'utf-8')
+    const parsed = JSON.parse(content)
+    expect(parsed.auditId).toBe('BALANCE-AUDIT-01')
+    expect(parsed.teamsAudited).toBe(29)
+    expect(parsed.tracksAudited).toBe(24)
+    expect(parsed.baselineChecksum).toBe('sha_v0_cf5fe0ee')
   })
 
   // BA01-01: 29/29 equipes auditadas
