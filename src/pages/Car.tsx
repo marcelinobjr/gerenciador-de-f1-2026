@@ -388,19 +388,30 @@ export default function CarPage() {
     rdPenaltyRounds: 0,
   })
 
-  // Carrega dados necessários do save
+  // Carrega dados necessários do save com resiliência a offline, erros e timeouts
   const loadCarData = async () => {
-    if (!team) {
-      setLoading(false)
-      return
-    }
     try {
+      if (!team?.id) {
+        // Se ainda não há team ou em transição, carrega apenas lista de pilotos se possível
+        const dList = await f1Service.getDrivers().catch(() => [])
+        if (dList && dList.length > 0) {
+          setAllDrivers(dList)
+        }
+        return
+      }
+
       const [pList, dList] = await Promise.all([
-        f1Service.getTeamParts(team.id),
-        f1Service.getDrivers(),
+        f1Service.getTeamParts(team.id).catch((err) => {
+          console.warn('Aviso ao carregar peças do carro (fallback para array vazio):', err)
+          return []
+        }),
+        f1Service.getDrivers().catch((err) => {
+          console.warn('Aviso ao carregar pilotos (fallback para array vazio):', err)
+          return []
+        }),
       ])
-      setParts(pList)
-      setAllDrivers(dList)
+      setParts(pList || [])
+      setAllDrivers(dList || [])
     } catch (err) {
       console.error('Erro ao carregar dados do carro:', err)
     } finally {
@@ -419,6 +430,14 @@ export default function CarPage() {
       window.removeEventListener('focus', handleFocus)
     }
   }, [team?.id])
+
+  // Timer de segurança para nunca deixar a tela travada no skeleton indefinidamente
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setLoading(false)
+    }, 1200)
+    return () => clearTimeout(safetyTimer)
+  }, [])
 
   useRealtime('parts', () => {
     loadCarData()
