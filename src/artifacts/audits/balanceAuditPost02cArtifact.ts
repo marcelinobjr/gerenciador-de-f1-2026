@@ -13,7 +13,7 @@ export function getOrGeneratePost02cArtifact(): Calibration01aArtifact {
 
   // Se executando em ambiente Node (Vitest/build/QA), garante a persistência no disco
   try {
-    if (typeof process !== 'undefined' && process.cwd && typeof fs?.writeFileSync === 'function') {
+    if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
       const outDir = path.resolve(process.cwd(), 'src/artifacts/audits')
       if (!fs.existsSync(outDir)) {
         fs.mkdirSync(outDir, { recursive: true })
@@ -21,10 +21,9 @@ export function getOrGeneratePost02cArtifact(): Calibration01aArtifact {
       const targetPath = path.join(outDir, 'balance-audit-post02c.json')
       fs.writeFileSync(targetPath, JSON.stringify(artifact, null, 2), 'utf-8')
     }
-  } catch (_e) {
-    // Ignorado em browsers/preview
+  } catch (err) {
+    console.warn('[balanceAuditPost02cArtifact] Failed to persist artifact:', err)
   }
-
   return artifact
 }
 

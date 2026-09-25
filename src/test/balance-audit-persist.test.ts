@@ -13,9 +13,29 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { executeAndPersistBalanceAudit } from '@/scripts/dump-audit'
+import { POST_02C_AUDIT_DATA } from '@/artifacts/audits/balanceAuditPost02cArtifact'
 
 describe('BALANCE-AUDIT-01D: Persistência Permanente do Artefato JSON', () => {
-  it('executa balanceAuditService.runFullAudit() e materializa balance-audit-01.json no disco', () => {
+  it('materializa e valida src/artifacts/audits/balance-audit-post02c.json e balance-audit-01.json no disco', () => {
+    // 1. Materialização e validação de balance-audit-post02c.json (CALIBRATION-01A)
+    const post02cPath = path.resolve(
+      process.cwd(),
+      'src/artifacts/audits/balance-audit-post02c.json',
+    )
+    fs.writeFileSync(post02cPath, JSON.stringify(POST_02C_AUDIT_DATA, null, 2), 'utf-8')
+    expect(fs.existsSync(post02cPath)).toBe(true)
+
+    const rawPost02c = fs.readFileSync(post02cPath, 'utf-8')
+    expect(rawPost02c.length).toBeGreaterThan(1000)
+    const parsedPost02c = JSON.parse(rawPost02c)
+    expect(parsedPost02c.metadata.auditPhase).toBe('CALIBRATION-01A')
+    expect(parsedPost02c.metadata.v0Checksum).toBe('sha_v0_cf5fe0ee')
+    expect(parsedPost02c.structuralRanking29).toHaveLength(29)
+    expect(parsedPost02c.grid2026Ranking12).toHaveLength(12)
+    expect(parsedPost02c.grid2026Qualifying).toHaveLength(12)
+    expect(parsedPost02c.grid2026Race).toHaveLength(12)
+
+    // 2. Materialização e validação de balance-audit-01.json (BALANCE-AUDIT-01)
     const result = executeAndPersistBalanceAudit()
     expect(result).toBeDefined()
     expect(result.report).toBeDefined()
