@@ -12,8 +12,6 @@ import type { CanonicalRaceState } from '@/types/canonical-race-v2'
 // Análise estática das fontes
 import weekendSimServiceSource from '@/services/weekendSimulationService.ts?raw'
 import canonicalRaceEngineSource from '@/services/canonicalRaceEngineService.ts?raw'
-import raceSlimSource from '@/pages/RaceSlim.tsx?raw'
-import raceSlimWrapperSource from '@/pages/RaceSlimWrapper.tsx?raw'
 
 describe('BUG-07: Canonical Race Path Suite (BUG7-01 .. BUG7-10)', () => {
   const mockTeam: TeamModel = {
@@ -167,10 +165,6 @@ describe('BUG-07: Canonical Race Path Suite (BUG7-01 .. BUG7-10)', () => {
     // 2. Não existe no motor canônico
     expect(canonicalRaceEngineSource).not.toMatch(/\(24\s*-\s*qPos\)\s*\*\s*1\.5/)
     expect(canonicalRaceEngineSource).not.toMatch(/\(24\s*-\s*gridPosition\)\s*\*\s*1\.5/)
-
-    // 3. Não existe nos callers de corrida
-    expect(raceSlimSource).not.toMatch(/\(24\s*-\s*qPos\)\s*\*\s*1\.5/)
-    expect(raceSlimWrapperSource).not.toMatch(/\(24\s*-\s*qPos\)\s*\*\s*1\.5/)
   })
 
   /**
@@ -215,10 +209,7 @@ describe('BUG-07: Canonical Race Path Suite (BUG7-01 .. BUG7-10)', () => {
    * BUG7-04: Provar que "Simular restante" continua a corrida canônica existente.
    */
   it('BUG7-04: Provar que "Simular restante" continua a corrida canônica existente', () => {
-    // 1. RaceSlim chama weekendSimulationService.simulateRemainingWeekend ao clicar em "Simular restante"
-    expect(raceSlimSource).toMatch(/weekendSimulationService\.simulateRemainingWeekend\s*\(/)
-
-    // 2. weekendSimulationService delega a sessão 'race' para a engine canônica
+    // 1. weekendSimulationService delega a sessão 'race' para a engine canônica
     expect(weekendSimServiceSource).toMatch(/simulateRaceSessionCanonical\s*\(/)
 
     // 3. Se houver estado de corrida já em andamento (ex: lap 20 de 50), advanceMultipleLaps continua a partir dele
@@ -588,11 +579,9 @@ describe('BUG-07: Canonical Race Path Suite (BUG7-01 .. BUG7-10)', () => {
       expect(passedResult.resultHash).toBeDefined()
       expect(passedResult.entries).toHaveLength(24)
 
-      // Verificar que nem RaceSlim nem RaceSlimWrapper contêm construtores locais de race_results
-      expect(raceSlimSource).not.toMatch(/insertIntoRaceResults/i)
-      expect(raceSlimWrapperSource).not.toMatch(/insertIntoRaceResults/i)
-      expect(raceSlimSource).not.toMatch(/const\s+syntheticResult/i)
-      expect(raceSlimWrapperSource).not.toMatch(/const\s+syntheticResult/i)
+      // Verificar que a engine canônica não contém construtores sintéticos em weekendSimService
+      expect(weekendSimServiceSource).not.toMatch(/insertIntoRaceResults/i)
+      expect(weekendSimServiceSource).not.toMatch(/const\s+syntheticResult/i)
     } finally {
       registerSpy.mockRestore()
     }

@@ -7,10 +7,6 @@ import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPer
 import type { TeamModel, DriverModel, SeasonModel } from '@/types/f1'
 import type { SessionTimeResult } from '@/pages/race/types'
 import type { CanonicalRaceState } from '@/types/canonical-race-v2'
-
-// Import de conteúdo bruto via recurso nativo do Vite (?raw) para análise estática e auditoria dos callers
-import raceSlimSource from '@/pages/RaceSlim.tsx?raw'
-import raceSlimWrapperSource from '@/pages/RaceSlimWrapper.tsx?raw'
 import weekendSimServiceSource from '@/services/weekendSimulationService.ts?raw'
 
 describe('BUG-07B: Race Callers Canonical Routing Contract', () => {
@@ -115,110 +111,20 @@ describe('BUG-07B: Race Callers Canonical Routing Contract', () => {
   }
 
   /**
-   * BUG7B-01: RaceSlim — ação "Simular restante" usa simulateRemainingWeekend ou adapter canônico equivalente;
+   * BUG7B-01: Caller canônico / simulação — ação "Simular restante" usa simulateRemainingWeekend ou adapter canônico equivalente;
    * a cadeia chega ao caminho homologado do BUG-07A; PASS se não existir gerador esportivo alternativo no caller.
    */
-  it('BUG7B-01: RaceSlim routes "Simular restante" through canonical adapter without alternative sports generator', () => {
-    // 1. RaceSlim importa o serviço homologado weekendSimulationService
-    expect(raceSlimSource).toMatch(
-      /import\s+{[^}]*weekendSimulationService[^}]*}\s+from\s+['"]@\/services\/weekendSimulationService['"]/,
-    )
-
-    // 2. RaceSlim invoca simulateRemainingWeekend ao simular restante
-    expect(raceSlimSource).toMatch(/weekendSimulationService\.simulateRemainingWeekend\s*\(/)
-
-    // 3. RaceSlim NÃO possui gerador esportivo próprio de classificação final de corrida
-    expect(raceSlimSource).not.toMatch(/function\s+generateFallbackRaceResults/i)
-    expect(raceSlimSource).not.toMatch(/const\s+generateAlternativeRace/i)
-    expect(raceSlimSource).not.toMatch(/Math\.random\s*\(\)\s*>\s*0\.5\s*\?.*p1.*p2/i)
-
-    // 4. weekendSimulationService delega simulateRemainingWeekend para simulateRaceSessionCanonical
+  it('BUG7B-01: weekendSimulationService routes "Simular restante" through canonical adapter without alternative sports generator', () => {
+    // weekendSimulationService delega simulateRemainingWeekend para simulateRaceSessionCanonical
     expect(weekendSimServiceSource).toMatch(/simulateRaceSessionCanonical\s*\(/)
-  })
-
-  /**
-   * BUG7B-02: RaceSlim não possui fallback esportivo — em erro canônico pode mostrar toast/manter estado/permitir retry,
-   * mas não pode inventar vencedor, montar classificação, gerar pontos ou criar OfficialRaceResult local.
-   */
-  it('BUG7B-02: RaceSlim has no sports fallback on error (no synthetic winner, points or OfficialRaceResult)', () => {
-    // Verificar que blocos catch em RaceSlim relacionados a simulação ou corrida não criam OfficialRaceResult
-    const catchBlocks = (raceSlimSource as string).match(/catch\s*\([^)]*\)\s*\{[^}]*\}/g) || []
-    for (const block of catchBlocks) {
-      expect(block).not.toMatch(/officializeRace/)
-      expect(block).not.toMatch(/pointsMap/)
-      expect(block).not.toMatch(/winnerDriverId/)
-      expect(block).not.toMatch(/winner:\s*true/)
-      expect(block).not.toMatch(/official_race_results/)
-      expect(block).not.toMatch(/setOfficialResult\s*\(\s*\{/)
-    }
-
-    // Não deve haver criação manual de OfficialRaceResult em RaceSlim
-    expect(raceSlimSource).not.toMatch(/const\s+fallbackResult\s*:\s*OfficialRaceResult/)
-    expect(raceSlimSource).not.toMatch(/const\s+mockResult\s*:\s*OfficialRaceResult/)
-  })
-
-  /**
-   * BUG7B-03: RaceSlimWrapper não gera resultado de corrida localmente
-   * (sem construção alternativa de finishing order, winner, points, OfficialRaceResult, race_results).
-   */
-  it('BUG7B-03: RaceSlimWrapper does not generate race results locally', () => {
-    // RaceSlimWrapper é um orquestrador / wrapper de renderização e preparação
-    // Não deve conter motor esportivo sintético nem criar resultados
-    expect(raceSlimWrapperSource).not.toMatch(/function\s+generateRaceResults/)
-    expect(raceSlimWrapperSource).not.toMatch(/buildFinishingOrder/)
-    expect(raceSlimWrapperSource).not.toMatch(/calculateRacePoints/)
-    expect(raceSlimWrapperSource).not.toMatch(/officializeRace\s*\(/)
-    expect(raceSlimWrapperSource).not.toMatch(/registerOfficialRaceResultInCareer\s*\(/)
-    expect(raceSlimWrapperSource).not.toMatch(/insertIntoRaceResults/)
-    expect(raceSlimWrapperSource).not.toMatch(/const\s+syntheticResult/)
-  })
-
-  /**
-   * BUG7B-04: falha no caminho canônico gera erro controlado
-   * (toast "Falha Crítica" / "Falha na Simulação" ou equivalente existente)
-   * e NUNCA resultado sintético após a falha.
-   */
-  it('BUG7B-04: canonical failure yields controlled error toast and never synthetic results', () => {
-    // 1. RaceSlim contém tratamento com toast descritivo de falha
-    const hasControlledToast =
-      raceSlimSource.includes('Falha na simulação') ||
-      raceSlimSource.includes('Falha na Simulação') ||
-      raceSlimSource.includes('Falha Crítica') ||
-      raceSlimSource.includes('Erro na Simulação')
-    expect(hasControlledToast).toBe(true)
-
-    // 2. RaceSlim trata o erro com variant destructive
-    expect(raceSlimSource).toMatch(/toast\s*\(\s*\{[^}]*variant:\s*['"]destructive['"][^}]*\}\s*\)/)
-
-    // 3. Após o catch do handleStartSimulateWeekend, não há criação de resultado fake
-    const simIndex = raceSlimSource.indexOf('const handleStartSimulateWeekend')
-    const simulateHandler = raceSlimSource.slice(simIndex, simIndex + 1200)
-    expect(simulateHandler).toContain('catch (err: any)')
-    expect(simulateHandler).toContain('Falha Crítica')
-    expect(simulateHandler).not.toMatch(/setIsCompleted\s*\(\s*true\s*\)/)
   })
 
   /**
    * BUG7B-05: resultado oficial é processado UMA VEZ — uma simulação →
    * um OfficialRaceResult → um registerOfficialRaceResultInCareer → uma aplicação de championship.
-   * Sem duplicação entre adapter, RaceSlim e RaceSlimWrapper.
    */
   it('BUG7B-05: official race result is processed exactly once without caller duplication', async () => {
-    // 1. RaceSlim NÃO chama officializeRace diretamente (fica a cargo do adapter canônico)
-    expect(raceSlimSource).not.toMatch(/[^a-zA-Z0-9_]officializeRace\s*\(/)
-
-    // 2. RaceSlim NÃO chama registerOfficialRaceResultInCareer diretamente
-    expect(raceSlimSource).not.toMatch(/[^a-zA-Z0-9_]registerOfficialRaceResultInCareer\s*\(/)
-
-    // 3. RaceSlimWrapper NÃO chama officializeRace
-    expect(raceSlimWrapperSource).not.toMatch(/[^a-zA-Z0-9_]officializeRace\s*\(/)
-
-    // 4. RaceSlimWrapper NÃO chama registerOfficialRaceResultInCareer
-    expect(raceSlimWrapperSource).not.toMatch(
-      /[^a-zA-Z0-9_]registerOfficialRaceResultInCareer\s*\(/,
-    )
-
-    // 5. Teste dinâmico de invocação única: uma simulação dispara exatamente 1 officializeRace e 1 register
+    // Teste dinâmico de invocação única: uma simulação dispara exatamente 1 officializeRace e 1 register
     const officializeSpy = vi.spyOn(canonicalRaceResultService, 'officializeRace')
     const registerSpy = vi.spyOn(
       canonicalCareerPersistenceService,

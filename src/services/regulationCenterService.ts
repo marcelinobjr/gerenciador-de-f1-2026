@@ -578,7 +578,7 @@ export function buildSeasonRegulations2026(): RegulationDefinition[] {
         'Regra regulamentar / suporte parcial no APEX: O motor de corrida registra incidentes críticos de bandeira vermelha na estrutura canônica de eventos (eventsSummary.redFlagPeriods), interrompendo a contagem do cronômetro da prova e consolidando a ordem de relargada. A execução procedural detalhada do procedimento completo de reparo sob paralisação no pit lane tem escopo parcial no runner de texto.',
       teamSituationNote:
         'Se uma prova sofrer interrupção por bandeira vermelha, a classificação da volta anterior à interrupção é utilizada como referência de grid para o reinício.',
-      relatedService: 'canonicalRaceEngineService & raceNarratedEvents',
+      relatedService: 'canonicalRaceEngineService & raceEventsSummary',
       relatedRoute: '/corrida',
       relatedRouteLabel: 'VER OPERAÇÕES DE CORRIDA',
       hasTeamContext: false,

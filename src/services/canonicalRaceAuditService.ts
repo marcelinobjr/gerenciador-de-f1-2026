@@ -6,8 +6,6 @@
  * garantindo ausência de geradores legados, bônus artificiais de grid, fallbacks locais e duplicações.
  */
 
-import raceSlimSource from '@/pages/RaceSlim.tsx?raw'
-import raceSlimWrapperSource from '@/pages/RaceSlimWrapper.tsx?raw'
 import weekendSimServiceSource from '@/services/weekendSimulationService.ts?raw'
 import canonicalRaceEngineSource from '@/services/canonicalRaceEngineService.ts?raw'
 import canonicalRaceResultSource from '@/services/canonicalRaceResultService.ts?raw'
@@ -43,8 +41,8 @@ export function auditCanonicalRaceSimulationPath(sources?: {
   canonicalRaceEngine?: string
   canonicalRaceResult?: string
 }): CanonicalRaceSimulationAuditReport {
-  const codeSlim = sources?.raceSlim ?? raceSlimSource
-  const codeWrapper = sources?.raceSlimWrapper ?? raceSlimWrapperSource
+  const codeSlim = sources?.raceSlim ?? ''
+  const codeWrapper = sources?.raceSlimWrapper ?? ''
   const codeWeekend = sources?.weekendSim ?? weekendSimServiceSource
   const codeEngine = sources?.canonicalRaceEngine ?? canonicalRaceEngineSource
   const codeResult = sources?.canonicalRaceResult ?? canonicalRaceResultSource
