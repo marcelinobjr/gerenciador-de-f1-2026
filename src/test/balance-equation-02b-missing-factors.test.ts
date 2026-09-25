@@ -51,6 +51,7 @@ import { CanonicalRaceDriverState } from '@/types/canonical-race-v2'
 describe('BALANCE-EQUATION-02B — Missing Structural Factors', () => {
   beforeEach(() => {
     structuralMissingFactorsService.clearMemoryCache()
+    balanceBaselineService.restoreBalanceBaseline('v0')
   })
 
   // 1. V0 ANTES DE TUDO
@@ -105,23 +106,26 @@ describe('BALANCE-EQUATION-02B — Missing Structural Factors', () => {
   // BE02B-03: PU wear chega ao pace engine
   it('BE02B-03: PU wear chega ao pace engine reduzindo o lap pace canônico', () => {
     const freshDriver: CanonicalRaceDriverState = {
+      careerId: 'test_career',
+      season: 2026,
+      raceId: 'test_race',
       driverId: 'drv_test_1',
       teamId: 'ferrari',
+      teamName: 'Ferrari',
+      teamColor: '#E8002D',
+      isPlayer: false,
       driverName: 'Driver Fresh',
       gridPosition: 1,
       currentPosition: 1,
-      accumulatedRaceTimeSec: 0,
-      gapToLeaderSec: 0,
-      gapToCarAheadSec: 0,
-      lapNumber: 1,
-      currentLapTimeSec: 80,
-      status: 'RUNNING',
-      currentTyreCompound: 'MEDIUM',
-      tyreLapsUsed: 1,
-      tyreWearPercent: 10,
+      lap: 1,
+      raceTime: 80,
+      gap: 'LÍDER',
+      tyreCompound: 'medio',
+      tyreAge: 1,
+      fuel: 95,
       carCondition: 100, // Fresco: zero pu wear
-      totalPitStops: 0,
-      hasReceivedCheckeredFlag: false,
+      raceStatus: 'racing',
+      pitStops: 0,
     }
 
     const wornDriver: CanonicalRaceDriverState = {
@@ -129,14 +133,24 @@ describe('BALANCE-EQUATION-02B — Missing Structural Factors', () => {
       carCondition: 40, // 60% de dano/wear acumulado
     }
 
-    const paceFresh = canonicalRaceEngineService.calculateCanonicalLapPace(
-      freshDriver,
-      80,
-      () => 0.5,
-    )
-    const paceWorn = canonicalRaceEngineService.calculateCanonicalLapPace(wornDriver, 80, () => 0.5)
+    const paceFresh = canonicalRaceEngineService.calculateCanonicalLapPace({
+      driver: freshDriver,
+      lap: 10,
+      weather: 'seco',
+      round: 1,
+      circuitName: 'Interlagos',
+      rng: () => 0.5,
+    })
+    const paceWorn = canonicalRaceEngineService.calculateCanonicalLapPace({
+      driver: wornDriver,
+      lap: 10,
+      weather: 'seco',
+      round: 1,
+      circuitName: 'Interlagos',
+      rng: () => 0.5,
+    })
 
-    expect(paceWorn).toBeGreaterThan(paceFresh)
+    expect(paceWorn.lapTimeSec).toBeGreaterThan(paceFresh.lapTimeSec)
   })
 
   // BE02B-04: PU wear penalty aplicado uma vez
@@ -323,30 +337,47 @@ describe('BALANCE-EQUATION-02B — Missing Structural Factors', () => {
   // BE02B-14: teamMorale não altera lap time diretamente
   it('BE02B-14: teamMorale não altera lap time diretamente no race engine', () => {
     const driverState: CanonicalRaceDriverState = {
+      careerId: 'test_career',
+      season: 2026,
+      raceId: 'test_race',
       driverId: 'drv_test_morale',
       teamId: 'mercedes',
+      teamName: 'Mercedes',
+      teamColor: '#00D2BE',
+      isPlayer: false,
       driverName: 'Driver Morale',
       gridPosition: 1,
       currentPosition: 1,
-      accumulatedRaceTimeSec: 0,
-      gapToLeaderSec: 0,
-      gapToCarAheadSec: 0,
-      lapNumber: 1,
-      currentLapTimeSec: 80,
-      status: 'RUNNING',
-      currentTyreCompound: 'MEDIUM',
-      tyreLapsUsed: 1,
-      tyreWearPercent: 10,
+      lap: 1,
+      raceTime: 80,
+      gap: 'LÍDER',
+      tyreCompound: 'medio',
+      tyreAge: 1,
+      fuel: 95,
       carCondition: 100,
-      totalPitStops: 0,
-      hasReceivedCheckeredFlag: false,
+      raceStatus: 'racing',
+      pitStops: 0,
     }
 
     // Mesmo com teamMorale variando no nível institucional, o calculateCanonicalLapPace
     // é estritamente baseado em piloto, carro, pista, pneus e pu wear
-    const pace1 = canonicalRaceEngineService.calculateCanonicalLapPace(driverState, 80, () => 0.5)
-    const pace2 = canonicalRaceEngineService.calculateCanonicalLapPace(driverState, 80, () => 0.5)
-    expect(pace1).toBe(pace2)
+    const pace1 = canonicalRaceEngineService.calculateCanonicalLapPace({
+      driver: driverState,
+      lap: 10,
+      weather: 'seco',
+      round: 1,
+      circuitName: 'Interlagos',
+      rng: () => 0.5,
+    })
+    const pace2 = canonicalRaceEngineService.calculateCanonicalLapPace({
+      driver: driverState,
+      lap: 10,
+      weather: 'seco',
+      round: 1,
+      circuitName: 'Interlagos',
+      rng: () => 0.5,
+    })
+    expect(pace1.lapTimeSec).toBe(pace2.lapTimeSec)
   })
 
   // BE02B-15: 29/29 equipes possuem dados válidos/defaulted
@@ -382,28 +413,87 @@ describe('BALANCE-EQUATION-02B — Missing Structural Factors', () => {
   })
 
   // BE02B-17: compare V0 detecta diferenças
-  it('BE02B-17: compare V0 detecta diferenças de balanceamento', () => {
+  it('BE02B-17: compare V0 detecta diferenças quando aplicadas mutações', () => {
+    // Aplica mutação em runtime para testar detecção
+    balanceBaselineService.applyRuntimeOverride('mercedes', {
+      carReliabilityRating: 60,
+    })
+
     const comparison = balanceBaselineService.compareBalanceWithBaseline('v0')
-    expect(comparison.baselineVersion).toBe('v0')
-    expect(comparison.totalTeamsEvaluated).toBe(29)
-    expect(typeof comparison.divergencesCount).toBe('number')
+    expect(comparison.version).toBe('v0')
+    expect(comparison.totalBaselineTeams).toBe(29)
+    expect(comparison.hasDifferences).toBe(true)
+    expect(comparison.changedTeams.length).toBeGreaterThan(0)
+    expect(comparison.changedTeams.some((t) => t.teamKey === 'mercedes')).toBe(true)
   })
 
   // BE02B-18: restore V0 remove diferenças de balanceamento
-  it('BE02B-18: restore V0 restaura parâmetros de balanceamento de forma idempotente', () => {
-    const restoreResult = structuralStrengthService.restoreBalanceBaseline('v0')
+  it('BE02B-18: restore V0 restaura parâmetros de balanceamento de forma idempotente removendo diferenças', () => {
+    // Garante que existe override
+    balanceBaselineService.applyRuntimeOverride('ferrari', {
+      nominalPuPower: 70,
+    })
+    expect(balanceBaselineService.compareBalanceWithBaseline('v0').hasDifferences).toBe(true)
+
+    // Executa restore via balanceBaselineService
+    const restoreResult = balanceBaselineService.restoreBalanceBaseline('v0')
     expect(restoreResult.success).toBe(true)
-    expect(restoreResult.versionRestored).toBe('v0')
-    expect(restoreResult.restoredTeamsCount).toBe(29)
+    expect(restoreResult.version).toBe('v0')
+    expect(restoreResult.restoredTeams).toBeGreaterThan(0)
+
+    // Após restore, compare com V0 não deve ter diferenças
+    const postRestoreCompare = balanceBaselineService.compareBalanceWithBaseline('v0')
+    expect(postRestoreCompare.hasDifferences).toBe(false)
+    expect(postRestoreCompare.changedTeams.length).toBe(0)
+
+    // Também valida método via structuralStrengthService
+    const structuralRestore = structuralStrengthService.restoreBalanceBaseline('v0')
+    expect(structuralRestore.success).toBe(true)
+    expect(structuralRestore.versionRestored).toBe('v0')
+    expect(structuralRestore.restoredTeamsCount).toBe(29)
   })
 
   // BE02B-19: restore não altera career state
-  it('BE02B-19: restore não altera career state (contratos, campeonatos, saves)', () => {
-    // Validação de contrato canônico
-    const restoreDryRun = balanceBaselineService.restoreBaseline('v0', { dryRun: true })
+  it('BE02B-19: restore não altera career state (contratos, campeonatos, saves, resultados, standings)', () => {
+    const careerFixture = {
+      careerId: 'apex_02b_career_preservation_test',
+      season: 2026,
+      round: 12,
+      standings: { p1: 'norris', points: 210 },
+      contracts: [{ driverId: 'norris', team: 'mclaren', salary: 25000000 }],
+      history: [{ round: 1, winner: 'norris' }],
+      palmares: { titles: 0, wins: 5 },
+      transfers: [],
+      saveSlot: 1,
+    }
+
+    const fixtureKey = 'apex_career_slot_02b'
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(fixtureKey, JSON.stringify(careerFixture))
+    }
+
+    // Aplica mutação de balanceamento
+    balanceBaselineService.applyRuntimeOverride('mclaren', {
+      carReliabilityRating: 50,
+    })
+
+    // Executa restore
+    const restoreRes = balanceBaselineService.restoreBalanceBaseline('v0')
+    expect(restoreRes.success).toBe(true)
+    expect(restoreRes.skippedCareerFields).toBeGreaterThan(0)
+
+    // Carreira intacta
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const persisted = JSON.parse(window.localStorage.getItem(fixtureKey)!)
+      expect(persisted).toEqual(careerFixture)
+      window.localStorage.removeItem(fixtureKey)
+    }
+
+    // Dry-run também atesta proteção
+    const restoreDryRun = balanceBaselineService.restoreBalanceBaseline('v0', { dryRun: true })
     expect(restoreDryRun.success).toBe(true)
-    expect(restoreDryRun.careerStateProtected).toBe(true)
-    expect(restoreDryRun.careerTouchedFields).toEqual([])
+    expect(restoreDryRun.dryRun).toBe(true)
+    expect(restoreDryRun.skippedCareerFields).toBeGreaterThan(0)
   })
 
   // BE02B-20: zero team bonus por nome
@@ -421,23 +511,26 @@ describe('BALANCE-EQUATION-02B — Missing Structural Factors', () => {
   // GOLDEN — PU WEAR
   it('GOLDEN PU WEAR: mesmo carro/piloto, PU condition 100 vs 40 -> pior pace e maior risco', () => {
     const driverFresh: CanonicalRaceDriverState = {
+      careerId: 'test_career',
+      season: 2026,
+      raceId: 'test_race',
       driverId: 'golden_drv',
       teamId: 'redbull',
+      teamName: 'Red Bull Racing',
+      teamColor: '#3671C6',
+      isPlayer: false,
       driverName: 'Golden Pilot',
       gridPosition: 2,
       currentPosition: 2,
-      accumulatedRaceTimeSec: 0,
-      gapToLeaderSec: 0,
-      gapToCarAheadSec: 0,
-      lapNumber: 10,
-      currentLapTimeSec: 80,
-      status: 'RUNNING',
-      currentTyreCompound: 'HARD',
-      tyreLapsUsed: 5,
-      tyreWearPercent: 15,
+      lap: 10,
+      raceTime: 800,
+      gap: '+1.500s',
+      tyreCompound: 'duro',
+      tyreAge: 5,
+      fuel: 80,
       carCondition: 100,
-      totalPitStops: 0,
-      hasReceivedCheckeredFlag: false,
+      raceStatus: 'racing',
+      pitStops: 0,
     }
 
     const driverWorn: CanonicalRaceDriverState = {
@@ -445,14 +538,24 @@ describe('BALANCE-EQUATION-02B — Missing Structural Factors', () => {
       carCondition: 40,
     }
 
-    const paceFresh = canonicalRaceEngineService.calculateCanonicalLapPace(
-      driverFresh,
-      80,
-      () => 0.5,
-    )
-    const paceWorn = canonicalRaceEngineService.calculateCanonicalLapPace(driverWorn, 80, () => 0.5)
+    const paceFresh = canonicalRaceEngineService.calculateCanonicalLapPace({
+      driver: driverFresh,
+      lap: 10,
+      weather: 'seco',
+      round: 1,
+      circuitName: 'Interlagos',
+      rng: () => 0.5,
+    })
+    const paceWorn = canonicalRaceEngineService.calculateCanonicalLapPace({
+      driver: driverWorn,
+      lap: 10,
+      weather: 'seco',
+      round: 1,
+      circuitName: 'Interlagos',
+      rng: () => 0.5,
+    })
 
-    expect(paceWorn).toBeGreaterThan(paceFresh)
+    expect(paceWorn.lapTimeSec).toBeGreaterThan(paceFresh.lapTimeSec)
 
     const riskFresh = calculateMechanicalFailureRisk({
       carReliability: 90,
