@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { getLocalDriverPosterCandidates, getInitials } from '@/lib/pilot-posters'
+import { getInitials } from '@/lib/pilot-posters'
+import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 import { cn } from '@/lib/utils'
 
@@ -28,9 +29,18 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
     return null
   }, [visualIdentity, portraitAssetId])
 
+  const resolvedPhoto = useMemo(() => {
+    return resolveDriverPhoto({
+      name,
+      driverId,
+      visualIdentity: effectiveVisualIdentity,
+      portraitAssetId: effectiveVisualIdentity?.portraitAssetId || portraitAssetId,
+    })
+  }, [name, driverId, effectiveVisualIdentity, portraitAssetId])
+
   const candidateUrls = useMemo(
-    () => getLocalDriverPosterCandidates(name, driverId, effectiveVisualIdentity),
-    [name, driverId, effectiveVisualIdentity],
+    () => resolvedPhoto.candidateUrls,
+    [resolvedPhoto],
   )
   const [candidateIndex, setCandidateIndex] = useState(0)
 

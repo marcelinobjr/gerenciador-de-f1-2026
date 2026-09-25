@@ -157,60 +157,19 @@ export function getLocalDriverPosterCandidates(
     }
   }
 
-  // (iii) Candidatos atuais por nome/matcher
+  // Se já temos URLs do resolvedor canônico ou visualIdentity, usamos estritamente elas
+  // Zero pôsteres gráficos/Drive/Dropbox — só /pilotos/DRV_XXXX.jpg ou pilotos-gerados/
+  if (candidates.length > 0) {
+    return candidates
+  }
+
+  // Fallback seguro se não resolveu pelo canônico (nunca Dropbox/Drive externo)
   if (!name && !driverId) return candidates
   const sources = getDriverPhotoSources(name || '')
-  const norm = name ? normalizeSurname(name) : ''
-  const surname = name ? normalizeDriverSurname(name) : ''
 
-  // Sem injeção de URLs externas de Rafael Câmara (priorizar estritamente resolver canônico local)
-
-  // 1. Daniel Ricciardo asset local do bundle
-  if (
-    surname === 'ricciardo' ||
-    sources.normalizedKey === 'ricciardo' ||
-    norm.includes('ricciardo')
-  ) {
-    addCandidate(ricciardoBundledPoster)
-  }
-
-  // 2. Asset empacotado no bundle se houver
+  // Asset empacotado no bundle se houver
   if (sources.bundledImg) {
     addCandidate(sources.bundledImg)
-  }
-
-  // 3. Arquivo local canônico de fontes se existir
-  if (sources.filename) {
-    addCandidate(`/pilotos/${sources.filename}`)
-  }
-
-  // 4. Candidatos locais adicionais do helper driver-photos (apenas caminhos locais válidos)
-  if (sources.localCandidates && sources.localCandidates.length > 0) {
-    for (const c of sources.localCandidates) {
-      if (
-        typeof c === 'string' &&
-        (c.startsWith('/pilotos/') || c.startsWith('/pilotos-gerados/'))
-      ) {
-        addCandidate(c)
-      }
-    }
-  }
-
-  // 5. Fallbacks de contingência apenas no final da lista (nunca primários)
-  if (sources.filename) {
-    const cdnFile = getDriveStoragePhotoUrl(sources.filename)
-    if (cdnFile) addCandidate(cdnFile)
-  }
-  const cdnDirect =
-    getDriveStoragePhotoUrl(sources.normalizedKey) || getDriveStoragePhotoUrl(surname)
-  if (cdnDirect) {
-    addCandidate(cdnDirect)
-  }
-  if (sources.dropboxUrl) {
-    addCandidate(sources.dropboxUrl)
-  }
-  if (sources.fallbackDropbox) {
-    addCandidate(sources.fallbackDropbox)
   }
 
   return candidates

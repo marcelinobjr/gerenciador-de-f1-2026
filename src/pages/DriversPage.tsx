@@ -4,7 +4,7 @@ import { DriverPoster } from '@/components/DriverPoster'
 import { DriverSidePanel } from '@/components/DriverSidePanel'
 import { DriverComparisonModal } from '@/components/DriverComparisonModal'
 import { PilotProfileDialog, formatUsdCurrency } from '@/components/PilotProfileDialog'
-import { getCountryFlag } from '@/lib/country-flags'
+import { getCountryFlag, CountryFlagChip } from '@/lib/country-flags'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { DriverNegotiationModal } from '@/components/commercial/DriverNegotiationModal'
 import { SillySeasonBoard } from '@/components/commercial/SillySeasonBoard'
@@ -1236,9 +1236,10 @@ export default function DriversPage() {
                           {/* Coluna Piloto (Bandeira + Nome) */}
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
-                              <span className="text-base shrink-0 leading-none">
-                                {getCountryFlag(pilot.nationality)}
-                              </span>
+                              <CountryFlagChip
+                                country={pilot.nationality}
+                                className="w-6 h-4 text-[9px]"
+                              />
                               <span
                                 className={`truncate font-bold ${
                                   isSelected

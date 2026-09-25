@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { DriverPoster } from '@/components/DriverPoster'
-import { getCountryFlag } from '@/lib/country-flags'
+import { getCountryFlag, CountryFlagChip } from '@/lib/country-flags'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { getOverallRating } from '@/lib/mbj-drivers-data'
@@ -129,7 +129,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
       {/* Topo do painel com botão fechar se for modal ou mobile */}
       <div className="p-4 sm:p-5 pb-3 border-b border-slate-100 flex items-start justify-between gap-3 bg-gradient-to-b from-slate-50/60 to-white">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-2xl leading-none">{getCountryFlag(driver.nationality)}</span>
+          <CountryFlagChip country={driver.nationality} className="w-7 h-5 text-[10px]" />
           <div className="min-w-0">
             <h2 className="text-lg sm:text-xl font-black text-slate-900 truncate leading-tight tracking-tight">
               {driver.name}
