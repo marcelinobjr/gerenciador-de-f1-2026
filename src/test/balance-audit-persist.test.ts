@@ -25,64 +25,38 @@ describe('BALANCE-AUDIT-01D: Persistência Permanente do Artefato JSON', () => {
     expect(fs.existsSync(targetPath)).toBe(true)
 
     const rawContent = fs.readFileSync(targetPath, 'utf-8')
-    const parsed = JSON.parse(rawContent)
-    const errPayload = JSON.stringify({
-      structuralRanking: parsed.diagnostics.structuralRankingP1P29,
-      championshipRanking: parsed.diagnostics.championshipRankingP1P29,
-      structuralVsChampionship: parsed.diagnostics.structuralVsChampionship,
-      top10Gains: parsed.diagnostics.top10Gains,
-      top10Losses: parsed.diagnostics.top10Losses,
-      largeGapInversionsSection: parsed.diagnostics.largeGapInversionsSection,
-      dominanceStats: parsed.diagnostics.dominanceStats,
-      audiVsHaasFull: parsed.diagnostics.audiVsHaasFull,
-      groupHierarchies: parsed.diagnostics.groupHierarchies,
-      groupHeadToHead: parsed.diagnostics.groupHeadToHead,
-      trackRankingByShift: parsed.diagnostics.trackRankingByShift,
-      globalTrackFitStats: parsed.diagnostics.globalTrackFitStats,
-      teamTrackFitBias: parsed.diagnostics.teamTrackFitBias,
-      trackTrackFitBias: parsed.diagnostics.trackTrackFitBias,
-      diagnostico8Respostas: parsed.diagnostics.diagnostico8Respostas,
-      maxPaceBreakdownResidual: result.report.maxPaceBreakdownResidual,
-      paceBreakdownIntegrityPassed: result.report.paceBreakdownIntegrityPassed,
-      duplicationAudit: result.report.duplicationAudit,
-    })
-    throw new Error(`DUMP_AUDIT_DATA:::${errPayload}:::END_DUMP`)
-    expect(result.report).toBeDefined()
-    expect(result.diagnosis).toBeDefined()
-
-    const targetPath = path.resolve(process.cwd(), 'src/artifacts/audits/balance-audit-01.json')
-    expect(fs.existsSync(targetPath)).toBe(true)
-
-    const rawContent = fs.readFileSync(targetPath, 'utf-8')
     expect(rawContent.length).toBeGreaterThan(50000)
 
     // Dump das seções necessárias para a resposta final fiel aos dados reais
     console.warn('--- BEGIN BALANCE AUDIT ARTIFACT EXTRACTION ---')
     const parsed = JSON.parse(rawContent)
-    console.warn('AUDIT_METRICS:', JSON.stringify({
-      auditId: parsed.auditId,
-      teamsAudited: parsed.teamsAudited,
-      tracksAudited: parsed.tracksAudited,
-      baselineChecksum: parsed.baselineChecksum,
-      structuralRanking: parsed.diagnostics.structuralRankingP1P29,
-      championshipRanking: parsed.diagnostics.championshipRankingP1P29,
-      structuralVsChampionship: parsed.diagnostics.structuralVsChampionship,
-      top10Gains: parsed.diagnostics.top10Gains,
-      top10Losses: parsed.diagnostics.top10Losses,
-      largeGapInversionsSection: parsed.diagnostics.largeGapInversionsSection,
-      dominanceStats: parsed.diagnostics.dominanceStats,
-      audiVsHaasFull: parsed.diagnostics.audiVsHaasFull,
-      groupHierarchies: parsed.diagnostics.groupHierarchies,
-      groupHeadToHead: parsed.diagnostics.groupHeadToHead,
-      trackRankingByShift: parsed.diagnostics.trackRankingByShift,
-      globalTrackFitStats: parsed.diagnostics.globalTrackFitStats,
-      teamTrackFitBias: parsed.diagnostics.teamTrackFitBias,
-      trackTrackFitBias: parsed.diagnostics.trackTrackFitBias,
-      diagnostico8Respostas: parsed.diagnostics.diagnostico8Respostas,
-      maxPaceBreakdownResidual: result.report.maxPaceBreakdownResidual,
-      paceBreakdownIntegrityPassed: result.report.paceBreakdownIntegrityPassed,
-      duplicationAudit: result.report.duplicationAudit,
-    }))
+    console.warn(
+      'AUDIT_METRICS:',
+      JSON.stringify({
+        auditId: parsed.auditId,
+        teamsAudited: parsed.teamsAudited,
+        tracksAudited: parsed.tracksAudited,
+        baselineChecksum: parsed.baselineChecksum,
+        structuralRanking: parsed.diagnostics.structuralRankingP1P29,
+        championshipRanking: parsed.diagnostics.championshipRankingP1P29,
+        structuralVsChampionship: parsed.diagnostics.structuralVsChampionship,
+        top10Gains: parsed.diagnostics.top10Gains,
+        top10Losses: parsed.diagnostics.top10Losses,
+        largeGapInversionsSection: parsed.diagnostics.largeGapInversionsSection,
+        dominanceStats: parsed.diagnostics.dominanceStats,
+        audiVsHaasFull: parsed.diagnostics.audiVsHaasFull,
+        groupHierarchies: parsed.diagnostics.groupHierarchies,
+        groupHeadToHead: parsed.diagnostics.groupHeadToHead,
+        trackRankingByShift: parsed.diagnostics.trackRankingByShift,
+        globalTrackFitStats: parsed.diagnostics.globalTrackFitStats,
+        teamTrackFitBias: parsed.diagnostics.teamTrackFitBias,
+        trackTrackFitBias: parsed.diagnostics.trackTrackFitBias,
+        diagnostico8Respostas: parsed.diagnostics.diagnostico8Respostas,
+        maxPaceBreakdownResidual: result.report.maxPaceBreakdownResidual,
+        paceBreakdownIntegrityPassed: result.report.paceBreakdownIntegrityPassed,
+        duplicationAudit: result.report.duplicationAudit,
+      }),
+    )
     console.warn('--- END BALANCE AUDIT ARTIFACT EXTRACTION ---')
     expect(parsed.auditId).toBe('BALANCE-AUDIT-01')
     expect(parsed.teamsAudited).toBe(29)
