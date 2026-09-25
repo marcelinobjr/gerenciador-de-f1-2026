@@ -24,67 +24,76 @@ export interface PortraitFieldCarrier {
  * - Preserva visualIdentity.portraitAssetId persistido quando next não trouxer.
  * - Preserva visualIdentity.generatedPortraitProfileId persistido quando aplicável.
  * - NÃO inventa campos do nada se persisted não os possuir.
- * - Retorna next enriquecido (imutável ou estendido com segurança).
+ * - Retorna next enriquecido (objeto plano {} desempacotado, nunca Array).
  */
 export function preservePortraitFields<
   T extends PortraitFieldCarrier | null | undefined,
   U extends PortraitFieldCarrier | null | undefined,
 >(persisted: T, next: U): (U & PortraitFieldCarrier) | null | undefined {
   if (!persisted || typeof persisted !== 'object') {
-    return next
+    return (Array.isArray(next) ? { ...next } : next) as
+      | (U & PortraitFieldCarrier)
+      | null
+      | undefined
   }
 
   if (!next || typeof next !== 'object') {
     return next
   }
 
-  const persistedProfileId =
-    persisted.generatedPortraitProfileId ||
-    persisted.visualIdentity?.generatedPortraitProfileId ||
+  // Se next ou persisted for Array, desempacotar para objeto plano {} antes de mesclar
+  const safePersisted: any = Array.isArray(persisted) ? { ...persisted } : persisted
+  const result: any = Array.isArray(next) ? { ...next } : { ...next }
+
+  const persistedProfileIdSafe =
+    safePersisted.generatedPortraitProfileId ||
+    safePersisted.visualIdentity?.generatedPortraitProfileId ||
     null
 
-  const persistedPortraitAssetId = persisted.visualIdentity?.portraitAssetId || null
+  const persistedPortraitAssetIdSafe = safePersisted.visualIdentity?.portraitAssetId || null
 
-  // Se o registro persistido não tiver nenhum desses campos, nada a preservar
-  if (!persistedProfileId && !persistedPortraitAssetId) {
-    return next
+  // Se o registro persistido não tiver nenhum desses campos, retorna result como objeto
+  if (!persistedProfileIdSafe && !persistedPortraitAssetIdSafe) {
+    return result as U & PortraitFieldCarrier
   }
 
-  const result: any = Array.isArray(next) ? [...next] : { ...next }
-
   // 1. generatedPortraitProfileId no nível raiz
-  if (!result.generatedPortraitProfileId && persistedProfileId) {
-    result.generatedPortraitProfileId = persistedProfileId
+  if (!result.generatedPortraitProfileId && persistedProfileIdSafe) {
+    result.generatedPortraitProfileId = persistedProfileIdSafe
   }
 
   // 2. visualIdentity
   const nextVisual = result.visualIdentity
-  const persistedVisual = persisted.visualIdentity
+  const persistedVisual = safePersisted.visualIdentity
 
-  if (persistedPortraitAssetId || persistedProfileId) {
-    if (!nextVisual || typeof nextVisual !== 'object') {
-      if (persistedVisual && typeof persistedVisual === 'object') {
+  if (persistedPortraitAssetIdSafe || persistedProfileIdSafe) {
+    if (!nextVisual || typeof nextVisual !== 'object' || Array.isArray(nextVisual)) {
+      if (
+        persistedVisual &&
+        typeof persistedVisual === 'object' &&
+        !Array.isArray(persistedVisual)
+      ) {
         result.visualIdentity = { ...persistedVisual }
       } else {
         result.visualIdentity = {}
-        if (persistedPortraitAssetId) {
-          result.visualIdentity.portraitAssetId = persistedPortraitAssetId
+        if (persistedPortraitAssetIdSafe) {
+          result.visualIdentity.portraitAssetId = persistedPortraitAssetIdSafe
         }
-        if (persistedProfileId) {
-          result.visualIdentity.generatedPortraitProfileId = persistedProfileId
+        if (persistedProfileIdSafe) {
+          result.visualIdentity.generatedPortraitProfileId = persistedProfileIdSafe
         }
       }
     } else {
       const mergedVisual: any = { ...nextVisual }
       let visualModified = false
 
-      if (!mergedVisual.portraitAssetId && persistedPortraitAssetId) {
-        mergedVisual.portraitAssetId = persistedPortraitAssetId
+      if (!mergedVisual.portraitAssetId && persistedPortraitAssetIdSafe) {
+        mergedVisual.portraitAssetId = persistedPortraitAssetIdSafe
         visualModified = true
       }
 
-      if (!mergedVisual.generatedPortraitProfileId && persistedProfileId) {
-        mergedVisual.generatedPortraitProfileId = persistedProfileId
+      if (!mergedVisual.generatedPortraitProfileId && persistedProfileIdSafe) {
+        mergedVisual.generatedPortraitProfileId = persistedProfileIdSafe
         visualModified = true
       }
 

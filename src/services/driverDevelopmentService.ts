@@ -113,14 +113,16 @@ class DriverDevelopmentService {
 
     // Se for piloto procedural, atualiza metadados e marco
     const rawProc = (driver as any).procedural_data
-    if (rawProc) {
-      const updatedMeta = {
-        ...rawProc,
+    if (rawProc !== undefined && rawProc !== null) {
+      const { sanitizeDriverProceduralData } = await import('@/lib/sanitizeDriverProceduralData')
+      const normExisting = sanitizeDriverProceduralData(rawProc)
+      const updatedMeta = sanitizeDriverProceduralData(rawProc, {
+        ...normExisting,
         currentAcademyTeamId: team.id,
         careerStatus: 'academy',
-        academyOriginTeamId: rawProc.academyOriginTeamId || team.id,
+        academyOriginTeamId: normExisting.academyOriginTeamId || team.id,
         milestones: [
-          ...(rawProc.milestones || []),
+          ...(normExisting.milestones || []),
           {
             date: new Date().toISOString().split('T')[0],
             type: 'entrada_academia',
@@ -129,11 +131,11 @@ class DriverDevelopmentService {
             description: `Ingressou oficialmente na Academia de Pilotos da ${team.name}.`,
           },
         ],
-      }
+      })
       ;(updates as any).procedural_data = updatedMeta
       ;(updates as any).career_status = 'academy'
       if (!(updates as any).academy_origin_team_id) {
-        ;(updates as any).academy_origin_team_id = rawProc.academyOriginTeamId || team.id
+        ;(updates as any).academy_origin_team_id = normExisting.academyOriginTeamId || team.id
       }
     }
 
@@ -262,13 +264,15 @@ class DriverDevelopmentService {
     }
 
     const rawProc = (driver as any).procedural_data
-    if (rawProc) {
-      const updatedMeta = {
-        ...rawProc,
+    if (rawProc !== undefined && rawProc !== null) {
+      const { sanitizeDriverProceduralData } = await import('@/lib/sanitizeDriverProceduralData')
+      const normExisting = sanitizeDriverProceduralData(rawProc)
+      const updatedMeta = sanitizeDriverProceduralData(rawProc, {
+        ...normExisting,
         currentAcademyTeamId: undefined,
         careerStatus: 'free_agent',
         milestones: [
-          ...(rawProc.milestones || []),
+          ...(normExisting.milestones || []),
           {
             date: new Date().toISOString().split('T')[0],
             type: 'dispensado',
@@ -277,7 +281,7 @@ class DriverDevelopmentService {
             description: `Liberado do programa da ${team.name}. Disponível no mercado como agente livre.`,
           },
         ],
-      }
+      })
       ;(updates as any).procedural_data = updatedMeta
       ;(updates as any).career_status = 'free_agent'
     }
@@ -790,11 +794,13 @@ class DriverDevelopmentService {
 
       // Adiciona milestone procedural se for piloto procedural
       const rawProc = (driver as any).procedural_data
-      if (rawProc) {
-        const updatedMeta = {
-          ...rawProc,
+      if (rawProc !== undefined && rawProc !== null) {
+        const { sanitizeDriverProceduralData } = await import('@/lib/sanitizeDriverProceduralData')
+        const normExisting = sanitizeDriverProceduralData(rawProc)
+        const updatedMeta = sanitizeDriverProceduralData(rawProc, {
+          ...normExisting,
           milestones: [
-            ...(rawProc.milestones || []),
+            ...(normExisting.milestones || []),
             {
               date: new Date().toISOString().split('T')[0],
               type: 'homologacao_conquistada',
@@ -803,7 +809,7 @@ class DriverDevelopmentService {
               description: `Conquistou a Super Licença FIA Nível A após ${updatedProgram.completedValidTests} testes válidos.`,
             },
           ],
-        }
+        })
         await pb.collection('drivers').update(driver.id, {
           procedural_data: updatedMeta,
         })

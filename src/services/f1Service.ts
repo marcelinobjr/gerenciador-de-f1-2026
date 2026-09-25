@@ -624,14 +624,15 @@ export const f1Service = {
 
     // Se for procedural, atualiza metadados para agente livre
     const rawProc = (updated as any).procedural_data
-    if (rawProc) {
+    if (rawProc !== undefined && rawProc !== null) {
+      const { sanitizeDriverProceduralData } = await import('@/lib/sanitizeDriverProceduralData')
+      const safeData = sanitizeDriverProceduralData(rawProc, {
+        currentAcademyTeamId: undefined,
+        careerStatus: 'free_agent',
+      })
       await pb.collection('drivers').update(driverId, {
         career_status: 'free_agent',
-        procedural_data: {
-          ...rawProc,
-          currentAcademyTeamId: undefined,
-          careerStatus: 'free_agent',
-        },
+        procedural_data: safeData,
       })
     }
     return updated

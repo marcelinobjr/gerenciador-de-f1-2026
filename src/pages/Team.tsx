@@ -58,6 +58,7 @@ import { ProspectDebugAuditModal } from '@/components/ProspectDebugAuditModal'
 import { driverScoutingService } from '@/services/driverScoutingService'
 import { proceduralDriverProgressService } from '@/services/proceduralDriverProgressService'
 import { preservePortraitFields } from '@/lib/preservePortraitFields'
+import { sanitizeDriverProceduralData } from '@/lib/sanitizeDriverProceduralData'
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
 import { teamRosterService } from '@/services/teamRosterService'
@@ -364,7 +365,7 @@ export default function TeamPage() {
           evaluation_confidence: (candidate as any).evaluation_confidence,
           academy_origin_team_id: team.id,
           career_status: 'academy',
-          procedural_data: preservePortraitFields(
+          procedural_data: sanitizeDriverProceduralData(
             (candidate as any).procedural_data,
             (candidate as any).procedural_data,
           ),
@@ -450,7 +451,7 @@ export default function TeamPage() {
     try {
       for (const d of teamAcademyPilots) {
         const prog = proceduralDriverProgressService.advanceSeasonForJuniorDriver(d, team, 2026)
-        const safeProceduralData = preservePortraitFields(
+        const safeProceduralData = sanitizeDriverProceduralData(
           (d as any)?.procedural_data,
           prog.updatedMetadata,
         )

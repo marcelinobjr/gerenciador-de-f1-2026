@@ -23,6 +23,7 @@ import {
 } from '@/types/procedural-driver'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { infrastructureCapabilityService } from './infrastructureCapabilityService'
+import { sanitizeDriverProceduralData } from '@/lib/sanitizeDriverProceduralData'
 
 export interface SeasonProgressionResult {
   updatedDriver: DriverModel
@@ -47,7 +48,8 @@ export class ProceduralDriverProgressService {
     team: TeamModel | null | undefined,
     currentYear: number = 2026,
   ): SeasonProgressionResult {
-    const meta = (driver as any).procedural_data as ProceduralDriverMetadata | undefined
+    const rawMeta = (driver as any).procedural_data
+    const meta = sanitizeDriverProceduralData(rawMeta) as unknown as ProceduralDriverMetadata
     const age = (driver.age || 18) + 1 // envelhece 1 ano
 
     // Capacidades de infraestrutura da equipe se estiver vinculado
@@ -190,8 +192,8 @@ export class ProceduralDriverProgressService {
       narrative += ` Evolução consistente com o plano de desenvolvimento (+${speedDelta} ritmo, +${consistencyDelta} consistência).`
     }
 
-    const updatedMetadata: ProceduralDriverMetadata = {
-      ...(meta || ({} as any)),
+    const baseUpdatedMetadata = {
+      ...(meta || {}),
       driverId: driver.id,
       juniorCategory: nextCategory,
       seasonsHistory: [seasonHistory, ...(meta?.seasonsHistory || [])],
@@ -205,6 +207,10 @@ export class ProceduralDriverProgressService {
         },
       ],
     }
+    const updatedMetadata = sanitizeDriverProceduralData(
+      rawMeta,
+      baseUpdatedMetadata,
+    ) as unknown as ProceduralDriverMetadata
 
     const updatedDriver: DriverModel = {
       ...driver,

@@ -15,6 +15,7 @@ import { DriverModel, TeamModel } from '@/types/f1'
 import { proceduralDriverGenerator } from './proceduralDriverGenerator'
 import { infrastructureCapabilityService } from './infrastructureCapabilityService'
 import { preservePortraitFields } from '@/lib/preservePortraitFields'
+import { sanitizeDriverProceduralData } from '@/lib/sanitizeDriverProceduralData'
 import { driverVisualAssetService } from './driverVisualAssetService'
 
 export class DriverScoutingService {
@@ -24,9 +25,11 @@ export class DriverScoutingService {
    */
   public createScoutingViewModel(
     driver: DriverModel,
-    teamId?: string,
+    playerTeamId?: string,
   ): ProspectScoutingCardViewModel {
-    const meta = (driver as any).procedural_data as ProceduralDriverMetadata | undefined
+    const teamId = playerTeamId
+    const rawMeta = (driver as any).procedural_data
+    const meta = sanitizeDriverProceduralData(rawMeta) as unknown as ProceduralDriverMetadata
     const teamScout = teamId && meta?.scoutingRecords?.[teamId]
 
     const perceivedValue =
@@ -183,8 +186,9 @@ export class DriverScoutingService {
     driver: DriverModel,
     team: TeamModel,
   ): { updatedDriver: DriverModel; evaluationGainText: string } {
-    const meta = (driver as any).procedural_data as ProceduralDriverMetadata | undefined
-    if (!meta) {
+    const rawMeta = (driver as any).procedural_data
+    const meta = sanitizeDriverProceduralData(rawMeta) as unknown as ProceduralDriverMetadata
+    if (!meta || Object.keys(meta).length === 0) {
       return { updatedDriver: driver, evaluationGainText: 'Dados de scouting não disponíveis.' }
     }
 
@@ -234,7 +238,7 @@ export class DriverScoutingService {
     }
 
     // Blindagem de retrato: preserva generatedPortraitProfileId e visualIdentity.portraitAssetId do objeto persistido
-    const updatedMeta = preservePortraitFields(meta, baseUpdatedMeta)
+    const updatedMeta = sanitizeDriverProceduralData(rawMeta, baseUpdatedMeta)
 
     const updatedDriver: DriverModel = {
       ...driver,
