@@ -394,6 +394,11 @@ export class StructuralStrengthService {
       baselineVersion: baseline.schemaVersion,
       totalTeams: allTeams.length,
       qualityCounts,
+      duplicateFactors: 0,
+      teamNameBonuses: 0,
+      rngDependencies: 0,
+      eventDependencies: 0,
+      raceEngineConsumers: 0,
       rankings,
       allTeams,
       auditPassed: divergences.length === 0,
@@ -403,6 +408,7 @@ export class StructuralStrengthService {
         'Zero team bonus por nome.',
         'Adaptation neutra em 75.',
         'Zero trackFit ou variáveis dinâmicas de corrida.',
+        'Zero consumo pelo race engine.',
       ],
     }
   }

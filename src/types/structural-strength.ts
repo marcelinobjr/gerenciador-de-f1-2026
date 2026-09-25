@@ -116,6 +116,11 @@ export interface StructuralStrengthAuditReport {
     DEFAULTED: number
     MISSING: number
   }
+  duplicateFactors: number
+  teamNameBonuses: number
+  rngDependencies: number
+  eventDependencies: number
+  raceEngineConsumers: number
   rankings: TeamRankingEntry[]
   allTeams: StructuralStrengthBreakdown[]
   auditPassed: boolean

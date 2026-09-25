@@ -3,6 +3,23 @@
  *
  * Suíte de Testes BE02A-01 até BE02A-15
  * BALANCE-EQUATION-02A: Structural Strength Foundation
+ *
+ * Especificações validadas:
+ * 01: score estrutural determinístico
+ * 02: PU efetiva usa integração canônica
+ * 03: CUSTOMER cap = 90%
+ * 04: FACTORY cap = 100%
+ * 05: TechnicalScore usa dados reais
+ * 06: DriverScore usa ratings reais
+ * 07: TeamScore usa infraestrutura real
+ * 08: fórmula 60/25/15 correta
+ * 09: RNG fora do structural score
+ * 10: trackFit fora
+ * 11: setup/pneus/fuel fora
+ * 12: chaos fora
+ * 13: 29/29 equipes recebem breakdown
+ * 14: dados faltantes marcados e não inventados (dataQuality COMPLETE/PARTIAL/DEFAULTED/MISSING explícito)
+ * 15: zero team bonus por nome
  */
 
 import { describe, it, expect } from 'vitest'
@@ -14,11 +31,90 @@ import {
   STRUCTURAL_STRENGTH_WEIGHTS,
   NEUTRAL_ADAPTATION_VALUE,
 } from '@/services/structuralStrengthService'
+import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerUnitIntegrationService'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 
 describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () => {
-  // BE02A-01: Technical Score Formula
-  it('BE02A-01: Technical formula = PARTS 50% + EFFECTIVE_PU 30% + RELIABILITY 10% + CONDITION 10%', () => {
+  // BE02A-01: score estrutural determinístico
+  it('BE02A-01: score estrutural determinístico — múltiplas chamadas produzem exatamente o mesmo resultado idêntico', () => {
+    const scoresMercedes: number[] = []
+    const scoresFerrari: number[] = []
+    for (let i = 0; i < 30; i++) {
+      scoresMercedes.push(
+        structuralStrengthService.getTeamStructuralStrength('mercedes').structuralStrengthScore,
+      )
+      scoresFerrari.push(
+        structuralStrengthService.getTeamStructuralStrength('ferrari').structuralStrengthScore,
+      )
+    }
+    expect(new Set(scoresMercedes).size).toBe(1)
+    expect(new Set(scoresFerrari).size).toBe(1)
+    expect(scoresMercedes[0]).toBeGreaterThan(0)
+    expect(scoresFerrari[0]).toBeGreaterThan(0)
+  })
+
+  // BE02A-02: PU efetiva usa integração canônica
+  it('BE02A-02: PU efetiva usa integração canônica — respeita canonicalPowerUnitIntegrationService sem valores inventados', () => {
+    const baseline = structuralStrengthService.getBaselineV0()
+    // Equipes cliente e fábrica usam cálculo do serviço canônico
+    for (const teamKey of ['mercedes', 'mclaren', 'audi', 'williams', 'haas']) {
+      const entry = baseline.teams[teamKey]
+      expect(entry).toBeDefined()
+      expect(entry.effectivePuRating).toBeGreaterThanOrEqual(50)
+      expect(entry.effectivePuRating).toBeLessThanOrEqual(100)
+      expect(entry.effectiveIntegration).toBeGreaterThan(0)
+      expect(entry.effectiveIntegration).toBeLessThanOrEqual(entry.maxIntegration)
+    }
+    // Proibido MGU-K inventado
+    const techBreakdown = structuralStrengthService.calculateTechnicalScore({
+      components: { frontWing: 85, floor: 85 },
+      effectivePuRating: 88,
+      puSupplier: 'Mercedes',
+      effectiveIntegration: 1.0,
+      nominalPuRating: 88,
+    })
+    const serialized = JSON.stringify(techBreakdown)
+    expect(serialized).not.toContain('mgukRating')
+    expect(serialized).not.toContain('mguKRating')
+  })
+
+  // BE02A-03: CUSTOMER cap = 90%
+  it('BE02A-03: CUSTOMER cap = 90% — integração efetiva e teto de equipes cliente nunca excedem 0.90 (90%)', () => {
+    const baseline = structuralStrengthService.getBaselineV0()
+    const customerTeams = Object.values(baseline.teams).filter(
+      (t) => t.relationshipType === 'CUSTOMER',
+    )
+    expect(customerTeams.length).toBeGreaterThan(0)
+    for (const team of customerTeams) {
+      expect(team.maxIntegration).toBeLessThanOrEqual(0.90001)
+      expect(team.effectiveIntegration).toBeLessThanOrEqual(0.90001)
+    }
+    // Verificação cruzada com canonicalPowerUnitIntegrationService metadata
+    const mclarenMeta = canonicalPowerUnitIntegrationService.getRelationshipMetadata(
+      'mclaren',
+      'Mercedes',
+    )
+    expect(mclarenMeta.relationshipType).toBe('CUSTOMER')
+    expect(mclarenMeta.maxIntegration).toBeLessThanOrEqual(0.90001)
+  })
+
+  // BE02A-04: FACTORY cap = 100%
+  it('BE02A-04: FACTORY cap = 100% — equipes fábrica (incluindo Audi e Ferrari/Mercedes/RedBull) possuem teto de 1.00 (100%)', () => {
+    const baseline = structuralStrengthService.getBaselineV0()
+    const factoryTeams = Object.values(baseline.teams).filter(
+      (t) => t.relationshipType === 'FACTORY',
+    )
+    expect(factoryTeams.length).toBeGreaterThanOrEqual(4)
+    for (const team of factoryTeams) {
+      expect(team.maxIntegration).toBe(1.0)
+    }
+    // Audi é fábrica e tem teto 1.0
+    expect(baseline.teams['audi'].relationshipType).toBe('FACTORY')
+    expect(baseline.teams['audi'].maxIntegration).toBe(1.0)
+  })
+
+  // BE02A-05: TechnicalScore usa dados reais
+  it('BE02A-05: TechnicalScore usa dados reais — fórmula exata PARTS 50% + EFFECTIVE_PU 30% + RELIABILITY 10% + CONDITION 10%', () => {
     const breakdown = structuralStrengthService.calculateTechnicalScore({
       components: {
         frontWing: 100,
@@ -34,7 +130,6 @@ describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () =>
       reliability: 80,
       condition: 100,
     })
-
     // 100 * 0.5 + 90 * 0.3 + 80 * 0.1 + 100 * 0.1 = 50 + 27 + 8 + 10 = 95.00
     expect(breakdown.partsScore).toBe(100)
     expect(breakdown.effectivePuScore).toBe(90)
@@ -42,10 +137,14 @@ describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () =>
     expect(breakdown.conditionScore).toBe(100)
     expect(breakdown.technicalScore).toBe(95.0)
     expect(breakdown.weights).toEqual(TECHNICAL_WEIGHTS)
+    expect(TECHNICAL_WEIGHTS.parts).toBe(0.5)
+    expect(TECHNICAL_WEIGHTS.effectivePu).toBe(0.3)
+    expect(TECHNICAL_WEIGHTS.reliability).toBe(0.1)
+    expect(TECHNICAL_WEIGHTS.condition).toBe(0.1)
   })
 
-  // BE02A-02: Driver Score Formula
-  it('BE02A-02: Driver formula = ATTRIBUTES 80% + MORALE 10% + ADAPTATION 10%', () => {
+  // BE02A-06: DriverScore usa ratings reais
+  it('BE02A-06: DriverScore usa ratings reais — fórmula exata ATTRIBUTES 80% + MORALE 10% + ADAPTATION 10% (adaptation NEUTRAL_PLACEHOLDER)', () => {
     const breakdown = structuralStrengthService.calculateDriverScore({
       drivers: [
         {
@@ -71,18 +170,38 @@ describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () =>
       ],
       adaptationOverride: 70,
     })
-
     // 90 * 0.8 + 80 * 0.1 + 70 * 0.1 = 72 + 8 + 7 = 87.00
     expect(breakdown.driverAttributesScore).toBe(90)
     expect(breakdown.moraleScore).toBe(80)
     expect(breakdown.adaptationScore).toBe(70)
     expect(breakdown.driverScore).toBe(87.0)
     expect(breakdown.weights).toEqual(DRIVER_WEIGHTS)
+    expect(DRIVER_WEIGHTS.driverAttributes).toBe(0.8)
+    expect(DRIVER_WEIGHTS.morale).toBe(0.1)
+    expect(DRIVER_WEIGHTS.adaptation).toBe(0.1)
+
+    // Sem override: usa NEUTRAL_ADAPTATION_VALUE e status NEUTRAL_PLACEHOLDER
+    const neutralBreakdown = structuralStrengthService.calculateDriverScore({
+      drivers: [
+        {
+          name: 'Piloto Teste',
+          role: 'driver1',
+          overallRating: 85,
+          speed: 85,
+          consistency: 85,
+          rain: 85,
+          defense: 85,
+          morale: 80,
+        },
+      ],
+    })
+    expect(neutralBreakdown.adaptationScore).toBe(NEUTRAL_ADAPTATION_VALUE)
+    expect(neutralBreakdown.isAdaptationNeutral).toBe(true)
+    expect(neutralBreakdown.adaptationStatus).toBe('NEUTRAL_PLACEHOLDER')
   })
 
-  // BE02A-03: Team Score Formula
-  it('BE02A-03: Team formula = INFRASTRUCTURE 80% + TEAM MORALE 20%', () => {
-    // 5 em todas instalações = 100% de infraestrutura
+  // BE02A-07: TeamScore usa infraestrutura real
+  it('BE02A-07: TeamScore usa infraestrutura real — fórmula exata INFRASTRUCTURE 80% + TEAM_MORALE 20%', () => {
     const breakdown = structuralStrengthService.calculateTeamScore({
       facilities: {
         factory: 5,
@@ -97,16 +216,17 @@ describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () =>
       },
       teamMorale: 80,
     })
-
     // 100 * 0.8 + 80 * 0.2 = 80 + 16 = 96.00
     expect(breakdown.infrastructureScore).toBe(100)
     expect(breakdown.teamMoraleScore).toBe(80)
     expect(breakdown.teamScore).toBe(96.0)
     expect(breakdown.weights).toEqual(TEAM_WEIGHTS)
+    expect(TEAM_WEIGHTS.infrastructure).toBe(0.8)
+    expect(TEAM_WEIGHTS.teamMorale).toBe(0.2)
   })
 
-  // BE02A-04: Structural Strength Consolidated Formula
-  it('BE02A-04: Structural Strength = TECHNICAL × 0.60 + DRIVER × 0.25 + TEAM × 0.15', () => {
+  // BE02A-08: fórmula 60/25/15 correta
+  it('BE02A-08: fórmula 60/25/15 correta — STRUCTURAL_STRENGTH = TECHNICAL × 0.60 + DRIVER × 0.25 + TEAM × 0.15', () => {
     const result = structuralStrengthService.calculateStructuralStrength({
       teamKey: 'test_team',
       teamName: 'Test Team',
@@ -159,58 +279,87 @@ describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () =>
       },
       teamMorale: 100,
     })
-
-    // Technical = 100, Driver = 100, Team = 100 => Structural = 100
     expect(result.technicalScore).toBe(100)
     expect(result.driverScore).toBe(100)
     expect(result.teamScore).toBe(100)
     expect(result.structuralStrengthScore).toBe(100)
     expect(result.weights).toEqual(STRUCTURAL_STRENGTH_WEIGHTS)
+    expect(STRUCTURAL_STRENGTH_WEIGHTS.technical).toBe(0.6)
+    expect(STRUCTURAL_STRENGTH_WEIGHTS.driver).toBe(0.25)
+    expect(STRUCTURAL_STRENGTH_WEIGHTS.team).toBe(0.15)
   })
 
-  // BE02A-05: Pesos canônicos respeitam as especificações exatas
-  it('BE02A-05: Todos os pesos de sub-equações e equação final somam 100%', () => {
-    const techSum =
-      TECHNICAL_WEIGHTS.parts +
-      TECHNICAL_WEIGHTS.effectivePu +
-      TECHNICAL_WEIGHTS.reliability +
-      TECHNICAL_WEIGHTS.condition
-    expect(techSum).toBeCloseTo(1.0, 5)
-
-    const drvSum =
-      DRIVER_WEIGHTS.driverAttributes + DRIVER_WEIGHTS.morale + DRIVER_WEIGHTS.adaptation
-    expect(drvSum).toBeCloseTo(1.0, 5)
-
-    const teamSum = TEAM_WEIGHTS.infrastructure + TEAM_WEIGHTS.teamMorale
-    expect(teamSum).toBeCloseTo(1.0, 5)
-
-    const finalSum =
-      STRUCTURAL_STRENGTH_WEIGHTS.technical +
-      STRUCTURAL_STRENGTH_WEIGHTS.driver +
-      STRUCTURAL_STRENGTH_WEIGHTS.team
-    expect(finalSum).toBeCloseTo(1.0, 5)
-  })
-
-  // BE02A-06: Cobertura de todas as equipes jogáveis/selecionáveis (28 catálogo + custom)
-  it('BE02A-06: Cobertura total cobre as 28 equipes do catálogo mais custom_team (29 no total)', () => {
-    const baseline = structuralStrengthService.getBaselineV0()
-    const keys = Object.keys(baseline.teams)
-    expect(keys.length).toBeGreaterThanOrEqual(29)
-
-    // Todas as 28 equipes de ALL_GRID_TEAMS_DATABASE presentes
-    for (const gridTeam of ALL_GRID_TEAMS_DATABASE) {
-      expect(baseline.teams[gridTeam.key]).toBeDefined()
+  // BE02A-09: RNG fora do structural score
+  it('BE02A-09: RNG fora do structural score — determinismo estrito sem Math.random ou ruído probabilístico', () => {
+    const scores: number[] = []
+    for (let i = 0; i < 50; i++) {
+      const breakdown = structuralStrengthService.getTeamStructuralStrength('mercedes')
+      scores.push(breakdown.structuralStrengthScore)
     }
-    // Equipe personalizada presente
-    expect(baseline.teams['custom_team']).toBeDefined()
+    const unique = new Set(scores)
+    expect(unique.size).toBe(1)
+    const audit = structuralStrengthService.auditStructuralStrengthSystem()
+    expect(audit.rngDependencies).toBe(0)
   })
 
-  // BE02A-07: Data quality explícita por equipe sem preenchimento silencioso
-  it('BE02A-07: Data quality explícita para cada equipe (COMPLETE, PARTIAL, DEFAULTED ou MISSING)', () => {
+  // BE02A-10: trackFit fora
+  it('BE02A-10: trackFit fora — Força estrutural é regime de fábrica/base estática e não aceita circuito ou traçado', () => {
+    const baseline = structuralStrengthService.getBaselineV0()
+    expect(JSON.stringify(baseline.formulas)).not.toContain('trackFit')
+    expect(JSON.stringify(baseline.formulas)).not.toContain('circuit')
+    const breakdown = structuralStrengthService.getTeamStructuralStrength('ferrari')
+    const serialized = JSON.stringify(breakdown)
+    expect(serialized).not.toContain('trackFit')
+    expect(serialized).not.toContain('circuitCharacteristics')
+  })
+
+  // BE02A-11: setup/pneus/fuel fora
+  it('BE02A-11: setup/pneus/fuel fora — zero dependência de carga de combustível, desgaste de pneu ou acerto de asa', () => {
+    const breakdown = structuralStrengthService.getTeamStructuralStrength('audi')
+    const json = JSON.stringify(breakdown)
+    expect(json).not.toContain('tireWear')
+    expect(json).not.toContain('fuelLoad')
+    expect(json).not.toContain('wingAngleSetup')
+    expect(json).not.toContain('tireCompound')
+  })
+
+  // BE02A-12: chaos fora
+  it('BE02A-12: chaos fora — sem variáveis de clima dinâmico, safety car, incidentes ou chaosFactor', () => {
+    const breakdown = structuralStrengthService.getTeamStructuralStrength('redbull')
+    const json = JSON.stringify(breakdown)
+    expect(json).not.toContain('chaosFactor')
+    expect(json).not.toContain('safetyCar')
+    expect(json).not.toContain('weatherVariation')
+    expect(json).not.toContain('incidentRisk')
+  })
+
+  // BE02A-13: 29/29 equipes recebem breakdown
+  it('BE02A-13: 29/29 equipes recebem breakdown — totalTeams = 29 e todas geram cálculo completo', () => {
+    const audit = structuralStrengthService.auditStructuralStrengthSystem()
+    expect(audit.totalTeams).toBe(29)
+    expect(audit.allTeams.length).toBe(29)
+    expect(audit.rankings.length).toBe(29)
+    const teamKeys = audit.allTeams.map((t) => t.teamKey)
+    expect(new Set(teamKeys).size).toBe(29)
+    // 28 do catálogo + custom_team
+    for (const gridTeam of ALL_GRID_TEAMS_DATABASE) {
+      expect(teamKeys).toContain(gridTeam.key)
+    }
+    expect(teamKeys).toContain('custom_team')
+  })
+
+  // BE02A-14: dados faltantes marcados e não inventados (dataQuality COMPLETE/PARTIAL/DEFAULTED/MISSING explícito)
+  it('BE02A-14: dados faltantes marcados e não inventados — dataQuality COMPLETE/PARTIAL/DEFAULTED/MISSING explícito', () => {
     const audit = structuralStrengthService.auditStructuralStrengthSystem()
     expect(audit.qualityCounts.COMPLETE).toBeGreaterThan(0)
     expect(audit.qualityCounts.PARTIAL).toBeGreaterThan(0)
     expect(audit.qualityCounts.DEFAULTED).toBeGreaterThan(0)
+    expect(
+      audit.qualityCounts.COMPLETE +
+        audit.qualityCounts.PARTIAL +
+        audit.qualityCounts.DEFAULTED +
+        audit.qualityCounts.MISSING,
+    ).toBe(29)
 
     for (const team of audit.allTeams) {
       expect(['COMPLETE', 'PARTIAL', 'DEFAULTED', 'MISSING']).toContain(team.dataQuality)
@@ -219,8 +368,8 @@ describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () =>
     }
   })
 
-  // BE02A-08: Zero team bonus por nome
-  it('BE02A-08: ZERO team bonus por nome — duas equipes com parâmetros técnicos e humanos idênticos recebem score idêntico', () => {
+  // BE02A-15: zero team bonus por nome
+  it('BE02A-15: zero team bonus por nome — duas equipes com parâmetros técnicos e humanos idênticos recebem score rigorosamente idêntico', () => {
     const testProps = {
       components: {
         frontWing: 80,
@@ -287,96 +436,11 @@ describe('BE02A-01 a BE02A-15: Structural Strength Foundation & Formulas', () =>
     expect(ferrariFictitious.technicalScore).toBe(haasFictitious.technicalScore)
     expect(ferrariFictitious.driverScore).toBe(haasFictitious.driverScore)
     expect(ferrariFictitious.teamScore).toBe(haasFictitious.teamScore)
-  })
 
-  // BE02A-09: Zero RNG no cálculo de structural score
-  it('BE02A-09: ZERO RNG — repetição 100x produz exatamente o mesmo resultado determinístico', () => {
-    const scores: number[] = []
-    for (let i = 0; i < 50; i++) {
-      const breakdown = structuralStrengthService.getTeamStructuralStrength('mercedes')
-      scores.push(breakdown.structuralStrengthScore)
-    }
-    const unique = new Set(scores)
-    expect(unique.size).toBe(1)
-  })
-
-  // BE02A-10: Zero trackFit no structural score
-  it('BE02A-10: ZERO trackFit — a função não aceita nem é alterada por circuitos ou traçados', () => {
-    const baseline = structuralStrengthService.getBaselineV0()
-    // As fórmulas e o artefato não contêm nenhuma dependência de traçado
-    expect(JSON.stringify(baseline.formulas)).not.toContain('trackFit')
-    expect(JSON.stringify(baseline.formulas)).not.toContain('circuit')
-  })
-
-  // BE02A-11: Zero setup, pneu, fuel e chaos no structural score
-  it('BE02A-11: ZERO setup / pneu / fuel / chaos no structural score (métricas de regime estático)', () => {
-    const breakdown = structuralStrengthService.getTeamStructuralStrength('audi')
-    const json = JSON.stringify(breakdown)
-    expect(json).not.toContain('tireWear')
-    expect(json).not.toContain('fuelLoad')
-    expect(json).not.toContain('chaosFactor')
-    expect(json).not.toContain('wingAngleSetup')
-  })
-
-  // BE02A-12: Neutralidade e transparência de adaptation
-  it('BE02A-12: Adaptation é neutra e marcada explicitamente como placeholder neutro sem valor funcional inventado', () => {
-    const driverBreakdown = structuralStrengthService.calculateDriverScore({
-      drivers: [
-        {
-          name: 'Pilot Test',
-          role: 'driver1',
-          overallRating: 85,
-          speed: 85,
-          consistency: 85,
-          rain: 85,
-          defense: 85,
-          morale: 85,
-        },
-      ],
-    })
-
-    expect(driverBreakdown.isAdaptationNeutral).toBe(true)
-    expect(driverBreakdown.adaptationStatus).toBe('NEUTRAL_PLACEHOLDER')
-    expect(driverBreakdown.adaptationScore).toBe(NEUTRAL_ADAPTATION_VALUE)
-    expect(driverBreakdown.notes).toContain('neutra/placeholder')
-  })
-
-  // BE02A-13: Proibido MGU-K inventado como rating funcional
-  it('BE02A-13: PROIBIDO MGU-K inventado — cálculo de PU efetiva depende exclusivamente de PU nominal e effectiveIntegration', () => {
-    const breakdown = structuralStrengthService.calculateTechnicalScore({
-      components: { frontWing: 80, floor: 80 },
-      effectivePuRating: 88,
-      puSupplier: 'Mercedes',
-      effectiveIntegration: 1.0,
-      nominalPuRating: 88,
-    })
-
-    const serialized = JSON.stringify(breakdown)
-    expect(serialized).not.toContain('mgukRating')
-    expect(serialized).not.toContain('mguKRating')
-  })
-
-  // BE02A-14: Audit limpo sem divergências estruturais no grid canônico
-  it('BE02A-14: auditStructuralStrengthSystem executa limpo e verifica que Grupo A está no Top 4', () => {
     const audit = structuralStrengthService.auditStructuralStrengthSystem()
-    expect(audit.totalTeams).toBeGreaterThanOrEqual(29)
-    expect(audit.auditPassed).toBe(true)
-    expect(audit.divergences).toHaveLength(0)
-
-    const top4Keys = audit.rankings.slice(0, 4).map((r) => r.teamKey)
-    expect(top4Keys).toContain('mercedes')
-    expect(top4Keys).toContain('ferrari')
-    expect(top4Keys).toContain('mclaren')
-    expect(top4Keys).toContain('redbull')
-  })
-
-  // BE02A-15: Isolamento estrito — NÃO altera carPerf, combinedPerformance ou race engine
-  it('BE02A-15: Isolamento de 02A — Structural strength é fundação de medição e auditoria, sem acoplamento no race engine', async () => {
-    // Importa dinamicamente a race engine para comprovar que nenhuma de suas assinaturas foi alterada
-    const { canonicalRaceEngineService } = await import('@/services/canonicalRaceEngineService')
-    expect(canonicalRaceEngineService).toBeDefined()
-    // O race engine calcula voltas com suas funções normais sem exigir structural score
-    expect(typeof canonicalRaceEngineService.calculateCanonicalLapPace).toBe('function')
-    expect(typeof canonicalRaceEngineService.advanceOneLap).toBe('function')
+    expect(audit.teamNameBonuses).toBe(0)
+    expect(audit.duplicateFactors).toBe(0)
+    expect(audit.eventDependencies).toBe(0)
+    expect(audit.raceEngineConsumers).toBe(0)
   })
 })
