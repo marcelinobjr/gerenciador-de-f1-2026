@@ -28,7 +28,12 @@ describe('BALANCE-AUDIT-01: Auditoria Esportiva & Diagnóstico BE02C (Baseline v
     }
     expect(fs.existsSync(filePath)).toBe(true)
     const content = fs.readFileSync(filePath, 'utf-8')
+    // Assegura que o arquivo tem tamanho significativo (contém matriz 29x24 e todas as seções)
+    expect(content.length).toBeGreaterThan(50000)
     const parsed = JSON.parse(content)
+    if (parsed.teamsAudited !== 29) {
+      throw new Error(`DEBUG_PAYLOAD: ${JSON.stringify(parsed.diagnostics)}`)
+    }
     expect(parsed.auditId).toBe('BALANCE-AUDIT-01')
     expect(parsed.teamsAudited).toBe(29)
     expect(parsed.tracksAudited).toBe(24)
