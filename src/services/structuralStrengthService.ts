@@ -38,6 +38,7 @@ import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerU
 import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
 import { getOverallRating } from '@/lib/mbj-drivers-data'
 import { BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
+import { balanceBaselineService } from '@/services/balanceBaselineService'
 
 // Constantes de Pesos Oficiais
 export const TECHNICAL_WEIGHTS: TechnicalScoreWeights = {
@@ -450,6 +451,13 @@ export class StructuralStrengthService {
       checksum: baseline.checksum,
       message: `Baseline '${baseline.schemaVersion}' restaurada com sucesso. ${baseline.totalTeamsCount} equipes ativas. Nenhum dado de save de carreira foi alterado.`,
     }
+  }
+
+  /**
+   * Auditoria canônica da baseline V0 (BALANCE-EQUATION-02A BLOCO 3B)
+   */
+  public auditBalanceBaselineV0() {
+    return balanceBaselineService.auditBalanceBaselineV0()
   }
 }
 
