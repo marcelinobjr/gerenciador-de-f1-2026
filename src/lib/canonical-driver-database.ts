@@ -473,6 +473,26 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'mbj-009',
     'drv_0054',
   ],
+  // Verstappen runtime ID
+  de3isw3re1ji2wj: [
+    'verstappen',
+    'driver_max_verstappen',
+    'drv_max_verstappen',
+    'max_verstappen',
+    'mbj-001',
+    'drv_0022',
+  ],
+  // Leclerc runtime ID
+  lc6cma46f01dgrj: [
+    'leclerc',
+    'driver_charles_leclerc',
+    'drv_charles_leclerc',
+    'charles_leclerc',
+    'mbj-004',
+    'drv_0047',
+  ],
+  // O'Ward runtime ID
+  nwhacbop67hucir: ['patricio_oward', 'patricio_o_ward', 'oward', 'mbj-025', 'drv_0042'],
 }
 
 /**
@@ -985,5 +1005,177 @@ export function auditCanonicalDriverPortraitMap(): CanonicalDriverPortraitMapAud
     unresolvedRealDrivers,
     externalRuntimeUrls,
     driversWithoutPortrait,
+  }
+}
+
+/**
+ * Interface do Vínculo Canônico Ativo de Equipe de um Piloto (BUG-RETRATOS-03C2)
+ */
+export interface ActiveDriverTeamBinding {
+  driverId: string | null
+  canonicalDriver: CanonicalDriverMaster | null
+  teamId: string | null
+  teamKey: string | null
+  teamName: string | null
+  teamColor: string | null
+  role: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' | null
+  status: 'active' | 'free_agent'
+  isContracted: boolean
+}
+
+/**
+ * Helper centralizado: resolve o vínculo contratual ativo de um piloto.
+ * NUNCA recorre a driver.teamName, mbjInfo.teamKey ou strings históricas desprovidas de contrato ativo.
+ */
+export function getActiveDriverTeamBinding(
+  driverId: string | null | undefined,
+  seasonContext?: any,
+  dbDrivers?: any[],
+  dbTeams?: any[],
+): ActiveDriverTeamBinding {
+  if (!driverId) {
+    return {
+      driverId: null,
+      canonicalDriver: null,
+      teamId: null,
+      teamKey: null,
+      teamName: null,
+      teamColor: null,
+      role: null,
+      status: 'free_agent',
+      isContracted: false,
+    }
+  }
+
+  const teamsList: any[] = Array.isArray(dbTeams) ? dbTeams : []
+  const teamsById = new Map<string, any>()
+  for (const t of teamsList) {
+    if (t?.id) teamsById.set(t.id, t)
+    if (t?.team_key) teamsById.set(t.team_key, t)
+  }
+
+  const findTeamRecord = (targetTeamIdOrKey: string): any | null => {
+    if (!targetTeamIdOrKey) return null
+    if (teamsById.has(targetTeamIdOrKey)) return teamsById.get(targetTeamIdOrKey)!
+    const lower = targetTeamIdOrKey.toLowerCase().trim()
+    for (const t of teamsList) {
+      if (t.id === targetTeamIdOrKey) return t
+      if (t.team_key && t.team_key.toLowerCase() === lower) return t
+      if (t.name && t.name.toLowerCase() === lower) return t
+    }
+    return null
+  }
+
+  const buildBindingResult = (
+    cDriver: CanonicalDriverMaster | null,
+    resolvedTeam: any | null,
+    resolvedRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' | null,
+    rawTeamIdOrKey?: string | null,
+  ): ActiveDriverTeamBinding => {
+    if (!resolvedTeam && !rawTeamIdOrKey) {
+      return {
+        driverId: cDriver?.driverId || driverId,
+        canonicalDriver: cDriver,
+        teamId: null,
+        teamKey: null,
+        teamName: null,
+        teamColor: null,
+        role: null,
+        status: 'free_agent',
+        isContracted: false,
+      }
+    }
+
+    const teamKey = resolvedTeam?.team_key || rawTeamIdOrKey || null
+    const teamId = resolvedTeam?.id || null
+    const teamName = resolvedTeam?.name || (teamKey ? teamKey.toUpperCase() : null)
+    const teamColor = resolvedTeam?.color || '#E10600'
+
+    return {
+      driverId: cDriver?.driverId || driverId,
+      canonicalDriver: cDriver,
+      teamId,
+      teamKey,
+      teamName,
+      teamColor,
+      role: resolvedRole || 'titular',
+      status: 'active',
+      isContracted: true,
+    }
+  }
+
+  // 1. Reconciliação canônica do piloto
+  const canonicalDriver = findCanonicalDriverMaster(driverId, null)
+
+  // 2. Busca o registro real do banco no dbDrivers se fornecido
+  if (Array.isArray(dbDrivers) && dbDrivers.length > 0) {
+    const rawMatch = dbDrivers.find((d) => {
+      if (!d) return false
+      if (d.id === driverId) return true
+      if (
+        canonicalDriver &&
+        (d.id === canonicalDriver.driverId || d.name === canonicalDriver.fullName)
+      )
+        return true
+      const dKey = normalizeDriverIdentityKey(d.name || '')
+      if (canonicalDriver && dKey === normalizeDriverIdentityKey(canonicalDriver.fullName))
+        return true
+      return false
+    })
+
+    if (rawMatch) {
+      const explicitContract = rawMatch.canonical_contract
+      const hasActiveExplicitContract =
+        explicitContract &&
+        (explicitContract.status === 'active' || !explicitContract.status) &&
+        (explicitContract.teamId || explicitContract.team_id)
+
+      if (hasActiveExplicitContract) {
+        const cTeamId = explicitContract.teamId || explicitContract.team_id
+        const matchedTeam = findTeamRecord(cTeamId)
+        let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+        const rawRole = (explicitContract.role || '').toLowerCase()
+        if (rawRole === 'reserve' || rawRole === 'reserva') cRole = 'reserva'
+        else if (rawRole === 'academy' || rawRole === 'academia') cRole = 'academia'
+        else if (rawRole === 'test_development' || rawRole === 'desenvolvimento')
+          cRole = 'desenvolvimento'
+        return buildBindingResult(canonicalDriver, matchedTeam, cRole, cTeamId)
+      }
+
+      // Check de vínculo ativo real no DB:
+      // Exclui anomalia de banco legado onde Verstappen ou Leclerc têm team_id da McLaren ('76vs00hy9hu24q1') sem contrato
+      const isKnownLegacyGlitch =
+        (rawMatch.id === 'de3isw3re1ji2wj' || rawMatch.id === 'lc6cma46f01dgrj') &&
+        rawMatch.team_id === '76vs00hy9hu24q1'
+
+      if (!isKnownLegacyGlitch) {
+        const boundTeamId = rawMatch.team_id || rawMatch.reserve_team_id || null
+        if (boundTeamId) {
+          const matchedTeam = findTeamRecord(boundTeamId)
+          let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+          if (rawMatch.reserve_team_id || rawMatch.role === 'reserva') {
+            cRole = 'reserva'
+          } else if (rawMatch.is_academy || rawMatch.role === 'academia') {
+            cRole = 'academia'
+          } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
+            cRole = 'desenvolvimento'
+          }
+          return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
+        }
+      }
+    }
+  }
+
+  // 3. Sem contrato ativo no save/banco -> Free Agent estrito
+  return {
+    driverId: canonicalDriver?.driverId || driverId,
+    canonicalDriver,
+    teamId: null,
+    teamKey: null,
+    teamName: null,
+    teamColor: null,
+    role: null,
+    status: 'free_agent',
+    isContracted: false,
   }
 }

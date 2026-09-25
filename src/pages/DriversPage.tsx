@@ -68,6 +68,7 @@ import {
   Layers,
 } from 'lucide-react'
 import { DriverModel, TeamModel } from '@/types/f1'
+import { getActiveDriverTeamBinding } from '@/lib/canonical-driver-database'
 
 export interface UnifiedDriverItem {
   id: string
@@ -270,13 +271,14 @@ export default function DriversPage() {
         d.salary || (f1aInfo ? f1aInfo.referenceAnnualUsd : mbjInfo ? mbjInfo.salaryUsd : 3000000)
       const salaryUsd = rawSalary > 100000000 ? Math.round(rawSalary / 5.75) : rawSalary
 
+      // BUG-RETRATOS-03C2: Vínculo canônico estrito via helper centralizado
+      const binding = getActiveDriverTeamBinding(d.id, season, dbDrivers, dbTeams)
       const teamName =
-        associatedTeam?.name ||
-        (f1aInfo
-          ? `${f1aInfo.operatingTeam} (${f1aInfo.supporterBrand})`
-          : (mbjInfo?.teamName ?? (associatedTeamId ? 'Equipe F1' : null)))
-      const teamColor = associatedTeam?.color || (f1aInfo ? '#EC4899' : '#E10600')
-      const teamKey = associatedTeam?.team_key || mbjInfo?.teamKey || null
+        binding.teamName ||
+        (f1aInfo ? `${f1aInfo.operatingTeam} (${f1aInfo.supporterBrand})` : null)
+      const teamColor = binding.teamColor || (f1aInfo ? '#EC4899' : '#E10600')
+      const teamKey = binding.teamKey
+      const teamId = binding.teamId
 
       const speed = d.speed || f1aInfo?.speed || mbjInfo?.speed || 75
       const consistency = d.consistency || f1aInfo?.consistency || mbjInfo?.consistency || 75
@@ -309,11 +311,14 @@ export default function DriversPage() {
         defense,
         salaryUsd,
         contractEnd: d.contract_end || 2026,
-        teamId: associatedTeamId,
+        teamId,
         teamKey,
         teamName,
         teamColor,
-        role: d.role || (d.reserve_team_id ? 'reserva' : d.team_id ? 'titular' : null),
+        role:
+          (binding.role as any) ||
+          d.role ||
+          (d.reserve_team_id ? 'reserva' : d.team_id ? 'titular' : null),
         category: cat,
         potentialMin,
         potentialMax,
@@ -398,6 +403,8 @@ export default function DriversPage() {
       const normName = pilot.name.toLowerCase().trim()
       if (visitedNames.has(normName)) continue
 
+      // BUG-RETRATOS-03C2: Pilotos MBJ estáticos não vinculados a contrato ativo -> Free Agent estrito
+      const mbjBinding = getActiveDriverTeamBinding(pilot.id, season, dbDrivers, dbTeams)
       result.push({
         id: pilot.id,
         name: pilot.name,
@@ -409,11 +416,11 @@ export default function DriversPage() {
         defense: pilot.defense,
         salaryUsd: pilot.salaryUsd,
         contractEnd: 2026 + (pilot.contractYears || 1),
-        teamId: null,
-        teamKey: pilot.teamKey || null,
-        teamName: pilot.teamName || null,
-        teamColor: '#E10600',
-        role: pilot.role || null,
+        teamId: mbjBinding.teamId,
+        teamKey: mbjBinding.teamKey,
+        teamName: mbjBinding.teamName,
+        teamColor: mbjBinding.teamColor || '#E10600',
+        role: (mbjBinding.role as any) || null,
         category: pilot.category,
         potentialMin: pilot.potentialMin,
         potentialMax: pilot.potentialMax,
@@ -560,14 +567,21 @@ export default function DriversPage() {
         }
       }
 
-      // 4. Filtro de Equipe
+      // 4. Filtro de Equipe (BUG-RETRATOS-03C2: checagem estrita contra binding canônico)
       if (selectedTeamFilter !== 'all') {
         if (selectedTeamFilter === 'free_agents') {
           if (pilot.teamId || pilot.teamKey) return false
         } else {
-          const matchKey = pilot.teamKey?.toLowerCase() === selectedTeamFilter.toLowerCase()
-          const matchId = pilot.teamId === selectedTeamFilter
-          if (!matchKey && !matchId) return false
+          const targetFilterLower = selectedTeamFilter.toLowerCase().trim()
+          const pilotKeyLower = pilot.teamKey ? pilot.teamKey.toLowerCase().trim() : null
+          const pilotId = pilot.teamId || null
+
+          // Match estrito por runtime ID ou team_key canônica
+          const matchesTeam =
+            (pilotId && pilotId === selectedTeamFilter) ||
+            (pilotKeyLower && pilotKeyLower === targetFilterLower)
+
+          if (!matchesTeam) return false
         }
       }
 
