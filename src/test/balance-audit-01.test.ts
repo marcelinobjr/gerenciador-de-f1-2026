@@ -22,12 +22,6 @@ describe('BALANCE-AUDIT-01: Auditoria Esportiva & Diagnóstico BE02C (Baseline v
     const fs = await import('node:fs')
     const path = await import('node:path')
     const filePath = path.resolve(process.cwd(), 'src/artifacts/audits/balance-audit-01.json')
-    // Assegura sincronização persistente do artefato caso não exista no container
-    if (!fs.existsSync(filePath)) {
-      const dir = path.dirname(filePath)
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-      fs.writeFileSync(filePath, JSON.stringify(report, null, 2), 'utf-8')
-    }
     expect(fs.existsSync(filePath)).toBe(true)
     const content = fs.readFileSync(filePath, 'utf-8')
     const parsed = JSON.parse(content)

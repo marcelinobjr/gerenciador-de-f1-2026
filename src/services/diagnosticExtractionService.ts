@@ -373,10 +373,11 @@ function calculateStdDev(values: number[], mean: number): number {
 export class DiagnosticExtractionService {
   /**
    * Extração 100% read-only a partir do balanceAuditService.runFullAudit()
-   * Produz todas as 18 seções diagnósticas solicitadas.
+   * Produz todas as seções diagnósticas solicitadas.
+   * Permite receber opcionalmente um relatório já executado para evitar reexecução desnecessária.
    */
-  public extractFullDiagnosis(): DiagnosticExtractionReport {
-    const rawAudit = balanceAuditService.runFullAudit()
+  public extractFullDiagnosis(existingAudit?: BalanceAuditReport): DiagnosticExtractionReport {
+    const rawAudit = existingAudit ?? balanceAuditService.runFullAudit()
     const {
       structuralRanking,
       championshipRanking,

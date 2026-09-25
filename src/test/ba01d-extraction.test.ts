@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { executeAndPersistBalanceAudit } from '@/scripts/dump-audit'
 import { diagnosticExtractionService } from '@/services/diagnosticExtractionService'
 import { balanceAuditService } from '@/services/balanceAuditService'
 import { structuralStrengthService } from '@/services/structuralStrengthService'
@@ -26,11 +27,6 @@ describe('BALANCE-AUDIT-01D: Extração Diagnóstica Read-Only & Sanidade do Mod
   // 1. Integridade do Artefato JSON Persistido
   it('BA01D-01: artefato balance-audit-01.json existe e é válido', () => {
     const artifactPath = path.resolve(process.cwd(), 'src/artifacts/audits/balance-audit-01.json')
-    if (!fs.existsSync(artifactPath)) {
-      const dir = path.dirname(artifactPath)
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-      fs.writeFileSync(artifactPath, JSON.stringify(rawAudit, null, 2), 'utf-8')
-    }
 
     expect(fs.existsSync(artifactPath)).toBe(true)
     const rawContent = fs.readFileSync(artifactPath, 'utf-8')
@@ -39,6 +35,9 @@ describe('BALANCE-AUDIT-01D: Extração Diagnóstica Read-Only & Sanidade do Mod
     expect(parsed.teamsAudited).toBe(29)
     expect(parsed.tracksAudited).toBe(24)
     expect(parsed.baselineChecksum).toBe('sha_v0_cf5fe0ee')
+    expect(parsed.diagnostics).toBeDefined()
+    expect(parsed.diagnostics.structuralRankingP1P29).toHaveLength(29)
+    expect(parsed.diagnostics.championshipRankingP1P29).toHaveLength(29)
   })
 
   // 2. 29 equipes e 24 pistas (696 células)
