@@ -163,88 +163,15 @@ export function getLocalDriverPosterCandidates(
   const norm = name ? normalizeSurname(name) : ''
   const surname = name ? normalizeDriverSurname(name) : ''
 
-  // Caso Rafael Câmara (id 'rafael_camara' ou 'mbj-067' ou nome contém camara/câmara)
-  if (
-    driverId === 'rafael_camara' ||
-    driverId === 'mbj-067' ||
-    norm.includes('camara') ||
-    surname === 'camara'
-  ) {
-    const camaraDirect =
-      getDriveStoragePhotoUrl('1-Rafael_Camara.jpg') || DRIVE_STORAGE_PHOTOS['1-Rafael_Camara.jpg']
-    if (camaraDirect) addCandidate(camaraDirect)
-    const camaraPng =
-      getDriveStoragePhotoUrl('1-Rafael_Camara.png') || DRIVE_STORAGE_PHOTOS['1-Rafael_Camara.png']
-    if (camaraPng) addCandidate(camaraPng)
-  }
+  // Sem injeção de URLs externas de Rafael Câmara (priorizar estritamente resolver canônico local)
 
-  // 1. Pôster vertical do Daniel Ricciardo registrado como PRIMEIRO candidato absoluto
+  // 1. Daniel Ricciardo asset local do bundle
   if (
     surname === 'ricciardo' ||
     sources.normalizedKey === 'ricciardo' ||
     norm.includes('ricciardo')
   ) {
-    // 1º candidato: asset local importado do bundle
     addCandidate(ricciardoBundledPoster)
-    // Fallbacks subsequentes: URLs hi-res do Drive
-    addCandidate(
-      getDriveStoragePhotoUrl('3-Daniel_Ricciardo.png') ||
-        DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.png'],
-    )
-    addCandidate(
-      getDriveStoragePhotoUrl('3-Daniel_Ricciardo.jpg') ||
-        DRIVE_STORAGE_PHOTOS['3-Daniel_Ricciardo.jpg'],
-    )
-  }
-  if (
-    surname === 'bortoleto' ||
-    sources.normalizedKey === 'bortoleto' ||
-    norm.includes('bortoleto')
-  ) {
-    addCandidate(
-      getDriveStoragePhotoUrl('05-Gabriel_Bortoleto.jpg') ||
-        DRIVE_STORAGE_PHOTOS['05-Gabriel_Bortoleto.jpg'],
-    )
-    addCandidate(
-      getDriveStoragePhotoUrl('05-Gabriel_Bortoleto.png') ||
-        DRIVE_STORAGE_PHOTOS['05-Gabriel_Bortoleto.png'],
-    )
-    addCandidate(
-      getDriveStoragePhotoUrl('5-Gabriel_Bortoleto.jpg') ||
-        DRIVE_STORAGE_PHOTOS['5-Gabriel_Bortoleto.jpg'],
-    )
-    addCandidate(
-      getDriveStoragePhotoUrl('5-Gabriel_Bortoleto.png') ||
-        DRIVE_STORAGE_PHOTOS['5-Gabriel_Bortoleto.png'],
-    )
-  }
-
-  const mappedFiles =
-    PILOT_FILE_MAP[surname] || (sources.normalizedKey && PILOT_FILE_MAP[sources.normalizedKey])
-  if (mappedFiles && Array.isArray(mappedFiles)) {
-    for (const file of mappedFiles) {
-      const cdnUrl = getDriveStoragePhotoUrl(file)
-      if (cdnUrl) addCandidate(cdnUrl)
-    }
-  }
-
-  // Busca direta no CDN do Google Photos por chave de sobrenome, nome canônico ou nome completo
-  const cdnDirect =
-    getDriveStoragePhotoUrl(sources.normalizedKey) ||
-    getDriveStoragePhotoUrl(surname) ||
-    (norm ? getDriveStoragePhotoUrl(norm.replace(/\s+/g, '_')) : null)
-  if (cdnDirect) {
-    addCandidate(cdnDirect)
-  }
-
-  if (sources.filename) {
-    const cdnFile = getDriveStoragePhotoUrl(sources.filename)
-    if (cdnFile) addCandidate(cdnFile)
-    if (sources.filename.endsWith('.png')) {
-      const jpg = sources.filename.replace('.png', '.jpg')
-      const cdnJpg = getDriveStoragePhotoUrl(jpg)
-      if (cdnJpg) addCandidate(cdnJpg)
-    }
   }
 
   // 2. Asset empacotado no bundle se houver
@@ -252,53 +179,33 @@ export function getLocalDriverPosterCandidates(
     addCandidate(sources.bundledImg)
   }
 
-  // 3. Arquivos locais em /pilotos/ caso o browser consiga carregá-los (após Drive URLs)
-  if (mappedFiles && Array.isArray(mappedFiles)) {
-    for (const file of mappedFiles) {
-      addCandidate(`/pilotos/${file}`)
-    }
-  }
-
-  // 3. Arquivo registrado na lista canônica DRIVER_PHOTOS
+  // 3. Arquivo local canônico de fontes se existir
   if (sources.filename) {
     addCandidate(`/pilotos/${sources.filename}`)
-    if (sources.filename.endsWith('.png')) {
-      const jpg = sources.filename.replace('.png', '.jpg')
-      addCandidate(`/pilotos/${jpg}`)
-    } else if (sources.filename.endsWith('.jpg')) {
-      const png = sources.filename.replace('.jpg', '.png')
-      addCandidate(`/pilotos/${png}`)
-    }
   }
 
-  // 4. Candidatos locais adicionais do helper driver-photos
+  // 4. Candidatos locais adicionais do helper driver-photos (apenas caminhos locais válidos)
   if (sources.localCandidates && sources.localCandidates.length > 0) {
     for (const c of sources.localCandidates) {
-      addCandidate(c)
+      if (
+        typeof c === 'string' &&
+        (c.startsWith('/pilotos/') || c.startsWith('/pilotos-gerados/'))
+      ) {
+        addCandidate(c)
+      }
     }
   }
 
-  // 5. Formatos padrão com chave/sobrenome e extensões variadas (.png, .jpg, .webp)
-  const keysToTry = [sources.normalizedKey, surname].filter(Boolean)
-  for (const k of keysToTry) {
-    for (const ext of ['.png', '.jpg', '.webp']) {
-      addCandidate(`/pilotos/${k}${ext}`)
-    }
+  // 5. Fallbacks de contingência apenas no final da lista (nunca primários)
+  if (sources.filename) {
+    const cdnFile = getDriveStoragePhotoUrl(sources.filename)
+    if (cdnFile) addCandidate(cdnFile)
   }
-
-  // 6. Formatos com nome completo e underscore com e sem acentos
-  if (norm) {
-    const under = norm.replace(/\s+/g, '_')
-    for (const ext of ['.png', '.jpg', '.webp']) {
-      addCandidate(`/pilotos/${under}${ext}`)
-    }
+  const cdnDirect =
+    getDriveStoragePhotoUrl(sources.normalizedKey) || getDriveStoragePhotoUrl(surname)
+  if (cdnDirect) {
+    addCandidate(cdnDirect)
   }
-  const rawClean = name.trim().replace(/\s+/g, '_')
-  for (const ext of ['.png', '.jpg', '.webp']) {
-    addCandidate(`/pilotos/${rawClean}${ext}`)
-  }
-
-  // 7. Dropbox URL DIRETA apenas como último recurso de contingência (nunca fonte primária)
   if (sources.dropboxUrl) {
     addCandidate(sources.dropboxUrl)
   }

@@ -9,7 +9,11 @@
  * - Fallback gracioso: iniciais na cor da equipe ou placeholder se arquivo não responder.
  */
 
-import { getCanonicalDriverMaster, getCanonicalAssetId } from '@/lib/canonical-driver-database'
+import {
+  getCanonicalDriverMaster,
+  getCanonicalAssetId,
+  findCanonicalDriverMaster,
+} from '@/lib/canonical-driver-database'
 import { getGeneratedDriverPortraitProfile } from '@/lib/generated-driver-profiles'
 import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 
@@ -117,23 +121,27 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
   }
 
   // 3. Piloto Real Canônico (driverId -> assetId DRV_XXXX -> /pilotos/DRV_XXXX.jpg)
-  if (driverId) {
-    const master = getCanonicalDriverMaster(driverId)
-    const assetId = master ? master.assetId : getCanonicalAssetId(driverId)
+  // Com resiliência para IDs de runtime do PocketBase (ex: '0mow8vmzk0y4z9s' ou '9uazqw522oc9p4z')
+  // resolvendo pelo master canônico via driverId ou normalização por nome.
+  const resolvedMaster =
+    (driverId ? getCanonicalDriverMaster(driverId) : null) ||
+    findCanonicalDriverMaster(driverId, name)
 
-    if (assetId && assetId.startsWith('DRV_')) {
-      const canonicalPath = `/pilotos/${assetId}.jpg`
-      candidateUrls.push(canonicalPath)
+  const directAssetId = driverId ? getCanonicalAssetId(driverId) : null
+  const effectiveAssetId = resolvedMaster?.assetId || directAssetId
 
-      return {
-        url: canonicalPath,
-        candidateUrls,
-        fallbackInitials,
-        teamColor: teamColor || '#E10600',
-        sourceType: 'canonical_real',
-        assetId,
-        driverId,
-      }
+  if (effectiveAssetId && effectiveAssetId.startsWith('DRV_')) {
+    const canonicalPath = `/pilotos/${effectiveAssetId}.jpg`
+    candidateUrls.push(canonicalPath)
+
+    return {
+      url: canonicalPath,
+      candidateUrls,
+      fallbackInitials,
+      teamColor: teamColor || '#E10600',
+      sourceType: 'canonical_real',
+      assetId: effectiveAssetId,
+      driverId: resolvedMaster?.driverId || driverId || undefined,
     }
   }
 

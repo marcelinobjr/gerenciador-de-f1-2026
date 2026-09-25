@@ -63,7 +63,10 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-005': 'DRV_0019', // Lando Norris
   drv_lando_norris: 'DRV_0019',
   'mbj-006': 'DRV_0108', // Oscar Piastri
-  'mbj-007': 'DRV_0007', // George Russell
+  'mbj-007': 'DRV_0096', // George Russell (DRV_0096 canônico, DRV_0007 é Lundgaard)
+  drv_george_russell: 'DRV_0096',
+  '0mow8vmzk0y4z9s': 'DRV_0068', // Nico Hülkenberg (PocketBase runtime ID)
+  '9uazqw522oc9p4z': 'DRV_0012', // Gabriel Bortoleto (PocketBase runtime ID)
   'mbj-008': 'DRV_0008', // Andrea Kimi Antonelli
   'mbj-009': 'DRV_0009', // Fernando Alonso
   'mbj-010': 'DRV_0010', // Lance Stroll
@@ -156,7 +159,7 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-093': 'DRV_0093', // Nikola Tsolov
   'mbj-094': 'DRV_0094', // Charlie Wurz
   'mbj-095': 'DRV_0095', // Callum Voisin
-  'mbj-096': 'DRV_0096', // Matias Zagazeta
+  'mbj-096': 'DRV_0007', // Matias Zagazeta
   'mbj-097': 'DRV_0097', // Tasanapol Inthraphuvasak
   'mbj-098': 'DRV_0098', // Nikita Bedrin
   'mbj-099': 'DRV_0099', // Kacper Sztuka
@@ -361,7 +364,7 @@ export function auditDriverMasterData(): DriverMasterDataAuditReport {
 /**
  * Normaliza strings para comparação flexível de identidade (sem acentos, minúsculas, sem prefixos drv_/driver_)
  */
-function normalizeIdentityToken(str: string): string {
+export function normalizeIdentityToken(str: string): string {
   return str
     .toLowerCase()
     .normalize('NFD')
@@ -376,11 +379,20 @@ function normalizeIdentityToken(str: string): string {
  */
 const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
   // Bortoleto
+  '9uazqw522oc9p4z': [
+    'bortoleto',
+    'driver_gabriel_bortoleto',
+    'drv_gabriel_bortoleto',
+    'gabriel_bortoleto',
+    'mbj-020',
+    'drv_0012',
+  ],
   bortoleto: [
     'driver_gabriel_bortoleto',
     'drv_gabriel_bortoleto',
     'gabriel_bortoleto',
     'mbj-020',
+    '9uazqw522oc9p4z',
     'drv_0012',
     'bortoleto',
   ],
@@ -406,11 +418,20 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'drv_0012',
   ],
   // Hülkenberg
+  '0mow8vmzk0y4z9s': [
+    'hulkenberg',
+    'driver_nico_hulkenberg',
+    'drv_nico_hulkenberg',
+    'nico_hulkenberg',
+    'mbj-019',
+    'drv_0068',
+  ],
   hulkenberg: [
     'driver_nico_hulkenberg',
     'drv_nico_hulkenberg',
     'nico_hulkenberg',
     'mbj-019',
+    '0mow8vmzk0y4z9s',
     'drv_0068',
   ],
   driver_nico_hulkenberg: [
@@ -502,6 +523,105 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
  * e por nome completo ou parcial.
  * NUNCA inventa posição esportiva; retorna o registro encontrado ou null se irresolvido.
  */
+/**
+ * Busca registro mestre canônico por driverId ou nome de forma resiliente.
+ * Resolve nomes de pilotos titulares 2026 mesmo quando driverId de runtime
+ * do PocketBase (ex.: '0mow8vmzk0y4z9s' ou '9uazqw522oc9p4z') for fornecido.
+ */
+export function findCanonicalDriverMaster(
+  driverId?: string | null,
+  name?: string | null,
+): CanonicalDriverMaster | null {
+  // 1. Tentar busca direta por driverId
+  if (driverId) {
+    const direct = getCanonicalDriverMaster(driverId)
+    if (direct) return direct
+
+    // Checar aliases diretos de driverId
+    const rawKey = driverId.toLowerCase().trim()
+    const aliases = CANONICAL_DRIVER_IDENTITY_ALIASES[rawKey]
+    if (aliases) {
+      for (const a of aliases) {
+        const found = getCanonicalDriverMaster(a)
+        if (found) return found
+      }
+    }
+
+    // Checar mapeamento direto de assetId para registro mestre
+    const mappedAssetId = CANONICAL_DRIVER_ID_TO_ASSET_ID[driverId]
+    if (mappedAssetId) {
+      const byAsset = CANONICAL_DRIVERS_BY_ASSET_ID.get(mappedAssetId)
+      if (byAsset) return byAsset
+    }
+  }
+
+  // 2. Busca por nome se fornecido
+  if (name && name.trim()) {
+    const normTarget = normalizeIdentityToken(name)
+    if (normTarget) {
+      // 2.1 Casamento exato por fullName
+      for (const driver of CANONICAL_DRIVERS_MASTER) {
+        if (normalizeIdentityToken(driver.fullName) === normTarget) {
+          return driver
+        }
+      }
+
+      // 2.2 Casamento por alias no dicionário canônico
+      const aliases = CANONICAL_DRIVER_IDENTITY_ALIASES[normTarget]
+      if (aliases) {
+        for (const a of aliases) {
+          const found = getCanonicalDriverMaster(a)
+          if (found) return found
+        }
+      }
+
+      // 2.3 Casamento por substring se tamanho do token >= 4
+      if (normTarget.length >= 4) {
+        for (const driver of CANONICAL_DRIVERS_MASTER) {
+          const dNorm = normalizeIdentityToken(driver.fullName)
+          if (dNorm.includes(normTarget) || normTarget.includes(dNorm)) {
+            return driver
+          }
+        }
+      }
+
+      // 2.4 Casamento por último sobrenome
+      const parts = name.trim().split(/\s+/)
+      if (parts.length > 1) {
+        const surname = normalizeIdentityToken(parts[parts.length - 1])
+        if (surname.length >= 4) {
+          const sAliases = CANONICAL_DRIVER_IDENTITY_ALIASES[surname]
+          if (sAliases) {
+            for (const a of sAliases) {
+              const found = getCanonicalDriverMaster(a)
+              if (found) return found
+            }
+          }
+          for (const driver of CANONICAL_DRIVERS_MASTER) {
+            const dNorm = normalizeIdentityToken(driver.fullName)
+            if (dNorm.includes(surname)) {
+              return driver
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Se driverId tiver cara de slug/nome (ex: 'gabriel_bortoleto', 'nico_hulkenberg')
+  if (driverId && driverId.length >= 4) {
+    const normId = normalizeIdentityToken(driverId)
+    for (const driver of CANONICAL_DRIVERS_MASTER) {
+      const dNorm = normalizeIdentityToken(driver.fullName)
+      if (dNorm === normId || dNorm.includes(normId) || normId.includes(dNorm)) {
+        return driver
+      }
+    }
+  }
+
+  return null
+}
+
 export function resolveCanonicalDriverId<
   T extends { driverId?: string; driverName?: string; position?: number },
 >(targetId: string, qualyGrid: T[], targetName?: string): T | null {
