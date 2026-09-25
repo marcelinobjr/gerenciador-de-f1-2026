@@ -1,6 +1,6 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { getCountryFlag } from '@/lib/country-flags'
+import { CountryFlagChip } from '@/components/CountryFlagChip'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 
 interface DriverSummaryCardProps {
@@ -60,9 +60,7 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
               Piloto #{slotNumber}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-base leading-none drop-shadow-sm">
-                {getCountryFlag(nationality)}
-              </span>
+              <CountryFlagChip country={nationality} className="w-6 h-4 text-[9px]" />
               <h3 className="text-base sm:text-lg font-black text-neutral-900 tracking-tight font-sans truncate group-hover:text-[#E10600] transition-colors">
                 {driverName}
               </h3>
@@ -93,7 +91,7 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
         {/* Corpo: Imagem do piloto + GER + Contrato + Barras de Moral, Forma, Consistência */}
         <div className="flex gap-4 pt-3.5 items-start">
           {/* Foto do Piloto */}
-          <div className="relative w-24 sm:w-28 h-36 sm:h-40 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200/70 shadow-inner">
+          <div className="relative w-24 sm:w-28 h-36 sm:h-40 rounded-xl overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200/70 shadow-inner flex items-center justify-center">
             {bundledImg ? (
               <img
                 src={bundledImg}
@@ -101,14 +99,14 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
                 className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <DriverPhotoAvatar
-                  name={driverName}
-                  driverId={driverId}
-                  visualIdentity={visualIdentity}
-                  size="lg"
-                />
-              </div>
+              <DriverPhotoAvatar
+                name={driverName}
+                driverId={driverId}
+                visualIdentity={visualIdentity}
+                size="lg"
+                className="w-full h-full rounded-none"
+                imgClassName="w-full h-full object-cover object-top"
+              />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
           </div>

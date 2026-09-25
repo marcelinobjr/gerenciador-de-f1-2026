@@ -7,12 +7,12 @@ import { regulationTimelineService } from '@/services/regulationService'
 import type { TechnicalRegulation } from '@/types/canonical-regulations'
 import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
-import { getCountryFlag } from '@/lib/country-flags'
+import { getCountryFlag, getCountryCode } from '@/lib/country-flags'
+import { CountryFlagChip } from '@/components/CountryFlagChip'
 import { formatCurrency } from '@/lib/formatters'
 import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
 import audiCarImg from '@/assets/audi-13288.png'
 import audiGarageHeroImg from '@/assets/audi-e9cff.jpg'
-import ricciardoBundledImg from '@/assets/3-danielricciardo-4d208.jpg'
 import { resolveNewsIcon } from '@/lib/news-icon-catalog'
 import { TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
@@ -33,7 +33,6 @@ import {
   Loader2,
 } from 'lucide-react'
 import defaultAustraliaMap from '@/assets/01-australia-aeace.jpg'
-import bortoletoBundledImg from '@/assets/05-gabrielbortoleto-ed602.png'
 
 // Teto regulamentar FIA (R$ 215M)
 const COST_CAP_LIMIT = 215000000
@@ -152,8 +151,42 @@ export default function IndexPage() {
   }, [team?.id, season?.id, user?.id])
 
   const currentGP = useMemo(() => {
-    return F1_2026_CALENDAR.find((gp) => gp.round === currentRound) || F1_2026_CALENDAR[0]
+    return F1_2026_CALENDAR.find((gp) => gp.round === currentRound) || null
   }, [currentRound])
+
+  // Circuito canônico ou dados do PocketBase
+  const currentCircuitData = useMemo(() => {
+    return circuits.find((c) => c.round === currentRound) || null
+  }, [circuits, currentRound])
+
+  // Código de país dinâmico do GP atual
+  const currentGPCountryCode = useMemo(() => {
+    return getCountryCode(currentGP?.country || currentCircuitData?.country, currentRound)
+  }, [currentGP, currentCircuitData, currentRound])
+
+  // Informações de pista dinâmicas (chuva, temp, prazo, característica)
+  const trackWeatherInfo = useMemo(() => {
+    const rain =
+      (currentGP as any)?.rain_probability ??
+      (currentCircuitData as any)?.rain_chance ??
+      (currentCircuitData as any)?.rain_probability
+    const temp =
+      (currentGP as any)?.temperature ??
+      (currentCircuitData as any)?.temperature ??
+      (currentCircuitData as any)?.temp
+    const deadline = (currentGP as any)?.deadline ?? (currentCircuitData as any)?.deadline
+
+    return {
+      rainDisplay: rain !== undefined && rain !== null ? `${rain}%` : '—',
+      tempDisplay: temp !== undefined && temp !== null ? `${temp} ºC` : '—',
+      deadlineDisplay: deadline ? String(deadline) : '—',
+      characteristic:
+        currentGP?.characteristic ||
+        (currentCircuitData as any)?.characteristics ||
+        (currentCircuitData as any)?.description ||
+        null,
+    }
+  }, [currentGP, currentCircuitData])
 
   // Circuito visual do PocketBase ou default
   const circuitPhotoUrl = useMemo(() => {
@@ -184,40 +217,7 @@ export default function IndexPage() {
   // Pilotos Titulares
   const titularDrivers = useMemo(() => {
     const list = drivers.filter((d) => d.role === 'titular').slice(0, 2)
-    if (list.length >= 2) return list
-
-    // Fallbacks canônicos oficiais caso a carreira ainda não tenha pilotos contratados
-    const defaults = [
-      {
-        id: 'driver-ricciardo',
-        name: 'Daniel Ricciardo',
-        nationality: 'Austrália',
-        code: 'RIC',
-        number: 3,
-        speed: 84,
-        consistency: 85,
-        morale: 88,
-        physical_condition: 92,
-        bundledImg: ricciardoBundledImg,
-      },
-      {
-        id: 'driver-bortoleto',
-        name: 'Gabriel Bortoleto',
-        nationality: 'Brasil',
-        code: 'BOR',
-        number: 5,
-        speed: 82,
-        consistency: 80,
-        morale: 86,
-        physical_condition: 96,
-        bundledImg: bortoletoBundledImg,
-      },
-    ]
-
-    if (list.length === 1) {
-      return [list[0], defaults[1]]
-    }
-    return defaults
+    return list
   }, [drivers])
 
   // Métricas do Carro
@@ -532,32 +532,37 @@ export default function IndexPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span
-                    className="text-2xl inline-flex items-center justify-center"
-                    aria-label="Japão"
-                  >
-                    {currentGP?.flag && currentGP.flag !== 'JP' ? currentGP.flag : '🇯🇵'}
-                  </span>
+                  <CountryFlagChip
+                    country={currentGP?.country || currentCircuitData?.country}
+                    round={currentRound}
+                    className="w-7 h-5"
+                    title={currentGP?.country || currentGP?.name || 'Grande Prêmio'}
+                  />
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-tight flex items-center gap-1.5">
-                      <span>{currentGP?.name || 'Grande Prêmio do Japão'}</span>
-                      <span className="align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200 uppercase font-mono tracking-wider">
-                        JPN
+                      <span>
+                        {currentGP?.name || currentCircuitData?.name || 'Grande Prêmio a Definir'}
+                      </span>
+                      <span
+                        className="align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200 uppercase font-mono tracking-wider"
+                        aria-label={currentGP?.country || currentGPCountryCode}
+                      >
+                        {currentGPCountryCode}
                       </span>
                     </h3>
                     <p className="text-xs text-[#64748B] font-medium mt-0.5">
-                      {currentGP?.circuit || 'Suzuka International Racing Course'}
+                      {currentGP?.circuit || currentCircuitData?.circuit || 'Circuito a Confirmar'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Traçado Oficial Suzuka / Circuito */}
+              {/* Traçado Oficial / Circuito */}
               <div className="w-20 h-16 rounded-lg bg-[#11161C] border border-[#334155] p-1.5 flex items-center justify-center shrink-0 shadow-inner">
                 {circuitPhotoUrl ? (
                   <CircuitTrackImage
                     src={circuitPhotoUrl}
-                    alt={currentGP?.circuit || 'Circuito'}
+                    alt={currentGP?.circuit || currentCircuitData?.circuit || 'Circuito'}
                     className="w-full h-full object-contain"
                   />
                 ) : (
@@ -588,7 +593,7 @@ export default function IndexPage() {
                   Prazo
                 </span>
                 <strong className="text-xs sm:text-sm font-bold text-[#0F172A] block mt-0.5 font-mono">
-                  4 dias
+                  {trackWeatherInfo.deadlineDisplay}
                 </strong>
               </div>
               <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
@@ -597,7 +602,7 @@ export default function IndexPage() {
                   <span>Chuva</span>
                 </div>
                 <strong className="text-xs sm:text-sm font-bold text-cyan-600 block mt-0.5 font-mono">
-                  35%
+                  {trackWeatherInfo.rainDisplay}
                 </strong>
               </div>
               <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
@@ -606,16 +611,21 @@ export default function IndexPage() {
                   <span>Temp.</span>
                 </div>
                 <strong className="text-xs sm:text-sm font-bold text-[#0F172A] block mt-0.5 font-mono">
-                  22 ºC
+                  {trackWeatherInfo.tempDisplay}
                 </strong>
               </div>
             </div>
 
-            <div className="p-2.5 rounded-lg bg-[#F1F5F9] text-[11px] text-[#475569] leading-snug">
-              Exigência técnica da pista:{' '}
-              <strong className="text-[#0F172A]">Alta pressão aerodinâmica</strong> e curvas rápidas
-              em "S".
-            </div>
+            {trackWeatherInfo.characteristic ? (
+              <div className="p-2.5 rounded-lg bg-[#F1F5F9] text-[11px] text-[#475569] leading-snug">
+                Exigência técnica da pista:{' '}
+                <strong className="text-[#0F172A]">{trackWeatherInfo.characteristic}</strong>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-lg bg-[#F1F5F9] text-[11px] text-[#475569] leading-snug">
+                Exigência técnica da pista: <strong className="text-[#0F172A]">—</strong>
+              </div>
+            )}
           </div>
 
           {/* Botão Principal PREPARAR GP → */}
@@ -763,101 +773,138 @@ export default function IndexPage() {
             </div>
 
             {/* Dois Pilotos Lado a Lado (exclusivamente imagens fornecidas, simetria w-14 h-16) */}
-            <div className="grid grid-cols-2 gap-3">
-              {titularDrivers.map((driver, idx) => {
-                const flag = getCountryFlag(driver.nationality)
-                const gerScore = Math.round((driver.speed + driver.consistency) / 2) || 85
-                const moralVal = driver.morale ?? 85
-                const formaVal = driver.physical_condition ?? 92
-                const consistVal = driver.consistency ?? 82
+            {loading || titularDrivers.length === 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-2 animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <div className="w-14 h-16 rounded-lg bg-neutral-200 shrink-0" />
+                    <div className="space-y-1.5 flex-1">
+                      <div className="h-2.5 bg-neutral-200 rounded w-1/3" />
+                      <div className="h-3.5 bg-neutral-200 rounded w-3/4" />
+                      <div className="h-2.5 bg-neutral-200 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <div className="h-2 bg-neutral-200 rounded" />
+                    <div className="h-2 bg-neutral-200 rounded" />
+                    <div className="h-2 bg-neutral-200 rounded" />
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-2 animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <div className="w-14 h-16 rounded-lg bg-neutral-200 shrink-0" />
+                    <div className="space-y-1.5 flex-1">
+                      <div className="h-2.5 bg-neutral-200 rounded w-1/3" />
+                      <div className="h-3.5 bg-neutral-200 rounded w-3/4" />
+                      <div className="h-2.5 bg-neutral-200 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <div className="h-2 bg-neutral-200 rounded" />
+                    <div className="h-2 bg-neutral-200 rounded" />
+                    <div className="h-2 bg-neutral-200 rounded" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {titularDrivers.map((driver, idx) => {
+                  const gerScore = Math.round((driver.speed + driver.consistency) / 2) || 85
+                  const moralVal = driver.morale ?? 85
+                  const formaVal = driver.physical_condition ?? 92
+                  const consistVal = driver.consistency ?? 82
 
-                return (
-                  <div
-                    key={driver.id || idx}
-                    className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-2 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <div className="relative shrink-0">
-                          <DriverPhotoAvatar
-                            name={driver.name}
-                            driverId={driver.id}
-                            visualIdentity={
-                              (driver as any)?.procedural_data?.visualIdentity ||
-                              (driver as any)?.visualIdentity ||
-                              null
-                            }
-                            teamColor={team?.color}
-                            className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
-                            imgClassName={`w-full h-full object-cover ${
-                              driver.name.toLowerCase().includes('ricciardo')
-                                ? 'object-[50%_12%]'
-                                : 'object-top'
-                            }`}
-                          />
-                          <span className="absolute -bottom-1 -right-1 text-xs">{flag}</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] text-[#64748B] font-mono block">
-                            #{driver.number || idx + 1}
-                          </span>
-                          <h4 className="font-bold text-xs text-[#0F172A] truncate leading-tight">
-                            {driver.name.split(' ').pop()}
-                          </h4>
-                          <span className="text-[10px] font-bold text-[#E10600] font-mono">
-                            {gerScore} GER
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Barras de Moral, Forma e Consistência */}
-                      <div className="space-y-1.5 pt-2 text-[10px]">
-                        <div>
-                          <div className="flex justify-between text-[#64748B] mb-0.5">
-                            <span>Forma</span>
-                            <span className="font-bold text-[#0F172A] font-mono">{formaVal}%</span>
-                          </div>
-                          <div className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-emerald-500"
-                              style={{ width: `${formaVal}%` }}
+                  return (
+                    <div
+                      key={driver.id || idx}
+                      className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-2 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className="relative shrink-0">
+                            <DriverPhotoAvatar
+                              name={driver.name}
+                              driverId={driver.id}
+                              visualIdentity={
+                                (driver as any)?.procedural_data?.visualIdentity ||
+                                (driver as any)?.visualIdentity ||
+                                null
+                              }
+                              teamColor={team?.color}
+                              className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
+                              imgClassName="w-full h-full object-cover object-top"
+                            />
+                            <CountryFlagChip
+                              country={driver.nationality}
+                              className="absolute -bottom-1 -right-1 w-6 h-4 text-[9px]"
                             />
                           </div>
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between text-[#64748B] mb-0.5">
-                            <span>Moral</span>
-                            <span className="font-bold text-[#0F172A] font-mono">{moralVal}%</span>
-                          </div>
-                          <div className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-cyan-500"
-                              style={{ width: `${moralVal}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between text-[#64748B] mb-0.5">
-                            <span>Consistência</span>
-                            <span className="font-bold text-[#0F172A] font-mono">
-                              {consistVal}%
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] text-[#64748B] font-mono block">
+                              #{driver.number || idx + 1}
+                            </span>
+                            <h4 className="font-bold text-xs text-[#0F172A] truncate leading-tight">
+                              {driver.name.split(' ').pop()}
+                            </h4>
+                            <span className="text-[10px] font-bold text-[#E10600] font-mono">
+                              {gerScore} GER
                             </span>
                           </div>
-                          <div className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-indigo-500"
-                              style={{ width: `${consistVal}%` }}
-                            />
+                        </div>
+
+                        {/* Barras de Moral, Forma e Consistência */}
+                        <div className="space-y-1.5 pt-2 text-[10px]">
+                          <div>
+                            <div className="flex justify-between text-[#64748B] mb-0.5">
+                              <span>Forma</span>
+                              <span className="font-bold text-[#0F172A] font-mono">
+                                {formaVal}%
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-emerald-500"
+                                style={{ width: `${formaVal}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between text-[#64748B] mb-0.5">
+                              <span>Moral</span>
+                              <span className="font-bold text-[#0F172A] font-mono">
+                                {moralVal}%
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-cyan-500"
+                                style={{ width: `${moralVal}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between text-[#64748B] mb-0.5">
+                              <span>Consistência</span>
+                              <span className="font-bold text-[#0F172A] font-mono">
+                                {consistVal}%
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-neutral-200 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-indigo-500"
+                                style={{ width: `${consistVal}%` }}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="pt-3 mt-4 border-t border-[#F1F5F9]">
