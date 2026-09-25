@@ -47,7 +47,7 @@
     "PROIBIDO: Alterar ratings canônicos de pilotos",
     "PROIBIDO: Ligar structural score no race engine nesta fase 02A"
   ],
-  "checksum": "sha_v0_PLACEHOLDER",
+  "checksum": "sha_v0_cf5fe0ee",
   "teams": {
     "mercedes": {
       "teamKey": "mercedes",

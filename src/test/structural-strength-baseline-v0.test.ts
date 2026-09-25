@@ -81,6 +81,7 @@ describe('Structural Strength Baseline V0', () => {
     const { checksum, ...payloadWithoutChecksum } = parsed
     const expectedChecksum = calculateStableChecksum(payloadWithoutChecksum)
 
+    expect(expectedChecksum.startsWith('sha_v0_')).toBe(true)
     expect(checksum).toBe(expectedChecksum)
   })
 })

@@ -1,8 +1,6 @@
 import { BalanceBaselineV0 } from '@/types/structural-strength'
 import baselineV0Raw from './balance-baseline-v0.json'
 
-
-
 /**
  * Hash estável determinístico FNV-1a de 64 bits para o payload
  */
