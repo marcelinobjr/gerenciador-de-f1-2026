@@ -32,17 +32,17 @@ export const TeamInstitutionalDetailsModal: React.FC<TeamInstitutionalDetailsMod
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-[#0C1017] text-white border-neutral-800 p-6 max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl bg-white text-[#0F172A] border-[#E2E8F0] p-6 max-h-[85vh] overflow-y-auto shadow-xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600/20 text-[#E10600] flex items-center justify-center font-black text-lg border border-red-600/30">
+            <div className="w-10 h-10 rounded-xl bg-red-100 text-[#E10600] flex items-center justify-center font-black text-lg border border-red-200">
               {teamName.charAt(0)}
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold text-white uppercase tracking-tight">
+              <DialogTitle className="text-xl font-bold text-[#0F172A] uppercase tracking-tight">
                 {teamName}
               </DialogTitle>
-              <DialogDescription className="text-neutral-400 text-xs">
+              <DialogDescription className="text-[#64748B] text-xs">
                 Perfil institucional, sede operacional e histórico da montadora
               </DialogDescription>
             </div>
@@ -51,61 +51,61 @@ export const TeamInstitutionalDetailsModal: React.FC<TeamInstitutionalDetailsMod
 
         <div className="space-y-5 pt-3 text-xs">
           {/* Manifesto / Resumo Institucional */}
-          <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-2">
-            <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider block">
+          <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+            <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
               Missão & Filosofia
             </span>
-            <p className="text-neutral-200 text-sm leading-relaxed italic font-serif">
+            <p className="text-[#334155] text-sm leading-relaxed italic font-serif">
               &ldquo;{teamIntro}&rdquo;
             </p>
           </div>
 
           {/* Grid de Fatos Técnicos */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-xl bg-neutral-900/40 border border-neutral-800 space-y-1">
-              <div className="flex items-center gap-2 text-neutral-400 text-[11px]">
+            <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
+              <div className="flex items-center gap-2 text-[#64748B] text-[11px]">
                 <Building2 className="w-3.5 h-3.5" />
                 <span>Base Operacional</span>
               </div>
-              <div className="text-sm font-bold text-white">{teamHq}</div>
+              <div className="text-sm font-bold text-[#0F172A]">{teamHq}</div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-900/40 border border-neutral-800 space-y-1">
-              <div className="flex items-center gap-2 text-neutral-400 text-[11px]">
+            <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
+              <div className="flex items-center gap-2 text-[#64748B] text-[11px]">
                 <Cpu className="w-3.5 h-3.5" />
                 <span>Unidade de Potência</span>
               </div>
-              <div className="text-sm font-bold text-white">
+              <div className="text-sm font-bold text-[#0F172A]">
                 UP {engineSupplier} 50/50 Turbo Híbrido
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-900/40 border border-neutral-800 space-y-1">
-              <div className="flex items-center gap-2 text-neutral-400 text-[11px]">
+            <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
+              <div className="flex items-center gap-2 text-[#64748B] text-[11px]">
                 <Flag className="w-3.5 h-3.5" />
                 <span>Nacionalidade da Licença</span>
               </div>
-              <div className="text-sm font-bold text-white">{teamCountry}</div>
+              <div className="text-sm font-bold text-[#0F172A]">{teamCountry}</div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-900/40 border border-neutral-800 space-y-1">
-              <div className="flex items-center gap-2 text-neutral-400 text-[11px]">
+            <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
+              <div className="flex items-center gap-2 text-[#64748B] text-[11px]">
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span>Status Competitivo</span>
               </div>
-              <div className="text-sm font-bold text-emerald-400">
+              <div className="text-sm font-bold text-emerald-600">
                 Projeto de Fábrica em Ascensão
               </div>
             </div>
           </div>
 
           {/* Histórico & Estrutura */}
-          <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-2">
+          <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-2">
               <History className="w-4 h-4 text-[#E10600]" />
               Estrutura Organizacional e Herança
             </h4>
-            <p className="text-neutral-300 leading-relaxed text-xs">
+            <p className="text-[#475569] leading-relaxed text-xs">
               A equipe opera sob o regulamento técnico da era 2026, integrando fábrica de motores e
               chassi com foco em eficiência aerodinâmica ativa e recuperação elétrica de 350kW. O
               centro de excelência de Neuburg conta com bancadas dinâmicas e simulador de última

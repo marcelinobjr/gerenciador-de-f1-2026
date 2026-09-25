@@ -32,21 +32,21 @@ export const ManagerProfileDetailsModal: React.FC<ManagerProfileDetailsModalProp
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl bg-[#0C1017] text-white border-neutral-800 p-6 max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-xl bg-white text-[#0F172A] border-[#E2E8F0] p-6 max-h-[85vh] overflow-y-auto shadow-xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+          <DialogTitle className="text-xl font-bold text-[#0F172A] flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-[#E10600]" />
             Ficha Executiva do Team Principal
           </DialogTitle>
-          <DialogDescription className="text-neutral-400 text-xs">
+          <DialogDescription className="text-[#64748B] text-xs">
             Perfil profissional, arquétipo de liderança e atributos estratégicos
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 pt-3">
           {/* Card superior com retrato oficial e resumo */}
-          <div className="flex items-center gap-4 p-4 rounded-xl bg-neutral-900/60 border border-neutral-800">
-            <div className="w-20 h-20 rounded-xl overflow-hidden bg-neutral-950 border border-neutral-700 shrink-0">
+          <div className="flex items-center gap-4 p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
+            <div className="w-20 h-20 rounded-xl overflow-hidden bg-neutral-100 border border-[#CBD5E1] shrink-0">
               <img
                 src={portraitMeta.imageUrl}
                 alt={managerName}
@@ -54,34 +54,34 @@ export const ManagerProfileDetailsModal: React.FC<ManagerProfileDetailsModalProp
               />
             </div>
             <div>
-              <div className="text-base font-bold text-white">{managerName}</div>
-              <div className="text-xs text-neutral-400">{roleTitle}</div>
-              <Badge className="mt-2 bg-[#E10600]/20 text-[#E10600] border border-[#E10600]/40 text-xs font-semibold">
+              <div className="text-base font-bold text-[#0F172A]">{managerName}</div>
+              <div className="text-xs text-[#64748B]">{roleTitle}</div>
+              <Badge className="mt-2 bg-[#E10600]/10 text-[#E10600] border border-[#E10600]/30 text-xs font-semibold">
                 {portraitMeta.archetypeTitle}
               </Badge>
             </div>
           </div>
 
           {/* Confiança do Conselho */}
-          <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800 space-y-2">
+          <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-neutral-300 flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-emerald-400" />
+              <span className="font-semibold text-[#334155] flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-emerald-600" />
                 Confiança do Conselho de Administração
               </span>
-              <span className="font-bold text-emerald-400 font-mono text-sm">
+              <span className="font-bold text-emerald-600 font-mono text-sm">
                 {boardConfidence}%
               </span>
             </div>
             <Progress
               value={boardConfidence}
-              className="h-2 bg-neutral-800 [&>div]:bg-emerald-500"
+              className="h-2 bg-neutral-200 [&>div]:bg-emerald-500"
             />
           </div>
 
           {/* Atributos do Manager */}
-          <div className="p-4 rounded-xl bg-neutral-900/40 border border-neutral-800 space-y-3">
-            <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider block">
+          <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+            <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
               Competências de Gestão
             </span>
             <div className="grid grid-cols-2 gap-3">
@@ -89,10 +89,10 @@ export const ManagerProfileDetailsModal: React.FC<ManagerProfileDetailsModalProp
                 (attr) => (
                   <div
                     key={attr.key || attr.label}
-                    className="p-2.5 rounded-lg bg-neutral-950/60 border border-neutral-800 flex items-center justify-between text-xs"
+                    className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-between text-xs"
                   >
-                    <span className="text-neutral-400 truncate pr-2">{attr.label}</span>
-                    <span className="font-mono font-bold text-white">{attr.value}</span>
+                    <span className="text-[#64748B] truncate pr-2">{attr.label}</span>
+                    <span className="font-mono font-bold text-[#0F172A]">{attr.value}</span>
                   </div>
                 ),
               )}

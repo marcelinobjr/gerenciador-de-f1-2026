@@ -2569,13 +2569,13 @@ export default function TeamPage() {
         open={!!renegotiateDriver}
         onOpenChange={(open) => !open && setRenegotiateDriver(null)}
       >
-        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
+        <DialogContent className="bg-white border border-[#E2E8F0] text-[#0F172A] shadow-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-[#F5F7FA] flex items-center gap-2">
+            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
               <Sliders className="w-5 h-5 text-[#E10600]" />
               Renegociar Contrato — {renegotiateDriver?.name}
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
+            <DialogDescription className="text-xs text-[#64748B]">
               Ajuste a oferta salarial (variação de ±20%) e a duração de extensão do vínculo.
             </DialogDescription>
           </DialogHeader>
@@ -2584,10 +2584,10 @@ export default function TeamPage() {
             <div className="space-y-5 py-3">
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-[#8B95A7]">
+                  <span className="text-[#64748B]">
                     Proposta Salarial ({salaryMultiplier}% do atual):
                   </span>
-                  <strong className="text-base text-[#00A6FB]">
+                  <strong className="text-base text-cyan-700 font-bold">
                     {formatCurrency(
                       Math.round(renegotiateDriver.salary * (salaryMultiplier / 100)),
                     )}
@@ -2602,7 +2602,7 @@ export default function TeamPage() {
                   step={1}
                   className="py-2"
                 />
-                <div className="flex justify-between text-[11px] text-[#8B95A7] font-mono">
+                <div className="flex justify-between text-[11px] text-[#64748B] font-mono">
                   <span>-20% ({formatCurrency(Math.round(renegotiateDriver.salary * 0.8))})</span>
                   <span>Atual: {formatCurrency(renegotiateDriver.salary)}</span>
                   <span>+20% ({formatCurrency(Math.round(renegotiateDriver.salary * 1.2))})</span>
@@ -2610,7 +2610,7 @@ export default function TeamPage() {
               </div>
 
               <div className="space-y-2">
-                <span className="text-xs font-mono text-[#8B95A7]">Duração da Renovação:</span>
+                <span className="text-xs font-mono text-[#64748B]">Duração da Renovação:</span>
                 <div className="grid grid-cols-3 gap-2">
                   {[1, 2, 3].map((yrs) => (
                     <Button
@@ -2620,8 +2620,8 @@ export default function TeamPage() {
                       onClick={() => setContractYears(yrs)}
                       className={`text-xs font-mono ${
                         contractYears === yrs
-                          ? 'bg-[#E10600] text-white hover:bg-[#FF2E25]'
-                          : 'border-[#1F2733] text-[#F5F7FA] hover:bg-[#1F2733]'
+                          ? 'bg-[#E10600] text-white hover:bg-[#C50500]'
+                          : 'border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9]'
                       }`}
                     >
                       {yrs} {yrs === 1 ? 'ano' : 'anos'} ({2026 + yrs})
@@ -2636,14 +2636,14 @@ export default function TeamPage() {
             <Button
               variant="outline"
               onClick={() => setRenegotiateDriver(null)}
-              className="border-[#1F2733] text-[#8B95A7] hover:text-[#F5F7FA]"
+              className="border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A]"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleRenegotiate}
               disabled={isProcessing}
-              className="bg-[#E10600] hover:bg-[#FF2E25] text-white font-semibold"
+              className="bg-[#E10600] hover:bg-[#C50500] text-white font-semibold"
             >
               {isProcessing ? 'Enviando proposta...' : 'Confirmar Novo Contrato'}
             </Button>
@@ -2653,34 +2653,36 @@ export default function TeamPage() {
 
       {/* MODAL: DISPENSAR PILOTO */}
       <Dialog open={!!fireDriver} onOpenChange={(open) => !open && setFireDriver(null)}>
-        <DialogContent className="bg-[#090D15]/95 backdrop-blur-md border border-[#1A2333] text-[#F5F7FA]">
+        <DialogContent className="bg-white border border-[#E2E8F0] text-[#0F172A] shadow-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-red-400 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
+            <DialogTitle className="text-lg font-bold text-red-600 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
               Rescisão Unilateral de Contrato
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#8B95A7]">
+            <DialogDescription className="text-xs text-[#64748B]">
               Aviso de multa rescisória obrigatória conforme regulamento FIA 2026.
             </DialogDescription>
           </DialogHeader>
 
           {fireDriver && (
             <div className="space-y-4 py-2 text-xs">
-              <p className="text-[#F5F7FA]">
+              <p className="text-[#334155]">
                 Você está prestes a rescindir o contrato de{' '}
-                <strong className="text-white">{fireDriver.name}</strong> (
+                <strong className="text-[#0F172A]">{fireDriver.name}</strong> (
                 {fireDriver.role === 'reserva' ? 'Piloto Reserva' : 'Titular'}).
               </p>
-              <div className="p-3.5 rounded-lg bg-red-950/30 border border-red-500/30 font-mono space-y-1.5">
+              <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 font-mono space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Multa Rescisória (50% do salário anual):</span>
-                  <strong className="text-red-400 text-sm">
+                  <span className="text-[#64748B]">Multa Rescisória (50% do salário anual):</span>
+                  <strong className="text-red-600 text-sm font-bold">
                     {formatCurrency(Math.round(fireDriver.salary * 0.5))}
                   </strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#8B95A7]">Seu Orçamento Atual:</span>
-                  <span className="text-[#F5F7FA]">{formatCurrency(team?.budget ?? 0)}</span>
+                  <span className="text-[#64748B]">Seu Orçamento Atual:</span>
+                  <span className="text-[#0F172A] font-bold">
+                    {formatCurrency(team?.budget ?? 0)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -2690,7 +2692,7 @@ export default function TeamPage() {
             <Button
               variant="outline"
               onClick={() => setFireDriver(null)}
-              className="border-[#1F2733] text-[#8B95A7]"
+              className="border-[#CBD5E1] text-[#64748B]"
             >
               Cancelar
             </Button>

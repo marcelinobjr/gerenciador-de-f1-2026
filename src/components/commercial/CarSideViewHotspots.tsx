@@ -189,30 +189,30 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
         onClick={() => onSelectSlot(slotKey)}
         onMouseEnter={() => setHoveredSlot(slotKey)}
         onMouseLeave={() => setHoveredSlot(null)}
-        className={`cursor-pointer transition-all duration-200 select-none rounded-xl px-3.5 py-2 sm:px-4 sm:py-2.5 backdrop-blur-md border shadow-lg flex flex-col justify-center ${
+        className={`cursor-pointer transition-all duration-200 select-none rounded-xl px-3.5 py-2 sm:px-4 sm:py-2.5 border shadow-xs flex flex-col justify-center ${
           isSelected
             ? isOccupied
-              ? 'bg-[#0B1512]/95 border-emerald-400 ring-2 ring-emerald-500/40 shadow-emerald-950/40'
-              : 'bg-[#180B0D]/95 border-red-500 ring-2 ring-red-500/40 shadow-red-950/40'
+              ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/30'
+              : 'bg-red-50 border-red-500 ring-2 ring-red-500/30'
             : isHovered
               ? isOccupied
-                ? 'bg-[#0B1311]/90 border-emerald-400/80 -translate-y-0.5'
-                : 'bg-[#140D10]/90 border-red-400/80 -translate-y-0.5'
+                ? 'bg-white border-emerald-400 -translate-y-0.5'
+                : 'bg-white border-red-400 -translate-y-0.5'
               : isOccupied
-                ? 'bg-[#090D12]/80 border-emerald-500/30 hover:border-emerald-400/60'
-                : 'bg-[#090D12]/80 border-[#2A3442] hover:border-red-400/60'
+                ? 'bg-white border-[#CBD5E1] hover:border-emerald-400'
+                : 'bg-white border-[#E2E8F0] hover:border-red-400'
         }`}
       >
         {/* Header: Label + Badge */}
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs sm:text-[13px] font-bold text-white tracking-tight">
+          <span className="text-xs sm:text-[13px] font-bold text-[#0F172A] tracking-tight">
             {coord.name}
           </span>
           <span
             className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-black tracking-wider uppercase border ${
               isOccupied
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                : 'bg-red-500/20 text-red-300 border-red-500/40'
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                : 'bg-red-100 text-red-700 border-red-200'
             }`}
           >
             {isOccupied ? 'OCUPADO' : 'VAGO'}
@@ -223,15 +223,15 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
         <div className="mt-1 flex items-baseline justify-between gap-2 text-xs">
           {isOccupied ? (
             <>
-              <span className="text-[11px] font-semibold text-neutral-200 truncate max-w-[130px]">
+              <span className="text-[11px] font-semibold text-[#334155] truncate max-w-[130px]">
                 {contract.sponsorName}
               </span>
-              <span className="font-mono font-bold text-emerald-400 whitespace-nowrap text-xs">
+              <span className="font-mono font-bold text-emerald-600 whitespace-nowrap text-xs">
                 {formatMoneyM(contract.fixedAnnualValue, true)}/ano
               </span>
             </>
           ) : (
-            <span className="text-[10px] sm:text-[11px] font-mono text-neutral-400 whitespace-nowrap">
+            <span className="text-[10px] sm:text-[11px] font-mono text-[#64748B] whitespace-nowrap">
               Est. {formatMoneyM(slotMeta.defaultMarketValueMin, false, 0)} –{' '}
               {formatMoneyM(slotMeta.defaultMarketValueMax, false, 0)}
             </span>
@@ -242,21 +242,20 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
   }
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden bg-[#0A0D14] border border-[#1F2733] shadow-2xl p-4 sm:p-6 select-none">
+    <div className="relative w-full rounded-2xl overflow-hidden bg-white border border-[#E2E8F0] shadow-sm p-4 sm:p-6 select-none">
       {/* Background ambient lighting */}
-      <div className="absolute inset-0 bg-gradient-to-r from-red-600/10 via-transparent to-red-600/15 pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] h-[65%] bg-red-950/20 blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 via-transparent to-red-500/5 pointer-events-none" />
 
       {/* Header com identificação da equipe */}
-      <div className="relative z-20 flex items-center justify-between pb-3 border-b border-white/10 mb-3 sm:mb-4">
+      <div className="relative z-20 flex items-center justify-between pb-3 border-b border-[#F1F5F9] mb-3 sm:mb-4">
         <div className="flex items-center gap-3">
           <div className="w-2.5 h-2.5 rounded-full bg-[#E10600] animate-pulse" />
-          <span className="text-[11px] font-mono tracking-widest text-[#8B95A7] uppercase font-bold">
+          <span className="text-[11px] font-mono tracking-widest text-[#64748B] uppercase font-bold">
             ESPAÇOS OFICIAIS // MONOPOSTO F1 2026
           </span>
         </div>
         <div className="text-right">
-          <span className="text-xs font-mono font-bold text-white tracking-wide">
+          <span className="text-xs font-mono font-bold text-[#0F172A] tracking-wide">
             {teamName || 'Audi F1 Team'}
           </span>
         </div>
@@ -267,7 +266,7 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
       {/* ========================================================= */}
       <div
         ref={stageRef}
-        className="relative z-10 w-full rounded-xl overflow-hidden bg-[#05070B] border border-white/10 flex flex-col hidden md:flex"
+        className="relative z-10 w-full rounded-xl overflow-hidden bg-white border border-[#E2E8F0] flex flex-col hidden md:flex"
       >
         {/* SVG OVERLAY RESPONSIVO PARA LINHAS DE CONEXÃO */}
         <svg
@@ -333,17 +332,17 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
           })}
         </svg>
 
-        {/* 1. FAIXA PRETA SUPERIOR (Bico, Lateral, Tampa do Motor, Asa Traseira) */}
-        <div className="relative z-30 w-full px-5 pt-4 pb-3 bg-[#06080D]/95 border-b border-white/5">
+        {/* 1. FAIXA SUPERIOR DE SLOTS (Bico, Lateral, Tampa do Motor, Asa Traseira) */}
+        <div className="relative z-30 w-full px-5 pt-4 pb-3 bg-[#F8FAFC] border-b border-[#E2E8F0]">
           <div className="grid grid-cols-4 gap-3.5 lg:gap-5 items-stretch">
             {topSlotKeys.map((key) => renderInfoBox(key))}
           </div>
         </div>
 
-        {/* 2. ÁREA CENTRAL DO CARRO (CARRO LIMPO + HOTSPOTS PRECISOS) */}
+        {/* 2. ÁREA CENTRAL DO CARRO (CANVAS TÉCNICO INTERNO LOCALIZADO) */}
         <div
           ref={carAreaRef}
-          className="relative w-full aspect-[21/9] max-h-[460px] flex items-center justify-center bg-black/60 overflow-hidden"
+          className="relative w-full aspect-[21/9] max-h-[460px] flex items-center justify-center bg-slate-950 overflow-hidden border-y border-[#E2E8F0]"
         >
           {/* Imagem lateral real da equipe (Audi F1 2026 limpa, proporção preservada) */}
           {sideViewImage ? (
@@ -426,13 +425,13 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
           })}
         </div>
 
-        {/* 3. FAIXA PRETA INFERIOR (Asa Dianteira) */}
-        <div className="relative z-30 w-full px-5 py-3.5 bg-[#06080D]/95 border-t border-white/5 flex items-center justify-between">
+        {/* 3. FAIXA INFERIOR DE SLOTS (Asa Dianteira) */}
+        <div className="relative z-30 w-full px-5 py-3.5 bg-[#F8FAFC] border-t border-[#E2E8F0] flex items-center justify-between">
           <div className="w-full max-w-[260px] lg:max-w-[280px]">
             {bottomSlotKeys.map((key) => renderInfoBox(key))}
           </div>
 
-          <div className="hidden sm:flex items-center gap-4 text-xs font-mono text-neutral-400">
+          <div className="hidden sm:flex items-center gap-4 text-xs font-mono text-[#64748B]">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white" />
               Espaço Ocupado
@@ -444,7 +443,7 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
             {onExploreMarket && (
               <button
                 onClick={() => selectedSlot && onExploreMarket(selectedSlot)}
-                className="px-3 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-mono transition-colors"
+                className="px-3 py-1 rounded-lg bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] text-xs font-mono transition-colors shadow-xs"
               >
                 Abrir Mercado &rarr;
               </button>
@@ -458,7 +457,7 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
       {/* ========================================================= */}
       <div className="md:hidden space-y-4">
         {/* Carro com hotspots tocáveis */}
-        <div className="relative w-full aspect-[16/8] flex items-center justify-center bg-black/60 rounded-xl overflow-hidden border border-white/10">
+        <div className="relative w-full aspect-[16/8] flex items-center justify-center bg-slate-950 rounded-xl overflow-hidden border border-[#E2E8F0]">
           {sideViewImage ? (
             <img
               src={sideViewImage}
@@ -526,9 +525,9 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
                 className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                   isSelected
                     ? isOccupied
-                      ? 'bg-emerald-950/40 border-emerald-400 ring-1 ring-emerald-500/40'
-                      : 'bg-red-950/40 border-red-500 ring-1 ring-red-500/40'
-                    : 'bg-[#0B0E14] border-[#1F2733]'
+                      ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500/30'
+                      : 'bg-red-50 border-red-500 ring-1 ring-red-500/30'
+                    : 'bg-white border-[#E2E8F0]'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -538,8 +537,8 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
                     }`}
                   />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-white truncate">{coord.name}</div>
-                    <div className="text-[10px] text-neutral-400 truncate">
+                    <div className="text-xs font-bold text-[#0F172A] truncate">{coord.name}</div>
+                    <div className="text-[10px] text-[#64748B] truncate">
                       {isOccupied ? contract.sponsorName : 'Disponível para Captação'}
                     </div>
                   </div>
@@ -548,7 +547,7 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
                 <div className="text-right shrink-0">
                   <div
                     className={`text-xs font-mono font-bold ${
-                      isOccupied ? 'text-emerald-400' : 'text-neutral-300'
+                      isOccupied ? 'text-emerald-600' : 'text-[#334155]'
                     }`}
                   >
                     {isOccupied
@@ -558,8 +557,8 @@ export const CarSideViewHotspots: React.FC<CarSideViewHotspotsProps> = ({
                   <span
                     className={`inline-block text-[8px] font-mono px-1 rounded font-black tracking-wider uppercase border ${
                       isOccupied
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                        : 'bg-red-500/20 text-red-300 border-red-500/40'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        : 'bg-red-100 text-red-700 border-red-200'
                     }`}
                   >
                     {isOccupied ? 'OCUPADO' : 'VAGO'}

@@ -136,27 +136,27 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
     <div className="space-y-6">
       {/* 1. PIPELINE HORIZONTAL SUPERIOR DE RESUMO DA NEGOCIAÇÃO ATIVA */}
       {activeNegotiation && (
-        <div className="bg-[#0B0E14] border border-[#1F2733] rounded-2xl p-4 sm:p-5 text-white shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#1F2733]">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 sm:p-5 text-[#0F172A] shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F1F5F9]">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/10 p-2 flex items-center justify-center shrink-0">
-                <Building2 className="w-5 h-5 text-neutral-200" />
+              <div className="w-10 h-10 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] p-2 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5 text-[#334155]" />
               </div>
               <div>
                 <span className="text-[10px] font-mono uppercase tracking-widest text-[#E10600] font-bold block">
                   PIPELINE DE NEGOCIAÇÃO // F1 2026
                 </span>
-                <h3 className="text-lg font-black text-white">
+                <h3 className="text-lg font-black text-[#0F172A]">
                   {activeNegotiation.sponsorName} ({activeNegotiation.country})
                 </h3>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono px-2.5 py-1 rounded bg-neutral-800 text-neutral-300">
+              <span className="text-xs font-mono px-2.5 py-1 rounded bg-[#F1F5F9] text-[#64748B] border border-[#E2E8F0]">
                 Rodada {activeNegotiation.roundsCount} de {activeNegotiation.maxRounds}
               </span>
-              <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Fit: {formatPercent(activeNegotiation.sponsorFit)}
               </span>
             </div>
@@ -173,21 +173,17 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                 <div key={step.key} className="space-y-1.5">
                   <div
                     className={`h-2 rounded-full transition-all ${
-                      isCurrent
-                        ? 'bg-[#E10600] shadow-[0_0_10px_rgba(225,6,0,0.8)]'
-                        : isPast
-                          ? 'bg-emerald-500'
-                          : 'bg-[#1F2733]'
+                      isCurrent ? 'bg-[#E10600]' : isPast ? 'bg-emerald-500' : 'bg-[#E2E8F0]'
                     }`}
                   />
                   <div className="flex items-center justify-between text-[10px] font-mono">
                     <span
                       className={`${
                         isCurrent
-                          ? 'text-white font-bold'
+                          ? 'text-[#0F172A] font-bold'
                           : isPast
-                            ? 'text-emerald-400'
-                            : 'text-[#8B95A7]'
+                            ? 'text-emerald-600'
+                            : 'text-[#94A3B8]'
                       }`}
                     >
                       {step.label}
@@ -333,21 +329,21 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                 </p>
               </div>
 
-              {/* Formulário de Contraproposta Real */}
-              <div className="p-4 rounded-xl bg-neutral-900 text-white space-y-3 shadow-md">
+              {/* Formulário de Contraproposta Real (LIGHT-UI-01C) */}
+              <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-400 font-mono flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-700 font-mono flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 text-amber-600" />
                     Enviar Contraproposta da Equipe
                   </span>
-                  <span className="text-[10px] font-mono text-neutral-400">
+                  <span className="text-[10px] font-mono text-[#64748B]">
                     Rodada {activeNegotiation.roundsCount}/{activeNegotiation.maxRounds}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="text-neutral-300 block mb-1 font-mono text-[11px]">
+                    <label className="text-[#334155] block mb-1 font-mono text-[11px]">
                       Valor Anual Solicitado (US$ Milhões):
                     </label>
                     <input
@@ -357,18 +353,18 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                       max="60"
                       value={counterValue}
                       onChange={(e) => setCounterValue(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-lg bg-black/50 border border-neutral-700 text-white font-mono font-bold text-sm focus:border-amber-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-[#0F172A] font-mono font-bold text-sm focus:border-[#E10600] focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="text-neutral-300 block mb-1 font-mono text-[11px]">
+                    <label className="text-[#334155] block mb-1 font-mono text-[11px]">
                       Duração do Contrato:
                     </label>
                     <select
                       value={counterYears}
                       onChange={(e) => setCounterYears(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-lg bg-black/50 border border-neutral-700 text-white text-xs font-mono focus:border-amber-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-[#CBD5E1] text-[#0F172A] text-xs font-mono focus:border-[#E10600] focus:outline-none"
                     >
                       <option value={1}>1 Temporada (Flexível)</option>
                       <option value={2}>2 Temporadas (Padrão)</option>
@@ -378,12 +374,12 @@ export const TabNegotiationDesk: React.FC<TabNegotiationDeskProps> = ({
                 </div>
 
                 <div className="pt-2 flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-neutral-400">
+                  <span className="text-[10px] font-mono text-[#64748B]">
                     Ajustes de até +{formatPercent(15)} costumam ser aceitos em 1 rodada.
                   </span>
                   <button
                     onClick={() => onSendCounter(activeNegotiation.id, counterValue, counterYears)}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold text-xs transition-colors flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-colors flex items-center gap-1.5"
                   >
                     Submeter Contraproposta
                   </button>

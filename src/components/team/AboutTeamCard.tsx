@@ -25,13 +25,13 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
   onOpenDetails,
 }) => {
   return (
-    <Card className="bg-[#10141C] border border-neutral-800 text-white rounded-2xl flex flex-col justify-between p-6 h-full shadow-lg">
+    <Card className="bg-white border border-[#E2E8F0] text-[#0F172A] rounded-2xl flex flex-col justify-between p-6 h-full shadow-sm">
       <div>
         {/* Header integrado com estilo da referência */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-neutral-800">
+        <div className="flex items-center justify-between pb-3.5 border-b border-[#F1F5F9]">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-4 bg-[#E10600] rounded-sm inline-block" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white font-sans">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#0F172A] font-sans">
               Sobre a Equipe
             </h3>
           </div>
@@ -39,10 +39,10 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
           {/* Emblema sutil no topo do card */}
           {isAudi ? (
             <div className="flex items-center -space-x-1 opacity-70">
-              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
-              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
-              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
-              <span className="w-3.5 h-3.5 rounded-full border border-white/80 inline-block" />
+              <span className="w-3.5 h-3.5 rounded-full border border-neutral-400 inline-block" />
+              <span className="w-3.5 h-3.5 rounded-full border border-neutral-400 inline-block" />
+              <span className="w-3.5 h-3.5 rounded-full border border-neutral-400 inline-block" />
+              <span className="w-3.5 h-3.5 rounded-full border border-neutral-400 inline-block" />
             </div>
           ) : teamLogoUrl ? (
             <img
@@ -54,15 +54,15 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
         </div>
 
         {/* Lista com ícones e valores conforme referência */}
-        <div className="divide-y divide-neutral-800/80">
+        <div className="divide-y divide-[#F1F5F9]">
           {/* Base */}
           <div className="flex items-center justify-between py-3 text-xs">
-            <div className="flex items-center gap-2 text-neutral-400 font-medium">
-              <MapPin className="w-3.5 h-3.5 text-neutral-400" />
+            <div className="flex items-center gap-2 text-[#64748B] font-medium">
+              <MapPin className="w-3.5 h-3.5 text-[#64748B]" />
               <span>Base</span>
             </div>
             <span
-              className="font-semibold text-white text-right truncate max-w-[170px]"
+              className="font-semibold text-[#0F172A] text-right truncate max-w-[170px]"
               title={baseLocation}
             >
               {baseLocation}
@@ -71,12 +71,12 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
 
           {/* Motor */}
           <div className="flex items-center justify-between py-3 text-xs">
-            <div className="flex items-center gap-2 text-neutral-400 font-medium">
-              <Cpu className="w-3.5 h-3.5 text-neutral-400" />
+            <div className="flex items-center gap-2 text-[#64748B] font-medium">
+              <Cpu className="w-3.5 h-3.5 text-[#64748B]" />
               <span>Motor</span>
             </div>
             <span
-              className="font-semibold text-white text-right truncate max-w-[170px]"
+              className="font-semibold text-[#0F172A] text-right truncate max-w-[170px]"
               title={engineSupplier}
             >
               {engineSupplier}
@@ -85,34 +85,34 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
 
           {/* Nacionalidade */}
           <div className="flex items-center justify-between py-3 text-xs">
-            <div className="flex items-center gap-2 text-neutral-400 font-medium">
-              <Flag className="w-3.5 h-3.5 text-neutral-400" />
+            <div className="flex items-center gap-2 text-[#64748B] font-medium">
+              <Flag className="w-3.5 h-3.5 text-[#64748B]" />
               <span>Nacionalidade</span>
             </div>
-            <span className="font-semibold text-white text-right truncate max-w-[170px]">
+            <span className="font-semibold text-[#0F172A] text-right truncate max-w-[170px]">
               {nationality}
             </span>
           </div>
 
           {/* Status */}
           <div className="flex items-center justify-between py-3 text-xs">
-            <div className="flex items-center gap-2 text-neutral-400 font-medium">
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            <div className="flex items-center gap-2 text-[#64748B] font-medium">
+              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
               <span>Status</span>
             </div>
-            <span className="font-semibold text-neutral-200 text-right truncate max-w-[170px]">
+            <span className="font-semibold text-[#0F172A] text-right truncate max-w-[170px]">
               {status}
             </span>
           </div>
 
           {/* Objetivo da Temporada */}
           <div className="flex items-center justify-between py-3 text-xs">
-            <div className="flex items-center gap-2 text-neutral-400 font-medium">
-              <Target className="w-3.5 h-3.5 text-neutral-400" />
+            <div className="flex items-center gap-2 text-[#64748B] font-medium">
+              <Target className="w-3.5 h-3.5 text-[#64748B]" />
               <span>Objetivo da Temporada</span>
             </div>
             <span
-              className="font-semibold text-white text-right truncate max-w-[170px]"
+              className="font-semibold text-[#0F172A] text-right truncate max-w-[170px]"
               title={seasonTarget}
             >
               {seasonTarget}
@@ -122,15 +122,15 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
       </div>
 
       {/* Botão Editar Informações / Ver Detalhes */}
-      <div className="pt-3 border-t border-neutral-800 mt-2 flex justify-end">
+      <div className="pt-3 border-t border-[#F1F5F9] mt-2 flex justify-end">
         <Button
           variant="outline"
           size="sm"
           onClick={onOpenDetails}
-          className="border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800 text-xs font-semibold text-white hover:text-white flex items-center gap-1.5 px-3 py-1.5 h-auto transition-colors"
+          className="border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-xs font-semibold text-[#0F172A] hover:text-[#0F172A] flex items-center gap-1.5 px-3 py-1.5 h-auto transition-colors"
         >
           <span>Editar Informações</span>
-          <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
+          <ChevronRight className="w-3.5 h-3.5 text-[#64748B]" />
         </Button>
       </div>
     </Card>

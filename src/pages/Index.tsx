@@ -440,31 +440,31 @@ export default function IndexPage() {
       {/* ========================================================================= */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* HERO: EQUIPE (Col 8) */}
-        <div className="lg:col-span-8 relative rounded-xl bg-[#0B0E14] border border-[#E2E8F0]/20 shadow-md overflow-hidden min-h-[220px] sm:min-h-[240px] flex flex-col justify-between text-white">
+        <div className="lg:col-span-8 relative rounded-xl bg-white border border-[#E2E8F0] shadow-sm overflow-hidden min-h-[220px] sm:min-h-[240px] flex flex-col justify-between text-[#0F172A]">
           {/* Imagem de Fundo Oficial da Garagem Audi Sport F1 Team */}
           <div
-            className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_10%] pointer-events-none opacity-85 transition-transform duration-700"
+            className="absolute inset-0 bg-cover bg-center sm:bg-[center_right_10%] pointer-events-none opacity-20 sm:opacity-25 transition-transform duration-700"
             style={{
               backgroundImage: `url(${audiGarageHeroImg})`,
             }}
           />
 
-          {/* Gradiente escuro lateral da esquerda para a direita para legibilidade dos textos executivos */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#080B10] via-[#0B0E14]/90 sm:via-[#0B0E14]/80 to-transparent pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#080B10]/90 via-transparent to-transparent pointer-events-none" />
+          {/* Gradiente suave da esquerda para a direita para preservar legibilidade com fundo claro */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 sm:via-white/80 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-transparent to-transparent pointer-events-none" />
 
           {/* Conteúdo sobreposto */}
           <div className="relative z-10 p-5 sm:p-6 space-y-3 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#E10600]/20 border border-[#E10600]/40 text-[#FF4D4D] text-[11px] font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#E10600]/10 border border-[#E10600]/30 text-[#E10600] text-[11px] font-bold uppercase tracking-wider">
               <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />
               {seasonYear} FIA FORMULA 1 WORLD CHAMPIONSHIP
             </div>
 
             <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white uppercase font-sans">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#0F172A] uppercase font-sans">
                 {teamName}
               </h1>
-              <p className="text-xs sm:text-sm text-neutral-300 font-medium mt-0.5">
+              <p className="text-xs sm:text-sm text-[#64748B] font-medium mt-0.5">
                 Centro de Operações Executivas & Performance Esportiva
               </p>
             </div>
@@ -472,44 +472,46 @@ export default function IndexPage() {
             {/* Poucos indicadores executivos de alto impacto */}
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-1 text-xs">
               <div className="space-y-0.5">
-                <span className="text-[10px] uppercase text-neutral-400 font-semibold block">
+                <span className="text-[10px] uppercase text-[#64748B] font-semibold block">
                   Classificação Construtores
                 </span>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl sm:text-2xl font-extrabold text-white font-mono">
+                  <span className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-mono">
                     {constructorPosition}º
                   </span>
-                  <span className="text-emerald-400 font-bold text-xs flex items-center">
+                  <span className="text-emerald-600 font-bold text-xs flex items-center">
                     <TrendingUp className="w-3 h-3 mr-0.5" /> +2 pos. vs. ano anterior
                   </span>
                 </div>
               </div>
 
-              <div className="h-8 w-[1px] bg-neutral-700/60 hidden sm:block" />
+              <div className="h-8 w-[1px] bg-[#E2E8F0] hidden sm:block" />
 
               <div className="space-y-0.5">
-                <span className="text-[10px] uppercase text-neutral-400 font-semibold block">
+                <span className="text-[10px] uppercase text-[#64748B] font-semibold block">
                   Pontos Acumulados
                 </span>
-                <span className="text-xl sm:text-2xl font-extrabold text-white font-mono">
+                <span className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-mono">
                   {constructorPoints}{' '}
-                  <span className="text-xs font-normal text-neutral-400">pts</span>
+                  <span className="text-xs font-normal text-[#64748B]">pts</span>
                 </span>
               </div>
             </div>
           </div>
 
           {/* Barra de Progresso do Objetivo de Temporada na base */}
-          <div className="relative z-10 px-5 sm:px-6 py-3 bg-[#0B0E14]/85 border-t border-white/10 backdrop-blur-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="relative z-10 px-5 sm:px-6 py-3 bg-[#F8FAFC]/90 border-t border-[#E2E8F0] backdrop-blur-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-neutral-300">Objetivo da Temporada:</span>
-              <span className="font-semibold text-white">Terminar no Top 4 de Construtores</span>
+              <span className="font-bold text-[#64748B]">Objetivo da Temporada:</span>
+              <span className="font-semibold text-[#0F172A]">
+                Terminar no Top 4 de Construtores
+              </span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-32 sm:w-44 h-2 rounded-full bg-neutral-800 overflow-hidden">
+              <div className="w-32 sm:w-44 h-2 rounded-full bg-neutral-200 overflow-hidden">
                 <div className="h-full rounded-full bg-gradient-to-r from-[#E10600] to-emerald-500 w-[78%]" />
               </div>
-              <span className="font-bold text-emerald-400 font-mono text-[11px]">78% atingido</span>
+              <span className="font-bold text-emerald-600 font-mono text-[11px]">78% atingido</span>
             </div>
           </div>
         </div>
@@ -1155,7 +1157,7 @@ export default function IndexPage() {
                     key={news.id}
                     className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-3 hover:bg-neutral-100 transition-colors cursor-pointer"
                   >
-                    <div className="w-12 h-12 rounded-md bg-[#0F172A] border border-[#CBD5E1] shrink-0 overflow-hidden flex items-center justify-center p-0 text-[#E10600]">
+                    <div className="w-12 h-12 rounded-md bg-white border border-[#E2E8F0] shadow-xs shrink-0 overflow-hidden flex items-center justify-center p-0 text-[#E10600]">
                       <IconComponent className="w-6 h-6" />
                     </div>
 

@@ -386,9 +386,9 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] sm:w-full bg-zinc-950 border border-zinc-800 text-zinc-100 p-0 overflow-hidden max-h-[88vh] flex flex-col shadow-2xl">
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full bg-white border border-[#E2E8F0] text-[#0F172A] p-0 overflow-hidden max-h-[88vh] flex flex-col shadow-2xl">
         {/* Cabeçalho de Perfil com Banner e Foto */}
-        <div className="relative bg-gradient-to-r from-zinc-900 via-zinc-850 to-zinc-900 p-4 sm:p-6 pb-4 sm:pb-5 border-b border-zinc-800 shrink-0">
+        <div className="relative bg-[#F8FAFC] p-4 sm:p-6 pb-4 sm:pb-5 border-b border-[#E2E8F0] shrink-0">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-5">
             {/* Foto Grande do Piloto */}
             <div className="w-20 sm:w-32 shrink-0">
@@ -402,7 +402,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   null
                 }
                 aspectRatio="poster"
-                className="w-full shadow-2xl ring-2 ring-zinc-700/80 rounded-lg"
+                className="w-full shadow-md ring-1 ring-[#CBD5E1] rounded-lg"
               />
             </div>
 
@@ -411,38 +411,38 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-1">
                 <Badge
                   variant="outline"
-                  className="bg-zinc-900/80 border-zinc-700 text-zinc-300 font-mono text-[10px] sm:text-xs flex items-center gap-1"
+                  className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1 shadow-xs"
                 >
                   {getCountryFlag(pilot.nationality)} {pilot.nationality}
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="bg-zinc-900/80 border-zinc-700 text-zinc-300 text-[10px] sm:text-xs uppercase"
+                  className="bg-white border-[#CBD5E1] text-[#64748B] text-[10px] sm:text-xs uppercase shadow-xs"
                 >
                   {pilot.category.toUpperCase()}
                 </Badge>
                 {isUserTeam && (
-                  <Badge className="bg-red-600/20 text-red-400 border border-red-500/40 text-[10px] sm:text-xs">
+                  <Badge className="bg-[#E10600]/10 text-[#E10600] border border-[#E10600]/30 text-[10px] sm:text-xs font-bold">
                     Sua Equipe
                   </Badge>
                 )}
               </div>
 
-              <DialogTitle className="text-xl sm:text-3xl font-black tracking-tight text-white truncate">
+              <DialogTitle className="text-xl sm:text-3xl font-black tracking-tight text-[#0F172A] truncate">
                 {pilot.name}
               </DialogTitle>
 
-              <DialogDescription className="text-zinc-400 text-xs mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+              <DialogDescription className="text-[#64748B] text-xs mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
                 <span>{pilot.age} anos</span>
                 <span>•</span>
-                <span className="text-zinc-200 font-medium">{currentTeamDisplay}</span>
+                <span className="text-[#334155] font-semibold">{currentTeamDisplay}</span>
                 {pilot.role && (
                   <Badge
                     variant="secondary"
                     className={`text-[10px] uppercase py-0 px-2 ${
                       String(pilot.role).toLowerCase().includes('titular')
-                        ? 'bg-red-950 text-red-300 border border-red-800'
-                        : 'bg-blue-950 text-blue-300 border border-blue-800'
+                        ? 'bg-red-50 text-red-700 border border-red-200'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}
                   >
                     {pilot.role}
@@ -452,19 +452,19 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
               {/* Destaque OVR / Reputação e Salário de Referência V (Regra R03 sem OVR na F1 Academy) */}
               <div className="mt-3.5 flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                <div className="flex items-center gap-2 bg-zinc-900/90 px-3 py-1.5 rounded-lg border border-zinc-800">
-                  <span className="text-[11px] font-mono uppercase text-zinc-400 font-semibold">
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[#E2E8F0] shadow-xs">
+                  <span className="text-[11px] font-mono uppercase text-[#64748B] font-semibold">
                     {pilot.category === 'f1_academy' ? 'Perfil MBJ' : 'Overall'}
                   </span>
                   <span
                     className={`font-black font-mono text-sm px-1.5 py-0.5 rounded ${
                       pilot.category === 'f1_academy'
-                        ? 'bg-pink-950/40 text-pink-300 border border-pink-700/50'
+                        ? 'bg-pink-100 text-pink-800 border border-pink-200'
                         : ovr >= 90
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
                           : ovr >= 82
-                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                            : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                            : 'bg-neutral-100 text-[#0F172A] border border-neutral-200'
                     }`}
                     title={
                       pilot.category === 'f1_academy'
@@ -480,13 +480,13 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-emerald-950/30 border border-emerald-800/40 px-3 py-1.5 rounded-lg text-emerald-300">
-                  <DollarSign className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg text-emerald-800 shadow-xs">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
                   <div className="text-left leading-tight">
-                    <div className="text-[10px] uppercase font-mono text-emerald-400/80">
+                    <div className="text-[10px] uppercase font-mono text-emerald-700">
                       Salário de Referência (USD)
                     </div>
-                    <div className="font-bold font-mono text-xs">
+                    <div className="font-bold font-mono text-xs text-emerald-900">
                       {(() => {
                         const rawSal =
                           pilot.salaryUsd ??
@@ -511,20 +511,19 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             </div>
           </div>
         </div>
-
         {/* Corpo do Perfil Rolável */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm">
           {/* Seção 1: 14 Atributos Esportivos MBJ (Regra P / V) */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
-              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-blue-400" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between pb-1 border-b border-[#E2E8F0]">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-blue-600" />
                 14 Atributos Esportivos{' '}
                 {isUserTeam ? '(Valores Exatos da Sua Equipe)' : '(Faixas Projetadas MBJ)'}
               </h4>
               <Badge
                 variant="outline"
-                className="text-[10px] font-mono border-zinc-700 text-zinc-400"
+                className="text-[10px] font-mono border-[#CBD5E1] text-[#64748B] bg-white"
               >
                 {isUserTeam ? 'Vínculo Pleno' : 'Regra P/V'}
               </Badge>
@@ -537,12 +536,12 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 return (
                   <div key={attr.name} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-400 flex items-center gap-1.5">
+                      <span className="text-[#64748B] flex items-center gap-1.5">
                         <IconComponent className={`w-3.5 h-3.5 ${attr.color}`} /> {attr.name}
                       </span>
-                      <span className="font-mono font-bold text-white">{display.label}</span>
+                      <span className="font-mono font-bold text-[#0F172A]">{display.label}</span>
                     </div>
-                    <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden flex">
+                    <div className="w-full bg-neutral-200 h-1.5 rounded-full overflow-hidden flex">
                       <div
                         className={`${attr.bg} h-full rounded-full transition-all`}
                         style={{ width: `${Math.min(100, (display.max / 100) * 100)}%` }}
@@ -554,52 +553,52 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             </div>
 
             {/* Potencial Projetado P */}
-            <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs">
-              <span className="text-zinc-400">Potencial Projetado de Carreira:</span>
-              <span className="font-mono font-bold text-amber-300">
+            <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between text-xs">
+              <span className="text-[#64748B]">Potencial Projetado de Carreira:</span>
+              <span className="font-mono font-bold text-amber-600">
                 {pilot.potentialMin} – {pilot.potentialMax} pts
               </span>
             </div>
           </div>
 
           {/* Seção 2: Estado Físico & Mental (Qualitativo para fora / Exato para jogador) */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-              <Heart className="w-3.5 h-3.5 text-rose-400" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
+              <Heart className="w-3.5 h-3.5 text-rose-500" />
               Estado Atual & Adaptação{' '}
               {isUserTeam ? '(Telemetria Interna)' : '(Avaliação Qualitativa)'}
             </h4>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+              <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] text-[#64748B] uppercase font-mono block mb-0.5">
                   Moral
                 </span>
-                <span className="font-bold text-white">
+                <span className="font-bold text-[#0F172A]">
                   {getQualitativeState(pilot.moraleState ?? 75, 'morale')}
                 </span>
               </div>
-              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+              <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] text-[#64748B] uppercase font-mono block mb-0.5">
                   Confiança
                 </span>
-                <span className="font-bold text-white">
+                <span className="font-bold text-[#0F172A]">
                   {getQualitativeState(pilot.confidence ?? 75, 'confidence')}
                 </span>
               </div>
-              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+              <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] text-[#64748B] uppercase font-mono block mb-0.5">
                   Condição Física
                 </span>
-                <span className="font-bold text-emerald-400">
+                <span className="font-bold text-emerald-600">
                   {getQualitativeState(pilot.physicalCondition ?? 100, 'condition')}
                 </span>
               </div>
-              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800">
-                <span className="text-[10px] text-zinc-400 uppercase font-mono block mb-0.5">
+              <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] text-[#64748B] uppercase font-mono block mb-0.5">
                   Nível de Estresse
                 </span>
-                <span className="font-bold text-amber-400">
+                <span className="font-bold text-amber-600">
                   {getQualitativeState(pilot.stress ?? 25, 'stress')}
                 </span>
               </div>
@@ -608,15 +607,15 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             {/* Adaptações F1, Carro e Equipe */}
             <div className="grid grid-cols-3 gap-2.5 pt-1 text-xs">
               <div className="space-y-1">
-                <div className="flex justify-between items-center text-[11px] text-zinc-400">
+                <div className="flex justify-between items-center text-[11px] text-[#64748B]">
                   <span>Adaptação F1</span>
-                  <span className="font-mono text-zinc-200 font-semibold">
+                  <span className="font-mono text-[#0F172A] font-semibold">
                     {(pilot.adaptationF1 ?? 0) > 0
                       ? `${pilot.adaptationF1}% / meta 80%`
                       : getAttrDisplay(pilot.adaptationF1 ?? 80).label}
                   </span>
                 </div>
-                <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                <div className="w-full bg-neutral-200 h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-blue-500 h-full transition-all"
                     style={{ width: `${Math.min(100, ((pilot.adaptationF1 ?? 80) / 80) * 100)}%` }}
@@ -624,13 +623,13 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 </div>
               </div>{' '}
               <div className="space-y-1">
-                <div className="flex justify-between text-[11px] text-zinc-400">
+                <div className="flex justify-between text-[11px] text-[#64748B]">
                   <span>Adaptação Carro</span>
-                  <span className="font-mono text-zinc-200">
+                  <span className="font-mono text-[#0F172A]">
                     {getAttrDisplay(pilot.adaptationCar ?? 80).label}
                   </span>
                 </div>
-                <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                <div className="w-full bg-neutral-200 h-1 rounded-full overflow-hidden">
                   <div
                     className="bg-emerald-500 h-full"
                     style={{ width: `${pilot.adaptationCar ?? 80}%` }}
@@ -638,13 +637,13 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="flex justify-between text-[11px] text-zinc-400">
+                <div className="flex justify-between text-[11px] text-[#64748B]">
                   <span>Adaptação Equipe</span>
-                  <span className="font-mono text-zinc-200">
+                  <span className="font-mono text-[#0F172A]">
                     {getAttrDisplay(pilot.adaptationTeam ?? 80).label}
                   </span>
                 </div>
-                <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                <div className="w-full bg-neutral-200 h-1 rounded-full overflow-hidden">
                   <div
                     className="bg-purple-500 h-full"
                     style={{ width: `${pilot.adaptationTeam ?? 80}%` }}
@@ -655,15 +654,15 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
           </div>
 
           {/* Seção 3: Personalidade Canônica, Relações e Memórias (Implementação Nº 6A) */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-4">
-            <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
-              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                <Brain className="w-3.5 h-3.5 text-purple-400" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-4">
+            <div className="flex items-center justify-between pb-1 border-b border-[#E2E8F0]">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
+                <Brain className="w-3.5 h-3.5 text-purple-600" />
                 Personalidade Canônica & Estado Psicológico
               </h4>
               <Badge
                 variant="outline"
-                className="text-[10px] font-mono border-purple-700/50 text-purple-300 bg-purple-950/30"
+                className="text-[10px] font-mono border-purple-200 text-purple-800 bg-purple-50"
               >
                 Trait ≠ State (6A)
               </Badge>
@@ -671,14 +670,14 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
             {/* Tags Qualitativas da Personalidade */}
             <div>
-              <span className="text-[10px] font-mono uppercase text-zinc-400 block mb-1.5 font-semibold">
+              <span className="text-[10px] font-mono uppercase text-[#64748B] block mb-1.5 font-semibold">
                 Perfil de Personalidade (Traits Canônicos)
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {descriptors.map((desc) => (
                   <Badge
                     key={desc}
-                    className="bg-purple-950/70 border border-purple-700 text-purple-200 text-xs py-0.5 px-2.5 font-medium"
+                    className="bg-purple-100 border border-purple-200 text-purple-800 text-xs py-0.5 px-2.5 font-medium"
                   >
                     {desc}
                   </Badge>
@@ -688,69 +687,69 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
             {/* Estado Psicológico Atual (Qualitativo) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
-                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+              <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] uppercase font-mono text-[#64748B] block">
                   Satisfação
                 </span>
-                <span className="font-semibold text-emerald-400">
+                <span className="font-semibold text-emerald-600">
                   {psychAudit.qualitativeState.satisfaction}
                 </span>
               </div>
-              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
-                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+              <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] uppercase font-mono text-[#64748B] block">
                   Confiança
                 </span>
-                <span className="font-semibold text-blue-400">
+                <span className="font-semibold text-blue-600">
                   {psychAudit.qualitativeState.confidence}
                 </span>
               </div>
-              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
-                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+              <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] uppercase font-mono text-[#64748B] block">
                   Pressão Sentida
                 </span>
-                <span className="font-semibold text-amber-400">
+                <span className="font-semibold text-amber-600">
                   {psychAudit.qualitativeState.pressure}
                 </span>
               </div>
-              <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800/80">
-                <span className="text-[10px] uppercase font-mono text-zinc-400 block">
+              <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                <span className="text-[10px] uppercase font-mono text-[#64748B] block">
                   Frustração
                 </span>
-                <span className="font-semibold text-rose-400">
+                <span className="font-semibold text-rose-600">
                   {psychAudit.qualitativeState.frustration}
                 </span>
               </div>
             </div>
 
             {/* Relações Tridimensionais (Team Principal, Equipe, Companheiro) */}
-            <div className="pt-2 border-t border-zinc-800/80 space-y-2">
-              <span className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold flex items-center gap-1.5">
-                <Handshake className="w-3 h-3 text-cyan-400" /> Vínculos & Relações Internas
+            <div className="pt-2 border-t border-[#E2E8F0] space-y-2">
+              <span className="text-[10px] font-mono uppercase text-[#64748B] block font-semibold flex items-center gap-1.5">
+                <Handshake className="w-3.5 h-3.5 text-cyan-600" /> Vínculos & Relações Internas
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
                 {/* Relação com Team Principal */}
-                <div className="p-2.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-1">
-                  <div className="font-semibold text-zinc-200 flex items-center justify-between">
+                <div className="p-2.5 bg-white border border-[#E2E8F0] rounded-lg space-y-1 shadow-xs">
+                  <div className="font-semibold text-[#0F172A] flex items-center justify-between">
                     <span>Team Principal</span>
-                    <span className="font-mono text-[10px] text-zinc-400">
+                    <span className="font-mono text-[10px] text-[#64748B]">
                       {isUserTeam
                         ? `${psychAudit.relationships.teamPrincipal.trust}% Confiança`
                         : 'Vínculo Ativo'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-zinc-400">
+                  <div className="text-[11px] text-[#64748B]">
                     Confiança:{' '}
-                    <strong className="text-white">
+                    <strong className="text-[#0F172A]">
                       {formatQualitativeState(
                         psychAudit.relationships.teamPrincipal.trust,
                         'trust',
                       )}
                     </strong>
                   </div>
-                  <div className="text-[11px] text-zinc-400">
+                  <div className="text-[11px] text-[#64748B]">
                     Respeito:{' '}
-                    <strong className="text-zinc-300">
+                    <strong className="text-[#334155]">
                       {formatQualitativeState(
                         psychAudit.relationships.teamPrincipal.respect,
                         'confidence',
@@ -760,40 +759,40 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 </div>
 
                 {/* Relação com a Equipe / Fábrica */}
-                <div className="p-2.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-1">
-                  <div className="font-semibold text-zinc-200 flex items-center justify-between">
+                <div className="p-2.5 bg-white border border-[#E2E8F0] rounded-lg space-y-1 shadow-xs">
+                  <div className="font-semibold text-[#0F172A] flex items-center justify-between">
                     <span>Equipe / Fábrica</span>
-                    <span className="font-mono text-[10px] text-zinc-400">
+                    <span className="font-mono text-[10px] text-[#64748B]">
                       {isUserTeam
                         ? `${psychAudit.relationships.team.technicalTrust}% Técnico`
                         : 'Vínculo'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-zinc-400">
+                  <div className="text-[11px] text-[#64748B]">
                     Pertencimento:{' '}
-                    <strong className="text-white">
+                    <strong className="text-[#0F172A]">
                       {formatQualitativeState(
                         psychAudit.relationships.team.belonging,
                         'satisfaction',
                       )}
                     </strong>
                   </div>
-                  <div className="text-[11px] text-zinc-400">
+                  <div className="text-[11px] text-[#64748B]">
                     Desejo de Ficar:{' '}
-                    <strong className="text-amber-300">
+                    <strong className="text-amber-600 font-bold">
                       {formatQualitativeState(psychAudit.derivedDesireToStay, 'trust')}
                     </strong>
                   </div>
                 </div>
 
                 {/* Relação com Companheiro */}
-                <div className="p-2.5 bg-zinc-950/70 border border-zinc-800 rounded-lg space-y-1">
-                  <div className="font-semibold text-zinc-200 flex items-center justify-between">
+                <div className="p-2.5 bg-white border border-[#E2E8F0] rounded-lg space-y-1 shadow-xs">
+                  <div className="font-semibold text-[#0F172A] flex items-center justify-between">
                     <span>Companheiro</span>
                     {psychAudit.relationships.teammate && (
                       <Badge
                         variant="outline"
-                        className="text-[9px] py-0 border-zinc-700 text-zinc-300 font-mono"
+                        className="text-[9px] py-0 border-[#CBD5E1] text-[#334155] font-mono bg-white"
                       >
                         {psychAudit.relationships.teammate.status}
                       </Badge>
@@ -801,12 +800,12 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   </div>
                   {psychAudit.relationships.teammate ? (
                     <>
-                      <div className="text-[11px] text-zinc-400 truncate">
+                      <div className="text-[11px] text-[#64748B] truncate">
                         {psychAudit.relationships.teammate.teammateName}
                       </div>
-                      <div className="text-[11px] text-zinc-400">
+                      <div className="text-[11px] text-[#64748B]">
                         Respeito Mútuo:{' '}
-                        <strong className="text-white">
+                        <strong className="text-[#0F172A]">
                           {formatQualitativeState(
                             psychAudit.relationships.teammate.respect,
                             'confidence',
@@ -815,7 +814,9 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                       </div>
                     </>
                   ) : (
-                    <div className="text-[11px] text-zinc-500 italic">Sem disputa direta ativa</div>
+                    <div className="text-[11px] text-[#64748B] italic">
+                      Sem disputa direta ativa
+                    </div>
                   )}
                 </div>
               </div>
@@ -823,28 +824,28 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
             {/* Memórias Relevantes Ativas */}
             {psychAudit.topActiveMemories.length > 0 && (
-              <div className="pt-2 border-t border-zinc-800/80 space-y-1.5">
-                <span className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-400" /> Memórias Recentes Relevantes
+              <div className="pt-2 border-t border-[#E2E8F0] space-y-1.5">
+                <span className="text-[10px] font-mono uppercase text-[#64748B] block font-semibold flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-600" /> Memórias Recentes Relevantes
                 </span>
                 <div className="space-y-1.5">
                   {psychAudit.topActiveMemories.map((mem) => (
                     <div
                       key={mem.memoryId}
-                      className="text-xs p-2 rounded bg-zinc-950/50 border border-zinc-800/70 flex items-start justify-between gap-2"
+                      className="text-xs p-2 rounded bg-white border border-[#E2E8F0] flex items-start justify-between gap-2 shadow-xs"
                     >
                       <div className="space-y-0.5">
-                        <div className="text-zinc-200 font-medium">{mem.description}</div>
-                        <div className="text-[10px] text-zinc-400">{mem.contextExplanation}</div>
+                        <div className="text-[#0F172A] font-medium">{mem.description}</div>
+                        <div className="text-[10px] text-[#64748B]">{mem.contextExplanation}</div>
                       </div>
                       <Badge
                         variant="secondary"
                         className={`text-[9px] uppercase shrink-0 py-0 ${
                           mem.polarity === 'positive'
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                             : mem.polarity === 'negative'
-                              ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                              : 'bg-zinc-800 text-zinc-300'
+                              ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                              : 'bg-neutral-100 text-[#0F172A]'
                         }`}
                       >
                         {mem.persistenceClass}
@@ -857,8 +858,8 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
           </div>
 
           {/* Parâmetros Ocultos O (sem números, apenas regra descritiva) */}
-          <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-800/60">
-            <Lock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+          <div className="text-[11px] text-[#64748B] flex items-center gap-1.5 bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
+            <Lock className="w-3.5 h-3.5 text-[#64748B] shrink-0" />
             <span>
               Parâmetros Ocultos MBJ (Temperamento, 14 Tetos de Habilidade, Curva de Declínio,
               Horizonte de Aposentadoria e Pesos Negociais) operam restritos à simulação interna.
@@ -880,26 +881,26 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             const age = pilot.age || 25
 
             let stageLabel = 'Desenvolvendo'
-            let stageBadgeClass = 'bg-blue-950/70 border-blue-700 text-blue-300'
+            let stageBadgeClass = 'bg-blue-50 border-blue-200 text-blue-800'
 
             if (age <= 21) {
               stageLabel = 'Desenvolvimento Rápido (Jovem)'
-              stageBadgeClass = 'bg-emerald-950/70 border-emerald-700 text-emerald-300'
+              stageBadgeClass = 'bg-emerald-50 border-emerald-200 text-emerald-800'
             } else if (age <= 26) {
               stageLabel = 'Em Ascensão Técnica'
-              stageBadgeClass = 'bg-cyan-950/70 border-cyan-700 text-cyan-300'
+              stageBadgeClass = 'bg-cyan-50 border-cyan-200 text-cyan-800'
             } else if (age <= 31) {
               stageLabel = 'No Ápice de Carreira (Prime)'
-              stageBadgeClass = 'bg-purple-950/70 border-purple-700 text-purple-300'
+              stageBadgeClass = 'bg-purple-50 border-purple-200 text-purple-800'
             } else if (age <= 34) {
               stageLabel = 'Estável / Pós-Pico'
-              stageBadgeClass = 'bg-indigo-950/70 border-indigo-700 text-indigo-300'
+              stageBadgeClass = 'bg-indigo-50 border-indigo-200 text-indigo-800'
             } else if (age <= 37) {
               stageLabel = 'Declínio Inicial / Veterano'
-              stageBadgeClass = 'bg-amber-950/70 border-amber-700 text-amber-300'
+              stageBadgeClass = 'bg-amber-50 border-amber-200 text-amber-800'
             } else {
               stageLabel = 'Veterano Experiente'
-              stageBadgeClass = 'bg-rose-950/70 border-rose-700 text-rose-300'
+              stageBadgeClass = 'bg-rose-50 border-rose-200 text-rose-800'
             }
 
             // Exibir Retirement Intent qualitativo somente se houver sinais (Regra 96)
@@ -916,10 +917,10 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             }
 
             return (
-              <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
-                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                    <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+              <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-[#E2E8F0]">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-cyan-600" />
                     Carreira & Desenvolvimento (8B)
                   </h4>
                   <Badge variant="outline" className={`text-[10px] font-mono ${stageBadgeClass}`}>
@@ -928,17 +929,17 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 </div>
 
                 {retirementAlert && (
-                  <div className="p-2.5 rounded-lg bg-amber-950/50 border border-amber-800/80 text-xs text-amber-300 flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                     <span>{retirementAlert}</span>
                   </div>
                 )}
 
                 {/* Tendência dos atributos qualitativa (Regra 94) */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
-                    <span className="text-[10px] uppercase text-zinc-500 block">Ritmo Puro</span>
-                    <span className="font-bold text-zinc-200">
+                  <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                    <span className="text-[10px] uppercase text-[#64748B] block">Ritmo Puro</span>
+                    <span className="font-bold text-[#0F172A]">
                       {age <= 24
                         ? 'Pace ↑ (Em alta)'
                         : age <= 33
@@ -946,25 +947,25 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                           : 'Pace ↘ (Declínio gradual)'}
                     </span>
                   </div>
-                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
-                    <span className="text-[10px] uppercase text-zinc-500 block">Consistência</span>
-                    <span className="font-bold text-zinc-200">
+                  <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                    <span className="text-[10px] uppercase text-[#64748B] block">Consistência</span>
+                    <span className="font-bold text-[#0F172A]">
                       {age <= 30 ? 'Consistência ↑' : 'Consistência → (Forte)'}
                     </span>
                   </div>
-                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
-                    <span className="text-[10px] uppercase text-zinc-500 block">
+                  <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                    <span className="text-[10px] uppercase text-[#64748B] block">
                       Feedback Técnico
                     </span>
-                    <span className="font-bold text-emerald-400">
+                    <span className="font-bold text-emerald-600">
                       {age >= 32 ? 'Feedback ★ (Elite)' : 'Feedback ↑ (Em expansão)'}
                     </span>
                   </div>
-                  <div className="p-2 rounded bg-zinc-950/60 border border-zinc-800">
-                    <span className="text-[10px] uppercase text-zinc-500 block">
+                  <div className="p-2 rounded bg-white border border-[#E2E8F0] shadow-xs">
+                    <span className="text-[10px] uppercase text-[#64748B] block">
                       Gestão de Pneus
                     </span>
-                    <span className="font-bold text-cyan-400">
+                    <span className="font-bold text-cyan-600">
                       {age >= 26 ? 'Gestão ↑ (Maturidade)' : 'Gestão → (Aprendizado)'}
                     </span>
                   </div>
@@ -972,11 +973,11 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
                 {/* Histórico recente de desenvolvimento se disponível */}
                 {devHist.length > 0 && (
-                  <div className="pt-1 text-[11px] text-zinc-400 space-y-1">
-                    <div className="flex items-center gap-1 font-semibold text-zinc-300">
-                      <History className="w-3 h-3 text-zinc-400" /> Evolução Recente Auditada:
+                  <div className="pt-1 text-[11px] text-[#64748B] space-y-1">
+                    <div className="flex items-center gap-1 font-semibold text-[#0F172A]">
+                      <History className="w-3 h-3 text-[#64748B]" /> Evolução Recente Auditada:
                     </div>
-                    <p className="italic text-zinc-300 leading-relaxed bg-zinc-950/40 p-2 rounded border border-zinc-800/60">
+                    <p className="italic text-[#334155] leading-relaxed bg-white p-2 rounded border border-[#E2E8F0]">
                       "{devHist[0]?.evolutionNarrative || 'Performance técnica consolidada.'}"
                     </p>
                   </div>
@@ -986,61 +987,61 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
           })()}
 
           {/* Seção 4: Carreira & Histórico (V) — CARREIRA NA F1 */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
+              <Trophy className="w-3.5 h-3.5 text-amber-500" />
               CARREIRA NA F1
             </h4>
 
             {/* Grid Canônico de Estatísticas de Carreira na F1 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+              <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
                   GPs
                 </span>
-                <strong className="text-lg font-black font-mono text-white">
+                <strong className="text-lg font-black font-mono text-[#0F172A]">
                   {careerStats.races}
                 </strong>
               </div>
-              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+              <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
                   Vitórias
                 </span>
-                <strong className="text-lg font-black font-mono text-emerald-400">
+                <strong className="text-lg font-black font-mono text-emerald-600">
                   {careerStats.wins}
                 </strong>
               </div>
-              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+              <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
                   Pole Positions
                 </span>
-                <strong className="text-lg font-black font-mono text-amber-400">
+                <strong className="text-lg font-black font-mono text-amber-600">
                   {careerStats.poles}
                 </strong>
               </div>
-              <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-center">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-400 block">
+              <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
+                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
                   Títulos Mundiais
                 </span>
-                <strong className="text-lg font-black font-mono text-yellow-400">
+                <strong className="text-lg font-black font-mono text-amber-500">
                   {careerStats.championships}
                 </strong>
               </div>
             </div>
 
-            <p className="text-xs text-zinc-300 leading-relaxed pt-1">{biography}</p>
+            <p className="text-xs text-[#334155] leading-relaxed pt-1">{biography}</p>
 
-            <div className="flex flex-wrap items-center gap-4 pt-2 text-[11px] font-mono text-zinc-400 border-t border-zinc-800/60">
+            <div className="flex flex-wrap items-center gap-4 pt-2 text-[11px] font-mono text-[#64748B] border-t border-[#E2E8F0]">
               <span>
                 Pontos Superlicença:{' '}
-                <strong className="text-white">{pilot.superlicensePoints}</strong>
+                <strong className="text-[#0F172A]">{pilot.superlicensePoints}</strong>
               </span>
               {pilot.preferredNumber && (
                 <>
                   <span>•</span>
                   <span>
                     Número Preferido:{' '}
-                    <strong className="text-amber-400 font-bold">#{pilot.preferredNumber}</strong>
+                    <strong className="text-amber-600 font-bold">#{pilot.preferredNumber}</strong>
                   </span>
                 </>
               )}
@@ -1049,7 +1050,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   <span>•</span>
                   <span>
                     Equipe Operadora:{' '}
-                    <strong className="text-pink-400">{pilot.operatingTeam}</strong>
+                    <strong className="text-pink-600 font-semibold">{pilot.operatingTeam}</strong>
                   </span>
                 </>
               )}
@@ -1058,38 +1059,40 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   <span>•</span>
                   <span>
                     Apoiadora de Marca:{' '}
-                    <strong className="text-purple-400">{pilot.supporterBrand}</strong>
+                    <strong className="text-purple-600 font-semibold">
+                      {pilot.supporterBrand}
+                    </strong>
                   </span>
                 </>
               )}
             </div>
           </div>
           {/* Seção 5: Situação Contratual & Elegibilidade MBJ */}
-          <div className="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-              <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-3">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
+              <Briefcase className="w-3.5 h-3.5 text-emerald-600" />
               Situação & Elegibilidade Contratual
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800 space-y-1">
-                <span className="text-zinc-400 text-[11px]">Vínculo Atual:</span>
-                <div className="font-bold text-white">{currentTeamDisplay}</div>
-                <div className="text-[11px] text-zinc-400">{contractTermDisplay}</div>
-                <div className="text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/60 mt-1 flex justify-between items-center">
+              <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0] space-y-1 shadow-xs">
+                <span className="text-[#64748B] text-[11px]">Vínculo Atual:</span>
+                <div className="font-bold text-[#0F172A]">{currentTeamDisplay}</div>
+                <div className="text-[11px] text-[#64748B]">{contractTermDisplay}</div>
+                <div className="text-[11px] text-[#64748B] pt-1 border-t border-[#E2E8F0] mt-1 flex justify-between items-center">
                   <span>Papel Contratual:</span>
                   <Badge
                     variant="outline"
-                    className="font-mono text-[10px] border-zinc-700 text-zinc-300"
+                    className="font-mono text-[10px] border-[#CBD5E1] text-[#0F172A] bg-white"
                   >
                     {canonicalContract?.role ||
                       ((pilot.role ?? '').toLowerCase() === 'titular' ? 'EQUAL_STATUS' : 'RESERVE')}
                   </Badge>
                 </div>
                 {pilot.exitClauseUsd && (
-                  <div className="text-[11px] text-zinc-400 flex justify-between">
+                  <div className="text-[11px] text-[#64748B] flex justify-between">
                     <span>Multa Rescisória (P):</span>
-                    <span className="font-mono font-bold text-zinc-300">
+                    <span className="font-mono font-bold text-[#0F172A]">
                       {formatUsdCurrency(
                         canonicalContract?.buyoutClause?.buyoutAmount || pilot.exitClauseUsd,
                         'full',
@@ -1098,39 +1101,39 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   </div>
                 )}
                 {pilot.winBonusUsd && (
-                  <div className="text-[11px] text-zinc-400 flex justify-between">
+                  <div className="text-[11px] text-[#64748B] flex justify-between">
                     <span>Bônus por Vitória (P):</span>
-                    <span className="font-mono font-bold text-emerald-400">
+                    <span className="font-mono font-bold text-emerald-600">
                       {formatUsdCurrency(pilot.winBonusUsd, 'full')}
                     </span>
                   </div>
                 )}
               </div>
 
-              <div className="p-2.5 bg-zinc-950/60 rounded-lg border border-zinc-800 space-y-1.5">
-                <span className="text-zinc-400 text-[11px]">
+              <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0] space-y-1.5 shadow-xs">
+                <span className="text-[#64748B] text-[11px]">
                   Status Regulamentar FIA / Elegibilidade MBJ:
                 </span>
-                <div className="flex items-center gap-1 font-bold text-white">
+                <div className="flex items-center gap-1 font-bold text-[#0F172A]">
                   {isHomologation && (
-                    <span className="text-amber-400 flex items-center gap-1">
+                    <span className="text-amber-600 flex items-center gap-1">
                       <AlertTriangle className="w-3.5 h-3.5" /> Exige Homologação FIA (TL1 100 km)
                     </span>
                   )}
                   {!isHomologation && (eligibility.status as string) === 'academia' && (
-                    <span className="text-purple-400 flex items-center gap-1">
+                    <span className="text-purple-600 flex items-center gap-1">
                       <GraduationCap className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || eligibility.label}
                     </span>
                   )}
                   {!isHomologation && (eligibility.status as string) === 'homologacao' && (
-                    <span className="text-amber-400 flex items-center gap-1">
+                    <span className="text-amber-600 flex items-center gap-1">
                       <AlertTriangle className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || 'TESTE HOMOLOGAÇÃO MBJ'}
                     </span>
                   )}
                   {!isHomologation && (eligibility.status as string) === 'elegivel' && (
-                    <span className="text-emerald-400 flex items-center gap-1">
+                    <span className="text-emerald-600 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />{' '}
                       {pilot.eligibilityStatus || 'Superlicença Válida FIA'}
                     </span>
@@ -1139,14 +1142,14 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
                 {/* CAMINHO PARA A F1 (Regra 15 do PDF):
                     Formato: "Homologação FIA: 3/4 testes — Quilometragem: 1.086/1.200 km — Avaliação atual: 81 — Status: Licença Provisória" */}
-                <div className="p-2.5 bg-slate-950/70 border border-indigo-900/60 rounded-md space-y-1.5 my-1 font-mono text-[11px]">
-                  <div className="flex items-center justify-between text-indigo-300 font-semibold uppercase tracking-wider text-[10px]">
+                <div className="p-2.5 bg-[#F1F5F9] border border-[#CBD5E1] rounded-md space-y-1.5 my-1 font-mono text-[11px]">
+                  <div className="flex items-center justify-between text-[#1E293B] font-semibold uppercase tracking-wider text-[10px]">
                     <span className="flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5" /> Caminho para a F1
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Caminho para a F1
                     </span>
                     <Badge
                       variant="outline"
-                      className="border-indigo-700 text-indigo-200 text-[9px]"
+                      className="border-[#CBD5E1] text-[#0F172A] bg-white text-[9px]"
                     >
                       {canonicalView.licenseStatus === 'nivel_a'
                         ? 'Licença A (Super Licença)'
@@ -1155,28 +1158,28 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                           : 'Licença C'}
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-800">
+                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-[#CBD5E1]">
                     <div>
-                      <span className="text-slate-400 block">Homologação FIA:</span>
-                      <strong className="text-white">
+                      <span className="text-[#64748B] block">Homologação FIA:</span>
+                      <strong className="text-[#0F172A]">
                         {isHomologation ? `${homologationSessions}/4 testes` : '4/4 testes'}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Quilometragem:</span>
-                      <strong className="text-white">
+                      <span className="text-[#64748B] block">Quilometragem:</span>
+                      <strong className="text-[#0F172A]">
                         {isHomologation
                           ? `${homologationSessions * 310}/1.200 km`
                           : '1.200/1.200 km'}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Avaliação FIA:</span>
-                      <strong className="text-amber-400">{pilot.speed || 80}/100</strong>
+                      <span className="text-[#64748B] block">Avaliação FIA:</span>
+                      <strong className="text-amber-600">{pilot.speed || 80}/100</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Status Regulamentar:</span>
-                      <strong className="text-emerald-400">
+                      <span className="text-[#64748B] block">Status Regulamentar:</span>
+                      <strong className="text-emerald-600">
                         {canonicalView.licenseStatus === 'nivel_a'
                           ? 'Super Licença'
                           : canonicalView.licenseStatus === 'nivel_b'
@@ -1187,13 +1190,13 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   </div>
                 </div>
 
-                <div className="text-[11px] text-zinc-400">{eligibility.description}</div>
+                <div className="text-[11px] text-[#64748B]">{eligibility.description}</div>
               </div>
             </div>
 
             {pilot.nextTeamId && (
-              <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/60 text-xs text-amber-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
+              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
                 <span>
                   Pré-contrato firmado para 2027 como piloto {pilot.nextContractRole || 'titular'}.
                 </span>
@@ -1201,14 +1204,13 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             )}
           </div>
         </div>
-
         {/* Rodapé Fixo com Botão de Ação e Ações Contextuais por Papel */}
-        <div className="p-3 sm:p-4 bg-zinc-900 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className="p-3 sm:p-4 bg-white border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onOpenChange(false)}
-            className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs h-8"
+            className="border-[#CBD5E1] text-[#64748B] hover:bg-[#F1F5F9] text-xs h-8"
           >
             Fechar
           </Button>
@@ -1224,7 +1226,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                     onOpenChange(false)
                     onRelegateToReserve(pilot)
                   }}
-                  className="border-amber-500/40 text-amber-300 bg-amber-950/40 hover:bg-amber-900/50 text-xs h-8"
+                  className="border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 text-xs h-8"
                 >
                   Rebaixar p/ Reserva
                 </Button>
@@ -1239,7 +1241,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                     onOpenChange(false)
                     onPromoteToStarter(pilot)
                   }}
-                  className="border-emerald-500/40 text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 text-xs h-8"
+                  className="border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs h-8"
                 >
                   Promover a Titular
                 </Button>
@@ -1265,7 +1267,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   onOpenChange(false)
                   onOpenContractModal(pilot)
                 }}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs h-8"
+                className="bg-[#0F172A] hover:bg-[#1E293B] text-white border border-[#0F172A] text-xs h-8"
               >
                 Renegociar Contrato
               </Button>
@@ -1277,13 +1279,13 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 onOpenChange(false)
                 onOpenContractModal(pilot)
               }}
-              className="bg-red-600 hover:bg-red-700 text-white font-medium flex items-center gap-1.5 shadow-lg text-xs h-8"
+              className="bg-[#E10600] hover:bg-[#C50500] text-white font-medium flex items-center gap-1.5 shadow-sm text-xs h-8"
             >
               <UserPlus className="w-3.5 h-3.5" />
               {canPreContract ? 'Propor Pré-contrato / Contrato' : 'Propor Contrato (US$)'}
             </Button>
           )}
-        </div>
+        </div>{' '}
       </DialogContent>
     </Dialog>
   )

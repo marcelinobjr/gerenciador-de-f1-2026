@@ -62,59 +62,59 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
         onExploreMarket={onExploreMarket}
       />
 
-      {/* 2. KPIS COMERCIAIS RÁPIDOS DA CARREIRA (REFERÊNCIA VISUAL 1) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#0B0E14] border border-[#1F2733] rounded-xl p-3.5 shadow-lg">
-        <div className="flex items-center gap-3 px-3 py-1.5 border-r border-[#1F2733]/60 last:border-none">
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+      {/* 2. KPIS COMERCIAIS RÁPIDOS DA CARREIRA (LIGHT-UI-01C) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white border border-[#E2E8F0] rounded-xl p-3.5 shadow-sm">
+        <div className="flex items-center gap-3 px-3 py-1.5 border-r border-[#F1F5F9] last:border-none">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
             <DollarSign className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#64748B] block">
               Receita Contratada
             </span>
-            <span className="text-base font-black font-mono text-emerald-400">
+            <span className="text-base font-black font-mono text-emerald-600">
               {formatMoneyM(summary.totalContractedRevenue, true)}/ano
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-3 py-1.5 border-r border-[#1F2733]/60 last:border-none">
-          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+        <div className="flex items-center gap-3 px-3 py-1.5 border-r border-[#F1F5F9] last:border-none">
+          <div className="w-9 h-9 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#64748B] block">
               Receita Potencial
             </span>
-            <span className="text-base font-black font-mono text-cyan-400">
+            <span className="text-base font-black font-mono text-cyan-700 font-bold">
               {formatMoneyM(summary.totalPotentialRevenue, true)}/ano
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-3 py-1.5 border-r border-[#1F2733]/60 last:border-none">
-          <div className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+        <div className="flex items-center gap-3 px-3 py-1.5 border-r border-[#F1F5F9] last:border-none">
+          <div className="w-9 h-9 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center text-[#E10600]">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#64748B] block">
               Espaços de Patrocínio
             </span>
-            <span className="text-base font-black font-mono text-white">
+            <span className="text-base font-black font-mono text-[#0F172A]">
               {summary.occupiedSlotsCount} / {summary.totalSlotsCount} Ocupados
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-3 px-3 py-1.5">
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+          <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
             <Award className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#64748B] block">
               Satisfação Média
             </span>
-            <span className="text-base font-black font-mono text-amber-400">
+            <span className="text-base font-black font-mono text-amber-600">
               {summary.averageSatisfaction > 0 ? formatPercent(summary.averageSatisfaction) : '--'}
             </span>
           </div>
@@ -272,26 +272,26 @@ export const TabCurrentSponsors: React.FC<TabCurrentSponsorsProps> = ({
             {/* SE O ESPAÇO ESTÁ OCUPADO -> MOSTRA DADOS REAIS DO CONTRATO */}
             {activeContract ? (
               <div className="mt-4 space-y-5">
-                <div className="flex items-start justify-between bg-neutral-900 text-white rounded-xl p-4 shadow-md">
+                <div className="flex items-start justify-between bg-[#F8FAFC] text-[#0F172A] border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
                   <div>
-                    <span className="text-[10px] font-mono text-neutral-400 block uppercase">
+                    <span className="text-[10px] font-mono text-[#64748B] block uppercase">
                       Patrocinador Oficial
                     </span>
-                    <h4 className="text-xl font-black tracking-tight mt-0.5">
+                    <h4 className="text-xl font-black tracking-tight mt-0.5 text-[#0F172A]">
                       {activeContract.sponsorName}
                     </h4>
-                    <p className="text-xs text-neutral-300 mt-1 max-w-md">
+                    <p className="text-xs text-[#475569] mt-1 max-w-md">
                       {currentSlotMeta.description}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-[10px] font-mono text-neutral-400 block uppercase">
+                    <span className="text-[10px] font-mono text-[#64748B] block uppercase">
                       Receita Fixa Anual
                     </span>
-                    <span className="text-lg font-black font-mono text-emerald-400 block mt-0.5">
+                    <span className="text-lg font-black font-mono text-emerald-600 block mt-0.5">
                       {formatMoneyM(activeContract.fixedAnnualValue, true)}
                     </span>
-                    <span className="text-[10px] text-neutral-400 font-mono">por temporada</span>
+                    <span className="text-[10px] text-[#64748B] font-mono">por temporada</span>
                   </div>
                 </div>
 

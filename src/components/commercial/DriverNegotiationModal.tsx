@@ -228,53 +228,51 @@ export function DriverNegotiationModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#0B0E14] border border-neutral-800 text-white max-w-2xl sm:max-w-3xl p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader className="border-b border-neutral-800 pb-4">
+      <DialogContent className="bg-white border border-[#E2E8F0] text-[#0F172A] max-w-2xl sm:max-w-3xl p-6 shadow-xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader className="border-b border-[#F1F5F9] pb-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-mono text-xs text-red-500 uppercase tracking-wider font-bold">
+            <div className="flex items-center gap-2 font-mono text-xs text-[#E10600] uppercase tracking-wider font-bold">
               <Briefcase className="w-4 h-4" />
               Mesa de Negociação Contratual
             </div>
             <Badge
               variant="outline"
-              className="font-mono text-xs border-neutral-700 bg-neutral-900 text-neutral-300"
+              className="font-mono text-xs border-[#CBD5E1] bg-[#F8FAFC] text-[#64748B]"
             >
               Paciência do Piloto: {driverPatienceRemaining} rodadas
             </Badge>
           </div>
 
-          <DialogTitle className="text-xl sm:text-2xl font-black text-white flex items-center justify-between mt-1">
+          <DialogTitle className="text-xl sm:text-2xl font-black text-[#0F172A] flex items-center justify-between mt-1">
             <span>{driver.name}</span>
-            <span className="text-sm font-normal text-neutral-400 font-mono">
+            <span className="text-sm font-normal text-[#64748B] font-mono">
               Início: {startSeason}
             </span>
           </DialogTitle>
 
-          <DialogDescription className="text-xs text-neutral-400">
-            Career Intent: <strong className="text-cyan-400">{careerIntent.state}</strong> —{' '}
+          <DialogDescription className="text-xs text-[#64748B]">
+            Career Intent: <strong className="text-cyan-700">{careerIntent.state}</strong> —{' '}
             {careerIntent.qualitativeReason}
           </DialogDescription>
         </DialogHeader>
 
         {/* Quadro Informativo de Mercado */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-neutral-950/70 border border-neutral-800 font-mono text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] font-mono text-xs">
           <div>
-            <span className="text-neutral-500 block uppercase text-[10px]">
+            <span className="text-[#64748B] block uppercase text-[10px]">
               Faixa de Mercado Estimada
             </span>
-            <strong className="text-emerald-400 font-bold">{marketRange.displayRange}</strong>
+            <strong className="text-emerald-600 font-bold">{marketRange.displayRange}</strong>
           </div>
           <div>
-            <span className="text-neutral-500 block uppercase text-[10px]">Demanda no Paddock</span>
-            <strong className="text-amber-400 font-bold uppercase">
+            <span className="text-[#64748B] block uppercase text-[10px]">Demanda no Paddock</span>
+            <strong className="text-amber-600 font-bold uppercase">
               {marketRange.perceivedDemandLevel}
             </strong>
           </div>
           <div>
-            <span className="text-neutral-500 block uppercase text-[10px]">
-              Orçamento Disponível
-            </span>
-            <strong className="text-white font-bold">
+            <span className="text-[#64748B] block uppercase text-[10px]">Orçamento Disponível</span>
+            <strong className="text-[#0F172A] font-bold">
               {formatCurrency(playerTeam.budget || 0)}
             </strong>
           </div>
@@ -282,24 +280,24 @@ export function DriverNegotiationModal({
 
         {/* Alerta de Contraproposta Ativa */}
         {counteroffer && (
-          <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-800/80 space-y-2 font-mono text-xs animate-fade-in">
-            <div className="flex items-center gap-2 text-amber-300 font-bold">
-              <AlertTriangle className="w-4 h-4" />
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2 font-mono text-xs">
+            <div className="flex items-center gap-2 text-amber-800 font-bold">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
               Contraproposta dos Representantes do Piloto:
             </div>
-            <p className="text-neutral-300 text-[11px] italic">
+            <p className="text-[#334155] text-[11px] italic">
               &ldquo;{counteroffer.driverMessage}&rdquo;
             </p>
             <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
               <div>
                 Salário Requisitado:{' '}
-                <strong className="text-emerald-400">
+                <strong className="text-emerald-600">
                   {formatCurrency(counteroffer.requestedSalary)}
                 </strong>
               </div>
               <div>
                 Papel:{' '}
-                <strong className="text-white">
+                <strong className="text-[#0F172A]">
                   {counteroffer.requestedRole === 'LEAD_DRIVER'
                     ? '1º Piloto'
                     : counteroffer.requestedRole === 'EQUAL_STATUS'
@@ -309,13 +307,15 @@ export function DriverNegotiationModal({
               </div>
               <div>
                 Duração:{' '}
-                <strong className="text-white">{counteroffer.requestedDurationYears} anos</strong>
+                <strong className="text-[#0F172A]">
+                  {counteroffer.requestedDurationYears} anos
+                </strong>
               </div>
             </div>
             <Button
               size="sm"
               onClick={handleApplyCounteroffer}
-              className="mt-2 bg-amber-600 hover:bg-amber-500 text-black font-bold text-xs"
+              className="mt-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs"
             >
               Aceitar Termos da Contraproposta
             </Button>
@@ -326,27 +326,27 @@ export function DriverNegotiationModal({
         <div className="space-y-4 pt-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 font-mono text-xs">
-              <Label className="text-neutral-300">Salário Anual (USD)</Label>
+              <Label className="text-[#0F172A]">Salário Anual (USD)</Label>
               <Input
                 type="number"
                 value={salary}
                 onChange={(e) => setSalary(Number(e.target.value))}
-                className="bg-neutral-900 border-neutral-700 text-white font-bold font-mono text-sm"
+                className="bg-white border-[#CBD5E1] text-[#0F172A] font-bold font-mono text-sm"
               />
-              <span className="text-[10px] text-neutral-500 block">
+              <span className="text-[10px] text-[#64748B] block">
                 Valor Formatado: {formatCurrency(salary)} / ano
               </span>
             </div>
 
             <div className="space-y-1.5 font-mono text-xs">
-              <Label className="text-neutral-300">Signing Bonus (Luvas Imediatas)</Label>
+              <Label className="text-[#0F172A]">Signing Bonus (Luvas Imediatas)</Label>
               <Input
                 type="number"
                 value={signingBonus}
                 onChange={(e) => setSigningBonus(Number(e.target.value))}
-                className="bg-neutral-900 border-neutral-700 text-white font-bold font-mono text-sm"
+                className="bg-white border-[#CBD5E1] text-[#0F172A] font-bold font-mono text-sm"
               />
-              <span className="text-[10px] text-neutral-500 block">
+              <span className="text-[10px] text-[#64748B] block">
                 Debitado pelo Financial Ledger na assinatura
               </span>
             </div>
@@ -354,12 +354,12 @@ export function DriverNegotiationModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5 font-mono text-xs">
-              <Label className="text-neutral-300">Papel Esportivo</Label>
+              <Label className="text-[#0F172A]">Papel Esportivo</Label>
               <Select value={role} onValueChange={(val: any) => setRole(val)}>
-                <SelectTrigger className="bg-neutral-900 border-neutral-700 text-white">
+                <SelectTrigger className="bg-white border-[#CBD5E1] text-[#0F172A]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-neutral-900 border-neutral-700 text-white">
+                <SelectContent className="bg-white border-[#CBD5E1] text-[#0F172A]">
                   <SelectItem value="LEAD_DRIVER">1º Piloto (Prioridade)</SelectItem>
                   <SelectItem value="EQUAL_STATUS">Status Igual (Paridade)</SelectItem>
                   <SelectItem value="SUPPORT_DRIVER">Piloto de Apoio</SelectItem>
@@ -370,15 +370,15 @@ export function DriverNegotiationModal({
             </div>
 
             <div className="space-y-1.5 font-mono text-xs">
-              <Label className="text-neutral-300">Duração Contratual</Label>
+              <Label className="text-[#0F172A]">Duração Contratual</Label>
               <Select
                 value={String(durationYears)}
                 onValueChange={(val) => setDurationYears(Number(val))}
               >
-                <SelectTrigger className="bg-neutral-900 border-neutral-700 text-white">
+                <SelectTrigger className="bg-white border-[#CBD5E1] text-[#0F172A]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-neutral-900 border-neutral-700 text-white">
+                <SelectContent className="bg-white border-[#CBD5E1] text-[#0F172A]">
                   <SelectItem value="1">1 Temporada</SelectItem>
                   <SelectItem value="2">2 Temporadas</SelectItem>
                   <SelectItem value="3">3 Temporadas</SelectItem>
@@ -388,15 +388,15 @@ export function DriverNegotiationModal({
             </div>
 
             <div className="space-y-1.5 font-mono text-xs">
-              <Label className="text-neutral-300">Início do Vínculo</Label>
+              <Label className="text-[#0F172A]">Início do Vínculo</Label>
               <Select
                 value={String(startSeason)}
                 onValueChange={(val) => setStartSeason(Number(val))}
               >
-                <SelectTrigger className="bg-neutral-900 border-neutral-700 text-white">
+                <SelectTrigger className="bg-white border-[#CBD5E1] text-[#0F172A]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-neutral-900 border-neutral-700 text-white">
+                <SelectContent className="bg-white border-[#CBD5E1] text-[#0F172A]">
                   <SelectItem value={String(seasonYear)}>Imediato ({seasonYear})</SelectItem>
                   <SelectItem value={String(seasonYear + 1)}>Futuro ({seasonYear + 1})</SelectItem>
                 </SelectContent>
@@ -405,15 +405,15 @@ export function DriverNegotiationModal({
           </div>
 
           {/* Cláusulas e Opções */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-neutral-950/60 border border-neutral-800 text-xs font-mono">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs font-mono">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={teamOption}
                 onChange={(e) => setTeamOption(e.target.checked)}
-                className="rounded border-neutral-700 bg-neutral-900 text-red-600 focus:ring-0"
+                className="rounded border-[#CBD5E1] bg-white text-red-600 focus:ring-0"
               />
-              <span>Opção de Renovação da Equipe (+1 ano)</span>
+              <span className="text-[#334155]">Opção de Renovação da Equipe (+1 ano)</span>
             </label>
 
             <label className="flex items-center gap-2 cursor-pointer">
@@ -421,9 +421,9 @@ export function DriverNegotiationModal({
                 type="checkbox"
                 checked={driverOption}
                 onChange={(e) => setDriverOption(e.target.checked)}
-                className="rounded border-neutral-700 bg-neutral-900 text-red-600 focus:ring-0"
+                className="rounded border-[#CBD5E1] bg-white text-red-600 focus:ring-0"
               />
-              <span>Opção Unilateral do Piloto (+1 ano)</span>
+              <span className="text-[#334155]">Opção Unilateral do Piloto (+1 ano)</span>
             </label>
 
             <label className="flex items-center gap-2 cursor-pointer">
@@ -431,26 +431,26 @@ export function DriverNegotiationModal({
                 type="checkbox"
                 checked={isConfidential}
                 onChange={(e) => setIsConfidential(e.target.checked)}
-                className="rounded border-neutral-700 bg-neutral-900 text-red-600 focus:ring-0"
+                className="rounded border-[#CBD5E1] bg-white text-red-600 focus:ring-0"
               />
-              <span>Contrato Inicialmente Confidencial</span>
+              <span className="text-[#334155]">Contrato Inicialmente Confidencial</span>
             </label>
           </div>
         </div>
 
         {/* Avaliação Qualitativa da Proposta (SEM porcentagem de chance exata) */}
         {assessment && (
-          <div className="p-3 rounded-lg border font-mono text-xs flex items-center justify-between">
-            <span className="text-neutral-400">Avaliação do Piloto:</span>
+          <div className="p-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] font-mono text-xs flex items-center justify-between">
+            <span className="text-[#64748B]">Avaliação do Piloto:</span>
             <Badge
               className={`font-bold uppercase ${
                 assessment === 'strong'
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                   : assessment === 'competitive'
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                    ? 'bg-cyan-50 text-cyan-800 border-cyan-200'
                     : assessment === 'uncertain'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      : 'bg-red-500/20 text-red-300 border-red-500/40'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-red-50 text-red-800 border-red-200'
               }`}
             >
               {assessment === 'strong' && 'Excelente Proposta'}
@@ -462,11 +462,11 @@ export function DriverNegotiationModal({
           </div>
         )}
 
-        <DialogFooter className="border-t border-neutral-800 pt-4 flex flex-col sm:flex-row gap-2 justify-between items-center">
+        <DialogFooter className="border-t border-[#F1F5F9] pt-4 flex flex-col sm:flex-row gap-2 justify-between items-center">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="border-neutral-700 text-neutral-300 text-xs w-full sm:w-auto"
+            className="border-[#CBD5E1] text-[#64748B] text-xs w-full sm:w-auto"
           >
             Fechar Mesa
           </Button>
@@ -476,7 +476,7 @@ export function DriverNegotiationModal({
               variant="outline"
               onClick={handleEvaluateOffer}
               disabled={isSubmitting || driverPatienceRemaining <= 0}
-              className="border-neutral-700 hover:bg-neutral-800 text-white text-xs flex-1 sm:flex-none"
+              className="border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] text-xs flex-1 sm:flex-none"
             >
               Apresentar Oferta aos Agentes
             </Button>

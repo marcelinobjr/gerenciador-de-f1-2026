@@ -114,16 +114,16 @@ export interface LightUiAuditResult {
 export const AUDITED_ROUTES: RouteAuditRecord[] = [
   {
     path: '/',
-    component: 'Index (Dashboard de Operações)',
+    component: 'IndexPage (Central da Equipe)',
     isActive: true,
     isAccessible: true,
-    currentStyle: 'MIXED',
-    classification: 'MIXED',
-    migrationNeeded: true,
+    currentStyle: 'LIGHT',
+    classification: 'LIGHT_OK',
+    migrationNeeded: false,
     priority: 'P0',
     complexity: 'MEDIA',
     notes:
-      'Container e cards de finanças/pilotos/próxima corrida já possuem superfícies claras (#F4F5F7, bg-white), mas o Hero da Equipe ainda usa fundo preto #0B0E14 e cards de Notícias/Paddock têm ícones em fundo escuro.',
+      'Migrado no LIGHT-UI-01C: Hero da Equipe em fundo branco/off-white com banner suave, notícias claras e pilotos/próxima corrida totalmente integrados.',
   },
   {
     path: '/auth',
@@ -169,13 +169,13 @@ export const AUDITED_ROUTES: RouteAuditRecord[] = [
     component: 'TeamPage (Minha Equipe)',
     isActive: true,
     isAccessible: true,
-    currentStyle: 'MIXED',
-    classification: 'MIXED',
-    migrationNeeded: true,
+    currentStyle: 'LIGHT',
+    classification: 'LIGHT_OK',
+    migrationNeeded: false,
     priority: 'P0',
     complexity: 'ALTA',
     notes:
-      'Cards da visão geral e banners principais já foram modernizados, mas modais internos (renegociação, rescisão, DevelopmentManagerModal, StaffContractDetailsModal) ainda são pretos/escuros.',
+      'Migrado no LIGHT-UI-01C: TeamHeroBanner claro, TeamBrandingCard claro, modais de renegociação/rescisão claros, StaffContractDetailsModal claro e PilotProfileDialog claro.',
   },
   {
     path: '/pilotos',
@@ -259,13 +259,13 @@ export const AUDITED_ROUTES: RouteAuditRecord[] = [
     component: 'SponsorsPage (Comercial & Finanças)',
     isActive: true,
     isAccessible: true,
-    currentStyle: 'MIXED',
-    classification: 'MIXED',
-    migrationNeeded: true,
+    currentStyle: 'LIGHT',
+    classification: 'LIGHT_OK',
+    migrationNeeded: false,
     priority: 'P1',
     complexity: 'MEDIA',
     notes:
-      'Container da página e abas principais são claras, mas subcomponentes TabCurrentSponsors, CarSponsorMap e NegotiationModal usam superfícies #0B0E14 e #11161F.',
+      'Migrado no LIGHT-UI-01C: Hero claro, TabCurrentSponsors claro, CarSponsorMap claro, CarSideViewHotspots com container claro e NegotiationModal claro.',
   },
   {
     path: '/race',
@@ -416,8 +416,8 @@ export const AUDITED_PAGES: PageAuditRecord[] = [
   {
     name: 'IndexPage',
     filePath: 'src/pages/Index.tsx',
-    currentStyle: 'MIXED',
-    classification: 'MIXED',
+    currentStyle: 'LIGHT',
+    classification: 'LIGHT_OK',
     sharedComponents: [
       'Topbar',
       'Sidebar',
@@ -430,7 +430,7 @@ export const AUDITED_PAGES: PageAuditRecord[] = [
     migrationComplexity: 'MEDIA',
     priority: 'P0',
     notes:
-      'Hero da Equipe tem banner preto #0B0E14; miniatura de Notícias com fundo #0F172A. O resto da página já está sobre fundo #F4F5F7 com cards brancos.',
+      'Migrado no LIGHT-UI-01C: Hero claro com foto translúcida e badges executivos, Paddock feed em cards brancos e componentes filhos 100% claros.',
   },
   {
     name: 'AuthPage',
@@ -471,8 +471,8 @@ export const AUDITED_PAGES: PageAuditRecord[] = [
   {
     name: 'TeamPage',
     filePath: 'src/pages/Team.tsx',
-    currentStyle: 'MIXED',
-    classification: 'MIXED',
+    currentStyle: 'LIGHT',
+    classification: 'LIGHT_OK',
     sharedComponents: [
       'TeamHeroBanner',
       'AboutTeamCard',
@@ -491,17 +491,16 @@ export const AUDITED_PAGES: PageAuditRecord[] = [
       'DevelopmentManagerModal',
     ],
     dialogsOrOverlays: [
-      'RenegotiateDialog (escuro #090D15)',
-      'FireDriverDialog (escuro #090D15)',
-      'DevelopmentManagerModal (escuro slate-950)',
-      'ProspectDebugAuditModal (escuro zinc-950)',
-      'StaffContractDetailsModal (escuro neutral-900)',
-      'PilotProfileDialog (escuro zinc-950)',
+      'RenegotiateDialog (claro)',
+      'FireDriverDialog (claro)',
+      'DevelopmentManagerModal',
+      'StaffContractDetailsModal (claro)',
+      'PilotProfileDialog (claro)',
     ],
     migrationComplexity: 'ALTA',
     priority: 'P0',
     notes:
-      'A superfície externa da página é clara, mas TODOS os seus modais internos de decisão e perfil são pretos/escuros.',
+      'Migrado no LIGHT-UI-01C: Página inteira clara, Hero banner claro, modais de negociação/rescisão claros, Staff e Pilot Profile claros.',
   },
   {
     name: 'DriversPage',
@@ -576,8 +575,8 @@ export const AUDITED_PAGES: PageAuditRecord[] = [
   {
     name: 'SponsorsPage',
     filePath: 'src/pages/Sponsors.tsx',
-    currentStyle: 'MIXED',
-    classification: 'MIXED',
+    currentStyle: 'LIGHT',
+    classification: 'LIGHT_OK',
     sharedComponents: [
       'TabCurrentSponsors',
       'TabMarketOpportunities',
@@ -587,11 +586,11 @@ export const AUDITED_PAGES: PageAuditRecord[] = [
       'CarSideViewHotspots',
       'NegotiationModal',
     ],
-    dialogsOrOverlays: ['NegotiationModal (escuro #0B0E14)', 'PowerUnitNegotiationModal (claro)'],
+    dialogsOrOverlays: ['NegotiationModal (claro)', 'PowerUnitNegotiationModal (claro)'],
     migrationComplexity: 'MEDIA',
     priority: 'P1',
     notes:
-      'Container principal e abas claras, porém componentes internos de patrocinadores e mapas de carro usam #0B0E14.',
+      'Migrado no LIGHT-UI-01C: Hero claro, TabCurrentSponsors claro, CarSponsorMap claro e NegotiationModal claro.',
   },
   {
     name: 'TracksPage',
@@ -839,13 +838,13 @@ export const HIGH_LEVERAGE_COMPONENTS: ComponentAuditRecord[] = [
     name: 'PilotProfileDialog',
     filePath: 'src/components/PilotProfileDialog.tsx',
     type: 'MODAL_OVERLAY',
-    currentStyle: 'DARK',
-    classification: 'DARK_LEGACY',
+    currentStyle: 'LIGHT',
+    classification: 'LIGHT_OK',
     priority: 'P0',
     complexity: 'MEDIA',
     affectedRoutes: ['/pilotos', '/team', '/paddock', '/corrida'],
     notes:
-      'Modal de ficha completa mais utilizado no jogo (1.292 linhas). Totalmente em bg-zinc-950 e border-zinc-800. Migrar para superfícies brancas com tipografia grafite.',
+      'Migrado no LIGHT-UI-01C: Modal branco, cards de atributos claros, badges de personalidade leves e tipografia escura.',
   },
   {
     name: 'DriverSidePanel',
@@ -904,9 +903,6 @@ export const DARK_SCREENS_EXPLICT_LIST: string[] = [
   'TracksPage (/pistas e /pistas/:circuitId) — 100% escura',
   'TeamsPage (/teams) — 100% escura',
   'SeasonEndPage (/season-end) — 100% escura',
-  'IndexPage (/) — Bloco Hero Equipe (#0B0E14) e Miniaturas Notícias Paddock (#0F172A)',
-  'SponsorsPage (/sponsors) — Abas TabCurrentSponsors, CarSponsorMap, CarSideViewHotspots (#0B0E14)',
-  'TeamPage (/team) — Modais de renegociação/rescisão (#090D15) e StaffContractDetailsModal (neutral-900)',
   'WeekendV2Page (/corrida) — Modais de Setup, Simulação Restante e Resumo (#090D15)',
 ]
 

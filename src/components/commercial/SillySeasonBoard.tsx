@@ -19,12 +19,12 @@ export function SillySeasonBoard({
 }: SillySeasonBoardProps) {
   return (
     <div className="space-y-6">
-      {/* Quadro de Rumores Ativos no Paddock */}
+      {/* Quadro de Rumores Ativos no Paddock (LIGHT-UI-01C) */}
       {rumors.length > 0 && (
-        <Card className="bg-[#0B0E14] border-neutral-800">
-          <CardHeader className="py-3 px-4 border-b border-neutral-800/80">
-            <CardTitle className="text-xs uppercase font-mono font-bold tracking-wider text-amber-400 flex items-center gap-2">
-              <Radio className="w-4 h-4 animate-pulse text-amber-500" />
+        <Card className="bg-white border-[#E2E8F0] shadow-sm">
+          <CardHeader className="py-3 px-4 border-b border-[#F1F5F9]">
+            <CardTitle className="text-xs uppercase font-mono font-bold tracking-wider text-amber-700 flex items-center gap-2">
+              <Radio className="w-4 h-4 animate-pulse text-amber-600" />
               Silly Season &bull; Radar de Rumores do Paddock ({seasonYear})
             </CardTitle>
           </CardHeader>
@@ -32,18 +32,18 @@ export function SillySeasonBoard({
             {rumors.slice(0, 4).map((rumor) => (
               <div
                 key={rumor.id}
-                className="p-3 rounded-lg border border-neutral-800 bg-neutral-950/60 font-mono text-xs space-y-1.5"
+                className="p-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] font-mono text-xs space-y-1.5"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-white text-xs">{rumor.headline}</span>
+                  <span className="font-bold text-[#0F172A] text-xs">{rumor.headline}</span>
                   <Badge
                     variant="outline"
                     className={`text-[10px] uppercase font-bold ${
                       rumor.credibility === 'strong'
-                        ? 'border-red-500/50 text-red-400 bg-red-950/20'
+                        ? 'border-red-200 text-red-700 bg-red-50'
                         : rumor.credibility === 'credible'
-                          ? 'border-amber-500/50 text-amber-400 bg-amber-950/20'
-                          : 'border-neutral-600 text-neutral-400 bg-neutral-900'
+                          ? 'border-amber-200 text-amber-700 bg-amber-50'
+                          : 'border-[#CBD5E1] text-[#64748B] bg-white'
                     }`}
                   >
                     {rumor.credibility === 'strong'
@@ -53,7 +53,7 @@ export function SillySeasonBoard({
                         : 'Especulação'}
                   </Badge>
                 </div>
-                <p className="text-neutral-400 text-[11px] leading-relaxed">{rumor.details}</p>
+                <p className="text-[#64748B] text-[11px] leading-relaxed">{rumor.details}</p>
               </div>
             ))}
           </CardContent>
@@ -61,15 +61,15 @@ export function SillySeasonBoard({
       )}
 
       {/* Tabela do Grid — Piloto 1 × Piloto 2 × Reserva */}
-      <Card className="bg-[#0B0E14] border-neutral-800">
-        <CardHeader className="py-3.5 px-4 border-b border-neutral-800/80 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-mono font-bold text-white flex items-center gap-2">
-            <Users className="w-4 h-4 text-red-500" />
+      <Card className="bg-white border-[#E2E8F0] shadow-sm">
+        <CardHeader className="py-3.5 px-4 border-b border-[#F1F5F9] flex flex-row items-center justify-between">
+          <CardTitle className="text-sm font-mono font-bold text-[#0F172A] flex items-center gap-2">
+            <Users className="w-4 h-4 text-[#E10600]" />
             Grid da F1 {seasonYear + 1} &bull; Mapeamento de Vagas e Contratos Futuros
           </CardTitle>
           <Badge
             variant="outline"
-            className="text-[10px] font-mono border-neutral-700 text-neutral-400"
+            className="text-[10px] font-mono border-[#CBD5E1] text-[#64748B] bg-white"
           >
             {isPublicView ? 'Visão Pública (Paddock)' : 'Painel de Bastidores (Truth)'}
           </Badge>
@@ -77,17 +77,17 @@ export function SillySeasonBoard({
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-left font-mono text-xs border-collapse">
             <thead>
-              <tr className="border-b border-neutral-800 bg-neutral-900/40 text-neutral-400 text-[10px] uppercase tracking-wider">
+              <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B] text-[10px] uppercase tracking-wider">
                 <th className="py-3 px-4 font-bold">Escuderia</th>
                 <th className="py-3 px-4 font-bold">Assento 1 ({seasonYear + 1})</th>
                 <th className="py-3 px-4 font-bold">Assento 2 ({seasonYear + 1})</th>
                 <th className="py-3 px-4 font-bold">Piloto Reserva</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800/60">
+            <tbody className="divide-y divide-[#F1F5F9]">
               {gridStatus.map((team) => (
-                <tr key={team.teamId} className="hover:bg-neutral-900/30 transition-colors">
-                  <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
+                <tr key={team.teamId} className="hover:bg-[#F8FAFC] transition-colors">
+                  <td className="py-3 px-4 font-bold text-[#0F172A] flex items-center gap-2">
                     <span
                       className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
                       style={{ backgroundColor: team.teamColor }}
@@ -99,19 +99,19 @@ export function SillySeasonBoard({
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       {team.seat1.status === 'confirmed' ? (
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       ) : team.seat1.status === 'expiring' ? (
-                        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       ) : (
-                        <HelpCircle className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                        <HelpCircle className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
                       )}
                       <span
                         className={
                           team.seat1.status === 'confirmed'
-                            ? 'text-white font-medium'
+                            ? 'text-[#0F172A] font-medium'
                             : team.seat1.status === 'expiring'
-                              ? 'text-amber-300'
-                              : 'text-neutral-500 italic'
+                              ? 'text-amber-700 font-medium'
+                              : 'text-[#94A3B8] italic'
                         }
                       >
                         {team.seat1.publicDisplay}
@@ -123,19 +123,19 @@ export function SillySeasonBoard({
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       {team.seat2.status === 'confirmed' ? (
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       ) : team.seat2.status === 'expiring' ? (
-                        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       ) : (
-                        <HelpCircle className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                        <HelpCircle className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
                       )}
                       <span
                         className={
                           team.seat2.status === 'confirmed'
-                            ? 'text-white font-medium'
+                            ? 'text-[#0F172A] font-medium'
                             : team.seat2.status === 'expiring'
-                              ? 'text-amber-300'
-                              : 'text-neutral-500 italic'
+                              ? 'text-amber-700 font-medium'
+                              : 'text-[#94A3B8] italic'
                         }
                       >
                         {team.seat2.publicDisplay}
@@ -144,7 +144,7 @@ export function SillySeasonBoard({
                   </td>
 
                   {/* Reserva */}
-                  <td className="py-3 px-4 text-neutral-400 text-[11px]">
+                  <td className="py-3 px-4 text-[#64748B] text-[11px]">
                     {team.reserveSeat.publicDisplay}
                   </td>
                 </tr>

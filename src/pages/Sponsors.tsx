@@ -364,11 +364,10 @@ export function SponsorsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 select-none">
-      {/* 1. HERO ESCURO / CINEMATOGRÁFICO COM ASSET DA EQUIPE E KPIS REAIS (REFERÊNCIAS 1, 2 e 3) */}
-      <div className="relative rounded-3xl overflow-hidden bg-[#0A0D14] border border-[#1F2733] shadow-2xl p-6 sm:p-8 text-white">
-        {/* Glow de fundo */}
-        <div className="absolute inset-0 bg-gradient-to-r from-red-600/15 via-transparent to-red-600/10 pointer-events-none" />
-        <div className="absolute right-0 top-0 w-1/2 h-full bg-gradient-to-l from-red-950/30 to-transparent pointer-events-none" />
+      {/* 1. HERO CLARO COM ASSET DA EQUIPE E KPIS REAIS */}
+      <div className="relative rounded-3xl overflow-hidden bg-white border border-[#E2E8F0] shadow-sm p-6 sm:p-8 text-[#0F172A]">
+        {/* Glow de fundo sutil */}
+        <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 via-transparent to-red-500/5 pointer-events-none" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           {/* Títulos e Identidade */}
@@ -377,82 +376,82 @@ export function SponsorsPage() {
               <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#E10600]">
                 COMERCIAL & FINANÇAS
               </span>
-              <span className="text-white/30">•</span>
-              <span className="text-[11px] font-mono text-neutral-400">
+              <span className="text-[#CBD5E1]">•</span>
+              <span className="text-[11px] font-mono text-[#64748B]">
                 TEMPORADA {season?.year || 2026}
               </span>
-              <span className="text-white/30">•</span>
-              <span className="text-[10px] font-mono text-neutral-500 bg-[#141B26] px-1.5 py-0.5 rounded border border-[#1F2733]">
+              <span className="text-[#CBD5E1]">•</span>
+              <span className="text-[10px] font-mono text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded border border-[#E2E8F0]">
                 v0.0.287
               </span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-[#0F172A]">
               {activeTab === 'financas' ? 'Finanças & Cost Cap' : 'Patrocinadores & Contratos'}
             </h1>
 
-            <p className="text-xs sm:text-sm text-neutral-300 font-medium">
+            <p className="text-xs sm:text-sm text-[#64748B] font-medium">
               {activeTab === 'financas'
                 ? 'Equilíbrio hoje. Performance amanhã. Sustentabilidade e teto de gastos.'
                 : 'Monetize a performance. Construa parcerias de longo prazo.'}
             </p>
           </div>
 
-          {/* Miniatura cinematográfica do carro da equipe no topo */}
+          {/* Miniatura do carro da equipe no topo */}
           {heroSideCarImg && (
             <div className="hidden lg:flex items-center justify-end w-80 h-24 relative overflow-hidden rounded-xl">
               <img
                 src={heroSideCarImg}
                 alt={team?.name || 'Carro F1'}
-                className="w-full h-full object-contain filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
+                className="w-full h-full object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.15)]"
               />
             </div>
           )}
         </div>
 
         {/* KPIs Reais Canônicos no Rodapé do Hero */}
-        <div className="relative z-10 mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+        <div className="relative z-10 mt-6 pt-5 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
               Receita Comercial
             </span>
-            <span className="text-base font-black font-mono text-emerald-400">
+            <span className="text-base font-black font-mono text-emerald-600">
               {formatMoneyM(commercialSummary.totalContractedRevenue, true)}
             </span>
           </div>
 
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
               Receita Potencial
             </span>
-            <span className="text-base font-black font-mono text-cyan-400">
+            <span className="text-base font-black font-mono text-cyan-700 font-bold">
               {formatMoneyM(commercialSummary.totalPotentialRevenue, true)}
             </span>
           </div>
 
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
               Espaços Ocupados
             </span>
-            <span className="text-base font-black font-mono text-white">
+            <span className="text-base font-black font-mono text-[#0F172A]">
               {commercialSummary.occupiedSlotsCount} / 5
             </span>
           </div>
 
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
               Na Mesa de Negociação
             </span>
-            <span className="text-base font-black font-mono text-amber-400">
+            <span className="text-base font-black font-mono text-amber-600">
               {activeNegotiations.length} marcas
             </span>
           </div>
 
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
               Caixa Disponível
             </span>
-            <span className="text-base font-black font-mono text-emerald-400">
+            <span className="text-base font-black font-mono text-emerald-600">
               {formatMoneyM(
                 ledgerSnapshot?.cashSummary?.cashBalance || team?.budget || 84_040_000,
                 true,
@@ -461,10 +460,10 @@ export function SponsorsPage() {
           </div>
 
           <div>
-            <span className="text-[10px] font-mono uppercase text-[#8B95A7] block">
+            <span className="text-[10px] font-mono uppercase text-[#64748B] block">
               Uso do Cost Cap
             </span>
-            <span className="text-base font-black font-mono text-white">
+            <span className="text-base font-black font-mono text-[#0F172A]">
               {formatPercent(78)} ({formatMoneyM(168.6)})
             </span>
           </div>
