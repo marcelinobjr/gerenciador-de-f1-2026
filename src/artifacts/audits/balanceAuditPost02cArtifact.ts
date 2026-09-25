@@ -14,12 +14,34 @@ export function getOrGeneratePost02cArtifact(): Calibration01aArtifact {
   // Se executando em ambiente Node (Vitest/build/QA), garante a persistência no disco
   try {
     if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
-      const outDir = path.resolve(process.cwd(), 'src/artifacts/audits')
-      if (!fs.existsSync(outDir)) {
-        fs.mkdirSync(outDir, { recursive: true })
+      const cwd = process.cwd()
+      const candidatePaths = [
+        path.resolve(cwd, 'src/artifacts/audits'),
+        path.resolve(cwd, 'artifacts/audits'),
+        path.resolve(__dirname, '../artifacts/audits'),
+        path.resolve(__dirname, '.'),
+      ]
+      let written = false
+      for (const dir of candidatePaths) {
+        try {
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true })
+          }
+          const targetPath = path.join(dir, 'balance-audit-post02c.json')
+          fs.writeFileSync(targetPath, JSON.stringify(artifact, null, 2), 'utf-8')
+          written = true
+          break
+        } catch {
+          // Tenta próximo path
+        }
       }
-      const targetPath = path.join(outDir, 'balance-audit-post02c.json')
-      fs.writeFileSync(targetPath, JSON.stringify(artifact, null, 2), 'utf-8')
+      if (!written) {
+        const fallbackPath = path.resolve(
+          process.cwd(),
+          'src/artifacts/audits/balance-audit-post02c.json',
+        )
+        fs.writeFileSync(fallbackPath, JSON.stringify(artifact, null, 2), 'utf-8')
+      }
     }
   } catch (err) {
     console.warn('[balanceAuditPost02cArtifact] Failed to persist artifact:', err)
