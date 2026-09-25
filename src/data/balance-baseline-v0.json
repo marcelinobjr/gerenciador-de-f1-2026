@@ -47,6 +47,7 @@
     "PROIBIDO: Alterar ratings canônicos de pilotos",
     "PROIBIDO: Ligar structural score no race engine nesta fase 02A"
   ],
+  "checksum": "sha_v0_PLACEHOLDER",
   "teams": {
     "mercedes": {
       "teamKey": "mercedes",
@@ -2287,6 +2288,76 @@
       "driverScore": 78.95,
       "teamScore": 58.69,
       "structuralStrengthScore": 67.3
+    },
+    "custom_team": {
+      "teamKey": "custom_team",
+      "teamName": "Equipe Personalizada",
+      "country": "Internacional",
+      "engineSupplier": "Audi",
+      "relationshipType": "CUSTOMER",
+      "maxIntegration": 0.9,
+      "effectiveIntegration": 0.8809,
+      "nominalPuPower": 88,
+      "nominalPuReliability": 89,
+      "nominalPuRating": 88.4,
+      "effectivePuRating": 77.9,
+      "chassisComponents": {
+        "frontWing": 71,
+        "rearWing": 70,
+        "floor": 69,
+        "diffuser": 70,
+        "sidepods": 70,
+        "chassis": 71,
+        "suspension": 70,
+        "brakes": 69
+      },
+      "carReliabilityRating": 89,
+      "initialCondition": 100,
+      "drivers": [
+        {
+          "name": "Piloto #1",
+          "role": "driver1",
+          "overallRating": 75,
+          "speed": 75,
+          "consistency": 75,
+          "rain": 75,
+          "defense": 75,
+          "morale": 80
+        },
+        {
+          "name": "Piloto #2",
+          "role": "driver2",
+          "overallRating": 73,
+          "speed": 73,
+          "consistency": 73,
+          "rain": 73,
+          "defense": 73,
+          "morale": 80
+        }
+      ],
+      "driverAttributesAverage": 74,
+      "driverMoraleAverage": 80,
+      "driverAdaptationValue": 75,
+      "isAdaptationNeutral": true,
+      "facilities": {
+        "factory": 2,
+        "design_centre": 2,
+        "cfd": 2,
+        "wind_tunnel": 2,
+        "manufacturing": 2,
+        "simulator": 2,
+        "operations_centre": 2,
+        "pitstop_center": 2,
+        "youth_academy": 2
+      },
+      "infrastructureRating100": 44.44,
+      "teamMoraleRating": 75,
+      "dataQuality": "DEFAULTED",
+      "dataQualityReason": "Equipe customizada com chassi padrão (70), PU Audi cliente e infraestrutura nível 2.",
+      "technicalScore": 77.38,
+      "driverScore": 74.7,
+      "teamScore": 50.55,
+      "structuralStrengthScore": 72.69
     }
   }
 }
