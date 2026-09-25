@@ -37,7 +37,9 @@ export function validateBaselineV0Checksum(data: unknown): boolean {
   return true
 }
 
-// Guarda de integridade executada no carregamento do módulo
+// Guarda de integridade executada no carregamento do módulo:
+// Compara estritamente contra a constante canônica homologada da V0 (BALANCE_BASELINE_V0_CHECKSUM = 'sha_v0_cf5fe0ee').
+// Não utiliza hashes de 16 caracteres hex ou algoritmos incompatíveis.
 validateBaselineV0Checksum(baselineV0Raw)
 
 /**
