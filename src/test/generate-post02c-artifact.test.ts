@@ -20,5 +20,8 @@ describe('Gerador do Artefato CALIBRATION-01A', () => {
     expect(content.structuralRanking29.length).toBe(29)
     expect(content.grid2026Qualifying.length).toBe(12)
     expect(content.grid2026Race.length).toBe(12)
+
+    // Validações adicionais
+    expect(payload.metadata.isV0Intact).toBe(true)
   })
 })

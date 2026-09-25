@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { POST_02C_AUDIT_DATA } from '@/artifacts/audits/balanceAuditPost02cArtifact'
 
 describe('Dump Relatório CALIBRATION-01A', () => {
@@ -19,5 +21,13 @@ describe('Dump Relatório CALIBRATION-01A', () => {
     console.log('=== OUTLIERS DIAGNOSIS ===')
     console.log(JSON.stringify(data.outliersDiagnosis, null, 2))
     expect(data.metadata.isV0Intact).toBe(true)
+
+    // Escreve o relatório JSON diretamente para balance-audit-post02c.json
+    const targetPath = path.resolve(
+      process.cwd(),
+      'src/artifacts/audits/balance-audit-post02c.json',
+    )
+    fs.writeFileSync(targetPath, JSON.stringify(data, null, 2), 'utf-8')
+    expect(fs.existsSync(targetPath)).toBe(true)
   })
 })
