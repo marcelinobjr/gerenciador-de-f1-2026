@@ -253,6 +253,22 @@ export interface BalanceAuditReport {
     findings: string[]
     recommendationsForCalibration01: string[]
   }
+  diagnosticoNaoCalibrarAinda: {
+    title: string
+    note: string
+    audiVsHaasStatus: string
+    audiAboveHaas: boolean
+    outlierTeams: Array<{
+      teamKey: string
+      teamName: string
+      structuralRank: number
+      championshipRank: number
+      rankDelta: number
+      trend: 'ACIMA_DO_ESPERADO' | 'ABAIXO_DO_ESPERADO'
+    }>
+    findings: string[]
+    recommendations: string[]
+  }
 }
 
 // Grupos Alvo Oficiais 2026 do projeto
@@ -868,7 +884,10 @@ export class BalanceAuditService {
     const findings: string[] = []
     const recommendations: string[] = []
 
-    // Constatações objetivas
+    // Constatações objetivas — DIAGNÓSTICO — NÃO CALIBRAR AINDA
+    findings.push(
+      'DIAGNÓSTICO — NÃO CALIBRAR AINDA: Este relatório é estritamente de auditoria e leitura. Nenhuma alteração de ratings, pesos, PU ou parâmetros esportivos foi ou deve ser realizada nesta etapa.',
+    )
     findings.push(
       `Auditadas 29/29 equipes canônicas e ${tracks.length}/24 circuitos oficiais (${allCellsFlattened.length} confrontos célula).`,
     )
@@ -879,7 +898,7 @@ export class BalanceAuditService {
       `Inversões de Grande Gap (structuralGap >= 5.0): ${largeGapInversions.length} ocorrência(s).`,
     )
     findings.push(
-      `Regra Audi > Haas: ${audiVsHaas.status} (Audi win rate: ${audiVsHaas.audiHeadToHeadWinRate}% vs Haas: ${audiVsHaas.haasHeadToHeadWinRate}%).`,
+      `Regra Audi > Haas: ${audiVsHaas.status} (Audi win rate: ${audiVsHaas.audiHeadToHeadWinRate}% vs Haas: ${audiVsHaas.haasHeadToHeadWinRate}%). Audi aparece acima de Haas no ranking médio e estrutural.`,
     )
 
     // Análise de grupos
@@ -951,6 +970,24 @@ export class BalanceAuditService {
       diagnosticSummary: {
         findings,
         recommendationsForCalibration01: recommendations,
+      },
+      diagnosticoNaoCalibrarAinda: {
+        title: 'DIAGNÓSTICO — NÃO CALIBRAR AINDA',
+        note: 'Auditoria somente leitura da baseline V0 e integração BE02C. Zero calibração aplicada.',
+        audiVsHaasStatus: audiVsHaas.status,
+        audiAboveHaas: audiVsHaas.status === 'AUDI_HAAS_RULE_PASS',
+        outlierTeams: championshipStats
+          .filter((c) => c.isSignificantRankShift)
+          .map((t) => ({
+            teamKey: t.teamKey,
+            teamName: t.teamName,
+            structuralRank: t.structuralRank,
+            championshipRank: t.championshipRank,
+            rankDelta: t.rankDelta,
+            trend: t.rankDelta < 0 ? 'ACIMA_DO_ESPERADO' : 'ABAIXO_DO_ESPERADO',
+          })),
+        findings,
+        recommendations,
       },
     }
   }

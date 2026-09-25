@@ -3,15 +3,24 @@ import path from 'node:path'
 import { balanceAuditService } from '../services/balanceAuditService'
 
 // Executa o audit completo
-const report = balanceAuditService.runFullAudit()
+export function generateBalanceAudit01Artifact(): {
+  report: ReturnType<typeof balanceAuditService.runFullAudit>
+  outFile: string
+} {
+  const report = balanceAuditService.runFullAudit()
 
-const outDir = path.resolve(process.cwd(), 'src/artifacts/audits')
-if (!fs.existsSync(outDir)) {
-  fs.mkdirSync(outDir, { recursive: true })
+  const outDir = path.resolve(process.cwd(), 'src/artifacts/audits')
+  if (!fs.existsSync(outDir)) {
+    fs.mkdirSync(outDir, { recursive: true })
+  }
+
+  const outFile = path.join(outDir, 'balance-audit-01.json')
+  fs.writeFileSync(outFile, JSON.stringify(report, null, 2), 'utf-8')
+
+  return { report, outFile }
 }
 
-const outFile = path.join(outDir, 'balance-audit-01.json')
-fs.writeFileSync(outFile, JSON.stringify(report, null, 2), 'utf-8')
+const { report, outFile } = generateBalanceAudit01Artifact()
 
 console.log(`[BALANCE-AUDIT-01] Artefato salvo com sucesso em: ${outFile}`)
 console.log(`- Equipes auditadas: ${report.teamsAudited}`)

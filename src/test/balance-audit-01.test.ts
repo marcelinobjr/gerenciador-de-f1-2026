@@ -21,12 +21,11 @@ describe('BALANCE-AUDIT-01: Auditoria Esportiva & Diagnóstico BE02C (Baseline v
   it('BA01-00: assegura e verifica artefato canônico balance-audit-01.json em src/artifacts/audits/', async () => {
     const fs = await import('node:fs')
     const path = await import('node:path')
-    const dir = path.resolve(process.cwd(), 'src/artifacts/audits')
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
-    }
-    const filePath = path.join(dir, 'balance-audit-01.json')
+    const filePath = path.resolve(process.cwd(), 'src/artifacts/audits/balance-audit-01.json')
+    // Assegura sincronização persistente do artefato caso não exista no container
     if (!fs.existsSync(filePath)) {
+      const dir = path.dirname(filePath)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
       fs.writeFileSync(filePath, JSON.stringify(report, null, 2), 'utf-8')
     }
     expect(fs.existsSync(filePath)).toBe(true)
@@ -36,6 +35,8 @@ describe('BALANCE-AUDIT-01: Auditoria Esportiva & Diagnóstico BE02C (Baseline v
     expect(parsed.teamsAudited).toBe(29)
     expect(parsed.tracksAudited).toBe(24)
     expect(parsed.baselineChecksum).toBe('sha_v0_cf5fe0ee')
+    expect(parsed.diagnosticoNaoCalibrarAinda).toBeDefined()
+    expect(parsed.diagnosticoNaoCalibrarAinda.audiAboveHaas).toBe(true)
   })
 
   // BA01-01: 29/29 equipes auditadas
