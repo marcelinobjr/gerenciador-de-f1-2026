@@ -30,7 +30,7 @@ const GRID_2026_DRIVERS = [
   { driverId: 'mbj-019', expectedAsset: 'DRV_0068', name: 'Nico Hülkenberg' },
   { driverId: 'mbj-020', expectedAsset: 'DRV_0012', name: 'Gabriel Bortoleto' },
   { driverId: 'mbj-021', expectedAsset: 'DRV_0020', name: 'Sergio Pérez' },
-  { driverId: 'mbj-022', expectedAsset: 'DRV_0021', name: 'Valtteri Bottas' },
+  { driverId: 'mbj-022', expectedAsset: 'DRV_0115', name: 'Valtteri Bottas' },
   { driverId: 'mbj-037', expectedAsset: 'DRV_0105', name: 'Mick Schumacher' },
   { driverId: 'mbj-029', expectedAsset: 'DRV_0028', name: 'Franco Colapinto' },
 ]
