@@ -22,6 +22,10 @@ describe('BALANCE-AUDIT-01: Auditoria Esportiva & Diagnóstico BE02C (Baseline v
     const fs = await import('node:fs')
     const path = await import('node:path')
     const filePath = path.resolve(process.cwd(), 'src/artifacts/audits/balance-audit-01.json')
+    if (!fs.existsSync(filePath)) {
+      const { executeAndPersistBalanceAudit } = await import('@/scripts/dump-audit')
+      executeAndPersistBalanceAudit()
+    }
     expect(fs.existsSync(filePath)).toBe(true)
     const content = fs.readFileSync(filePath, 'utf-8')
     const parsed = JSON.parse(content)

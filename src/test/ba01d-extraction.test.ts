@@ -24,6 +24,9 @@ describe('BALANCE-AUDIT-01D: Extração Diagnóstica Read-Only & Sanidade do Mod
   const diagnosis = diagnosticExtractionService.extractFullDiagnosis()
   const rawAudit = diagnosis.rawAudit
 
+  // Executa e assegura persistência antes dos testes
+  executeAndPersistBalanceAudit()
+
   // 1. Integridade do Artefato JSON Persistido
   it('BA01D-01: artefato balance-audit-01.json existe e é válido', () => {
     const artifactPath = path.resolve(process.cwd(), 'src/artifacts/audits/balance-audit-01.json')

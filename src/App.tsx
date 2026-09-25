@@ -10,6 +10,8 @@ import { LobbyLayout } from './components/LobbyLayout'
 
 // Pages
 import Index from './pages/Index'
+import fs from 'node:fs'
+import path from 'node:path'
 import AuthPage from './pages/Auth'
 import TeamPage from './pages/Team'
 import TeamsPage from './pages/Teams'
