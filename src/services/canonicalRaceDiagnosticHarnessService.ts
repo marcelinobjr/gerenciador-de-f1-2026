@@ -13,6 +13,18 @@ import type { TrackWeatherState } from '@/lib/f1-tire-system'
 import type { CanonicalRaceState } from '@/types/canonical-race-v2'
 import type { TireCompound } from '@/types/f1'
 
+export interface DriverPitRecord {
+  lap: number
+  previousCompound: TireCompound
+  newCompound: TireCompound
+}
+
+export interface DriverStintRecord {
+  stintNumber: number
+  compound: TireCompound
+  lapsDuration: number
+}
+
 export interface RaceHarnessDriverResult {
   driverId: string
   driverName: string
@@ -20,10 +32,13 @@ export interface RaceHarnessDriverResult {
   teamName: string
   gridPosition: number
   finalPosition: number
+  pointsAwarded: number
   raceStatus: 'finished' | 'dnf'
   dnfReason?: string
   dnfLap?: number
   pitStops: number
+  pitStopsDetail: DriverPitRecord[]
+  stints: DriverStintRecord[]
   compoundsUsed: TireCompound[]
   initialCompound: TireCompound
   finalCompound: TireCompound
@@ -31,6 +46,20 @@ export interface RaceHarnessDriverResult {
   conformsTwoCompoundRule: boolean
   positionsGainedOrLost: number
   raceTimeSec: number
+}
+
+export interface WeatherTransitionRecord {
+  lap: number
+  fromWeather: TrackWeatherState
+  toWeather: TrackWeatherState
+  driverReactions: Array<{
+    driverId: string
+    driverName: string
+    teamId: string
+    compoundBefore: TireCompound
+    pitLap?: number
+    compoundAfter?: TireCompound
+  }>
 }
 
 export interface RaceSampleRecord {
@@ -42,10 +71,16 @@ export interface RaceSampleRecord {
   weatherCondition: 'seca' | 'chuva' | 'variavel'
   weatherInitial: TrackWeatherState
   weatherFinal: TrackWeatherState
+  weatherTransitions: WeatherTransitionRecord[]
   safetyCarDeployed: boolean
   vscDeployed: boolean
   totalSafetyCarLaps: number
   totalVscLaps: number
+  neutralizationDetails?: {
+    scLaps: number
+    vscLaps: number
+    pitsDuringNeutralization: number
+  }
   winnerDriverId: string
   winnerDriverName: string
   winnerTeamId: string
@@ -57,6 +92,52 @@ export interface RaceSampleRecord {
   zeroPitsViolationsDry: string[]
 }
 
+export interface DriverAggregatedMetrics {
+  driverId: string
+  driverName: string
+  teamId: string
+  teamName: string
+  racesCount: number
+  avgGridPosition: number
+  avgFinalPosition: number
+  wins: number
+  podiums: number
+  pointsTotal: number
+  dnfs: number
+  netPositionsGained: number
+  avgPitStops: number
+  compoundsUsedDistribution: Record<string, number>
+}
+
+export interface TeamAggregatedMetrics {
+  teamId: string
+  teamName: string
+  racesCount: number
+  avgFinalPosition: number
+  wins: number
+  podiums: number
+  pointsTotal: number
+  dnfs: number
+  avgPitStopsPerRace: number
+}
+
+export interface StrategyAggregatedMetrics {
+  distinctStrategiesCount: number
+  startingCompoundDistribution: Record<string, number>
+  oneStopCount: number
+  twoStopCount: number
+  threePlusStopCount: number
+  avgPitStopsPerDriver: number
+  pitLapsDistribution: Record<number, number>
+}
+
+export interface WeatherAggregatedMetrics {
+  dryCount: number
+  rainFromStartCount: number
+  variableCount: number
+  observedTransitionsCount: number
+}
+
 export interface RaceDiagnosticReport {
   execution: {
     requested: number
@@ -65,11 +146,7 @@ export interface RaceDiagnosticReport {
     invalid: number
     durationMs: number
   }
-  weatherBreakdown: {
-    dryCount: number
-    rainFromStartCount: number
-    variableCount: number
-  }
+  weatherBreakdown: WeatherAggregatedMetrics
   tyreAndStrategy: {
     twoCompoundViolationsTotal: number
     dryZeroPitsTotal: number
@@ -78,7 +155,11 @@ export interface RaceDiagnosticReport {
     averagePitStopsPerRace: number
     minPitStopsDriver: number
     maxPitStopsDriver: number
+    dryFinishersEvaluated: number
   }
+  strategyMetrics: StrategyAggregatedMetrics
+  driverMetrics: DriverAggregatedMetrics[]
+  teamMetrics: TeamAggregatedMetrics[]
   dnfs: {
     totalDnfs: number
     averageDnfsPerRace: number
@@ -225,11 +306,21 @@ export class CanonicalRaceDiagnosticHarnessService {
       persistState: false,
     })
 
-    // Rastreamento dos compostos usados por piloto
+    // Rastreamento dos compostos usados, detalhes de pits e stints por piloto
     const compoundsUsedMap: Record<string, TireCompound[]> = {}
+    const pitRecordsMap: Record<string, DriverPitRecord[]> = {}
+    const stintLapsMap: Record<string, number[]> = {} // voltas em cada stint
+    const currentStintLapCount: Record<string, number> = {}
+
     raceState.drivers.forEach((d) => {
       compoundsUsedMap[d.driverId] = [d.tyreCompound]
+      pitRecordsMap[d.driverId] = []
+      stintLapsMap[d.driverId] = []
+      currentStintLapCount[d.driverId] = 0
     })
+
+    const executedWeatherTransitions: WeatherTransitionRecord[] = []
+    let pitsDuringNeutralizations = 0
 
     // Execução volta a volta
     for (let lap = 1; lap <= totalLaps; lap++) {
@@ -238,11 +329,39 @@ export class CanonicalRaceDiagnosticHarnessService {
       // Checa transição de clima se aplicável
       const transition = targetWeatherTransitions.find((t) => t.atLap === lap)
       if (transition) {
+        const fromWeather = raceState.weather
         raceState = {
           ...raceState,
           weather: transition.weather,
         }
+
+        // Registrar reação dos pilotos nesta transição
+        executedWeatherTransitions.push({
+          lap,
+          fromWeather,
+          toWeather: transition.weather,
+          driverReactions: raceState.drivers.map((d) => ({
+            driverId: d.driverId,
+            driverName: d.driverName,
+            teamId: d.teamId,
+            compoundBefore: d.tyreCompound,
+          })),
+        })
       }
+
+      // Snapshot pré-volta para detectar pits nesta volta
+      const preLapPits: Record<string, number> = {}
+      const preLapCompounds: Record<string, TireCompound> = {}
+      raceState.drivers.forEach((d) => {
+        preLapPits[d.driverId] = d.pitStops || 0
+        preLapCompounds[d.driverId] = d.tyreCompound
+      })
+
+      const wasNeutralizedPre =
+        raceState.safetyCarActive ||
+        raceState.vscActive ||
+        raceState.raceControl?.currentFlag === 'SAFETY_CAR' ||
+        raceState.raceControl?.currentFlag === 'VSC'
 
       // Avança UMA volta de corrida pelo motor canônico real
       raceState = canonicalRaceEngineService.advanceOneLap(raceState, {
@@ -251,14 +370,54 @@ export class CanonicalRaceDiagnosticHarnessService {
         persistState: false,
       })
 
-      // Atualiza histórico de compostos
+      // Atualiza rastreamento de cada piloto após a volta
       raceState.drivers.forEach((d) => {
-        const hist = compoundsUsedMap[d.driverId]
-        if (hist && hist[hist.length - 1] !== d.tyreCompound) {
-          hist.push(d.tyreCompound)
+        if (d.raceStatus === 'dnf') return
+
+        const oldPits = preLapPits[d.driverId] || 0
+        const newPits = d.pitStops || 0
+
+        if (newPits > oldPits) {
+          // Pit ocorreu nesta volta
+          const prevComp = preLapCompounds[d.driverId]
+          const nextComp = d.tyreCompound
+          pitRecordsMap[d.driverId].push({
+            lap,
+            previousCompound: prevComp,
+            newCompound: nextComp,
+          })
+          if (wasNeutralizedPre) {
+            pitsDuringNeutralizations++
+          }
+
+          // Encerra stint anterior
+          stintLapsMap[d.driverId].push(currentStintLapCount[d.driverId] || 1)
+          currentStintLapCount[d.driverId] = 1
+
+          const hist = compoundsUsedMap[d.driverId]
+          if (hist && hist[hist.length - 1] !== d.tyreCompound) {
+            hist.push(d.tyreCompound)
+          }
+
+          // Se houve transição climática recente, atualizar driverReactions
+          const recentTransition = executedWeatherTransitions[executedWeatherTransitions.length - 1]
+          if (recentTransition && recentTransition.lap <= lap && lap <= recentTransition.lap + 5) {
+            const rx = recentTransition.driverReactions.find((r) => r.driverId === d.driverId)
+            if (rx && !rx.pitLap) {
+              rx.pitLap = lap
+              rx.compoundAfter = nextComp
+            }
+          }
+        } else {
+          currentStintLapCount[d.driverId] = (currentStintLapCount[d.driverId] || 0) + 1
         }
       })
     }
+
+    // Fecha o último stint dos pilotos ativos
+    raceState.drivers.forEach((d) => {
+      stintLapsMap[d.driverId].push(currentStintLapCount[d.driverId] || 0)
+    })
 
     // Officializar resultado
     const officialResult = canonicalRaceResultService.officializeRace(raceState)
@@ -302,6 +461,14 @@ export class CanonicalRaceDiagnosticHarnessService {
       const initialCompound = compounds[0]
       const finalCompound = compounds[compounds.length - 1]
 
+      const pitsDetail = pitRecordsMap[entry.driverId] || []
+      const stintsRaw = stintLapsMap[entry.driverId] || []
+      const stints: DriverStintRecord[] = stintsRaw.map((duration, sIdx) => ({
+        stintNumber: sIdx + 1,
+        compound: compounds[sIdx] || compounds[compounds.length - 1],
+        lapsDuration: duration,
+      }))
+
       return {
         driverId: entry.driverId,
         driverName: entry.driverName,
@@ -309,10 +476,13 @@ export class CanonicalRaceDiagnosticHarnessService {
         teamName: entry.teamName,
         gridPosition: entry.gridPosition,
         finalPosition: entry.finalPosition,
+        pointsAwarded: entry.pointsAwarded || 0,
         raceStatus: (entry.dnf ? 'dnf' : 'finished') as 'finished' | 'dnf',
         dnfReason: entry.dnfReason,
         dnfLap: entry.dnfLap,
         pitStops: pitCount,
+        pitStopsDetail: pitsDetail,
+        stints,
         compoundsUsed: compounds,
         initialCompound,
         finalCompound,
@@ -345,10 +515,16 @@ export class CanonicalRaceDiagnosticHarnessService {
       weatherCondition: weatherCategory,
       weatherInitial: initialWeather,
       weatherFinal: raceState.weather,
+      weatherTransitions: executedWeatherTransitions,
       safetyCarDeployed: scLaps > 0,
       vscDeployed: vscLaps > 0,
       totalSafetyCarLaps: scLaps,
       totalVscLaps: vscLaps,
+      neutralizationDetails: {
+        scLaps,
+        vscLaps,
+        pitsDuringNeutralization: pitsDuringNeutralizations,
+      },
       winnerDriverId: winner?.driverId || 'unknown',
       winnerDriverName: winner?.driverName || 'unknown',
       winnerTeamId: winner?.teamId || 'unknown',
@@ -401,8 +577,14 @@ export class CanonicalRaceDiagnosticHarnessService {
 
     const durationMs = Date.now() - startTime
 
-    // Teste de reprodutibilidade em 3 sementes específicas
-    const testSeeds = [baseSeed, baseSeed + 37 * 15, baseSeed + 37 * 75]
+    // Teste de reprodutibilidade em 5 sementes específicas (critério de ≥5 seeds exigido pelo usuário)
+    const testSeeds = [
+      baseSeed,
+      baseSeed + 37 * 15,
+      baseSeed + 37 * 40,
+      baseSeed + 37 * 75,
+      baseSeed + 37 * 90,
+    ]
     let allIdentical = true
     const divergenceDetails: string[] = []
 
@@ -444,16 +626,67 @@ export class CanonicalRaceDiagnosticHarnessService {
     let minDriverPits = 999
     let maxDriverPits = 0
     let totalDriversCount = 0
+    let dryFinishersEvaluated = 0
     let validCount = 0
     let invalidCount = 0
+    let observedTransitionsCount = 0
 
     let twentyFourUniqueAll = true
     let continuousPositionsAll = true
+
+    // Estruturas para métricas de piloto e equipe
+    const driverStatsMap: Record<
+      string,
+      {
+        driverId: string
+        driverName: string
+        teamId: string
+        teamName: string
+        races: number
+        gridSum: number
+        finishSum: number
+        wins: number
+        podiums: number
+        pointsTotal: number
+        dnfs: number
+        netPosGained: number
+        pitSum: number
+        compoundsDist: Record<string, number>
+      }
+    > = {}
+
+    const teamStatsMap: Record<
+      string,
+      {
+        teamId: string
+        teamName: string
+        racesCount: number
+        finishSum: number
+        driverEntries: number
+        wins: number
+        podiums: number
+        pointsTotal: number
+        dnfs: number
+        pitSum: number
+      }
+    > = {}
+
+    // Estratégias
+    const distinctStrategySet = new Set<string>()
+    const startingCompoundDist: Record<string, number> = {}
+    const pitLapsDist: Record<number, number> = {}
+    let oneStopCount = 0
+    let twoStopCount = 0
+    let threePlusStopCount = 0
 
     samples.forEach((s) => {
       if (s.weatherCondition === 'seca') dryCount++
       else if (s.weatherCondition === 'chuva') rainCount++
       else varCount++
+
+      if (s.weatherTransitions && s.weatherTransitions.length > 0) {
+        observedTransitionsCount += s.weatherTransitions.length
+      }
 
       if (s.safetyCarDeployed) scRaces++
       if (s.vscDeployed) vscRaces++
@@ -480,8 +713,89 @@ export class CanonicalRaceDiagnosticHarnessService {
 
       s.driverResults.forEach((dr) => {
         totalDriversCount++
+        if (s.weatherCondition === 'seca' && dr.raceStatus === 'finished') {
+          dryFinishersEvaluated++
+        }
+
         if (dr.pitStops < minDriverPits) minDriverPits = dr.pitStops
         if (dr.pitStops > maxDriverPits) maxDriverPits = dr.pitStops
+
+        // Estratégia agregada
+        const stratKey = dr.compoundsUsed.join('→')
+        distinctStrategySet.add(stratKey)
+        startingCompoundDist[dr.initialCompound] =
+          (startingCompoundDist[dr.initialCompound] || 0) + 1
+
+        if (dr.pitStops === 1) oneStopCount++
+        else if (dr.pitStops === 2) twoStopCount++
+        else if (dr.pitStops >= 3) threePlusStopCount++
+
+        dr.pitStopsDetail.forEach((pd) => {
+          pitLapsDist[pd.lap] = (pitLapsDist[pd.lap] || 0) + 1
+        })
+
+        // Driver metrics
+        if (!driverStatsMap[dr.driverId]) {
+          driverStatsMap[dr.driverId] = {
+            driverId: dr.driverId,
+            driverName: dr.driverName,
+            teamId: dr.teamId,
+            teamName: dr.teamName,
+            races: 0,
+            gridSum: 0,
+            finishSum: 0,
+            wins: 0,
+            podiums: 0,
+            pointsTotal: 0,
+            dnfs: 0,
+            netPosGained: 0,
+            pitSum: 0,
+            compoundsDist: {},
+          }
+        }
+        const dStat = driverStatsMap[dr.driverId]
+        dStat.races++
+        dStat.gridSum += dr.gridPosition
+        dStat.finishSum += dr.finalPosition
+        if (dr.finalPosition === 1) dStat.wins++
+        if (dr.finalPosition <= 3) dStat.podiums++
+        dStat.pointsTotal += dr.pointsAwarded
+        if (dr.raceStatus === 'dnf') dStat.dnfs++
+        dStat.netPosGained += dr.positionsGainedOrLost
+        dStat.pitSum += dr.pitStops
+        dr.compoundsUsed.forEach((c) => {
+          dStat.compoundsDist[c] = (dStat.compoundsDist[c] || 0) + 1
+        })
+
+        // Team metrics
+        if (!teamStatsMap[dr.teamId]) {
+          teamStatsMap[dr.teamId] = {
+            teamId: dr.teamId,
+            teamName: dr.teamName,
+            racesCount: 0,
+            finishSum: 0,
+            driverEntries: 0,
+            wins: 0,
+            podiums: 0,
+            pointsTotal: 0,
+            dnfs: 0,
+            pitSum: 0,
+          }
+        }
+        const tStat = teamStatsMap[dr.teamId]
+        tStat.driverEntries++
+        tStat.finishSum += dr.finalPosition
+        if (dr.finalPosition === 1) tStat.wins++
+        if (dr.finalPosition <= 3) tStat.podiums++
+        tStat.pointsTotal += dr.pointsAwarded
+        if (dr.raceStatus === 'dnf') tStat.dnfs++
+        tStat.pitSum += dr.pitStops
+      })
+
+      // Incrementa contagem de corridas por equipe
+      const teamsInRace = new Set(s.driverResults.map((d) => d.teamId))
+      teamsInRace.forEach((tId) => {
+        if (teamStatsMap[tId]) teamStatsMap[tId].racesCount++
       })
 
       if (
@@ -496,6 +810,49 @@ export class CanonicalRaceDiagnosticHarnessService {
       }
     })
 
+    const driverMetrics: DriverAggregatedMetrics[] = Object.values(driverStatsMap)
+      .map((d) => ({
+        driverId: d.driverId,
+        driverName: d.driverName,
+        teamId: d.teamId,
+        teamName: d.teamName,
+        racesCount: d.races,
+        avgGridPosition: Number((d.gridSum / d.races).toFixed(2)),
+        avgFinalPosition: Number((d.finishSum / d.races).toFixed(2)),
+        wins: d.wins,
+        podiums: d.podiums,
+        pointsTotal: d.pointsTotal,
+        dnfs: d.dnfs,
+        netPositionsGained: d.netPosGained,
+        avgPitStops: Number((d.pitSum / d.races).toFixed(2)),
+        compoundsUsedDistribution: d.compoundsDist,
+      }))
+      .sort((a, b) => b.pointsTotal - a.pointsTotal)
+
+    const teamMetrics: TeamAggregatedMetrics[] = Object.values(teamStatsMap)
+      .map((t) => ({
+        teamId: t.teamId,
+        teamName: t.teamName,
+        racesCount: t.racesCount,
+        avgFinalPosition: Number((t.finishSum / t.driverEntries).toFixed(2)),
+        wins: t.wins,
+        podiums: t.podiums,
+        pointsTotal: t.pointsTotal,
+        dnfs: t.dnfs,
+        avgPitStopsPerRace: Number((t.pitSum / (t.racesCount || 1)).toFixed(2)),
+      }))
+      .sort((a, b) => b.pointsTotal - a.pointsTotal)
+
+    const strategyMetrics: StrategyAggregatedMetrics = {
+      distinctStrategiesCount: distinctStrategySet.size,
+      startingCompoundDistribution: startingCompoundDist,
+      oneStopCount,
+      twoStopCount,
+      threePlusStopCount,
+      avgPitStopsPerDriver: Number((totalPits / totalDriversCount).toFixed(2)),
+      pitLapsDistribution: pitLapsDist,
+    }
+
     const report: RaceDiagnosticReport = {
       execution: {
         requested: sampleSize,
@@ -508,6 +865,7 @@ export class CanonicalRaceDiagnosticHarnessService {
         dryCount,
         rainFromStartCount: rainCount,
         variableCount: varCount,
+        observedTransitionsCount,
       },
       tyreAndStrategy: {
         twoCompoundViolationsTotal: twoCompoundViolations,
@@ -517,7 +875,11 @@ export class CanonicalRaceDiagnosticHarnessService {
         averagePitStopsPerRace: Number((totalPits / samples.length).toFixed(2)),
         minPitStopsDriver: minDriverPits === 999 ? 0 : minDriverPits,
         maxPitStopsDriver: maxDriverPits,
+        dryFinishersEvaluated,
       },
+      strategyMetrics,
+      driverMetrics,
+      teamMetrics,
       dnfs: {
         totalDnfs,
         averageDnfsPerRace: Number((totalDnfs / samples.length).toFixed(2)),
