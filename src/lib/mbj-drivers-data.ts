@@ -1,3 +1,5 @@
+import { getDriverCareerBaseline2025 } from '@/data/driverCareerStats2025'
+
 /**
  * Base de Dados Completa MBJ 2026 - 135 Pilotos
  * Organizados nos grupos:
@@ -3355,12 +3357,29 @@ export function getDriverCareerStats(params: GetDriverCareerStatsParams): Driver
 
   const pilotId = pilot.id
 
-  // 1. Baselines do catálogo (com corte 01/01/2026)
-  // Suporta f1Championships ou f1Titles como fallback retrocompatível
-  const baseRaces = Number(pilot.f1RacesCompleted) || 0
-  const baseWins = Number(pilot.f1Wins) || 0
-  const basePoles = Number(pilot.f1Poles) || 0
-  const baseChampionships = Number(pilot.f1Championships ?? pilot.f1Titles) || 0
+  // 1. Resolução canônica de baseline histórico 2025
+  // Busca em driverCareerStats2025 via pilot.id (seja ID mbj-XXX, runtime do PocketBase ou alias)
+  let baseRaces = 0
+  let baseWins = 0
+  let basePoles = 0
+  let baseChampionships = 0
+
+  const hist = getDriverCareerBaseline2025(pilotId)
+  if (hist) {
+    baseRaces = hist.races
+    baseWins = hist.wins
+    basePoles = hist.poles
+    baseChampionships = hist.championships
+    historicalFound = true
+  }
+
+  // Fallback para campos diretos do objeto do piloto se não encontrado no dicionário 2025
+  if (!historicalFound) {
+    baseRaces = Number(pilot.f1RacesCompleted) || 0
+    baseWins = Number(pilot.f1Wins) || 0
+    basePoles = Number(pilot.f1Poles) || 0
+    baseChampionships = Number(pilot.f1Championships ?? pilot.f1Titles) || 0
+  }
 
   // 2. Acréscimos derivados de race_results do save atual
   let saveRaces = 0
