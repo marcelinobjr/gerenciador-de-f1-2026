@@ -4,6 +4,9 @@ import pb from '@/lib/pocketbase/client'
 import { f1Service } from '@/services/f1Service'
 import { raceReportService } from '@/services/raceReportService'
 import { standingsService } from '@/services/standingsService'
+import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
+import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 import { eraHistoryService } from '@/services/eraHistoryService'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { RaceReportModal } from '@/components/race/RaceReportModal'
@@ -102,6 +105,7 @@ export default function HistoryPage() {
   const { team, season } = useAuth()
 
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [raceResults, setRaceResults] = useState<RaceResultModel[]>([])
   const [playerDrivers, setPlayerDrivers] = useState<DriverModel[]>([])
   const [reports, setReports] = useState<RaceReportModel[]>([])
@@ -113,6 +117,17 @@ export default function HistoryPage() {
   const [activeTab, setActiveTab] = useState<'timeline' | 'rounds' | 'highlights'>('timeline')
   const [chartRange, setChartRange] = useState<'all' | 'last5'>('all')
 
+  // Career ID e Season Year canônicos da carreira ativa
+  const careerId = useMemo(() => resolveCanonicalCareerId(season, team), [season, team])
+  const seasonYear = useMemo(() => {
+    if (typeof season?.year === 'number') return season.year
+    if (typeof season?.year === 'string') {
+      const parsed = parseInt(season.year, 10)
+      if (!isNaN(parsed) && parsed > 0) return parsed
+    }
+    return 2026
+  }, [season?.year])
+
   // Carregar dados
   useEffect(() => {
     let mounted = true
@@ -121,24 +136,122 @@ export default function HistoryPage() {
         setLoading(false)
         return
       }
+      setLoading(true)
+      setLoadError(null)
       try {
-        const [rList, dList, repList, histRecords] = await Promise.all([
-          f1Service.getSeasonRaceResults(season.id),
-          f1Service.getTeamDrivers(team.id),
-          raceReportService.getSeasonReports(season.id),
-          pb
-            .collection('season_histories')
-            .getFullList({ sort: 'season_year' })
-            .catch(() => []),
-        ])
+        const [rListResult, dListResult, repListResult, histRecordsResult] =
+          await Promise.allSettled([
+            f1Service.getSeasonRaceResults(season.id),
+            f1Service.getTeamDrivers(team.id),
+            raceReportService.getSeasonReports(season.id),
+            pb
+              .collection('season_histories')
+              .getFullList({ sort: 'season_year' })
+              .catch(() => []),
+          ])
+
+        // Se o PocketBase falhar criticamente ao ler drivers ou dados base da equipe
+        if (dListResult.status === 'rejected') {
+          console.error('Falha ao obter pilotos da equipe:', dListResult.reason)
+        }
+
+        const pbResults: RaceResultModel[] =
+          rListResult.status === 'fulfilled' && Array.isArray(rListResult.value)
+            ? rListResult.value
+            : []
+        const dList: DriverModel[] =
+          dListResult.status === 'fulfilled' && Array.isArray(dListResult.value)
+            ? dListResult.value
+            : []
+        const repList: RaceReportModel[] =
+          repListResult.status === 'fulfilled' && Array.isArray(repListResult.value)
+            ? repListResult.value
+            : []
+        const histRecords: any[] =
+          histRecordsResult.status === 'fulfilled' && Array.isArray(histRecordsResult.value)
+            ? histRecordsResult.value
+            : []
+
+        // Fonte canônica da carreira ativa (BUG-INTEGRIDADE-05D1A):
+        // Coletar resultados oficiais/persistidos e unificar sem duplicar e sem efeitos colaterais.
+        const totalRounds = season?.total_rounds || 24
+        const canonicalConvertedList: RaceResultModel[] = []
+        const canonicalRoundsCovered = new Set<number>()
+
+        for (let r = 1; r <= totalRounds; r++) {
+          const persisted = canonicalCareerPersistenceService.getPersistedRaceResult(
+            careerId,
+            seasonYear,
+            r,
+          )
+          const official =
+            persisted?.snapshot ||
+            canonicalRaceResultService.getOfficialRaceResult(careerId, seasonYear, r)
+
+          // Só utilizar resultados oficializados / concluídos e consistentes
+          if (official && Array.isArray(official.entries) && official.entries.length > 0) {
+            // Verificar integridade e deduplicação estrita
+            canonicalRoundsCovered.add(r)
+            for (const entry of official.entries) {
+              const finalPos = entry.finalPosition
+              const isDnf = entry.dnf || entry.status === 'dnf'
+              const driverName = entry.driverName || ''
+              const teamName = entry.teamName || ''
+              const teamColor = entry.teamColor || '#E10600'
+              const driverPts = typeof entry.pointsAwarded === 'number' ? entry.pointsAwarded : 0
+
+              canonicalConvertedList.push({
+                id: `canonical_${careerId}_s${seasonYear}_r${r}_${entry.driverId}`,
+                season_id: season.id,
+                round: r,
+                driver_id: entry.driverId,
+                team_id: entry.teamId,
+                position: finalPos,
+                points: driverPts,
+                fastest_lap: !!entry.fastestLap,
+                grid_position: entry.gridPosition,
+                laps_completed: entry.lapsCompleted,
+                accumulated_time_sec: entry.raceTime,
+                expand: {
+                  driver_id: {
+                    id: entry.driverId,
+                    name: driverName,
+                  } as any,
+                  team_id: {
+                    id: entry.teamId,
+                    name: teamName,
+                    color: teamColor,
+                  } as any,
+                },
+                // Preservar propriedades canônicas adicionais
+                ...(isDnf ? { isDnf: true, dnf: true, dnf_reason: entry.dnfReason } : {}),
+              } as RaceResultModel)
+            }
+          }
+        }
+
+        // Deduplicar: para rodadas cobertas pela fonte canônica da carreira ativa,
+        // NÃO duplicar com registros do PocketBase. Apenas incluir PB para rodadas não existentes no canônico.
+        const pbRemaining = pbResults.filter((r) => {
+          if (typeof r.round === 'number' && canonicalRoundsCovered.has(r.round)) {
+            return false
+          }
+          return true
+        })
+
+        const unifiedResults = [...canonicalConvertedList, ...pbRemaining]
+
         if (mounted) {
-          setRaceResults(rList)
+          setRaceResults(unifiedResults)
           setPlayerDrivers(dList)
           setReports(repList)
           setArchivedHistories(histRecords || [])
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Erro ao carregar histórico da temporada:', err)
+        if (mounted) {
+          setLoadError(err?.message || 'Falha ao consultar histórico canônico')
+        }
       } finally {
         if (mounted) setLoading(false)
       }
@@ -147,7 +260,7 @@ export default function HistoryPage() {
     return () => {
       mounted = false
     }
-  }, [season?.id, team?.id])
+  }, [season?.id, seasonYear, team?.id, careerId])
 
   // Classificação atual unificada para encontrar o rival direto
   const standings = useMemo(() => {
@@ -257,20 +370,22 @@ export default function HistoryPage() {
       playerResultsInRound.forEach((pr) => {
         const pts = typeof pr.points === 'number' ? pr.points : 0
         roundPts += pts
-        if (bestPos === null || pr.position < bestPos) {
+        const isDnf = (pr as any).isDnf || (pr as any).dnf || false
+        if (!isDnf && (bestPos === null || pr.position < bestPos)) {
           bestPos = pr.position
         }
-        if (pr.position === 1) totalWins++
-        if (pr.position <= 3) totalPodiums++
+        if (!isDnf && pr.position === 1) totalWins++
+        if (!isDnf && pr.position <= 3) totalPodiums++
 
         const matchedDriver = playerDrivers.find((d) => d.id === pr.driver_id)
+        const driverDisplayName = pr.expand?.driver_id?.name || matchedDriver?.name || pr.driver_id
         driverItems.push({
-          driverName: pr.expand?.driver_id?.name || matchedDriver?.name || 'Piloto',
+          driverName: driverDisplayName,
           position: pr.position,
           points: pts,
+          dnf: isDnf,
         })
       })
-
       // Pontos do rival na rodada (para gráfico acumulado)
       const rivalResultsInRound = roundResults.filter(
         (res) =>
@@ -838,12 +953,23 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        {/* Conteúdo: Carregamento */}
+        {/* Conteúdo: Carregamento / Erro / Dados */}
         {loading ? (
-          <div className="p-6 space-y-3">
+          <div className="p-6 space-y-3" data-testid="history-loading">
             {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} className="h-16 w-full bg-neutral-100 rounded-xl" />
             ))}
+          </div>
+        ) : loadError ? (
+          <div
+            className="p-8 text-center space-y-3 bg-red-50/50 rounded-xl m-6 border border-red-200"
+            data-testid="history-error"
+          >
+            <div className="w-10 h-10 rounded-full bg-red-100 text-[#E10600] flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <h4 className="text-sm font-bold text-red-900">Erro ao carregar histórico oficial</h4>
+            <p className="text-xs text-red-700 max-w-md mx-auto">{loadError}</p>
           </div>
         ) : (
           <div>
@@ -927,16 +1053,18 @@ export default function HistoryPage() {
                                   <span
                                     key={idx}
                                     className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                                      dr.position === 1
-                                        ? 'bg-amber-400 text-amber-950 border border-amber-500/30'
-                                        : dr.position <= 3
-                                          ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                                          : dr.position <= 10
-                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                            : 'bg-neutral-100 text-[#64748B] border border-neutral-200'
+                                      dr.dnf
+                                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                        : dr.position === 1
+                                          ? 'bg-amber-400 text-amber-950 border border-amber-500/30'
+                                          : dr.position <= 3
+                                            ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                            : dr.position <= 10
+                                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                              : 'bg-neutral-100 text-[#64748B] border border-neutral-200'
                                     }`}
                                   >
-                                    P{dr.position}
+                                    {dr.dnf ? 'DNF' : `P${dr.position}`}
                                   </span>
                                 ))
                               ) : (
@@ -1047,17 +1175,19 @@ export default function HistoryPage() {
                                 <span
                                   key={idx}
                                   className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
-                                    dr.position === 1
-                                      ? 'bg-amber-400 text-amber-950'
-                                      : dr.position <= 3
-                                        ? 'bg-amber-100 text-amber-900'
-                                        : dr.position <= 10
-                                          ? 'bg-emerald-50 text-emerald-700'
-                                          : 'bg-neutral-100 text-[#64748B]'
+                                    dr.dnf
+                                      ? 'bg-rose-50 text-rose-700'
+                                      : dr.position === 1
+                                        ? 'bg-amber-400 text-amber-950'
+                                        : dr.position <= 3
+                                          ? 'bg-amber-100 text-amber-900'
+                                          : dr.position <= 10
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'bg-neutral-100 text-[#64748B]'
                                   }`}
-                                  title={`${dr.driverName}: P${dr.position} (${dr.points} pts)`}
+                                  title={`${dr.driverName}: ${dr.dnf ? 'DNF' : `P${dr.position}`} (${dr.points} pts)`}
                                 >
-                                  P{dr.position}
+                                  {dr.dnf ? 'DNF' : `P${dr.position}`}
                                 </span>
                               ))}
                             </div>
