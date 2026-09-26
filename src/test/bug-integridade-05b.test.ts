@@ -153,12 +153,13 @@ describe('BUG-INTEGRIDADE-05B — Suíte Canônica de Bandeiras', () => {
       id: 'team_test',
       name: 'Escuderia Brasil',
       color: '#00A6FB',
+      chassis_level: 70,
+      aero_level: 70,
+      strategy_level: 70,
       engine_supplier: 'Mercedes',
       budget: 100000000,
       created: '',
       updated: '',
-      collectionId: '',
-      collectionName: '',
     }
 
     const mockDrivers: DriverModel[] = [
@@ -170,24 +171,21 @@ describe('BUG-INTEGRIDADE-05B — Suíte Canônica de Bandeiras', () => {
         age: 25,
         speed: 82,
         consistency: 80,
-        racecraft: 80,
-        stamina: 82,
-        qualifying: 83,
+        rain: 80,
+        defense: 80,
         morale: 85,
         salary: 2000000,
+        contract_end: 2026,
         role: 'titular',
-        number: 21,
         created: '',
         updated: '',
-        collectionId: '',
-        collectionName: '',
       },
     ]
 
     const standings = standingsService.calculateStandings({
       team: mockTeam,
       playerDrivers: mockDrivers,
-      pastRoundsToSimulate: 0,
+      raceResults: [],
     })
 
     const drugovichStanding = standings.driverStandings.find((d) => d.id === 'drv_bra')

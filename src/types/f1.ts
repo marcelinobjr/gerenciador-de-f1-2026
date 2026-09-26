@@ -78,6 +78,16 @@ export interface TeamModel {
     status: 'instalado' | 'reserva' | 'aposentado'
     supplier: string
     introducedRound: number
+    exceedsQuota?: boolean
+    condition?: number
+    mileage_km?: number
+  }>
+  grid_penalties?: Array<{
+    id: string
+    unitIndex: number
+    positions: number
+    reason: string
+    appliedAt: string
   }>
   user_id?: string
   manager_name?: string

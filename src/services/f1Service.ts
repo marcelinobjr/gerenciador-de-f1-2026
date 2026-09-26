@@ -21,6 +21,8 @@ import {
   RaceReportModel,
 } from '@/types/f1'
 
+export const FREE_ENGINE_QUOTA = 4
+
 export const f1Service = {
   // === NOTIFICAÇÕES (CRUD POCKETBASE) ===
   async getNotifications(userId: string, limit = 30): Promise<F1NotificationModel[]> {
@@ -1919,7 +1921,8 @@ export const f1Service = {
   // Cost cap & engine pool constants
   COST_CAP_LIMIT: 215000000, // R$ 215.000.000 teto de gastos anual FIA (equipe + chassi)
   ENGINE_COST_REFERENCE: 190000000, // R$ 190.000.000 custo de motor (unidade de potência)
-  MAX_ALLOWED_ENGINES: 4, // 4 motores por temporada sem penalidade de grid
+  MAX_ALLOWED_ENGINES: 4, // 4 motores por temporada sem penalidade de grid (cota regulamentar)
+  FREE_ENGINE_QUOTA: 4,
 
   // Registra gasto no teto de custos (cost cap)
   async registerCostCapSpend(
@@ -2032,35 +2035,75 @@ export const f1Service = {
     engineNumber: number
     costCapSpent: number
   }> {
-    const currentPool = team.engine_pool_used || 1
-    const newPoolNumber = currentPool + 1
+    const currentHistory = Array.isArray(team.engine_history) ? [...team.engine_history] : []
+    const existingMaxId = currentHistory.reduce((max, eng) => Math.max(max, Number(eng.id) || 0), 0)
+    const currentPool = Math.max(team.engine_pool_used || 0, existingMaxId, currentHistory.length)
+    const unitIndex = currentPool + 1
     const spentCostCap = (team.cost_cap_spent || 0) + cost
     const newBudget = team.budget - cost
 
-    // Regra FIA: Até 4 motores = 0 posições.
-    // 5º motor = 10 posições de grid
-    // 6º motor em diante = 5 posições de grid
+    // Regra FIA regulamentar generalizada:
+    // Até FREE_ENGINE_QUOTA (4) unidades = 0 posições.
+    // 1ª unidade além da cota (unitIndex === FREE_ENGINE_QUOTA + 1) = 10 posições de grid
+    // Unidades subsequentes além da cota (unitIndex > FREE_ENGINE_QUOTA + 1) = 5 posições de grid
     let penaltyPositions = 0
-    if (newPoolNumber === 5) {
-      penaltyPositions = 10
-    } else if (newPoolNumber > 5) {
-      penaltyPositions = 5
+    if (unitIndex > FREE_ENGINE_QUOTA) {
+      if (unitIndex === FREE_ENGINE_QUOTA + 1) {
+        penaltyPositions = 10
+      } else {
+        penaltyPositions = 5
+      }
     }
 
-    const currentHistory = Array.isArray(team.engine_history) ? [...team.engine_history] : []
-    // Atualizar motor antigo para reserva
-    const updatedHistory = currentHistory.map((eng) =>
+    // Se a unidade já existe no histórico (idempotência contra chamadas duplicadas / reload), recuperar
+    const alreadyExists = currentHistory.some((eng) => Number(eng.id) === unitIndex)
+    let updatedHistory = currentHistory
+    if (alreadyExists) {
+      // Re-leitura/idempotência: não duplica entrada nem penalidades
+      const existingUnit = currentHistory.find((eng) => Number(eng.id) === unitIndex)
+      const existingPenalties = team.grid_penalties || []
+      const alreadyHasPenalty = existingPenalties.some((p) => p.unitIndex === unitIndex)
+      const effectivePenalty = alreadyHasPenalty
+        ? existingPenalties.find((p) => p.unitIndex === unitIndex)?.positions || 0
+        : penaltyPositions
+
+      return {
+        team,
+        penaltyPositions: effectivePenalty,
+        engineNumber: unitIndex,
+        costCapSpent: team.cost_cap_spent || 0,
+      }
+    }
+
+    // Atualizar motor antigo para reserva (preserva PU1..PU4 e anteriores intactas)
+    updatedHistory = currentHistory.map((eng) =>
       eng.status === 'instalado' ? { ...eng, status: 'reserva' as const } : eng,
     )
 
-    // Adicionar nova PU instalada com 0% desgaste
+    const isExceedingQuota = unitIndex > FREE_ENGINE_QUOTA
+    // Adicionar nova PU instalada com km/desgaste/condição iniciais padrão e atributos-base preservados
     updatedHistory.push({
-      id: newPoolNumber,
+      id: unitIndex,
       wear: 0,
       status: 'instalado' as const,
       supplier: team.engine_supplier || 'Mercedes',
       introducedRound: 1, // atualizado dinamicamente pelo chamador se disponível
+      exceedsQuota: isExceedingQuota,
+      condition: 100,
+      mileage_km: 0,
     })
+
+    // Registro da penalidade regulamentar de forma IDEMPOTENTE no modelo da equipe
+    const currentPenalties = Array.isArray(team.grid_penalties) ? [...team.grid_penalties] : []
+    if (isExceedingQuota && !currentPenalties.some((p) => p.unitIndex === unitIndex)) {
+      currentPenalties.push({
+        id: `pu_pen_${team.id}_u${unitIndex}`,
+        unitIndex,
+        positions: penaltyPositions,
+        reason: `Excesso de cota anual de unidades de potência (PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`,
+        appliedAt: new Date().toISOString(),
+      })
+    }
 
     // Registro Canônico no Financial Ledger (Compra de nova unidade de potência)
     try {
@@ -2076,9 +2119,9 @@ export const f1Service = {
         amount: cost,
         costCapClassification: 'included',
         sourceSystem: 'engine_pool',
-        sourceEntityId: `pu_${newPoolNumber}`,
-        idempotencyKey: `new_pu_${team.id}_engine_${newPoolNumber}`,
-        description: `Aquisição de nova Unidade de Potência #${newPoolNumber} (${team.engine_supplier || 'Mercedes'})`,
+        sourceEntityId: `pu_${unitIndex}`,
+        idempotencyKey: `new_pu_${team.id}_engine_${unitIndex}`,
+        description: `Aquisição de nova Unidade de Potência #${unitIndex} (${team.engine_supplier || 'Mercedes'})`,
       })
     } catch (finErr) {
       console.warn('Erro ao lançar compra de motor no FinancialLedger:', finErr)
@@ -2087,19 +2130,20 @@ export const f1Service = {
     const updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
       budget: newBudget,
       cost_cap_spent: spentCostCap,
-      engine_pool_used: newPoolNumber,
+      engine_pool_used: unitIndex,
       active_engine_wear: 0,
       engine_history: updatedHistory,
+      grid_penalties: currentPenalties,
     })
 
     // Adiciona evento oficial
     const penaltyMsg =
       penaltyPositions > 0
-        ? ` Penalidade FIA aplicada: PERDA DE ${penaltyPositions} POSIÇÕES NO GRID por exceder a cota anual.`
-        : ' Dentro da cota regulamentar (limite: 4 unidades).'
+        ? ` Penalidade FIA aplicada: PERDA DE ${penaltyPositions} POSIÇÕES NO GRID por exceder a cota anual (${FREE_ENGINE_QUOTA} unidades).`
+        : ` Dentro da cota regulamentar (limite: ${FREE_ENGINE_QUOTA} unidades).`
 
     await pb.collection('events').create({
-      message: `NOVA UNIDADE DE POTÊNCIA: Motor #${newPoolNumber} (${team.engine_supplier}) ativado com 0% de desgaste.${penaltyMsg} Custo: ${cost / 1000000}M contabilizado no teto de gastos.`,
+      message: `NOVA UNIDADE DE POTÊNCIA: Motor #${unitIndex} (${team.engine_supplier || 'Mercedes'}) ativado com 0% de desgaste.${penaltyMsg} Custo: ${cost / 1000000}M contabilizado no teto de gastos.`,
       type: 'desenvolvimento',
       team_id: team.id,
     })
@@ -2107,7 +2151,7 @@ export const f1Service = {
     return {
       team: updatedTeam,
       penaltyPositions,
-      engineNumber: newPoolNumber,
+      engineNumber: unitIndex,
       costCapSpent: spentCostCap,
     }
   },

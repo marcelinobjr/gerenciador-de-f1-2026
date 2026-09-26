@@ -8,7 +8,11 @@ export interface CountryFlagProps {
   title?: string
 }
 
-export const CountryFlag: React.FC<CountryFlagProps> = ({ code, className, title: customTitle }) => {
+export const CountryFlag: React.FC<CountryFlagProps> = ({
+  code,
+  className,
+  title: customTitle,
+}) => {
   if (!code || !code.trim()) {
     return null
   }
