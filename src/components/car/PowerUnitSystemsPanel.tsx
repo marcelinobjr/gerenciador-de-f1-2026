@@ -1,6 +1,7 @@
 import React from 'react'
 import { RefreshCw, Clock, RotateCcw, AlertCircle, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { FREE_ENGINE_QUOTA } from '@/services/f1Service'
 
 export interface PowerUnitSubcomponent {
   name: string
@@ -50,7 +51,7 @@ export const PowerUnitSystemsPanel: React.FC<PowerUnitSystemsPanelProps> = ({
   supplierName = 'Audi Sport',
   overallIntegrity = 79,
   activeUnitIndex = 2,
-  totalUnitsLimit = 4,
+  totalUnitsLimit = FREE_ENGINE_QUOTA,
   currentKm = 1482,
   usageCycles = 4,
   estimatedWear = 21,

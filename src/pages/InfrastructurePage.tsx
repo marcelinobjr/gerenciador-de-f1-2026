@@ -993,8 +993,8 @@ export default function InfrastructurePage() {
               <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[11px] text-[#475569] flex items-start gap-2">
                 <Info className="w-4 h-4 text-cyan-600 shrink-0 mt-0.5" />
                 <span className="leading-snug">
-                  Unidades trocadas além do limite de 4 acarretam penalidades regulamentares de 10
-                  posições no grid de largada.
+                  Unidades trocadas além da quota regulamentar ({FREE_ENGINE_QUOTA} unidades)
+                  acarretam penalidades no grid de largada.
                 </span>
               </div>
             </div>

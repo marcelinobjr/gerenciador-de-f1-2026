@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { f1Service } from '@/services/f1Service'
+import { f1Service, FREE_ENGINE_QUOTA } from '@/services/f1Service'
 import { teamRosterService } from '@/services/teamRosterService'
 import { useRealtime } from '@/hooks/use-realtime'
 import { PartModel, DriverModel } from '@/types/f1'
@@ -483,7 +483,44 @@ export default function CarPage() {
   const COST_CAP_LIMIT = f1Service.COST_CAP_LIMIT
   const currentCostCapSpent = team?.cost_cap_spent ?? 0
   const activeEngineWear = team?.active_engine_wear ?? 21
-  const enginePoolUsed = Math.min(4, Math.max(1, team?.engine_pool_used ?? 2))
+  const enginePoolUsed = Math.max(1, team?.engine_pool_used ?? 2)
+
+  // Lista dinâmica de unidades e histórico de motores
+  const dynamicEngineUnits = useMemo(() => {
+    const history = team?.engine_history || []
+    if (history.length > 0) {
+      return history.map((eng) => ({
+        id: Number(eng.id),
+        wear: eng.wear ?? 0,
+        condition: eng.condition ?? Math.max(10, 100 - (eng.wear ?? 0)),
+        mileage_km: eng.mileage_km ?? 0,
+        status: eng.status,
+        supplier: eng.supplier || team?.engine_supplier || 'Audi Sport',
+        exceedsQuota: eng.exceedsQuota ?? Number(eng.id) > FREE_ENGINE_QUOTA,
+      }))
+    }
+    const maxUnit = Math.max(FREE_ENGINE_QUOTA, engineUnitCar1, engineUnitCar2, enginePoolUsed)
+    return Array.from({ length: maxUnit }).map((_, idx) => {
+      const num = idx + 1
+      return {
+        id: num,
+        wear: num === 1 ? 34 : num === 2 ? 21 : num === 3 ? 12 : 0,
+        condition: num === 1 ? 66 : num === 2 ? 79 : num === 3 ? 88 : 100,
+        mileage_km: num === 1 ? 2120 : num === 2 ? 1482 : num === 3 ? 810 : 0,
+        status: num === engineUnitCar1 || num === engineUnitCar2 ? 'instalado' : 'reserva',
+        supplier: team?.engine_supplier || 'Audi Sport',
+        exceedsQuota: num > FREE_ENGINE_QUOTA,
+      }
+    })
+  }, [team?.engine_history, team?.engine_supplier, engineUnitCar1, engineUnitCar2, enginePoolUsed])
+
+  const poolUnitsForPanel = useMemo(() => {
+    return dynamicEngineUnits.map((u) => ({
+      unitNumber: u.id,
+      exceedsQuota: u.exceedsQuota,
+      status: u.status,
+    }))
+  }, [dynamicEngineUnits])
 
   // Fornecedor de motor
   const engineSupplier = useMemo(() => {
@@ -793,12 +830,12 @@ export default function CarPage() {
           toast({
             variant: 'destructive',
             title: `Motor #${res.engineNumber} Ativado — Penalidade Aplicada!`,
-            description: `Limite anual de 4 motores excedido! Você largará com ${res.penaltyPositions} posições de punição no próximo GP.`,
+            description: `Quota anual regulamentar de ${FREE_ENGINE_QUOTA} motores excedida! Você largará com ${res.penaltyPositions} posições de punição no próximo GP.`,
           })
         } else {
           toast({
             title: `Nova Unidade de Potência #${res.engineNumber} Instalada!`,
-            description: `Motor zerado (0% desgaste) instalado com sucesso dentro da cota regulamentar (${res.engineNumber}/4).`,
+            description: `Motor zerado (0% desgaste) instalado com sucesso dentro da cota regulamentar (${res.engineNumber}/${FREE_ENGINE_QUOTA}).`,
           })
         }
       }
@@ -910,7 +947,11 @@ export default function CarPage() {
                   aeroSpec={car1Specs.frontWing?.split('-')[0]?.trim() || 'Aero B'}
                   chassisSpec="Chassi A"
                   puInUse={`PU-${engineUnitCar1}`}
-                  puCycleText={`Uso ${engineUnitCar1}/4`}
+                  puCycleText={
+                    engineUnitCar1 > FREE_ENGINE_QUOTA
+                      ? `PU-${engineUnitCar1} (Fora da quota)`
+                      : `PU-${engineUnitCar1} (Cota ${engineUnitCar1}/${FREE_ENGINE_QUOTA})`
+                  }
                   reliability={ourTeamTech.reliability}
                   totalWear={Math.round(
                     100 - Object.values(car1Conditions).reduce((a, b) => a + b, 0) / 6,
@@ -947,7 +988,11 @@ export default function CarPage() {
                   aeroSpec={car2Specs.frontWing?.split('-')[0]?.trim() || 'Aero A'}
                   chassisSpec="Chassi B"
                   puInUse={`PU-${engineUnitCar2}`}
-                  puCycleText={`Uso ${engineUnitCar2}/4`}
+                  puCycleText={
+                    engineUnitCar2 > FREE_ENGINE_QUOTA
+                      ? `PU-${engineUnitCar2} (Fora da quota)`
+                      : `PU-${engineUnitCar2} (Cota ${engineUnitCar2}/${FREE_ENGINE_QUOTA})`
+                  }
                   reliability={Math.max(50, ourTeamTech.reliability - 4)}
                   totalWear={Math.round(
                     100 - Object.values(car2Conditions).reduce((a, b) => a + b, 0) / 6,
@@ -1041,7 +1086,7 @@ export default function CarPage() {
                     : (car2Conditions.engine ?? 82)
                 }
                 activeUnitIndex={technicalSelectedCarPU === 1 ? engineUnitCar1 : engineUnitCar2}
-                totalUnitsLimit={4}
+                totalUnitsLimit={FREE_ENGINE_QUOTA}
                 currentKm={1482 + currentRound * 305}
                 usageCycles={currentRound}
                 estimatedWear={
@@ -1056,6 +1101,8 @@ export default function CarPage() {
                 onIntroduceNewEngine={(targetCar) => handleOpenEngineSwapModal(targetCar)}
                 isChangingEngine={isChangingEngine}
                 costCapAvailable={Math.max(0, COST_CAP_LIMIT - currentCostCapSpent)}
+                poolUnits={poolUnitsForPanel}
+                existingPenalties={team?.grid_penalties}
               />
 
               <TechnicalCorrelationPanel
@@ -1301,7 +1348,9 @@ export default function CarPage() {
         driverName={activeSwapTargetCar === 1 ? roster.starter1?.name : roster.starter2?.name}
         currentCar1EngineUnit={engineUnitCar1}
         currentCar2EngineUnit={engineUnitCar2}
-        totalUnitsLimit={4}
+        totalUnitsLimit={FREE_ENGINE_QUOTA}
+        availableUnits={dynamicEngineUnits}
+        penalties={team?.grid_penalties}
         onConfirmSwap={handleConfirmEngineSwap}
       />
 

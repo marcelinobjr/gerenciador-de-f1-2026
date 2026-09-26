@@ -9,6 +9,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, Check, ShieldAlert, Cpu } from 'lucide-react'
+import { FREE_ENGINE_QUOTA } from '@/services/f1Service'
 
 export interface EngineSwapOption {
   id: string
@@ -56,7 +57,7 @@ export const EngineSwapModal: React.FC<EngineSwapModalProps> = ({
   driverName,
   currentCar1EngineUnit,
   currentCar2EngineUnit,
-  totalUnitsLimit = 4,
+  totalUnitsLimit = FREE_ENGINE_QUOTA,
   availableUnits,
   penalties,
   onConfirmSwap,
@@ -289,10 +290,13 @@ export const EngineSwapModal: React.FC<EngineSwapModalProps> = ({
                         />
                         <span className="font-bold text-slate-900 font-mono">{pu.label}</span>
                         {pu.isExceededLimit && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 flex items-center gap-0.5 font-mono">
+                          <span
+                            data-testid={`engine-swap-badge-${pu.unitNumber}`}
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 flex items-center gap-0.5 font-mono"
+                          >
                             <ShieldAlert className="w-3 h-3" />
                             {penalties?.find((p) => p.unitIndex === pu.unitNumber)
-                              ? `Penalidade (+${penalties.find((p) => p.unitIndex === pu.unitNumber)?.positions} posições)`
+                              ? `Penalidade registrada: +${penalties.find((p) => p.unitIndex === pu.unitNumber)?.positions} posições`
                               : 'Fora da quota'}
                           </span>
                         )}
