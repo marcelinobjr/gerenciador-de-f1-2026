@@ -146,7 +146,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     vi.spyOn(f1Service, 'getDrivers').mockResolvedValue(createBaseDrivers())
 
     mockUseAuth = vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: createBaseTeam(),
       season: createBaseSeason(),
       isLoading: false,
@@ -212,7 +212,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU5,
       season: createBaseSeason(),
       isLoading: false,
@@ -283,7 +283,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU6,
       season: createBaseSeason(),
       isLoading: false,
@@ -443,7 +443,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU5,
       season: createBaseSeason(),
       isLoading: false,
@@ -657,7 +657,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU5,
       season: createBaseSeason(),
       isLoading: false,
@@ -796,7 +796,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU5,
       season: createBaseSeason(),
       isLoading: false,
@@ -846,7 +846,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU5,
       season: createBaseSeason(),
       isLoading: false,
@@ -957,7 +957,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU5,
       season: createBaseSeason(),
       isLoading: false,
@@ -1125,7 +1125,7 @@ describe('BUG-INTEGRIDADE-05C2 — Contrato de Unidades de Potência (UI / Integ
     })
 
     mockUseAuth.mockReturnValue({
-      user: { id: 'usr-1', email: 'manager@apex.com' } as AuthContextModule.AuthContextType['user'],
+      user: { id: 'usr-1', email: 'manager@apex.com' } as any,
       team: teamWithPU8,
       season: createBaseSeason(),
       isLoading: false,
