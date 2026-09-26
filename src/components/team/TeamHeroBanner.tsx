@@ -17,6 +17,7 @@ interface TeamHeroBannerProps {
 
 export const TeamHeroBanner: React.FC<TeamHeroBannerProps> = ({
   teamName,
+  teamKey,
   subheading = 'Pessoas. Estrutura. Cultura. Performance.',
   bgImage,
   constructorPosition,
