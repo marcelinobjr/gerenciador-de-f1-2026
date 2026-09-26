@@ -100,6 +100,9 @@ export const TeamCrest: React.FC<TeamCrestProps> = ({
           loading="lazy"
           onError={() => setImgError(true)}
         />
+        {showFallbackText && (
+          <span className={cn('sr-only', sizeConfig.text)}>{resolved.fallbackText}</span>
+        )}
       </div>
     )
   }
@@ -147,6 +150,9 @@ export const TeamCrest: React.FC<TeamCrestProps> = ({
             {acronym}
           </text>
         </svg>
+        {showFallbackText && (
+          <span className={cn('sr-only', sizeConfig.text)}>{resolved.fallbackText}</span>
+        )}
       </div>
     )
   }

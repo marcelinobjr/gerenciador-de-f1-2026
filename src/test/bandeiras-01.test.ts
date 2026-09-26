@@ -206,11 +206,11 @@ describe('BANDEIRAS-01 — Suíte Canônica de Bandeiras para Circuitos e Equipe
       expect(cardContent).toContain('<CountryFlag code={nationality}')
     })
 
-    it('Standings.tsx exibe bandeira da escuderia nos Construtores', () => {
+    it('Standings.tsx exibe emblema canônico da escuderia nos Construtores (EMBLEMAS-02)', () => {
       const standingsPath = path.resolve(process.cwd(), 'src/pages/Standings.tsx')
       const standingsContent = fs.readFileSync(standingsPath, 'utf-8')
 
-      expect(standingsContent).toContain('<CountryFlag code={cTeam.name}')
+      expect(standingsContent).toContain('<TeamCrest')
     })
 
     it('TracksPage.tsx resolve bandeira do GP com resolveCountryFlag', () => {
