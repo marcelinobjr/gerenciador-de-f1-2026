@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
@@ -590,23 +590,32 @@ export default function TeamPage() {
 
   // Gargalo departamental dinâmico (departamento de menor score)
   const bottleneckInfo = useMemo(() => {
-    const list = [
+    const list: {
+      key: 'aerodynamics' | 'engineering' | 'trackOperations' | 'commercial'
+      name: string
+      score: number
+      impact: string
+    }[] = [
       {
+        key: 'aerodynamics',
         name: 'Aerodinâmica',
         score: orgCapacities.aerodynamics,
         impact: 'Impacto: atraso no desenvolvimento aerodinâmico',
       },
       {
+        key: 'engineering',
         name: 'Engenharia',
         score: orgCapacities.engineering,
         impact: 'Impacto: menor eficiência em peças e upgrades',
       },
       {
+        key: 'trackOperations',
         name: 'Operações de pista',
         score: orgCapacities.trackOperations,
         impact: 'Impacto: risco em paradas e acerto do carro',
       },
       {
+        key: 'commercial',
         name: 'Comercial',
         score: orgCapacities.commercial,
         impact: 'Impacto: atratividade reduzida para patrocinadores',
@@ -614,10 +623,32 @@ export default function TeamPage() {
     ]
     list.sort((a, b) => a.score - b.score)
     return {
+      key: list[0].key,
       name: list[0].name,
       impact: list[0].impact,
     }
   }, [orgCapacities])
+
+  // Resolução do gargalo de capacidade organizacional com navegação real
+  const handleResolveBottleneck = useCallback(
+    (sectorKey: 'aerodynamics' | 'engineering' | 'trackOperations' | 'commercial') => {
+      switch (sectorKey) {
+        case 'aerodynamics':
+          navigate('/car?tab=technical', { state: { targetArea: 'aerodynamics' } })
+          break
+        case 'engineering':
+          navigate('/car?tab=technical', { state: { targetArea: 'engineering' } })
+          break
+        case 'trackOperations':
+          navigate('/infraestrutura?tab=facilities')
+          break
+        case 'commercial':
+          navigate('/sponsors?tab=patrocinadores')
+          break
+      }
+    },
+    [navigate],
+  )
 
   // KPIs de Saúde Organizacional
   const orgHealthKpis = useMemo(() => {
@@ -1455,9 +1486,11 @@ export default function TeamPage() {
             <div className="lg:col-span-4 flex flex-col">
               <OrganizationalCapacityCard
                 capacities={orgCapacities}
+                bottleneckSectorKey={bottleneckInfo.key}
                 bottleneckText={bottleneckInfo.name}
                 bottleneckImpact={bottleneckInfo.impact}
-                onOpenDetails={() => setActiveTab('staff')}
+                onResolveBottleneck={handleResolveBottleneck}
+                onOpenDetails={() => handleResolveBottleneck(bottleneckInfo.key)}
               />
             </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
 import { f1Service, FREE_ENGINE_QUOTA } from '@/services/f1Service'
@@ -61,8 +62,19 @@ export default function InfrastructurePage() {
     Boolean(team?.id),
   )
 
+  const [searchParams, setSearchParams] = useSearchParams()
+
   // CONSOLIDAÇÃO EM EXATAMENTE 2 SUBABAS: [ POWER UNIT ] [ INFRAESTRUTURAS ]
-  const [activeTab, setActiveTab] = useState<'pu' | 'facilities'>('pu')
+  // Suporte a URL search param: ?tab=facilities | ?tab=pu
+  const initialTab = searchParams.get('tab') === 'facilities' ? 'facilities' : 'pu'
+  const [activeTab, setActiveTab] = useState<'pu' | 'facilities'>(initialTab)
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'facilities' || tabParam === 'pu') {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
 
   // Estado da Alocação de Motores (Carro #1 e Carro #2) com persistência local e save
   const [car1PuUnit, setCar1PuUnit] = useState<number>(() => {

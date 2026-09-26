@@ -386,134 +386,134 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] sm:w-full bg-white border border-[#E2E8F0] text-[#0F172A] p-0 overflow-hidden max-h-[88vh] flex flex-col shadow-2xl">
-        {/* Cabeçalho de Perfil com Banner e Foto */}
-        <div className="relative bg-[#F8FAFC] p-4 sm:p-6 pb-4 sm:pb-5 border-b border-[#E2E8F0] shrink-0">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-5">
-            {/* Foto Grande do Piloto */}
-            <div className="w-20 sm:w-32 shrink-0">
-              <DriverPoster
-                name={pilot?.name || ''}
-                driverId={pilot?.id}
-                visualIdentity={
-                  (pilot as any)?.procedural_data?.visualIdentity ||
-                  (pilot as any)?.visualIdentity ||
-                  (pilot as any)?.rawDbRecord?.procedural_data?.visualIdentity ||
-                  null
-                }
-                aspectRatio="poster"
-                className="w-full shadow-md ring-1 ring-[#CBD5E1] rounded-lg"
-              />
-            </div>
-
-            {/* Informações V (Público - Valor Exato) */}
-            <div className="flex-1 text-center sm:text-left min-w-0">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-1">
-                <Badge
-                  variant="outline"
-                  className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs"
-                >
-                  <CountryFlag code={pilot.nationality} />
-                  <span>{pilot.nationality}</span>
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="bg-white border-[#CBD5E1] text-[#64748B] text-[10px] sm:text-xs uppercase shadow-xs"
-                >
-                  {pilot.category.toUpperCase()}
-                </Badge>
-                {isUserTeam && (
-                  <Badge className="bg-[#E10600]/10 text-[#E10600] border border-[#E10600]/30 text-[10px] sm:text-xs font-bold">
-                    Sua Equipe
-                  </Badge>
-                )}
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full bg-white border border-[#E2E8F0] text-[#0F172A] p-0 overflow-hidden max-h-[90vh] flex flex-col shadow-2xl">
+        {/* Corpo do Perfil Rolável contendo cabeçalho + atributos + detalhes */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:p-5 space-y-4 sm:space-y-5 text-sm">
+          {/* Cabeçalho de Perfil com Banner e Foto */}
+          <div className="relative bg-[#F8FAFC] p-4 sm:p-5 border border-[#E2E8F0] rounded-2xl">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-5">
+              {/* Foto Grande do Piloto */}
+              <div className="w-24 sm:w-32 shrink-0">
+                <DriverPoster
+                  name={pilot?.name || ''}
+                  driverId={pilot?.id}
+                  visualIdentity={
+                    (pilot as any)?.procedural_data?.visualIdentity ||
+                    (pilot as any)?.visualIdentity ||
+                    (pilot as any)?.rawDbRecord?.procedural_data?.visualIdentity ||
+                    null
+                  }
+                  aspectRatio="poster"
+                  className="w-full shadow-md ring-1 ring-[#CBD5E1] rounded-lg"
+                />
               </div>
 
-              <DialogTitle className="text-xl sm:text-3xl font-black tracking-tight text-[#0F172A] truncate">
-                {pilot.name}
-              </DialogTitle>
-
-              <DialogDescription className="text-[#64748B] text-xs mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
-                <span>{pilot.age} anos</span>
-                <span>•</span>
-                <span className="text-[#334155] font-semibold">{currentTeamDisplay}</span>
-                {pilot.role && (
+              {/* Informações V (Público - Valor Exato) */}
+              <div className="flex-1 text-center sm:text-left min-w-0 w-full">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-1">
                   <Badge
-                    variant="secondary"
-                    className={`text-[10px] uppercase py-0 px-2 ${
-                      String(pilot.role).toLowerCase().includes('titular')
-                        ? 'bg-red-50 text-red-700 border border-red-200'
-                        : 'bg-blue-50 text-blue-700 border border-blue-200'
-                    }`}
+                    variant="outline"
+                    className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs"
                   >
-                    {pilot.role}
+                    <CountryFlag code={pilot.nationality} />
+                    <span>{pilot.nationality}</span>
                   </Badge>
-                )}
-              </DialogDescription>
-
-              {/* Destaque OVR / Reputação e Salário de Referência V (Regra R03 sem OVR na F1 Academy) */}
-              <div className="mt-3.5 flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[#E2E8F0] shadow-xs">
-                  <span className="text-[11px] font-mono uppercase text-[#64748B] font-semibold">
-                    {pilot.category === 'f1_academy' ? 'Perfil MBJ' : 'Overall'}
-                  </span>
-                  <span
-                    className={`font-black font-mono text-sm px-1.5 py-0.5 rounded ${
-                      pilot.category === 'f1_academy'
-                        ? 'bg-pink-100 text-pink-800 border border-pink-200'
-                        : ovr >= 90
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : ovr >= 82
-                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                            : 'bg-neutral-100 text-[#0F172A] border border-neutral-200'
-                    }`}
-                    title={
-                      pilot.category === 'f1_academy'
-                        ? 'Regra MBJ R03: Sem overall derivado nem média universal para F1 Academy'
-                        : undefined
-                    }
+                  <Badge
+                    variant="outline"
+                    className="bg-white border-[#CBD5E1] text-[#64748B] text-[10px] sm:text-xs uppercase shadow-xs"
                   >
-                    {pilot.category === 'f1_academy'
-                      ? 'Faixas P'
-                      : isUserTeam
-                        ? ovr
-                        : `${Math.max(50, ovr - 2)}–${Math.min(99, ovr + 2)}`}
-                  </span>
+                    {pilot.category.toUpperCase()}
+                  </Badge>
+                  {isUserTeam && (
+                    <Badge className="bg-[#E10600]/10 text-[#E10600] border border-[#E10600]/30 text-[10px] sm:text-xs font-bold">
+                      Sua Equipe
+                    </Badge>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg text-emerald-800 shadow-xs">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                  <div className="text-left leading-tight">
-                    <div className="text-[10px] uppercase font-mono text-emerald-700">
-                      Salário de Referência (USD)
-                    </div>
-                    <div className="font-bold font-mono text-xs text-emerald-900">
-                      {(() => {
-                        const rawSal =
-                          pilot.salaryUsd ??
-                          (pilot as any).salary ??
-                          (pilot as any).rawDbRecord?.salary ??
-                          (pilot as any).canonical_contract?.baseSalaryUsd
-                        if (
-                          rawSal === null ||
-                          rawSal === undefined ||
-                          rawSal === '' ||
-                          isNaN(Number(rawSal)) ||
-                          Number(rawSal) <= 0
-                        ) {
-                          return '—'
-                        }
-                        return formatUsdCurrency(Number(rawSal), 'full')
-                      })()}
+                <DialogTitle className="text-xl sm:text-3xl font-black tracking-tight text-[#0F172A] truncate">
+                  {pilot.name}
+                </DialogTitle>
+
+                <DialogDescription className="text-[#64748B] text-xs mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                  <span>{pilot.age} anos</span>
+                  <span>•</span>
+                  <span className="text-[#334155] font-semibold">{currentTeamDisplay}</span>
+                  {pilot.role && (
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] uppercase py-0 px-2 ${
+                        String(pilot.role).toLowerCase().includes('titular')
+                          ? 'bg-red-50 text-red-700 border border-red-200'
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}
+                    >
+                      {pilot.role}
+                    </Badge>
+                  )}
+                </DialogDescription>
+
+                {/* Destaque OVR / Reputação e Salário de Referência V (Regra R03 sem OVR na F1 Academy) */}
+                <div className="mt-3.5 flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[#E2E8F0] shadow-xs">
+                    <span className="text-[11px] font-mono uppercase text-[#64748B] font-semibold">
+                      {pilot.category === 'f1_academy' ? 'Perfil MBJ' : 'Overall'}
+                    </span>
+                    <span
+                      className={`font-black font-mono text-sm px-1.5 py-0.5 rounded ${
+                        pilot.category === 'f1_academy'
+                          ? 'bg-pink-100 text-pink-800 border border-pink-200'
+                          : ovr >= 90
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : ovr >= 82
+                              ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                              : 'bg-neutral-100 text-[#0F172A] border border-neutral-200'
+                      }`}
+                      title={
+                        pilot.category === 'f1_academy'
+                          ? 'Regra MBJ R03: Sem overall derivado nem média universal para F1 Academy'
+                          : undefined
+                      }
+                    >
+                      {pilot.category === 'f1_academy'
+                        ? 'Faixas P'
+                        : isUserTeam
+                          ? ovr
+                          : `${Math.max(50, ovr - 2)}–${Math.min(99, ovr + 2)}`}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg text-emerald-800 shadow-xs">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <div className="text-left leading-tight">
+                      <div className="text-[10px] uppercase font-mono text-emerald-700">
+                        Salário de Referência (USD)
+                      </div>
+                      <div className="font-bold font-mono text-xs text-emerald-900">
+                        {(() => {
+                          const rawSal =
+                            pilot.salaryUsd ??
+                            (pilot as any).salary ??
+                            (pilot as any).rawDbRecord?.salary ??
+                            (pilot as any).canonical_contract?.baseSalaryUsd
+                          if (
+                            rawSal === null ||
+                            rawSal === undefined ||
+                            rawSal === '' ||
+                            isNaN(Number(rawSal)) ||
+                            Number(rawSal) <= 0
+                          ) {
+                            return '—'
+                          }
+                          return formatUsdCurrency(Number(rawSal), 'full')
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        {/* Corpo do Perfil Rolável */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm">
           {/* Seção 1: 14 Atributos Esportivos MBJ (Regra P / V) */}
           <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between pb-1 border-b border-[#E2E8F0]">
@@ -1206,61 +1206,85 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
           </div>
         </div>
         {/* Rodapé Fixo com Botão de Ação e Ações Contextuais por Papel */}
-        <div className="p-3 sm:p-4 bg-white border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            className="border-[#CBD5E1] text-[#64748B] hover:bg-[#F1F5F9] text-xs h-8"
-          >
-            Fechar
-          </Button>
-
+        <div className="shrink-0 border-t border-[#E2E8F0] bg-white/95 backdrop-blur p-3 sm:p-4">
           {isUserTeam ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {onRelegateToReserve && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!canRelegateToReserve}
-                  onClick={() => {
-                    onOpenChange(false)
-                    onRelegateToReserve(pilot)
-                  }}
-                  className="border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 text-xs h-8"
-                >
-                  Rebaixar p/ Reserva
-                </Button>
-              )}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                className="w-full sm:w-auto order-last sm:order-first border-[#CBD5E1] text-[#64748B] hover:bg-[#F1F5F9] text-xs h-9 sm:h-8"
+              >
+                Fechar
+              </Button>
 
-              {onPromoteToStarter && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!canPromoteToStarter}
-                  onClick={() => {
-                    onOpenChange(false)
-                    onPromoteToStarter(pilot)
-                  }}
-                  className="border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs h-8"
-                >
-                  Promover a Titular
-                </Button>
-              )}
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2">
+                {onRelegateToReserve && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!canRelegateToReserve}
+                    onClick={() => {
+                      onOpenChange(false)
+                      onRelegateToReserve(pilot)
+                    }}
+                    className="w-full sm:w-auto border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 text-xs h-9 sm:h-8"
+                  >
+                    Rebaixar p/ Reserva
+                  </Button>
+                )}
 
-              {onDismissDriver && (
+                {onPromoteToStarter && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!canPromoteToStarter}
+                    onClick={() => {
+                      onOpenChange(false)
+                      onPromoteToStarter(pilot)
+                    }}
+                    className="w-full sm:w-auto border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs h-9 sm:h-8"
+                  >
+                    Promover a Titular
+                  </Button>
+                )}
+
+                {onDismissDriver && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      onOpenChange(false)
+                      onDismissDriver(pilot)
+                    }}
+                    className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium text-xs h-9 sm:h-8"
+                  >
+                    Dispensar Piloto
+                  </Button>
+                )}
+
                 <Button
                   size="sm"
-                  variant="destructive"
                   onClick={() => {
                     onOpenChange(false)
-                    onDismissDriver(pilot)
+                    onOpenContractModal(pilot)
                   }}
-                  className="bg-red-600 hover:bg-red-700 text-white font-medium text-xs h-8"
+                  className="w-full sm:w-auto bg-[#0F172A] hover:bg-[#1E293B] text-white border border-[#0F172A] text-xs h-9 sm:h-8 font-semibold"
                 >
-                  Dispensar Piloto
+                  Renegociar Contrato
                 </Button>
-              )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                className="w-full sm:w-auto order-last sm:order-first border-[#CBD5E1] text-[#64748B] hover:bg-[#F1F5F9] text-xs h-9 sm:h-8"
+              >
+                Fechar
+              </Button>
 
               <Button
                 size="sm"
@@ -1268,23 +1292,12 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   onOpenChange(false)
                   onOpenContractModal(pilot)
                 }}
-                className="bg-[#0F172A] hover:bg-[#1E293B] text-white border border-[#0F172A] text-xs h-8"
+                className="w-full sm:w-auto bg-[#E10600] hover:bg-[#C50500] text-white font-medium flex items-center justify-center gap-1.5 shadow-sm text-xs h-9 sm:h-8"
               >
-                Renegociar Contrato
+                <UserPlus className="w-3.5 h-3.5" />
+                {canPreContract ? 'Propor Pré-contrato / Contrato' : 'Propor Contrato (US$)'}
               </Button>
             </div>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => {
-                onOpenChange(false)
-                onOpenContractModal(pilot)
-              }}
-              className="bg-[#E10600] hover:bg-[#C50500] text-white font-medium flex items-center gap-1.5 shadow-sm text-xs h-8"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              {canPreContract ? 'Propor Pré-contrato / Contrato' : 'Propor Contrato (US$)'}
-            </Button>
           )}
         </div>{' '}
       </DialogContent>

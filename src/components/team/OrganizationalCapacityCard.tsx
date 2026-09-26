@@ -10,19 +10,52 @@ export interface DepartmentCapacity {
   commercial: number // ex: 70
 }
 
+export type BottleneckSectorKey = 'aerodynamics' | 'engineering' | 'trackOperations' | 'commercial'
+
 interface OrganizationalCapacityCardProps {
   capacities: DepartmentCapacity
+  bottleneckSectorKey?: BottleneckSectorKey
   bottleneckText?: string
   bottleneckImpact?: string
   onOpenDetails?: () => void
+  onResolveBottleneck?: (sectorKey: BottleneckSectorKey) => void
 }
 
 export const OrganizationalCapacityCard: React.FC<OrganizationalCapacityCardProps> = ({
   capacities,
+  bottleneckSectorKey,
   bottleneckText,
   bottleneckImpact = 'Setor com menor índice relativo para os objetivos atuais. Considere novos investimentos ou contratações.',
   onOpenDetails,
+  onResolveBottleneck,
 }) => {
+  // Resolução dinâmica do setor gargalo caso bottleneckSectorKey não seja explicitamente passado
+  const resolvedSectorKey: BottleneckSectorKey = React.useMemo(() => {
+    if (bottleneckSectorKey) return bottleneckSectorKey
+    if (bottleneckText) {
+      const lower = bottleneckText.toLowerCase()
+      if (lower.includes('aero')) return 'aerodynamics'
+      if (lower.includes('engenh')) return 'engineering'
+      if (lower.includes('oper') || lower.includes('pista')) return 'trackOperations'
+      if (lower.includes('comerc')) return 'commercial'
+    }
+    const entries: { key: BottleneckSectorKey; score: number }[] = [
+      { key: 'aerodynamics', score: capacities.aerodynamics },
+      { key: 'engineering', score: capacities.engineering },
+      { key: 'trackOperations', score: capacities.trackOperations },
+      { key: 'commercial', score: capacities.commercial },
+    ]
+    entries.sort((a, b) => a.score - b.score)
+    return entries[0].key
+  }, [bottleneckSectorKey, bottleneckText, capacities])
+
+  const handleAction = () => {
+    if (onResolveBottleneck) {
+      onResolveBottleneck(resolvedSectorKey)
+    } else if (onOpenDetails) {
+      onOpenDetails()
+    }
+  }
   const depts = [
     {
       name: 'Aerodinâmica',
@@ -68,11 +101,11 @@ export const OrganizationalCapacityCard: React.FC<OrganizationalCapacityCardProp
               </span>
             </div>
           </div>
-          {onOpenDetails && (
+          {(onResolveBottleneck || onOpenDetails) && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={onOpenDetails}
+              onClick={handleAction}
               className="text-[11px] text-[#E10600] hover:text-[#B00500] hover:bg-red-50/50 font-bold p-0 h-auto flex items-center gap-0.5 shrink-0"
             >
               Detalhes
@@ -111,7 +144,7 @@ export const OrganizationalCapacityCard: React.FC<OrganizationalCapacityCardProp
       {/* Caixa Ponto de Atenção (Gargalo real existente ou condicional preparado) */}
       {bottleneckText ? (
         <div
-          onClick={onOpenDetails}
+          onClick={handleAction}
           className="mt-2 p-3 rounded-xl bg-red-50/70 border border-red-200/80 flex items-start gap-2.5 cursor-pointer hover:bg-red-50 transition-colors group"
         >
           <div className="w-6 h-6 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">

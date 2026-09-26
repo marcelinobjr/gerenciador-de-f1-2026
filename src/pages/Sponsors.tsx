@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
 import { financialLedgerService } from '@/services/financialLedgerService'
@@ -40,14 +41,29 @@ export function SponsorsPage() {
   const { team, season } = useAuth()
   const { toast } = useToast()
 
+  const [searchParams, setSearchParams] = useSearchParams()
+
   // 4 SUBABAS COM ORDEM FIXA (ATIVA EM VERMELHO):
   // 1. Patrocinadores Atuais
   // 2. Mercado & Oportunidades
   // 3. Mesa de Negociações
   // 4. Finanças & Cost Cap
-  const [activeTab, setActiveTab] = useState<
-    'patrocinadores' | 'mercado' | 'negociacoes' | 'financas'
-  >('patrocinadores')
+  // Suporte a ?tab=patrocinadores | ?tab=mercado | ?tab=negociacoes | ?tab=financas
+  const rawTabParam = searchParams.get('tab')
+  const validTabs = ['patrocinadores', 'mercado', 'negociacoes', 'financas'] as const
+  type CommercialTab = (typeof validTabs)[number]
+  const initialTab: CommercialTab = validTabs.includes(rawTabParam as any)
+    ? (rawTabParam as CommercialTab)
+    : 'patrocinadores'
+
+  const [activeTab, setActiveTab] = useState<CommercialTab>(initialTab)
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && validTabs.includes(tabParam as any)) {
+      setActiveTab(tabParam as CommercialTab)
+    }
+  }, [searchParams])
 
   // Estado para slot selecionado na aba 1 e transição para o mercado
   const [selectedSlot, setSelectedSlot] = useState<SponsorSlotKey>('sidepod')
