@@ -70,6 +70,7 @@ export interface AdvanceRaceOptions {
     isSevere?: boolean
     trackBlocked?: boolean
   }
+  persistState?: boolean
 }
 
 export interface EngineLapEvent {
@@ -312,6 +313,29 @@ export class CanonicalRaceEngineService {
     const cliffPenaltySec = cliff.extraLapTimeSec
     const linearWearPenaltySec = tyreAge * 0.045 // Desgaste progressivo sutil por volta
 
+    // 3.1. Clima x Adequação do pneu (f1-pace-model canônico)
+    let weatherDeltaSec = 0
+    if (weather === 'seco') {
+      if (compound === 'intermediario') weatherDeltaSec = 3.8
+      if (compound === 'chuva_extrema') weatherDeltaSec = 6.5
+    } else if (weather === 'chuva_fraca') {
+      if (compound === 'duro' || compound === 'medio' || compound === 'macio') {
+        weatherDeltaSec = 4.2
+      } else if (compound === 'intermediario') {
+        weatherDeltaSec = -0.5
+      } else if (compound === 'chuva_extrema') {
+        weatherDeltaSec = 1.0
+      }
+    } else if (weather === 'chuva_forte') {
+      if (compound === 'duro' || compound === 'medio' || compound === 'macio') {
+        weatherDeltaSec = 9.0
+      } else if (compound === 'intermediario') {
+        weatherDeltaSec = 2.4
+      } else if (compound === 'chuva_extrema') {
+        weatherDeltaSec = -0.8
+      }
+    }
+
     // 4. Modulação de Combustível (efeito peso)
     // Cada 10kg a mais de combustível custa ~0.3s por volta
     const fuelEffectSec = (driver.fuel / 100.0) * 1.5
@@ -342,6 +366,7 @@ export class CanonicalRaceEngineService {
       compoundDeltaSec +
       linearWearPenaltySec +
       cliffPenaltySec +
+      weatherDeltaSec +
       fuelEffectSec +
       damagePenaltySec +
       controlledVarianceSec +
@@ -637,6 +662,74 @@ export class CanonicalRaceEngineService {
       ...d,
       strategy: workingStrategies[d.driverId] || d.strategy,
     }))
+
+    // 1.5.1 GATILHO AUTÔNOMO DE PIT STOP DA IA (SD-02A)
+    // Pilotos que atingiram a volta ótima ou o fim da janela de pit (ou pneu em condição incompatível/crítica)
+    // solicitam pit stop usando o raceStrategyService.
+    const isRedActiveLap = rcState.currentFlag === 'RED_FLAG'
+    if (!isRedActiveLap) {
+      workingDrivers.forEach((d) => {
+        if (d.raceStatus === 'dnf' || d.raceStatus === 'finished') return
+        const strat = workingStrategies[d.driverId]
+        if (!strat) return
+
+        // Se já está com pitRequested ativo, mantém
+        if (strat.pitRequested || strat.pitThisLap) return
+
+        const currentCompound = d.tyreCompound || 'medio'
+        const isCurrentSlick = ['macio', 'medio', 'duro'].includes(currentCompound)
+        const isWetTrack = currentState.weather === 'chuva_fraca' || currentState.weather === 'chuva_forte'
+        const isDryTrack = currentState.weather === 'seco'
+
+        // Necessidade urgente por mudança de clima (slick na chuva ou chuva no seco)
+        let needsWeatherPit = false
+        let weatherTargetCompound: TireCompound | undefined = undefined
+
+        if (isWetTrack && isCurrentSlick) {
+          needsWeatherPit = true
+          weatherTargetCompound = currentState.weather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+        } else if (isDryTrack && !isCurrentSlick) {
+          needsWeatherPit = true
+          // Se pista secou, escolhe composto slick apropriado para o restante
+          weatherTargetCompound = 'medio'
+        }
+
+        // Gatilho de estratégia planejada:
+        // Entra no box se atingiu a volta ótima planejada (ou ultrapassou a janela) e ainda não fez pit
+        const reachedPitWindow =
+          d.pitStops === 0 &&
+          (targetLap >= strat.nextPitWindow.optimalLap ||
+           targetLap >= strat.nextPitWindow.endLap ||
+           strat.strategyStatus === 'OVERDUE')
+        // Pneu em cliff/desgaste extremo
+        const reachedCriticalTire = d.tyreAge >= 32 && isCurrentSlick
+
+        if (needsWeatherPit) {
+          strat.pitRequested = true
+          strat.pitThisLap = true
+          strat.strategyStatus = 'PIT_REQUESTED'
+          if (weatherTargetCompound) {
+            strat.targetCompound = weatherTargetCompound
+          }
+          workingStrategies[d.driverId] = strat
+          d.strategy = strat
+        } else if (reachedPitWindow || reachedCriticalTire) {
+          strat.pitRequested = true
+          strat.pitThisLap = true
+          strat.strategyStatus = 'PIT_REQUESTED'
+
+          // Garantir regra de 2 compostos em corrida seca: se for corrida seca e o targetCompound for igual ao pneu atual, trocar
+          if (isDryTrack) {
+            if (!strat.targetCompound || strat.targetCompound === currentCompound) {
+              strat.targetCompound = currentCompound === 'medio' ? 'duro' : 'medio'
+            }
+          }
+
+          workingStrategies[d.driverId] = strat
+          d.strategy = strat
+        }
+      })
+    }
 
     const pitProcessResult = raceStrategyService.processLapPitStops({
       raceState: {
@@ -1055,8 +1148,10 @@ export class CanonicalRaceEngineService {
     // Validar invariantes obrigatórias
     this.assertRaceInvariants(updatedState)
 
-    // Persistir estado atualizado
-    canonicalRaceInitializationService.saveCanonicalRaceState(updatedState)
+    // Persistir estado atualizado apenas se persistState !== false
+    if (options?.persistState !== false) {
+      canonicalRaceInitializationService.saveCanonicalRaceState(updatedState)
+    }
 
     return updatedState
   }

@@ -284,8 +284,10 @@ export const canonicalRaceInitializationService = {
       updatedAt: new Date().toISOString(),
     }
 
-    // Persistir estado canônico inicial para reload seguro
-    this.saveCanonicalRaceState(initialRaceState)
+    // Persistir estado canônico inicial para reload seguro (apenas se persistState !== false)
+    if (params.persistState !== false) {
+      this.saveCanonicalRaceState(initialRaceState)
+    }
 
     return initialRaceState
   },

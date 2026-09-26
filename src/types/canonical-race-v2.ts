@@ -281,6 +281,7 @@ export interface CanonicalRaceState {
  * Parâmetros de Inicialização da Corrida V2 (FW2.1E-A).
  */
 export interface InitializeCanonicalRaceParams {
+  persistState?: boolean
   careerId: string
   season: number
   round: number
