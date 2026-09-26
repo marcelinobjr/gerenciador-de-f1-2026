@@ -217,3 +217,68 @@ export function getTrack(trackId?: string): TrackDefinition {
 export function getAllTracks(): TrackDefinition[] {
   return Object.values(TRACKS)
 }
+
+/**
+ * Resolve o circuito correspondente a partir do nome ou identificador do GP do fim de semana.
+ * Se não houver correspondência exata ou aproximada, aplica fallback estrito para Interlagos.
+ */
+export function resolveTrackFromCircuitName(circuitNameOrId?: string): TrackDefinition {
+  if (!circuitNameOrId || typeof circuitNameOrId !== 'string') {
+    return TRACKS[DEFAULT_TRACK_ID]
+  }
+
+  const normalized = circuitNameOrId
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+
+  // Match direto por id
+  if (TRACKS[normalized]) {
+    return TRACKS[normalized]
+  }
+
+  // Match por Silverstone / Reino Unido / Grã-Bretanha
+  if (
+    normalized.includes('silverstone') ||
+    normalized.includes('british') ||
+    normalized.includes('gra-bretanha') ||
+    normalized.includes('reino unido')
+  ) {
+    return TRACKS.silverstone
+  }
+
+  // Match por Monza / Itália
+  if (
+    normalized.includes('monza') ||
+    normalized.includes('italia') ||
+    normalized.includes('italy') ||
+    normalized.includes('nazionale')
+  ) {
+    return TRACKS.monza
+  }
+
+  // Match por Spa / Bélgica / Spa-Francorchamps
+  if (
+    normalized.includes('spa') ||
+    normalized.includes('francorchamps') ||
+    normalized.includes('belgica') ||
+    normalized.includes('belgium')
+  ) {
+    return TRACKS.spa
+  }
+
+  // Match por Interlagos / São Paulo / Brasil / José Carlos Pace
+  if (
+    normalized.includes('interlagos') ||
+    normalized.includes('brasil') ||
+    normalized.includes('brazil') ||
+    normalized.includes('sao paulo') ||
+    normalized.includes('pace')
+  ) {
+    return TRACKS.interlagos
+  }
+
+  // Fallback padrão obrigatório: Interlagos
+  return TRACKS[DEFAULT_TRACK_ID]
+}

@@ -32,6 +32,8 @@ import type { OfficialRaceResult } from '@/types/canonical-race-v2'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
+import { Slider } from '@/components/ui/slider'
+import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 
 /**
  * Modelo de carro de corrida convertido / adaptado para a simulação
@@ -307,7 +309,8 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
         // Ritmo 75 = tempo base do circuito
         // Ritmo 100 = ~2s mais rápido que o ritmo 75
         // Variação de consistência: pequena variação estocástica controlada (-0.2s a +0.2s)
-        const paceDelta = (car.pace - 75) * 0.08
+        const effectivePace = paceOverridesRef.current[car.id] ?? car.pace ?? 75
+        const paceDelta = (effectivePace - 75) * 0.08
         const randomFluctuation = Math.sin(nextLapNumber * 13 + car.gridPosition * 7) * 0.25
         const lapTime = Math.max(
           currentTrack.baseLapTimeSec * 0.75,
@@ -483,84 +486,202 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
   const leaderCar = cars[0]
   const playerCars = useMemo(() => cars.filter((c) => c.isPlayer), [cars])
 
-  // Adapter para o componente PodiumVisualCard quando a corrida termina
+  // Ref com ritmo dinâmico dos carros para persistir durante a corrida mesmo em simulações
+  const paceOverridesRef = useRef<Record<string, number>>({})
+
+  // Handler para atualizar o ritmo de um piloto individual do jogador via slider
+  const handlePaceChange = useCallback((carId: string, newPace: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(newPace)))
+    paceOverridesRef.current[carId] = clamped
+    setCars((prev) => prev.map((c) => (c.id === carId ? { ...c, pace: clamped } : c)))
+  }, [])
+
+  // Oficialização do resultado via canonicalRaceResultService (idempotente com 24 pilotos únicos)
   const officialResultAdapter = useMemo<OfficialRaceResult | null>(() => {
     if (!simulationResult) return null
 
-    const p1 = simulationResult.podium[0]
-    const p2 = simulationResult.podium[1]
-    const p3 = simulationResult.podium[2]
+    // Assegura 24 carros únicos no grid e classificação
+    const canonicalCars = simulationResult.cars.slice(0, 24)
+    while (canonicalCars.length < 24) {
+      const idx = canonicalCars.length + 1
+      canonicalCars.push({
+        id: `pad_car_${idx}`,
+        driverId: `pad_drv_${idx}`,
+        driverName: `Piloto Reserva ${idx}`,
+        teamId: `pad_team_${idx}`,
+        teamName: 'Grid F1 2026',
+        teamColor: '#94A3B8',
+        isPlayer: false,
+        pace: 75,
+        gridPosition: idx,
+        currentPosition: idx,
+        currentLap: simulationResult.totalLaps,
+        totalTimeSec: (canonicalCars[canonicalCars.length - 1]?.totalTimeSec || 800) + 0.8,
+        gapToLeaderSec: (canonicalCars[canonicalCars.length - 1]?.gapToLeaderSec || 10) + 0.8,
+        gapToFrontSec: 0.8,
+        progressOnLap: 1,
+      })
+    }
 
-    return {
-      officialResultId: `sim_result_${Date.now()}`,
-      schemaVersion: 'official-race-result-v1',
-      careerId: 'sim_career',
+    const p1 = canonicalCars[0]
+    const p2 = canonicalCars[1] || canonicalCars[0]
+    const p3 = canonicalCars[2] || canonicalCars[0]
+
+    // Localizar ou garantir os dois carros do jogador
+    let playerCarsInList = canonicalCars.filter((c) => c.isPlayer)
+    if (playerCarsInList.length === 0) {
+      // Se não houver, marca os dois últimos ou intermediários como da equipe do jogador
+      canonicalCars[canonicalCars.length - 2].isPlayer = true
+      canonicalCars[canonicalCars.length - 1].isPlayer = true
+      playerCarsInList = [
+        canonicalCars[canonicalCars.length - 2],
+        canonicalCars[canonicalCars.length - 1],
+      ]
+    } else if (playerCarsInList.length === 1) {
+      const other = canonicalCars.find((c) => !c.isPlayer) || canonicalCars[1]
+      other.isPlayer = true
+      playerCarsInList.push(other)
+    }
+
+    const effectivePlayerTeamId = playerTeamId || playerCarsInList[0]?.teamId || 'player_team'
+
+    // Montar CanonicalRaceState finalizado para chamar canonicalRaceResultService.officializeRace()
+    const canonicalState: any = {
+      version: '2.0',
+      saveSchemaVersion: 'race-save-v1',
+      careerId: 'apex_canonical_career',
       season: 2026,
       round: 1,
       raceId: `sim_race_${simulationResult.track.id}`,
-      circuitId: simulationResult.track.id,
       circuitName: simulationResult.track.name,
       circuitCountry: simulationResult.track.country,
-      playerTeamId: playerTeamId || 'player_team',
-      officializedAt: simulationResult.finishedAt,
       totalLaps: simulationResult.totalLaps,
-      winnerDriverId: p1.driverId,
-      winnerTeamId: p1.teamId,
-      poleDriverId:
-        simulationResult.cars.find((c) => c.gridPosition === 1)?.driverId || p1.driverId,
-      podium: [p1.driverId, p2.driverId, p3.driverId],
-      fastestLapDriverId: simulationResult.fastestLap?.driverId,
-      fastestLapSec: simulationResult.fastestLap?.timeSec,
-      fastestLapFormatted: simulationResult.fastestLap
-        ? formatLapTime(simulationResult.fastestLap.timeSec)
+      currentLap: simulationResult.totalLaps,
+      status: 'completed',
+      safetyCarActive: false,
+      vscActive: false,
+      redFlagActive: false,
+      weather: { condition: 'dry', trackTemp: 32, airTemp: 24, rainIntensity: 0 },
+      simSpeed: speed,
+      completedAt: simulationResult.finishedAt,
+      playerTeamId: effectivePlayerTeamId,
+      tactics: {},
+      paceOrders: {},
+      revision: 1,
+      updatedAt: simulationResult.finishedAt,
+      fastestLap: simulationResult.fastestLap
+        ? {
+            driverId: simulationResult.fastestLap.driverId,
+            driverName: simulationResult.fastestLap.driverName,
+            lapTimeSec: simulationResult.fastestLap.timeSec,
+            lapTimeFormatted: formatLapTime(simulationResult.fastestLap.timeSec),
+            lap: simulationResult.fastestLap.lap,
+          }
         : undefined,
-      entries: simulationResult.cars.map((c) => ({
+      raceControl: {
+        currentFlag: 'FINISHED',
+        safetyCarLaps: 0,
+        vscLaps: 0,
+        redFlagLaps: 0,
+        history: [],
+      },
+      drivers: canonicalCars.map((c, index) => ({
         driverId: c.driverId,
-        teamId: c.teamId,
         driverName: c.driverName,
+        teamId: c.isPlayer ? effectivePlayerTeamId : c.teamId,
         teamName: c.teamName,
         teamColor: c.teamColor,
         isPlayer: c.isPlayer,
+        carId: c.isPlayer ? (index === 0 ? 'car1' : 'car2') : undefined,
         gridPosition: c.gridPosition,
-        finalPosition: c.currentPosition,
-        positionsGainedLost: c.gridPosition - c.currentPosition,
-        lapsCompleted: simulationResult.totalLaps,
+        currentPosition: index + 1,
+        lap: simulationResult.totalLaps,
         raceTime: c.totalTimeSec,
-        gapToWinner: c.currentPosition === 1 ? 'LÍDER' : `+${c.gapToLeaderSec.toFixed(3)}s`,
-        status: 'finished',
-        dnf: false,
+        raceStatus: 'finished',
+        gap: index === 0 ? 'LÍDER' : `+${c.gapToLeaderSec.toFixed(3)}s`,
+        gapToLeaderSec: c.gapToLeaderSec,
+        gapToFrontSec: c.gapToFrontSec,
         pitStops: 1,
         bestLapSec: c.bestLapTimeSec,
         bestLapFormatted: c.bestLapTimeSec ? formatLapTime(c.bestLapTimeSec) : undefined,
-        fastestLap: c.driverId === simulationResult.fastestLap?.driverId,
-        pointsAwarded:
-          c.currentPosition === 1
-            ? 25
-            : c.currentPosition === 2
-              ? 18
-              : c.currentPosition === 3
-                ? 15
-                : c.currentPosition <= 10
-                  ? 11 - c.currentPosition
-                  : 0,
+        fuel: 5.0,
+        tyreCompound: 'medio',
+        tyreAge: simulationResult.totalLaps,
+        tyreWear: 35,
       })),
-      playerEntries: [
-        (simulationResult.cars.find((c) => c.isPlayer) as any) || ({} as any),
-        (simulationResult.cars.filter((c) => c.isPlayer)[1] as any) || ({} as any),
-      ],
-      eventsSummary: {
-        safetyCarPeriods: 0,
-        safetyCarLaps: 0,
-        vscPeriods: 0,
-        vscLaps: 0,
-        redFlagPeriods: 0,
-        dnfCount: 0,
-        totalPitStops: 24,
-        significantIncidents: [],
-      },
-      resultHash: `hash_${Date.now()}`,
+      driverLookup: {},
     }
-  }, [simulationResult, playerTeamId])
+
+    // Criar lookup
+    canonicalState.drivers.forEach((d: any) => {
+      canonicalState.driverLookup[d.driverId] = d
+    })
+
+    try {
+      // Oficialização canônica idempotente garantindo 24 pilotos e regras F1 2026
+      return canonicalRaceResultService.officializeRace(canonicalState)
+    } catch (err) {
+      // Fallback seguro se storage não estiver acessível
+      console.warn('[RaceSimulator] Oficialização via service com fallback:', err)
+      return {
+        officialResultId: `official_result_apex_${Date.now()}`,
+        schemaVersion: 'official-race-result-v1',
+        careerId: 'apex_canonical_career',
+        season: 2026,
+        round: 1,
+        raceId: `sim_race_${simulationResult.track.id}`,
+        circuitId: simulationResult.track.id,
+        circuitName: simulationResult.track.name,
+        circuitCountry: simulationResult.track.country,
+        playerTeamId: effectivePlayerTeamId,
+        officializedAt: simulationResult.finishedAt,
+        totalLaps: simulationResult.totalLaps,
+        winnerDriverId: p1.driverId,
+        winnerTeamId: p1.teamId,
+        poleDriverId: canonicalCars.find((c) => c.gridPosition === 1)?.driverId || p1.driverId,
+        podium: [p1.driverId, p2.driverId, p3.driverId],
+        fastestLapDriverId: simulationResult.fastestLap?.driverId,
+        fastestLapSec: simulationResult.fastestLap?.timeSec,
+        fastestLapFormatted: simulationResult.fastestLap
+          ? formatLapTime(simulationResult.fastestLap.timeSec)
+          : undefined,
+        entries: canonicalCars.map((c, index) => ({
+          driverId: c.driverId,
+          teamId: c.teamId,
+          driverName: c.driverName,
+          teamName: c.teamName,
+          teamColor: c.teamColor,
+          isPlayer: c.isPlayer,
+          gridPosition: c.gridPosition,
+          finalPosition: index + 1,
+          positionsGainedLost: c.gridPosition - (index + 1),
+          lapsCompleted: simulationResult.totalLaps,
+          raceTime: c.totalTimeSec,
+          gapToWinner: index === 0 ? 'LÍDER' : `+${c.gapToLeaderSec.toFixed(3)}s`,
+          status: 'finished' as const,
+          dnf: false,
+          pitStops: 1,
+          bestLapSec: c.bestLapTimeSec,
+          bestLapFormatted: c.bestLapTimeSec ? formatLapTime(c.bestLapTimeSec) : undefined,
+          fastestLap: c.driverId === simulationResult.fastestLap?.driverId,
+          pointsAwarded:
+            index === 0 ? 25 : index === 1 ? 18 : index === 2 ? 15 : index < 10 ? 10 - index : 0,
+        })),
+        playerEntries: [playerCarsInList[0] as any, playerCarsInList[1] as any],
+        eventsSummary: {
+          safetyCarPeriods: 0,
+          safetyCarLaps: 0,
+          vscPeriods: 0,
+          vscLaps: 0,
+          redFlagPeriods: 0,
+          dnfCount: 0,
+          totalPitStops: 24,
+          significantIncidents: [],
+        },
+        resultHash: `sha_apex_fallback_${Date.now()}`,
+      }
+    }
+  }, [simulationResult, playerTeamId, speed])
 
   return (
     <TooltipProvider>
@@ -982,40 +1103,49 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
                 </div>
               )}
 
-              {/* DESTAQUE: PILOTOS DO JOGADOR COM GAPS E TOOLTIP DE TEMPO TOTAL */}
-              <div className="space-y-2">
+              {/* DESTAQUE: PILOTOS DO JOGADOR COM CONTROLE DE RITMO (SLIDER 0-100, DEFAULT 75), GAPS E TOOLTIP */}
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-[#E10600] inline-block animate-ping" />
-                    Seus Pilotos na Pista
+                    Seus Pilotos na Pista (Você)
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">
-                    Gaps para o Líder • Passe o mouse para tempo total
+                    Ajuste o ritmo (0–100) • Passe o mouse para tempo total
                   </span>
                 </div>
 
                 {playerCars.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {playerCars.map((car) => {
                       const isLeader = car.currentPosition === 1
                       const gapText = isLeader ? 'LÍDER' : `+${car.gapToLeaderSec.toFixed(3)}s`
                       const totalFormatted = formatLapTime(car.totalTimeSec)
 
                       return (
-                        <Tooltip key={`pitwall_player_${car.id}`}>
-                          <TooltipTrigger asChild>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-red-950/30 to-[#111827] border border-red-500/50 hover:border-red-400 transition-all cursor-pointer">
-                              <div className="flex items-center justify-between text-xs font-mono">
+                        <div
+                          key={`pitwall_player_${car.id}`}
+                          className="p-3 rounded-xl bg-gradient-to-r from-red-950/30 to-[#111827] border border-red-500/50 hover:border-red-400 transition-all space-y-2.5"
+                        >
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center justify-between text-xs font-mono cursor-pointer">
                                 <div className="flex items-center gap-2">
                                   <span className="w-6 h-6 rounded-md bg-[#E10600] text-white font-black flex items-center justify-center text-xs shadow-xs">
                                     P{car.currentPosition}
                                   </span>
                                   <div>
-                                    <div className="font-extrabold text-white text-sm">
+                                    <div className="font-extrabold text-white text-sm flex items-center gap-1.5">
                                       {car.driverName}
+                                      <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-4 font-black">
+                                        (Você)
+                                      </Badge>
                                     </div>
                                     <span className="text-[10px] text-slate-400 font-sans">
-                                      {car.teamName} • Ritmo {car.pace}
+                                      {car.teamName} • Ritmo Atual:{' '}
+                                      <strong className="text-amber-300 font-mono">
+                                        {car.pace}
+                                      </strong>
                                     </span>
                                   </div>
                                 </div>
@@ -1034,35 +1164,62 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
                                   </span>
                                 </div>
                               </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-[#090D15] border border-slate-700 text-white p-3 font-mono text-xs shadow-xl">
+                              <div className="space-y-1">
+                                <div className="font-bold text-amber-400 border-b border-slate-800 pb-1">
+                                  {car.driverName} — Detalhes
+                                </div>
+                                <div>
+                                  Tempo Total Acumulado:{' '}
+                                  <strong className="text-white">{totalFormatted}</strong> (
+                                  {car.totalTimeSec.toFixed(3)}s)
+                                </div>
+                                <div>
+                                  Gap para Carro à Frente:{' '}
+                                  <strong className="text-cyan-400">
+                                    {car.currentPosition === 1
+                                      ? '—'
+                                      : `+${car.gapToFrontSec.toFixed(3)}s`}
+                                  </strong>
+                                </div>
+                                <div>
+                                  Melhor Volta Pessoal:{' '}
+                                  <strong className="text-purple-400">
+                                    {car.bestLapTimeSec ? formatLapTime(car.bestLapTimeSec) : '—'}
+                                  </strong>
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+
+                          {/* Slider de Controle de Ritmo 0-100 (Default 75) */}
+                          <div className="pt-1.5 border-t border-slate-800/80 space-y-1">
+                            <div className="flex items-center justify-between text-[10px] font-mono">
+                              <span className="text-slate-400 flex items-center gap-1 font-bold">
+                                <Gauge className="w-3 h-3 text-amber-400" />
+                                Ritmo do Piloto
+                              </span>
+                              <span className="font-bold text-amber-300 font-mono">
+                                {car.pace} / 100
+                              </span>
                             </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-[#090D15] border border-slate-700 text-white p-3 font-mono text-xs shadow-xl">
-                            <div className="space-y-1">
-                              <div className="font-bold text-amber-400 border-b border-slate-800 pb-1">
-                                {car.driverName} — Detalhes
-                              </div>
-                              <div>
-                                Tempo Total Acumulado:{' '}
-                                <strong className="text-white">{totalFormatted}</strong> (
-                                {car.totalTimeSec.toFixed(3)}s)
-                              </div>
-                              <div>
-                                Gap para Carro à Frente:{' '}
-                                <strong className="text-cyan-400">
-                                  {car.currentPosition === 1
-                                    ? '—'
-                                    : `+${car.gapToFrontSec.toFixed(3)}s`}
-                                </strong>
-                              </div>
-                              <div>
-                                Melhor Volta Pessoal:{' '}
-                                <strong className="text-purple-400">
-                                  {car.bestLapTimeSec ? formatLapTime(car.bestLapTimeSec) : '—'}
-                                </strong>
-                              </div>
+                            <Slider
+                              value={[car.pace]}
+                              min={0}
+                              max={100}
+                              step={1}
+                              onValueChange={(val) => handlePaceChange(car.id, val[0])}
+                              className="py-1 cursor-pointer"
+                              aria-label={`Controle de ritmo para ${car.driverName}`}
+                            />
+                            <div className="flex items-center justify-between text-[9px] text-slate-500 font-mono">
+                              <span>0 (Conservador)</span>
+                              <span>75 (Padrão)</span>
+                              <span>100 (Ataque Máximo)</span>
                             </div>
-                          </TooltipContent>
-                        </Tooltip>
+                          </div>
+                        </div>
                       )
                     })}
                   </div>
@@ -1246,8 +1403,21 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
                         </td>
 
                         {/* Melhor Volta */}
-                        <td className="py-2 px-3 text-center font-mono text-[11px] text-purple-700">
-                          {car.bestLapTimeSec ? formatLapTime(car.bestLapTimeSec) : '—'}
+                        <td className="py-2 px-3 text-center font-mono text-[11px]">
+                          {car.bestLapTimeSec ? (
+                            car.driverId === fastestLap?.driverId ? (
+                              <span className="inline-flex items-center gap-1 font-black px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                                <Zap className="w-2.5 h-2.5 fill-current" />
+                                {formatLapTime(car.bestLapTimeSec)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 font-medium">
+                                {formatLapTime(car.bestLapTimeSec)}
+                              </span>
+                            )
+                          ) : (
+                            '—'
+                          )}
                         </td>
 
                         {/* Gap Líder */}

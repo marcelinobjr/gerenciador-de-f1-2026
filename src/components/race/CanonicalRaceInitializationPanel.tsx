@@ -18,6 +18,8 @@ import type { CanonicalRaceState, DriverPaceMode } from '@/types/canonical-race-
 import type { TireCompound } from '@/types/f1'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 import { DriverStrategyCockpitPanel } from './DriverStrategyCockpitPanel'
+import { RaceSimulator, convertToRaceCars } from './RaceSimulator'
+import { resolveTrackFromCircuitName } from './tracks'
 
 interface CanonicalRaceInitializationPanelProps {
   raceState: CanonicalRaceState
@@ -58,6 +60,11 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   const isFinished = raceState.status === 'completed'
   const isNotStarted = raceState.status === 'not_started'
   const rc = raceState.raceControl
+
+  // Circuito resolvido a partir do fim de semana / raceState com fallback Interlagos
+  const resolvedTrack = resolveTrackFromCircuitName(
+    raceState.circuitName || raceState.circuitCountry,
+  )
   const currentFlag =
     rc?.currentFlag ||
     (raceState.safetyCarActive
@@ -82,6 +89,23 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
 
   return (
     <div className="space-y-6">
+      {/* Box Flutuante Pit Wall & Simulador Integrado da Corrida */}
+      <RaceSimulator
+        initialDrivers={raceState.drivers}
+        playerTeamId={raceState.playerTeamId}
+        playerTeamName={playerDrivers[0]?.teamName || 'Sua Equipe'}
+        playerTeamColor={playerDrivers[0]?.teamColor || '#E10600'}
+        defaultTrackId={resolvedTrack.id}
+        totalLaps={raceState.totalLaps || 10}
+        embedded={true}
+        onFinish={(result) => {
+          // Quando terminar a simulação, dispara a oficialização se ainda não oficializado
+          if (onOfficializeRace && !hasOfficialResult) {
+            onOfficializeRace()
+          }
+        }}
+      />
+
       {/* Barra de Controles de QA e Simulação da Corrida (FW2.1E-B) */}
       <Card className="bg-[#0B111E] border border-slate-800 shadow-md rounded-2xl overflow-hidden text-white">
         <CardContent className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
