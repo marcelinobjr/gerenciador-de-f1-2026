@@ -483,6 +483,32 @@ export class CanonicalRaceEngineService {
     // Garantir estado de Race Control inicial
     let rcState: RaceControlState = raceControlService.ensureRaceControlState(currentState)
 
+    // CLIMATE-01: Avaliar transição climática dinâmica para a volta atual (se houver no evento sorteado)
+    let currentLapWeather = currentState.weather
+    const activeTransitions =
+      currentState.weatherTransitions || currentState.weatherEvent?.transitions
+    if (activeTransitions && activeTransitions.length > 0) {
+      const transitionNow = activeTransitions.find((t) => t.lap === targetLap)
+      if (transitionNow && transitionNow.condition !== currentLapWeather) {
+        currentLapWeather = transitionNow.condition
+        const rainBadge =
+          transitionNow.condition === 'chuva_forte'
+            ? '🌧️ CHUVA FORTE'
+            : transitionNow.condition === 'chuva_fraca'
+              ? '🌦️ CHUVA LEVE'
+              : '☀️ PISTA SECA'
+        nextEvents.push({
+          id: `ev_weather_${targetLap}`,
+          lap: targetLap,
+          type: 'info',
+          message: `${rainBadge}: Mudança de condição na volta ${targetLap}! ${
+            transitionNow.description || `Pista agora em estado "${currentLapWeather}".`
+          }`,
+          timestamp: timestampStr,
+        })
+      }
+    }
+
     // Registrar largada se corrida estava not_started
     let nextStatus: CanonicalRaceStatus = currentState.status
     let startedAt = currentState.startedAt
@@ -680,8 +706,8 @@ export class CanonicalRaceEngineService {
         const currentCompound = d.tyreCompound || 'medio'
         const isCurrentSlick = ['macio', 'medio', 'duro'].includes(currentCompound)
         const isWetTrack =
-          currentState.weather === 'chuva_fraca' || currentState.weather === 'chuva_forte'
-        const isDryTrack = currentState.weather === 'seco'
+          currentLapWeather === 'chuva_fraca' || currentLapWeather === 'chuva_forte'
+        const isDryTrack = currentLapWeather === 'seco'
 
         // Necessidade urgente por mudança de clima (slick na chuva ou chuva no seco)
         let needsWeatherPit = false
@@ -690,7 +716,7 @@ export class CanonicalRaceEngineService {
         if (isWetTrack && isCurrentSlick) {
           needsWeatherPit = true
           weatherTargetCompound =
-            currentState.weather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+            currentLapWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
         } else if (isDryTrack && !isCurrentSlick) {
           needsWeatherPit = true
           // Se pista secou, escolhe composto slick apropriado para o restante
@@ -849,7 +875,7 @@ export class CanonicalRaceEngineService {
       const pace = this.calculateCanonicalLapPace({
         driver: drv,
         lap: targetLap,
-        weather: currentState.weather,
+        weather: currentLapWeather,
         round: currentState.round,
         circuitName: currentState.circuitName,
         tireAbrasiveness: options?.tireAbrasiveness ?? 6,
@@ -1135,6 +1161,7 @@ export class CanonicalRaceEngineService {
       safetyCarActive: isScActive,
       vscActive: isVscActive,
       redFlagActive: isRedActive,
+      weather: currentLapWeather,
       startedAt,
       completedAt,
       drivers: finalOrderedDrivers,

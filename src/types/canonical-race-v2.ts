@@ -231,6 +231,8 @@ export interface CanonicalRaceState {
   vscActive: boolean
   redFlagActive: boolean
   weather: TrackWeatherState
+  weatherEvent?: import('@/types/climate').RaceWeekendWeather
+  weatherTransitions?: import('@/types/climate').WeatherTransition[]
   simSpeed: number
   startedAt?: string
   completedAt?: string
@@ -291,6 +293,7 @@ export interface InitializeCanonicalRaceParams {
   playerTeamId: string
   canonicalQualifyingGrid: FinalQualifyingGridEntry[]
   weather?: TrackWeatherState
+  weatherEvent?: import('@/types/climate').RaceWeekendWeather
   initialFuelKg?: number
   // BUG-02 COMMIT C: Preparação explícita confirmada por carro
   carPreparations?: Record<

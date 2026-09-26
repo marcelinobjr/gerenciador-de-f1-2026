@@ -126,29 +126,31 @@ export function PracticePreparationView({
     return resolveCircuitProfile({ round })
   }, [round])
 
-  // Clima canônico procedural da rodada
+  // Clima canônico integrado ao WeatherGenerator (CLIMATE-01)
   const weatherState = useMemo(() => {
-    const seed = round * 17 + 2026
-    const prob = Math.round(((Math.sin(seed) + 1) / 2) * 100)
-    let condition = 'Seco e Ensolarado'
+    const generated = weatherGenerator.generateRaceWeekendWeather({
+      careerId,
+      round,
+      seasonYear: 2026,
+    })
+    const isRain = generated.raceCondition !== 'DRY'
+    const prob = Math.round(getClimateProfile({ round }).rainProbability * 100)
     let icon = <Sun className="w-4 h-4 text-amber-400" />
-    let isRain = false
-
-    if (prob > 70) {
-      condition = 'Chuva Forte / Pista Molhada'
+    if (generated.raceCondition === 'WET') {
       icon = <CloudRain className="w-4 h-4 text-blue-400 animate-pulse" />
-      isRain = true
-    } else if (prob >= 35) {
-      condition = 'Nublado com risco de chuva leve'
+    } else if (generated.raceCondition === 'VARIABLE') {
       icon = <CloudSun className="w-4 h-4 text-sky-400" />
-      isRain = true
     }
 
-    const airTemp = Math.round(21 + ((Math.cos(seed) + 1) / 2) * 12)
-    const trackTemp = Math.round(28 + ((Math.sin(seed * 2) + 1) / 2) * 18)
-
-    return { condition, icon, isRain, prob, airTemp, trackTemp }
-  }, [round])
+    return {
+      condition: generated.summaryLabel,
+      icon,
+      isRain,
+      prob,
+      airTemp: generated.airTempC,
+      trackTemp: generated.trackTempC,
+    }
+  }, [careerId, round])
 
   // Estado da Preparação (DOIS carros)
   const [prep, setPrep] = useState<PracticePreparation | null>(null)

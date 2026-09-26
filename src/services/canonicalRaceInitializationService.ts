@@ -35,6 +35,7 @@ import type {
 import type { TrackWeatherState } from '@/lib/f1-tire-system'
 import { raceStrategyService } from '@/services/raceStrategyService'
 import { canonicalRaceSaveService } from '@/services/canonicalRaceSaveService'
+import { weatherGenerator } from '@/services/weatherGenerator'
 
 const RACE_V2_STORAGE_KEY_PREFIX = 'apex_race_v2_canonical_state'
 
@@ -128,9 +129,23 @@ export const canonicalRaceInitializationService = {
       )
     }
 
+    // 4. Resolver Weather Event determinístico da edição (CLIMATE-01)
+    const weatherEvent =
+      params.weatherEvent ||
+      weatherGenerator.generateRaceWeekendWeather({
+        careerId,
+        seasonYear: season,
+        round,
+        totalLaps,
+        circuitName,
+        country: circuitCountry,
+      })
+
+    const initialWeather: TrackWeatherState =
+      params.weather || weatherEvent.initialWeather || 'seco'
+
     // 4. Montar as 24 entidades canônicas
     const raceId = this.buildRaceId(careerId, season, round)
-    const defaultWeather: TrackWeatherState = params.weather || 'seco'
 
     // Assinalar carId de forma robusta e independente para os dois pilotos do jogador
     let playerCarCounter = 0
@@ -269,7 +284,9 @@ export const canonicalRaceInitializationService = {
       safetyCarActive: false,
       vscActive: false,
       redFlagActive: false,
-      weather: defaultWeather,
+      weather: initialWeather,
+      weatherEvent,
+      weatherTransitions: weatherEvent.transitions,
       simSpeed: 1,
       startedAt: undefined,
       completedAt: undefined,
