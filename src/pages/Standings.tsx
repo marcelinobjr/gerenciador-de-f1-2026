@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/EmptyState'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
+import { CountryFlag } from '@/components/CountryFlag'
 import { PilotProfileDialog } from '@/components/PilotProfileDialog'
 import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
 import { normalizeDriverSurname } from '@/lib/pilot-posters'
@@ -512,12 +513,10 @@ export default function StandingsPage() {
                         {/* PILOTO: Bandeira + Nome completo + Badge Sua Equipe se jogador */}
                         <td className="py-2.5 px-4">
                           <div className="flex items-center gap-2">
-                            <span
+                            <CountryFlag
+                              code={driver.nationality}
                               className="text-base select-none shrink-0"
-                              title={driver.nationality}
-                            >
-                              {driver.flag}
-                            </span>
+                            />
                             <span
                               className={`truncate tracking-tight ${
                                 driver.isPlayer

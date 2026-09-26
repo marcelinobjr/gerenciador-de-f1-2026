@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { UnifiedDriverItem } from '@/pages/DriversPage'
 import { DriverPoster } from '@/components/DriverPoster'
 import { getCountryFlag } from '@/lib/country-flags'
+import { CountryFlag } from '@/components/CountryFlag'
 import { getOverallRating } from '@/lib/mbj-drivers-data'
 import { formatUsdCurrency } from '@/components/PilotProfileDialog'
 import {
@@ -116,7 +117,7 @@ export const DriverComparisonModal: React.FC<DriverComparisonModalProps> = ({
               <DriverPoster name={primaryDriver.name} driverId={primaryDriver.id} />
             </div>
             <div className="flex items-center gap-1 font-bold text-sm text-slate-900">
-              <span>{getCountryFlag(primaryDriver.nationality)}</span>
+              <CountryFlag code={primaryDriver.nationality} />
               <span className="truncate">{primaryDriver.name}</span>
             </div>
             <div className="text-[11px] text-slate-500 truncate mt-0.5">
@@ -140,7 +141,7 @@ export const DriverComparisonModal: React.FC<DriverComparisonModalProps> = ({
                   <DriverPoster name={secondaryDriver.name} driverId={secondaryDriver.id} />
                 </div>
                 <div className="flex items-center gap-1 font-bold text-sm text-slate-900">
-                  <span>{getCountryFlag(secondaryDriver.nationality)}</span>
+                  <CountryFlag code={secondaryDriver.nationality} />
                   <span className="truncate">{secondaryDriver.name}</span>
                 </div>
                 <div className="text-[11px] text-slate-500 truncate mt-0.5">

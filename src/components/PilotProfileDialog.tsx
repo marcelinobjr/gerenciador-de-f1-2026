@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DriverPoster } from '@/components/DriverPoster'
 import { getCountryFlag } from '@/lib/country-flags'
+import { CountryFlag } from '@/components/CountryFlag'
 import { checkEligibility, getOverallRating, getDriverCareerStats } from '@/lib/mbj-drivers-data'
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import pb from '@/lib/pocketbase/client'
@@ -411,9 +412,10 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-1">
                 <Badge
                   variant="outline"
-                  className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1 shadow-xs"
+                  className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs"
                 >
-                  {getCountryFlag(pilot.nationality)} {pilot.nationality}
+                  <CountryFlag code={pilot.nationality} />
+                  <span>{pilot.nationality}</span>
                 </Badge>
                 <Badge
                   variant="outline"

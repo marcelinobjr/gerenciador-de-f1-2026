@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Users, Sparkles, ArrowRight } from 'lucide-react'
 import { MarketMoveEvent, SeasonModel } from '@/types/f1'
 import { getCountryFlag } from '@/lib/country-flags'
+import { CountryFlag } from '@/components/CountryFlag'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 
 // Helper para obter nacionalidade de piloto conhecido da F1 caso não esteja explícito no move
@@ -151,14 +152,11 @@ export function SillySeasonModal({
                       </Badge>
                       {(() => {
                         const nationality = resolveMoveDriverNationality(move.driverName)
-                        const flag = getCountryFlag(nationality)
                         return (
-                          <span
-                            className="text-sm cursor-default select-none shrink-0"
-                            title={nationality}
-                          >
-                            {flag}
-                          </span>
+                          <CountryFlag
+                            code={nationality}
+                            className="text-sm cursor-default shrink-0"
+                          />
                         )
                       })()}
                       <span className="font-bold text-white text-xs">

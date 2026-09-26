@@ -2,6 +2,7 @@ import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CountryFlag } from '@/components/CountryFlag'
 import { ProspectScoutingCardViewModel } from '@/types/procedural-driver'
 import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import {
@@ -120,7 +121,10 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
             <div className="text-xs text-neutral-400 mt-0.5 flex items-center gap-2">
               <span>{prospect.age} anos</span>
               <span>•</span>
-              <span className="text-neutral-300 font-medium">{prospect.nationality}</span>
+              <span className="text-neutral-300 font-medium flex items-center gap-1">
+                <CountryFlag code={prospect.nationality} />
+                <span>{prospect.nationality}</span>
+              </span>
             </div>
 
             <div className="mt-1 flex items-center gap-1.5 flex-wrap">

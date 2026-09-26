@@ -6,6 +6,7 @@ import { DriverComparisonModal } from '@/components/DriverComparisonModal'
 import { PilotProfileDialog, formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { getCountryFlag } from '@/lib/country-flags'
 import { CountryFlagChip } from '@/components/CountryFlagChip'
+import { CountryFlag } from '@/components/CountryFlag'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { DriverNegotiationModal } from '@/components/commercial/DriverNegotiationModal'
 import { SillySeasonBoard } from '@/components/commercial/SillySeasonBoard'
@@ -1251,10 +1252,7 @@ export default function DriversPage() {
                           {/* Coluna Piloto (Bandeira + Nome) */}
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
-                              <CountryFlagChip
-                                country={pilot.nationality}
-                                className="w-6 h-4 text-[9px]"
-                              />
+                              <CountryFlag code={pilot.nationality} className="text-base" />
                               <span
                                 className={`truncate font-bold ${
                                   isSelected
@@ -1497,8 +1495,11 @@ export default function DriversPage() {
                   <div className="font-bold text-base text-slate-900">
                     {selectedPilotForContract.name}
                   </div>
-                  <div className="text-slate-500">
-                    {selectedPilotForContract.nationality} • {selectedPilotForContract.age} anos
+                  <div className="text-slate-500 flex items-center gap-1.5">
+                    <CountryFlag code={selectedPilotForContract.nationality} />
+                    <span>
+                      {selectedPilotForContract.nationality} • {selectedPilotForContract.age} anos
+                    </span>
                   </div>
                   <div className="text-emerald-600 font-semibold pt-1">
                     Salário anual de referência:{' '}

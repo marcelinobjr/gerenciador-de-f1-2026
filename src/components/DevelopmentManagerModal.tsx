@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
+import { CountryFlag } from '@/components/CountryFlag'
 import { DriverModel, TeamModel } from '@/types/f1'
 import {
   DriverTestType,
@@ -773,8 +774,11 @@ export const DevelopmentManagerModal: React.FC<DevelopmentManagerModalProps> = (
                               ({pilot.age} anos)
                             </span>
                           </div>
-                          <div className="text-[11px] text-slate-400">
-                            {pilot.nationality} • {pilot.category || 'F2'}
+                          <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <CountryFlag code={pilot.nationality} />
+                            <span>
+                              {pilot.nationality} • {pilot.category || 'F2'}
+                            </span>
                           </div>
                         </div>
 

@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/formatters'
 import { calculateDriverTireWearProfile } from '@/lib/f1-tire-system'
 import { F1_2026_CALENDAR, ENGINE_SUPPLIERS } from '@/lib/f1-data'
 import { getCountryFlag } from '@/lib/country-flags'
+import { CountryFlag } from '@/components/CountryFlag'
 import { calcularElegibilidade } from '@/lib/superlicense'
 import { toast } from '@/hooks/use-toast'
 import { getDriverActiveNumber, MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
@@ -1617,7 +1618,7 @@ export default function TeamPage() {
                           <span className="font-bold text-neutral-900 uppercase">
                             Titular #{idx + 1}
                           </span>
-                          <span className="text-sm">{getCountryFlag(d.nationality)}</span>
+                          <CountryFlag code={d.nationality} className="text-base" />
                         </div>
 
                         <div
@@ -1711,7 +1712,7 @@ export default function TeamPage() {
                       <div>
                         <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">
                           <span className="font-bold text-amber-600 uppercase">Piloto Reserva</span>
-                          <span className="text-sm">{getCountryFlag(rd.nationality)}</span>
+                          <CountryFlag code={rd.nationality} className="text-base" />
                         </div>
 
                         <div
@@ -2320,9 +2321,11 @@ export default function TeamPage() {
                       <div className="flex justify-between items-start">
                         <div>
                           <h4 className="text-sm font-bold text-neutral-900">{pilot.name}</h4>
-                          <span className="text-xs text-neutral-500">
-                            {pilot.age} anos • {meta?.juniorCategory?.toUpperCase() || 'F4'} •{' '}
-                            {pilot.nationality}
+                          <span className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
+                            <span>
+                              {pilot.age} anos • {meta?.juniorCategory?.toUpperCase() || 'F4'} •
+                            </span>
+                            <CountryFlag code={pilot.nationality} />
                           </span>
                         </div>
                         <Badge
@@ -2446,8 +2449,11 @@ export default function TeamPage() {
                       <div className="flex justify-between items-start">
                         <div>
                           <h4 className="font-bold text-neutral-900 text-sm">{alumnus.name}</h4>
-                          <span className="text-neutral-500 text-[11px]">
-                            {alumnus.nationality} • {alumnus.age} anos
+                          <span className="text-neutral-500 text-[11px] flex items-center gap-1 mt-0.5">
+                            <CountryFlag code={alumnus.nationality} />
+                            <span>
+                              {alumnus.nationality} • {alumnus.age} anos
+                            </span>
                           </span>
                         </div>
                         <Badge

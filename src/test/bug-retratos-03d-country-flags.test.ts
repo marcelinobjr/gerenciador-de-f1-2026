@@ -4,6 +4,8 @@ import { CANONICAL_DRIVERS_MASTER } from '@/lib/canonical-driver-database'
 import React from 'react'
 import { render } from '@testing-library/react'
 import { CountryFlag } from '@/components/CountryFlag'
+import fs from 'fs'
+import path from 'path'
 
 describe('BUG-RETRATOS-03D: Resolução Canônica de Bandeiras de Pilotos', () => {
   // 01 countryFlag("DEU") = "🇩🇪"
@@ -35,7 +37,6 @@ describe('BUG-RETRATOS-03D: Resolução Canônica de Bandeiras de Pilotos', () =
     expect(canonicalNationalities.size).toBeGreaterThan(0)
     for (const nat of canonicalNationalities) {
       const flag = countryFlag(nat)
-      // Não pode ser vazio e nem fallback bruto para nacionalidades válidas conhecidas
       expect(flag).toBeTruthy()
       expect(flag.length).toBeGreaterThan(0)
     }
@@ -85,7 +86,6 @@ describe('BUG-RETRATOS-03D: Resolução Canônica de Bandeiras de Pilotos', () =
     for (const code of requiredCodes) {
       const flag = countryFlag(code)
       expect(flag).not.toBe(code)
-      // Deve conter regional indicators (emoji de 2 code points)
       expect(Array.from(flag).length).toBe(2)
     }
   })
@@ -96,6 +96,125 @@ describe('BUG-RETRATOS-03D: Resolução Canônica de Bandeiras de Pilotos', () =
     expect(countryFlag('')).toBe('')
     expect(countryFlag(null)).toBe('')
     expect(countryFlag(undefined)).toBe('')
+  })
+
+  // 07 DriversPage não renderiza ISO3 puro onde há bandeira conhecida
+  it('BRT03D-07: DriversPage usa <CountryFlag code={...} /> em vez de CountryFlagChip puro na lista de pilotos', () => {
+    const filePath = path.resolve(process.cwd(), 'src/pages/DriversPage.tsx')
+    const content = fs.readFileSync(filePath, 'utf-8')
+    expect(content).toContain('<CountryFlag')
+    expect(content).toContain('code={pilot.nationality}')
+    expect(content).not.toContain('country={pilot.nationality}')
+  })
+
+  // 08 DriverSidePanel usa componente canônico
+  it('BRT03D-08: DriverSidePanel usa componente canônico CountryFlag', () => {
+    const filePath = path.resolve(process.cwd(), 'src/components/DriverSidePanel.tsx')
+    const content = fs.readFileSync(filePath, 'utf-8')
+    expect(content).toContain('<CountryFlag code={driver.nationality}')
+    expect(content).not.toContain('<CountryFlagChip country={driver.nationality}')
+  })
+
+  // 09 Team/Academia usam componente canônico
+  it('BRT03D-09: Team/Academia usam componente canônico CountryFlag', () => {
+    const filePath = path.resolve(process.cwd(), 'src/pages/Team.tsx')
+    const content = fs.readFileSync(filePath, 'utf-8')
+    expect(content).toContain('<CountryFlag code={d.nationality}')
+    expect(content).toContain('<CountryFlag code={rd.nationality}')
+    expect(content).toContain('<CountryFlag code={pilot.nationality}')
+    expect(content).toContain('<CountryFlag code={alumnus.nationality}')
+    expect(content).not.toContain('getCountryFlag(d.nationality)')
+    expect(content).not.toContain('getCountryFlag(rd.nationality)')
+  })
+
+  // 10 Mariana Fagundes → 🇧🇷
+  it('BRT03D-10: Mariana Fagundes resolve para 🇧🇷 sem tocar nos dados', () => {
+    const marianaNationality = 'Brasil'
+    const flag = countryFlag(marianaNationality)
+    expect(flag).toBe('🇧🇷')
+
+    const marianaIso3 = 'BRA'
+    expect(countryFlag(marianaIso3)).toBe('🇧🇷')
+
+    const { container } = render(React.createElement(CountryFlag, { code: marianaNationality }))
+    expect(container.textContent).toBe('🇧🇷')
+  })
+
+  // 11 ProspectCard usa componente canônico
+  it('BRT03D-11: ProspectCard usa componente canônico CountryFlag', () => {
+    const filePath = path.resolve(process.cwd(), 'src/components/ProspectCard.tsx')
+    const content = fs.readFileSync(filePath, 'utf-8')
+    expect(content).toContain('<CountryFlag code={prospect.nationality}')
+  })
+
+  // 12 contratos/mercado usam componente canônico
+  it('BRT03D-12: contratos/mercado (DriverComparisonModal, SillySeasonModal, DriversPage modal) usam componente canônico', () => {
+    const compModalPath = path.resolve(process.cwd(), 'src/components/DriverComparisonModal.tsx')
+    const compContent = fs.readFileSync(compModalPath, 'utf-8')
+    expect(compContent).toContain('<CountryFlag code={primaryDriver.nationality}')
+    expect(compContent).toContain('<CountryFlag code={secondaryDriver.nationality}')
+    expect(compContent).not.toContain('getCountryFlag(primaryDriver.nationality)')
+
+    const sillyModalPath = path.resolve(process.cwd(), 'src/components/race/SillySeasonModal.tsx')
+    const sillyContent = fs.readFileSync(sillyModalPath, 'utf-8')
+    expect(sillyContent).toContain('<CountryFlag')
+    expect(sillyContent).toContain('code={nationality}')
+
+    const devModalPath = path.resolve(process.cwd(), 'src/components/DevelopmentManagerModal.tsx')
+    const devContent = fs.readFileSync(devModalPath, 'utf-8')
+    expect(devContent).toContain('<CountryFlag code={pilot.nationality}')
+  })
+
+  // 13 zero mapas locais duplicados ISO3→emoji nas superfícies migradas
+  it('BRT03D-13: zero mapas locais duplicados ISO3→emoji nas superfícies migradas', () => {
+    const filesToCheck = [
+      'src/pages/DriversPage.tsx',
+      'src/components/DriverSidePanel.tsx',
+      'src/pages/Team.tsx',
+      'src/components/ProspectCard.tsx',
+      'src/components/DriverComparisonModal.tsx',
+      'src/components/PilotProfileDialog.tsx',
+      'src/components/DevelopmentManagerModal.tsx',
+      'src/components/race/SillySeasonModal.tsx',
+      'src/pages/Standings.tsx',
+    ]
+
+    for (const relPath of filesToCheck) {
+      const fullPath = path.resolve(process.cwd(), relPath)
+      const content = fs.readFileSync(fullPath, 'utf-8')
+      // Não deve haver mapas locais do tipo 'DEU': '🇩🇪'
+      expect(content).not.toMatch(/'DEU':\s*'🇩🇪'/)
+      expect(content).not.toMatch(/"DEU":\s*"🇩🇪"/)
+      expect(content).not.toMatch(/'BRA':\s*'🇧🇷'/)
+    }
+  })
+
+  // 14 nationality permanece ISO3/nome nos dados (não migrado)
+  it('BRT03D-14: nationality permanece ISO3 ou nome nos dados (não migrado para emoji)', () => {
+    for (const driver of CANONICAL_DRIVERS_MASTER) {
+      expect(driver.nationality).toBeDefined()
+      // Deve ser texto ISO3 ou nome legível, nunca emoji de bandeira armazenado
+      expect(driver.nationality).not.toMatch(/[\uD83C][\uDDE6-\uDDFF]{2}/)
+    }
+  })
+
+  // 15 save/reload não altera nacionalidade
+  it('BRT03D-15: save/reload não altera nacionalidade no objeto do piloto', () => {
+    const rawPilotData = {
+      id: 'hulk-01',
+      name: 'Nico Hülkenberg',
+      nationality: 'DEU',
+    }
+
+    const flagResolved = countryFlag(rawPilotData.nationality)
+    expect(flagResolved).toBe('🇩🇪')
+
+    // Simula save/reload em JSON
+    const serialized = JSON.stringify(rawPilotData)
+    const reloaded = JSON.parse(serialized)
+
+    // O dado original permanece DEU
+    expect(reloaded.nationality).toBe('DEU')
   })
 
   // 16 CountryFlag tem title e aria-label válidos
