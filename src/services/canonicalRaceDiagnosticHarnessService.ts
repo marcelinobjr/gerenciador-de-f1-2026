@@ -1,11 +1,16 @@
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
-import { CIRCUIT_PERFORMANCE_PROFILES, type CircuitPerformanceProfile } from '@/data/circuit-performance-profiles'
-import { OFFICIAL_GRID_TEAMS } from '@/lib/grid-teams-database'
+import {
+  CIRCUIT_PERFORMANCE_PROFILES,
+  type CircuitPerformanceProfile,
+} from '@/data/circuit-performance-profiles'
+import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import { structuralStrengthService } from '@/services/structuralStrengthService'
 import { carTechnicalService } from '@/services/carTechnicalService'
-import type { CanonicalRaceState, FinalQualifyingGridEntry, TrackWeatherState } from '@/types/canonical-race-v2'
+import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-types'
+import type { TrackWeatherState } from '@/lib/f1-tire-system'
+import type { CanonicalRaceState } from '@/types/canonical-race-v2'
 import type { TireCompound } from '@/types/f1'
 
 export interface RaceHarnessDriverResult {
@@ -112,7 +117,14 @@ export class CanonicalRaceDiagnosticHarnessService {
    */
   public buildQualifyingGrid(rng: () => number): FinalQualifyingGridEntry[] {
     const baseline = structuralStrengthService.getBaselineV0()
-    const driversList: Array<{ driverId: string; driverName: string; teamId: string; teamName: string; teamColor: string; rating: number }> = []
+    const driversList: Array<{
+      driverId: string
+      driverName: string
+      teamId: string
+      teamName: string
+      teamColor: string
+      rating: number
+    }> = []
 
     OFFICIAL_GRID_TEAMS.forEach((team) => {
       const bTeam = baseline.teams[team.key]
@@ -153,6 +165,7 @@ export class CanonicalRaceDiagnosticHarnessService {
       teamId: d.teamId,
       teamName: d.teamName,
       teamColor: d.teamColor,
+      isPlayer: false,
       gridPosition: idx + 1,
       bestLapSec: 80.0 + idx * 0.12,
       bestLapTime: `1:${(20 + idx * 0.12).toFixed(3)}`,
@@ -266,11 +279,13 @@ export class CanonicalRaceDiagnosticHarnessService {
       // 1. Pelo menos 1 pit stop válido
       // 2. Pelo menos 2 compostos slick diferentes
       const isDryRace = weatherCategory === 'seca'
-      const isFinished = entry.raceStatus === 'finished' && !entry.dnf
+      const isFinished = entry.status === 'finished' && !entry.dnf
 
       let conformsTwoCompounds = true
       if (isDryRace && isFinished) {
-        const slickCompounds = distinctCompounds.filter((c) => ['macio', 'medio', 'duro'].includes(c))
+        const slickCompounds = distinctCompounds.filter((c) =>
+          ['macio', 'medio', 'duro'].includes(c),
+        )
         if (slickCompounds.length < 2) {
           conformsTwoCompounds = false
           ruleViolationsTwoCompounds.push(
@@ -397,7 +412,7 @@ export class CanonicalRaceDiagnosticHarnessService {
         const replay = this.runSingleRace({
           sampleId: 9999 + idx,
           seed: tSeed,
-          circuit: circuits[(samples.indexOf(orig)) % circuits.length],
+          circuit: circuits[samples.indexOf(orig) % circuits.length],
           weatherCategory: orig.weatherCondition,
         })
 

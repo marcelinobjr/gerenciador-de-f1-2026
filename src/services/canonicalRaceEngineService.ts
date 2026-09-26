@@ -39,6 +39,7 @@ import type {
   CanonicalRaceDriverState,
   CanonicalRaceStatus,
 } from '@/types/canonical-race-v2'
+import type { TireCompound } from '@/types/f1'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import { driverBase2026Service } from '@/services/driverBase2026Service'
 import { carTechnicalService } from '@/services/carTechnicalService'
@@ -678,7 +679,8 @@ export class CanonicalRaceEngineService {
 
         const currentCompound = d.tyreCompound || 'medio'
         const isCurrentSlick = ['macio', 'medio', 'duro'].includes(currentCompound)
-        const isWetTrack = currentState.weather === 'chuva_fraca' || currentState.weather === 'chuva_forte'
+        const isWetTrack =
+          currentState.weather === 'chuva_fraca' || currentState.weather === 'chuva_forte'
         const isDryTrack = currentState.weather === 'seco'
 
         // Necessidade urgente por mudança de clima (slick na chuva ou chuva no seco)
@@ -687,7 +689,8 @@ export class CanonicalRaceEngineService {
 
         if (isWetTrack && isCurrentSlick) {
           needsWeatherPit = true
-          weatherTargetCompound = currentState.weather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+          weatherTargetCompound =
+            currentState.weather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
         } else if (isDryTrack && !isCurrentSlick) {
           needsWeatherPit = true
           // Se pista secou, escolhe composto slick apropriado para o restante
@@ -699,8 +702,8 @@ export class CanonicalRaceEngineService {
         const reachedPitWindow =
           d.pitStops === 0 &&
           (targetLap >= strat.nextPitWindow.optimalLap ||
-           targetLap >= strat.nextPitWindow.endLap ||
-           strat.strategyStatus === 'OVERDUE')
+            targetLap >= strat.nextPitWindow.endLap ||
+            strat.strategyStatus === 'OVERDUE')
         // Pneu em cliff/desgaste extremo
         const reachedCriticalTire = d.tyreAge >= 32 && isCurrentSlick
 

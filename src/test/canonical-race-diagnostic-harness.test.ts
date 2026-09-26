@@ -67,6 +67,7 @@ describe('Canonical Race Diagnostic Harness — Fast Smoke Tests', () => {
       driverName: 'Max Verstappen',
       teamName: 'Red Bull Racing',
       teamColor: '#1E41FF',
+      isPlayer: false,
     }
 
     const rng = () => 0.5
