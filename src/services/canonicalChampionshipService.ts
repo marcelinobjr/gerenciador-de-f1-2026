@@ -21,6 +21,7 @@ import {
 } from '@/services/canonicalCareerPersistenceService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { driverBase2026Service } from '@/services/driverBase2026Service'
+import { findCanonicalDriverMaster } from '@/lib/canonical-driver-database'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import { getCountryFlag } from '@/lib/country-flags'
 import pb from '@/lib/pocketbase/client'
@@ -484,12 +485,26 @@ export class CanonicalChampionshipService {
         // 1. Piloto
         let dAcc = driverMap.get(entry.driverId)
         if (!dAcc) {
-          // Buscar nacionalidade na base se disponível
+          // BUG-INTEGRIDADE-05A: Resolução estrita de nacionalidade via base ou canonicalDriverMaster
           const base = driverBase2026Service.getBaseDriver2026(entry.driverId)
+          const canonical = findCanonicalDriverMaster(entry.driverId, entry.driverName)
+          const resolvedNat = base?.nationality || canonical?.nationality
+
+          if (!resolvedNat) {
+            console.error(
+              `[CanonicalChampionshipService] ERRO DE INTEGRIDADE: Piloto ${entry.driverId} (${entry.driverName}) sem nacionalidade canônica`,
+            )
+            if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+              throw new Error(
+                `ERRO DE INTEGRIDADE: Falha ao resolver nacionalidade canônica para piloto ${entry.driverId} (${entry.driverName})`,
+              )
+            }
+          }
+
           dAcc = {
             driverId: entry.driverId,
             driverName: entry.driverName,
-            nationality: base?.nationality || 'Internacional',
+            nationality: resolvedNat || 'Sem Nacionalidade',
             points: 0,
             wins: 0,
             secondPlaces: 0,

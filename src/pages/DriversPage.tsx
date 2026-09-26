@@ -260,10 +260,21 @@ export default function DriversPage() {
 
       const mbjInfo = mbjMap.get(normName)
       const f1aInfo = f1AcademyMap.get(normName)
-      const associatedTeamId = d.team_id || d.reserve_team_id || null
-      const associatedTeam = associatedTeamId ? teamById.get(associatedTeamId) : null
 
-      const isPlayer = Boolean(team?.id && (d.team_id === team.id || d.reserve_team_id === team.id))
+      // BUG-INTEGRIDADE-05A: Consumo exclusivo via getActiveDriverTeamBinding
+      const binding = getActiveDriverTeamBinding(d.id, season, dbDrivers, dbTeams)
+      const teamId = binding.teamId
+      const teamKey = binding.teamKey
+      const teamName =
+        binding.teamName ||
+        (f1aInfo ? `${f1aInfo.operatingTeam} (${f1aInfo.supporterBrand})` : null)
+      const teamColor = binding.teamColor || (f1aInfo ? '#EC4899' : '#E10600')
+
+      const isPlayer = Boolean(
+        team?.id &&
+        (teamId === team.id ||
+          (teamKey && team?.team_key && teamKey.toLowerCase() === team.team_key.toLowerCase())),
+      )
 
       const cat = (d.category ||
         (f1aInfo ? 'f1_academy' : mbjInfo?.category || 'f1')) as UnifiedDriverItem['category']
@@ -271,15 +282,6 @@ export default function DriversPage() {
       const rawSalary =
         d.salary || (f1aInfo ? f1aInfo.referenceAnnualUsd : mbjInfo ? mbjInfo.salaryUsd : 3000000)
       const salaryUsd = rawSalary > 100000000 ? Math.round(rawSalary / 5.75) : rawSalary
-
-      // BUG-RETRATOS-03C2: Vínculo canônico estrito via helper centralizado
-      const binding = getActiveDriverTeamBinding(d.id, season, dbDrivers, dbTeams)
-      const teamName =
-        binding.teamName ||
-        (f1aInfo ? `${f1aInfo.operatingTeam} (${f1aInfo.supporterBrand})` : null)
-      const teamColor = binding.teamColor || (f1aInfo ? '#EC4899' : '#E10600')
-      const teamKey = binding.teamKey
-      const teamId = binding.teamId
 
       const speed = d.speed || f1aInfo?.speed || mbjInfo?.speed || 75
       const consistency = d.consistency || f1aInfo?.consistency || mbjInfo?.consistency || 75
@@ -316,10 +318,7 @@ export default function DriversPage() {
         teamKey,
         teamName,
         teamColor,
-        role:
-          (binding.role as any) ||
-          d.role ||
-          (d.reserve_team_id ? 'reserva' : d.team_id ? 'titular' : null),
+        role: (binding.role as any) || null,
         category: cat,
         potentialMin,
         potentialMax,

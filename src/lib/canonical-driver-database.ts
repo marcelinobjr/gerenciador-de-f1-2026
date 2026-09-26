@@ -1108,8 +1108,9 @@ export function getActiveDriverTeamBinding(
   const canonicalDriver = findCanonicalDriverMaster(driverId, null)
 
   // 2. Busca o registro real do banco no dbDrivers se fornecido
+  let rawMatch: any = null
   if (Array.isArray(dbDrivers) && dbDrivers.length > 0) {
-    const rawMatch = dbDrivers.find((d) => {
+    rawMatch = dbDrivers.find((d) => {
       if (!d) return false
       if (d.id === driverId) return true
       if (
@@ -1122,51 +1123,82 @@ export function getActiveDriverTeamBinding(
         return true
       return false
     })
+  }
 
-    if (rawMatch) {
-      const explicitContract = rawMatch.canonical_contract
-      const hasActiveExplicitContract =
-        explicitContract &&
-        (explicitContract.status === 'active' || !explicitContract.status) &&
-        (explicitContract.teamId || explicitContract.team_id)
+  // BUG-INTEGRIDADE-05A:
+  // Precedência 1: Contrato explícito e ativo na carreira/save (canonical_contract)
+  if (rawMatch) {
+    const explicitContract = rawMatch.canonical_contract
+    const hasActiveExplicitContract =
+      explicitContract &&
+      (explicitContract.status === 'active' || !explicitContract.status) &&
+      (explicitContract.teamId || explicitContract.team_id)
 
-      if (hasActiveExplicitContract) {
-        const cTeamId = explicitContract.teamId || explicitContract.team_id
-        const matchedTeam = findTeamRecord(cTeamId)
-        let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
-        const rawRole = (explicitContract.role || '').toLowerCase()
-        if (rawRole === 'reserve' || rawRole === 'reserva') cRole = 'reserva'
-        else if (rawRole === 'academy' || rawRole === 'academia') cRole = 'academia'
-        else if (rawRole === 'test_development' || rawRole === 'desenvolvimento')
-          cRole = 'desenvolvimento'
-        return buildBindingResult(canonicalDriver, matchedTeam, cRole, cTeamId)
+    if (hasActiveExplicitContract) {
+      const cTeamId = explicitContract.teamId || explicitContract.team_id
+      const matchedTeam = findTeamRecord(cTeamId)
+      let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+      const rawRole = (explicitContract.role || '').toLowerCase()
+      if (rawRole === 'reserve' || rawRole === 'reserva') cRole = 'reserva'
+      else if (rawRole === 'academy' || rawRole === 'academia') cRole = 'academia'
+      else if (rawRole === 'test_development' || rawRole === 'desenvolvimento')
+        cRole = 'desenvolvimento'
+      return buildBindingResult(canonicalDriver, matchedTeam, cRole, cTeamId)
+    }
+  }
+
+  // Precedência 2: Binding canônico da temporada/carreira (canonicalDriver.teamId)
+  if (canonicalDriver) {
+    if (canonicalDriver.teamId) {
+      const matchedTeam = findTeamRecord(canonicalDriver.teamId)
+      let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+      if (canonicalDriver.role === 'reserva') {
+        cRole = 'reserva'
+      } else if (canonicalDriver.role === 'academy') {
+        cRole = 'academia'
       }
+      return buildBindingResult(canonicalDriver, matchedTeam, cRole, canonicalDriver.teamId)
+    }
 
-      // Check de vínculo ativo real no DB:
-      // Exclui anomalia de banco legado onde Verstappen ou Leclerc têm team_id da McLaren ('76vs00hy9hu24q1') sem contrato
-      const isKnownLegacyGlitch =
-        (rawMatch.id === 'de3isw3re1ji2wj' || rawMatch.id === 'lc6cma46f01dgrj') &&
-        rawMatch.team_id === '76vs00hy9hu24q1'
+    // Piloto canônico sem equipe (agente livre / outra categoria como IndyCar, FE, WEC, etc.)
+    // NÃO herda rawMatch.team_id legado da F1 sem canonical_contract ativo explícito.
+    return {
+      driverId: canonicalDriver.driverId || driverId,
+      canonicalDriver,
+      teamId: null,
+      teamKey: null,
+      teamName: null,
+      teamColor: null,
+      role: null,
+      status: 'free_agent',
+      isContracted: false,
+    }
+  }
 
-      if (!isKnownLegacyGlitch) {
-        const boundTeamId = rawMatch.team_id || rawMatch.reserve_team_id || null
-        if (boundTeamId) {
-          const matchedTeam = findTeamRecord(boundTeamId)
-          let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
-          if (rawMatch.reserve_team_id || rawMatch.role === 'reserva') {
-            cRole = 'reserva'
-          } else if (rawMatch.is_academy || rawMatch.role === 'academia') {
-            cRole = 'academia'
-          } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
-            cRole = 'desenvolvimento'
-          }
-          return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
+  // Precedência 3: Piloto sem definição canônica (procedural / novo) -> Fallback legado de drivers.team_id
+  if (rawMatch) {
+    const isKnownLegacyGlitch =
+      (rawMatch.id === 'de3isw3re1ji2wj' || rawMatch.id === 'lc6cma46f01dgrj') &&
+      rawMatch.team_id === '76vs00hy9hu24q1'
+
+    if (!isKnownLegacyGlitch) {
+      const boundTeamId = rawMatch.team_id || rawMatch.reserve_team_id || null
+      if (boundTeamId) {
+        const matchedTeam = findTeamRecord(boundTeamId)
+        let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+        if (rawMatch.reserve_team_id || rawMatch.role === 'reserva') {
+          cRole = 'reserva'
+        } else if (rawMatch.is_academy || rawMatch.role === 'academia') {
+          cRole = 'academia'
+        } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
+          cRole = 'desenvolvimento'
         }
+        return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
       }
     }
   }
 
-  // 3. Sem contrato ativo no save/banco -> Free Agent estrito
+  // 4. Sem contrato ativo no save/banco e sem vínculo canônico -> Free Agent estrito
   return {
     driverId: canonicalDriver?.driverId || driverId,
     canonicalDriver,

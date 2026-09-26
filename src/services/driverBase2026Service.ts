@@ -20,6 +20,8 @@
  */
 
 import { MBJ_2026_PILOTS, type MBJPilotData } from '@/lib/mbj-drivers-data'
+import { findCanonicalDriverMaster } from '@/lib/canonical-driver-database'
+import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import type { TireCompound } from '@/types/f1'
 
 /**
@@ -453,12 +455,27 @@ export const driverBase2026Service = {
     let current = all[driverId]
     if (!current) {
       // Piloto pode ser procedural ou não estar no mapa original
+      // BUG-INTEGRIDADE-05A: Resolução estrita driverId -> piloto canônico -> equipe canônica
+      const canonicalDriver = findCanonicalDriverMaster(driverId, null)
+      let resolvedTeamId = 'free_agent'
+      let resolvedTeamName = 'Sem Equipe'
+
+      if (canonicalDriver?.teamId) {
+        const offTeam = OFFICIAL_GRID_TEAMS.find(
+          (t) =>
+            t.key.toLowerCase() === canonicalDriver.teamId?.toLowerCase() ||
+            t.name.toLowerCase() === canonicalDriver.teamId?.toLowerCase(),
+        )
+        resolvedTeamId = offTeam?.key || canonicalDriver.teamId
+        resolvedTeamName = offTeam?.name || canonicalDriver.teamId
+      }
+
       const nowIso = new Date().toISOString()
       current = {
         careerId,
         driverId,
-        teamId: 'free_agent',
-        teamName: 'Piloto',
+        teamId: resolvedTeamId,
+        teamName: resolvedTeamName,
         role: 'titular',
         contractEndYear: 2026,
         salaryUsd: 1000000,

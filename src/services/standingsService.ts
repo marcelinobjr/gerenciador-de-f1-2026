@@ -156,13 +156,14 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     )
 
     // Converter driverStandings do snapshot para DriverStanding
+    // BUG-INTEGRIDADE-05A: Eliminação de fallback 'F1 Team', uso estrito de d.currentTeamName ou 'Sem Equipe'
     const driverStandings: DriverStanding[] = snap.driverStandings.map((d) => ({
       id: d.driverId,
       name: d.driverName,
       nationality: d.nationality,
       flag: d.flag,
-      teamName: d.currentTeamName || 'F1 Team',
-      teamColor: d.currentTeamColor || '#E10600',
+      teamName: d.currentTeamName || 'Sem Equipe',
+      teamColor: d.currentTeamColor || '#71717A',
       points: d.points,
       wins: d.wins,
       secondPlaces: d.secondPlaces,
