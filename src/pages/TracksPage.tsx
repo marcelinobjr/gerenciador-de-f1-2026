@@ -8,6 +8,7 @@ import {
   CircuitPerformanceProfile,
   CircuitTechnicalWeights,
 } from '@/data/circuit-performance-profiles'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import { calculateTrackFit } from '@/lib/car-session-performance-engine'
 import { carTechnicalService } from '@/services/carTechnicalService'
 import { OFFICIAL_TEAMS_TECHNICAL_DATA } from '@/lib/car-technical-data'
@@ -358,7 +359,7 @@ export default function TracksPage() {
                   role="img"
                   aria-label={cal?.country || prof.country}
                 >
-                  {cal?.flag || '🏁'}
+                  {resolveCountryFlag(cal?.country || prof.country, cal?.flag || '🏁')}
                 </span>
                 <span className="text-xs font-mono font-bold uppercase tracking-widest text-cyan-400">
                   {prof.country} // {prof.locationName}
@@ -946,7 +947,7 @@ export default function TracksPage() {
                   <div className="flex items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl leading-none" role="img" aria-label={gp.country}>
-                        {gp.flag}
+                        {resolveCountryFlag(gp.country, gp.flag || '🏁')}
                       </span>
                       <span className="font-mono text-xs font-bold text-[#8B95A7]">
                         R{gp.round.toString().padStart(2, '0')}/24

@@ -8,7 +8,7 @@ import type { TechnicalRegulation } from '@/types/canonical-regulations'
 import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { getCountryCode } from '@/lib/country-flags'
-import { CountryFlagChip } from '@/components/CountryFlagChip'
+import { countryFlag, countryName, resolveCountryFlag } from '@/lib/country-flag'
 import { formatCurrency } from '@/lib/formatters'
 import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
 import audiCarImg from '@/assets/audi-13288.png'
@@ -539,22 +539,40 @@ export default function IndexPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <CountryFlagChip
-                    country={currentGP?.country || currentCircuitData?.country}
-                    round={currentRound}
-                    className="w-7 h-5"
-                    title={currentGP?.country || currentGP?.name || 'Grande Prêmio'}
-                  />
+                  <span
+                    className="text-2xl leading-none select-none shrink-0"
+                    role="img"
+                    aria-label={countryName(
+                      currentGP?.country || currentCircuitData?.country || currentGPCountryCode,
+                    )}
+                    title={countryName(
+                      currentGP?.country || currentCircuitData?.country || currentGPCountryCode,
+                    )}
+                  >
+                    {countryFlag(
+                      currentGP?.country || currentCircuitData?.country || currentGPCountryCode,
+                    )}
+                  </span>
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-tight flex items-center gap-1.5">
                       <span>
                         {currentGP?.name || currentCircuitData?.name || 'Grande Prêmio a Definir'}
                       </span>
                       <span
-                        className="align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200 uppercase font-mono tracking-wider"
+                        className="align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200 uppercase font-mono tracking-wider inline-flex items-center gap-1"
                         aria-label={currentGP?.country || currentGPCountryCode}
+                        title={countryName(
+                          currentGP?.country || currentCircuitData?.country || currentGPCountryCode,
+                        )}
                       >
-                        {currentGPCountryCode}
+                        <span>
+                          {countryFlag(
+                            currentGP?.country ||
+                              currentCircuitData?.country ||
+                              currentGPCountryCode,
+                          )}
+                        </span>
+                        <span>{currentGPCountryCode}</span>
                       </span>
                     </h3>
                     <p className="text-xs text-[#64748B] font-medium mt-0.5">
@@ -848,10 +866,14 @@ export default function IndexPage() {
                               className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
                               imgClassName="w-full h-full object-cover object-top"
                             />
-                            <CountryFlagChip
-                              country={driver.nationality}
-                              className="absolute -bottom-1 -right-1 w-6 h-4 text-[9px]"
-                            />
+                            <span
+                              className="absolute -bottom-1 -right-1 text-sm leading-none bg-white/90 rounded shadow-xs px-0.5 select-none"
+                              role="img"
+                              aria-label={countryName(driver.nationality)}
+                              title={countryName(driver.nationality)}
+                            >
+                              {countryFlag(driver.nationality)}
+                            </span>
                           </div>
                           <div className="min-w-0 flex-1">
                             <span className="text-[10px] text-[#64748B] font-mono block">
@@ -1241,6 +1263,14 @@ export default function IndexPage() {
                     </span>
                     <span className="col-span-7 truncate text-xs flex items-center gap-1.5">
                       {isUser && <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />}
+                      <span
+                        className="text-sm leading-none select-none shrink-0"
+                        role="img"
+                        aria-label={countryName(tName)}
+                        title={countryName(tName)}
+                      >
+                        {countryFlag(tName)}
+                      </span>
                       <span className="truncate">{tName}</span>
                     </span>
                     <span className="col-span-3 text-right font-mono font-bold text-xs">

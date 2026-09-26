@@ -1,6 +1,6 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
-import { CountryFlagChip } from '@/components/CountryFlagChip'
+import { CountryFlag } from '@/components/CountryFlag'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 
 interface DriverSummaryCardProps {
@@ -60,7 +60,7 @@ export const DriverSummaryCard: React.FC<DriverSummaryCardProps> = ({
               Piloto #{slotNumber}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <CountryFlagChip country={nationality} className="w-6 h-4 text-[9px]" />
+              <CountryFlag code={nationality} className="text-lg leading-none" />
               <h3 className="text-base sm:text-lg font-black text-neutral-900 tracking-tight font-sans truncate group-hover:text-[#E10600] transition-colors">
                 {driverName}
               </h3>

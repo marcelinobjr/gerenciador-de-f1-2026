@@ -720,6 +720,7 @@ export default function StandingsPage() {
                             </div>
                           )}
                           <div className="flex items-center gap-2 truncate">
+                            <CountryFlag code={cTeam.name} className="text-sm shrink-0" />
                             <span
                               className={`truncate ${
                                 cTeam.isPlayer
