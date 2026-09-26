@@ -118,6 +118,7 @@ export class CanonicalQualifyingRunner {
       setup: any
     }
     eligibleParticipants: QualifyingDriverContext[]
+    persistState?: boolean
   }): QualifyingStageState {
     const { stageId, seasonId, round, playerCar1, playerCar2, eligibleParticipants } = params
 
@@ -235,7 +236,9 @@ export class CanonicalQualifyingRunner {
       updatedAt: nowIso,
     }
 
-    canonicalQualifyingPersistenceService.saveStageState(seasonId, round, initialStageState)
+    if (params.persistState ?? true) {
+      canonicalQualifyingPersistenceService.saveStageState(seasonId, round, initialStageState)
+    }
     return initialStageState
   }
 
@@ -853,7 +856,9 @@ export class CanonicalQualifyingRunner {
   public static finalizeStage(
     state: QualifyingStageState,
     context: QualifyingTickContext,
+    options?: { persistState?: boolean },
   ): QualifyingStageResult {
+    const shouldPersist = options?.persistState ?? true
     state.status = 'completed'
     state.timeRemainingSec = 0
 
@@ -915,8 +920,10 @@ export class CanonicalQualifyingRunner {
       eliminatedDriverIds,
     }
 
-    canonicalQualifyingPersistenceService.saveStageResult(stageResult)
-    canonicalQualifyingPersistenceService.saveStageState(context.seasonId, context.round, state)
+    if (shouldPersist) {
+      canonicalQualifyingPersistenceService.saveStageResult(stageResult)
+      canonicalQualifyingPersistenceService.saveStageState(context.seasonId, context.round, state)
+    }
 
     return stageResult
   }
@@ -928,6 +935,7 @@ export class CanonicalQualifyingRunner {
     initialState: QualifyingStageState,
     totalSecondsToAdvance: number,
     context: QualifyingTickContext,
+    options?: { persistState?: boolean },
   ): QualifyingAdvanceStepResult {
     let currentState: QualifyingStageState = JSON.parse(JSON.stringify(initialState))
     const accumulatedEvents: QualifyingRadioFeedEvent[] = []
@@ -954,7 +962,7 @@ export class CanonicalQualifyingRunner {
       for (const lapItem of tickRes.lapsCompletedThisTick) {
         if (lapItem.carId) {
           const car = currentState.cars[lapItem.carId]
-          if (car.currentTyreSetId) {
+          if (car.currentTyreSetId && (options?.persistState ?? true)) {
             canonicalWeekendTyrePersistence.recordTyreUsage({
               seasonId: context.seasonId,
               round: context.round,
@@ -966,7 +974,6 @@ export class CanonicalQualifyingRunner {
           }
         }
       }
-
       if (currentState.timeRemainingSec <= 0 || currentState.status === 'completed') {
         currentState.status = 'completed'
         break
@@ -977,11 +984,13 @@ export class CanonicalQualifyingRunner {
       currentState.status = 'paused'
     }
 
-    canonicalQualifyingPersistenceService.saveStageState(
-      context.seasonId,
-      context.round,
-      currentState,
-    )
+    if (options?.persistState ?? true) {
+      canonicalQualifyingPersistenceService.saveStageState(
+        context.seasonId,
+        context.round,
+        currentState,
+      )
+    }
 
     return {
       nextState: currentState,
@@ -1000,7 +1009,9 @@ export class CanonicalQualifyingRunner {
   public static simulateRemainingSession(
     initialState: QualifyingStageState,
     context: QualifyingTickContext,
+    options?: { persistState?: boolean },
   ): QualifyingAdvanceStepResult {
+    const shouldPersist = options?.persistState ?? true
     let currentState: QualifyingStageState = JSON.parse(JSON.stringify(initialState))
     const accumulatedEvents: QualifyingRadioFeedEvent[] = []
     let totalLaps = 0
@@ -1034,7 +1045,7 @@ export class CanonicalQualifyingRunner {
       for (const lapItem of tickRes.lapsCompletedThisTick) {
         if (lapItem.carId) {
           const car = currentState.cars[lapItem.carId]
-          if (car.currentTyreSetId) {
+          if (car.currentTyreSetId && shouldPersist) {
             canonicalWeekendTyrePersistence.recordTyreUsage({
               seasonId: context.seasonId,
               round: context.round,
@@ -1052,7 +1063,7 @@ export class CanonicalQualifyingRunner {
       }
     }
 
-    this.finalizeStage(currentState, context)
+    this.finalizeStage(currentState, context, { persistState: shouldPersist })
 
     return {
       nextState: currentState,

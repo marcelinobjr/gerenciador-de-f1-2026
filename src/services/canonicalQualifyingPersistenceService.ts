@@ -198,8 +198,9 @@ export const canonicalQualifyingPersistenceService = {
     q1Result: QualifyingStageResult
     q2Result: QualifyingStageResult
     q3Result: QualifyingStageResult
+    persistResult?: boolean
   }): CompleteQualifyingWeekendResult {
-    const { seasonId, round, q1Result, q2Result, q3Result } = params
+    const { seasonId, round, q1Result, q2Result, q3Result, persistResult = true } = params
 
     // Conjunto para assegurar unicidade estrita de driverId conforme regras canônicas da FIA
     const assignedDriverIds = new Set<string>()
@@ -385,7 +386,9 @@ export const canonicalQualifyingPersistenceService = {
       finalGrid,
     }
 
-    this.saveCompleteQualifyingResult(completeResult)
+    if (persistResult) {
+      this.saveCompleteQualifyingResult(completeResult)
+    }
     return completeResult
   },
 }

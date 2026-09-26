@@ -397,10 +397,15 @@ export class StatisticalDiagnosticHarnessService {
       playerCar1: playerCar1Config,
       playerCar2: playerCar2Config,
       eligibleParticipants: allDriverContexts,
+      persistState: false,
     })
 
-    const q1ResultStep = CanonicalQualifyingRunner.simulateRemainingSession(q1State, tickCtx)
-    const q1Result = CanonicalQualifyingRunner.finalizeStage(q1ResultStep.nextState, tickCtx)
+    const q1ResultStep = CanonicalQualifyingRunner.simulateRemainingSession(q1State, tickCtx, {
+      persistState: false,
+    })
+    const q1Result = CanonicalQualifyingRunner.finalizeStage(q1ResultStep.nextState, tickCtx, {
+      persistState: false,
+    })
 
     // ==========================================
     // FASE Q2 (18 carros -> 10 avançam, 8 eliminados)
@@ -413,10 +418,15 @@ export class StatisticalDiagnosticHarnessService {
       playerCar1: playerCar1Config,
       playerCar2: playerCar2Config,
       eligibleParticipants: eligibleQ2,
+      persistState: false,
     })
 
-    const q2ResultStep = CanonicalQualifyingRunner.simulateRemainingSession(q2State, tickCtx)
-    const q2Result = CanonicalQualifyingRunner.finalizeStage(q2ResultStep.nextState, tickCtx)
+    const q2ResultStep = CanonicalQualifyingRunner.simulateRemainingSession(q2State, tickCtx, {
+      persistState: false,
+    })
+    const q2Result = CanonicalQualifyingRunner.finalizeStage(q2ResultStep.nextState, tickCtx, {
+      persistState: false,
+    })
 
     // ==========================================
     // FASE Q3 (10 carros -> P1 a P10)
@@ -429,10 +439,15 @@ export class StatisticalDiagnosticHarnessService {
       playerCar1: playerCar1Config,
       playerCar2: playerCar2Config,
       eligibleParticipants: eligibleQ3,
+      persistState: false,
     })
 
-    const q3ResultStep = CanonicalQualifyingRunner.simulateRemainingSession(q3State, tickCtx)
-    const q3Result = CanonicalQualifyingRunner.finalizeStage(q3ResultStep.nextState, tickCtx)
+    const q3ResultStep = CanonicalQualifyingRunner.simulateRemainingSession(q3State, tickCtx, {
+      persistState: false,
+    })
+    const q3Result = CanonicalQualifyingRunner.finalizeStage(q3ResultStep.nextState, tickCtx, {
+      persistState: false,
+    })
 
     // Grid Combinado Final (P1 a P24)
     const combinedGrid = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
@@ -441,6 +456,7 @@ export class StatisticalDiagnosticHarnessService {
       q1Result,
       q2Result,
       q3Result,
+      persistResult: false,
     })
 
     const poleEntry =
@@ -528,7 +544,41 @@ export class StatisticalDiagnosticHarnessService {
 
       try {
         const record = this.runSingleQualifying(sampleId, sampleSeed, circuit, participants)
-        samples.push(record)
+        // Validação programática estrita da amostra antes de aceitar
+        const driverCount = record.driverResults?.length || 0
+        const uniqueDrivers = new Set(record.driverResults?.map((d) => d.driverId) || [])
+        const positions =
+          record.driverResults?.map((d) => d.finalPosition).sort((a, b) => a - b) || []
+        const positionsValid = positions.length === 24 && positions.every((p, idx) => p === idx + 1)
+        const q1ElimCount =
+          record.driverResults?.filter((d) => d.eliminationStage === 'Q1').length || 0
+        const q2ElimCount =
+          record.driverResults?.filter((d) => d.eliminationStage === 'Q2').length || 0
+        const q3ClassCount =
+          record.driverResults?.filter((d) => d.eliminationStage === 'Q3').length || 0
+
+        const isValidSample =
+          driverCount === 24 &&
+          uniqueDrivers.size === 24 &&
+          positionsValid &&
+          q1ElimCount === 6 &&
+          q2ElimCount === 8 &&
+          q3ClassCount === 10 &&
+          !!record.poleDriverId
+
+        if (isValidSample) {
+          samples.push(record)
+        } else {
+          console.error(`[StatisticalDiagnostic] Amostra ${sampleId} rejeitada por integridade:`, {
+            driverCount,
+            uniqueDriversSize: uniqueDrivers.size,
+            positionsValid,
+            q1ElimCount,
+            q2ElimCount,
+            q3ClassCount,
+          })
+          failedSampleIds.push(sampleId)
+        }
       } catch (err) {
         console.error(`[StatisticalDiagnostic] Erro na amostra ${sampleId}:`, err)
         failedSampleIds.push(sampleId)
@@ -867,6 +917,52 @@ export class StatisticalDiagnosticHarnessService {
         ? 'AUDI_HAAS_RULE_PASS'
         : 'AUDI_HAAS_RULE_ANOMALY'
 
+    // Diagnóstico dinâmico de achados, inversões e anomalias
+    const expectedResults: string[] = []
+    const exceptionalOccurrences: string[] = []
+    const suspectedAnomalies: string[] = []
+
+    // Top 4 estrutural vs observado
+    const top4Observed = teamRankings.slice(0, 4)
+    const top4Names = top4Observed.map((t) => t.teamName).join(', ')
+    const top4Poles = top4Observed.reduce((acc, t) => acc + t.poles, 0)
+    expectedResults.push(
+      `Top 4 observado em qualificação (${top4Names}) concentrou ${top4Poles} de ${totalSamples} poles (${((top4Poles / totalSamples) * 100).toFixed(1)}%).`,
+    )
+
+    // Pilotos dominantes de pole
+    const topPoleDrivers = driverRankings.filter((d) => d.poles > 0).slice(0, 5)
+    expectedResults.push(
+      `Poles conquistadas majoritariamente por pilotos de elite: ${topPoleDrivers.map((d) => `${d.driverName} (${d.poles} poles, ${d.poleFrequencyPct}%)`).join(', ')}.`,
+    )
+
+    // Verificação de inversões estruturais significativas (|delta| >= 2)
+    teamRankings.forEach((t) => {
+      const delta = t.observedQualiRank - t.structuralRank
+      if (delta <= -2) {
+        exceptionalOccurrences.push(
+          `${t.teamName} superou sua força estrutural em ${Math.abs(delta)} posições: P${t.observedQualiRank} observado (média P${t.avgPosition}) vs P${t.structuralRank} estrutural.`,
+        )
+      } else if (delta >= 2) {
+        suspectedAnomalies.push(
+          `${t.teamName} ficou abaixo de sua força estrutural em ${delta} posições: P${t.observedQualiRank} observado (média P${t.avgPosition}) vs P${t.structuralRank} estrutural.`,
+        )
+      }
+    })
+
+    // Desempenho do fundo do grid
+    const backmarkerTeams = teamRankings.filter((t) => t.structuralRank >= 11)
+    const backmarkerPoles = backmarkerTeams.reduce((acc, t) => acc + t.poles, 0)
+    if (backmarkerPoles === 0) {
+      expectedResults.push(
+        `Nenhuma equipe do fundo estrutural (Andretti, Cadillac) obteve poles ou resultados espúrios de ponta.`,
+      )
+    } else {
+      suspectedAnomalies.push(
+        `Equipes de fundo obtiveram ${backmarkerPoles} poles, exigindo investigação.`,
+      )
+    }
+
     // Relatório
     return {
       metadata: {
@@ -874,7 +970,7 @@ export class StatisticalDiagnosticHarnessService {
         subTitle: 'BUG-INTEGRIDADE-05 — ITENS 6–7 (FASE 1 DE 2: QUALIFICAÇÃO COMPLETA)',
         diagnosticPhase: 'PHASE-1-QUALIFYING-1000',
         checkpointVersion: 'v0.0.536',
-        gitCommitBaseline: 'dc9410e (v0.0.535)',
+        gitCommitBaseline: '46c68b1 (v0.0.536)',
         reportGeneratedAt: new Date().toISOString(),
         sampleSizeTarget: targetSampleSize,
         sampleSizeCompleted: totalSamples,
@@ -912,16 +1008,9 @@ export class StatisticalDiagnosticHarnessService {
       driverRankings,
       circuitBreakdowns,
       notableFindings: {
-        expectedResults: [
-          `Top 4 estrutural (Mercedes, Ferrari, McLaren, Red Bull) concentrou a grande maioria das poles e posições no Top 3.`,
-          `Poles conquistadas principalmente por pilotos de elite com atributos de velocidade >= 92 (Verstappen, Russell, Hamilton, Leclerc, Norris).`,
-          `Nenhuma equipe do pelotão de trás (Cadillac, Andretti) obteve poles de forma anômala; suas presenças no Q3 foram eventos esporádicos e explicáveis por variância ou condições de pista.`,
-        ],
-        exceptionalOccurrences: [
-          `Williams com Sainz (Speed 86) e motor Mercedes alcançou presenças relevantes no Q3 em circuitos de média/alta eficiência (ex: Silverstone e Spa).`,
-          `Racing Bulls com Lawson/Tsunoda conseguiu aparições ocasionais no Top 6 em pistas técnicas com alto TrackFit.`,
-        ],
-        suspectedAnomalies: [],
+        expectedResults,
+        exceptionalOccurrences,
+        suspectedAnomalies,
         audiVsHaasAnalysis: {
           audiPoles: audiTeam.poles,
           audiTop3: audiTeam.eventsWithTop3,
@@ -933,7 +1022,7 @@ export class StatisticalDiagnosticHarnessService {
           haasAvgPosition: haasTeam.avgPosition,
           audiAheadFrequencyPct: audiAheadPct,
           status: audiVsHaasStatus,
-          narrative: `Audi finalizou à frente da Haas em ${audiAheadPct}% dos eventos de classificação com posição média P${audiTeam.avgPosition} contra P${haasTeam.avgPosition} da Haas, preservando a regra Audi>Haas.`,
+          narrative: `Audi finalizou à frente da Haas em ${audiAheadPct}% dos eventos de classificação com posição média P${audiTeam.avgPosition} contra P${haasTeam.avgPosition} da Haas, com status ${audiVsHaasStatus}.`,
         },
       },
       racePhase2Checkpoint: {
@@ -1053,15 +1142,30 @@ export class StatisticalDiagnosticHarnessService {
     lines.push(`- **Nota:** ${report.racePhase2Checkpoint.checkpointReason}`)
     lines.push('')
 
-    lines.push('## 6. Parecer de Conclusão da Fase 1')
+    lines.push('## 6. Achados Notáveis & Inversões Estruturais')
+    if (report.notableFindings.expectedResults.length > 0) {
+      lines.push('### Comportamentos Esperados Observados')
+      report.notableFindings.expectedResults.forEach((e) => lines.push(`- ${e}`))
+    }
+    if (report.notableFindings.exceptionalOccurrences.length > 0) {
+      lines.push('### Ocorrências Excepcionais / Superações')
+      report.notableFindings.exceptionalOccurrences.forEach((e) => lines.push(`- ${e}`))
+    }
+    if (report.notableFindings.suspectedAnomalies.length > 0) {
+      lines.push('### Anomalias Observadas')
+      report.notableFindings.suspectedAnomalies.forEach((e) => lines.push(`- ${e}`))
+    } else {
+      lines.push('### Anomalias Observadas')
+      lines.push('- Nenhuma distorção grave detectada que viole a física ou a mecânica canônica.')
+    }
+    lines.push('')
+
+    lines.push('## 7. Parecer de Conclusão da Fase 1')
     lines.push(
-      '**(a) Não foi evidenciada distorção recorrente ou anomalia estrutural no modelo de classificação canônico.**',
+      'O ordenamento das 1.000 sessões completas (com eliminações reais em Q1 e Q2) foi materializado a partir de execuções reais via harness determinístico isolado.',
     )
     lines.push(
-      'O ordenamento das 1.000 sessões completas (com eliminações reais em Q1 e Q2) seguiu com alta fidelidade a hierarquia de forças estruturais do projeto, com pilotos de elite e carros de ponta ocupando a ponta e equipes menores conseguindo apenas penetrações pontuais sob circunstâncias excepcionais.',
-    )
-    lines.push(
-      'A CALIBRATION-01B permanece bloqueada conforme o plano original, aguardando a execução da Fase 2 de Corridas.',
+      'A CALIBRATION-01B permanece bloqueada conforme determinação expressa do usuário, aguardando análise prévia dos dados antes de qualquer ajuste de parâmetros ou transição para Fase 2.',
     )
 
     return lines.join('\n')
