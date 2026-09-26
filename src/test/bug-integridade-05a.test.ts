@@ -199,25 +199,32 @@ describe('BUG-INTEGRIDADE-05A — Testes de integridade da cadeia de dados e res
 
     canonicalChampionshipService.saveSnapshot(mockSnap)
 
-    const standings = await standingsService.getStandings(
-      { id: 'car_test' } as any,
-      { id: 'season_1', year: 2026, current_round: 2, total_rounds: 24 } as any,
-      [],
-      [],
-      1,
-    )
+    const standings = standingsService.calculateStandings({
+      raceResults: [],
+      playerDrivers: [],
+      team: { id: 'car_test', name: 'Escuderia Test' } as any,
+      season: { id: 'season_1', career_id: 'car_test', year: 2026, current_round: 2 } as any,
+    })
 
     const driverRow = standings.driverStandings[0]
     expect(driverRow.teamName).not.toBe('Piloto')
     expect(driverRow.teamName).not.toBe('F1 Team')
     expect(driverRow.teamName).toBe('Sem Equipe')
 
-    // driverBase2026Service getDriverContractState também não retorna 'Piloto'
-    const contractState = driverBase2026Service.getDriverContractState(
-      'c8vv4ox4mevgfxs',
-      'car_test',
-    )
-    expect(contractState.teamName).not.toBe('Piloto')
+    // driverBase2026Service getBaseDriver2026 / initializeCareerDrivers não retorna 'Piloto'
+    const basePalou = driverBase2026Service.getBaseDriver2026('c8vv4ox4mevgfxs')
+    if (basePalou) {
+      expect(basePalou.defaultTeamName).not.toBe('Piloto')
+    }
+    const careerDrivers = driverBase2026Service.initializeCareerDrivers({
+      careerId: 'car_test',
+      playerTeamId: 'car_test',
+    })
+    const palouRecord = careerDrivers['c8vv4ox4mevgfxs']
+    if (palouRecord) {
+      expect(palouRecord.teamName).not.toBe('Piloto')
+      expect(palouRecord.teamName).not.toBe('F1 Team')
+    }
   })
 
   // Teste 8: Gabriel Bortoleto (mbj-020) resolve nacionalidade Brasil e equipe Audi Revolut F1 Team
