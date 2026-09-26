@@ -20,6 +20,9 @@ export interface AllocationUnitInfo {
   wear: number
   integrity: number
   risk: 'Baixo' | 'Médio' | 'Alto'
+  exceedsQuota?: boolean
+  penaltyPositions?: number
+  supplier?: string
 }
 
 interface PowerUnitAllocationModalProps {
@@ -96,7 +99,7 @@ export function PowerUnitAllocationModal({
               </Badge>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
               {units.map((u) => {
                 const isSelected = selectedC1 === u.unitNumber
                 const isUsedByOther = selectedC2 === u.unitNumber
@@ -123,6 +126,14 @@ export function PowerUnitAllocationModal({
                         <span className="text-[9px] text-[#64748B] font-mono">#{u.unitNumber}</span>
                       )}
                     </div>
+
+                    {u.exceedsQuota && (
+                      <div className="mb-1">
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                          Fora da quota
+                        </span>
+                      </div>
+                    )}
 
                     <div className="h-10 w-full rounded-md overflow-hidden bg-neutral-900 mb-1.5 relative">
                       <img
@@ -159,7 +170,7 @@ export function PowerUnitAllocationModal({
               </Badge>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
               {units.map((u) => {
                 const isSelected = selectedC2 === u.unitNumber
                 const isUsedByOther = selectedC1 === u.unitNumber
@@ -186,6 +197,14 @@ export function PowerUnitAllocationModal({
                         <span className="text-[9px] text-[#64748B] font-mono">#{u.unitNumber}</span>
                       )}
                     </div>
+
+                    {u.exceedsQuota && (
+                      <div className="mb-1">
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                          Fora da quota
+                        </span>
+                      </div>
+                    )}
 
                     <div className="h-10 w-full rounded-md overflow-hidden bg-neutral-900 mb-1.5 relative">
                       <img

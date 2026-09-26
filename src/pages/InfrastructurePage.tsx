@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
-import { f1Service } from '@/services/f1Service'
+import { f1Service, FREE_ENGINE_QUOTA } from '@/services/f1Service'
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import { formatCurrency } from '@/lib/formatters'
 import { ENGINE_SUPPLIERS, F1_2026_CALENDAR } from '@/lib/f1-data'
@@ -30,6 +30,7 @@ import {
   RotateCw,
   Gauge,
   ShieldAlert,
+  PlusCircle,
   Info,
 } from 'lucide-react'
 
@@ -105,6 +106,7 @@ export default function InfrastructurePage() {
   const [selectedFacilityForExpand, setSelectedFacilityForExpand] =
     useState<FacilityDefinition | null>(null)
   const [isUpgrading, setIsUpgrading] = useState(false)
+  const [isIntroducingEngine, setIsIntroducingEngine] = useState(false)
 
   const careerId = resolveCanonicalCareerId(season, team)
   const currentRound = season?.current_round || 1
@@ -147,11 +149,63 @@ export default function InfrastructurePage() {
     })
   }, [])
 
-  // Pool de 4 Motores (PU1 a PU4)
+  // Pool dinâmico de Motores consumindo o domínio real (PU1..PU6+)
   const poolUnits: AllocationUnitInfo[] = useMemo(() => {
+    const history = team?.engine_history || []
+    const penalties = team?.grid_penalties || []
     const baseKm = [1482, 234, 0, 0]
     const baseWear = [activeEngineWear, 8, 0, 0]
 
+    // Se o domínio já possui histórico persistido (mínimo ou expandido)
+    if (history.length > 0) {
+      return history.map((eng) => {
+        const num = Number(eng.id)
+        const isC1 = car1PuUnit === num
+        const isC2 = car2PuUnit === num
+        const assignedCar = isC1 ? 1 : isC2 ? 2 : null
+
+        const km =
+          eng.mileage_km !== undefined
+            ? eng.mileage_km
+            : (baseKm[num - 1] || 0) + (assignedCar ? (currentRound - 1) * 305 : 0)
+
+        const wear =
+          eng.wear !== undefined
+            ? eng.wear
+            : Math.min(100, (baseWear[num - 1] || 0) + (assignedCar ? (currentRound - 1) * 4 : 0))
+
+        const integrity = eng.condition !== undefined ? eng.condition : Math.max(0, 100 - wear)
+
+        let status: AllocationUnitInfo['status'] = 'available'
+        if (assignedCar) {
+          status = 'in_use'
+        } else if (km > 0 || eng.status === 'reserva') {
+          status = 'reserve'
+        }
+
+        let risk: AllocationUnitInfo['risk'] = 'Baixo'
+        if (integrity < 65) risk = 'Alto'
+        else if (integrity < 80) risk = 'Médio'
+
+        const penaltyRec = penalties.find((p) => p.unitIndex === num)
+        const exceedsQuota = eng.exceedsQuota ?? num > FREE_ENGINE_QUOTA
+
+        return {
+          unitNumber: num,
+          status,
+          assignedCar,
+          km,
+          wear,
+          integrity,
+          risk,
+          exceedsQuota,
+          penaltyPositions: penaltyRec?.positions,
+          supplier: eng.supplier || currentSupplierName,
+        }
+      })
+    }
+
+    // Fallback inicial padrão: PU1 a PU4 (SEM pré-criar PU5+)
     return [1, 2, 3, 4].map((num) => {
       const isC1 = car1PuUnit === num
       const isC2 = car2PuUnit === num
@@ -171,6 +225,9 @@ export default function InfrastructurePage() {
       if (integrity < 65) risk = 'Alto'
       else if (integrity < 80) risk = 'Médio'
 
+      const penaltyRec = penalties.find((p) => p.unitIndex === num)
+      const exceedsQuota = num > FREE_ENGINE_QUOTA
+
       return {
         unitNumber: num,
         status,
@@ -179,9 +236,20 @@ export default function InfrastructurePage() {
         wear,
         integrity,
         risk,
+        exceedsQuota,
+        penaltyPositions: penaltyRec?.positions,
+        supplier: currentSupplierName,
       }
     })
-  }, [car1PuUnit, car2PuUnit, activeEngineWear, currentRound])
+  }, [
+    team?.engine_history,
+    team?.grid_penalties,
+    car1PuUnit,
+    car2PuUnit,
+    activeEngineWear,
+    currentRound,
+    currentSupplierName,
+  ])
 
   // Unidade ativa em foco no hero (Carro 1 por padrão)
   const activeFocusUnit = poolUnits.find((u) => u.unitNumber === car1PuUnit) || poolUnits[0]
@@ -230,6 +298,34 @@ export default function InfrastructurePage() {
     youth_academy:
       DRIVE_STORAGE_PHOTOS['Academia_de_pilotos.jpg'] ||
       'https://drive.google.com/thumbnail?id=1bZajSpyxHJW5ZVr9QHGx-L4MuDNYbFva&sz=w1600',
+  }
+
+  // Ação de Introduzir / Criar Nova Power Unit via Domínio (introduceNewEngine)
+  const handleIntroduceNewEngine = async () => {
+    if (!team) return
+    try {
+      setIsIntroducingEngine(true)
+      const res = await f1Service.introduceNewEngine(team)
+      await refreshTeamAndSeason()
+
+      const penaltyNotice =
+        res.penaltyPositions > 0
+          ? ` Penalidade registrada: +${res.penaltyPositions} posições no grid.`
+          : ' Unidade dentro da quota regulamentar.'
+
+      toast({
+        title: `Nova Power Unit PU${res.engineNumber} Criada!`,
+        description: `Unidade montada com 0 km e 100% integridade.${penaltyNotice}`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao Criar Power Unit',
+        description: err.message || 'Falha ao introduzir nova unidade de potência.',
+      })
+    } finally {
+      setIsIntroducingEngine(false)
+    }
   }
 
   // Handlers de Alocação de PU
@@ -677,7 +773,8 @@ export default function InfrastructurePage() {
                         Motores da Temporada {season?.year || 2026}
                       </h3>
                       <p className="text-[11px] text-[#64748B]">
-                        Alocação do pool oficial (4 unidades sem penalização de grid FIA)
+                        Alocação do pool oficial ({FREE_ENGINE_QUOTA} unidades sem penalização de
+                        grid FIA)
                       </p>
                     </div>
                   </div>
@@ -686,13 +783,14 @@ export default function InfrastructurePage() {
                   </Badge>
                 </div>
 
-                {/* Grade das 4 Unidades — PU1 e PU2 com a imagem oficial anexada */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3">
+                {/* Grade Dinâmica de Unidades — PU1..PU6+ sem assumptions de 4 cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 gap-2.5 pt-3">
                   {poolUnits.map((pu) => {
                     const isInUse = pu.assignedCar !== null
                     return (
                       <div
                         key={pu.unitNumber}
+                        data-testid={`pu-card-${pu.unitNumber}`}
                         className={`rounded-xl border p-2.5 flex flex-col justify-between transition-all ${
                           isInUse
                             ? 'bg-[#F0FDF4] border-emerald-400 shadow-xs ring-1 ring-emerald-300'
@@ -718,6 +816,26 @@ export default function InfrastructurePage() {
                           </span>
                         </div>
 
+                        {/* Indicação Discreta Fora da Quota */}
+                        {pu.exceedsQuota && (
+                          <div className="mt-1 flex items-center justify-between">
+                            <span
+                              data-testid={`badge-quota-${pu.unitNumber}`}
+                              className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200"
+                            >
+                              Fora da quota
+                            </span>
+                            {pu.penaltyPositions ? (
+                              <span
+                                data-testid={`badge-penalty-${pu.unitNumber}`}
+                                className="text-[9px] font-mono text-red-600 font-bold"
+                              >
+                                +{pu.penaltyPositions} pos
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
+
                         {/* Imagem Real do Motor anexada */}
                         <div className="my-2 h-14 w-full rounded-lg overflow-hidden border border-[#E2E8F0] bg-neutral-900 relative shadow-inner">
                           <img
@@ -739,6 +857,9 @@ export default function InfrastructurePage() {
                           <div className="text-[9px] text-[#64748B]">
                             {pu.km > 0 ? `Desgaste: ${pu.wear}%` : 'Pronto p/ montar'}
                           </div>
+                          {pu.supplier && (
+                            <div className="text-[8px] text-[#94A3B8] truncate">{pu.supplier}</div>
+                          )}
                         </div>
                       </div>
                     )
@@ -842,6 +963,16 @@ export default function InfrastructurePage() {
               </div>
 
               <div className="space-y-2.5">
+                <Button
+                  data-testid="btn-introduce-new-engine"
+                  onClick={handleIntroduceNewEngine}
+                  disabled={isIntroducingEngine}
+                  className="w-full h-10 bg-neutral-900 hover:bg-neutral-800 text-white font-sans text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <PlusCircle className="w-4 h-4 text-emerald-400" />
+                  <span>{isIntroducingEngine ? 'Introduzindo...' : 'Criar Nova PU (Pool)'}</span>
+                </Button>
+
                 <Button
                   onClick={() => setAllocationModalOpen(true)}
                   className="w-full h-10 bg-white hover:bg-[#F8FAFC] border border-[#CBD5E1] text-[#0F172A] font-sans text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs cursor-pointer"

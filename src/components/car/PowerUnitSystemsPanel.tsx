@@ -26,6 +26,15 @@ export interface PowerUnitSystemsPanelProps {
   onIntroduceNewEngine?: (targetCar: 1 | 2) => void
   isChangingEngine?: boolean
   costCapAvailable?: number
+  poolUnits?: Array<{
+    unitNumber: number
+    exceedsQuota?: boolean
+    status?: string
+  }>
+  existingPenalties?: Array<{
+    unitIndex: number
+    positions: number
+  }>
 }
 
 const DEFAULT_SUBCOMPONENTS: PowerUnitSubcomponent[] = [
@@ -54,6 +63,8 @@ export const PowerUnitSystemsPanel: React.FC<PowerUnitSystemsPanelProps> = ({
   onSelectCar,
   onIntroduceNewEngine,
   isChangingEngine = false,
+  poolUnits,
+  existingPenalties,
 }) => {
   const isPenaltyRisk = activeUnitIndex > totalUnitsLimit
 
@@ -154,32 +165,46 @@ export const PowerUnitSystemsPanel: React.FC<PowerUnitSystemsPanelProps> = ({
           </div>
         </div>
 
-        {/* 4 Caixas de Motores */}
-        <div className="grid grid-cols-4 gap-2">
-          {Array.from({ length: totalUnitsLimit }).map((_, idx) => {
-            const unitNumber = idx + 1
-            const isCurrent = unitNumber === activeUnitIndex
-            const isUsed = unitNumber < activeUnitIndex
+        {/* Grade Dinâmica de Motores */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+          {(() => {
+            const unitsToRender =
+              poolUnits && poolUnits.length > 0
+                ? poolUnits.map((u) => u.unitNumber)
+                : Array.from({ length: Math.max(totalUnitsLimit, activeUnitIndex) }).map(
+                    (_, idx) => idx + 1,
+                  )
 
-            let bgClass = 'bg-slate-100 border-slate-200 text-slate-400'
-            if (isCurrent) {
-              bgClass = 'bg-red-600 border-red-700 text-white shadow-sm'
-            } else if (isUsed) {
-              bgClass = 'bg-slate-700 border-slate-800 text-slate-300'
-            }
+            return unitsToRender.map((unitNumber) => {
+              const isCurrent = unitNumber === activeUnitIndex
+              const isUsed = unitNumber < activeUnitIndex
+              const isExceeded = unitNumber > totalUnitsLimit
 
-            return (
-              <div
-                key={unitNumber}
-                className={`flex flex-col items-center justify-center p-2 rounded-lg border text-center transition-all ${bgClass}`}
-              >
-                <div className="text-sm font-black font-mono">{unitNumber}</div>
-                <div className="text-[9px] font-mono mt-0.5 opacity-80">
-                  {isCurrent ? 'EM USO' : isUsed ? 'UTILIZADO' : 'NOVO'}
+              let bgClass = 'bg-slate-100 border-slate-200 text-slate-400'
+              if (isCurrent) {
+                bgClass = 'bg-red-600 border-red-700 text-white shadow-sm'
+              } else if (isUsed) {
+                bgClass = 'bg-slate-700 border-slate-800 text-slate-300'
+              }
+
+              return (
+                <div
+                  key={unitNumber}
+                  className={`flex flex-col items-center justify-center p-2 rounded-lg border text-center transition-all ${bgClass}`}
+                >
+                  <div className="text-sm font-black font-mono">{unitNumber}</div>
+                  <div className="text-[9px] font-mono mt-0.5 opacity-80">
+                    {isCurrent ? 'EM USO' : isUsed ? 'UTILIZADO' : 'NOVO'}
+                  </div>
+                  {isExceeded && (
+                    <span className="text-[8px] font-mono font-bold mt-1 px-1 py-0.2 rounded bg-amber-400 text-slate-900">
+                      EXTRA
+                    </span>
+                  )}
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          })()}
         </div>
       </div>
 

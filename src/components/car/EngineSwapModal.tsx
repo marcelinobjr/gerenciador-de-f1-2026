@@ -33,6 +33,19 @@ export interface EngineSwapModalProps {
   currentCar1EngineUnit: number
   currentCar2EngineUnit: number
   totalUnitsLimit?: number
+  availableUnits?: Array<{
+    id: number
+    wear: number
+    condition?: number
+    mileage_km?: number
+    status?: string
+    supplier?: string
+    exceedsQuota?: boolean
+  }>
+  penalties?: Array<{
+    unitIndex: number
+    positions: number
+  }>
   onConfirmSwap: (targetCar: 1 | 2, unitNumber: number) => void
 }
 
@@ -44,63 +57,93 @@ export const EngineSwapModal: React.FC<EngineSwapModalProps> = ({
   currentCar1EngineUnit,
   currentCar2EngineUnit,
   totalUnitsLimit = 4,
+  availableUnits,
+  penalties,
   onConfirmSwap,
 }) => {
   const currentAssignedUnit = targetCar === 1 ? currentCar1EngineUnit : currentCar2EngineUnit
   const otherCarUnit = targetCar === 1 ? currentCar2EngineUnit : currentCar1EngineUnit
   const [selectedUnit, setSelectedUnit] = useState<number>(currentAssignedUnit)
 
-  // Geramos o conjunto de 6 unidades disponíveis no inventário da temporada
-  const engineUnits: EngineSwapOption[] = Array.from({ length: 6 }).map((_, idx) => {
-    const unitNumber = idx + 1
-    const isCurrentCar1 = currentCar1EngineUnit === unitNumber
-    const isCurrentCar2 = currentCar2EngineUnit === unitNumber
-    const isExceededLimit = unitNumber > totalUnitsLimit
+  // Geramos o conjunto dinâmico de unidades baseado no pool real do domínio
+  const engineUnits: EngineSwapOption[] = (() => {
+    if (availableUnits && availableUnits.length > 0) {
+      return availableUnits.map((item) => {
+        const unitNumber = Number(item.id)
+        const isCurrentCar1 = currentCar1EngineUnit === unitNumber
+        const isCurrentCar2 = currentCar2EngineUnit === unitNumber
+        const isExceededLimit = item.exceedsQuota ?? unitNumber > totalUnitsLimit
+        const wear = item.wear ?? 0
+        const condition = item.condition ?? Math.max(10, 100 - wear)
+        const km = item.mileage_km ?? (unitNumber === 1 ? 1482 : unitNumber === 2 ? 234 : 0)
+        const cycles = Math.max(0, Math.round(km / 305))
+        const reliability = Math.max(65, Math.round(96 - wear * 0.45))
 
-    // Simulação coerente com a física de vida útil das PUs
-    let wear = 0
-    let km = 0
-    let cycles = 0
-    if (unitNumber === 1) {
-      wear = 34
-      km = 2120
-      cycles = 5
-    } else if (unitNumber === 2) {
-      wear = 21
-      km = 1482
-      cycles = 4
-    } else if (unitNumber === 3) {
-      wear = 12
-      km = 810
-      cycles = 2
-    } else if (unitNumber === 4) {
-      wear = 0
-      km = 0
-      cycles = 0
-    } else {
-      wear = 0
-      km = 0
-      cycles = 0
+        return {
+          id: `PU-${unitNumber}`,
+          unitNumber,
+          label: `PU-${unitNumber} (Unidade #${unitNumber})`,
+          condition,
+          wear,
+          usageCycles: cycles,
+          kmUsed: km,
+          reliability,
+          isCurrentCar1,
+          isCurrentCar2,
+          isExceededLimit,
+          isRetired: wear >= 80,
+        }
+      })
     }
 
-    const condition = Math.max(10, 100 - wear)
-    const reliability = Math.max(65, Math.round(96 - wear * 0.45))
+    // Fallback dinâmico que respeita a maior unidade em uso
+    const maxUnit = Math.max(totalUnitsLimit, currentCar1EngineUnit, currentCar2EngineUnit)
+    return Array.from({ length: maxUnit }).map((_, idx) => {
+      const unitNumber = idx + 1
+      const isCurrentCar1 = currentCar1EngineUnit === unitNumber
+      const isCurrentCar2 = currentCar2EngineUnit === unitNumber
+      const isExceededLimit = unitNumber > totalUnitsLimit
 
-    return {
-      id: `PU-${unitNumber}`,
-      unitNumber,
-      label: `PU-${unitNumber} (Unidade #${unitNumber})`,
-      condition,
-      wear,
-      usageCycles: cycles,
-      kmUsed: km,
-      reliability,
-      isCurrentCar1,
-      isCurrentCar2,
-      isExceededLimit,
-      isRetired: wear >= 80,
-    }
-  })
+      let wear = 0
+      let km = 0
+      let cycles = 0
+      if (unitNumber === 1) {
+        wear = 34
+        km = 2120
+        cycles = 5
+      } else if (unitNumber === 2) {
+        wear = 21
+        km = 1482
+        cycles = 4
+      } else if (unitNumber === 3) {
+        wear = 12
+        km = 810
+        cycles = 2
+      } else {
+        wear = 0
+        km = 0
+        cycles = 0
+      }
+
+      const condition = Math.max(10, 100 - wear)
+      const reliability = Math.max(65, Math.round(96 - wear * 0.45))
+
+      return {
+        id: `PU-${unitNumber}`,
+        unitNumber,
+        label: `PU-${unitNumber} (Unidade #${unitNumber})`,
+        condition,
+        wear,
+        usageCycles: cycles,
+        kmUsed: km,
+        reliability,
+        isCurrentCar1,
+        isCurrentCar2,
+        isExceededLimit,
+        isRetired: wear >= 80,
+      }
+    })
+  })()
 
   const currentUnitObj = engineUnits.find((u) => u.unitNumber === currentAssignedUnit)
   const isOccupiedByOtherCar = selectedUnit === otherCarUnit
@@ -246,9 +289,11 @@ export const EngineSwapModal: React.FC<EngineSwapModalProps> = ({
                         />
                         <span className="font-bold text-slate-900 font-mono">{pu.label}</span>
                         {pu.isExceededLimit && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 flex items-center gap-0.5">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 flex items-center gap-0.5 font-mono">
                             <ShieldAlert className="w-3 h-3" />
-                            Penalidade (+10 posições)
+                            {penalties?.find((p) => p.unitIndex === pu.unitNumber)
+                              ? `Penalidade (+${penalties.find((p) => p.unitIndex === pu.unitNumber)?.positions} posições)`
+                              : 'Fora da quota'}
                           </span>
                         )}
                       </div>
