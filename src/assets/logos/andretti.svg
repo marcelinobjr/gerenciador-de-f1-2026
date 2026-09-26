@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Andretti Global Shield & Chevron -->
+  <polygon points="50,6 92,20 84,74 50,94 16,74 8,20" fill="#0A1E3F" stroke="#E10600" stroke-width="3" />
+  <!-- Dynamic Chevron A -->
+  <polygon points="50,22 74,68 62,68 50,44 38,68 26,68" fill="#FFFFFF" />
+  <polygon points="40,58 60,58 56,64 44,64" fill="#E10600" />
+  <!-- Text -->
+  <text x="50" y="84" font-family="'Arial Black', Impact, sans-serif" font-weight="900" font-size="9" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">ANDRETTI</text>
+</svg>

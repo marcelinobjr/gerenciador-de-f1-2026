@@ -1259,6 +1259,7 @@ export default function TeamPage() {
             <div className="lg:col-span-8 flex flex-col">
               <TeamHeroBanner
                 teamName={teamName}
+                teamKey={(team as any)?.team_key || team?.id || (isAudi ? 'audi' : '')}
                 subheading="Tecnologia. Pessoas. Performance."
                 bgImage={audiGarageHeroImg}
                 constructorPosition={constructorRank}

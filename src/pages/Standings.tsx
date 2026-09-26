@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/EmptyState'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
-import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
+import { TeamCrest } from '@/components/ui/TeamCrest'
 import { CountryFlag } from '@/components/CountryFlag'
 import { PilotProfileDialog } from '@/components/PilotProfileDialog'
 import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitutionalDetailsModal'
@@ -459,7 +459,6 @@ export default function StandingsPage() {
                 <tbody className="divide-y divide-[#F1F5F9] text-xs">
                   {effectiveDriverStandings.map((driver, index) => {
                     const pos = index + 1
-                    const logoUrl = getTeamReducedLogoUrl(driver.teamName)
                     const leaderPts = effectiveDriverStandings[0]?.points || 0
                     const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - driver.points} pts`
                     const ratio =
@@ -546,27 +545,12 @@ export default function StandingsPage() {
                         {/* ESCUDERIA: Logo reduzida oficial (20-28px) + Nome */}
                         <td className="py-2.5 px-4">
                           <div className="flex items-center gap-2">
-                            {logoUrl ? (
-                              <img
-                                src={logoUrl}
-                                alt={driver.teamName}
-                                className="w-6 h-6 object-contain shrink-0"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div
-                                className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black text-white"
-                                style={{ backgroundColor: driver.teamColor || '#E10600' }}
-                              >
-                                {driver.teamName.charAt(0)}
-                              </div>
-                            )}
-                            <span
-                              className="truncate font-medium text-xs text-[#334155]"
-                              style={{
-                                color: driver.teamColor ? undefined : undefined,
-                              }}
-                            >
+                            <TeamCrest
+                              team={driver.teamName}
+                              teamName={driver.teamName}
+                              size="md"
+                            />
+                            <span className="truncate font-medium text-xs text-[#334155]">
                               {driver.teamName}
                             </span>
                           </div>
@@ -647,7 +631,6 @@ export default function StandingsPage() {
               <tbody className="divide-y divide-[#F1F5F9] text-xs">
                 {effectiveConstructorStandings.map((cTeam, index) => {
                   const pos = index + 1
-                  const logoUrl = getTeamReducedLogoUrl(cTeam.name || cTeam.id)
                   const leaderPts = effectiveConstructorStandings[0]?.points || 0
                   const gap = pos === 1 ? 'LÍDER' : `-${leaderPts - cTeam.points} pts`
                   const ratio =
@@ -704,23 +687,12 @@ export default function StandingsPage() {
                       {/* EQUIPE: Logo reduzida oficial (20-28px) + Nome + Tag Sua Escuderia */}
                       <td className="py-2.5 px-4">
                         <div className="flex items-center gap-2.5">
-                          {logoUrl ? (
-                            <img
-                              src={logoUrl}
-                              alt={cTeam.name}
-                              className="w-6 h-6 object-contain shrink-0"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div
-                              className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black text-white"
-                              style={{ backgroundColor: cTeam.color || '#E10600' }}
-                            >
-                              {cTeam.name.charAt(0)}
-                            </div>
-                          )}
+                          <TeamCrest
+                            team={cTeam.id || cTeam.name}
+                            teamName={cTeam.name}
+                            size="md"
+                          />
                           <div className="flex items-center gap-2 truncate">
-                            <CountryFlag code={cTeam.name} className="text-sm shrink-0" />
                             <span
                               className={`truncate ${
                                 cTeam.isPlayer

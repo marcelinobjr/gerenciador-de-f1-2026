@@ -4,6 +4,7 @@ import audiCarGaragePng from '@/assets/audi-13288.png'
 import audiLiveryCarPng from '@/assets/audi-a0460.png'
 import audiEmblemJpg from '@/assets/audi-e9cff.jpg'
 import { getTeamSideView, getTeamLogo } from '@/data/assets/teamAssets'
+import { TeamCrest } from '@/components/ui/TeamCrest'
 
 interface TeamBrandingCardProps {
   teamKey?: string
@@ -49,30 +50,14 @@ export const TeamBrandingCard: React.FC<TeamBrandingCardProps> = ({
         </div>
 
         {/* Emblema / Logo da equipe */}
-        {effectiveLogo ? (
-          <div className="w-11 h-11 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] p-2 flex items-center justify-center shrink-0">
-            <img
-              src={effectiveLogo}
-              alt={`${teamName} Logo`}
-              className="max-w-full max-h-full object-contain"
-              onError={(e) => {
-                ;(e.currentTarget as HTMLElement).style.display = 'none'
-              }}
-            />
-          </div>
-        ) : isAudi ? (
-          <div className="w-11 h-11 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center shrink-0 overflow-hidden">
-            <img
-              src={audiEmblemJpg}
-              alt="Audi Sport"
-              className="w-full h-full object-cover opacity-80"
-            />
-          </div>
-        ) : (
-          <div className="w-11 h-11 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center font-black text-sm text-[#64748B] font-mono shrink-0">
-            {(teamKey || teamName || 'F1').substring(0, 3).toUpperCase()}
-          </div>
-        )}
+        <div className="w-11 h-11 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] p-1.5 flex items-center justify-center shrink-0">
+          <TeamCrest
+            team={teamKey || teamName}
+            teamName={teamName}
+            size="lg"
+            className="w-full h-full"
+          />
+        </div>
       </div>
 
       {/* Área Central Principal: Vista Lateral Completa e Destaque Visual */}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Racing Bulls (VCARB) Charging Bull & Monogram -->
+  <!-- Blue background crest -->
+  <path d="M20 15 L100 15 C100 60 75 88 60 95 C45 88 20 60 20 15 Z" fill="#6692FF" opacity="0.15" />
+  <!-- Charging Bull Vector in Metallic/Electric Blue -->
+  <path d="M25 45 C30 38 38 35 48 36 C55 32 62 26 72 26 C76 26 80 28 84 33 C88 34 94 38 97 43 C94 45 89 45 86 43 C84 46 83 50 80 52 C74 55 68 55 63 52 C58 54 50 55 44 53 C38 57 32 58 27 55 C25 52 24 48 25 45 Z" fill="#6692FF" />
+  <!-- Horn -->
+  <path d="M72 26 C75 20 80 16 86 14 C84 18 82 22 80 25 Z" fill="#E10600" />
+  <!-- Dynamic RB Letters in High-Contrast White/Blue -->
+  <text x="60" y="80" font-family="'Arial Black', Impact, sans-serif" font-weight="900" font-size="20" fill="#6692FF" text-anchor="middle" letter-spacing="2">RB</text>
+</svg>

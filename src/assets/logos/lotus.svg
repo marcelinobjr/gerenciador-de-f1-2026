@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Lotus Iconic British Racing Green & Yellow Roundel -->
+  <circle cx="50" cy="50" r="46" fill="#F4B223" stroke="#004225" stroke-width="3" />
+  <!-- British Racing Green inner triangle -->
+  <path d="M50 14 C74 14 84 32 84 50 C84 68 74 86 50 86 C26 86 16 68 16 50 C16 32 26 14 50 14 Z" fill="#004225" />
+  <!-- ACBC Monogram (Anthony Colin Bruce Chapman) -->
+  <text x="50" y="46" font-family="'Times New Roman', serif" font-weight="bold" font-size="20" fill="#F4B223" text-anchor="middle" letter-spacing="-1">ACBC</text>
+  <!-- LOTUS Text arched in green area -->
+  <text x="50" y="70" font-family="'Arial Black', Impact, sans-serif" font-weight="900" font-size="11" fill="#F4B223" text-anchor="middle" letter-spacing="2">LOTUS</text>
+</svg>

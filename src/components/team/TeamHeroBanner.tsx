@@ -1,7 +1,9 @@
 import React from 'react'
+import { TeamCrest } from '@/components/ui/TeamCrest'
 
 interface TeamHeroBannerProps {
   teamName: string
+  teamKey?: string
   subheading?: string
   bgImage: string
   constructorPosition: number | string
@@ -72,17 +74,12 @@ export const TeamHeroBanner: React.FC<TeamHeroBannerProps> = ({
         {/* Canto direito do hero: emblema da equipe ou 4 anéis Audi estilizados + citação esportiva */}
         <div className="hidden md:flex flex-col items-end text-right">
           <div className="flex items-center gap-2 mb-1.5 opacity-90">
-            {isAudi ? (
-              /* Anéis icônicos da Audi minimalistas */
-              <div className="flex items-center -space-x-1.5 py-1 px-2 rounded">
-                <span className="w-5 h-5 rounded-full border-2 border-neutral-400 inline-block" />
-                <span className="w-5 h-5 rounded-full border-2 border-neutral-400 inline-block" />
-                <span className="w-5 h-5 rounded-full border-2 border-neutral-400 inline-block" />
-                <span className="w-5 h-5 rounded-full border-2 border-neutral-400 inline-block" />
-              </div>
-            ) : teamLogoUrl ? (
-              <img src={teamLogoUrl} alt={teamName} className="h-8 max-w-[120px] object-contain" />
-            ) : null}
+            <TeamCrest
+              team={teamKey || teamName}
+              teamName={teamName}
+              size="xl"
+              className="h-10 w-auto min-w-[40px]"
+            />
           </div>
           <p className="text-[11px] font-serif italic text-[#64748B] max-w-[260px] leading-tight">
             &ldquo;Mais do que uma equipe, uma mentalidade.&rdquo;

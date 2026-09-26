@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 90" width="100" height="90">
+  <!-- Alpine Stylized Arrow "A" Emblem -->
+  <!-- Left diagonal bar and top apex -->
+  <path d="M50 8 L18 78 L34 78 L47 48 L65 48 L60 58 L43 58 L37 70 L76 70 L64 78 L12 78 L50 4 Z" fill="#0090FF" />
+  <!-- Dynamic Right Crosswing / French Tricolore Accents subtle -->
+  <path d="M58 38 L88 38 L84 46 L62 46 Z" fill="#FF1801" opacity="0.9" />
+  <path d="M62 46 L84 46 L80 54 L66 54 Z" fill="#FFFFFF" opacity="0.9" />
+  <path d="M66 54 L80 54 L76 62 L70 62 Z" fill="#0090FF" opacity="0.9" />
+  <!-- Base Alpine Text -->
+  <text x="50" y="86" font-family="'Arial Black', Impact, sans-serif" font-weight="900" font-size="9" fill="#0090FF" text-anchor="middle" letter-spacing="2">ALPINE</text>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 50" width="160" height="50">
+  <!-- Aston Martin Wings Logo -->
+  <g fill="#00594F" stroke="#00594F" stroke-width="0.5">
+    <!-- Center Inverted Arc -->
+    <path d="M40 32 C60 38 100 38 120 32 C115 35 105 38 80 38 C55 38 45 35 40 32 Z" />
+    <!-- Center Plaque for ASTON MARTIN -->
+    <rect x="42" y="20" width="76" height="11" rx="1" fill="#00594F" />
+    <!-- Wing Feathers Left -->
+    <path d="M42 22 L10 14 C12 18 20 24 42 26 Z" opacity="0.9" />
+    <path d="M42 24 L16 22 C22 26 32 30 42 30 Z" opacity="0.8" />
+    <path d="M42 26 L26 28 C32 32 38 34 42 34 Z" opacity="0.7" />
+    <!-- Wing Feathers Right -->
+    <path d="M118 22 L150 14 C148 18 140 24 118 26 Z" opacity="0.9" />
+    <path d="M118 24 L144 22 C138 26 128 30 118 30 Z" opacity="0.8" />
+    <path d="M118 26 L134 28 C128 32 122 34 118 34 Z" opacity="0.7" />
+  </g>
+  <text x="80" y="28" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="bold" font-size="6.5" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">ASTON MARTIN</text>
+</svg>

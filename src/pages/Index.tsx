@@ -9,6 +9,7 @@ import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { getCountryCode } from '@/lib/country-flags'
 import { countryFlag, countryName, resolveCountryFlag } from '@/lib/country-flag'
+import { TeamCrest } from '@/components/ui/TeamCrest'
 import { formatCurrency } from '@/lib/formatters'
 import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
 import audiCarImg from '@/assets/audi-13288.png'
@@ -1261,16 +1262,13 @@ export default function IndexPage() {
                     <span className="col-span-2 font-mono text-[11px] font-bold text-[#64748B]">
                       {teamRow.position || idx + 1}º
                     </span>
-                    <span className="col-span-7 truncate text-xs flex items-center gap-1.5">
+                    <span className="col-span-7 truncate text-xs flex items-center gap-2">
                       {isUser && <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />}
-                      <span
-                        className="text-sm leading-none select-none shrink-0"
-                        role="img"
-                        aria-label={countryName(tName)}
-                        title={countryName(tName)}
-                      >
-                        {countryFlag(tName)}
-                      </span>
+                      <TeamCrest
+                        team={teamRow?.id || teamRow?.teamKey || tName}
+                        teamName={tName}
+                        size="sm"
+                      />
                       <span className="truncate">{tName}</span>
                     </span>
                     <span className="col-span-3 text-right font-mono font-bold text-xs">

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Williams Racing Modern Monogram 'W' -->
+  <g fill="#041E42">
+    <!-- Left chevron pointing inward -->
+    <path d="M12 20 L26 20 L38 64 L24 64 Z" fill="#00A0DE" />
+    <path d="M38 64 L48 28 L58 64 L46 64 Z" fill="#041E42" />
+    <path d="M58 64 L70 20 L84 20 L72 64 Z" fill="#00A0DE" />
+    <path d="M44 64 L50 42 L56 64 Z" fill="#FFFFFF" />
+  </g>
+  <!-- Modern Geometric Cross Structure -->
+  <polygon points="16,24 32,80 44,80 34,42 46,80 54,80 66,42 56,80 68,80 84,24 72,24 60,66 50,30 40,66 28,24" fill="#041E42" />
+  <polygon points="46,80 50,68 54,80" fill="#00A0DE" />
+  <!-- Underline Accent -->
+  <rect x="25" y="86" width="50" height="4" rx="2" fill="#00A0DE" />
+</svg>

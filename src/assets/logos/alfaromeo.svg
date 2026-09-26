@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Alfa Romeo Biscione & Cross Roundel -->
+  <circle cx="50" cy="50" r="46" fill="#0A1E3F" stroke="#B12B00" stroke-width="4" />
+  <circle cx="50" cy="50" r="42" fill="#FFFFFF" />
+  <!-- Left Half: Red Cross of Milan -->
+  <clipPath id="leftHalf">
+    <rect x="8" y="8" width="42" height="84" />
+  </clipPath>
+  <g clip-path="url(#leftHalf)">
+    <rect x="25" y="16" width="8" height="68" fill="#CE2B37" />
+    <rect x="10" y="46" width="38" height="8" fill="#CE2B37" />
+  </g>
+  <!-- Right Half: Azure field with green snake (Biscione) -->
+  <clipPath id="rightHalf">
+    <rect x="50" y="8" width="42" height="84" />
+  </clipPath>
+  <g clip-path="url(#rightHalf)">
+    <rect x="50" y="8" width="42" height="84" fill="#0A3871" />
+    <!-- Stylized Biscione coils -->
+    <path d="M64 28 C68 24 76 24 78 28 C80 32 76 36 72 38 C68 40 68 46 72 48 C76 50 80 54 78 58 C76 62 70 64 66 68 C64 72 68 76 72 76" fill="none" stroke="#008837" stroke-width="5" stroke-linecap="round" />
+    <!-- Crown on Snake -->
+    <polygon points="68,22 74,22 72,18" fill="#D4AF37" />
+  </g>
+  <!-- Divider -->
+  <line x1="50" y1="8" x2="50" y2="92" stroke="#D4AF37" stroke-width="2" />
+</svg>

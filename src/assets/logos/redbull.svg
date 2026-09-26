@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100" width="160" height="100">
+  <!-- Red Bull Golden Yellow Sun -->
+  <circle cx="80" cy="46" r="30" fill="#FFCC00" />
+  <!-- Left Charging Bull (Silhouette in Red/Crimson with yellow horn accent) -->
+  <g fill="#E10600">
+    <!-- Left Bull charging right -->
+    <path d="M12 55 C16 48 24 45 32 46 C38 43 45 36 54 36 C58 36 63 38 67 43 C72 44 76 49 79 53 C76 56 71 56 68 54 C66 56 65 60 62 62 C57 65 52 65 47 62 C43 64 36 65 30 63 C25 67 18 68 14 65 C12 62 11 58 12 55 Z" />
+    <path d="M54 36 C57 30 62 25 68 22 C67 25 64 30 62 34 Z" fill="#FFCC00" />
+    <!-- Bull legs & motion -->
+    <path d="M28 64 L24 78 L20 77 L24 64 Z" />
+    <path d="M38 63 L38 80 L34 80 L34 63 Z" />
+    <path d="M60 62 L63 77 L59 78 L56 63 Z" />
+  </g>
+  <!-- Right Charging Bull (Silhouette in Red/Crimson charging left) -->
+  <g fill="#E10600">
+    <path d="M148 55 C144 48 136 45 128 46 C122 43 115 36 106 36 C102 36 97 38 93 43 C88 44 84 49 81 53 C84 56 89 56 92 54 C94 56 95 60 98 62 C103 65 108 65 113 62 C117 64 124 65 130 63 C135 67 142 68 146 65 C148 62 149 58 148 55 Z" />
+    <path d="M106 36 C103 30 98 25 92 22 C93 25 96 30 98 34 Z" fill="#FFCC00" />
+    <path d="M132 64 L136 78 L140 77 L136 64 Z" />
+    <path d="M122 63 L122 80 L126 80 L126 63 Z" />
+    <path d="M100 62 L97 77 L101 78 L104 63 Z" />
+  </g>
+  <!-- Bottom Text Red Bull -->
+  <text x="80" y="94" font-family="'Arial Black', Impact, sans-serif" font-weight="900" font-size="12" fill="#1E2A5A" text-anchor="middle" letter-spacing="1.5">RED BULL</text>
+</svg>

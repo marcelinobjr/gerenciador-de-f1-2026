@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="100" height="120">
+  <!-- Lamborghini Shield -->
+  <path d="M12 18 L88 18 C88 60 74 95 50 114 C26 95 12 60 12 18 Z" fill="#111111" stroke="#D4AF37" stroke-width="3" />
+  <!-- Raging Bull in Gold -->
+  <g fill="#D4AF37">
+    <!-- Bull silhouette stylized -->
+    <path d="M26 62 C32 54 42 50 50 52 C56 46 64 42 74 44 C78 46 80 50 82 56 C79 58 74 58 70 56 C68 59 66 63 62 65 C56 68 50 68 44 65 C40 68 34 70 28 68 Z" />
+    <path d="M74 44 C78 38 84 34 90 32 C88 36 86 41 84 44 Z" />
+    <polygon points="38,66 34,84 40,84 44,66" />
+    <polygon points="56,66 58,84 64,84 62,66" />
+    <path d="M28 64 C24 60 20 60 18 62 C20 64 24 66 26 68 Z" />
+  </g>
+  <!-- LAMBORGHINI Banner -->
+  <text x="50" y="32" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="7" fill="#D4AF37" text-anchor="middle" letter-spacing="1">LAMBORGHINI</text>
+</svg>
