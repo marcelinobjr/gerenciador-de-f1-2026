@@ -25,6 +25,8 @@ import type { DriverModel, TeamModel, TireSetItem, TireCompound } from '@/types/
 import { resolveCountryFlag } from '@/lib/country-flag'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
+import { weatherGenerator } from '@/services/weatherGenerator'
+import { getClimateProfile } from '@/data/canonicalClimateProfiles'
 import { getTeamCarPhotoUrl } from '@/lib/team-car-photo-resolver'
 import { toast } from '@/hooks/use-toast'
 import {

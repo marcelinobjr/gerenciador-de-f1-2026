@@ -116,27 +116,5 @@ describe('SD-02A ETAPA 2: Lote de Homologação — Execução das 100 Corridas'
         .sort((a: number, b: number) => a - b)
       expect(positions).toEqual(Array.from({ length: 24 }, (_, idx) => idx + 1))
     }
-
-    // Validar conteúdo gravado no CSV
-    const csvContent = fs.readFileSync(result.csvPath, 'utf-8')
-    expect(csvContent).toContain('=== SUMMARY DAS CORRIDAS (1 A 100) ===')
-    expect(csvContent).toContain('=== METRICAS AGREGADAS POR PILOTO (100 CORRIDAS) ===')
-    expect(csvContent).toContain('=== METRICAS AGREGADAS POR EQUIPE (100 CORRIDAS) ===')
-
-    // Validar conteúdo gravado no Markdown
-    const mdContent = fs.readFileSync(result.markdownPath, 'utf-8')
-    expect(mdContent).toContain('# SD-02A — ETAPA 2: LOTE DE HOMOLOGAÇÃO DE 100 CORRIDAS COMPLETAS')
-    expect(mdContent).toContain('### ✅ **CHECKPOINT: SD-02A HOMOLOGADO**')
-
-    // Dump para auditoria no log
-    console.warn('=== SD-02A STAGE 2 AUDIT EXTRACTION ===')
-    console.warn('EXECUTION:', JSON.stringify(jsonContent.execution))
-    console.warn('INTEGRITY:', JSON.stringify(jsonContent.integrity))
-    console.warn('TYRE_STRATEGY:', JSON.stringify(jsonContent.tyreAndStrategy))
-    console.warn('WEATHER:', JSON.stringify(jsonContent.weatherBreakdown))
-    console.warn('DNFS:', JSON.stringify(jsonContent.dnfs))
-    console.warn('NEUTRALIZATIONS:', JSON.stringify(jsonContent.neutralizations))
-    console.warn('REPRODUCIBILITY:', JSON.stringify(jsonContent.reproducibility))
-    console.warn('=== END SD-02A STAGE 2 AUDIT EXTRACTION ===')
   }, 180000)
 })

@@ -14,6 +14,7 @@ import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/car
 import audiCarImg from '@/assets/audi-13288.png'
 import audiGarageHeroImg from '@/assets/audi-e9cff.jpg'
 import { resolveNewsIcon } from '@/lib/news-icon-catalog'
+import { getClimateProfile, getPredominantClimateCondition } from '@/data/canonicalClimateProfiles'
 import { TRACK_LAYOUTS } from '@/components/CircuitBlueprint'
 import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
@@ -164,29 +165,33 @@ export default function IndexPage() {
     return getCountryCode(currentGP?.country || currentCircuitData?.country, currentRound)
   }, [currentGP, currentCircuitData, currentRound])
 
-  // Informações de pista dinâmicas (chuva, temp, prazo, característica)
+  // Informações de pista dinâmicas com dados CLIMATOLÓGICOS canônicos (CLIMATE-01)
   const trackWeatherInfo = useMemo(() => {
-    const rain =
-      (currentGP as any)?.rain_probability ??
-      (currentCircuitData as any)?.rain_chance ??
-      (currentCircuitData as any)?.rain_probability
-    const temp =
-      (currentGP as any)?.temperature ??
-      (currentCircuitData as any)?.temperature ??
-      (currentCircuitData as any)?.temp
-    const deadline = (currentGP as any)?.deadline ?? (currentCircuitData as any)?.deadline
+    const climate = getClimateProfile({
+      round: currentRound,
+      circuitId: (currentGP as any)?.circuitId || (currentCircuitData as any)?.circuitId,
+      circuitName:
+        currentGP?.circuit ||
+        currentGP?.name ||
+        currentCircuitData?.circuit ||
+        currentCircuitData?.name,
+      country: currentGP?.country || currentCircuitData?.country,
+    })
+
+    const predominantCondition = getPredominantClimateCondition(climate)
+    const rainPct = Math.round(climate.rainProbability * 100)
 
     return {
-      rainDisplay: rain !== undefined && rain !== null ? `${rain}%` : '—',
-      tempDisplay: temp !== undefined && temp !== null ? `${temp} ºC` : '—',
-      deadlineDisplay: deadline ? String(deadline) : '—',
+      climateCondition: predominantCondition,
+      rainDisplay: `${rainPct}%`,
+      tempDisplay: `${climate.avgAirTempC}°C`,
       characteristic:
         currentGP?.characteristic ||
         (currentCircuitData as any)?.characteristics ||
         (currentCircuitData as any)?.description ||
         null,
     }
-  }, [currentGP, currentCircuitData])
+  }, [currentGP, currentCircuitData, currentRound])
 
   // Circuito visual do PocketBase ou default
   const circuitPhotoUrl = useMemo(() => {
@@ -588,33 +593,40 @@ export default function IndexPage() {
               </div>
             </div>
 
-            {/* Informações Relevantes de Pista */}
-            <div className="grid grid-cols-3 gap-2 pt-1 font-sans">
-              <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
-                <span className="text-[10px] text-[#64748B] font-medium uppercase block">
-                  Prazo
+            {/* Informações Relevantes de Pista (CLIMATE-01: CLIMA / CHUVA / TEMP. com clima médio do GP) */}
+            <div className="space-y-1.5 pt-1 font-sans">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
+                  <span className="text-[10px] text-[#64748B] font-medium uppercase block">
+                    Clima
+                  </span>
+                  <strong className="text-xs sm:text-sm font-bold text-[#0F172A] block mt-0.5 font-mono tracking-tight">
+                    {trackWeatherInfo.climateCondition}
+                  </strong>
+                </div>
+                <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
+                  <div className="flex items-center justify-center gap-1 text-[10px] text-[#64748B] font-medium uppercase">
+                    <CloudRain className="w-3 h-3 text-cyan-600" />
+                    <span>Chuva</span>
+                  </div>
+                  <strong className="text-xs sm:text-sm font-bold text-cyan-600 block mt-0.5 font-mono">
+                    {trackWeatherInfo.rainDisplay}
+                  </strong>
+                </div>
+                <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
+                  <div className="flex items-center justify-center gap-1 text-[10px] text-[#64748B] font-medium uppercase">
+                    <Thermometer className="w-3 h-3 text-amber-500" />
+                    <span>Temp.</span>
+                  </div>
+                  <strong className="text-xs sm:text-sm font-bold text-[#0F172A] block mt-0.5 font-mono">
+                    {trackWeatherInfo.tempDisplay}
+                  </strong>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-[#94A3B8] font-normal tracking-wide">
+                  Clima médio do GP
                 </span>
-                <strong className="text-xs sm:text-sm font-bold text-[#0F172A] block mt-0.5 font-mono">
-                  {trackWeatherInfo.deadlineDisplay}
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
-                <div className="flex items-center justify-center gap-1 text-[10px] text-[#64748B] font-medium uppercase">
-                  <CloudRain className="w-3 h-3 text-cyan-600" />
-                  <span>Chuva</span>
-                </div>
-                <strong className="text-xs sm:text-sm font-bold text-cyan-600 block mt-0.5 font-mono">
-                  {trackWeatherInfo.rainDisplay}
-                </strong>
-              </div>
-              <div className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-center">
-                <div className="flex items-center justify-center gap-1 text-[10px] text-[#64748B] font-medium uppercase">
-                  <Thermometer className="w-3 h-3 text-amber-500" />
-                  <span>Temp.</span>
-                </div>
-                <strong className="text-xs sm:text-sm font-bold text-[#0F172A] block mt-0.5 font-mono">
-                  {trackWeatherInfo.tempDisplay}
-                </strong>
               </div>
             </div>
 

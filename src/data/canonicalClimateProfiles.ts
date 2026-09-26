@@ -513,3 +513,21 @@ export function getClimateProfile(query: {
   // Defesa técnica final caso todos os campos sejam vazios/inválidos
   return CLIMATE_PROFILES[0]
 }
+
+/**
+ * Retorna a denominação textual coerente do perfil climático predominante de um circuito:
+ * - "VARIÁVEL": se weatherVariability >= 0.40 e rainProbability >= 0.20
+ * - "CHUVOSO": se rainProbability >= 0.35 e weatherVariability < 0.40
+ * - "SECO": nos demais casos
+ */
+export function getPredominantClimateCondition(
+  profile: ClimateProfile,
+): 'SECO' | 'CHUVOSO' | 'VARIÁVEL' {
+  if (profile.weatherVariability >= 0.4 && profile.rainProbability >= 0.2) {
+    return 'VARIÁVEL'
+  }
+  if (profile.rainProbability >= 0.35) {
+    return 'CHUVOSO'
+  }
+  return 'SECO'
+}
