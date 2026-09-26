@@ -22,7 +22,7 @@ import { createInitialTireInventory, formatTireName } from '@/lib/f1-tire-system
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { hasSprintWeekend } from '@/services/weekendProgressionService'
 import type { DriverModel, TeamModel, TireSetItem, TireCompound } from '@/types/f1'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { getTeamCarPhotoUrl } from '@/lib/team-car-photo-resolver'
@@ -683,7 +683,7 @@ export function PracticePreparationView({
           <div className="space-y-2 p-3 rounded-xl bg-[#0E1521] border border-[#1A2436]">
             <div className="flex items-center justify-between">
               <span className="font-bold text-white flex items-center gap-1.5">
-                {getCountryFlag(driver1?.nationality)} {driver1?.name || 'Piloto 1'} (Carro 1)
+                {resolveCountryFlag(driver1?.nationality)} {driver1?.name || 'Piloto 1'} (Carro 1)
               </span>
               <span className="text-[10px] text-[#00A6FB]">{car1Tires.length} jogos totais</span>
             </div>
@@ -736,7 +736,7 @@ export function PracticePreparationView({
           <div className="space-y-2 p-3 rounded-xl bg-[#0E1521] border border-[#1A2436]">
             <div className="flex items-center justify-between">
               <span className="font-bold text-white flex items-center gap-1.5">
-                {getCountryFlag(driver2?.nationality)} {driver2?.name || 'Piloto 2'} (Carro 2)
+                {resolveCountryFlag(driver2?.nationality)} {driver2?.name || 'Piloto 2'} (Carro 2)
               </span>
               <span className="text-[10px] text-[#00A6FB]">{car2Tires.length} jogos totais</span>
             </div>

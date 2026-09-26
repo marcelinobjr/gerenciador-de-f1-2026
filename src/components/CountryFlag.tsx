@@ -5,15 +5,16 @@ import { cn } from '@/lib/utils'
 export interface CountryFlagProps {
   code?: string | null
   className?: string
+  title?: string
 }
 
-export const CountryFlag: React.FC<CountryFlagProps> = ({ code, className }) => {
+export const CountryFlag: React.FC<CountryFlagProps> = ({ code, className, title: customTitle }) => {
   if (!code || !code.trim()) {
     return null
   }
 
   const flag = countryFlag(code)
-  const label = countryName(code)
+  const label = customTitle || countryName(code)
 
   return (
     <span

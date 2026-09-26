@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { UnifiedDriverItem } from '@/pages/DriversPage'
 import { DriverPoster } from '@/components/DriverPoster'
-import { getCountryFlag } from '@/lib/country-flags'
 import { CountryFlag } from '@/components/CountryFlag'
 import { getOverallRating } from '@/lib/mbj-drivers-data'
 import { formatUsdCurrency } from '@/components/PilotProfileDialog'

@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import {
   PRACTICE_PROGRAMS,
   type PracticeCarPreparation,
@@ -171,7 +171,7 @@ export function PracticeCarPanel({
                 className="w-14 h-14 rounded-xl border-2 border-[#232F42] shadow-md object-cover"
               />
               <span className="absolute -bottom-1 -right-1 text-base leading-none">
-                {getCountryFlag(driver?.nationality)}
+                {resolveCountryFlag(driver?.nationality)}
               </span>
             </div>
 

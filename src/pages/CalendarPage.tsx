@@ -19,7 +19,7 @@ import { CircuitTrackImage } from '@/components/CircuitTrackImage'
 import { getCircuitImage } from '@/data/assets/circuitAssets'
 import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import type { DriverModel, GrandPrixInfo, RaceResultModel } from '@/types/f1'
 import type { RookieTl1Plan, RookieEligibilityCheck } from '@/types/rookie-practice'
 import type { OfficialRaceResult } from '@/types/canonical-race-v2'
@@ -716,7 +716,7 @@ export default function CalendarPage() {
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-mono font-bold text-[#0F172A]">R{gp.round}</span>
                         <span className="text-base leading-none" role="img" aria-label={gp.country}>
-                          {getCountryFlag(gp.country)}
+                          {resolveCountryFlag(gp.country)}
                         </span>
                         <span className="text-[10px] font-mono text-[#64748B]">{dateText}</span>
                       </div>
@@ -842,7 +842,7 @@ export default function CalendarPage() {
 
             <div className="flex items-start gap-3">
               <span className="text-3xl leading-none" role="img" aria-label={selectedGp.country}>
-                {getCountryFlag(selectedGp.country)}
+                {resolveCountryFlag(selectedGp.country)}
               </span>
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-black text-[#0F172A] leading-tight truncate">
@@ -1101,7 +1101,7 @@ export default function CalendarPage() {
                           className="p-2 rounded-lg bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-between text-xs cursor-pointer transition-colors"
                         >
                           <div className="flex items-center gap-2">
-                            <span>{getCountryFlag(gp.country)}</span>
+                            <span>{resolveCountryFlag(gp.country)}</span>
                             <span className="font-bold text-[#0F172A]">{gp.country}</span>
                             <span className="text-[10px] text-[#64748B] font-mono">
                               R{gp.round} • {formatGpDate(gp.round)}

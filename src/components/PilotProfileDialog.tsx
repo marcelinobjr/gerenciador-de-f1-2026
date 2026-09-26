@@ -9,7 +9,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DriverPoster } from '@/components/DriverPoster'
-import { getCountryFlag } from '@/lib/country-flags'
 import { CountryFlag } from '@/components/CountryFlag'
 import { checkEligibility, getOverallRating, getDriverCareerStats } from '@/lib/mbj-drivers-data'
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'

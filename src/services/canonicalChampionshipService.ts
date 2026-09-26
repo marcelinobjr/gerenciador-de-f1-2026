@@ -23,7 +23,7 @@ import { canonicalRaceResultService } from '@/services/canonicalRaceResultServic
 import { driverBase2026Service } from '@/services/driverBase2026Service'
 import { findCanonicalDriverMaster } from '@/lib/canonical-driver-database'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import pb from '@/lib/pocketbase/client'
 
 export const CANONICAL_CHAMPIONSHIP_SNAPSHOT_PREFIX = 'championship'
@@ -327,7 +327,7 @@ export class CanonicalChampionshipService {
         driverId: b1.id,
         driverName: d1.name,
         nationality: d1.nationality,
-        flag: getCountryFlag(d1.nationality),
+        flag: resolveCountryFlag(d1.nationality),
         points: 0,
         wins: 0,
         secondPlaces: 0,
@@ -351,7 +351,7 @@ export class CanonicalChampionshipService {
         driverId: b2.id,
         driverName: d2.name,
         nationality: d2.nationality,
-        flag: getCountryFlag(d2.nationality),
+        flag: resolveCountryFlag(d2.nationality),
         points: 0,
         wins: 0,
         secondPlaces: 0,
@@ -642,7 +642,7 @@ export class CanonicalChampionshipService {
         driverId: d.driverId,
         driverName: d.driverName,
         nationality: d.nationality,
-        flag: getCountryFlag(d.nationality),
+        flag: resolveCountryFlag(d.nationality),
         points: d.points,
         wins: d.wins,
         secondPlaces: d.secondPlaces,

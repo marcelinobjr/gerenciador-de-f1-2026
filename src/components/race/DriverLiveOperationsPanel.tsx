@@ -17,7 +17,7 @@ import type { SimDriverEntry } from '@/pages/race/types'
 import type { DriverModel } from '@/types/f1'
 import { DriverPoster } from '@/components/DriverPoster'
 import { TIRE_SPECS, selectCarTireDisplayState } from '@/lib/f1-tire-system'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import type { LiveTacticalMode } from '@/pages/race/RaceOperationsCockpit'
 import type { LivePaceOrder } from '@/components/race/LiveTelemetryTable'
 import type { RacePendingDecision } from '@/types/race-session'
@@ -86,7 +86,7 @@ export const DriverLiveOperationsPanel: React.FC<DriverLiveOperationsPanelProps>
   // =========================================================================
   const driverNumber = (driver as any).driver_number || (slotNumber === 1 ? 16 : 55)
   const driverName = car.driverName || driver.name
-  const countryFlag = getCountryFlag(driver.nationality || (car as any).nationality)
+  const countryFlag = resolveCountryFlag(driver.nationality || (car as any).nationality)
   const position = car.position || 0
   const gapFront = car.gapToFront || '—'
   const gapLeader = car.gapToLeader || '—'

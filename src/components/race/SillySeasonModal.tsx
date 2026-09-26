@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Users, Sparkles, ArrowRight } from 'lucide-react'
 import { MarketMoveEvent, SeasonModel } from '@/types/f1'
-import { getCountryFlag } from '@/lib/country-flags'
 import { CountryFlag } from '@/components/CountryFlag'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 

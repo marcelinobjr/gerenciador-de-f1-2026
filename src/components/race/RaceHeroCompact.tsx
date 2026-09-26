@@ -13,7 +13,7 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react'
-import { getCountryFlag } from '@/lib/country-flags'
+import { CountryFlag } from '@/components/CountryFlag'
 import type { CircuitPerformanceProfile } from '@/data/circuit-performance-profiles'
 
 export interface RaceHeroCompactProps {
@@ -45,7 +45,6 @@ export const RaceHeroCompact: React.FC<RaceHeroCompactProps> = ({
   laps = 53,
   circuitLengthKm = 5.8,
 }) => {
-  const flagUrl = getCountryFlag(country)
   const formatLabel = isSprint ? 'Formato Sprint (FIA)' : 'Formato Padrão (FIA)'
 
   return (
@@ -72,16 +71,11 @@ export const RaceHeroCompact: React.FC<RaceHeroCompactProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            {flagUrl && (
-              <img
-                src={flagUrl}
-                alt={country}
-                className="w-7 h-5 object-cover rounded shadow-xs border border-[#E2E8F0]"
-                onError={(e) => {
-                  ;(e.target as HTMLElement).style.display = 'none'
-                }}
-              />
-            )}
+            <CountryFlag
+              code={country}
+              className="text-2xl leading-none select-none"
+              title={country}
+            />
             <h2 className="text-xl sm:text-2xl font-black text-[#0F172A] tracking-tight uppercase">
               {gpName}
             </h2>

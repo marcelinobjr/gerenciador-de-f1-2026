@@ -18,7 +18,7 @@ import {
   normalizeEntityName,
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { PageHeader } from '@/components/PageHeader'
 import { StatCard } from '@/components/StatCard'
@@ -408,7 +408,7 @@ export default function TeamsPage() {
   const playerTitular2 = playerDrivers.filter((d) => d.role !== 'reserva')[1]
   const playerReserve = playerDrivers.find((d) => d.role === 'reserva')
 
-  const getFlag = (nat?: string) => getCountryFlag(nat)
+  const getFlag = (nat?: string) => resolveCountryFlag(nat)
 
   const currentEngine = useMemo(() => {
     const sName = team?.engine_supplier || 'Mercedes'

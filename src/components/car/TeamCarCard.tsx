@@ -1,6 +1,6 @@
 import React from 'react'
 import { DriverModel, TeamModel } from '@/types/f1'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { getTeamSideView } from '@/data/assets/teamAssets'
 import { getCarroPorEquipeImage } from '@/assets/carroPorEquipe'
@@ -35,7 +35,7 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
   const carImage = getTeamSideView(teamKey) || getCarroPorEquipeImage(teamKey, isCustom)
 
   const driverNationality = driver?.nationality || 'Brasil'
-  const driverFlag = getCountryFlag(driverNationality)
+  const driverFlag = resolveCountryFlag(driverNationality)
   const teamColor = team?.color || '#E10600'
 
   return (

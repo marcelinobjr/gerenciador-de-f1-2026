@@ -4,7 +4,7 @@ import {
   normalizeEntityName,
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
-import { getCountryFlag } from '@/lib/country-flags'
+import { resolveCountryFlag } from '@/lib/country-flag'
 import type { TeamModel, DriverModel, RaceResultModel, SeasonModel, PartModel } from '@/types/f1'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { canonicalChampionshipMigrationService } from '@/services/canonicalChampionshipMigrationService'
@@ -255,7 +255,7 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
       id: d.id,
       name: d.name,
       nationality: d.nationality,
-      flag: getCountryFlag(d.nationality),
+      flag: resolveCountryFlag(d.nationality),
       teamName: team?.name || 'Escuderia Brasil',
       teamColor: team?.color || '#FF3B30',
       points: 0,
@@ -277,7 +277,7 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
       id: d1Key,
       name: aiTeam.driver1.name,
       nationality: aiTeam.driver1.nationality,
-      flag: getCountryFlag(aiTeam.driver1.nationality || aiTeam.driver1.flag),
+      flag: resolveCountryFlag(aiTeam.driver1.nationality || aiTeam.driver1.flag),
       teamName: aiTeam.name,
       teamColor: aiTeam.color,
       points: d1Stat.points,
@@ -291,7 +291,7 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
       id: d2Key,
       name: aiTeam.driver2.name,
       nationality: aiTeam.driver2.nationality,
-      flag: getCountryFlag(aiTeam.driver2.nationality || aiTeam.driver2.flag),
+      flag: resolveCountryFlag(aiTeam.driver2.nationality || aiTeam.driver2.flag),
       teamName: aiTeam.name,
       teamColor: aiTeam.color,
       points: d2Stat.points,

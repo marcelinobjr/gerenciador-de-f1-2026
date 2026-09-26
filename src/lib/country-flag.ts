@@ -192,6 +192,20 @@ export function countryFlag(codeOrName?: string | null): string {
 }
 
 /**
+ * Resolver canônico de bandeiras com fallback seguro determinístico (para apresentação de texto/string).
+ * Substitui o legado getCountryFlag em todos os serviços e componentes.
+ */
+export function resolveCountryFlag(codeOrName?: string | null, fallback = '🏳️'): string {
+  if (!codeOrName || typeof codeOrName !== 'string') return fallback
+  const flag = countryFlag(codeOrName)
+  if (!flag || flag === codeOrName.trim()) {
+    // Se não resolveu para um emoji válido, usa o fallback seguro (padrão 🏳️ ou o fallback passado)
+    return /\p{Extended_Pictographic}/u.test(flag) ? flag : fallback
+  }
+  return flag
+}
+
+/**
  * Retorna o nome amigável em português para acessibilidade (title / aria-label).
  * Desconhecido -> a própria sigla/string de entrada.
  */
