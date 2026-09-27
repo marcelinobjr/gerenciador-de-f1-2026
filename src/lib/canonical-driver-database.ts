@@ -1233,6 +1233,20 @@ export function getActiveDriverTeamBinding(
       } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
         cRole = 'desenvolvimento'
       }
+      // Se a equipe não pôde ser resolvida no banco pelo boundTeamId (ex.: id que não bate ou inconsistência de save),
+      // não degradar silenciosamente para Free Agent se o piloto possui vínculo canônico mestre:
+      if (!matchedTeam && canonicalDriver?.teamId) {
+        const canonicalTeam = findTeamRecord(canonicalDriver.teamId)
+        let fallbackRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = cRole
+        if (canonicalDriver.role === 'reserva') fallbackRole = 'reserva'
+        else if (canonicalDriver.role === 'academy') fallbackRole = 'academia'
+        return buildBindingResult(
+          canonicalDriver,
+          canonicalTeam,
+          fallbackRole,
+          canonicalDriver.teamId,
+        )
+      }
       return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
     }
   }
