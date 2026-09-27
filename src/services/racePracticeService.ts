@@ -311,12 +311,14 @@ export class RacePracticeService {
     isSprint: boolean,
   ): {
     nextSession: 'TL1' | 'TL2' | 'TL3' | 'Q1' | 'SQ1'
+    status: 'TL1' | 'TL2' | 'TL3' | 'READY_FOR_Q1' | 'READY_FOR_SQ1'
     statusDescription: string
     isPracticeComplete: boolean
   } {
     if (!state || !state.lastCompletedSession) {
       return {
         nextSession: 'TL1',
+        status: 'TL1',
         statusDescription: 'Treinos Livres não iniciados. Próxima sessão: TL1',
         isPracticeComplete: false,
       }
@@ -326,6 +328,7 @@ export class RacePracticeService {
       if (state.lastCompletedSession === 'TL1') {
         return {
           nextSession: 'SQ1',
+          status: 'READY_FOR_SQ1',
           statusDescription: 'Treino livre concluído. Fim de semana sprint pronto para SQ1.',
           isPracticeComplete: true,
         }
@@ -335,18 +338,21 @@ export class RacePracticeService {
         case 'TL1':
           return {
             nextSession: 'TL2',
+            status: 'TL2',
             statusDescription: 'TL1 concluído. Próxima sessão: TL2',
             isPracticeComplete: false,
           }
         case 'TL2':
           return {
             nextSession: 'TL3',
+            status: 'TL3',
             statusDescription: 'TL2 concluído. Próxima sessão: TL3',
             isPracticeComplete: false,
           }
         case 'TL3':
           return {
             nextSession: 'Q1',
+            status: 'READY_FOR_Q1',
             statusDescription: 'Todos os treinos livres concluídos. Pronto para Q1.',
             isPracticeComplete: true,
           }
@@ -355,6 +361,7 @@ export class RacePracticeService {
 
     return {
       nextSession: 'TL1',
+      status: 'TL1',
       statusDescription: 'Pronto para treinos livres.',
       isPracticeComplete: false,
     }

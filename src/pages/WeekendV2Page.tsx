@@ -470,11 +470,12 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'q1' && !stored.includes('tp2')) {
+    if (sess === 'q1' && !stored.includes('tp2') && !stored.includes('tp3')) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
-        description: 'Você precisa concluir o TL2 antes de iniciar a Qualificação (Q1).',
+        description:
+          'Você precisa concluir os treinos livres antes de iniciar a Qualificação (Q1).',
       })
       return
     }

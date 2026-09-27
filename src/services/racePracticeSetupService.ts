@@ -111,9 +111,31 @@ export function getPracticeSetupStorageKey(
   return `apex_practice_setup_${careerId}_${seasonId}_r${round}_${session}`
 }
 
+export type WeekendNormalStatus = 'TL1' | 'TL2' | 'TL3' | 'READY_FOR_Q1'
+
+export interface WeekendNormalState {
+  careerId: string
+  seasonId: string
+  round: number
+  status: WeekendNormalStatus
+  lastCompletedSession: PracticeSessionId | null
+  carSetups: Record<
+    string, // carKey: `${teamId}_c${carIndex}`
+    {
+      teamId: string
+      carIndex: 1 | 2
+      accumulatedSetup: number
+      qualifyingBonusSeconds: number
+      raceBonusSecondsPerLap: number
+      lastDriverId: string
+      sessionsCompleted: PracticeSessionId[]
+    }
+  >
+}
+
 export class RacePracticeSetupService {
   /**
-   * Resolve as regras de TL1 a partir da configuração versionada.
+   * Resolve as regras de treinos a partir da configuração versionada.
    * Não hardcoda valores caso a tabela practice_sessions exista no snapshot.
    */
   public resolvePracticeSessionRules(
@@ -493,6 +515,89 @@ export class RacePracticeSetupService {
       raceBonusSecondsPerLap: 0,
       isPracticeComplete: false,
       nextStep: 'TL1',
+    }
+  }
+
+  /**
+   * Retorna o estado consolidado do fim de semana NORMAL (TL1 -> TL2 -> TL3 -> READY_FOR_Q1).
+   * O acerto pertence ao CARRO + FIM DE SEMANA.
+   * Quando o TL3 é completado para o fim de semana, o status avança para READY_FOR_Q1.
+   */
+  public async getWeekendNormalState(params: {
+    careerId: string
+    seasonId: string
+    round: number
+    teamId: string
+    cars?: (1 | 2)[]
+  }): Promise<WeekendNormalState> {
+    const { careerId, seasonId, round, teamId, cars = [1, 2] } = params
+    const carSetups: WeekendNormalState['carSetups'] = {}
+    let maxSessionCompletedIndex = -1
+    const order: PracticeSessionId[] = ['TL1', 'TL2', 'TL3']
+
+    for (const carIndex of cars) {
+      const carKey = `${teamId}_c${carIndex}`
+      let accumulated = 0
+      let qualiBonus = 0
+      let raceBonus = 0
+      let lastDriver = ''
+      const completedList: PracticeSessionId[] = []
+
+      for (let i = 0; i < order.length; i++) {
+        const sess = order[i]
+        const factKey = buildPracticeSetupFactKey({
+          careerId,
+          seasonId,
+          round,
+          session: sess,
+          teamId,
+          carIndex,
+        })
+        const rec = await this.loadPersistedApplication(careerId, seasonId, round, sess, factKey)
+        if (rec) {
+          accumulated = rec.accumulatedSetup
+          qualiBonus = rec.qualifyingBonusSeconds
+          raceBonus = rec.raceBonusSecondsPerLap
+          lastDriver = rec.driverId
+          completedList.push(sess)
+          if (i > maxSessionCompletedIndex) {
+            maxSessionCompletedIndex = i
+          }
+        }
+      }
+
+      carSetups[carKey] = {
+        teamId,
+        carIndex,
+        accumulatedSetup: accumulated,
+        qualifyingBonusSeconds: qualiBonus,
+        raceBonusSecondsPerLap: raceBonus,
+        lastDriverId: lastDriver,
+        sessionsCompleted: completedList,
+      }
+    }
+
+    let status: WeekendNormalStatus = 'TL1'
+    let lastCompletedSession: PracticeSessionId | null = null
+
+    if (maxSessionCompletedIndex === 0) {
+      status = 'TL2'
+      lastCompletedSession = 'TL1'
+    } else if (maxSessionCompletedIndex === 1) {
+      status = 'TL3'
+      lastCompletedSession = 'TL2'
+    } else if (maxSessionCompletedIndex === 2) {
+      status = 'READY_FOR_Q1'
+      lastCompletedSession = 'TL3'
+    }
+
+    return {
+      careerId,
+      seasonId,
+      round,
+      status,
+      lastCompletedSession,
+      carSetups,
     }
   }
 
