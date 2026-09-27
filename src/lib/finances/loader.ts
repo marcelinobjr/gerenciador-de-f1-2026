@@ -9,7 +9,7 @@
  * 5. Não inventa coeficientes nem usa fallbacks silenciosos.
  */
 
-import { pb } from '../pocketbase/client'
+import pb from '../pocketbase/client'
 import { VersionedEconomicConfig, FinancialEconomicRules, MANDATORY_RULE_KEYS } from './types'
 
 export class FinancialConfigLoadError extends Error {
