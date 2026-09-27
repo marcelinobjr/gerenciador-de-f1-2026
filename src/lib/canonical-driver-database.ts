@@ -62,6 +62,7 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   '9uazqw522oc9p4z': 'DRV_0012', // Gabriel Bortoleto
   drv_gabriel_bortoleto: 'DRV_0012',
   drv_nico_hulkenberg: 'DRV_0068',
+  'mbj-033': 'DRV_0049', // Colton Herta
 }
 
 for (const pilot of MBJ_2026_PILOTS) {

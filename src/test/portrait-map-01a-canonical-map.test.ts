@@ -268,6 +268,21 @@ describe('PORTRAIT-MAP-01A: Mapeamento Canônico de Retratos de Pilotos (PM01A-0
     expect(report.driversWithoutPortrait).toEqual(['mbj-135'])
   })
 
+  it('Herta mbj-033 resolve determinísticamente para DRV_0049 e Ricciardo mbj-034 para DRV_0008', () => {
+    expect(CANONICAL_DRIVER_ID_TO_ASSET_ID['mbj-033']).toBe('DRV_0049')
+    expect(CANONICAL_DRIVER_ID_TO_ASSET_ID['mbj-034']).toBe('DRV_0008')
+    expect(getCanonicalAssetId('mbj-033')).toBe('DRV_0049')
+    expect(getCanonicalAssetId('mbj-034')).toBe('DRV_0008')
+
+    const hertaMaster = getCanonicalDriverMaster('mbj-033')
+    expect(hertaMaster?.fullName).toBe('Colton Herta')
+    expect(hertaMaster?.assetId).toBe('DRV_0049')
+
+    const ricciardoMaster = getCanonicalDriverMaster('mbj-034')
+    expect(ricciardoMaster?.fullName).toBe('Daniel Ricciardo')
+    expect(ricciardoMaster?.assetId).toBe('DRV_0008')
+  })
+
   // Regressões extras: Verstappen->DRV_0022, Doohan->DRV_0015, Mick Schumacher->DRV_0105, Hamilton->DRV_0104
   describe('Regressões extras canônicas (Verstappen, Doohan, Mick Schumacher, Hamilton)', () => {
     it('Verstappen (mbj-001) resolve para DRV_0022 e /pilotos/DRV_0022.jpg', () => {
