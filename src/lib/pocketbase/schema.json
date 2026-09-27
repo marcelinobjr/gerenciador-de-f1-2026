@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T18:57:26.285Z",
+  "generatedAt": "2026-09-27T19:22:46.460Z",
   "collections": [
     {
       "name": "users",
@@ -2635,6 +2635,111 @@
         "CREATE UNIQUE INDEX idx_fin_conf_version ON financial_versioned_configs (version)",
         "CREATE INDEX idx_fin_conf_sha256 ON financial_versioned_configs (sha256)",
         "CREATE INDEX idx_fin_conf_status ON financial_versioned_configs (status)"
+      ]
+    },
+    {
+      "name": "race_versioned_configs",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "version",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["DRAFT", "ACTIVE", "ARCHIVED"]
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "work_item",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "delivery_version",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "source_declared_version",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "source_sha256",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "parameters",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tables",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "catalogs",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_race_conf_version ON race_versioned_configs (version)",
+        "CREATE INDEX idx_race_conf_sha256 ON race_versioned_configs (sha256)",
+        "CREATE INDEX idx_race_conf_status ON race_versioned_configs (status)"
       ]
     }
   ]
