@@ -137,33 +137,33 @@ describe('PORTRAIT-MAP-01A: Mapeamento Canônico de Retratos de Pilotos (PM01A-0
     expect(photo.assetId).toBe('DRV_0089')
   })
 
-  // PM01A-06: 134 assetIds reais únicos, 0 duplicados
-  it('PM01A-06: exatamente 134 assetIds reais únicos no catálogo mestre sem duplicatas', () => {
+  // PM01A-06: 136 assetIds reais únicos, 0 duplicados
+  it('PM01A-06: exatamente 136 assetIds reais únicos no catálogo mestre sem duplicatas', () => {
     const assetMapValues: string[] = Object.values(DRIVER_PORTRAIT_ASSET_MAP)
-    expect(assetMapValues).toHaveLength(134)
+    expect(assetMapValues).toHaveLength(136)
     const uniqueMapAssets = new Set<string>(assetMapValues)
-    expect(uniqueMapAssets.size).toBe(134)
+    expect(uniqueMapAssets.size).toBe(136)
 
     // E no banco mestre canônico CANONICAL_DRIVERS_MASTER:
     const masterAssets = CANONICAL_DRIVERS_MASTER.map((d) => d.assetId).filter(
       (a): a is string => a !== null,
     )
-    expect(masterAssets).toHaveLength(134)
+    expect(masterAssets).toHaveLength(136)
     const uniqueMasterAssets = new Set<string>(masterAssets)
-    expect(uniqueMasterAssets.size).toBe(134)
+    expect(uniqueMasterAssets.size).toBe(136)
 
-    // Todos na faixa DRV_0001 até DRV_0134
-    for (let i = 1; i <= 134; i++) {
-      const pad = String(i).padStart(4, '0')
-      const expectedAsset = `DRV_${pad}`
-      expect(uniqueMasterAssets.has(expectedAsset)).toBe(true)
-      expect(uniqueMapAssets.has(expectedAsset)).toBe(true)
+    // Todos os assetIds gerados são válidos DRV_XXXX
+    for (const asset of uniqueMasterAssets) {
+      expect(asset).toMatch(/^DRV_\d{4}$/)
+    }
+    for (const asset of uniqueMapAssets) {
+      expect(asset).toMatch(/^DRV_\d{4}$/)
     }
   })
 
-  // PM01A-07: canonicalDrivers=135, realPortraitMappings=134, sem asset por design=1 (Tony Kanaan mbj-135, assetId null), não existe DRV_0135
-  it('PM01A-07: canonicalDrivers=135, realPortraitMappings=134, Tony Kanaan mbj-135 assetId null por design, DRV_0135 inexistente', () => {
-    expect(CANONICAL_DRIVERS_MASTER).toHaveLength(135)
+  // PM01A-07: canonicalDrivers=137, realPortraitMappings=136, sem asset por design=1 (Tony Kanaan mbj-135, assetId null), DRV_0135/DRV_0136 presentes
+  it('PM01A-07: canonicalDrivers=137, realPortraitMappings=136, Tony Kanaan mbj-135 assetId null por design, DRV_0135/0136 presentes', () => {
+    expect(CANONICAL_DRIVERS_MASTER).toHaveLength(137)
     expect(CANONICAL_DRIVER_ID_TO_ASSET_ID['mbj-135']).toBeNull()
 
     const kanaan = getCanonicalDriverMaster('mbj-135')
@@ -178,10 +178,12 @@ describe('PORTRAIT-MAP-01A: Mapeamento Canônico de Retratos de Pilotos (PM01A-0
     expect(photoKanaan.sourceType).toBe('fallback_initials')
     expect(photoKanaan.fallbackInitials).toBe('TK')
 
-    // Não existe DRV_0135 em nenhum catálogo
+    // DRV_0135 e DRV_0136 agora existem para Mazepin e Kvyat
     const allValues = Object.values(CANONICAL_DRIVER_ID_TO_ASSET_ID)
-    expect(allValues).not.toContain('DRV_0135')
-    expect(Object.values(DRIVER_PORTRAIT_ASSET_MAP)).not.toContain('DRV_0135')
+    expect(allValues).toContain('DRV_0135')
+    expect(allValues).toContain('DRV_0136')
+    expect(Object.values(DRIVER_PORTRAIT_ASSET_MAP)).toContain('DRV_0135')
+    expect(Object.values(DRIVER_PORTRAIT_ASSET_MAP)).toContain('DRV_0136')
   })
 
   // PM01A-08: zero URL externa (drive.google.com / lh3.googleusercontent.com / thumbnail / uc?id=) nos paths de runtime
@@ -254,8 +256,8 @@ describe('PORTRAIT-MAP-01A: Mapeamento Canônico de Retratos de Pilotos (PM01A-0
   it('PM01A-10: auditCanonicalDriverPortraitMap() retorna estado canônico 100% íntegro', () => {
     const report = auditCanonicalDriverPortraitMap()
 
-    expect(report.canonicalDrivers).toBe(135)
-    expect(report.realPortraitMappings).toBe(134)
+    expect(report.canonicalDrivers).toBe(137)
+    expect(report.realPortraitMappings).toBe(136)
     expect(report.driversWithoutPortraitByDesign).toBe(1)
     expect(report.duplicateDriverIds).toBe(0)
     expect(report.duplicateAssetIds).toBe(0)

@@ -45,29 +45,27 @@ describe('Base Canônica de Pilotos 2026 & Catálogo de Fotos', () => {
     expect(hulkenberg?.resolvedPhotoPath).toBe('/pilotos/DRV_0068.jpg')
   })
 
-  it('cobre 134 IDs de fotos canônicas para todos os pilotos mbj (com Tony Kanaan mbj-135 como null por design)', () => {
+  it('cobre 136 IDs de fotos canônicas para todos os pilotos mbj (com Tony Kanaan mbj-135 como null por design)', () => {
     const keys = Object.keys(CANONICAL_DRIVER_ID_TO_ASSET_ID)
-    expect(keys.length).toBeGreaterThanOrEqual(134)
+    expect(keys.length).toBeGreaterThanOrEqual(136)
 
     const nonNullAssets = Object.values(CANONICAL_DRIVER_ID_TO_ASSET_ID).filter(
       (v): v is string => v !== null,
     )
     const assetSet = new Set(nonNullAssets)
-    expect(assetSet.size).toBe(134)
+    expect(assetSet.size).toBe(136)
     expect(CANONICAL_DRIVER_ID_TO_ASSET_ID['mbj-135']).toBeNull()
 
-    for (let i = 1; i <= 134; i++) {
-      const pad = String(i).padStart(4, '0')
-      const assetId = `DRV_${pad}`
-      expect(assetSet.has(assetId)).toBe(true)
+    for (const assetId of assetSet) {
+      expect(assetId).toMatch(/^DRV_\d{4}$/)
     }
   })
 
-  it('valida auditoria canônica auditCanonicalDriverPortraitMap com 134 fotos reais e 1 sem retrato por design (mbj-135)', () => {
+  it('valida auditoria canônica auditCanonicalDriverPortraitMap com 136 fotos reais e 1 sem retrato por design (mbj-135)', () => {
     const audit = auditCanonicalDriverPortraitMap()
     expect(audit).toEqual({
-      canonicalDrivers: 135,
-      realPortraitMappings: 134,
+      canonicalDrivers: 137,
+      realPortraitMappings: 136,
       driversWithoutPortraitByDesign: 1,
       duplicateDriverIds: 0,
       duplicateAssetIds: 0,

@@ -61,6 +61,7 @@ export const ISO3_TO_ISO2: Record<string, string> = {
   QAT: 'QA',
   UAE: 'AE',
   ARE: 'AE',
+  RUS: 'RU',
 }
 
 /**
@@ -118,6 +119,7 @@ export const COUNTRY_NAMES_PT: Record<string, string> = {
   QAT: 'Catar',
   UAE: 'Emirados Árabes Unidos',
   ARE: 'Emirados Árabes Unidos',
+  RUS: 'Rússia',
 }
 
 /**

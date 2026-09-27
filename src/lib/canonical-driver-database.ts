@@ -493,6 +493,60 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
   ],
   // O'Ward runtime ID
   nwhacbop67hucir: ['patricio_oward', 'patricio_o_ward', 'oward', 'mbj-025', 'drv_0042'],
+  // Nikita Mazepin
+  mazepin: ['nikita_mazepin', 'driver_nikita_mazepin', 'drv_nikita_mazepin', 'mbj-136', 'drv_0135'],
+  nikita_mazepin: ['mazepin', 'driver_nikita_mazepin', 'drv_nikita_mazepin', 'mbj-136', 'drv_0135'],
+  driver_nikita_mazepin: ['mazepin', 'nikita_mazepin', 'drv_nikita_mazepin', 'mbj-136', 'drv_0135'],
+  drv_nikita_mazepin: ['mazepin', 'nikita_mazepin', 'driver_nikita_mazepin', 'mbj-136', 'drv_0135'],
+  'mbj-136': [
+    'mazepin',
+    'nikita_mazepin',
+    'driver_nikita_mazepin',
+    'drv_nikita_mazepin',
+    'drv_0135',
+  ],
+  // Daniil Kvyat
+  kvyat: ['daniil_kvyat', 'driver_daniil_kvyat', 'drv_daniil_kvyat', 'mbj-137', 'drv_0136'],
+  daniil_kvyat: ['kvyat', 'driver_daniil_kvyat', 'drv_daniil_kvyat', 'mbj-137', 'drv_0136'],
+  driver_daniil_kvyat: ['kvyat', 'daniil_kvyat', 'drv_daniil_kvyat', 'mbj-137', 'drv_0136'],
+  drv_daniil_kvyat: ['kvyat', 'daniil_kvyat', 'driver_daniil_kvyat', 'mbj-137', 'drv_0136'],
+  'mbj-137': ['kvyat', 'daniil_kvyat', 'driver_daniil_kvyat', 'drv_daniil_kvyat', 'drv_0136'],
+  // Sébastien Bourdais
+  bourdais: [
+    'sebastien_bourdais',
+    'driver_sebastien_bourdais',
+    'drv_sebastien_bourdais',
+    'mbj-128',
+    'drv_0137',
+  ],
+  sebastien_bourdais: [
+    'bourdais',
+    'driver_sebastien_bourdais',
+    'drv_sebastien_bourdais',
+    'mbj-128',
+    'drv_0137',
+  ],
+  driver_sebastien_bourdais: [
+    'bourdais',
+    'sebastien_bourdais',
+    'drv_sebastien_bourdais',
+    'mbj-128',
+    'drv_0137',
+  ],
+  drv_sebastien_bourdais: [
+    'bourdais',
+    'sebastien_bourdais',
+    'driver_sebastien_bourdais',
+    'mbj-128',
+    'drv_0137',
+  ],
+  'mbj-128': [
+    'bourdais',
+    'sebastien_bourdais',
+    'driver_sebastien_bourdais',
+    'drv_sebastien_bourdais',
+    'drv_0137',
+  ],
 }
 
 /**

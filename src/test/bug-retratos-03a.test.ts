@@ -27,13 +27,13 @@ import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import { MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
 
 describe('BUG-RETRATOS-03A: Homologação Canônica do Mapeamento mbj -> DRV (BRT03A-01..10)', () => {
-  // BRT03A-01: 134 pilotos reais mapeados
-  it('BRT03A-01: 134 pilotos reais mapeados com foto canônica (total 135 com Tony Kanaan sem foto)', () => {
-    expect(MBJ_2026_PILOTS).toHaveLength(135)
-    expect(CANONICAL_DRIVERS_MASTER).toHaveLength(135)
+  // BRT03A-01: 136 pilotos reais mapeados com foto canônica (total 137 com Tony Kanaan sem foto)
+  it('BRT03A-01: 136 pilotos reais mapeados com foto canônica (total 137 com Tony Kanaan sem foto)', () => {
+    expect(MBJ_2026_PILOTS).toHaveLength(137)
+    expect(CANONICAL_DRIVERS_MASTER).toHaveLength(137)
 
     const mappedWithPhoto = CANONICAL_DRIVERS_MASTER.filter((d) => d.assetId !== null)
-    expect(mappedWithPhoto).toHaveLength(134)
+    expect(mappedWithPhoto).toHaveLength(136)
 
     const pilotsWithoutPhoto = CANONICAL_DRIVERS_MASTER.filter((d) => d.assetId === null)
     expect(pilotsWithoutPhoto).toHaveLength(1)
@@ -42,7 +42,7 @@ describe('BUG-RETRATOS-03A: Homologação Canônica do Mapeamento mbj -> DRV (BR
   })
 
   // BRT03A-02: mapa mbj->DRV bijetivo (zero colisão de assetId; null do Kanaan fora da checagem)
-  it('BRT03A-02: mapa mbj->DRV é bijetivo (zero colisão de assetId entre os 134 pilotos com foto)', () => {
+  it('BRT03A-02: mapa mbj->DRV é bijetivo (zero colisão de assetId entre os 136 pilotos com foto)', () => {
     const assetIdToDriverIds = new Map<string, string[]>()
 
     for (const pilot of MBJ_2026_PILOTS) {
@@ -65,7 +65,7 @@ describe('BUG-RETRATOS-03A: Homologação Canônica do Mapeamento mbj -> DRV (BR
     }
 
     expect(collisions).toEqual([])
-    expect(assetIdToDriverIds.size).toBe(134)
+    expect(assetIdToDriverIds.size).toBe(136)
   })
 
   // BRT03A-03: Kyle Larson (mbj-055) -> DRV_0018
@@ -154,8 +154,8 @@ describe('BUG-RETRATOS-03A: Homologação Canônica do Mapeamento mbj -> DRV (BR
     expect(photo.assetId).toBe('DRV_0121')
   })
 
-  // BRT03A-08: toda referência DRV existe no catálogo e na faixa DRV_0001..DRV_0134
-  it('BRT03A-08: toda referência DRV gerada existe em DRIVER_PORTRAIT_ASSET_MAP e na faixa DRV_0001..DRV_0134', () => {
+  // BRT03A-08: toda referência DRV existe no catálogo e na faixa canônica de retratos
+  it('BRT03A-08: toda referência DRV gerada existe em DRIVER_PORTRAIT_ASSET_MAP e na faixa canônica DRV_XXXX', () => {
     const allValidAssets = new Set(Object.values(DRIVER_PORTRAIT_ASSET_MAP))
 
     for (const pilot of MBJ_2026_PILOTS) {
@@ -168,7 +168,7 @@ describe('BUG-RETRATOS-03A: Homologação Canônica do Mapeamento mbj -> DRV (BR
 
       const num = parseInt(assetId!.replace('DRV_', ''), 10)
       expect(num).toBeGreaterThanOrEqual(1)
-      expect(num).toBeLessThanOrEqual(134)
+      expect(num).toBeLessThanOrEqual(137)
     }
   })
 

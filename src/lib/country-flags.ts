@@ -492,6 +492,14 @@ export const COUNTRY_CODE_MAP: Record<string, string> = {
   sui: 'SUI',
   che: 'SUI',
 
+  // Rússia
+  russia: 'RUS',
+  rússia: 'RUS',
+  russo: 'RUS',
+  russa: 'RUS',
+  russian: 'RUS',
+  rus: 'RUS',
+
   // Bélgica
   belgica: 'BEL',
   bélgica: 'BEL',
