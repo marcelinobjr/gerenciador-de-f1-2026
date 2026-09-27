@@ -5,6 +5,7 @@ Registro de diretrizes e arquitetura para as próximas etapas de desenvolvimento
 ---
 
 ## 1. CALENDARIO-CIRCUITOS-01
+
 - **Origem dos Assets**: Utilizar imagens da pasta "circuitos" do repositório GitHub do projeto.
 - **Associação Canônica**: As imagens devem ser vinculadas estritamente pelo **ID canônico do circuito** (ex.: `monza`, `silverstone`, `interlagos`), e **nunca** pelo índice sequencial da rodada (`roundIndex`), garantindo consistência mesmo em calendários personalizados ou reordenados.
 - **Incorporação**: Incorporar localmente ao padrão de assets estáticos do projeto (`public/circuitos/` ou padrão canônico de assets do projeto), evitando dependência de URLs remotas instáveis em runtime.
@@ -12,6 +13,7 @@ Registro de diretrizes e arquitetura para as próximas etapas de desenvolvimento
 ---
 
 ## 2. RETRATOS-GERADOS-01
+
 - **Origem dos Assets**: Utilizar a pasta "pilotos-gerados" do repositório GitHub para retratos de pilotos procedurais/gerados ou sem vínculo direto ao catálogo DRV (`DRV_xxxx`).
 - **Resolução Canônica no `resolveDriverPhoto`**:
   - Hierarquia de prioridade obrigatória:
@@ -24,6 +26,7 @@ Registro de diretrizes e arquitetura para as próximas etapas de desenvolvimento
 ---
 
 ## 3. ESPECIFICAÇÃO PEÇAS / PU / ADUO
+
 - **Ciclo de Ciclo de Vida**: O ciclo técnico completo de componentes deve seguir as fases canônicas:
   `Projeto` → `Desenvolvimento` → `Fabricação` → `Instalação` → `Avaliação`.
 - **Natureza do ADUO (Ajuste de Desempenho / Atualização de Operação)**:
@@ -39,6 +42,7 @@ Registro de diretrizes e arquitetura para as próximas etapas de desenvolvimento
 ---
 
 ## 4. Diagnóstico Técnico: Max Verstappen (Situação Contratual)
+
 - **Sintoma Observado**: Max Verstappen aparecia como "Agente livre" ou com vínculo inconsistente na interface, apesar de ter registro no banco com `team_id` apontando para a McLaren (`76vs00hy9hu24q1`) ou Red Bull no catálogo esportivo.
 - **Causa Provável Identificada**:
   - No arquivo `src/lib/canonical-driver-database.ts` (função `getActiveDriverTeamBinding`), a precedência de resolução contratual continha uma trava de legado (`isKnownLegacyGlitch`) cobrindo especificamente o ID de runtime do Verstappen (`de3isw3re1ji2wj`) e Leclerc (`lc6cma46f01dgrj`) quando vinculados à McLaren (`76vs00hy9hu24q1`).

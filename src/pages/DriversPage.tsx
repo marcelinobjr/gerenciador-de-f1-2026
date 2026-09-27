@@ -80,6 +80,8 @@ export interface UnifiedDriverItem {
   rain: number
   defense: number
   salaryUsd: number
+  calculatedAge?: number
+  isFreeAgent?: boolean
   contractEnd: number
   teamId?: string | null
   teamKey?: string | null
@@ -323,7 +325,9 @@ export default function DriversPage() {
         id: d.id,
         name: d.name,
         nationality: d.nationality || mbjInfo?.nationality || 'Mundial',
-        age: calculatedAge || d.age || mbjInfo?.age || 25,
+        age: calculatedAge,
+        calculatedAge,
+        isFreeAgent: !teamId && !teamKey,
         speed,
         consistency,
         rain,
@@ -431,6 +435,8 @@ export default function DriversPage() {
         name: pilot.name,
         nationality: pilot.nationality,
         age: calculatedMbjAge,
+        calculatedAge: calculatedMbjAge,
+        isFreeAgent: Boolean(!mbjBinding.teamId && !mbjBinding.teamKey),
         speed: pilot.speed,
         consistency: pilot.consistency,
         rain: pilot.rain,
