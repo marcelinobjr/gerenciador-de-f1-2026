@@ -31,12 +31,10 @@ describe('temp dump audit', () => {
         }
       }),
     }
-    const resolvedPath = path.resolve(process.cwd(), 'src/data/audit-dump-raw.json')
-    fs.writeFileSync(resolvedPath, JSON.stringify(data, null, 2), 'utf-8')
-    expect(fs.existsSync(resolvedPath)).toBe(true)
-    const withRaces = MBJ_2026_PILOTS.filter((p) => (p.f1RacesCompleted ?? 0) > 0).map(
-      (p) => `${p.id}:${p.name}:${p.f1RacesCompleted}`,
-    )
-    expect(withRaces).toEqual(['SHOULD_FAIL_TO_SHOW_ARRAY'])
+    const allDump = MBJ_2026_PILOTS.map((p) => {
+      const inStats = DRIVER_CAREER_STATS_2025[p.id]
+      return `${p.id}#${p.name}#${p.f1RacesCompleted ?? 0}#${inStats ? `${inStats.races}` : 'NONE'}`
+    }).join(';')
+    expect(allDump.substring(0, 50)).toBe('DUMP_FAIL')
   })
 })
