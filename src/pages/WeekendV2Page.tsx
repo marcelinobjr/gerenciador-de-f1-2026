@@ -116,6 +116,7 @@ export default function WeekendV2Page() {
   const navigate = useNavigate()
   const { user, team, season, refreshTeamAndSeason, isLoading: isAuthLoading } = useAuth()
   const { currentRound, playerDrivers } = useUnifiedSeason()
+  const career = (team?.career_settings as any) || (season as any)?.career || null
   const { toast } = useToast()
 
   // 1. Definição do Grande Prêmio atual

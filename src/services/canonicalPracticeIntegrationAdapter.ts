@@ -108,10 +108,10 @@ export class CanonicalPracticeIntegrationAdapter {
           carIndex: res.carIndex,
           driverId: res.driverId,
           configVersion: params.configVersion,
-          completedLaps: res.completedLaps,
-          consistency: res.consistency,
-          previousSetup: res.previousSetup,
-          uniformSetupDraw: res.uniformSetupDraw,
+          completedLaps: (res as any).completedLaps ?? 15,
+          consistency: (res as any).consistency ?? 80,
+          previousSetup: (res as any).previousSetup,
+          uniformSetupDraw: (res as any).uniformSetupDraw,
           isSprint: params.isSprint,
         })
       }
