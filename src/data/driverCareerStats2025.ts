@@ -206,6 +206,7 @@ export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBase
   buemi: { races: 55, wins: 0, poles: 0, championships: 0 },
 
   // Daniil Kvyat: 110 largadas, 0 vitórias, 0 poles, 0 títulos
+  'mbj-137': { races: 110, wins: 0, poles: 0, championships: 0 },
   kvyat: { races: 110, wins: 0, poles: 0, championships: 0 },
   daniil_kvyat: { races: 110, wins: 0, poles: 0, championships: 0 },
   driver_daniil_kvyat: { races: 110, wins: 0, poles: 0, championships: 0 },
@@ -219,6 +220,7 @@ export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBase
   drv_sebastien_bourdais: { races: 27, wins: 0, poles: 0, championships: 0 },
 
   // Nikita Mazepin: 21 largadas, 0 vitórias, 0 poles, 0 títulos
+  'mbj-136': { races: 21, wins: 0, poles: 0, championships: 0 },
   mazepin: { races: 21, wins: 0, poles: 0, championships: 0 },
   nikita_mazepin: { races: 21, wins: 0, poles: 0, championships: 0 },
   driver_nikita_mazepin: { races: 21, wins: 0, poles: 0, championships: 0 },

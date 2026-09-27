@@ -280,7 +280,13 @@ describe('CAREER-NUMBERS-01: Números reais de carreira e integração canônica
 
   // CAREER-NUMBERS-01R-E: Micro-patch de 3 pilotos (Kvyat 110, Bourdais 27, Mazepin 21)
   it('CN-01R-E: Validação independente das 3 adições canônicas (Kvyat=110, Bourdais=27, Mazepin=21)', () => {
-    // Kvyat: 110 largadas, 0 vitórias, 0 poles, 0 títulos
+    // Kvyat: 110 largadas, 0 vitórias, 0 poles, 0 títulos (via mbj-137 canônico e aliases)
+    const kvyatCanonicalStats = getDriverCareerStats({ pilot: { id: 'mbj-137' } as any })
+    expect(kvyatCanonicalStats.races).toBe(110)
+    expect(kvyatCanonicalStats.wins).toBe(0)
+    expect(kvyatCanonicalStats.poles).toBe(0)
+    expect(kvyatCanonicalStats.championships).toBe(0)
+
     const kvyatStats = getDriverCareerStats({ pilot: { id: 'kvyat' } as any })
     expect(kvyatStats.races).toBe(110)
     expect(kvyatStats.wins).toBe(0)
@@ -297,7 +303,13 @@ describe('CAREER-NUMBERS-01: Números reais de carreira e integração canônica
     const bourdaisAliasStats = getDriverCareerStats({ pilot: { id: 'bourdais' } as any })
     expect(bourdaisAliasStats.races).toBe(27)
 
-    // Mazepin: 21 largadas, 0 vitórias, 0 poles, 0 títulos
+    // Mazepin: 21 largadas, 0 vitórias, 0 poles, 0 títulos (via mbj-136 canônico e aliases)
+    const mazepinCanonicalStats = getDriverCareerStats({ pilot: { id: 'mbj-136' } as any })
+    expect(mazepinCanonicalStats.races).toBe(21)
+    expect(mazepinCanonicalStats.wins).toBe(0)
+    expect(mazepinCanonicalStats.poles).toBe(0)
+    expect(mazepinCanonicalStats.championships).toBe(0)
+
     const mazepinStats = getDriverCareerStats({ pilot: { id: 'mazepin' } as any })
     expect(mazepinStats.races).toBe(21)
     expect(mazepinStats.wins).toBe(0)

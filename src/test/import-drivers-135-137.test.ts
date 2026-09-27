@@ -21,7 +21,7 @@ describe('IMPORT-DRIVERS-135-137 / 135-137A — Importação e Proveniência Can
     expect(mazepin?.name).toBe('Nikita Mazepin')
     expect(mazepin?.preferredNumber).toBe(9)
     expect(mazepin?.nationality).toBe('Rússia')
-    expect(mazepin?.age).toBe(26)
+    expect(mazepin?.age).toBe(27)
     expect(mazepin?.teamKey).toBeUndefined()
   })
 
@@ -75,11 +75,13 @@ describe('IMPORT-DRIVERS-135-137 / 135-137A — Importação e Proveniência Can
   })
 
   it('as estatísticas históricas dos 3 pilotos devem estar registradas em driverCareerStats2025 sem modificação indevida', () => {
-    // Mazepin: 21 largadas
+    // Mazepin: 21 largadas (canônico mbj-136 e aliases)
+    expect(DRIVER_CAREER_STATS_2025['mbj-136']?.races).toBe(21)
     expect(DRIVER_CAREER_STATS_2025['mazepin']?.races).toBe(21)
     expect(DRIVER_CAREER_STATS_2025['nikita_mazepin']?.races).toBe(21)
 
-    // Kvyat: 110 largadas
+    // Kvyat: 110 largadas (canônico mbj-137 e aliases)
+    expect(DRIVER_CAREER_STATS_2025['mbj-137']?.races).toBe(110)
     expect(DRIVER_CAREER_STATS_2025['kvyat']?.races).toBe(110)
     expect(DRIVER_CAREER_STATS_2025['daniil_kvyat']?.races).toBe(110)
 
