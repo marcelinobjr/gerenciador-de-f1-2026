@@ -532,8 +532,8 @@ export class RacePracticeSetupService {
   }): Promise<WeekendNormalState> {
     const { careerId, seasonId, round, teamId, cars = [1, 2] } = params
     const carSetups: WeekendNormalState['carSetups'] = {}
-    let maxSessionCompletedIndex = -1
     const order: PracticeSessionId[] = ['TL1', 'TL2', 'TL3']
+    const carCompletedIndices: number[] = []
 
     for (const carIndex of cars) {
       const carKey = `${teamId}_c${carIndex}`
@@ -542,6 +542,7 @@ export class RacePracticeSetupService {
       let raceBonus = 0
       let lastDriver = ''
       const completedList: PracticeSessionId[] = []
+      let carMaxIndex = -1
 
       for (let i = 0; i < order.length; i++) {
         const sess = order[i]
@@ -560,11 +561,11 @@ export class RacePracticeSetupService {
           raceBonus = rec.raceBonusSecondsPerLap
           lastDriver = rec.driverId
           completedList.push(sess)
-          if (i > maxSessionCompletedIndex) {
-            maxSessionCompletedIndex = i
-          }
+          carMaxIndex = i
         }
       }
+
+      carCompletedIndices.push(carMaxIndex)
 
       carSetups[carKey] = {
         teamId,
@@ -577,16 +578,21 @@ export class RacePracticeSetupService {
       }
     }
 
+    // O status do fim de semana da equipe exige que todos os carros participantes
+    // tenham completado a sessão para a sessão como um todo ser considerada concluída.
+    // minIndex representa a sessão que TODOS os carros concluíram.
+    const minIndex = carCompletedIndices.length > 0 ? Math.min(...carCompletedIndices) : -1
+
     let status: WeekendNormalStatus = 'TL1'
     let lastCompletedSession: PracticeSessionId | null = null
 
-    if (maxSessionCompletedIndex === 0) {
+    if (minIndex === 0) {
       status = 'TL2'
       lastCompletedSession = 'TL1'
-    } else if (maxSessionCompletedIndex === 1) {
+    } else if (minIndex === 1) {
       status = 'TL3'
       lastCompletedSession = 'TL2'
-    } else if (maxSessionCompletedIndex === 2) {
+    } else if (minIndex >= 2) {
       status = 'READY_FOR_Q1'
       lastCompletedSession = 'TL3'
     }
