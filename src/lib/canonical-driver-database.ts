@@ -1233,19 +1233,37 @@ export function getActiveDriverTeamBinding(
       } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
         cRole = 'desenvolvimento'
       }
-      // Se a equipe não pôde ser resolvida no banco pelo boundTeamId (ex.: id que não bate ou inconsistência de save),
-      // não degradar silenciosamente para Free Agent se o piloto possui vínculo canônico mestre:
-      if (!matchedTeam && canonicalDriver?.teamId) {
-        const canonicalTeam = findTeamRecord(canonicalDriver.teamId)
-        let fallbackRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = cRole
-        if (canonicalDriver.role === 'reserva') fallbackRole = 'reserva'
-        else if (canonicalDriver.role === 'academy') fallbackRole = 'academia'
-        return buildBindingResult(
+
+      // PILOTOS-LISTA-02: Se a equipe não pôde ser resolvida pelo boundTeamId
+      // (ex.: inconsistência de ID legado como '76vs00hy9hu24q1' ou divergência de save):
+      // Um erro de vínculo legado NÃO pode transformar automaticamente um piloto em agente livre.
+      if (!matchedTeam) {
+        if (canonicalDriver?.teamId) {
+          const canonicalTeam = findTeamRecord(canonicalDriver.teamId)
+          let fallbackRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = cRole
+          if (canonicalDriver.role === 'reserva') fallbackRole = 'reserva'
+          else if (canonicalDriver.role === 'academy') fallbackRole = 'academia'
+          return buildBindingResult(
+            canonicalDriver,
+            canonicalTeam,
+            fallbackRole,
+            canonicalDriver.teamId,
+          )
+        }
+        // Piloto possui registro no banco com vínculo, mas sem equipe correspondente encontrada
+        // Nem vínculo canônico disponível: retornar status 'unresolved' e isContracted: true
+        // para NUNCA degradar silenciosamente em agente livre
+        return {
+          driverId: canonicalDriver?.driverId || rawMatch.id || driverId,
           canonicalDriver,
-          canonicalTeam,
-          fallbackRole,
-          canonicalDriver.teamId,
-        )
+          teamId: boundTeamId,
+          teamKey: boundTeamId,
+          teamName: `Equipe (${boundTeamId})`,
+          teamColor: '#888888',
+          role: cRole,
+          status: 'unresolved' as any,
+          isContracted: true,
+        }
       }
       return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
     }
