@@ -1,0 +1,1718 @@
+{
+  "delivery_contract": {
+    "delivery_version": "FIN-SOURCE-01-3FILES-1.0.0",
+    "delivery_date": "2026-09-27",
+    "encoding": "UTF-8",
+    "required_uploads": [
+      "01_FIN_EVO_PARAMETROS.json",
+      "02_FIN_EVO_CENARIOS_E_TESTES.json",
+      "03_FIN_EVO_FORMULAS_E_FONTE.json"
+    ],
+    "required_upload_count": 3,
+    "xlsx_upload_required": false,
+    "excel_reader_required": false,
+    "zip_upload_required": false,
+    "other_attachments_required": [],
+    "prompt_delivery": "Colar na mensagem; nao anexar como quarto arquivo.",
+    "original_workbook_role": "Referencia e proveniencia; mantido com o usuario. Nao e dependencia de execucao desta entrega.",
+    "source_declared_version": "FIN-EVO-02",
+    "work_item": "FIN-EVO-03",
+    "scope": "Materializacao da fonte, configuracao DRAFT, loader e calculadora isolada; sem ativacao de carreiras reais.",
+    "preservation_note": "Somente reorganizacao dos anexos. Coeficientes, formulas, valores, cenarios e limites da extracao anterior preservados.",
+    "not_included": "Arquivo binario XLSX, graficos, imagens e formatacao visual completa. O conteudo textual e numerico extraido esta nos tres JSONs.",
+    "role": "Parametros economicos e catalogos de referencia"
+  },
+  "metadata": {
+    "package_version": "FIN-EVO-02-EXTRACT-1.0.0",
+    "source_workbook": "APEX_GP_Manager_Simulador_Evolucao_Financeira.xlsx",
+    "source_sha256": "d3f6dafcde83e81b75b4c57f670aef48508c1a842980a16a327179ca1c94f56a",
+    "source_declared_version": "FIN-EVO-02",
+    "source_version_cell": "Guia!C27",
+    "source_version_literal": "FIN-EVO-02 | USD milhões | 5 anos / 60 meses",
+    "related_work_item": "FIN-EVO-03",
+    "original_FIN_EVO_03_JSON_recovered": false,
+    "status": "SOURCE_EXTRACTION_NOT_PRODUCTION_HOMOLOGATION",
+    "original_workbook_modified": false,
+    "external_research_used": false,
+    "extraction_date": "2026-09-27",
+    "schema_note": "JSON organization authored for delivery. Values, formulas and source labels preserved; not a recovered original FIN-EVO-03 schema.",
+    "units": {
+      "currency": "USD",
+      "monetary_unit": "USD_millions",
+      "source_value_to_USD": 1000000,
+      "source_value_to_USD_cents": 100000000,
+      "source": "Regras!B39; Guia!A30"
+    },
+    "production_implementation_and_repository_access": "NOT_EXECUTED_IN_THIS_DELIVERY"
+  },
+  "rules": {
+    "participation_annual_fixed": {
+      "source": "Regras!B6",
+      "value": 60,
+      "value_origin": "literal_in_source",
+      "source_label": "Cota anual fixa",
+      "source_unit": "US$ mi",
+      "source_description": "Participação; parcela garantida do cenário."
+    },
+    "participation_per_gp": {
+      "source": "Regras!B7",
+      "value": 1.2,
+      "value_origin": "literal_in_source",
+      "source_label": "Cota por GP",
+      "source_unit": "US$ mi",
+      "source_description": "Integra o contrato anual; não recebe outra vez no evento."
+    },
+    "participation_per_sprint": {
+      "source": "Regras!B8",
+      "value": 0.2,
+      "value_origin": "literal_in_source",
+      "source_label": "Cota por Sprint",
+      "source_unit": "US$ mi",
+      "source_description": "Integra o contrato anual; Sprint não é outro GP."
+    },
+    "gp_win_prize": {
+      "source": "Regras!B9",
+      "value": 0.5,
+      "value_origin": "literal_in_source",
+      "source_label": "Vitória GP",
+      "source_unit": "US$ mi",
+      "source_description": "Mesmo valor para qualquer equipe."
+    },
+    "sprint_win_prize": {
+      "source": "Regras!B10",
+      "value": 0.1,
+      "value_origin": "literal_in_source",
+      "source_label": "Vitória Sprint",
+      "source_unit": "US$ mi",
+      "source_description": "Receita independente da vitória em GP."
+    },
+    "constructors_minimum_prize": {
+      "source": "Regras!B11",
+      "value": 0.5,
+      "value_origin": "literal_in_source",
+      "source_label": "Prêmio mínimo construtores",
+      "source_unit": "US$ mi",
+      "source_description": "Última posição elegível."
+    },
+    "constructors_position_amplitude": {
+      "source": "Regras!B12",
+      "value": 5.5,
+      "value_origin": "literal_in_source",
+      "source_label": "Amplitude de posição",
+      "source_unit": "US$ mi",
+      "source_description": "Multiplicada por P."
+    },
+    "constructors_champion_bonus": {
+      "source": "Regras!B13",
+      "value": 2,
+      "value_origin": "literal_in_source",
+      "source_label": "Bônus da campeã",
+      "source_unit": "US$ mi",
+      "source_description": "Já incluído nos 8 milhões da campeã."
+    },
+    "sponsor_position_coefficient": {
+      "source": "Regras!B14",
+      "value": 0.01,
+      "value_origin": "literal_in_source",
+      "source_label": "Coeficiente de posição patrocinada",
+      "source_unit": "% Cref",
+      "source_description": "Carteira inteira, sem multiplicar por cinco slots."
+    },
+    "initial_reserve_over_c0": {
+      "source": "Regras!B15",
+      "value": 0.25,
+      "value_origin": "literal_in_source",
+      "source_label": "Reserva inicial / C0",
+      "source_unit": "%",
+      "source_description": "Referência de segurança, não despesa."
+    },
+    "initial_cash_over_c0": {
+      "source": "Regras!B16",
+      "value": 0.35,
+      "value_origin": "literal_in_source",
+      "source_label": "Caixa inicial / C0",
+      "source_unit": "%",
+      "source_description": "Só no primeiro ano; depois carrega o saldo anterior."
+    },
+    "sponsor_wins_coefficient": {
+      "source": "Regras!B17",
+      "value": 0.08,
+      "value_origin": "literal_in_source",
+      "source_label": "Coeficiente de vitórias patrocinadas",
+      "source_unit": "% Cref",
+      "source_description": "W = V/(V+G/4)."
+    },
+    "preparation_test_event": {
+      "source": "Regras!B18",
+      "value": 1.2,
+      "value_origin": "literal_in_source",
+      "source_label": "Evento de testes",
+      "source_unit": "US$ mi",
+      "source_description": "Um evento de preparação para os dois carros."
+    },
+    "localized_development_multiplier": {
+      "source": "Regras!B19",
+      "value": 0.6,
+      "value_origin": "literal_in_source",
+      "source_label": "Projeto localizado",
+      "source_unit": "multiplicador",
+      "source_description": "Só no custo de desenvolvimento."
+    },
+    "broad_development_multiplier": {
+      "source": "Regras!B20",
+      "value": 1.6,
+      "value_origin": "literal_in_source",
+      "source_label": "Revisão ampla",
+      "source_unit": "multiplicador",
+      "source_description": "Só no custo de desenvolvimento."
+    },
+    "win_curve_calendar_divisor": {
+      "source": "Regras!B21",
+      "value": 4,
+      "value_origin": "literal_in_source",
+      "source_label": "Divisor da curva W",
+      "source_unit": "fator",
+      "source_description": "Saturação por tamanho do calendário."
+    },
+    "weekend_fixed_operation": {
+      "source": "Regras!B22",
+      "value": 0.45,
+      "value_origin": "literal_in_source",
+      "source_label": "Operação fixa de fim de semana",
+      "source_unit": "US$ mi",
+      "source_description": "Sem logística, sem salários e sem reposições importantes."
+    },
+    "logistics_regional": {
+      "source": "Regras!B23",
+      "value": 0.45,
+      "value_origin": "literal_in_source",
+      "source_label": "Logística regional",
+      "source_unit": "US$ mi",
+      "source_description": "Transporte + viagem."
+    },
+    "logistics_standard": {
+      "source": "Regras!B24",
+      "value": 0.7,
+      "value_origin": "literal_in_source",
+      "source_label": "Logística padrão",
+      "source_unit": "US$ mi",
+      "source_description": "Transporte + viagem."
+    },
+    "logistics_long_distance": {
+      "source": "Regras!B25",
+      "value": 0.95,
+      "value_origin": "literal_in_source",
+      "source_label": "Logística longa distância",
+      "source_unit": "US$ mi",
+      "source_description": "Transporte + viagem."
+    },
+    "logistics_complex": {
+      "source": "Regras!B26",
+      "value": 1.15,
+      "value_origin": "literal_in_source",
+      "source_label": "Logística complexa",
+      "source_unit": "US$ mi",
+      "source_description": "Transporte + viagem."
+    },
+    "sprint_incremental_operation": {
+      "source": "Regras!B27",
+      "value": 0.15,
+      "value_origin": "literal_in_source",
+      "source_label": "Acréscimo operacional Sprint",
+      "source_unit": "US$ mi",
+      "source_description": "Somente custo incremental."
+    },
+    "logistics_savings_default": {
+      "source": "Regras!B28",
+      "value": 0,
+      "value_origin": "literal_in_source",
+      "source_label": "Economia logística padrão",
+      "source_unit": "%",
+      "source_description": "Só reduz logística, não outros custos."
+    },
+    "logistics_savings_max": {
+      "source": "Regras!B29",
+      "value": 0.08,
+      "value_origin": "literal_in_source",
+      "source_label": "Economia logística máxima",
+      "source_unit": "%",
+      "source_description": "Limite proposto."
+    },
+    "staff_win_bonus_share": {
+      "source": "Regras!B30",
+      "value": 0.25,
+      "value_origin": "literal_in_source",
+      "source_label": "Participação nos bônus de vitória",
+      "source_unit": "%",
+      "source_description": "Pilotos e staff, combinados. Alternativa: manual."
+    },
+    "construction_contract_share": {
+      "source": "Regras!B31",
+      "value": 0.3,
+      "value_origin": "literal_in_source",
+      "source_label": "Obra: contratação",
+      "source_unit": "%",
+      "source_description": "Compromisso total conhecido desde a aprovação."
+    },
+    "construction_execution_share": {
+      "source": "Regras!B32",
+      "value": 0.4,
+      "value_origin": "literal_in_source",
+      "source_label": "Obra: execução",
+      "source_unit": "%",
+      "source_description": "Segunda parcela."
+    },
+    "construction_delivery_share": {
+      "source": "Regras!B33",
+      "value": 0.3,
+      "value_origin": "literal_in_source",
+      "source_label": "Obra: entrega",
+      "source_unit": "%",
+      "source_description": "Terceira parcela."
+    },
+    "no_gp_wins_surplus_warning_fraction": {
+      "source": "Regras!B34",
+      "value": 0.05,
+      "value_origin": "literal_in_source",
+      "source_label": "Alvo máximo sem vitórias",
+      "source_unit": "% custos",
+      "source_description": "Alerta de balanceamento, não teto nem confisco."
+    },
+    "stress_fixed_sponsor_change": {
+      "source": "Regras!B35",
+      "value": -0.1,
+      "value_origin": "literal_in_source",
+      "source_label": "Receita fixa no cenário de estresse",
+      "source_unit": "%",
+      "source_description": "HIPÓTESE: redução de 10%, não regra automática."
+    },
+    "stress_staff_change": {
+      "source": "Regras!B36",
+      "value": 0.1,
+      "value_origin": "literal_in_source",
+      "source_label": "Staff no cenário de estresse",
+      "source_unit": "%",
+      "source_description": "HIPÓTESE: aumento de 10%, não regra automática."
+    },
+    "months_per_year": {
+      "source": "Regras!B37",
+      "value": 12,
+      "value_origin": "literal_in_source",
+      "source_label": "Meses por ano",
+      "source_unit": "meses",
+      "source_description": "Constante da estrutura do simulador."
+    },
+    "reconciliation_tolerance": {
+      "source": "Regras!B38",
+      "value": 1e-6,
+      "value_origin": "literal_in_source",
+      "source_label": "Tolerância de reconciliação",
+      "source_unit": "US$ mi",
+      "source_description": "Até US$ 1 em diferenças de cálculo."
+    },
+    "monetary_scale_to_usd": {
+      "source": "Regras!B39",
+      "value": 1000000,
+      "value_origin": "literal_in_source",
+      "source_label": "Escala monetária",
+      "source_unit": "USD",
+      "source_description": "1,00 no arquivo = US$ 1.000.000."
+    }
+  },
+  "tolerance_interpretation": {
+    "monetary_value_usd_millions": 1e-6,
+    "equivalent_usd": 1,
+    "source_description": "Até US$ 1 em diferenças de cálculo.",
+    "formula_comparator": "abs(delta) < tolerance",
+    "formula_sources": ["Validacoes!B17:B22", "Validacoes!B30"],
+    "boundary_note": "Source wording says ate US$1; existing validation formulas use strict <, not <=. Do not silently change the boundary.",
+    "ratio_note": "Same numeric threshold is also used for dimensionless allocation sums in Validacoes!B9:B11/B16. Preserve units; those checks are not monetary.",
+    "economic_target_tolerance": null,
+    "historical_FIN_EVO_03_approval": "Not established by this workbook."
+  },
+  "catalogs": {
+    "facilities": {
+      "source": "Catalogos!A5:O14",
+      "column_labels": {
+        "A": "Instalação",
+        "B": "Opex N1",
+        "C": "Opex N2",
+        "D": "Opex N3",
+        "E": "Opex N4",
+        "F": "Opex N5",
+        "G": "Obra 1→2",
+        "H": "Obra 2→3",
+        "I": "Obra 3→4",
+        "J": "Obra 4→5",
+        "K": "Acum. N1",
+        "L": "Acum. N2",
+        "M": "Acum. N3",
+        "N": "Acum. N4",
+        "O": "Acum. N5"
+      },
+      "rows": [
+        {
+          "source_row": 6,
+          "values": {
+            "A": "Fábrica / sede HQ",
+            "B": 4,
+            "C": 6,
+            "D": 9,
+            "E": 13,
+            "F": 18,
+            "G": 8,
+            "H": 16,
+            "I": 28,
+            "J": 45,
+            "K": 0,
+            "L": 8,
+            "M": 24,
+            "N": 52,
+            "O": 97
+          }
+        },
+        {
+          "source_row": 7,
+          "values": {
+            "A": "Centro de Design",
+            "B": 3,
+            "C": 4.5,
+            "D": 6.5,
+            "E": 9,
+            "F": 12,
+            "G": 6,
+            "H": 12,
+            "I": 20,
+            "J": 32,
+            "K": 0,
+            "L": 6,
+            "M": 18,
+            "N": 38,
+            "O": 70
+          }
+        },
+        {
+          "source_row": 8,
+          "values": {
+            "A": "Cluster CFD",
+            "B": 1.5,
+            "C": 2.5,
+            "D": 4,
+            "E": 6,
+            "F": 8.5,
+            "G": 4,
+            "H": 8,
+            "I": 14,
+            "J": 22,
+            "K": 0,
+            "L": 4,
+            "M": 12,
+            "N": 26,
+            "O": 48
+          }
+        },
+        {
+          "source_row": 9,
+          "values": {
+            "A": "Túnel de Vento",
+            "B": 2.5,
+            "C": 4,
+            "D": 6,
+            "E": 9,
+            "F": 13,
+            "G": 10,
+            "H": 20,
+            "I": 35,
+            "J": 55,
+            "K": 0,
+            "L": 10,
+            "M": 30,
+            "N": 65,
+            "O": 120
+          }
+        },
+        {
+          "source_row": 10,
+          "values": {
+            "A": "Manufatura",
+            "B": 3,
+            "C": 4.5,
+            "D": 6.5,
+            "E": 9,
+            "F": 12.5,
+            "G": 7,
+            "H": 14,
+            "I": 24,
+            "J": 38,
+            "K": 0,
+            "L": 7,
+            "M": 21,
+            "N": 45,
+            "O": 83
+          }
+        },
+        {
+          "source_row": 11,
+          "values": {
+            "A": "Simulador",
+            "B": 0.8,
+            "C": 1.2,
+            "D": 1.8,
+            "E": 2.6,
+            "F": 3.6,
+            "G": 2,
+            "H": 4,
+            "I": 7,
+            "J": 12,
+            "K": 0,
+            "L": 2,
+            "M": 6,
+            "N": 13,
+            "O": 25
+          }
+        },
+        {
+          "source_row": 12,
+          "values": {
+            "A": "Centro de Operações",
+            "B": 1,
+            "C": 1.5,
+            "D": 2.2,
+            "E": 3.2,
+            "F": 4.5,
+            "G": 3,
+            "H": 5,
+            "I": 9,
+            "J": 15,
+            "K": 0,
+            "L": 3,
+            "M": 8,
+            "N": 17,
+            "O": 32
+          }
+        },
+        {
+          "source_row": 13,
+          "values": {
+            "A": "Centro de Pit Stop",
+            "B": 0.6,
+            "C": 0.9,
+            "D": 1.3,
+            "E": 1.8,
+            "F": 2.5,
+            "G": 1.5,
+            "H": 3,
+            "I": 5,
+            "J": 8,
+            "K": 0,
+            "L": 1.5,
+            "M": 4.5,
+            "N": 9.5,
+            "O": 17.5
+          }
+        },
+        {
+          "source_row": 14,
+          "values": {
+            "A": "Academia de Pilotos",
+            "B": 0.6,
+            "C": 0.9,
+            "D": 1.4,
+            "E": 2,
+            "F": 2.8,
+            "G": 2,
+            "H": 3.5,
+            "I": 6,
+            "J": 10,
+            "K": 0,
+            "L": 2,
+            "M": 5.5,
+            "N": 11.5,
+            "O": 21.5
+          }
+        }
+      ]
+    },
+    "power_units": {
+      "source": "Catalogos!A18:F23",
+      "column_labels": {
+        "A": "Motor",
+        "B": "Contrato anual (2 carros)",
+        "C": "Potência",
+        "D": "Confiabilidade",
+        "E": "Eficiência",
+        "F": "Potencial"
+      },
+      "rows": [
+        {
+          "source_row": 19,
+          "values": {
+            "A": "Ferrari",
+            "B": 32,
+            "C": 92,
+            "D": 0.86,
+            "E": 0.79,
+            "F": 84
+          }
+        },
+        {
+          "source_row": 20,
+          "values": {
+            "A": "Mercedes",
+            "B": 30,
+            "C": 90,
+            "D": 0.93,
+            "E": 0.79,
+            "F": 84
+          }
+        },
+        {
+          "source_row": 21,
+          "values": {
+            "A": "Honda",
+            "B": 28,
+            "C": 91,
+            "D": 0.88,
+            "E": 0.79,
+            "F": 84
+          }
+        },
+        {
+          "source_row": 22,
+          "values": {
+            "A": "Ford",
+            "B": 34,
+            "C": 94,
+            "D": 0.82,
+            "E": 0.79,
+            "F": 84
+          }
+        },
+        {
+          "source_row": 23,
+          "values": {
+            "A": "Audi",
+            "B": 31,
+            "C": 91,
+            "D": 0.85,
+            "E": 0.79,
+            "F": 84
+          }
+        }
+      ]
+    },
+    "parts": {
+      "source": "Catalogos!A27:D33",
+      "column_labels": {
+        "A": "Família",
+        "B": "Desenvolvimento normal",
+        "C": "Por unidade",
+        "D": "Definição da unidade"
+      },
+      "rows": [
+        {
+          "source_row": 28,
+          "values": {
+            "A": "Chassi",
+            "B": 6,
+            "C": 1.6,
+            "D": "Um monocoque"
+          }
+        },
+        {
+          "source_row": 29,
+          "values": {
+            "A": "Asa dianteira",
+            "B": 2,
+            "C": 0.2,
+            "D": "Um conjunto por carro"
+          }
+        },
+        {
+          "source_row": 30,
+          "values": {
+            "A": "Asa traseira",
+            "B": 2.2,
+            "C": 0.28,
+            "D": "Um conjunto por carro"
+          }
+        },
+        {
+          "source_row": 31,
+          "values": {
+            "A": "Assoalho",
+            "B": 4,
+            "C": 0.5,
+            "D": "Um conjunto por carro"
+          }
+        },
+        {
+          "source_row": 32,
+          "values": {
+            "A": "Suspensão",
+            "B": 2.5,
+            "C": 0.4,
+            "D": "Conjunto das quatro rodas"
+          }
+        },
+        {
+          "source_row": 33,
+          "values": {
+            "A": "Aerodinâmica ativa",
+            "B": 1.8,
+            "C": 0.18,
+            "D": "Kit sem duplicar as asas"
+          }
+        }
+      ]
+    },
+    "technical_programs": {
+      "source": "Catalogos!A36:C40",
+      "column_labels": {
+        "A": "Programa técnico",
+        "B": "Referência US$ mi",
+        "C": "Explicação"
+      },
+      "rows": [
+        {
+          "source_row": 37,
+          "values": {
+            "A": "Evoluções atuais",
+            "B": 25.28,
+            "C": "7 projetos normais e 3 unidades de cada especificação; inclui fabricação."
+          }
+        },
+        {
+          "source_row": 38,
+          "values": {
+            "A": "Continuidade",
+            "B": 7.1,
+            "C": "Asa dianteira e assoalho locais; 4 asas, 3 assoalhos e teste."
+          }
+        },
+        {
+          "source_row": 39,
+          "values": {
+            "A": "Normal",
+            "B": 27.779999999999998,
+            "C": "6 projetos normais; lote inicial com reservas e teste. Inclui chassi."
+          }
+        },
+        {
+          "source_row": 40,
+          "values": {
+            "A": "Ampla",
+            "B": 38.88,
+            "C": "6 revisões amplas; lote inicial e teste."
+          }
+        }
+      ]
+    },
+    "teams_opening_references": {
+      "source": "Catalogos!A44:D73",
+      "column_labels": {
+        "A": "Equipe de referência",
+        "B": "C0 preliminar",
+        "C": "Caixa inicial 35%",
+        "D": "Reserva 25%"
+      },
+      "rows": [
+        {
+          "source_row": 45,
+          "values": {
+            "A": "Mercedes",
+            "B": 280,
+            "C": 98,
+            "D": 70
+          }
+        },
+        {
+          "source_row": 46,
+          "values": {
+            "A": "McLaren",
+            "B": 280,
+            "C": 98,
+            "D": 70
+          }
+        },
+        {
+          "source_row": 47,
+          "values": {
+            "A": "Ferrari",
+            "B": 300,
+            "C": 105,
+            "D": 75
+          }
+        },
+        {
+          "source_row": 48,
+          "values": {
+            "A": "Red Bull Racing",
+            "B": 280,
+            "C": 98,
+            "D": 70
+          }
+        },
+        {
+          "source_row": 49,
+          "values": {
+            "A": "Aston Martin",
+            "B": 260,
+            "C": 91,
+            "D": 65
+          }
+        },
+        {
+          "source_row": 50,
+          "values": {
+            "A": "Audi",
+            "B": 260,
+            "C": 91,
+            "D": 65
+          }
+        },
+        {
+          "source_row": 51,
+          "values": {
+            "A": "Williams",
+            "B": 200,
+            "C": 70,
+            "D": 50
+          }
+        },
+        {
+          "source_row": 52,
+          "values": {
+            "A": "Racing Bulls",
+            "B": 180,
+            "C": 62.99999999999999,
+            "D": 45
+          }
+        },
+        {
+          "source_row": 53,
+          "values": {
+            "A": "Haas",
+            "B": 160,
+            "C": 56,
+            "D": 40
+          }
+        },
+        {
+          "source_row": 54,
+          "values": {
+            "A": "Alpine",
+            "B": 200,
+            "C": 70,
+            "D": 50
+          }
+        },
+        {
+          "source_row": 55,
+          "values": {
+            "A": "Cadillac",
+            "B": 220,
+            "C": 77,
+            "D": 55
+          }
+        },
+        {
+          "source_row": 56,
+          "values": {
+            "A": "Porsche",
+            "B": 260,
+            "C": 91,
+            "D": 65
+          }
+        },
+        {
+          "source_row": 57,
+          "values": {
+            "A": "Honda",
+            "B": 240,
+            "C": 84,
+            "D": 60
+          }
+        },
+        {
+          "source_row": 58,
+          "values": {
+            "A": "Lamborghini",
+            "B": 220,
+            "C": 77,
+            "D": 55
+          }
+        },
+        {
+          "source_row": 59,
+          "values": {
+            "A": "Andretti",
+            "B": 200,
+            "C": 70,
+            "D": 50
+          }
+        },
+        {
+          "source_row": 60,
+          "values": {
+            "A": "BYD",
+            "B": 260,
+            "C": 91,
+            "D": 65
+          }
+        },
+        {
+          "source_row": 61,
+          "values": {
+            "A": "Penske",
+            "B": 200,
+            "C": 70,
+            "D": 50
+          }
+        },
+        {
+          "source_row": 62,
+          "values": {
+            "A": "Lotus",
+            "B": 180,
+            "C": 62.99999999999999,
+            "D": 45
+          }
+        },
+        {
+          "source_row": 63,
+          "values": {
+            "A": "Toyota",
+            "B": 260,
+            "C": 91,
+            "D": 65
+          }
+        },
+        {
+          "source_row": 64,
+          "values": {
+            "A": "Benetton",
+            "B": 180,
+            "C": 62.99999999999999,
+            "D": 45
+          }
+        },
+        {
+          "source_row": 65,
+          "values": {
+            "A": "Copersucar",
+            "B": 120,
+            "C": 42,
+            "D": 30
+          }
+        },
+        {
+          "source_row": 66,
+          "values": {
+            "A": "Alfa Romeo",
+            "B": 180,
+            "C": 62.99999999999999,
+            "D": 45
+          }
+        },
+        {
+          "source_row": 67,
+          "values": {
+            "A": "AlphaTauri",
+            "B": 160,
+            "C": 56,
+            "D": 40
+          }
+        },
+        {
+          "source_row": 68,
+          "values": {
+            "A": "Fittipaldi",
+            "B": 120,
+            "C": 42,
+            "D": 30
+          }
+        },
+        {
+          "source_row": 69,
+          "values": {
+            "A": "Jordan",
+            "B": 160,
+            "C": 56,
+            "D": 40
+          }
+        },
+        {
+          "source_row": 70,
+          "values": {
+            "A": "Renault",
+            "B": 220,
+            "C": 77,
+            "D": 55
+          }
+        },
+        {
+          "source_row": 71,
+          "values": {
+            "A": "Sauber",
+            "B": 160,
+            "C": 56,
+            "D": 40
+          }
+        },
+        {
+          "source_row": 72,
+          "values": {
+            "A": "Toleman",
+            "B": 120,
+            "C": 42,
+            "D": 30
+          }
+        },
+        {
+          "source_row": 73,
+          "values": {
+            "A": "Equipe Personalizada",
+            "B": 160,
+            "C": 56,
+            "D": 40
+          }
+        }
+      ]
+    },
+    "key_staff_reference": {
+      "source": "Catalogos!A77:D85",
+      "column_labels": {
+        "A": "Profissional-chave",
+        "B": "Quantidade",
+        "C": "Salário anual por pessoa",
+        "D": "Total"
+      },
+      "rows": [
+        {
+          "source_row": 78,
+          "values": {
+            "A": "Diretor técnico",
+            "B": 1,
+            "C": 3,
+            "D": 3
+          }
+        },
+        {
+          "source_row": 79,
+          "values": {
+            "A": "Chefe de aerodinâmica",
+            "B": 1,
+            "C": 2.2,
+            "D": 2.2
+          }
+        },
+        {
+          "source_row": 80,
+          "values": {
+            "A": "Projetista-chefe",
+            "B": 1,
+            "C": 1.6,
+            "D": 1.6
+          }
+        },
+        {
+          "source_row": 81,
+          "values": {
+            "A": "Chefe desempenho veiculo",
+            "B": 1,
+            "C": 1.2,
+            "D": 1.2
+          }
+        },
+        {
+          "source_row": 82,
+          "values": {
+            "A": "Chefe estratégia",
+            "B": 1,
+            "C": 0.9,
+            "D": 0.9
+          }
+        },
+        {
+          "source_row": 83,
+          "values": {
+            "A": "Diretor esportivo",
+            "B": 1,
+            "C": 1.2,
+            "D": 1.2
+          }
+        },
+        {
+          "source_row": 84,
+          "values": {
+            "A": "Engenheiro de corrida",
+            "B": 2,
+            "C": 0.6,
+            "D": 1.2
+          }
+        },
+        {
+          "source_row": 85,
+          "values": {
+            "A": "Diretor academia",
+            "B": 1,
+            "C": 0.5,
+            "D": 0.5
+          }
+        }
+      ]
+    },
+    "support_departments_reference": {
+      "source": "Catalogos!A88:D93",
+      "column_labels": {
+        "A": "Departamento",
+        "B": "Folha enxuta",
+        "C": "Folha intermediária",
+        "D": "Folha ampla"
+      },
+      "rows": [
+        {
+          "source_row": 89,
+          "values": {
+            "A": "Engenharia e simulação",
+            "B": 9,
+            "C": 18,
+            "D": 28
+          }
+        },
+        {
+          "source_row": 90,
+          "values": {
+            "A": "Manufatura e qualidade",
+            "B": 6,
+            "C": 11,
+            "D": 17
+          }
+        },
+        {
+          "source_row": 91,
+          "values": {
+            "A": "Mecanicos e pista",
+            "B": 4,
+            "C": 6,
+            "D": 9
+          }
+        },
+        {
+          "source_row": 92,
+          "values": {
+            "A": "Tecnologia e logística",
+            "B": 2,
+            "C": 4,
+            "D": 6
+          }
+        },
+        {
+          "source_row": 93,
+          "values": {
+            "A": "Administracao e formacao",
+            "B": 2,
+            "C": 4,
+            "D": 6
+          }
+        }
+      ]
+    },
+    "driver_salary_legacy_reference": {
+      "source": "Catalogos!A97:F132",
+      "column_labels": {
+        "A": "Piloto do banco-base",
+        "B": "Equipe no cenário-base",
+        "C": "Função",
+        "D": "Salário anual",
+        "E": "Bônus por vitória legado",
+        "F": "Fonte"
+      },
+      "rows": [
+        {
+          "source_row": 98,
+          "values": {
+            "A": "Alex Albon",
+            "B": "Williams",
+            "C": "TITULAR",
+            "D": 8,
+            "E": 0.2,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 99,
+          "values": {
+            "A": "Fernando Alonso",
+            "B": "Aston Martin",
+            "C": "TITULAR",
+            "D": 20,
+            "E": 0.5,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 100,
+          "values": {
+            "A": "Kimi Antonelli",
+            "B": "Mercedes",
+            "C": "TITULAR",
+            "D": 3,
+            "E": 0.07500000000000001,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 101,
+          "values": {
+            "A": "Oliver Bearman",
+            "B": "Haas",
+            "C": "TITULAR",
+            "D": 1.5,
+            "E": 0.03750000000000001,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 102,
+          "values": {
+            "A": "Gabriel Bortoleto",
+            "B": "Audi",
+            "C": "TITULAR",
+            "D": 2,
+            "E": 0.05,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 103,
+          "values": {
+            "A": "Valtteri Bottas",
+            "B": "Cadillac",
+            "C": "TITULAR",
+            "D": 9,
+            "E": 0.225,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 104,
+          "values": {
+            "A": "Franco Colapinto",
+            "B": "Alpine",
+            "C": "TITULAR",
+            "D": 1,
+            "E": 0.025,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 105,
+          "values": {
+            "A": "Jack Doohan",
+            "B": "Haas",
+            "C": "RESERVA",
+            "D": 0.6,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 106,
+          "values": {
+            "A": "Pierre Gasly",
+            "B": "Alpine",
+            "C": "TITULAR",
+            "D": 8,
+            "E": 0.2,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 107,
+          "values": {
+            "A": "Isack Hadjar",
+            "B": "Red Bull Racing",
+            "C": "TITULAR",
+            "D": 2,
+            "E": 0.05,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 108,
+          "values": {
+            "A": "Lewis Hamilton",
+            "B": "Ferrari",
+            "C": "TITULAR",
+            "D": 45,
+            "E": 1.125,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 109,
+          "values": {
+            "A": "Nico Hülkenberg",
+            "B": "Audi",
+            "C": "TITULAR",
+            "D": 7,
+            "E": 0.175,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 110,
+          "values": {
+            "A": "Liam Lawson",
+            "B": "Racing Bulls",
+            "C": "TITULAR",
+            "D": 2,
+            "E": 0.05,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 111,
+          "values": {
+            "A": "Charles Leclerc",
+            "B": "Ferrari",
+            "C": "TITULAR",
+            "D": 30,
+            "E": 0.75,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 112,
+          "values": {
+            "A": "Arvid Lindblad",
+            "B": "Racing Bulls",
+            "C": "TITULAR",
+            "D": 1.2,
+            "E": 0.03,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 113,
+          "values": {
+            "A": "Lando Norris",
+            "B": "McLaren",
+            "C": "TITULAR",
+            "D": 35,
+            "E": 0.875,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 114,
+          "values": {
+            "A": "Esteban Ocon",
+            "B": "Haas",
+            "C": "TITULAR",
+            "D": 6,
+            "E": 0.15,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 115,
+          "values": {
+            "A": "Oscar Piastri",
+            "B": "McLaren",
+            "C": "TITULAR",
+            "D": 20,
+            "E": 0.5,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 116,
+          "values": {
+            "A": "Sergio Pérez",
+            "B": "Cadillac",
+            "C": "TITULAR",
+            "D": 9,
+            "E": 0.225,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 117,
+          "values": {
+            "A": "George Russell",
+            "B": "Mercedes",
+            "C": "TITULAR",
+            "D": 25,
+            "E": 0.625,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 118,
+          "values": {
+            "A": "Carlos Sainz",
+            "B": "Williams",
+            "C": "TITULAR",
+            "D": 15,
+            "E": 0.375,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 119,
+          "values": {
+            "A": "Lance Stroll",
+            "B": "Aston Martin",
+            "C": "TITULAR",
+            "D": 5,
+            "E": 0.125,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 120,
+          "values": {
+            "A": "Yuki Tsunoda",
+            "B": "Red Bull Racing",
+            "C": "RESERVA",
+            "D": 0.9,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 121,
+          "values": {
+            "A": "Stoffel Vandoorne",
+            "B": "Aston Martin",
+            "C": "RESERVA",
+            "D": 1.5,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 122,
+          "values": {
+            "A": "Max Verstappen",
+            "B": "Red Bull Racing",
+            "C": "TITULAR",
+            "D": 55,
+            "E": 1.375,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 123,
+          "values": {
+            "A": "Zhou Guanyu",
+            "B": "Cadillac",
+            "C": "RESERVA",
+            "D": 0.8,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 124,
+          "values": {
+            "A": "Ryo Hirakawa",
+            "B": "Haas",
+            "C": "RESERVA",
+            "D": 1.2,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 125,
+          "values": {
+            "A": "Antonio Giovinazzi",
+            "B": "Ferrari",
+            "C": "RESERVA",
+            "D": 1.2,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 126,
+          "values": {
+            "A": "Ayumu Iwasa",
+            "B": "Racing Bulls",
+            "C": "RESERVA",
+            "D": 0.8,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 127,
+          "values": {
+            "A": "Frederik Vesti",
+            "B": "Mercedes",
+            "C": "RESERVA",
+            "D": 0.7,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 128,
+          "values": {
+            "A": "Leonardo Fornaroli",
+            "B": "McLaren",
+            "C": "RESERVA",
+            "D": 0.8,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 129,
+          "values": {
+            "A": "Luke Browning",
+            "B": "Williams",
+            "C": "RESERVA",
+            "D": 0.7,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 130,
+          "values": {
+            "A": "Jak Crawford",
+            "B": "Aston Martin",
+            "C": "RESERVA",
+            "D": 0.8,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 131,
+          "values": {
+            "A": "Kush Maini",
+            "B": "Alpine",
+            "C": "RESERVA",
+            "D": 0.5,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        },
+        {
+          "source_row": 132,
+          "values": {
+            "A": "Paul Aron",
+            "B": "Alpine",
+            "C": "RESERVA",
+            "D": 0.6,
+            "E": 0,
+            "F": "Banco-base / DESIGN"
+          }
+        }
+      ]
+    }
+  },
+  "catalog_import_boundaries": [
+    "No catalog row index is a game canonical ID. Match against existing canonical catalog with collision checks.",
+    "Team C0 values are labeled preliminary; they do not establish complete team budgets.",
+    "Power unit technical attributes are source reference data, not authorization to overwrite existing performance ratings.",
+    "Driver salary/team/legacy victory-bonus references are not authorization to overwrite live contracts or team assignments.",
+    "Key staff and support department tables must not be double counted.",
+    "Changing the team reference does not auto-populate drivers, facilities or sponsorships; see Plano_5_Anos!A52."
+  ],
+  "source_rule_texts": [
+    {
+      "source": "Regras!A42",
+      "value": "Equação de receitas: Q + F + Cref*(aP*P+aW*W) + prêmio_GP*V + prêmio_Sprint*Vs + piso + amplitude*P + bônus_título + outras.",
+      "value_origin": "literal_in_source"
+    },
+    {
+      "source": "Regras!A43",
+      "value": "P=(N-posição)/(N-1); W=V/(V+G/divisor). Não usa orçamento gasto para aumentar receita. Ano sem GP não distribui bônus de desempenho.",
+      "value_origin": "literal_in_source"
+    },
+    {
+      "source": "Regras!A44",
+      "value": "Caixa mensal = caixa anterior + recebimentos + aportes + empréstimos - custos pagos - investimentos - amortizações. Juros estão nos custos.",
+      "value_origin": "literal_in_source"
+    },
+    {
+      "source": "Regras!A45",
+      "value": "Sem taxas reais, tributação, DRE contábil, retorno automático do investimento, mercado esportivo autônomo ou resgate automático. Resultado esportivo é uma hipótese editável.",
+      "value_origin": "literal_in_source"
+    }
+  ],
+  "guide_instructions": [
+    {
+      "step": "01",
+      "action": "Configure a trajetória",
+      "instruction": "Plano_5_Anos: caixa inicial, equipe de referência, posição anual, patrocínios, aportes, financiamento e reserva. Anos futuros são hipóteses editáveis; padrões repetidos não são renovações garantidas.",
+      "source": "Guia!A6:C6"
+    },
+    {
+      "step": "02",
+      "action": "Defina o programa",
+      "instruction": "Custos: salários, departamentos, motor, evoluções, preparação e extras. Verde = fórmula de origem / herança; azul = número digitado. Campos azul-claro podem ser substituídos por valores nominais.",
+      "source": "Guia!A7:C7"
+    },
+    {
+      "step": "03",
+      "action": "Planeje obras",
+      "instruction": "Estruturas_5_Anos: escolha o alvo de nível e meses de contratação, execução e entrega. A obra é cobrada uma única vez; Opex cresce na entrega e persiste nos anos seguintes. Não aumenta receita ou talento automaticamente.",
+      "source": "Guia!A8:C8"
+    },
+    {
+      "step": "04",
+      "action": "Distribua ao longo do ano",
+      "instruction": "Agenda_60_Meses: GPs por faixa logística, Sprints, vitórias e pesos de pagamentos de evolução, preparação e extras. Pesos de cada grupo precisam somar 100% por ano.",
+      "source": "Guia!A9:C9"
+    },
+    {
+      "step": "05",
+      "action": "Leia o resultado",
+      "instruction": "Painel e Resultados: caixa final, menor saldo, reserva, aportes e resultado antes do financiamento. Fluxo_60_Meses discrimina todos os recebimentos e pagamentos, inclusive prêmios finais defasados.",
+      "source": "Guia!A10:C10"
+    },
+    {
+      "step": "06",
+      "action": "Compare decisões",
+      "instruction": "Comparar: plano, mesmas posições sem vitórias, sem aportes do proprietário, e estresse -10% patrocínio / +10% staff. São sensibilidades independentes; não somar as colunas.",
+      "source": "Guia!A11:C11"
+    },
+    {
+      "step": "07",
+      "action": "Verifique pendências",
+      "instruction": "Validacoes: corrige inputs inconsistentes e reconcilia fórmulas. Extras começam em zero pendente; preencher e revisar antes de interpretar a simulação como orçamento completo.",
+      "source": "Guia!A12:C12"
+    },
+    {
+      "step": "08",
+      "action": "Preserve as definições",
+      "instruction": "Aportes e empréstimos não são receita. Amortização não é despesa operacional. Caixa negativo não cria financiamento automático. A reserva não é debitada. Um ano herda o caixa e a dívida anteriores.",
+      "source": "Guia!A13:C13"
+    },
+    {
+      "step": "09",
+      "action": "Respeite o horizonte",
+      "instruction": "Os 60 meses são anos-calendário completos. Não há rateio diário de contratos nem importação do Ledger do jogo. Novos contratos e receitas são input. Não aplica teto de gastos real, impostos ou depreciação.",
+      "source": "Guia!A14:C14"
+    },
+    {
+      "step": "10",
+      "action": "Conheça o fluxo mensal",
+      "instruction": "Cota e despesas recorrentes mensais. Patrocínios: percentual adiantado em janeiro, restante em 12 parcelas no mesmo ano. Prêmios de vitória no mês; prêmio de construtores e bônus de posição em dezembro + defasagem. Manual de bônus pago em dezembro.",
+      "source": "Guia!A15:C15"
+    },
+    {
+      "step": "11",
+      "action": "Entenda financiamentos",
+      "instruction": "Um saque e uma amortização por ano, em meses configurados. Juros = (dívida inicial do mês + saque)*taxa anual/12; amortiza ao fim do mês, limitada ao saldo. Não é recomendação de crédito real. Dívida inicial não entra no caixa de novo.",
+      "source": "Guia!A16:C16"
+    },
+    {
+      "step": "12",
+      "action": "Distingua caixa e programa",
+      "instruction": "Pagamentos de projetos são orçamento de caixa, não DRE. Estoque já pago não sai novamente. Preparação cobre projetos do carro seguinte, sem segunda cobrança de carro/chassi. Use orçamento Manual para reaproveitar pagamentos/estoque.",
+      "source": "Guia!A17:C17"
+    }
+  ],
+  "source_register": {
+    "source": "Guia!A20:E27",
+    "column_labels": {
+      "A": "ID",
+      "B": "Fonte",
+      "C": "Localização / uso",
+      "D": "Natureza",
+      "E": "Limitação"
+    },
+    "rows": [
+      {
+        "source_row": 21,
+        "values": {
+          "A": "S01",
+          "B": "APEX_GP_Manager_Modelo_Financeiro.xlsx",
+          "C": "23 abas lidas programaticamente; importação de valores de referência, tabelas, salários e regras.",
+          "D": "Modelo anterior do projeto",
+          "E": "Snapshot: alterações no arquivo anterior não atualizam esta cópia."
+        }
+      },
+      {
+        "source_row": 22,
+        "values": {
+          "A": "S02",
+          "B": "Conversa financeira do APEX",
+          "C": "Últimas regras de participação, patrocínios, premiação, custos, caixa e preparação.",
+          "D": "DESIGN / calibração",
+          "E": "Fórmulas anteriores substituídas não são somadas."
+        }
+      },
+      {
+        "source_row": 23,
+        "values": {
+          "A": "S03",
+          "B": "Hipótese desta simulação",
+          "C": "2026-2030; posições 8/6/4/2/1; vitórias 0/0/1/3/6; aporte de 15 somente no ano 1.",
+          "D": "HIPÓTESE, não previsão",
+          "E": "Sem inferência de resultado a partir de investimento."
+        }
+      },
+      {
+        "source_row": 24,
+        "values": {
+          "A": "S04",
+          "B": "Hipótese de pagamentos",
+          "C": "Agenda mensal, pesos de projetos, liquidação final e financiamento.",
+          "D": "HIPÓTESE editável",
+          "E": "Datas mensais não representam cronograma real do save."
+        }
+      },
+      {
+        "source_row": 25,
+        "values": {
+          "A": "S05",
+          "B": "Arquivo anterior: Fontes",
+          "C": "Referências de salário do Banco_Pilotos_MBJ_2026.pdf e captura de fornecedores.",
+          "D": "Parâmetros documentados",
+          "E": "Não foi refeita pesquisa externa de remunerações ou preços."
+        }
+      },
+      {
+        "source_row": 26,
+        "values": {
+          "A": "S06",
+          "B": "Pendências explícitas",
+          "C": "Reservas, formação/scouting, peças extras, rescisões, comercial e outros custos.",
+          "D": "NÃO DIMENSIONADO",
+          "E": "Zero não é ausência confirmada. Verifique valores antes de homologar."
+        }
+      },
+      {
+        "source_row": 27,
+        "values": {
+          "A": "S07",
+          "B": "Versão desta planilha",
+          "C": "FIN-EVO-02 | USD milhões | 5 anos / 60 meses",
+          "D": "SIMULAÇÃO",
+          "E": "Não altera código, dados nem contratos de carreiras existentes."
+        }
+      }
+    ]
+  },
+  "missing_from_this_source": [
+    "Original FIN-EVO-03 JSON, original version/hash and economic-target acceptance policy.",
+    "Rules and thresholds for relegation, player team choice and season transition state.",
+    "Complete inputs for the earlier -9.1 and +29.6 financial targets.",
+    "Sizing of costs explicitly pending in Custos!B10/B42:B46 and subsequent years.",
+    "Exact production ledger rounding/allocation policy, schema bindings and migration to existing saves.",
+    "Automated generation of sponsorship contracts, sporting results or fully-populated team profiles."
+  ],
+  "formula_reference_file": "03_FIN_EVO_FORMULAS_E_FONTE.json",
+  "catalog_values_note": "Column labels and row numbers preserve source interpretation. Derived catalog totals are verified values; their original formulas are in fonte_celulas. Monetary values are USD millions; ratios and ratings retain their own source unit.",
+  "scenario_reference_file": "02_FIN_EVO_CENARIOS_E_TESTES.json"
+}
