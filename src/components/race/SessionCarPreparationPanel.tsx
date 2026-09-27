@@ -29,6 +29,7 @@ import type { StintFeedbackRecord, SetupKnowledgeModel } from '@/types/practice-
 import { formatTireName } from '@/lib/f1-tire-system'
 import { calculateInformedSetupRecommendation } from '@/services/canonicalPreparationInformedService'
 import { getTyreImage, getTyreMeta } from '@/lib/tyre-assets'
+import { racePracticeSetupService } from '@/services/racePracticeSetupService'
 
 export interface CarPreparationCarData {
   carId: 'car1' | 'car2'
@@ -133,6 +134,39 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
   React.useEffect(() => {
     setFuelInput(car.fuelKg)
   }, [car.fuelKg])
+
+  // Estado de acerto apurado canônico (RACE-TL-01B)
+  const [canonicalSetupData, setCanonicalSetupData] = useState<{
+    accumulatedSetup: number
+    lastCompletedSession: string | null
+    qualifyingBonusSeconds: number
+    raceBonusSecondsPerLap: number
+    nextStep: string
+  } | null>(null)
+
+  React.useEffect(() => {
+    if (sessionType !== 'practice') return
+    let active = true
+    // Tenta obter o acerto acumulado canônico persistido para a vaga deste carro
+    racePracticeSetupService
+      .getCarAccumulatedSetup({
+        careerId: 'default',
+        seasonId: 'default',
+        round: 1,
+        teamId: 'player',
+        carIndex: car.carNumber as 1 | 2,
+      })
+      .then((res) => {
+        if (active && res && res.accumulatedSetup > 0) {
+          setCanonicalSetupData(res)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      active = false
+    }
+  }, [sessionType, car.carNumber, car.totalLaps])
 
   const isInGarage = car.status === 'garage'
   const isCarOnTrack = !isInGarage && car.status !== 'eliminated'
@@ -621,13 +655,20 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
       {/* 5. SETUP DO CARRO (COM PARC FERMÉ SE APLICÁVEL) */}
       <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Wrench className="w-4 h-4 text-[#E10600]" />
             <span className="font-bold text-[#0F172A]">Configuração do Carro (Setup):</span>
             <span className="font-mono text-[#334155] text-[11px]">
               Asa D: <strong>{frontWing}</strong> • Asa T: <strong>{rearWing}</strong> • Susp:{' '}
               <strong>{suspension}</strong> • Dif: <strong>{differential}%</strong>
             </span>
+            {canonicalSetupData && canonicalSetupData.accumulatedSetup > 0 && (
+              <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 font-mono text-[10px] font-bold">
+                Acerto Canônico: {canonicalSetupData.accumulatedSetup.toFixed(2)}% (+
+                {(canonicalSetupData.qualifyingBonusSeconds * 1000).toFixed(1)}ms Q / -
+                {canonicalSetupData.raceBonusSecondsPerLap.toFixed(3)}s/v R)
+              </Badge>
+            )}
           </div>
 
           {parcFermeActive ? (

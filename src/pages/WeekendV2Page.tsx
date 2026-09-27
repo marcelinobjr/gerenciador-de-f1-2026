@@ -35,6 +35,7 @@ import { GPRegistrationScreen } from '@/pages/race/GPRegistrationScreen'
 
 // Serviços canônicos da F1 2026
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
+import { CanonicalPracticeIntegrationAdapter } from '@/services/canonicalPracticeIntegrationAdapter'
 import { practiceSessionService } from '@/services/practiceSessionService'
 import { PracticeSessionRunner } from '@/services/canonicalPracticeRunner'
 import {
@@ -1252,6 +1253,61 @@ export default function WeekendV2Page() {
               setCompletedSessions(updated)
             }
 
+            // Sincronização Canônica de Acerto (RACE-TL-01B):
+            // Apura e persiste o ganho real apurado na sessão para os monopostos em carreira habilitada
+            const activeCareerConfigVersion =
+              (career as any)?.config_version || (season as any)?.config_version
+            if (
+              activeCareerConfigVersion &&
+              (res.nextState.sessionType === 'tp1' ||
+                res.nextState.sessionType === 'tp2' ||
+                res.nextState.sessionType === 'tp3')
+            ) {
+              try {
+                const c1 = res.nextState.cars.car1
+                const c2 = res.nextState.cars.car2
+                const isSprintRound = hasSprintWeekend(currentRound)
+
+                if (c1 && c1.totalLaps > 0) {
+                  CanonicalPracticeIntegrationAdapter.persistSessionCarSetup({
+                    careerId: career?.id || season.id,
+                    seasonId: season.id,
+                    round: currentRound,
+                    sessionType: res.nextState.sessionType,
+                    teamId: team.id,
+                    carIndex: 1,
+                    driverId: c1.driverId,
+                    configVersion: activeCareerConfigVersion,
+                    completedLaps: c1.totalLaps,
+                    consistency: 85,
+                    isSprint: isSprintRound,
+                  }).catch((err) =>
+                    console.warn('[WeekendV2Page] Erro ao sincronizar acerto C1:', err),
+                  )
+                }
+
+                if (c2 && c2.totalLaps > 0) {
+                  CanonicalPracticeIntegrationAdapter.persistSessionCarSetup({
+                    careerId: career?.id || season.id,
+                    seasonId: season.id,
+                    round: currentRound,
+                    sessionType: res.nextState.sessionType,
+                    teamId: team.id,
+                    carIndex: 2,
+                    driverId: c2.driverId,
+                    configVersion: activeCareerConfigVersion,
+                    completedLaps: c2.totalLaps,
+                    consistency: 85,
+                    isSprint: isSprintRound,
+                  }).catch((err) =>
+                    console.warn('[WeekendV2Page] Erro ao sincronizar acerto C2:', err),
+                  )
+                }
+              } catch (e) {
+                console.warn('[WeekendV2Page] Falha na integração de acerto canônico:', e)
+              }
+            }
+
             // FW2.1C.1: Se a sessão for TL1, homologar créditos de novato para carros que cumpriram >= 1 volta
             if (res.nextState.sessionType === 'tp1') {
               const c1 = res.nextState.cars.car1
@@ -1556,6 +1612,64 @@ export default function WeekendV2Page() {
         const updated = [...currentStored, res.nextState.sessionType]
         writeStoredCompletedSessions(season.id, currentRound, updated)
         setCompletedSessions(updated)
+      }
+
+      // Sincronização Canônica de Acerto no SimulateRemaining (RACE-TL-01B)
+      const activeCareerConfigVersion =
+        (career as any)?.config_version || (season as any)?.config_version
+      if (
+        team?.id &&
+        activeCareerConfigVersion &&
+        (res.nextState.sessionType === 'tp1' ||
+          res.nextState.sessionType === 'tp2' ||
+          res.nextState.sessionType === 'tp3')
+      ) {
+        try {
+          const c1 = res.nextState.cars.car1
+          const c2 = res.nextState.cars.car2
+          const isSprintRound = hasSprintWeekend(currentRound)
+
+          if (c1 && c1.totalLaps > 0) {
+            CanonicalPracticeIntegrationAdapter.persistSessionCarSetup({
+              careerId: career?.id || season.id,
+              seasonId: season.id,
+              round: currentRound,
+              sessionType: res.nextState.sessionType,
+              teamId: team.id,
+              carIndex: 1,
+              driverId: c1.driverId,
+              configVersion: activeCareerConfigVersion,
+              completedLaps: c1.totalLaps,
+              consistency: 85,
+              isSprint: isSprintRound,
+            }).catch((err) =>
+              console.warn('[WeekendV2Page] Erro ao sincronizar acerto C1 simulateRemaining:', err),
+            )
+          }
+
+          if (c2 && c2.totalLaps > 0) {
+            CanonicalPracticeIntegrationAdapter.persistSessionCarSetup({
+              careerId: career?.id || season.id,
+              seasonId: season.id,
+              round: currentRound,
+              sessionType: res.nextState.sessionType,
+              teamId: team.id,
+              carIndex: 2,
+              driverId: c2.driverId,
+              configVersion: activeCareerConfigVersion,
+              completedLaps: c2.totalLaps,
+              consistency: 85,
+              isSprint: isSprintRound,
+            }).catch((err) =>
+              console.warn('[WeekendV2Page] Erro ao sincronizar acerto C2 simulateRemaining:', err),
+            )
+          }
+        } catch (e) {
+          console.warn(
+            '[WeekendV2Page] Falha na integração de acerto canônico simulateRemaining:',
+            e,
+          )
+        }
       }
 
       if (res.nextState.sessionType === 'tp1' && team?.id) {

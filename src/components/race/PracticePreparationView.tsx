@@ -23,6 +23,7 @@ import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyre
 import { hasSprintWeekend } from '@/services/weekendProgressionService'
 import type { DriverModel, TeamModel, TireSetItem, TireCompound } from '@/types/f1'
 import { resolveCountryFlag } from '@/lib/country-flag'
+import { racePracticeSetupService } from '@/services/racePracticeSetupService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { weatherGenerator } from '@/services/weatherGenerator'
@@ -168,6 +169,53 @@ export function PracticePreparationView({
       sessionType,
     )
   }, [careerId, seasonId, round, sessionType])
+
+  // Consulta acerto acumulado canônico para exibir na esteira/cabeçalho (RACE-TL-01B)
+  const [canonicalSetupSummary, setCanonicalSetupSummary] = useState<{
+    car1Setup: number
+    car2Setup: number
+    car1QualiBonusMs: number
+    car2QualiBonusMs: number
+    nextStep: string
+  } | null>(null)
+
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      racePracticeSetupService.getCarAccumulatedSetup({
+        careerId,
+        seasonId,
+        round,
+        teamId: team?.id || 'player',
+        carIndex: 1,
+        isSprint,
+      }),
+      racePracticeSetupService.getCarAccumulatedSetup({
+        careerId,
+        seasonId,
+        round,
+        teamId: team?.id || 'player',
+        carIndex: 2,
+        isSprint,
+      }),
+    ])
+      .then(([res1, res2]) => {
+        if (active && (res1.accumulatedSetup > 0 || res2.accumulatedSetup > 0)) {
+          setCanonicalSetupSummary({
+            car1Setup: res1.accumulatedSetup,
+            car2Setup: res2.accumulatedSetup,
+            car1QualiBonusMs: res1.qualifyingBonusSeconds * 1000,
+            car2QualiBonusMs: res2.qualifyingBonusSeconds * 1000,
+            nextStep: res1.nextStep,
+          })
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      active = false
+    }
+  }, [careerId, seasonId, round, isSprint, sessionType, team?.id])
 
   // Carga inicial persistente de `session_setups`
   useEffect(() => {
@@ -520,7 +568,16 @@ export function PracticePreparationView({
             </Badge>
             {circuitProfile?.hasSprint && (
               <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 font-mono text-[10px] font-bold">
-                ⚡ FIM DE SEMANA COM SPRINT
+                ⚡ FIM DE SEMANA COM SPRINT (APENAS TL1)
+              </Badge>
+            )}
+            {canonicalSetupSummary && (
+              <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono text-[10px] font-bold">
+                Acerto Canônico: C1 {canonicalSetupSummary.car1Setup.toFixed(1)}% (+
+                {canonicalSetupSummary.car1QualiBonusMs.toFixed(1)}ms) | C2{' '}
+                {canonicalSetupSummary.car2Setup.toFixed(1)}% (+
+                {canonicalSetupSummary.car2QualiBonusMs.toFixed(1)}ms) • Próximo:{' '}
+                {canonicalSetupSummary.nextStep}
               </Badge>
             )}
           </div>

@@ -13,6 +13,7 @@
  */
 
 import { racePracticeService } from './racePracticeService'
+import { racePracticeSetupService, PracticeSessionId } from './racePracticeSetupService'
 import type {
   SessionParticipant,
   PersistedWeekendSetupState,
@@ -95,11 +96,75 @@ export class CanonicalPracticeIntegrationAdapter {
 
     const nextStep = racePracticeService.getNextStep(state, params.isSprint)
 
+    // Sincroniza também com a persistência canônica atômica (session_setups / racePracticeSetupService)
+    try {
+      for (const res of results) {
+        await racePracticeSetupService.processAndPersistPracticeSetup(sourceSession, {
+          careerId: params.careerId,
+          seasonId: params.seasonId,
+          round: params.round,
+          session: sourceSession,
+          teamId: res.teamId,
+          carIndex: res.carIndex,
+          driverId: res.driverId,
+          configVersion: params.configVersion,
+          completedLaps: res.completedLaps,
+          consistency: res.consistency,
+          previousSetup: res.previousSetup,
+          uniformSetupDraw: res.uniformSetupDraw,
+          isSprint: params.isSprint,
+        })
+      }
+    } catch (e) {
+      console.warn(
+        '[CanonicalPracticeIntegrationAdapter] Falha ao sincronizar com racePracticeSetupService:',
+        e,
+      )
+    }
+
     return {
       persistedState: state,
       nextStep,
       isAlreadyCompleted,
       results,
     }
+  }
+
+  /**
+   * Apura e persiste diretamente o acerto do carro/piloto após uma sessão completada na interface.
+   * Utiliza o racePracticeSetupService canônico para garantir gravação em session_setups,
+   * checagem de concorrência e não duplicação.
+   */
+  public static async persistSessionCarSetup(params: {
+    careerId: string
+    seasonId: string
+    round: number
+    sessionType: 'tp1' | 'tp2' | 'tp3'
+    teamId: string
+    carIndex: 1 | 2
+    driverId: string
+    configVersion: string
+    completedLaps: number
+    consistency: number
+    previousSetup?: number
+    uniformSetupDraw?: number
+    isSprint?: boolean
+  }) {
+    const session = this.mapSessionTypeToSource(params.sessionType)
+    return await racePracticeSetupService.processAndPersistPracticeSetup(session, {
+      careerId: params.careerId,
+      seasonId: params.seasonId,
+      round: params.round,
+      session,
+      teamId: params.teamId,
+      carIndex: params.carIndex,
+      driverId: params.driverId,
+      configVersion: params.configVersion,
+      completedLaps: params.completedLaps,
+      consistency: params.consistency,
+      previousSetup: params.previousSetup,
+      uniformSetupDraw: params.uniformSetupDraw,
+      isSprint: params.isSprint,
+    })
   }
 }

@@ -23,12 +23,17 @@ import type {
 import { PRACTICE_PROGRAMS } from '@/types/practice-preparation'
 import { formatTireName } from '@/lib/f1-tire-system'
 import { MessageSquare, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { racePracticeSetupService } from '@/services/racePracticeSetupService'
 
 interface PracticeCarCockpitCardProps {
   car: PracticeCarLiveState
   carNumber: 1 | 2
   teamColor?: string
   carImageUrl?: string
+  careerId?: string
+  seasonId?: string
+  round?: number
+  isSprint?: boolean
   currentStint?: PracticeStint
   latestFeedback?: StintFeedbackRecord
   hasUnreadFeedback?: boolean
@@ -72,6 +77,10 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
   carNumber,
   teamColor = '#00A6FB',
   carImageUrl,
+  careerId,
+  seasonId,
+  round,
+  isSprint = false,
   currentStint,
   latestFeedback,
   hasUnreadFeedback = false,
@@ -90,6 +99,39 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
   const [showFeedbackDetails, setShowFeedbackDetails] = React.useState<boolean>(true)
   const statusConfig = TRACK_STATUS_LABELS[car.status]
   const programMeta = PRACTICE_PROGRAMS[car.program] || PRACTICE_PROGRAMS.car_setup
+
+  // Estado de acerto canônico persistido na vaga do carro
+  const [canonicalCarSetup, setCanonicalCarSetup] = React.useState<{
+    accumulatedSetup: number
+    lastCompletedSession: string | null
+    qualifyingBonusSeconds: number
+    raceBonusSecondsPerLap: number
+    nextStep: string
+  } | null>(null)
+
+  React.useEffect(() => {
+    let active = true
+    if (careerId && seasonId && round) {
+      racePracticeSetupService
+        .getCarAccumulatedSetup({
+          careerId,
+          seasonId,
+          round,
+          teamId: 'player',
+          carIndex: carNumber,
+          isSprint,
+        })
+        .then((res) => {
+          if (active && res && res.accumulatedSetup > 0) {
+            setCanonicalCarSetup(res)
+          }
+        })
+        .catch(() => {})
+    }
+    return () => {
+      active = false
+    }
+  }, [careerId, seasonId, round, carNumber, isSprint, car.totalLaps, isSessionCompleted])
 
   const isCarInGarage = car.status === 'garage'
   const isCarOnTrack = !isCarInGarage
@@ -151,6 +193,12 @@ export const PracticeCarCockpitCard: React.FC<PracticeCarCockpitCardProps> = ({
 
         {/* STATUS ATUAL E BOTÃO DE ESCALAÇÃO DO RESERVA (TL1) */}
         <div className="flex flex-wrap items-center gap-2">
+          {canonicalCarSetup && canonicalCarSetup.accumulatedSetup > 0 && (
+            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold">
+              Acerto: {canonicalCarSetup.accumulatedSetup.toFixed(1)}% (+
+              {(canonicalCarSetup.qualifyingBonusSeconds * 1000).toFixed(1)}ms Q)
+            </Badge>
+          )}
           {canToggleRookie &&
             !isSessionRunning &&
             !isSessionCompleted &&

@@ -156,6 +156,26 @@ export class RacePracticeService {
       configVersion,
     })
 
+    // Regra NORMAL: Ordem estrita de progressão das sessões
+    // TL2 só pode ser executado após conclusão do TL1
+    // TL3 só pode ser executado após conclusão do TL2
+    if (!isSprint) {
+      if (session === 'TL2') {
+        const hasTL1 =
+          state.lastCompletedSession === 'TL1' ||
+          state.lastCompletedSession === 'TL2' ||
+          state.lastCompletedSession === 'TL3'
+        if (!hasTL1) {
+          throw new Error('Sessão TL2 não é permitida antes da conclusão do TL1.')
+        }
+      } else if (session === 'TL3') {
+        const hasTL2 = state.lastCompletedSession === 'TL2' || state.lastCompletedSession === 'TL3'
+        if (!hasTL2) {
+          throw new Error('Sessão TL3 não é permitida antes da conclusão do TL2.')
+        }
+      }
+    }
+
     const sessionRules = getPracticeSessionRules(config, session)
     const lapVariation = config.parameters.practice_lap_count_variation ?? 0.15
 

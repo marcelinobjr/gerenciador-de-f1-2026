@@ -30,8 +30,10 @@ import {
 } from '@/lib/race/pureRaceEngine'
 import { createMulberry32 } from '@/services/weatherGenerator'
 
+export type PracticeSessionId = 'TL1' | 'TL2' | 'TL3'
+
 export interface PracticeSessionRulesResolved {
-  session: 'TL1'
+  session: PracticeSessionId
   planned_laps: number
   max_setup_gain: number
   time_offset_sec?: number
@@ -42,16 +44,17 @@ export interface PracticeSetupApplicationInputs {
   careerId: string
   seasonId: string
   round: number
-  session: 'TL1'
+  session: PracticeSessionId
   teamId: string
   carIndex: 1 | 2
   driverId: string
   configVersion: string
   completedLaps: number
   consistency: number
-  previousSetup: number
+  previousSetup?: number // Opcional: se omitido, busca da persistência do carro/vaga
   uniformSetupDraw?: number
   prngSeed?: number
+  isSprint?: boolean
 }
 
 export interface PracticeSetupApplicationRecord {
@@ -59,7 +62,7 @@ export interface PracticeSetupApplicationRecord {
   careerId: string
   seasonId: string
   round: number
-  session: 'TL1'
+  session: PracticeSessionId
   teamId: string
   carIndex: 1 | 2
   driverId: string
@@ -115,7 +118,7 @@ export class RacePracticeSetupService {
    */
   public resolvePracticeSessionRules(
     config: VersionedRaceConfig,
-    session: 'TL1',
+    session: PracticeSessionId,
   ): PracticeSessionRulesResolved {
     const tables = config.tables as Record<string, unknown> | undefined
 
@@ -124,7 +127,7 @@ export class RacePracticeSetupService {
       const found = tables.practices.find((p: any) => p.session === session)
       if (found) {
         return {
-          session: 'TL1',
+          session,
           planned_laps: Number(found.laps),
           max_setup_gain: Number(found.max_setup_gain),
           time_offset_sec:
@@ -142,7 +145,7 @@ export class RacePracticeSetupService {
         const row = ps.rows.find((r: any) => r.values?.E === session)
         if (row && row.values) {
           return {
-            session: 'TL1',
+            session,
             planned_laps: Number(row.values.F),
             max_setup_gain: Number(row.values.G),
             time_offset_sec: Number(row.values.H),
@@ -158,32 +161,43 @@ export class RacePracticeSetupService {
   }
 
   /**
-   * Apura e persiste canonicamente o acerto do TL1.
+   * Apura e persiste canonicamente o acerto de treinos (TL1, TL2, TL3).
    * Totalmente idempotente:
    * - Se já existir registro para a mesma aplicação com as mesmas entradas, retorna o registro existente.
    * - Se existir registro mas com parâmetros conflitantes, sinaliza conflito explícito.
    * - Em execução nova, calcula via função pura, grava no PocketBase e espelha em cache.
+   * - Rejeita rigorosamente TL2/TL3 quando isSprint === true.
+   * - Em fins de semana normais, garante ordem estrita (TL2 requer TL1 concluído; TL3 requer TL2).
    */
-  public async processAndPersistTL1Setup(
+  public async processAndPersistPracticeSetup(
+    session: PracticeSessionId,
     inputs: PracticeSetupApplicationInputs,
   ): Promise<PracticeSetupProcessResult> {
     const {
       careerId,
       seasonId,
       round,
-      session,
       teamId,
       carIndex,
       driverId,
       configVersion,
       completedLaps,
       consistency,
-      previousSetup,
+      previousSetup: directPrevSetup,
       uniformSetupDraw,
       prngSeed,
+      isSprint = false,
     } = inputs
 
-    // 1. Validações prévias estritas
+    // 1. Verificação estrita de formato SPRINT:
+    // Rejeitar TL2 e TL3 quando isSprint for true
+    if (isSprint && (session === 'TL2' || session === 'TL3')) {
+      throw new Error(
+        `Sessão '${session}' não é realizada em formato de fim de semana Sprint (apenas TL1 é disputado).`,
+      )
+    }
+
+    // 2. Validações prévias estritas
     if (!configVersion || typeof configVersion !== 'string' || configVersion.trim() === '') {
       throw new RaceConfigLoadError(
         'Versão da configuração não informada. Versão explícita é obrigatória.',
@@ -199,8 +213,8 @@ export class RacePracticeSetupService {
         `Identificação do participante inválida: teamId='${teamId}', carIndex=${carIndex}, driverId='${driverId}'`,
       )
     }
-    if (session !== 'TL1') {
-      throw new Error(`Sessão '${session}' não suportada nesta microentrega (apenas 'TL1').`)
+    if (session !== 'TL1' && session !== 'TL2' && session !== 'TL3') {
+      throw new Error(`Sessão '${session}' não suportada (apenas 'TL1', 'TL2' ou 'TL3').`)
     }
     if (completedLaps < 0 || !Number.isFinite(completedLaps)) {
       throw new Error(`Voltas completadas inválidas: ${completedLaps}`)
@@ -208,11 +222,8 @@ export class RacePracticeSetupService {
     if (consistency < 0 || consistency > 100 || !Number.isFinite(consistency)) {
       throw new Error(`Consistência do piloto inválida (deve ser entre 0 e 100): ${consistency}`)
     }
-    if (previousSetup < 0 || previousSetup > 100 || !Number.isFinite(previousSetup)) {
-      throw new Error(`Acerto anterior inválido (deve ser entre 0 e 100): ${previousSetup}`)
-    }
 
-    // 2. Carrega configuração versionada explícita (falha explicitamente ANTES de gravar)
+    // 3. Carrega configuração versionada explícita (falha explicitamente ANTES de gravar)
     const config = await loadVersionedRaceConfig(configVersion)
     if (!config || !config.parameters) {
       throw new RaceConfigLoadError(
@@ -222,7 +233,7 @@ export class RacePracticeSetupService {
 
     const rules = this.resolvePracticeSessionRules(config, session)
 
-    // 3. Monta chave determinística
+    // 4. Monta chave determinística do fato
     const factKey = buildPracticeSetupFactKey({
       careerId,
       seasonId,
@@ -232,7 +243,7 @@ export class RacePracticeSetupService {
       carIndex,
     })
 
-    // 4. Checagem de registro prévio existente (Idempotência / Reload)
+    // 5. Checagem de registro prévio existente (Idempotência / Reload)
     const existing = await this.loadPersistedApplication(
       careerId,
       seasonId,
@@ -247,7 +258,7 @@ export class RacePracticeSetupService {
         existing.configVersion === configVersion &&
         existing.completedLaps === completedLaps &&
         existing.consistency === consistency &&
-        existing.previousSetup === previousSetup
+        (directPrevSetup === undefined || existing.previousSetup === directPrevSetup)
 
       if (!isMatch) {
         throw new Error(
@@ -261,7 +272,75 @@ export class RacePracticeSetupService {
       }
     }
 
-    // 5. Determinação do sorteio uniforme de ganho
+    // 6. Resolução estrita da ordem regulamentar e do acerto anterior (previousSetup)
+    // Se a aplicação é TL2, requer TL1 para este carro/vaga.
+    // Se a aplicação é TL3, requer TL2 para este carro/vaga.
+    let resolvedPreviousSetup = directPrevSetup
+
+    if (session === 'TL2') {
+      const tl1Key = buildPracticeSetupFactKey({
+        careerId,
+        seasonId,
+        round,
+        session: 'TL1',
+        teamId,
+        carIndex,
+      })
+      const tl1Record = await this.loadPersistedApplication(
+        careerId,
+        seasonId,
+        round,
+        'TL1',
+        tl1Key,
+      )
+      if (!tl1Record) {
+        throw new Error(
+          `Sessão TL2 inválida: o TL1 para o Carro ${carIndex} (${teamId}) ainda não foi concluído e persistido.`,
+        )
+      }
+      if (resolvedPreviousSetup === undefined) {
+        resolvedPreviousSetup = tl1Record.accumulatedSetup
+      }
+    } else if (session === 'TL3') {
+      const tl2Key = buildPracticeSetupFactKey({
+        careerId,
+        seasonId,
+        round,
+        session: 'TL2',
+        teamId,
+        carIndex,
+      })
+      const tl2Record = await this.loadPersistedApplication(
+        careerId,
+        seasonId,
+        round,
+        'TL2',
+        tl2Key,
+      )
+      if (!tl2Record) {
+        throw new Error(
+          `Sessão TL3 inválida: o TL2 para o Carro ${carIndex} (${teamId}) ainda não foi concluído e persistido.`,
+        )
+      }
+      if (resolvedPreviousSetup === undefined) {
+        resolvedPreviousSetup = tl2Record.accumulatedSetup
+      }
+    } else {
+      // TL1
+      if (resolvedPreviousSetup === undefined) {
+        resolvedPreviousSetup = 0
+      }
+    }
+
+    if (
+      resolvedPreviousSetup < 0 ||
+      resolvedPreviousSetup > 100 ||
+      !Number.isFinite(resolvedPreviousSetup)
+    ) {
+      throw new Error(`Acerto anterior inválido (deve ser entre 0 e 100): ${resolvedPreviousSetup}`)
+    }
+
+    // 7. Determinação do sorteio uniforme de ganho
     let draw = uniformSetupDraw
     if (draw === undefined) {
       if (prngSeed !== undefined) {
@@ -277,7 +356,7 @@ export class RacePracticeSetupService {
       throw new Error(`Sorteio uniforme de acerto inválido (deve estar entre 0 e 1): ${draw}`)
     }
 
-    // 6. Cálculo funcional através da função pura (pureRaceEngine.ts)
+    // 8. Cálculo funcional através da função pura (pureRaceEngine.ts)
     const gainResult = calculatePracticeSetupGain({
       planned_laps: rules.planned_laps,
       completed_laps: completedLaps,
@@ -287,7 +366,7 @@ export class RacePracticeSetupService {
     })
 
     const capResult = applySetupCap({
-      previous_setup: previousSetup,
+      previous_setup: resolvedPreviousSetup,
       session_gain: gainResult.gain,
     })
 
@@ -316,7 +395,7 @@ export class RacePracticeSetupService {
       completedLaps,
       consistency,
       uniformSetupDraw: draw,
-      previousSetup,
+      previousSetup: resolvedPreviousSetup,
       sessionGain: gainResult.gain,
       accumulatedSetup: capResult.new_setup,
       qualifyingBonusSeconds,
@@ -324,7 +403,7 @@ export class RacePracticeSetupService {
       appliedAt: new Date().toISOString(),
     }
 
-    // 7. Persistência Canônica no PocketBase (session_setups) e no Cache Local
+    // 9. Persistência Canônica no PocketBase (session_setups) e no Cache Local
     await this.persistApplication(record)
 
     return {
@@ -334,19 +413,110 @@ export class RacePracticeSetupService {
   }
 
   /**
-   * Consulta um registro previamente persistido de apuração de TL1.
+   * Compatibilidade retroativa para TL1: delega para processAndPersistPracticeSetup('TL1', inputs).
+   */
+  public async processAndPersistTL1Setup(
+    inputs: PracticeSetupApplicationInputs,
+  ): Promise<PracticeSetupProcessResult> {
+    return this.processAndPersistPracticeSetup(inputs.session || 'TL1', inputs)
+  }
+
+  /**
+   * Consulta o estado ATUAL acumulado do carro/vaga no fim de semana.
+   * Garante a invariante: consultar TL1 após concluir TL3 NÃO rebaixa o acerto atual do carro!
+   */
+  public async getCarAccumulatedSetup(params: {
+    careerId: string
+    seasonId: string
+    round: number
+    teamId: string
+    carIndex: 1 | 2
+    isSprint?: boolean
+  }): Promise<{
+    accumulatedSetup: number
+    lastCompletedSession: PracticeSessionId | null
+    qualifyingBonusSeconds: number
+    raceBonusSecondsPerLap: number
+    isPracticeComplete: boolean
+    nextStep: 'TL1' | 'TL2' | 'TL3' | 'Q1' | 'SQ1'
+  }> {
+    const { careerId, seasonId, round, teamId, carIndex, isSprint = false } = params
+
+    // Tenta TL3 -> TL2 -> TL1 (ordem reversa para obter o estado mais avançado)
+    const sessionsToCheck: PracticeSessionId[] = isSprint ? ['TL1'] : ['TL3', 'TL2', 'TL1']
+
+    for (const sess of sessionsToCheck) {
+      const factKey = buildPracticeSetupFactKey({
+        careerId,
+        seasonId,
+        round,
+        session: sess,
+        teamId,
+        carIndex,
+      })
+      const rec = await this.loadPersistedApplication(careerId, seasonId, round, sess, factKey)
+      if (rec) {
+        let isPracticeComplete = false
+        let nextStep: 'TL1' | 'TL2' | 'TL3' | 'Q1' | 'SQ1' = 'TL1'
+
+        if (isSprint) {
+          if (sess === 'TL1') {
+            isPracticeComplete = true
+            nextStep = 'SQ1'
+          }
+        } else {
+          if (sess === 'TL3') {
+            isPracticeComplete = true
+            nextStep = 'Q1'
+          } else if (sess === 'TL2') {
+            nextStep = 'TL3'
+          } else if (sess === 'TL1') {
+            nextStep = 'TL2'
+          }
+        }
+
+        return {
+          accumulatedSetup: rec.accumulatedSetup,
+          lastCompletedSession: sess,
+          qualifyingBonusSeconds: rec.qualifyingBonusSeconds,
+          raceBonusSecondsPerLap: rec.raceBonusSecondsPerLap,
+          isPracticeComplete,
+          nextStep,
+        }
+      }
+    }
+
+    return {
+      accumulatedSetup: 0,
+      lastCompletedSession: null,
+      qualifyingBonusSeconds: 0,
+      raceBonusSecondsPerLap: 0,
+      isPracticeComplete: false,
+      nextStep: 'TL1',
+    }
+  }
+
+  /**
+   * Consulta um registro previamente persistido de apuração de treinos livres.
    */
   public async loadPersistedApplication(
     careerId: string,
     seasonId: string,
     round: number,
-    session: 'TL1',
+    session: PracticeSessionId,
     applicationKey: string,
   ): Promise<PracticeSetupApplicationRecord | null> {
     // 1. Tentar ler do PocketBase na coleção session_setups
+    const sessionInternalMap: Record<PracticeSessionId, string> = {
+      TL1: 'tp1',
+      TL2: 'tp2',
+      TL3: 'tp3',
+    }
+    const internalSession = sessionInternalMap[session] || 'tp1'
+
     try {
       const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "tp1"`,
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
       })
 
       if (records.items.length > 0) {
@@ -375,9 +545,17 @@ export class RacePracticeSetupService {
   private async persistApplication(record: PracticeSetupApplicationRecord): Promise<void> {
     const { careerId, seasonId, round, session, applicationKey } = record
 
+    const sessionInternalMap: Record<PracticeSessionId, string> = {
+      TL1: 'tp1',
+      TL2: 'tp2',
+      TL3: 'tp3',
+    }
+    const internalSession = sessionInternalMap[session] || 'tp1'
+
     try {
+      // Procura registro correspondente da sessão ou do fim de semana
       const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "tp1"`,
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
       })
 
       if (records.items.length > 0) {
@@ -385,7 +563,6 @@ export class RacePracticeSetupService {
         const currentStrategies = (existingItem.driver_strategies as any) || {}
         const currentApps = currentStrategies.practiceSetupApplications || {}
 
-        // Atualização atômica / merge com proteção de chave estável
         const mergedApps = {
           ...currentApps,
           [applicationKey]: record,
@@ -405,7 +582,7 @@ export class RacePracticeSetupService {
           team_id: careerId,
           season_id: seasonId,
           round,
-          session: 'tp1',
+          session: internalSession,
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
