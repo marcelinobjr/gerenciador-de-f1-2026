@@ -27,7 +27,7 @@ describe('CAREER-NUMBERS-01: Números reais de carreira e integração canônica
     // Max Verstappen: 233 largadas, 71 vitórias, 48 poles, 4 títulos
     const maxRecord = { id: 'mbj-001' }
     const maxStats = getDriverCareerStats({ pilot: maxRecord as any })
-    expect(maxStats.races).toBe(999999)
+    expect(maxStats.races).toBe(233)
     expect(maxStats.wins).toBe(71)
     expect(maxStats.poles).toBe(48)
     expect(maxStats.championships).toBe(4)
