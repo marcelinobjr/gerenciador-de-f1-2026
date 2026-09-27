@@ -860,12 +860,8 @@ export class SeasonTransitionService {
         return {
           seasonYear,
           openingCash: team.budget || 50000000,
-          totalRevenue: Math.round(
-            settleRes.annualCalculation.revenues.total_revenue * 1000000,
-          ),
-          totalExpenses: Math.round(
-            settleRes.annualCalculation.costs.total_costs * 1000000,
-          ),
+          totalRevenue: Math.round(settleRes.annualCalculation.revenues.total_revenue * 1000000),
+          totalExpenses: Math.round(settleRes.annualCalculation.costs.total_costs * 1000000),
           netCashFlow: Math.round(settleRes.annualCalculation.balance_before_financing * 1000000),
           closingCash,
           costCapReport,
