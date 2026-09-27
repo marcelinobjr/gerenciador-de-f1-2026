@@ -483,6 +483,15 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'mbj-001',
     'drv_0022',
   ],
+  // Verstappen id canônico
+  'mbj-001': [
+    'verstappen',
+    'driver_max_verstappen',
+    'drv_max_verstappen',
+    'max_verstappen',
+    'de3isw3re1ji2wj',
+    'drv_0022',
+  ],
   // Leclerc runtime ID
   lc6cma46f01dgrj: [
     'leclerc',
@@ -490,6 +499,14 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'drv_charles_leclerc',
     'charles_leclerc',
     'mbj-004',
+    'drv_0047',
+  ],
+  'mbj-004': [
+    'leclerc',
+    'driver_charles_leclerc',
+    'drv_charles_leclerc',
+    'charles_leclerc',
+    'lc6cma46f01dgrj',
     'drv_0047',
   ],
   // O'Ward runtime ID
@@ -1202,7 +1219,25 @@ export function getActiveDriverTeamBinding(
     }
   }
 
-  // Precedência 2: Binding canônico da temporada/carreira (canonicalDriver.teamId)
+  // Precedência 2: Vínculo real persistido no registro do banco (drivers.team_id / drivers.reserve_team_id)
+  // Pilotos com contrato no banco (como Verstappen e outros) refletem seu vínculo ativo do save
+  if (rawMatch) {
+    const boundTeamId = rawMatch.team_id || rawMatch.reserve_team_id || null
+    if (boundTeamId) {
+      const matchedTeam = findTeamRecord(boundTeamId)
+      let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+      if (rawMatch.reserve_team_id || rawMatch.role === 'reserva') {
+        cRole = 'reserva'
+      } else if (rawMatch.is_academy || rawMatch.role === 'academia') {
+        cRole = 'academia'
+      } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
+        cRole = 'desenvolvimento'
+      }
+      return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
+    }
+  }
+
+  // Precedência 3: Binding canônico inicial da temporada (canonicalDriver.teamId)
   if (canonicalDriver) {
     if (canonicalDriver.teamId) {
       const matchedTeam = findTeamRecord(canonicalDriver.teamId)
@@ -1216,7 +1251,6 @@ export function getActiveDriverTeamBinding(
     }
 
     // Piloto canônico sem equipe (agente livre / outra categoria como IndyCar, FE, WEC, etc.)
-    // NÃO herda rawMatch.team_id legado da F1 sem canonical_contract ativo explícito.
     return {
       driverId: canonicalDriver.driverId || driverId,
       canonicalDriver,
@@ -1227,29 +1261,6 @@ export function getActiveDriverTeamBinding(
       role: null,
       status: 'free_agent',
       isContracted: false,
-    }
-  }
-
-  // Precedência 3: Piloto sem definição canônica (procedural / novo) -> Fallback legado de drivers.team_id
-  if (rawMatch) {
-    const isKnownLegacyGlitch =
-      (rawMatch.id === 'de3isw3re1ji2wj' || rawMatch.id === 'lc6cma46f01dgrj') &&
-      rawMatch.team_id === '76vs00hy9hu24q1'
-
-    if (!isKnownLegacyGlitch) {
-      const boundTeamId = rawMatch.team_id || rawMatch.reserve_team_id || null
-      if (boundTeamId) {
-        const matchedTeam = findTeamRecord(boundTeamId)
-        let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
-        if (rawMatch.reserve_team_id || rawMatch.role === 'reserva') {
-          cRole = 'reserva'
-        } else if (rawMatch.is_academy || rawMatch.role === 'academia') {
-          cRole = 'academia'
-        } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
-          cRole = 'desenvolvimento'
-        }
-        return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
-      }
     }
   }
 

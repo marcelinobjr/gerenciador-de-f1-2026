@@ -5,6 +5,7 @@ import { DriverSidePanel } from '@/components/DriverSidePanel'
 import { DriverComparisonModal } from '@/components/DriverComparisonModal'
 import { PilotProfileDialog, formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { CountryFlag } from '@/components/CountryFlag'
+import { resolveCountryFlag, countryName } from '@/lib/country-flag'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { DriverNegotiationModal } from '@/components/commercial/DriverNegotiationModal'
 import { SillySeasonBoard } from '@/components/commercial/SillySeasonBoard'
@@ -277,9 +278,26 @@ export default function DriversPage() {
       const cat = (d.category ||
         (f1aInfo ? 'f1_academy' : mbjInfo?.category || 'f1')) as UnifiedDriverItem['category']
 
+      // Salário real vigente ou pretensão salarial para agentes livres
+      const isContracted = Boolean((teamId || teamKey) && binding.role !== null)
       const rawSalary =
-        d.salary || (f1aInfo ? f1aInfo.referenceAnnualUsd : mbjInfo ? mbjInfo.salaryUsd : 3000000)
+        d.salary || (f1aInfo ? f1aInfo.referenceAnnualUsd : mbjInfo ? mbjInfo.salaryUsd : 0)
       const salaryUsd = rawSalary > 100000000 ? Math.round(rawSalary / 5.75) : rawSalary
+
+      // Cálculo de idade estritamente alinhado com o ano da temporada/save
+      const seasonYear = season?.year || 2026
+      let calculatedAge = d.age
+      const birthDateStr = f1aInfo?.birthDate || mbjInfo?.birthDate
+      if (birthDateStr) {
+        const birthYear = parseInt(birthDateStr.split('-')[0], 10)
+        if (!isNaN(birthYear)) {
+          calculatedAge = seasonYear - birthYear
+        }
+      } else if (d.age && season?.year && season.year > 2026) {
+        calculatedAge = d.age + (season.year - 2026)
+      } else if (mbjInfo?.baseAge2026) {
+        calculatedAge = mbjInfo.baseAge2026 + (seasonYear - 2026)
+      }
 
       const speed = d.speed || f1aInfo?.speed || mbjInfo?.speed || 75
       const consistency = d.consistency || f1aInfo?.consistency || mbjInfo?.consistency || 75
@@ -305,7 +323,7 @@ export default function DriversPage() {
         id: d.id,
         name: d.name,
         nationality: d.nationality || mbjInfo?.nationality || 'Mundial',
-        age: d.age || mbjInfo?.age || 25,
+        age: calculatedAge || d.age || mbjInfo?.age || 25,
         speed,
         consistency,
         rain,
@@ -397,17 +415,22 @@ export default function DriversPage() {
     }
 
     // 2. Incorpora pilotos MBJ não cadastrados no banco para catálogo estático
+    const currentSeasonYear = season?.year || 2026
     for (const pilot of MBJ_2026_PILOTS) {
       const normName = pilot.name.toLowerCase().trim()
       if (visitedNames.has(normName)) continue
 
       // BUG-RETRATOS-03C2: Pilotos MBJ estáticos não vinculados a contrato ativo -> Free Agent estrito
       const mbjBinding = getActiveDriverTeamBinding(pilot.id, season, dbDrivers, dbTeams)
+      const calculatedMbjAge = pilot.baseAge2026
+        ? pilot.baseAge2026 + (currentSeasonYear - 2026)
+        : pilot.age
+
       result.push({
         id: pilot.id,
         name: pilot.name,
         nationality: pilot.nationality,
-        age: pilot.age,
+        age: calculatedMbjAge,
         speed: pilot.speed,
         consistency: pilot.consistency,
         rain: pilot.rain,
@@ -464,7 +487,7 @@ export default function DriversPage() {
     }
 
     return result
-  }, [dbDrivers, dbTeams, team])
+  }, [dbDrivers, dbTeams, team, season])
 
   // Helper canônico de Superlicença
   const checkDriverSuperlicense = useCallback((pilot: UnifiedDriverItem): boolean => {
@@ -1121,14 +1144,14 @@ export default function DriversPage() {
         <div className="flex flex-col lg:flex-row items-start gap-5">
           {/* COLUNA ESQUERDA: LISTA / TABELA COMPACTA */}
           <div className="w-full lg:flex-1 bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden flex flex-col">
-            {/* Header da Tabela com botões de ordenação */}
+            {/* Header da Tabela com exatamente quatro colunas canônicas */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-3 text-center w-10">#</th>
+                    {/* Coluna 1: Nome do piloto */}
                     <th
-                      className="py-3 px-3 cursor-pointer hover:text-slate-900 transition-colors"
+                      className="py-3 px-4 cursor-pointer hover:text-slate-900 transition-colors"
                       onClick={() => {
                         if (sortField === 'name') setSortAsc(!sortAsc)
                         else {
@@ -1138,12 +1161,19 @@ export default function DriversPage() {
                       }}
                     >
                       <div className="flex items-center gap-1">
-                        <span>Piloto</span>
+                        <span>Nome do piloto</span>
                         <ArrowUpDown className="w-3 h-3 opacity-60" />
                       </div>
                     </th>
+
+                    {/* Coluna 2: Nacionalidade */}
+                    <th className="py-3 px-3">
+                      <span>Nacionalidade</span>
+                    </th>
+
+                    {/* Coluna 3: Idade */}
                     <th
-                      className="py-3 px-2 text-center w-14 cursor-pointer hover:text-slate-900 transition-colors"
+                      className="py-3 px-3 text-center w-20 cursor-pointer hover:text-slate-900 transition-colors"
                       onClick={() => {
                         if (sortField === 'age') setSortAsc(!sortAsc)
                         else {
@@ -1152,45 +1182,15 @@ export default function DriversPage() {
                         }
                       }}
                     >
-                      <div className="flex items-center justify-center gap-0.5">
+                      <div className="flex items-center justify-center gap-1">
                         <span>Idade</span>
                         <ArrowUpDown className="w-2.5 h-2.5 opacity-60" />
                       </div>
                     </th>
+
+                    {/* Coluna 4: Salário anual */}
                     <th
-                      className="py-3 px-2 text-center w-14 cursor-pointer hover:text-slate-900 transition-colors"
-                      onClick={() => {
-                        if (sortField === 'category') setSortAsc(!sortAsc)
-                        else {
-                          setSortField('category')
-                          setSortAsc(true)
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-center gap-0.5">
-                        <span>Cat.</span>
-                        <ArrowUpDown className="w-2.5 h-2.5 opacity-60" />
-                      </div>
-                    </th>
-                    <th className="py-3 px-3">Equipe Atual</th>
-                    <th className="py-3 px-3 text-center">Status</th>
-                    <th
-                      className="py-3 px-3 text-center cursor-pointer hover:text-slate-900 transition-colors"
-                      onClick={() => {
-                        if (sortField === 'superlicense') setSortAsc(!sortAsc)
-                        else {
-                          setSortField('superlicense')
-                          setSortAsc(true)
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        <span>Superlicença</span>
-                        <ArrowUpDown className="w-2.5 h-2.5 opacity-60" />
-                      </div>
-                    </th>
-                    <th
-                      className="py-3 px-3 text-right cursor-pointer hover:text-slate-900 transition-colors"
+                      className="py-3 px-4 text-right cursor-pointer hover:text-slate-900 transition-colors"
                       onClick={() => {
                         if (sortField === 'market_value') setSortAsc(!sortAsc)
                         else {
@@ -1200,7 +1200,7 @@ export default function DriversPage() {
                       }}
                     >
                       <div className="flex items-center justify-end gap-1">
-                        <span>Contrato / Valor</span>
+                        <span>Salário anual</span>
                         <ArrowUpDown className="w-2.5 h-2.5 opacity-60" />
                       </div>
                     </th>
@@ -1209,19 +1209,18 @@ export default function DriversPage() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredDrivers.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <td colSpan={4} className="py-12 text-center text-slate-400">
                         Nenhum piloto encontrado para os filtros selecionados.
                       </td>
                     </tr>
                   ) : (
-                    filteredDrivers.map((pilot, idx) => {
+                    filteredDrivers.map((pilot) => {
                       const isSelected = selectedDriverId === pilot.id
-                      const hasSl = checkDriverSuperlicense(pilot)
                       const isContracted = Boolean(
                         (pilot.teamId || pilot.teamKey) && pilot.role !== null,
                       )
-                      const teamLogo = pilot.teamKey ? getTeamLogoUrl(pilot.teamKey) : null
-                      const catLabel = formatCategoryLabel(pilot.category)
+                      const flagEmoji = resolveCountryFlag(pilot.nationality)
+                      const countryLabel = countryName(pilot.nationality) || pilot.nationality
 
                       return (
                         <tr
@@ -1230,7 +1229,6 @@ export default function DriversPage() {
                           data-driver-name={pilot.name}
                           onClick={() => {
                             setSelectedDriverId(pilot.id)
-                            // No mobile (tela menor), abre modal do painel
                             if (window.innerWidth < 1024) {
                               setIsMobilePanelOpen(true)
                             }
@@ -1241,109 +1239,58 @@ export default function DriversPage() {
                               : 'hover:bg-slate-50/80 bg-white'
                           }`}
                         >
-                          {/* Coluna # / Índice */}
-                          <td className="py-2.5 px-3 text-center font-mono text-slate-400 group-hover:text-slate-600">
-                            {idx + 1}
+                          {/* 1. Nome do piloto (clicável para abrir a ficha completa) */}
+                          <td className="py-3 px-4">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedDriverId(pilot.id)
+                                handleOpenPilotProfile(pilot)
+                              }}
+                              className="text-left font-bold text-slate-900 hover:text-[#E10600] transition-colors underline-offset-2 hover:underline focus:outline-none"
+                            >
+                              {pilot.name}
+                            </button>
                           </td>
 
-                          {/* Coluna Piloto (Bandeira + Nome) */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-2">
-                              <CountryFlag code={pilot.nationality} className="text-base" />
+                          {/* 2. Nacionalidade: bandeira emoji + identificação do país */}
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5">
                               <span
-                                className={`truncate font-bold ${
-                                  isSelected
-                                    ? 'text-[#E10600]'
-                                    : 'text-slate-900 group-hover:text-[#E10600]'
-                                }`}
+                                role="img"
+                                aria-label={countryLabel}
+                                className="text-base leading-none select-none"
                               >
-                                {pilot.name}
+                                {flagEmoji}
+                              </span>
+                              <span className="text-slate-700 text-xs font-medium truncate">
+                                {countryLabel}
                               </span>
                             </div>
                           </td>
 
-                          {/* Coluna Idade */}
-                          <td className="py-2.5 px-2 text-center text-slate-600 font-mono">
+                          {/* 3. Idade (calculada pela data da carreira/save) */}
+                          <td className="py-3 px-3 text-center text-slate-600 font-mono text-xs">
                             {pilot.age}
                           </td>
 
-                          {/* Coluna Categoria */}
-                          <td className="py-2.5 px-2 text-center">
-                            <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-semibold text-[10px] border border-slate-200">
-                              {catLabel}
-                            </span>
-                          </td>
-
-                          {/* Coluna Equipe Atual */}
-                          <td className="py-2.5 px-3">
-                            {isContracted && pilot.teamId && pilot.teamName ? (
-                              <div className="flex items-center gap-1.5 min-w-0 max-w-[180px]">
-                                {teamLogo && (
-                                  <img
-                                    src={teamLogo}
-                                    alt={pilot.teamName}
-                                    className="w-4 h-4 object-contain rounded-xs shrink-0"
-                                  />
-                                )}
-                                <span className="truncate text-slate-800 font-medium text-xs">
-                                  {pilot.teamName}
+                          {/* 4. Salário anual: moeda e periodicidade */}
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            {pilot.salaryUsd > 0 ? (
+                              <div className="flex flex-col items-end">
+                                <span className="font-mono font-bold text-slate-900 text-xs">
+                                  {formatUsdCurrency(pilot.salaryUsd, 'full')} / ano
                                 </span>
+                                {!isContracted && (
+                                  <span className="text-[10px] text-amber-700 font-medium bg-amber-50 px-1 rounded border border-amber-200 mt-0.5">
+                                    pretensão
+                                  </span>
+                                )}
                               </div>
                             ) : (
-                              <span className="text-slate-500 font-medium text-xs">
-                                Agente livre
-                              </span>
+                              <span className="text-slate-400 font-mono text-xs">—</span>
                             )}
-                          </td>
-
-                          {/* Coluna Status */}
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            {isContracted && pilot.teamId ? (
-                              pilot.role === 'reserva' ? (
-                                <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-medium text-[10px] px-2 py-0.5">
-                                  Reserva
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-medium text-[10px] px-2 py-0.5">
-                                  Sob contrato
-                                </Badge>
-                              )
-                            ) : (
-                              <Badge className="bg-sky-50 text-sky-700 border-sky-200 font-medium text-[10px] px-2 py-0.5">
-                                Agente livre
-                              </Badge>
-                            )}
-                          </td>
-
-                          {/* Coluna Superlicença (✓ Sim / ✕ Não visual) */}
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            {hasSl ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>Sim</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-rose-500 font-bold text-xs">
-                                <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                <span>Não</span>
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Coluna Contrato / Valor */}
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                            <div className="flex flex-col items-end">
-                              <span className="font-mono font-bold text-slate-900 text-xs">
-                                {pilot.salaryUsd > 0
-                                  ? formatUsdCurrency(pilot.salaryUsd, 'compact')
-                                  : '—'}
-                              </span>
-                              {isContracted && pilot.contractEnd && (
-                                <span className="text-[10px] text-slate-400 font-medium">
-                                  Até {pilot.contractEnd}
-                                </span>
-                              )}
-                            </div>
                           </td>
                         </tr>
                       )
@@ -1352,7 +1299,6 @@ export default function DriversPage() {
                 </tbody>
               </table>
             </div>
-
             {/* Rodapé da tabela com contagem */}
             <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
               <span>
