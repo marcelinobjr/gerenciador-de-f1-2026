@@ -370,10 +370,10 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   const hasTeam = Boolean(
     pilot.teamName &&
     pilot.teamName !== 'Sem equipe' &&
-    pilot.teamName !== 'Agente Livre' &&
+    pilot.teamName.toLowerCase() !== 'agente livre' &&
     pilot.teamName !== 'Agente Livre (Sem equipe)',
   )
-  const currentTeamDisplay = hasTeam ? pilot.teamName : 'Agente Livre'
+  const currentTeamDisplay = hasTeam ? pilot.teamName : 'Agente livre'
   const effectiveContractEnd = pilot.contractEnd ?? (pilot as any).contract_end
   const contractTermDisplay =
     hasTeam && effectiveContractEnd && effectiveContractEnd >= 2026

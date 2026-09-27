@@ -142,7 +142,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
                   className="w-3.5 h-3.5 object-contain rounded-xs shrink-0"
                 />
               )}
-              <span className="truncate">{driver.teamName || 'Sem equipe (Livre no mercado)'}</span>
+              <span className="truncate">{driver.teamName || 'Agente livre'}</span>
             </div>
           </div>
         </div>
@@ -216,7 +216,9 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
               ) : (
                 <Badge className="bg-sky-50 text-sky-700 border-sky-200 font-medium text-[10px] px-1.5 py-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block mr-1" />
-                  {contractStatusLabel}
+                  {contractStatusLabel === 'Livre no mercado'
+                    ? 'Agente livre'
+                    : contractStatusLabel}
                 </Badge>
               )}
             </div>

@@ -727,7 +727,7 @@ export default function DriversPage() {
     if (isContracted) {
       return { label: 'Sob contrato', type: 'contracted' as const }
     }
-    return { label: 'Livre no mercado', type: 'free' as const }
+    return { label: 'Agente livre', type: 'free' as const }
   }, [activeSideDriver])
 
   // Limpa todos os filtros
@@ -1276,27 +1276,29 @@ export default function DriversPage() {
 
                           {/* Coluna Equipe Atual */}
                           <td className="py-2.5 px-3">
-                            {isContracted ? (
+                            {isContracted && pilot.teamId && pilot.teamName ? (
                               <div className="flex items-center gap-1.5 min-w-0 max-w-[180px]">
                                 {teamLogo && (
                                   <img
                                     src={teamLogo}
-                                    alt={pilot.teamName || 'Equipe'}
+                                    alt={pilot.teamName}
                                     className="w-4 h-4 object-contain rounded-xs shrink-0"
                                   />
                                 )}
                                 <span className="truncate text-slate-800 font-medium text-xs">
-                                  {pilot.teamName || 'Equipe F1'}
+                                  {pilot.teamName}
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-slate-400 font-medium">—</span>
+                              <span className="text-slate-500 font-medium text-xs">
+                                Agente livre
+                              </span>
                             )}
                           </td>
 
                           {/* Coluna Status */}
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            {isContracted ? (
+                            {isContracted && pilot.teamId ? (
                               pilot.role === 'reserva' ? (
                                 <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-medium text-[10px] px-2 py-0.5">
                                   Reserva
@@ -1308,7 +1310,7 @@ export default function DriversPage() {
                               )
                             ) : (
                               <Badge className="bg-sky-50 text-sky-700 border-sky-200 font-medium text-[10px] px-2 py-0.5">
-                                Livre no mercado
+                                Agente livre
                               </Badge>
                             )}
                           </td>

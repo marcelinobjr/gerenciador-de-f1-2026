@@ -6,6 +6,7 @@ import { DriverPoster } from '@/components/DriverPoster'
 import { getDriverCareerStats, MBJ_2026_PILOTS, getOverallRating } from '@/lib/mbj-drivers-data'
 import { hasDriverPoster, getLocalDriverPosterCandidates } from '@/lib/pilot-posters'
 import { UnifiedDriverItem } from '@/pages/DriversPage'
+import { getActiveDriverTeamBinding } from '@/lib/canonical-driver-database'
 
 // Mock de pilotos de teste canônicos
 const mockVerstappen: UnifiedDriverItem = {
@@ -188,8 +189,8 @@ describe('Aba Pilotos — Suíte de Requisitos Funcionais e Visuais (A a L)', ()
     expect(statsJunior.races).toBe(0)
   })
 
-  // J. Piloto livre não aparece como contratado
-  it('J. Piloto livre no mercado exibe status "Livre no mercado" e disponibilidade "Disponível"', () => {
+  // J. Piloto livre no mercado exibe status "Agente livre" e disponibilidade "Disponível"
+  it('J. Piloto livre no mercado exibe status "Agente livre" e disponibilidade "Disponível"', () => {
     const onOpenProfile = vi.fn()
     const { getByText } = render(
       <DriverSidePanel
@@ -201,14 +202,14 @@ describe('Aba Pilotos — Suíte de Requisitos Funcionais e Visuais (A a L)', ()
           maxAnnualSalary: 5000000,
         }}
         hasSuperlicense={true}
-        contractStatusLabel="Livre no mercado"
+        contractStatusLabel="Agente livre"
         contractStatusType="free"
         categoryLabel="F1"
         onOpenFullProfile={onOpenProfile}
       />,
     )
 
-    expect(getByText('Livre no mercado')).toBeDefined()
+    expect(getByText('Agente livre')).toBeDefined()
     expect(getByText('Disponível')).toBeDefined()
   })
 
@@ -264,5 +265,58 @@ describe('Aba Pilotos — Suíte de Requisitos Funcionais e Visuais (A a L)', ()
     expect(fullProfileBtn).toBeDefined()
     fireEvent.click(fullProfileBtn)
     expect(onOpenProfile).toHaveBeenCalledTimes(1)
+  })
+
+  // M. Resolução canônica de vínculos: Titular, Reserva oficial e Agente livre
+  it('M. Piloto titular e piloto reserva oficial exibem suas respectivas equipes; agentes livres exibem exatamente "Agente livre"', () => {
+    // 1. Piloto titular com equipe: Max Verstappen
+    const titularBinding = getActiveDriverTeamBinding(
+      mockVerstappen.id,
+      { year: 2026 },
+      undefined,
+      [{ id: 'team_redbull', team_key: 'red_bull', name: 'Red Bull Racing' }],
+    )
+    expect(titularBinding.isContracted).toBe(true)
+    expect(titularBinding.teamName).toBe('Red Bull Racing')
+
+    // 2. Piloto reserva oficial com equipe: Drugovich (Aston Martin) e Iwasa (Red Bull)
+    const drugovichBinding = getActiveDriverTeamBinding(
+      'mbj-027', // Felipe Drugovich
+      { year: 2026 },
+      undefined,
+      [{ id: 'team_aston', team_key: 'aston_martin', name: 'Aston Martin Aramco F1 Team' }],
+    )
+    expect(drugovichBinding.isContracted).toBe(true)
+    expect(drugovichBinding.role).toBe('reserva')
+    expect(drugovichBinding.teamName).toBe('Aston Martin Aramco F1 Team')
+
+    const iwasaBinding = getActiveDriverTeamBinding(
+      'mbj-023', // Ayumu Iwasa
+      { year: 2026 },
+      undefined,
+      [{ id: 'team_redbull', team_key: 'red_bull', name: 'Red Bull Racing' }],
+    )
+    expect(iwasaBinding.isContracted).toBe(true)
+    expect(iwasaBinding.role).toBe('reserva')
+    expect(iwasaBinding.teamName).toBe('Red Bull Racing')
+
+    // 3. Agentes livres estritos: Ricciardo e Magnussen
+    const ricciardoBinding = getActiveDriverTeamBinding(
+      'mbj-034', // Daniel Ricciardo
+      { year: 2026 },
+    )
+    expect(ricciardoBinding.isContracted).toBe(false)
+    expect(ricciardoBinding.teamId).toBeNull()
+    expect(ricciardoBinding.teamName).toBeNull()
+    expect(ricciardoBinding.status).toBe('free_agent')
+
+    const magnussenBinding = getActiveDriverTeamBinding(
+      'mbj-035', // Kevin Magnussen
+      { year: 2026 },
+    )
+    expect(magnussenBinding.isContracted).toBe(false)
+    expect(magnussenBinding.teamId).toBeNull()
+    expect(magnussenBinding.teamName).toBeNull()
+    expect(magnussenBinding.status).toBe('free_agent')
   })
 })
