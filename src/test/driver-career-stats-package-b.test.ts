@@ -43,9 +43,9 @@ describe('PACOTE B — INTEGRAÇÃO CANÔNICA DE TEMPORADA, RESULTADOS E POLES (
       seasonHistories: seasonHistoriesSave,
     })
     expect(statsVerstappenSave.championships).toBe(5) // 4 baseline + 1 save
-    expect(statsVerstappenSave.races).toBe(205)
-    expect(statsVerstappenSave.wins).toBe(63)
-    expect(statsVerstappenSave.poles).toBe(40)
+    expect(statsVerstappenSave.races).toBe(233)
+    expect(statsVerstappenSave.wins).toBe(71)
+    expect(statsVerstappenSave.poles).toBe(48)
 
     // Piloto sem título (ex: Leclerc) continua com seus títulos de baseline (0)
     const statsLeclerc = getDriverCareerStats({
@@ -173,9 +173,9 @@ describe('PACOTE B — INTEGRAÇÃO CANÔNICA DE TEMPORADA, RESULTADOS E POLES (
     })
 
     expect(statsFromWatch).toEqual(statsFromSimulate)
-    // Bortoleto baseline: 0/0/0/0 + 1 GP, 1 vitória, 1 pole
+    // Bortoleto baseline: 24/0/0/0 + 1 GP, 1 vitória, 1 pole = 25/1/1/0
     expect(statsFromWatch).toEqual({
-      races: 1,
+      races: 25,
       wins: 1,
       poles: 1,
       championships: 0,

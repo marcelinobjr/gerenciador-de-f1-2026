@@ -3363,6 +3363,7 @@ export function getDriverCareerStats(params: GetDriverCareerStatsParams): Driver
   let baseWins = 0
   let basePoles = 0
   let baseChampionships = 0
+  let historicalFound = false
 
   const hist = getDriverCareerBaseline2025(pilotId)
   if (hist) {

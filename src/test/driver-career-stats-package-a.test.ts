@@ -26,38 +26,38 @@ describe('PACOTE A — STATS DE CARREIRA CANÔNICOS DOS PILOTOS (T37–T39)', ()
       championships: 0,
     })
 
-    // Bortoleto baseline puro: zero GPs, zero vitórias, zero poles, zero títulos
+    // Bortoleto baseline puro: 24 largadas, zero vitórias, zero poles, zero títulos
     const statsBortoleto = getDriverCareerStats({
       pilot: bortoletoCatalog,
       raceResults: [],
       seasonHistories: [],
     })
     expect(statsBortoleto).toEqual({
-      races: 0,
+      races: 24,
       wins: 0,
       poles: 0,
       championships: 0,
     })
 
-    // Verstappen baseline puro
+    // Verstappen baseline puro: 233 largadas, 71 vitórias, 48 poles, 4 títulos
     const statsVerstappen = getDriverCareerStats({
       pilot: verstappenCatalog,
       raceResults: null,
       seasonHistories: null,
     })
     expect(statsVerstappen).toEqual({
-      races: 205,
-      wins: 63,
-      poles: 40,
+      races: 233,
+      wins: 71,
+      poles: 48,
       championships: 4,
     })
 
-    // Hamilton baseline puro
+    // Hamilton baseline puro: 380 largadas, 105 vitórias, 104 poles, 7 títulos
     const statsHamilton = getDriverCareerStats({
       pilot: hamiltonCatalog,
     })
     expect(statsHamilton).toEqual({
-      races: 350,
+      races: 380,
       wins: 105,
       poles: 104,
       championships: 7,
@@ -116,8 +116,8 @@ describe('PACOTE A — STATS DE CARREIRA CANÔNICOS DOS PILOTOS (T37–T39)', ()
       seasonHistories: mockSeasonHistories,
     })
 
-    // races = 0 + 4 = 4; wins = 0 + 1 = 1; poles = 0; championships = 0 + 1 = 1
-    expect(statsBortoleto.races).toBe(4)
+    // races = 24 + 4 = 28; wins = 0 + 1 = 1; poles = 0; championships = 0 + 1 = 1
+    expect(statsBortoleto.races).toBe(28)
     expect(statsBortoleto.wins).toBe(1)
     expect(statsBortoleto.poles).toBe(0)
     expect(statsBortoleto.championships).toBe(1)

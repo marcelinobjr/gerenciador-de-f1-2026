@@ -72,30 +72,30 @@ describe('SUÍTE FC02A — Driver Profile & Superlicença Canônica', () => {
     expect(view.isEligibleForF1Seat).toBe(false)
   })
 
-  // FC02A-07: Baseline histórico respeitado: Bortoleto = 0 GPs (novato 2026)
-  it('FC02A-07: Histórico de Bortoleto no baseline oficial = 0 GPs na F1', () => {
+  // FC02A-07: Baseline histórico respeitado: Bortoleto = 24 largadas oficiais na F1 até 31/12/2025
+  it('FC02A-07: Histórico de Bortoleto no baseline oficial = 24 largadas na F1', () => {
     const bortoleto = MBJ_2026_PILOTS.find((p) => p.id === 'mbj-020')
     const stats = getDriverCareerStats({
       pilot: bortoleto as any,
       raceResults: null,
       seasonHistories: null,
     })
-    expect(stats.races).toBe(0)
+    expect(stats.races).toBe(24)
     expect(stats.wins).toBe(0)
   })
 
-  // FC02A-08: Hülkenberg preserva seus 228 GPs de histórico oficial
-  it('FC02A-08: Hülkenberg preserva 228 GPs de baseline histórico', () => {
+  // FC02A-08: Hülkenberg preserva suas 250 largadas de histórico oficial (excluindo DNS)
+  it('FC02A-08: Hülkenberg preserva 250 largadas de baseline histórico', () => {
     const hulkenberg = MBJ_2026_PILOTS.find((p) => p.id === 'mbj-019')
     const stats = getDriverCareerStats({
       pilot: hulkenberg as any,
       raceResults: null,
       seasonHistories: null,
     })
-    expect(stats.races).toBe(228)
+    expect(stats.races).toBe(250)
   })
 
-  // FC02A-09: Baseline + resultados do game somam uma única vez de forma aditiva
+  // FC02A-09: Baseline + resultados do game somam uma única vez de forma aditiva (250 + 2 = 252)
   it('FC02A-09: Baseline histórico e resultados do save somam exatamente uma vez', () => {
     const hulkenberg = MBJ_2026_PILOTS.find((p) => p.id === 'mbj-019')
     const mockSaveResults = [
@@ -107,7 +107,7 @@ describe('SUÍTE FC02A — Driver Profile & Superlicença Canônica', () => {
       raceResults: mockSaveResults,
       seasonHistories: null,
     })
-    expect(stats.races).toBe(230) // 228 + 2
+    expect(stats.races).toBe(252) // 250 + 2
     expect(stats.wins).toBe(1)
   })
 

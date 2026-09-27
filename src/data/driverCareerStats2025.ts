@@ -21,12 +21,12 @@ export interface DriverHistoricalCareerBaseline {
 
 export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBaseline> = {
   // --- TITULARES F1 2026 ---
-  // Max Verstappen: 206 GPs, 63 vitórias, 40 poles, 4 títulos (2021, 2022, 2023, 2024)
-  'mbj-001': { races: 206, wins: 63, poles: 40, championships: 4 },
-  de3isw3re1ji2wj: { races: 206, wins: 63, poles: 40, championships: 4 },
-  driver_max_verstappen: { races: 206, wins: 63, poles: 40, championships: 4 },
-  drv_max_verstappen: { races: 206, wins: 63, poles: 40, championships: 4 },
-  verstappen: { races: 206, wins: 63, poles: 40, championships: 4 },
+  // Max Verstappen: 233 largadas em GPs, 71 vitórias, 48 poles, 4 títulos até 31/12/2025
+  'mbj-001': { races: 233, wins: 71, poles: 48, championships: 4 },
+  de3isw3re1ji2wj: { races: 233, wins: 71, poles: 48, championships: 4 },
+  driver_max_verstappen: { races: 233, wins: 71, poles: 48, championships: 4 },
+  drv_max_verstappen: { races: 233, wins: 71, poles: 48, championships: 4 },
+  verstappen: { races: 233, wins: 71, poles: 48, championships: 4 },
 
   // Liam Lawson: 11 GPs, 0 vitórias, 0 poles, 0 títulos
   'mbj-002': { races: 11, wins: 0, poles: 0, championships: 0 },
@@ -34,11 +34,11 @@ export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBase
   drv_liam_lawson: { races: 11, wins: 0, poles: 0, championships: 0 },
   lawson: { races: 11, wins: 0, poles: 0, championships: 0 },
 
-  // Lewis Hamilton: 356 GPs, 105 vitórias, 104 poles, 7 títulos (2008, 2014, 2015, 2017, 2018, 2019, 2020)
-  'mbj-003': { races: 356, wins: 105, poles: 104, championships: 7 },
-  driver_lewis_hamilton: { races: 356, wins: 105, poles: 104, championships: 7 },
-  drv_lewis_hamilton: { races: 356, wins: 105, poles: 104, championships: 7 },
-  hamilton: { races: 356, wins: 105, poles: 104, championships: 7 },
+  // Lewis Hamilton: 380 largadas em GPs, 105 vitórias, 104 poles, 7 títulos até 31/12/2025
+  'mbj-003': { races: 380, wins: 105, poles: 104, championships: 7 },
+  driver_lewis_hamilton: { races: 380, wins: 105, poles: 104, championships: 7 },
+  drv_lewis_hamilton: { races: 380, wins: 105, poles: 104, championships: 7 },
+  hamilton: { races: 380, wins: 105, poles: 104, championships: 7 },
 
   // Charles Leclerc: 146 GPs, 8 vitórias, 26 poles, 0 títulos
   'mbj-004': { races: 146, wins: 8, poles: 26, championships: 0 },
@@ -65,16 +65,17 @@ export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBase
   drv_george_russell: { races: 128, wins: 3, poles: 5, championships: 0 },
   russell: { races: 128, wins: 3, poles: 5, championships: 0 },
 
-  // Andrea Kimi Antonelli: Estreante F1 2026 (0/0/0/0)
-  'mbj-008': { races: 0, wins: 0, poles: 0, championships: 0 },
-  driver_andrea_kimi_antonelli: { races: 0, wins: 0, poles: 0, championships: 0 },
-  antonelli: { races: 0, wins: 0, poles: 0, championships: 0 },
+  // Andrea Kimi Antonelli: 24 largadas em GPs até 31/12/2025
+  'mbj-008': { races: 24, wins: 0, poles: 0, championships: 0 },
+  driver_andrea_kimi_antonelli: { races: 24, wins: 0, poles: 0, championships: 0 },
+  drv_andrea_kimi_antonelli: { races: 24, wins: 0, poles: 0, championships: 0 },
+  antonelli: { races: 24, wins: 0, poles: 0, championships: 0 },
 
-  // Fernando Alonso: 401 GPs, 32 vitórias, 22 poles, 2 títulos (2005, 2006)
-  'mbj-009': { races: 401, wins: 32, poles: 22, championships: 2 },
-  driver_fernando_alonso: { races: 401, wins: 32, poles: 22, championships: 2 },
-  drv_fernando_alonso: { races: 401, wins: 32, poles: 22, championships: 2 },
-  alonso: { races: 401, wins: 32, poles: 22, championships: 2 },
+  // Fernando Alonso: 425 largadas em GPs, 32 vitórias, 22 poles, 2 títulos até 31/12/2025
+  'mbj-009': { races: 425, wins: 32, poles: 22, championships: 2 },
+  driver_fernando_alonso: { races: 425, wins: 32, poles: 22, championships: 2 },
+  drv_fernando_alonso: { races: 425, wins: 32, poles: 22, championships: 2 },
+  alonso: { races: 425, wins: 32, poles: 22, championships: 2 },
 
   // Lance Stroll: 166 GPs, 0 vitórias, 1 pole, 0 títulos
   'mbj-010': { races: 166, wins: 0, poles: 1, championships: 0 },
@@ -107,10 +108,11 @@ export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBase
   driver_yuki_tsunoda: { races: 87, wins: 0, poles: 0, championships: 0 },
   tsunoda: { races: 87, wins: 0, poles: 0, championships: 0 },
 
-  // Isack Hadjar: Estreante F1 2026 (0/0/0/0)
-  'mbj-016': { races: 0, wins: 0, poles: 0, championships: 0 },
-  driver_isack_hadjar: { races: 0, wins: 0, poles: 0, championships: 0 },
-  hadjar: { races: 0, wins: 0, poles: 0, championships: 0 },
+  // Isack Hadjar: 23 largadas em GPs até 31/12/2025
+  'mbj-016': { races: 23, wins: 0, poles: 0, championships: 0 },
+  driver_isack_hadjar: { races: 23, wins: 0, poles: 0, championships: 0 },
+  drv_isack_hadjar: { races: 23, wins: 0, poles: 0, championships: 0 },
+  hadjar: { races: 23, wins: 0, poles: 0, championships: 0 },
 
   // Esteban Ocon: 156 GPs, 1 vitória, 0 poles, 0 títulos
   'mbj-017': { races: 156, wins: 1, poles: 0, championships: 0 },
@@ -122,19 +124,19 @@ export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBase
   driver_oliver_bearman: { races: 3, wins: 0, poles: 0, championships: 0 },
   bearman: { races: 3, wins: 0, poles: 0, championships: 0 },
 
-  // Nico Hülkenberg: 229 GPs, 0 vitórias, 1 pole (Brasil 2010), 0 títulos
-  'mbj-019': { races: 229, wins: 0, poles: 1, championships: 0 },
-  '0mow8vmzk0y4z9s': { races: 229, wins: 0, poles: 1, championships: 0 },
-  driver_nico_hulkenberg: { races: 229, wins: 0, poles: 1, championships: 0 },
-  drv_nico_hulkenberg: { races: 229, wins: 0, poles: 1, championships: 0 },
-  hulkenberg: { races: 229, wins: 0, poles: 1, championships: 0 },
+  // Nico Hülkenberg: 250 largadas em GPs (excluindo DNS, ex: Itália 2025 DNS), 0 vitórias, 1 pole, 0 títulos até 31/12/2025
+  'mbj-019': { races: 250, wins: 0, poles: 1, championships: 0 },
+  '0mow8vmzk0y4z9s': { races: 250, wins: 0, poles: 1, championships: 0 },
+  driver_nico_hulkenberg: { races: 250, wins: 0, poles: 1, championships: 0 },
+  drv_nico_hulkenberg: { races: 250, wins: 0, poles: 1, championships: 0 },
+  hulkenberg: { races: 250, wins: 0, poles: 1, championships: 0 },
 
-  // Gabriel Bortoleto: Estreante F1 2026 (0/0/0/0)
-  'mbj-020': { races: 0, wins: 0, poles: 0, championships: 0 },
-  '9uazqw522oc9p4z': { races: 0, wins: 0, poles: 0, championships: 0 },
-  driver_gabriel_bortoleto: { races: 0, wins: 0, poles: 0, championships: 0 },
-  drv_gabriel_bortoleto: { races: 0, wins: 0, poles: 0, championships: 0 },
-  bortoleto: { races: 0, wins: 0, poles: 0, championships: 0 },
+  // Gabriel Bortoleto: 24 largadas em GPs até 31/12/2025
+  'mbj-020': { races: 24, wins: 0, poles: 0, championships: 0 },
+  '9uazqw522oc9p4z': { races: 24, wins: 0, poles: 0, championships: 0 },
+  driver_gabriel_bortoleto: { races: 24, wins: 0, poles: 0, championships: 0 },
+  drv_gabriel_bortoleto: { races: 24, wins: 0, poles: 0, championships: 0 },
+  bortoleto: { races: 24, wins: 0, poles: 0, championships: 0 },
 
   // Sergio Pérez: 281 GPs, 6 vitórias, 3 poles, 0 títulos
   'mbj-021': { races: 281, wins: 6, poles: 3, championships: 0 },
