@@ -930,7 +930,7 @@ export const OFFICIAL_GRID_TEAMS: OfficialGridTeam[] = [
     historySummary:
       'Tradicional equipe americana do automobilismo mundial completando o grid oficial de 12 escuderias e 24 carros em 2026.',
     currentSituation:
-      'Novata no grid em 2026 sob comando de Michael Andretti, pagando pedágio de aprendizado com Colton Herta e Felipe Drugovich.',
+      'Novata no grid em 2026 sob comando de Michael Andretti, com Felipe Drugovich e Jack Doohan como titulares autorizados.',
     driver1: {
       name: 'Felipe Drugovich',
       speed: 80,
@@ -943,15 +943,15 @@ export const OFFICIAL_GRID_TEAMS: OfficialGridTeam[] = [
       salary: 7500000,
     },
     driver2: {
-      name: 'Colton Herta',
-      speed: 80,
-      consistency: 77,
-      rain: 78,
-      defense: 78,
-      nationality: 'Estados Unidos',
-      flag: '🇺🇸',
-      age: 25,
-      salary: 8000000,
+      name: 'Jack Doohan',
+      speed: 81,
+      consistency: 80,
+      rain: 82,
+      defense: 81,
+      nationality: 'Austrália',
+      flag: '🇦🇺',
+      age: 23,
+      salary: 2500000,
     },
     reserveDriver: {
       name: 'A Definir',
