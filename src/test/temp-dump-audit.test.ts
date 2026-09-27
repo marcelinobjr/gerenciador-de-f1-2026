@@ -77,7 +77,11 @@ describe('temp dump audit', () => {
     }
     const lines = diffs.map((d) => JSON.stringify(d))
     // Escrever diffs em um arquivo para lermos com read_file
-    fs.writeFileSync(path.resolve(process.cwd(), 'temp-audit-diffs.json'), JSON.stringify(diffs, null, 2), 'utf-8')
+    fs.writeFileSync(
+      path.resolve(process.cwd(), 'temp-audit-diffs.json'),
+      JSON.stringify(diffs, null, 2),
+      'utf-8',
+    )
     expect(`COUNT_${diffs.length}__\n` + lines.join('\n')).toBe('COUNT_DUMP_WRITTEN')
   })
 })
