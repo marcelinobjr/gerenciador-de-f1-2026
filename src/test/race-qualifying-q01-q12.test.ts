@@ -211,7 +211,8 @@ describe('RACE-QUALI-01 — Testes Focados Q01–Q12', () => {
     // max_setup_qualifying_bonus_seconds = 0.25 s
     // setup = 90.2275
     // bonus_ms = (90.2275 / 100) * 0.25 * 1000 = 225.56875000000002 ms
-    const expectedBonusMs = (90.2275 / 100) * DEFAULT_SOURCE_RACE_PARAMETERS.max_setup_qualifying_bonus_seconds * 1000
+    const expectedBonusMs =
+      (90.2275 / 100) * DEFAULT_SOURCE_RACE_PARAMETERS.max_setup_qualifying_bonus_seconds * 1000
     expect(expectedBonusMs).toBeCloseTo(225.56875, 10)
     expect(attempt.bonusMs).toBeCloseTo(225.56875, 10)
 
@@ -239,7 +240,9 @@ describe('RACE-QUALI-01 — Testes Focados Q01–Q12', () => {
     const p1TimeSecondRun = state2.results[0].q1TimeMs
 
     expect(p1TimeFirstRun).toBe(p1TimeSecondRun)
-    expect(state1.results[0].lapAttempts.Q1![0].timeMs).toBe(state2.results[0].lapAttempts.Q1![0].timeMs)
+    expect(state1.results[0].lapAttempts.Q1![0].timeMs).toBe(
+      state2.results[0].lapAttempts.Q1![0].timeMs,
+    )
   })
 
   // Q08: Reload entre fases = execução direta

@@ -18,8 +18,8 @@ import {
   calculateTrackQualifyingRating,
   calculateQualifyingAttemptTime,
   DEFAULT_SOURCE_RACE_PARAMETERS,
-  RaceParameters,
 } from '../lib/race/pureRaceEngine'
+import type { RaceParameters } from '../lib/race/types'
 
 export type QualifyingPhase = 'READY_FOR_Q1' | 'Q1' | 'Q2' | 'Q3' | 'GRID_READY'
 export type QualifyingVariant = 'NORMAL_QUALIFYING' | 'SPRINT_QUALIFYING'
