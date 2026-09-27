@@ -12,6 +12,22 @@
 import pb from '../pocketbase/client'
 import { VersionedEconomicConfig, FinancialEconomicRules, MANDATORY_RULE_KEYS } from './types'
 
+export const ACTIVE_SOURCE_ECONOMIC_VERSION = 'v1.0.0-draft'
+
+/**
+ * Carrega a configuração econômica versionada ativa na carreira de teste.
+ */
+export async function loadActiveEconomicConfig(
+  version: string = ACTIVE_SOURCE_ECONOMIC_VERSION,
+): Promise<{ version: string; rules: FinancialEconomicRules; config: VersionedEconomicConfig }> {
+  const config = await loadVersionedEconomicConfig(version)
+  return {
+    version: config.version,
+    rules: config.parameters,
+    config,
+  }
+}
+
 export class FinancialConfigLoadError extends Error {
   constructor(
     message: string,

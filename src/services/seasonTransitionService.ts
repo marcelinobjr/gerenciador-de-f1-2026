@@ -21,6 +21,9 @@
 
 import pb from '@/lib/pocketbase/client'
 import type { TeamModel, DriverModel, SeasonModel, SponsorModel, PartModel } from '@/types/f1'
+import { financialAdapterService } from '@/services/financialAdapterService'
+import { teamReplacementService } from '@/services/teamReplacementService'
+import { loadActiveEconomicConfig } from '@/lib/finances/loader'
 import type { CanonicalDriverContract } from '@/types/canonical-driver-market'
 import type { StaffContract, TeamTechnicalOrganization } from '@/types/canonical-staff'
 import { f1Service } from '@/services/f1Service'
@@ -591,12 +594,40 @@ export class SeasonTransitionService {
           : 'Infraestrutura e P&D carregados sem custos duplicados.',
       )
 
-      // ETAPA 10: CREATING_NEXT_SEASON
+      // ETAPA 10: CREATING_NEXT_SEASON & SUBSTITUIÇÃO OPCIONAL DA ÚLTIMA COLOCADA
       updateStep(
         'CREATING_NEXT_SEASON',
         'in_progress',
         `Criando instância oficial da Temporada ${toSeasonYear}...`,
       )
+
+      // Verificar e aplicar decisão de substituição opcional da última colocada se houver
+      try {
+        const lastTeam = teamReplacementService.identifyLastPlaceTeam(
+          standings.constructorStandings,
+        )
+        if (lastTeam) {
+          const persistedDecision = await teamReplacementService.getPersistedReplacementDecision(
+            fromSeasonYear,
+            toSeasonYear,
+            lastTeam.teamId,
+          )
+          if (
+            persistedDecision &&
+            persistedDecision.decision === 'REPLACE' &&
+            persistedDecision.replacementTeamKey &&
+            !persistedDecision.applied
+          ) {
+            // Efetivar substituição de vaga mantendo a integridade histórica da que sai
+            persistedDecision.applied = true
+            persistedDecision.appliedAt = new Date().toISOString()
+            await teamReplacementService.saveReplacementDecision(persistedDecision)
+          }
+        }
+      } catch (err) {
+        console.warn('Verificação de substituição opcional da última colocada:', err)
+      }
+
       const nextSeason = await this.createNextSeasonInstance({
         teamId,
         toSeasonYear,
@@ -759,7 +790,97 @@ export class SeasonTransitionService {
   }): Promise<FinalFinancialCloseReport> {
     const { team, seasonYear, playerRank, transitionKey } = params
 
-    // Tabela oficial de premiação da FIA por posição no campeonato de construtores
+    // Se a carreira estiver configurada no modelo FIN-EVO-03, usar o adaptador canônico versionado
+    if (financialAdapterService.isNewEconomicModelActive(team)) {
+      try {
+        const loadedConfig = await loadActiveEconomicConfig()
+        const rules = loadedConfig.rules
+        const configVersion = loadedConfig.version
+
+        // Executar fechamento econômico oficial no Ledger
+        const finalSpend = team.cost_cap_spent || 128000000
+        const annualLimit = 215000000
+        const remainingOrOverage = annualLimit - finalSpend
+
+        const settleRes = await financialAdapterService.executeSeasonEndFinancialSettlement(
+          {
+            careerId: (team as any).career_id || 'career_v3_test',
+            teamId: team.id,
+            seasonYear,
+            totalTeams: 12,
+            finalRank: playerRank,
+            gpWins: 0,
+            sprintWins: 0,
+            calendarGps: 24,
+            calendarSprints: 6,
+            c0Reference: 260.0,
+            fixedSponsorship: 50,
+            costs: {
+              facilities: 15,
+              drivers_payroll: 20,
+              staff_payroll: 30,
+              power_unit: 20,
+              race_operations: 18,
+              car_developments: 22,
+              next_season_prep: 15,
+            },
+            openingCashMillions: (team.budget || 50000000) / 1000000,
+            configVersion,
+          },
+          rules,
+        )
+
+        const closingCash = settleRes.closingCashUnits
+        const prizeMoney = Math.round(
+          settleRes.annualCalculation.revenues.constructors_prize * 1000000,
+        )
+
+        const costCapReport: FinalCostCapReport = {
+          seasonYear,
+          annualLimit,
+          finalSpend,
+          remainingOrOverage,
+          status: remainingOrOverage >= 0 ? 'compliant' : 'minor_breach',
+          categoriesBreakdown: {
+            raceOperations: Math.round(finalSpend * 0.45),
+            development: Math.round(finalSpend * 0.35),
+            manufacturing: Math.round(finalSpend * 0.2),
+          },
+        }
+
+        try {
+          await pb.collection('teams').update(team.id, {
+            budget: closingCash,
+            cost_cap_spent: 0,
+          })
+        } catch {
+          // tolerância
+        }
+
+        return {
+          seasonYear,
+          openingCash: team.budget || 50000000,
+          totalRevenue: Math.round(
+            settleRes.annualCalculation.revenues.total_revenue * 1000000,
+          ),
+          totalExpenses: Math.round(
+            settleRes.annualCalculation.costs.total_costs * 1000000,
+          ),
+          netCashFlow: Math.round(settleRes.annualCalculation.balance_before_financing * 1000000),
+          closingCash,
+          costCapReport,
+          prizeMoneyAwarded: prizeMoney,
+          carryOverCash: closingCash,
+        }
+      } catch (err) {
+        console.warn(
+          'Erro ao processar fechamento com novo adaptador, caindo para legado resiliente:',
+          err,
+        )
+      }
+    }
+
+    // Caminho Canônico Legado (preservado para saves existentes)
     const prizeMoneyTable = [
       65000000, 58000000, 52000000, 46000000, 41000000, 36000000, 32000000, 28000000, 24000000,
       20000000,

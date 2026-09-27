@@ -1,7 +1,10 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { FinancialLedgerSnapshot } from '@/types/canonical-finances'
 import { TeamModel } from '@/types/f1'
 import { formatMoneyM, formatNumber, formatPercent } from '@/lib/formatters'
+import { financialAdapterService } from '@/services/financialAdapterService'
+import { loadActiveEconomicConfig } from '@/lib/finances/loader'
+import { Badge } from '@/components/ui/badge'
 import {
   DollarSign,
   TrendingUp,
@@ -28,6 +31,19 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
   ledgerSnapshot,
   currentSeasonYear,
 }) => {
+  const isVersionedActive = financialAdapterService.isNewEconomicModelActive(team)
+  const [versionedConfigData, setVersionedConfigData] = useState<any>(null)
+
+  useEffect(() => {
+    if (isVersionedActive) {
+      loadActiveEconomicConfig()
+        .then((cfg) => {
+          setVersionedConfigData(cfg)
+        })
+        .catch((e) => console.warn('Aviso ao carregar config versionada na UI:', e))
+    }
+  }, [isVersionedActive])
+
   // Dados canônicos do snapshot contábil ou fallback estruturado
   const cash = ledgerSnapshot?.cashSummary || {
     cashBalance: team?.budget || 84_040_000,
@@ -168,6 +184,27 @@ export const TabFinancesCostCap: React.FC<TabFinancesCostCapProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* BADGE DE MODELO ECONÔMICO VERSIONADO SE ATIVO NA CARREIRA */}
+      {isVersionedActive && (
+        <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-bold text-indigo-300">
+              Economia Versionada Ativa — FIN-EVO-03 (
+              {versionedConfigData?.version || 'v1.0.0-draft'})
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px] border-indigo-400/40 text-indigo-300">
+              C0 Ref: US$ {versionedConfigData?.rules?.c0_reference_millions || 260}M
+            </Badge>
+            <Badge variant="outline" className="text-[10px] border-emerald-400/40 text-emerald-300">
+              Teto Base: US$ {versionedConfigData?.rules?.cost_cap_base || 215}M
+            </Badge>
+          </div>
+        </div>
+      )}
+
       {/* 1. CARDS PRINCIPAIS DE KPIS FINANCEIROS (REFERÊNCIA VISUAL 3) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Caixa Disponível */}

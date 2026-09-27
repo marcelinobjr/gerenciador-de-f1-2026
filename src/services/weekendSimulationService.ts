@@ -35,6 +35,8 @@ import { driverRaceInteractionService } from '@/services/driverRaceInteractionSe
 import { driverRelationshipService } from '@/services/driverRelationshipService'
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
 import { financialLedgerService } from '@/services/financialLedgerService'
+import { financialAdapterService } from '@/services/financialAdapterService'
+import { loadActiveEconomicConfig } from '@/lib/finances/loader'
 import { f1Service } from '@/services/f1Service'
 import { calculateStandings } from '@/services/standingsService'
 import { resolveCanonicalDriverId } from '@/lib/canonical-driver-database'
@@ -1050,37 +1052,82 @@ export class WeekendSimulationService {
     const damageCost = incidents.length > 0 ? 350000 : 0
     const netCashflow = sponsorIncome - driverSalariesCost - engineCost - damageCost
 
-    // Lançamentos idempotentes no Financial Ledger Canônico
-    // 1. Despesas operacionais e folha salarial da rodada simulada
-    await financialLedgerService.recordEntry({
-      team_id: team.id,
-      season_id: seasonYear.toString(),
-      round: currentRound,
-      category: 'raceOperations',
-      entry_type: 'expense',
-      amount: driverSalariesCost + engineCost,
-      cash_impact: -(driverSalariesCost + engineCost),
-      cost_cap_impact: driverSalariesCost + engineCost,
-      cost_cap_classification: 'relevant',
-      idempotency_key: `sim_race_ops_${team.id}_r${currentRound}`,
-      description: `Operações de pista e salários — GP Round ${currentRound}`,
-    })
+    // Se o modelo FIN-EVO-03 estiver ativo para a equipe, desviar caminho legado para evitar duplicidade
+    if (financialAdapterService.isNewEconomicModelActive(team)) {
+      try {
+        const loadedConfig = await loadActiveEconomicConfig()
+        const rules = loadedConfig.rules
+        const configVersion = loadedConfig.version
 
-    // 2. Receita de patrocínios da rodada simulada
-    if (sponsorIncome > 0) {
+        await financialAdapterService.postWeekendEventFinances(
+          {
+            careerId: (team as any).career_id || 'career_v3_test',
+            teamId: team.id,
+            seasonYear,
+            round: currentRound,
+            isSprintRound: false,
+            gpWon: false,
+            sprintWon: false,
+            logisticsZone: 'standard',
+          },
+          rules,
+          configVersion,
+        )
+
+        const monthNum = Math.min(12, Math.max(1, Math.round((currentRound / totalRounds) * 12)))
+        await financialAdapterService.postMonthlyOperationalObligations({
+          careerId: (team as any).career_id || 'career_v3_test',
+          teamId: team.id,
+          seasonYear,
+          monthNumber: monthNum,
+          rules,
+          configVersion,
+          annualCosts: {
+            facilitiesAnnualM: 15,
+            driversPayrollAnnualM: 20,
+            staffPayrollAnnualM: 30,
+            powerUnitAnnualM: 20,
+          },
+        })
+      } catch (err) {
+        console.warn(
+          'Alerta na execução de finanças de fim de semana pelo adaptador versionado:',
+          err,
+        )
+      }
+    } else {
+      // Lançamentos idempotentes no Financial Ledger Canônico (Legado)
+      // 1. Despesas operacionais e folha salarial da rodada simulada
       await financialLedgerService.recordEntry({
         team_id: team.id,
         season_id: seasonYear.toString(),
         round: currentRound,
-        category: 'sponsorPayout',
-        entry_type: 'revenue',
-        amount: sponsorIncome,
-        cash_impact: sponsorIncome,
-        cost_cap_impact: 0,
-        cost_cap_classification: 'excluded',
-        idempotency_key: `sim_sponsor_income_${team.id}_r${currentRound}`,
-        description: `Receita de patrocínios da rodada ${currentRound}`,
+        category: 'raceOperations',
+        entry_type: 'expense',
+        amount: driverSalariesCost + engineCost,
+        cash_impact: -(driverSalariesCost + engineCost),
+        cost_cap_impact: driverSalariesCost + engineCost,
+        cost_cap_classification: 'relevant',
+        idempotency_key: `sim_race_ops_${team.id}_r${currentRound}`,
+        description: `Operações de pista e salários — GP Round ${currentRound}`,
       })
+
+      // 2. Receita de patrocínios da rodada simulada
+      if (sponsorIncome > 0) {
+        await financialLedgerService.recordEntry({
+          team_id: team.id,
+          season_id: seasonYear.toString(),
+          round: currentRound,
+          category: 'sponsorPayout',
+          entry_type: 'revenue',
+          amount: sponsorIncome,
+          cash_impact: sponsorIncome,
+          cost_cap_impact: 0,
+          cost_cap_classification: 'excluded',
+          idempotency_key: `sim_sponsor_income_${team.id}_r${currentRound}`,
+          description: `Receita de patrocínios da rodada ${currentRound}`,
+        })
+      }
     }
 
     // Sincronização Canônica: team.budget e cost_cap_spent derivam do Ledger

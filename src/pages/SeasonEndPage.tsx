@@ -19,6 +19,10 @@ import {
 } from 'lucide-react'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { seasonTransitionService } from '@/services/seasonTransitionService'
+import {
+  teamReplacementService,
+  EligibleReplacementCandidate,
+} from '@/services/teamReplacementService'
 import { f1Service } from '@/services/f1Service'
 import { formatCurrency } from '@/lib/formatters'
 import { toast } from '@/hooks/use-toast'
@@ -34,6 +38,20 @@ export default function SeasonEndPage() {
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [transitionDone, setTransitionDone] = useState(false)
 
+  // Estados de Substituição Opcional da Última Colocada (FIN-SOURCE-01B)
+  const [lastPlaceTeam, setLastPlaceTeam] = useState<{
+    teamId: string
+    teamName: string
+    rank: number
+    points: number
+  } | null>(null)
+  const [eligibleReplacements, setEligibleReplacements] = useState<EligibleReplacementCandidate[]>(
+    [],
+  )
+  const [replacementChoice, setReplacementChoice] = useState<'KEEP' | 'REPLACE'>('KEEP')
+  const [selectedReplacementKey, setSelectedReplacementKey] = useState<string>('')
+  const [decisionConfirmed, setDecisionConfirmed] = useState<boolean>(false)
+
   useEffect(() => {
     async function loadStandings() {
       if (!season) {
@@ -47,6 +65,34 @@ export default function SeasonEndPage() {
         ])
         setDriverStandings(allDrivers || [])
         setTeamStandings(allTeams || [])
+
+        // Identificar canonicamente a última colocada do construtores
+        const last = teamReplacementService.identifyLastPlaceTeam(allTeams || [])
+        if (last) {
+          setLastPlaceTeam(last)
+          const currentKeys = (allTeams || []).map((t: any) => t.key || t.name)
+          const candidates = teamReplacementService.getEligibleReplacementTeams(currentKeys)
+          setEligibleReplacements(candidates)
+          if (candidates.length > 0) {
+            setSelectedReplacementKey(candidates[0].key)
+          }
+
+          // Verificar se já há decisão persistida
+          const fromY = season.year || 2026
+          const toY = fromY + 1
+          const persisted = await teamReplacementService.getPersistedReplacementDecision(
+            fromY,
+            toY,
+            last.teamId,
+          )
+          if (persisted) {
+            setReplacementChoice(persisted.decision)
+            if (persisted.replacementTeamKey) {
+              setSelectedReplacementKey(persisted.replacementTeamKey)
+            }
+            setDecisionConfirmed(persisted.confirmed)
+          }
+        }
 
         // Run validation audit for 2026 -> 2027 transition readiness
         if (team) {
@@ -78,6 +124,31 @@ export default function SeasonEndPage() {
     if (!team || !season || isTransitioning) return
     setIsTransitioning(true)
     try {
+      // Gravar persistência da decisão de substituição antes de executar a transição
+      if (lastPlaceTeam) {
+        const fromYear = season.year || 2026
+        const toYear = fromYear + 1
+        const chosenCandidate = eligibleReplacements.find((c) => c.key === selectedReplacementKey)
+        await teamReplacementService.saveReplacementDecision({
+          transitionKey: teamReplacementService.getReplacementKey(
+            fromYear,
+            toYear,
+            lastPlaceTeam.teamId,
+          ),
+          fromSeasonYear: fromYear,
+          toSeasonYear: toYear,
+          lastPlaceTeamId: lastPlaceTeam.teamId,
+          lastPlaceTeamName: lastPlaceTeam.teamName,
+          decision: replacementChoice,
+          replacementTeamKey: replacementChoice === 'REPLACE' ? selectedReplacementKey : undefined,
+          replacementTeamName: replacementChoice === 'REPLACE' ? chosenCandidate?.name : undefined,
+          officialRankingReference: `Mundial de Construtores ${fromYear} - P${lastPlaceTeam.rank}`,
+          confirmed: true,
+          applied: false,
+          createdAt: new Date().toISOString(),
+        })
+      }
+
       const result = await seasonTransitionService.executeSeasonTransition({
         teamId: team.id,
         fromSeasonYear: season.year || 2026,
@@ -177,6 +248,136 @@ export default function SeasonEndPage() {
           </div>
         </div>
       </Card>
+
+      {/* BLOCO: SUBSTITUIÇÃO OPCIONAL DA ÚLTIMA COLOCADA (FIN-SOURCE-01B) */}
+      {lastPlaceTeam && (
+        <Card className="bg-[#090D15]/90 border border-indigo-500/40 p-6 shadow-2xl backdrop-blur-md">
+          <CardHeader className="p-0 pb-4 border-b border-indigo-500/20">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-indigo-400 font-bold block">
+                  REGULAMENTO FIA // SUBSTITUIÇÃO OPCIONAL DE VAGA
+                </span>
+                <CardTitle className="text-lg font-bold text-white flex items-center gap-2 mt-1">
+                  Decisão de Grid para a Próxima Temporada
+                </CardTitle>
+              </div>
+              <Badge
+                variant="outline"
+                className="text-xs font-mono border-indigo-500/50 text-indigo-300"
+              >
+                Última Colocada: {lastPlaceTeam.teamName} (P{lastPlaceTeam.rank} •{' '}
+                {lastPlaceTeam.points} pts)
+              </Badge>
+            </div>
+            <CardDescription className="text-xs text-[#8B95A7] font-mono mt-2">
+              No final da temporada, a equipe que ficar em último lugar poderá ser substituída por
+              outra equipe na próxima temporada, a critério do jogador. A equipe que sai conserva
+              seu histórico e premiações.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="p-0 pt-4 space-y-4">
+            <div className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                variant={replacementChoice === 'KEEP' ? 'default' : 'outline'}
+                onClick={() => {
+                  setReplacementChoice('KEEP')
+                  setDecisionConfirmed(true)
+                }}
+                className={
+                  replacementChoice === 'KEEP'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold'
+                    : 'border-[#1F2733] text-slate-300'
+                }
+              >
+                Manter {lastPlaceTeam.teamName} no Campeonato
+              </Button>
+
+              <Button
+                type="button"
+                variant={replacementChoice === 'REPLACE' ? 'default' : 'outline'}
+                onClick={() => {
+                  setReplacementChoice('REPLACE')
+                  setDecisionConfirmed(false)
+                }}
+                className={
+                  replacementChoice === 'REPLACE'
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold'
+                    : 'border-[#1F2733] text-slate-300'
+                }
+              >
+                Substituir por Outra Equipe Elegível
+              </Button>
+            </div>
+
+            {replacementChoice === 'REPLACE' && (
+              <div className="p-4 rounded-xl bg-[#11161F] border border-indigo-500/30 space-y-3">
+                <div className="text-xs font-mono font-bold text-indigo-300">
+                  Selecione a Escuderia Entrante (Universo de Equipes Disponíveis):
+                </div>
+
+                {eligibleReplacements.length === 0 ? (
+                  <p className="text-xs text-amber-400 font-mono">
+                    Nenhuma escuderia elegível fora do grid atual encontrada. A última colocada será
+                    mantida no grid.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {eligibleReplacements.slice(0, 6).map((cand) => (
+                      <div
+                        key={cand.key}
+                        onClick={() => setSelectedReplacementKey(cand.key)}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all text-xs font-mono ${
+                          selectedReplacementKey === cand.key
+                            ? 'bg-indigo-500/20 border-indigo-500 text-white font-bold ring-1 ring-indigo-500'
+                            : 'bg-[#090D15] border-[#1F2733] text-slate-300 hover:border-indigo-500/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-white truncate">{cand.name}</span>
+                          <span className="text-[10px] text-indigo-400">{cand.country}</span>
+                        </div>
+                        <div className="text-[11px] text-[#8B95A7]">
+                          Motor: <span className="text-white">{cand.engine}</span> • Força:{' '}
+                          <span className="text-emerald-400">{cand.strength}</span>
+                        </div>
+                        <div className="text-[10px] text-[#8B95A7] truncate mt-1">
+                          {cand.currentSituation || cand.historySummary}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2 border-t border-[#1F2733]">
+                  <span className="text-xs font-mono text-[#8B95A7]">
+                    Confirmação explícita requerida para aplicar na nova temporada.
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setDecisionConfirmed(true)
+                      toast({
+                        title: 'Decisão Registrada',
+                        description: `A equipe ${eligibleReplacements.find((c) => c.key === selectedReplacementKey)?.name || 'selecionada'} substituirá ${lastPlaceTeam.teamName} na temporada seguinte.`,
+                      })
+                    }}
+                    className={
+                      decisionConfirmed
+                        ? 'bg-emerald-600 text-white font-bold'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold'
+                    }
+                  >
+                    {decisionConfirmed ? '✓ Decisão Confirmada' : 'Confirmar Seleção'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Grid: Classificação Final Pilotos e Construtores */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

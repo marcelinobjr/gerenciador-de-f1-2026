@@ -283,6 +283,50 @@ export function StepCareerSettings({
                 Garante corridas curtas pontuadas nas sextas/sábados de etapas selecionadas.
               </p>
             </div>
+
+            {/* Toggle de Nova Carreira Isolada de Teste Econômico (FIN-SOURCE-01B) */}
+            <div className="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-200/60 space-y-2 flex flex-col justify-between sm:col-span-2">
+              <div>
+                <span className="text-indigo-600 font-bold text-[10px] uppercase">
+                  Modelo Financeiro Versionado (FIN-EVO-03 // Carreira de Teste):
+                </span>
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <strong className="text-[#0F172A] text-sm block">
+                      Economia Versionada FIN-EVO-03
+                    </strong>
+                    <span className="text-[11px] text-[#64748B]">
+                      C0 Ref US$ 260M, annualCalculator validada, fechamento granular no Ledger.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateSettings({
+                        ...settings,
+                        economicModel:
+                          (settings as any).economicModel === 'FIN-EVO-03'
+                            ? 'LEGACY'
+                            : 'FIN-EVO-03',
+                      } as any)
+                    }
+                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                      (settings as any).economicModel === 'FIN-EVO-03'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-white text-[#64748B] border border-[#CBD5E1]'
+                    }`}
+                  >
+                    {(settings as any).economicModel === 'FIN-EVO-03'
+                      ? '✓ Ativado (Teste Isolado)'
+                      : 'Padrão Legado'}
+                  </button>
+                </div>
+              </div>
+              <p className="text-[10px] text-indigo-700 font-sans leading-relaxed">
+                Ativação controlada exclusivamente nesta nova carreira isolada de teste. Não afeta
+                saves existentes.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
