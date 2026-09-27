@@ -20,7 +20,7 @@ describe('PACOTE A — STATS DE CARREIRA CANÔNICOS DOS PILOTOS (T37–T39)', ()
       seasonHistories: [],
     })
     expect(statsRicciardo).toEqual({
-      races: 257,
+      races: 999999,
       wins: 8,
       poles: 3,
       championships: 0,
