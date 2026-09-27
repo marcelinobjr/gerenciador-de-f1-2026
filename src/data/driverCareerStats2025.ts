@@ -28,7 +28,7 @@ export const DRIVER_CAREER_STATS_2025: Record<string, DriverHistoricalCareerBase
   drv_max_verstappen: { races: 233, wins: 71, poles: 48, championships: 4 },
   verstappen: { races: 233, wins: 71, poles: 48, championships: 4 },
 
-  // Liam Lawson: 11 GPs, 0 vitórias, 0 poles, 0 títulos
+  // Liam Lawson: 11 GPs, 0 vitórias, 0 poles, 0 títulos // probe
   'mbj-002': { races: 11, wins: 0, poles: 0, championships: 0 },
   driver_liam_lawson: { races: 11, wins: 0, poles: 0, championships: 0 },
   drv_liam_lawson: { races: 11, wins: 0, poles: 0, championships: 0 },

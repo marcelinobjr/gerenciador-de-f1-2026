@@ -35,6 +35,47 @@ describe('temp dump audit', () => {
       const inStats = DRIVER_CAREER_STATS_2025[p.id]
       return `${p.id}#${p.name}#${p.f1RacesCompleted ?? 0}#${inStats ? `${inStats.races}` : 'NONE'}`
     }).join(';')
-    expect(allDump.substring(0, 50)).toBe('DUMP_FAIL')
+    const diffs: any[] = []
+    for (const p of MBJ_2026_PILOTS) {
+      const inStats = DRIVER_CAREER_STATS_2025[p.id]
+      const mbjRaces = p.f1RacesCompleted ?? 0
+      const mbjWins = p.f1Wins ?? 0
+      const mbjPoles = p.f1Poles ?? 0
+      const mbjTitles = p.f1Titles ?? (p as any).f1Championships ?? 0
+
+      const statRaces = inStats?.races ?? 0
+      const statWins = inStats?.wins ?? 0
+      const statPoles = inStats?.poles ?? 0
+      const statTitles = inStats?.championships ?? 0
+
+      if (!inStats) {
+        if (mbjRaces > 0 || mbjWins > 0 || mbjPoles > 0 || mbjTitles > 0) {
+          diffs.push({
+            id: p.id,
+            name: p.name,
+            reason: 'missing_in_stats_but_mbj_has_values',
+            mbj: { races: mbjRaces, wins: mbjWins, poles: mbjPoles, titles: mbjTitles },
+            stats: null,
+          })
+        }
+      } else {
+        if (
+          mbjRaces !== statRaces ||
+          mbjWins !== statWins ||
+          mbjPoles !== statPoles ||
+          mbjTitles !== statTitles
+        ) {
+          diffs.push({
+            id: p.id,
+            name: p.name,
+            reason: 'divergence',
+            mbj: { races: mbjRaces, wins: mbjWins, poles: mbjPoles, titles: mbjTitles },
+            stats: { races: statRaces, wins: statWins, poles: statPoles, titles: statTitles },
+          })
+        }
+      }
+    }
+    const lines = diffs.map((d) => JSON.stringify(d))
+    expect(`COUNT_${diffs.length}__\n` + lines.join('\n')).toBe('DUMP_FAIL')
   })
 })
