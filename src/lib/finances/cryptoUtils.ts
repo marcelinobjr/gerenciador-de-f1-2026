@@ -19,3 +19,7 @@ export function computeSha256OfFile(filePath: string): { sha256: string; byteLen
 export function computeSha256OfBuffer(buffer: Buffer | Uint8Array | string): string {
   return crypto.createHash('sha256').update(buffer).digest('hex')
 }
+
+export function computeSha256OfString(str: string): string {
+  return crypto.createHash('sha256').update(str, 'utf-8').digest('hex')
+}

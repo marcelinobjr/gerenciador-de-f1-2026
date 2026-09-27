@@ -25,34 +25,6 @@ export function executeAndPersistBalanceAudit(): BalanceAuditArtifactResult {
   const report = balanceAuditService.runFullAudit()
   const diagnosis = diagnosticExtractionService.extractFullDiagnosis(report)
 
-  // Audit hash check for 3 JSON files
-  try {
-    const p1 = path.resolve(process.cwd(), 'src/assets/01finevoparametros-9bcaa.json')
-    const p2 = path.resolve(process.cwd(), 'src/assets/02finevocenariosetestes-e6c0c.json')
-    const p3 = path.resolve(process.cwd(), 'src/assets/03finevoformulasefonte-aac56.json')
-    const c1 = fs.readFileSync(p1)
-    const c2 = fs.readFileSync(p2)
-    const c3 = fs.readFileSync(p3)
-    const h1 = crypto.createHash('sha256').update(c1).digest('hex')
-    const h2 = crypto.createHash('sha256').update(c2).digest('hex')
-    const h3 = crypto.createHash('sha256').update(c3).digest('hex')
-    const hashFile = path.resolve(process.cwd(), 'docs/calculated-hashes.json')
-    fs.writeFileSync(
-      hashFile,
-      JSON.stringify(
-        {
-          f1: { sha256: h1, bytes: c1.byteLength },
-          f2: { sha256: h2, bytes: c2.byteLength },
-          f3: { sha256: h3, bytes: c3.byteLength },
-        },
-        null,
-        2,
-      ),
-    )
-  } catch {
-    /* intentionally ignored */
-  }
-
   const outDir = path.resolve(process.cwd(), 'src/artifacts/audits')
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true })

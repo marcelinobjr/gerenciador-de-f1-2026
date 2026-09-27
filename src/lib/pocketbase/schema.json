@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T18:14:24.594Z",
+  "generatedAt": "2026-09-27T18:26:07.631Z",
   "collections": [
     {
       "name": "users",
@@ -2536,6 +2536,105 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_championship_snapshot_key ON championship_snapshots (snapshot_key)",
         "CREATE INDEX idx_championship_career_season ON championship_snapshots (career_id, season)"
+      ]
+    },
+    {
+      "name": "financial_versioned_configs",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "version",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["DRAFT", "ACTIVE", "ARCHIVED"]
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "work_item",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "delivery_version",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "source_declared_version",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "source_sha256",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "parameters",
+          "type": "json",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "catalogs",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_fin_conf_version ON financial_versioned_configs (version)",
+        "CREATE INDEX idx_fin_conf_sha256 ON financial_versioned_configs (sha256)",
+        "CREATE INDEX idx_fin_conf_status ON financial_versioned_configs (status)"
       ]
     }
   ]
