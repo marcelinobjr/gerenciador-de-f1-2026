@@ -53,9 +53,11 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
   const [globalQuali, setGlobalQuali] = useState<GlobalQualifyingResultState | null>(null)
   const [startingGrid, setStartingGrid] = useState<StartingGridState | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Carregar dados persistidos da orquestração canônica
   const loadPersistedData = async () => {
+    setError(null)
     try {
       const [q1, q2, q3, gQuali, grid] = await Promise.all([
         raceQualifyingOrchestratorService.loadPersistedPhaseState('Q1', careerId, seasonId, round),
@@ -86,6 +88,7 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
       }
     } catch (err) {
       console.warn('[CanonicalQualifyingView] Erro ao carregar dados persistidos:', err)
+      setError('Falha ao carregar resultados oficiais da classificação.')
     }
   }
 
@@ -149,122 +152,33 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
     }
   }
 
-  // Obter participantes do Q1 (24 carros)
-  const q1Results =
-    q1State?.results ||
-    (legacyState
-      ? legacyState.results.map((r, i) => ({
-          driverId: r.driverId,
-          driverName: r.driverName,
-          teamId: r.teamId,
-          teamName: r.teamName,
-          carIndex: (i % 2 === 0 ? 1 : 2) as 1 | 2,
-          setup: r.setup,
-          effectiveDriver: r.effectiveDriver,
-          trackRating: r.trackRating,
-          basePaceMs: r.basePaceMs,
-          bonusMs: 0,
-          bestTimeMs: r.q1TimeMs || 80000,
-          formattedBestTime: formatLapTimeMs(r.q1TimeMs),
-          attempts: [],
-          position: i + 1,
-          isClassified: !r.eliminatedInPhase,
-          isEliminated: r.eliminatedInPhase === 'Q1',
-        }))
-      : [])
+  // Consumir estritamente os resultados persistidos de cada fase (sem recalcular, sem fallback fabricado)
+  const q1Results = q1State?.results || []
+  const q2Results = q2State?.results || []
+  const q3Results = q3State?.results || []
 
-  // Obter participantes efetivos do Q2 (somente os 18 classificados)
-  const q2Results =
-    q2State?.results ||
-    (legacyState && legacyState.phase !== 'READY_FOR_Q1' && legacyState.phase !== 'Q1'
-      ? legacyState.results
-          .filter((r) => r.eliminatedInPhase !== 'Q1')
-          .map((r, i) => ({
-            driverId: r.driverId,
-            driverName: r.driverName,
-            teamId: r.teamId,
-            teamName: r.teamName,
-            carIndex: (i % 2 === 0 ? 1 : 2) as 1 | 2,
-            setup: r.setup,
-            effectiveDriver: r.effectiveDriver,
-            trackRating: r.trackRating,
-            basePaceMs: r.basePaceMs,
-            bonusMs: 0,
-            bestTimeMs: r.q2TimeMs || 80000,
-            formattedBestTime: formatLapTimeMs(r.q2TimeMs),
-            attempts: [],
-            position: i + 1,
-            isClassified: r.eliminatedInPhase !== 'Q2',
-            isEliminated: r.eliminatedInPhase === 'Q2',
-          }))
-      : [])
+  const isQ1Complete = !!q1State?.isCompleted || q1Results.length > 0
+  const isQ2Complete = !!q2State?.isCompleted || q2Results.length > 0
+  const isQ3Complete = !!q3State?.isCompleted || q3Results.length > 0
 
-  // Obter participantes do Q3 (somente os 10 finalistas)
-  const q3Results =
-    q3State?.results ||
-    (legacyState && (legacyState.phase === 'Q3' || legacyState.phase === 'GRID_READY')
-      ? legacyState.results
-          .filter((r) => !r.eliminatedInPhase)
-          .map((r, i) => ({
-            driverId: r.driverId,
-            driverName: r.driverName,
-            teamId: r.teamId,
-            teamName: r.teamName,
-            carIndex: (i % 2 === 0 ? 1 : 2) as 1 | 2,
-            setup: r.setup,
-            effectiveDriver: r.effectiveDriver,
-            trackRating: r.trackRating,
-            basePaceMs: r.basePaceMs,
-            bonusMs: 0,
-            bestTimeMs: r.q3TimeMs || 80000,
-            formattedBestTime: formatLapTimeMs(r.q3TimeMs),
-            attempts: [],
-            position: r.qualifyingPosition || i + 1,
-            isClassified: true,
-            isEliminated: false,
-          }))
-      : [])
+  // Grid Oficial (P1..P24 bijetivo): NÃO aparece como definitivo antes de GRID_READY
+  const isGridReady = startingGrid?.status === 'GRID_READY'
+  const finalGridList = isGridReady && startingGrid ? startingGrid.grid : []
 
-  // Grid Oficial (P1..P24 bijetivo)
-  const finalGridList =
-    startingGrid?.grid ||
-    (legacyState && legacyState.phase === 'GRID_READY'
-      ? legacyState.results
-          .map((r) => ({
-            gridPosition: r.startingGridPosition,
-            qualifyingPosition: r.qualifyingPosition,
-            driverId: r.driverId,
-            driverName: r.driverName,
-            teamId: r.teamId,
-            teamName: r.teamName,
-            carIndex: 1 as 1 | 2,
-            eliminationPhase: (r.eliminatedInPhase || 'Q3') as 'Q1' | 'Q2' | 'Q3',
-            qualifyingTimeMs: r.bestTimeMs || 80000,
-            formattedQualifyingTime: formatLapTimeMs(r.bestTimeMs),
-            setup: r.setup,
-            penalties: r.gridPenaltyPositions
-              ? [{ positions: r.gridPenaltyPositions, reason: 'Excesso de PU' }]
-              : [],
-            totalPenaltyPositions: r.gridPenaltyPositions || 0,
-            hasPenalty: (r.gridPenaltyPositions || 0) > 0,
-            penaltyReason: r.gridPenaltyPositions
-              ? `+${r.gridPenaltyPositions} posições`
-              : undefined,
-          }))
-          .sort((a, b) => a.gridPosition - b.gridPosition)
-      : [])
-
-  const isGridReady = startingGrid?.status === 'GRID_READY' || legacyState?.phase === 'GRID_READY'
-  const isQ1Complete =
-    !!q1State?.isCompleted ||
-    (legacyState && legacyState.phase !== 'READY_FOR_Q1' && legacyState.phase !== 'Q1')
-  const isQ2Complete =
-    !!q2State?.isCompleted ||
-    (legacyState &&
-      legacyState.phase !== 'READY_FOR_Q1' &&
-      legacyState.phase !== 'Q1' &&
-      legacyState.phase !== 'Q2')
-  const isQ3Complete = !!q3State?.isCompleted || (legacyState && legacyState.phase === 'GRID_READY')
+  if (error) {
+    return (
+      <Card className="border border-red-500/30 bg-red-500/5 p-6 text-center space-y-3">
+        <div className="flex items-center justify-center gap-2 text-red-600 font-bold text-sm">
+          <ShieldAlert className="h-5 w-5" />
+          <span>Erro ao carregar sessão de classificação</span>
+        </div>
+        <p className="text-xs text-muted-foreground">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => loadPersistedData()}>
+          Tentar novamente
+        </Button>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-6">
