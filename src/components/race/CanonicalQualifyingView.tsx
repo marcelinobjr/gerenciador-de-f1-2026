@@ -21,6 +21,8 @@ import {
   GlobalQualifyingResultState,
   QualifyingPhaseExecutionState,
   formatLapTimeMs,
+  type SprintQualifyingResultState,
+  type SprintStartingGridState,
 } from '@/services/raceQualifyingOrchestratorService'
 import { raceQualifyingService, QualifyingWeekendState } from '@/services/raceQualifyingService'
 import { Badge } from '@/components/ui/badge'
@@ -108,6 +110,16 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
         setSq3State(sq3)
         setSprintResult(sResult)
         setSprintGrid(sGrid)
+
+        if (sGrid?.status === 'SPRINT_GRID_READY') {
+          setActiveTab('grid')
+        } else if (sq3?.isCompleted) {
+          setActiveTab('sq3')
+        } else if (sq2?.isCompleted) {
+          setActiveTab('sq2')
+        } else {
+          setActiveTab('sq1')
+        }
       } else {
         const [q1, q2, q3, gQuali, grid] = await Promise.all([
           raceQualifyingOrchestratorService.loadPersistedPhaseState(
@@ -141,29 +153,28 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
         setQ3State(q3)
         setGlobalQuali(gQuali)
         setStartingGrid(grid)
-      }
 
-      // Validação estrita de integridade do STARTING_GRID:
-      // Se status é GRID_READY, deve ter exatamente os participantes previstos, posições contínuas P1..N sem duplicados
-      if (grid?.status === 'GRID_READY') {
-        if (!grid.grid || grid.grid.length === 0) {
-          setError('Erro de integridade do grid: lista de posições vazia em GRID_READY.')
-        } else {
-          const driverIds = new Set(grid.grid.map((g) => g.driverId))
-          if (driverIds.size !== grid.grid.length) {
-            setError('Erro de integridade do grid: pilotos duplicados detectados no STARTING_GRID.')
+        // Validação estrita de integridade do STARTING_GRID:
+        // Se status é GRID_READY, deve ter exatamente os participantes previstos, posições contínuas P1..N sem duplicados
+        if (grid?.status === 'GRID_READY') {
+          if (!grid.grid || grid.grid.length === 0) {
+            setError('Erro de integridade do grid: lista de posições vazia em GRID_READY.')
+          } else {
+            const driverIds = new Set(grid.grid.map((g) => g.driverId))
+            if (driverIds.size !== grid.grid.length) {
+              setError(
+                'Erro de integridade do grid: pilotos duplicados detectados no STARTING_GRID.',
+              )
+            }
           }
+          setActiveTab('grid')
+        } else if (q3?.isCompleted) {
+          setActiveTab('q3')
+        } else if (q2?.isCompleted) {
+          setActiveTab('q2')
+        } else {
+          setActiveTab('q1')
         }
-      }
-
-      if (grid?.status === 'GRID_READY') {
-        setActiveTab('grid')
-      } else if (q3?.isCompleted) {
-        setActiveTab('q3')
-      } else if (q2?.isCompleted) {
-        setActiveTab('q2')
-      } else {
-        setActiveTab('q1')
       }
     } catch (err) {
       console.warn('[CanonicalQualifyingView] Erro ao carregar dados persistidos:', err)

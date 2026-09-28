@@ -839,7 +839,7 @@ export class RaceQualifyingOrchestratorService {
 
         if (isSprintQuali) {
           // Sprint Shootout (SQ1, SQ2 usam Médio no seco; SQ3 usa Macio)
-          const isSq3 = phase === 'SQ3'
+          const isSq3 = (phase as QualifyingPhase) === 'SQ3'
           const sprintCalc = calculateSprintQualifyingAttemptTime(
             {
               dry: !wet,
@@ -921,7 +921,7 @@ export class RaceQualifyingOrchestratorService {
     // Atribuição de posições 1..N únicas dentro da fase
     results.forEach((r, idx) => {
       r.position = idx + 1
-      if (phase === 'Q3' || phase === 'SQ3') {
+      if (phase === 'Q3' || (phase as QualifyingPhase) === 'SQ3') {
         r.isClassified = true
         r.isEliminated = false
       } else if (idx < advancingCount) {

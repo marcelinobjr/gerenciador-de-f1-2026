@@ -427,6 +427,34 @@ export class CanonicalWeekendSlotPersistenceService {
   /**
    * Limpa cache em memória (útil para testes de reload e isolamento).
    */
+  public async getWeekendSlotState(params: {
+    careerId: string
+    seasonId: string
+    round: number
+    configVersion?: string
+  }): Promise<CanonicalWeekendSlotState> {
+    return this.loadOrMigrateSlotState(params)
+  }
+
+  public async updateSubPhase(params: {
+    careerId: string
+    seasonId: string
+    round: number
+    slotNumber: WeekendSlotNumber
+    subPhase: SprintQualifyingSubPhase | MainQualifyingSubPhase | string | null
+  }): Promise<CanonicalWeekendSlotState> {
+    const { careerId, seasonId, round, slotNumber, subPhase } = params
+    const state = await this.loadOrMigrateSlotState({ careerId, seasonId, round })
+    if (state.slots[slotNumber]) {
+      state.slots[slotNumber].subPhase = subPhase
+      if (state.currentSlot === slotNumber) {
+        state.subPhase = subPhase as any
+      }
+      await this.saveSlotState(state)
+    }
+    return state
+  }
+
   public clearMemoryCache(): void {
     this.inMemoryCache.clear()
   }
