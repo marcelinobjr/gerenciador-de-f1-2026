@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { QualifyingPhaseView } from './QualifyingPhaseView'
+import { SprintStartingGridSummary } from './SprintStartingGridSummary'
 import type {
   QualifyingPhaseExecutionState,
   SprintQualifyingResultState,
@@ -170,96 +171,11 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
           </Card>
         </TabsContent>
         <TabsContent value="grid" className="mt-4">
-          <Card className="border-purple-500/20">
-            <CardHeader className="py-3 px-4 bg-purple-950/10 border-b border-border/40">
-              <CardTitle className="text-sm font-bold flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className="border-purple-500/50 text-purple-400 font-bold text-[10px] uppercase"
-                  >
-                    SPRINT_STARTING_GRID
-                  </Badge>
-                  <span>Grid de Largada da Corrida Sprint</span>
-                </div>
-                {sprintGrid?.grid && sprintGrid.grid.length > 0 && (
-                  <Badge className="bg-emerald-600 text-white text-xs font-mono font-bold">
-                    {sprintGrid.grid.length} Pilotos (P1–P{sprintGrid.grid.length})
-                  </Badge>
-                )}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE do
-                SPRINT_STARTING_GRID persistido.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
-                    <tr>
-                      <th className="px-4 py-3 w-16 text-center">Grid</th>
-                      <th className="px-4 py-3">Piloto</th>
-                      <th className="px-4 py-3">Equipe</th>
-                      <th className="px-3 py-3 text-center">Fase</th>
-                      <th className="px-4 py-3 text-right">Melhor Volta</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/20">
-                    {sprintGrid?.grid && sprintGrid.grid.length > 0 ? (
-                      sprintGrid.grid.map((entry) => (
-                        <tr key={`sprint_grid_${entry.driverId}`} className="hover:bg-muted/30">
-                          <td className="px-4 py-3 text-center font-mono font-bold text-xs">
-                            <span
-                              className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${
-                                entry.gridPosition === 1
-                                  ? 'bg-amber-400 text-black'
-                                  : entry.gridPosition <= 3
-                                    ? 'bg-slate-200 text-slate-900'
-                                    : 'bg-muted text-foreground'
-                              }`}
-                            >
-                              P{entry.gridPosition}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-foreground">
-                            {entry.driverName}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{entry.teamName}</td>
-                          <td className="px-3 py-3 text-center font-mono text-xs">
-                            <Badge
-                              variant="outline"
-                              className={
-                                entry.eliminationPhase === 'SQ3'
-                                  ? 'border-purple-500/40 text-purple-600'
-                                  : entry.eliminationPhase === 'SQ2'
-                                    ? 'border-amber-500/40 text-amber-500'
-                                    : 'border-red-500/40 text-red-500'
-                              }
-                            >
-                              {entry.eliminationPhase} (P{entry.qualifyingPosition})
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono text-xs">
-                            {entry.formattedQualifyingTime || '-:--.---'}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-4 py-8 text-center text-xs text-muted-foreground"
-                        >
-                          Grid de largada da Sprint ainda não formado.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <SprintStartingGridSummary
+            sprintGrid={sprintGrid || null}
+            loading={loading}
+            error={error}
+          />
         </TabsContent>{' '}
       </Tabs>
     </div>

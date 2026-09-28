@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Play, FastForward, Flag, ArrowDown, Trophy, ShieldAlert, CheckCircle2 } from 'lucide-react'
 import { QualifyingPhaseView } from './QualifyingPhaseView'
+import { SprintStartingGridSummary } from './SprintStartingGridSummary'
 
 export interface CanonicalQualifyingViewProps {
   careerId: string
@@ -535,111 +536,7 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
 
           {/* ABA GRID DA SPRINT (SPRINT_STARTING_GRID PERSISTIDO) */}
           <TabsContent value="grid" className="mt-4">
-            <Card>
-              <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    <span>Grid de Largada da Corrida Sprint (P1 – P24)</span>
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE de
-                    SPRINT_STARTING_GRID.
-                  </CardDescription>
-                </div>
-                {isSprintGridReady && finalSprintGridList.length > 0 && (
-                  <Badge className="bg-emerald-600 text-white font-bold text-xs">
-                    {finalSprintGridList.length} CARROS BIJETIVO
-                  </Badge>
-                )}
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left font-mono">
-                    <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
-                      <tr>
-                        <th className="px-4 py-3 w-16 text-center">Grid</th>
-                        <th className="px-4 py-3">Piloto</th>
-                        <th className="px-4 py-3">Equipe</th>
-                        <th className="px-4 py-3 text-center">Quali Sprint</th>
-                        <th className="px-4 py-3 text-right">Melhor Volta</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/20">
-                      {loading ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-xs text-muted-foreground"
-                          >
-                            Carregando grid de largada da Sprint...
-                          </td>
-                        </tr>
-                      ) : !isSprintGridReady || finalSprintGridList.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-xs text-muted-foreground"
-                          >
-                            Grid da Sprint ainda não definido (aguardando conclusão da Qualificação
-                            Sprint).
-                          </td>
-                        </tr>
-                      ) : (
-                        finalSprintGridList.map((row) => (
-                          <tr
-                            key={`sprint_grid_${row.gridPosition}_${row.driverId}`}
-                            className="hover:bg-muted/30 transition-colors"
-                          >
-                            {/* Posição de largada Sprint */}
-                            <td className="px-4 py-3 text-center font-bold text-sm bg-primary/5">
-                              <span
-                                className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${
-                                  row.gridPosition === 1
-                                    ? 'bg-amber-400 text-black'
-                                    : row.gridPosition <= 3
-                                      ? 'bg-slate-200 text-slate-900'
-                                      : 'bg-muted text-foreground'
-                                }`}
-                              >
-                                P{row.gridPosition}
-                              </span>
-                            </td>
-
-                            {/* Piloto */}
-                            <td className="px-4 py-3 font-sans font-semibold text-foreground">
-                              {row.driverName}
-                            </td>
-
-                            {/* Equipe */}
-                            <td className="px-4 py-3 font-sans text-muted-foreground">
-                              {row.teamName}
-                            </td>
-
-                            {/* Posição pura na classificação Sprint */}
-                            <td className="px-4 py-3 text-center font-mono text-xs">
-                              <div>
-                                <span className="font-semibold text-foreground block">
-                                  P{row.qualifyingPosition}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground block">
-                                  ({row.eliminationPhase})
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* Melhor Volta */}
-                            <td className="px-4 py-3 text-right font-mono text-xs">
-                              {row.formattedQualifyingTime || '-:--.---'}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+            <SprintStartingGridSummary sprintGrid={sprintGrid} loading={loading} error={error} />
           </TabsContent>
         </Tabs>
       ) : (
