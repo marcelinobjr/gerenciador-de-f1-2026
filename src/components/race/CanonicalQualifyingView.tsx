@@ -410,9 +410,11 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                   unidade de potência.
                 </CardDescription>
               </div>
-              <Badge className="bg-emerald-600 text-white font-bold text-xs">
-                24 CARROS BIJETIVO
-              </Badge>
+              {isGridReady && finalGridList.length > 0 && (
+                <Badge className="bg-emerald-600 text-white font-bold text-xs">
+                  {finalGridList.length} CARROS BIJETIVO
+                </Badge>
+              )}
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -428,78 +430,115 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
-                    {finalGridList.map((row) => {
-                      const diff = row.gridPosition - row.qualifyingPosition
-
-                      return (
-                        <tr
-                          key={`final_grid_${row.gridPosition}_${row.driverId}`}
-                          className={`hover:bg-muted/30 transition-colors ${
-                            row.hasPenalty ? 'bg-amber-500/5' : ''
-                          }`}
+                    {loading ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
                         >
-                          {/* Posição de largada efetiva */}
-                          <td className="px-4 py-3 text-center font-bold text-sm bg-primary/5">
-                            <span
-                              className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${
-                                row.gridPosition === 1
-                                  ? 'bg-amber-400 text-black'
-                                  : row.gridPosition <= 3
-                                    ? 'bg-slate-200 text-slate-900'
-                                    : 'bg-muted text-foreground'
-                              }`}
-                            >
-                              P{row.gridPosition}
-                            </span>
-                          </td>
+                          Carregando grid de largada oficial...
+                        </td>
+                      </tr>
+                    ) : !isGridReady || finalGridList.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
+                        >
+                          Grid oficial ainda não definido (aguardando conclusão do Qualifying).
+                        </td>
+                      </tr>
+                    ) : (
+                      finalGridList.map((row) => {
+                        const diff = row.gridPosition - row.qualifyingPosition
 
-                          {/* Piloto */}
-                          <td className="px-4 py-3 font-sans font-semibold text-foreground">
-                            {row.driverName}
-                          </td>
-
-                          {/* Equipe */}
-                          <td className="px-4 py-3 font-sans text-muted-foreground">
-                            {row.teamName}
-                          </td>
-
-                          {/* Posição pura na classificação */}
-                          <td className="px-4 py-3 text-center font-mono text-xs">
-                            <span className="font-semibold text-foreground">
-                              Classificou: P{row.qualifyingPosition}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground block">
-                              ({row.eliminationPhase})
-                            </span>
-                          </td>
-
-                          {/* Penalidade aplicada */}
-                          <td className="px-4 py-3 text-center">
-                            {row.hasPenalty ? (
-                              <Badge
-                                variant="destructive"
-                                className="text-xs flex items-center justify-center gap-1 mx-auto w-fit"
+                        return (
+                          <tr
+                            key={`final_grid_${row.gridPosition}_${row.driverId}`}
+                            className={`hover:bg-muted/30 transition-colors ${
+                              row.hasPenalty ? 'bg-amber-500/5' : ''
+                            }`}
+                          >
+                            {/* Posição de largada efetiva */}
+                            <td className="px-4 py-3 text-center font-bold text-sm bg-primary/5">
+                              <span
+                                className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${
+                                  row.gridPosition === 1
+                                    ? 'bg-amber-400 text-black'
+                                    : row.gridPosition <= 3
+                                      ? 'bg-slate-200 text-slate-900'
+                                      : 'bg-muted text-foreground'
+                                }`}
                               >
-                                <ArrowDown className="h-3 w-3" />+{row.totalPenaltyPositions} pos (
-                                {diff > 0 ? `-${diff}` : '0'})
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                            {row.penaltyReason && (
-                              <span className="text-[10px] text-red-500/80 block mt-0.5">
-                                {row.penaltyReason}
+                                P{row.gridPosition}
                               </span>
-                            )}
-                          </td>
+                            </td>
 
-                          {/* Melhor Volta */}
-                          <td className="px-4 py-3 text-right font-mono text-xs">
-                            {row.formattedQualifyingTime}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                            {/* Piloto */}
+                            <td className="px-4 py-3 font-sans font-semibold text-foreground">
+                              {row.driverName}
+                            </td>
+
+                            {/* Equipe */}
+                            <td className="px-4 py-3 font-sans text-muted-foreground">
+                              {row.teamName}
+                            </td>
+
+                            {/* Posição pura na classificação */}
+                            <td className="px-4 py-3 text-center font-mono text-xs">
+                              {row.hasPenalty || row.qualifyingPosition !== row.gridPosition ? (
+                                <>
+                                  <span className="font-semibold text-foreground block">
+                                    Classificou: P{row.qualifyingPosition} / Larga: P
+                                    {row.gridPosition}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground block">
+                                    ({row.eliminationPhase})
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-semibold text-foreground block">
+                                    P{row.qualifyingPosition}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground block">
+                                    ({row.eliminationPhase})
+                                  </span>
+                                </>
+                              )}
+                            </td>
+
+                            {/* Penalidade aplicada */}
+                            <td className="px-4 py-3 text-center">
+                              {row.hasPenalty ? (
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-xs flex items-center justify-center gap-1 mx-auto w-fit font-bold"
+                                  >
+                                    <ArrowDown className="h-3 w-3" />+{row.totalPenaltyPositions}{' '}
+                                    posições
+                                    {diff > 0 ? ` (-${diff})` : ''}
+                                  </Badge>
+                                  {row.penaltyReason && (
+                                    <span className="text-[10px] text-red-500/90 font-medium block">
+                                      {row.penaltyReason}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </td>
+
+                            {/* Melhor Volta */}
+                            <td className="px-4 py-3 text-right font-mono text-xs">
+                              {row.formattedQualifyingTime}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
