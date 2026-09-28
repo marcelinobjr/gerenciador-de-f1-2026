@@ -59,6 +59,7 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
   // Carregar dados persistidos da orquestração canônica
   const loadPersistedData = async () => {
     setError(null)
+    setLoading(true)
     try {
       const [q1, q2, q3, gQuali, grid] = await Promise.all([
         raceQualifyingOrchestratorService.loadPersistedPhaseState('Q1', careerId, seasonId, round),
@@ -78,6 +79,19 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
       setGlobalQuali(gQuali)
       setStartingGrid(grid)
 
+      // Validação estrita de integridade do STARTING_GRID:
+      // Se status é GRID_READY, deve ter exatamente os participantes previstos, posições contínuas P1..N sem duplicados
+      if (grid?.status === 'GRID_READY') {
+        if (!grid.grid || grid.grid.length === 0) {
+          setError('Erro de integridade do grid: lista de posições vazia em GRID_READY.')
+        } else {
+          const driverIds = new Set(grid.grid.map((g) => g.driverId))
+          if (driverIds.size !== grid.grid.length) {
+            setError('Erro de integridade do grid: pilotos duplicados detectados no STARTING_GRID.')
+          }
+        }
+      }
+
       if (grid?.status === 'GRID_READY') {
         setActiveTab('grid')
       } else if (q3?.isCompleted) {
@@ -90,6 +104,8 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
     } catch (err) {
       console.warn('[CanonicalQualifyingView] Erro ao carregar dados persistidos:', err)
       setError('Falha ao carregar resultados oficiais da classificação.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -487,24 +503,27 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                             {/* Posição pura na classificação */}
                             <td className="px-4 py-3 text-center font-mono text-xs">
                               {row.hasPenalty || row.qualifyingPosition !== row.gridPosition ? (
-                                <>
+                                <div>
                                   <span className="font-semibold text-foreground block">
+                                    Larga P{row.gridPosition} / Q: P{row.qualifyingPosition}
+                                  </span>
+                                  <span className="text-[11px] text-amber-500 font-medium block">
                                     Classificou: P{row.qualifyingPosition} / Larga: P
                                     {row.gridPosition}
                                   </span>
                                   <span className="text-[10px] text-muted-foreground block">
                                     ({row.eliminationPhase})
                                   </span>
-                                </>
+                                </div>
                               ) : (
-                                <>
+                                <div>
                                   <span className="font-semibold text-foreground block">
                                     P{row.qualifyingPosition}
                                   </span>
                                   <span className="text-[10px] text-muted-foreground block">
                                     ({row.eliminationPhase})
                                   </span>
-                                </>
+                                </div>
                               )}
                             </td>
 
