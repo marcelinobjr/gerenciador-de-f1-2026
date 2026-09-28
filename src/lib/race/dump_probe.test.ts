@@ -1,9 +1,9 @@
-import { describe, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import * as pure from './pureRaceEngine'
 
 describe('inspect pureRaceEngine', () => {
   it('dump keys', () => {
     const keys = Object.keys(pure)
-    expect(keys.join(',')).toBe('DUMP:' + keys.join(','))
+    throw new Error('DUMP_KEYS: ' + keys.join(','))
   })
 })
