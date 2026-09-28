@@ -280,7 +280,9 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
       {/* Tabs com as 4 visualizações canônicas requeridas + Resultado Global */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5 max-w-2xl">
-          <TabsTrigger value="q1">Q1 {q1Results.length > 0 ? `(${q1Results.length})` : ''}</TabsTrigger>
+          <TabsTrigger value="q1">
+            Q1 {q1Results.length > 0 ? `(${q1Results.length})` : ''}
+          </TabsTrigger>
           <TabsTrigger value="q2" disabled={!isQ1Complete}>
             Q2 {isQ1Complete ? `(${q2Results.length || 18})` : '(Bloqueado)'}
           </TabsTrigger>
@@ -322,7 +324,16 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
-                    {q1Results.length === 0 ? (
+                    {loading ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
+                        >
+                          Carregando resultados da sessão Q1...
+                        </td>
+                      </tr>
+                    ) : q1Results.length === 0 ? (
                       <tr>
                         <td
                           colSpan={6}
@@ -333,8 +344,8 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                       </tr>
                     ) : (
                       q1Results.map((r, idx) => {
-                        const pos = r.position || idx + 1
-                        const isElim = r.isEliminated || pos > 18
+                        const pos = r.position ?? idx + 1
+                        const isElim = r.isEliminated !== undefined ? r.isEliminated : pos > 18
                         return (
                           <tr
                             key={`q1_${r.driverId}`}
@@ -415,7 +426,10 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                   <tbody className="divide-y divide-border/20">
                     {q2Results.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
+                        >
                           Sessão Q2 ainda não realizada (aguardando conclusão do Q1).
                         </td>
                       </tr>
@@ -505,7 +519,10 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                   <tbody className="divide-y divide-border/20">
                     {q3Results.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
+                        >
                           Sessão Q3 ainda não realizada (aguardando conclusão do Q2).
                         </td>
                       </tr>
@@ -565,7 +582,8 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                   <span>Resultado Oficial da Classificação (P1 – P24)</span>
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Classificação pura obtida em pista (QUALIFYING_RESULT) antes de aplicação das penalidades de grid.
+                  Classificação pura obtida em pista (QUALIFYING_RESULT) antes de aplicação das
+                  penalidades de grid.
                 </CardDescription>
               </div>
               <Badge variant="outline" className="font-mono text-xs">
@@ -588,7 +606,10 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                   <tbody className="divide-y divide-border/20">
                     {!globalQuali || globalQuali.results.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
+                        >
                           Resultado da classificação ainda não concluído.
                         </td>
                       </tr>
