@@ -244,6 +244,32 @@ export function applySetupCap(inputs: { previous_setup: number; session_gain: nu
 }
 
 /**
+ * R04 / Classificação!L7: Delta de tempo de Qualificação proporcional ao rating (min-max).
+ *
+ * Fórmula canônica do modelo de origem (Excel):
+ *   ratingDeltaMs = (maxRating - rating) / (maxRating - minRating) * spreadMs
+ *
+ * Regras:
+ * - Se maxRating > minRating: delta = (maxRating - rating) / (maxRating - minRating) * spreadMs
+ * - Se maxRating == minRating: retorna 0 (adaptação canônica de produção para evitar divisão por zero).
+ * - spreadMs é obrigatório e configurável, sem valor hardcoded interno.
+ */
+export function calculateQualifyingRatingDeltaMs(inputs: {
+  rating: number
+  minRating: number
+  maxRating: number
+  spreadMs: number
+}): number {
+  const { rating, minRating, maxRating, spreadMs } = inputs
+
+  if (maxRating <= minRating) {
+    return 0
+  }
+
+  return ((maxRating - rating) / (maxRating - minRating)) * spreadMs
+}
+
+/**
  * R04 / RF10: Tempo de tentativa de Classificação (Q1, Q2, Q3).
  * Fórmula:
  *   qualifying_bonus_ms = (setup / 100) * max_setup_qualifying_bonus_seconds * 1000
