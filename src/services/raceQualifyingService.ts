@@ -17,6 +17,8 @@ import {
   calculateEffectiveQualifyingDriver,
   calculateTrackQualifyingRating,
   calculateQualifyingAttemptTime,
+  calculateCanonicalQualifyingBasePace,
+  calculateQualifyingNoiseSigma,
   DEFAULT_SOURCE_RACE_PARAMETERS,
 } from '../lib/race/pureRaceEngine'
 import type { RaceParameters } from '../lib/race/types'
@@ -249,8 +251,13 @@ export class RaceQualifyingService {
         DEFAULT_SOURCE_RACE_PARAMETERS.qualifying_base_over_record_factor,
     }
 
-    const results: QualifyingDriverResult[] = uniqueParticipants.map((p) => {
-      // 1. Piloto efetivo (pureRaceEngine)
+    // Pré-cálculo dos ratings para obter maxRating e minRating canônicos da sessão
+    const fullParams: RaceParameters = {
+      ...DEFAULT_SOURCE_RACE_PARAMETERS,
+      ...paramsUsed,
+    }
+
+    const precomputed = uniqueParticipants.map((p) => {
       const { effective_driver } = calculateEffectiveQualifyingDriver(
         {
           speed: p.speed,
@@ -260,21 +267,42 @@ export class RaceQualifyingService {
           wet_skill: p.wet_skill ?? 50,
           wet: isWet,
         },
-        DEFAULT_SOURCE_RACE_PARAMETERS,
+        fullParams,
       )
 
-      // 2. Rating de Qualificação ponderado com carro (pureRaceEngine)
       const { rating } = calculateTrackQualifyingRating({
         car: p.carPerformance,
         effective_driver,
         driver_weight: driverWeight,
       })
 
-      // 3. Base Pace (ms): derivado do track record e rating (rating 100 = recorde)
-      // rating de 50 a 100 mapeia tempo base entre (record + 3.0s) e record
-      // rating mais alto = tempo menor
-      const ratingGap = (100 - Math.min(100, Math.max(0, rating))) * 35 // 35ms por ponto de rating
-      const basePaceMs = trackRecordMs + ratingGap
+      return {
+        input: p,
+        effective_driver,
+        rating,
+      }
+    })
+
+    const allRatings = precomputed.map((item) => item.rating)
+    const maxRating = allRatings.length > 0 ? Math.max(...allRatings) : 100
+    const minRating = allRatings.length > 0 ? Math.min(...allRatings) : 0
+
+    const results: QualifyingDriverResult[] = precomputed.map((item) => {
+      const p = item.input
+      const effective_driver = item.effective_driver
+      const rating = item.rating
+
+      // Base Pace canônico do Excel (Classificação!L7)
+      const { individual_base_ms: basePaceMs } = calculateCanonicalQualifyingBasePace(
+        {
+          track_record_ms: trackRecordMs,
+          rating,
+          max_rating: maxRating,
+          min_rating: minRating,
+          wet: isWet,
+        },
+        fullParams,
+      )
 
       return {
         driverId: p.driverId,
@@ -339,17 +367,26 @@ export class RaceQualifyingService {
     const rng = mulberry32(seed)
     const z = getStandardNormal(rng)
 
+    // Ruído gaussiano canônico com multiplicador de chuva (150 ms seco / 225 ms molhado)
+    const { sigma_ms: effectiveSigmaMs } = calculateQualifyingNoiseSigma(
+      { wet: state.weather.wet },
+      {
+        ...DEFAULT_SOURCE_RACE_PARAMETERS,
+        ...state.parametersUsed,
+      },
+    )
+
     // Chama a função pura oficial canônica
     const { time_ms, bonus_ms } = calculateQualifyingAttemptTime(
       {
         base_pace_ms: driver.basePaceMs,
         setup: driver.setup,
         normal_standard_draw_z: z,
-        sigma_ms: state.parametersUsed.qualifying_noise_sd_ms,
+        sigma_ms: effectiveSigmaMs,
       },
       {
         max_setup_qualifying_bonus_seconds: state.parametersUsed.max_setup_qualifying_bonus_seconds,
-        qualifying_noise_sd_ms: state.parametersUsed.qualifying_noise_sd_ms,
+        qualifying_noise_sd_ms: effectiveSigmaMs,
       },
     )
 
@@ -381,13 +418,12 @@ export class RaceQualifyingService {
       return state
     }
 
-    // Executa 2 tentativas para cada piloto no Q1
+    // Executa 1 tentativa canônica para cada piloto no Q1
     for (const driver of state.results) {
       if (!driver.lapAttempts.Q1 || driver.lapAttempts.Q1.length === 0) {
         const att1 = this.runAttempt(state, driver, 'Q1', 1)
-        const att2 = this.runAttempt(state, driver, 'Q1', 2)
-        driver.lapAttempts.Q1 = [att1, att2]
-        driver.q1TimeMs = Math.min(att1.timeMs, att2.timeMs)
+        driver.lapAttempts.Q1 = [att1]
+        driver.q1TimeMs = att1.timeMs
         driver.bestTimeMs = driver.q1TimeMs
       }
     }
@@ -441,9 +477,8 @@ export class RaceQualifyingService {
     for (const driver of q2Participants) {
       if (!driver.lapAttempts.Q2 || driver.lapAttempts.Q2.length === 0) {
         const att1 = this.runAttempt(state, driver, 'Q2', 1)
-        const att2 = this.runAttempt(state, driver, 'Q2', 2)
-        driver.lapAttempts.Q2 = [att1, att2]
-        driver.q2TimeMs = Math.min(att1.timeMs, att2.timeMs)
+        driver.lapAttempts.Q2 = [att1]
+        driver.q2TimeMs = att1.timeMs
         driver.bestTimeMs = Math.min(driver.bestTimeMs ?? Infinity, driver.q2TimeMs)
       }
     }
@@ -497,9 +532,8 @@ export class RaceQualifyingService {
     for (const driver of q3Participants) {
       if (!driver.lapAttempts.Q3 || driver.lapAttempts.Q3.length === 0) {
         const att1 = this.runAttempt(state, driver, 'Q3', 1)
-        const att2 = this.runAttempt(state, driver, 'Q3', 2)
-        driver.lapAttempts.Q3 = [att1, att2]
-        driver.q3TimeMs = Math.min(att1.timeMs, att2.timeMs)
+        driver.lapAttempts.Q3 = [att1]
+        driver.q3TimeMs = att1.timeMs
         driver.bestTimeMs = Math.min(driver.bestTimeMs ?? Infinity, driver.q3TimeMs)
       }
     }

@@ -249,6 +249,89 @@ export function applySetupCap(inputs: { previous_setup: number; session_gain: nu
  *   qualifying_bonus_ms = (setup / 100) * max_setup_qualifying_bonus_seconds * 1000
  *   time_ms = base_pace_ms - qualifying_bonus_ms + normal_standard_draw_z * sigma_ms
  */
+/**
+ * R04 / Classificação!L7: Ritmo base canônico de Qualificação.
+ *
+ * Fórmula:
+ *   baseQualiSeconds = trackRecordSeconds * (1 + qualifyingBaseOverRecordFactor)
+ *   baseQualiMs = baseQualiSeconds * 1000
+ *   ratingDeltaMs = (maxRating - rating) / (maxRating - minRating) * qualifyingGridSpreadMs
+ *   individualBaseMs = baseQualiMs * wetBaseFactor + ratingDeltaMs
+ *
+ * ADAPTAÇÃO DOCUMENTADA DE PRODUÇÃO:
+ * Se maxRating == minRating (todos os participantes empatados no canal de performance),
+ * ratingDeltaMs = 0 para evitar divisão por zero (0 / 0 = NaN) sem criar spread artificial.
+ */
+export function calculateCanonicalQualifyingBasePace(
+  inputs: {
+    track_record_seconds?: number
+    track_record_ms?: number
+    rating: number
+    max_rating: number
+    min_rating: number
+    wet: boolean
+  },
+  params: Pick<
+    RaceParameters,
+    'qualifying_base_over_record_factor' | 'grid_target_spread_ms' | 'light_rain_time_fraction'
+  > = DEFAULT_SOURCE_RACE_PARAMETERS,
+): {
+  base_quali_ms: number
+  rating_delta_ms: number
+  individual_base_ms: number
+  wet_base_factor: number
+} {
+  // Obtenção consistente do tempo base a partir de segundos ou ms
+  const recordSeconds =
+    inputs.track_record_seconds ??
+    (inputs.track_record_ms !== undefined ? inputs.track_record_ms / 1000 : 80)
+
+  const factor = params.qualifying_base_over_record_factor ?? 0
+  const base_quali_seconds = recordSeconds * (1 + factor)
+  const base_quali_ms = base_quali_seconds * 1000
+
+  // Canal de performance relativo (min-max)
+  let rating_delta_ms = 0
+  const ratingRange = inputs.max_rating - inputs.min_rating
+  if (ratingRange > 1e-9) {
+    const spreadMs = params.grid_target_spread_ms ?? 2500
+    rating_delta_ms = ((inputs.max_rating - inputs.rating) / ratingRange) * spreadMs
+  } else {
+    // ADAPTAÇÃO DOCUMENTADA DE PRODUÇÃO: caso limite maxRating == minRating
+    rating_delta_ms = 0
+  }
+
+  // Fator climático na base de tempo
+  const wet_base_factor = inputs.wet ? 1 + (params.light_rain_time_fraction ?? 0.08) : 1
+  const individual_base_ms = base_quali_ms * wet_base_factor + rating_delta_ms
+
+  return {
+    base_quali_ms,
+    rating_delta_ms,
+    individual_base_ms,
+    wet_base_factor,
+  }
+}
+
+/**
+ * R04 / Classificação!H3: Desvio padrão efetivo (sigma) de qualificação.
+ * Seco: sigma = qualifying_noise_sd_ms (default: 150 ms)
+ * Molhado: sigma = qualifying_noise_sd_ms * wet_noise_multiplier (default: 150 * 1.5 = 225 ms)
+ */
+export function calculateQualifyingNoiseSigma(
+  inputs: {
+    wet: boolean
+  },
+  params: Pick<
+    RaceParameters,
+    'qualifying_noise_sd_ms' | 'wet_noise_multiplier'
+  > = DEFAULT_SOURCE_RACE_PARAMETERS,
+): { sigma_ms: number } {
+  const baseSigma = params.qualifying_noise_sd_ms ?? 150
+  const multiplier = inputs.wet ? (params.wet_noise_multiplier ?? 1.5) : 1
+  return { sigma_ms: baseSigma * multiplier }
+}
+
 export function calculateQualifyingAttemptTime(
   inputs: {
     base_pace_ms: number

@@ -31,6 +31,8 @@ import {
   calculateSprintQualifyingAttemptTime,
   calculateEffectiveQualifyingDriver,
   calculateTrackQualifyingRating,
+  calculateCanonicalQualifyingBasePace,
+  calculateQualifyingNoiseSigma,
   DEFAULT_SOURCE_RACE_PARAMETERS,
 } from '@/lib/race/pureRaceEngine'
 import { racePracticeSetupService } from '@/services/racePracticeSetupService'
@@ -294,6 +296,7 @@ export interface BuildStartingGridParams {
 }
 
 export interface ExecuteQ1Params {
+  attemptsPerPhase?: number
   careerId: string
   seasonId: string
   round: number
@@ -317,6 +320,7 @@ export interface ExecuteQualifyingPhaseParams {
   wet?: boolean
   forceBypassPracticeCheck?: boolean
   mediumDeltaMs?: number
+  attemptsPerPhase?: number
 }
 
 /**
@@ -675,6 +679,7 @@ export class RaceQualifyingOrchestratorService {
       wet = false,
       forceBypassPracticeCheck = false,
       mediumDeltaMs,
+      attemptsPerPhase,
     } = params
 
     if (!careerId || !seasonId || round <= 0) {
@@ -938,14 +943,20 @@ export class RaceQualifyingOrchestratorService {
       phase,
     )
 
-    // 5. PROCESSAMENTO DE CADA PARTICIPANTE (2 TENTATIVAS DETERMINÍSTICAS POR FASE)
-    const results: QualifyingParticipantResult[] = []
+    // 5. PROCESSAMENTO DE CADA PARTICIPANTE (CANÔNICO EXCEL: MIN-MAX SPREAD E 1 TENTATIVA POR FASE)
+    // Primeiro passo: pré-cálculo dos ratings ponderados de todos os participantes para obter maxRating e minRating
+    const precomputedParticipants: Array<{
+      input: QualifyingDriverInput
+      carIdx: 1 | 2
+      finalSetup: number
+      effective_driver: number
+      rating: number
+    }> = []
 
     for (let pIdx = 0; pIdx < uniqueParticipants.length; pIdx++) {
       const p = uniqueParticipants[pIdx]
       const carIdx: 1 | 2 = p.carIndex ?? ((pIdx % 2) + 1 === 1 ? 1 : 2)
 
-      // Recupera o setup final acumulado dos TLs se não foi passado explicitamente
       let finalSetup = p.setup
       if (finalSetup === undefined) {
         try {
@@ -962,7 +973,6 @@ export class RaceQualifyingOrchestratorService {
         }
       }
 
-      // Calcula piloto efetivo via função pura
       const { effective_driver } = calculateEffectiveQualifyingDriver(
         {
           speed: p.speed,
@@ -975,18 +985,59 @@ export class RaceQualifyingOrchestratorService {
         raceParams,
       )
 
-      // Calcula rating de classificação ponderado
       const { rating } = calculateTrackQualifyingRating({
         car: p.carPerformance,
         effective_driver,
         driver_weight: driverWeight,
       })
 
-      // Base pace em ms (record + delta por ponto de rating)
-      const ratingGap = (100 - Math.min(100, Math.max(0, rating))) * 35
-      const basePaceMs = trackRecordMs + ratingGap
+      precomputedParticipants.push({
+        input: p,
+        carIdx,
+        finalSetup,
+        effective_driver,
+        rating,
+      })
+    }
 
-      // Duas tentativas oficiais por fase
+    const allRatings = precomputedParticipants.map((item) => item.rating)
+    const maxRating = allRatings.length > 0 ? Math.max(...allRatings) : 100
+    const minRating = allRatings.length > 0 ? Math.min(...allRatings) : 0
+
+    // Ruído gaussiano com multiplicador de chuva:
+    // Seco: sigma = qualifying_noise_sd_ms (150 ms)
+    // Molhado: sigma = qualifying_noise_sd_ms * wet_noise_multiplier (225 ms)
+    const { sigma_ms: effectiveQualifyingSigmaMs } = calculateQualifyingNoiseSigma(
+      { wet },
+      raceParams,
+    )
+
+    // Baseline canônica definida para QUALI-PROVENANCE-01-FIX-A: 1 tentativa por fase
+    // Preserva arquiteturalmente a possibilidade de override de configuração se explicitamente fornecido
+    const effectiveAttemptsPerPhase = attemptsPerPhase ?? 1
+
+    const results: QualifyingParticipantResult[] = []
+
+    for (const item of precomputedParticipants) {
+      const p = item.input
+      const carIdx = item.carIdx
+      const finalSetup = item.finalSetup
+      const effective_driver = item.effective_driver
+      const rating = item.rating
+
+      // Ritmo base individual canônico do Excel (Classificação!L7)
+      // Substitui integralmente a fórmula antiga (100 - rating) * 35
+      const { individual_base_ms: basePaceMs } = calculateCanonicalQualifyingBasePace(
+        {
+          track_record_ms: trackRecordMs,
+          rating,
+          max_rating: maxRating,
+          min_rating: minRating,
+          wet,
+        },
+        raceParams,
+      )
+
       const attempts: QualifyingLapAttempt[] = []
       let bestTimeMs = Infinity
       let appliedBonusMs = 0
@@ -995,7 +1046,7 @@ export class RaceQualifyingOrchestratorService {
       const compoundUsed: 'MEDIUM' | 'SOFT' =
         isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'MEDIUM' : 'SOFT'
 
-      for (let attNum = 1; attNum <= 2; attNum++) {
+      for (let attNum = 1; attNum <= effectiveAttemptsPerPhase; attNum++) {
         // Identidade da tentativa no RNG: career + season + round + variant + phase + entry/car + attempt
         // Garante namespaces distintos entre SQ1, SQ2, SQ3 e também de Q1, Q2, Q3
         const seedIdentity = `${careerId}:${seasonId}:r${round}:${variant}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
@@ -1017,7 +1068,7 @@ export class RaceQualifyingOrchestratorService {
               base_pace_ms: basePaceMs,
               setup: finalSetup,
               normal_standard_draw_z: z,
-              sigma_ms: raceParams.qualifying_noise_sd_ms,
+              sigma_ms: effectiveQualifyingSigmaMs,
               medium_delta_ms: mediumDeltaMs,
             },
             raceParams,
@@ -1033,7 +1084,7 @@ export class RaceQualifyingOrchestratorService {
               base_pace_ms: basePaceMs,
               setup: finalSetup,
               normal_standard_draw_z: z,
-              sigma_ms: raceParams.qualifying_noise_sd_ms,
+              sigma_ms: effectiveQualifyingSigmaMs,
             },
             raceParams,
           )
