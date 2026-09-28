@@ -711,4 +711,316 @@ describe('RACE-SPRINT-SLOTS-01C1 — Suíte de Testes RC1-01 a RC1-15', () => {
       expect(d.carCondition).toBe(100)
     }
   })
+
+  // =========================================================================
+  // REGRESSÕES EXPLÍCITAS MAIN_RACE (RC1-16 a RC1-25)
+  // Garantir que a generalização do motor para raceVariant não regrida MAIN_RACE
+  // =========================================================================
+
+  // RC1-16 — MAIN REGRESSION: Grid 24 posições, continuidade e contagem de pilotos
+  it('RC1-16 — MAIN REGRESSION: Grid 24 posições, continuidade e integridade do grid principal', () => {
+    const careerId = 'test_rc1_16'
+    const grid = createMock24Grid('ferrari')
+
+    const mainRace = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Bahrain International Circuit',
+      circuitCountry: 'Bahrain',
+      totalLaps: 57,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      initialFuelKg: 105,
+      weather: 'seco',
+    })
+
+    expect(mainRace.raceVariant).toBe('MAIN_RACE')
+    expect(mainRace.drivers.length).toBe(24)
+    expect(mainRace.totalLaps).toBe(57)
+    expect(mainRace.currentLap).toBe(1)
+    expect(mainRace.status).toBe('not_started')
+
+    const seenPositions = new Set<number>()
+    const seenDriverIds = new Set<string>()
+    let ferrariCount = 0
+
+    mainRace.drivers.forEach((d, idx) => {
+      expect(d.gridPosition).toBe(idx + 1)
+      expect(d.currentPosition).toBe(idx + 1)
+      seenPositions.add(d.gridPosition)
+      seenDriverIds.add(d.driverId)
+      if (d.teamId === 'ferrari') ferrariCount++
+    })
+
+    expect(seenPositions.size).toBe(24)
+    expect(seenDriverIds.size).toBe(24)
+    expect(ferrariCount).toBe(2)
+  })
+
+  // RC1-17 — MAIN REGRESSION: Voltas, avanço de volta e consumo proporcional
+  it('RC1-17 — MAIN REGRESSION: Avanço de voltas e consumo de combustível na corrida principal', () => {
+    const careerId = 'test_rc1_17'
+    const grid = createMock24Grid('ferrari')
+
+    let state = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Bahrain International Circuit',
+      circuitCountry: 'Bahrain',
+      totalLaps: 57,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      initialFuelKg: 100,
+      weather: 'seco',
+      persistState: false,
+    })
+
+    const initialFuelCar1 = state.drivers[0].fuel
+    expect(initialFuelCar1).toBe(100)
+
+    state = canonicalRaceEngineService.advanceOneLap(state, { seedOverride: 42 })
+    expect(state.currentLap).toBe(2)
+    expect(state.drivers[0].lap).toBe(1)
+    expect(state.drivers[0].fuel).toBeLessThan(initialFuelCar1)
+    expect(state.drivers[0].tyreAge).toBe(1)
+  })
+
+  // RC1-18 — MAIN REGRESSION: Pneus e compostos respeitam escolha/grid na MAIN_RACE
+  it('RC1-18 — MAIN REGRESSION: Respeito à escolha de composto e preparação pré-corrida', () => {
+    const careerId = 'test_rc1_18'
+    const grid = createMock24Grid('ferrari')
+    grid[0].bestLapCompound = 'macio'
+    grid[1].bestLapCompound = 'duro'
+
+    const mainRace = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Silverstone',
+      circuitCountry: 'Reino Unido',
+      totalLaps: 52,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      persistState: false,
+    })
+
+    expect(mainRace.drivers[0].tyreCompound).toBe('macio')
+    expect(mainRace.drivers[1].tyreCompound).toBe('duro')
+  })
+
+  // RC1-19 — MAIN REGRESSION: Pit stops e solicitação de estratégia
+  it('RC1-19 — MAIN REGRESSION: Solicitação, execução de pit stop e troca de pneus', async () => {
+    const careerId = 'test_rc1_19'
+    const grid = createMock24Grid('ferrari')
+
+    let state = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Monza',
+      circuitCountry: 'Itália',
+      totalLaps: 53,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      persistState: false,
+    })
+
+    const p1DriverId = state.drivers[0].driverId
+    const { raceStrategyService } = await import('@/services/raceStrategyService')
+    state = raceStrategyService.requestPitStop(state, p1DriverId, 'duro')
+
+    expect(state.driverStrategies[p1DriverId].pitRequested).toBe(true)
+    expect(state.driverStrategies[p1DriverId].targetCompound).toBe('duro')
+
+    // Avança volta para executar o pit
+    state = canonicalRaceEngineService.advanceOneLap(state, { seedOverride: 1234 })
+    const p1After = state.drivers.find((d) => d.driverId === p1DriverId)
+    expect(p1After?.pitStops).toBe(1)
+    expect(p1After?.tyreCompound).toBe('duro')
+    expect(p1After?.tyreAge).toBe(0)
+  })
+
+  // RC1-20 — MAIN REGRESSION: RNG determinístico por semente e reprodutibilidade
+  it('RC1-20 — MAIN REGRESSION: RNG determinístico reproduz tempos e posições exatas', () => {
+    const careerId = 'test_rc1_20'
+    const grid1 = createMock24Grid('ferrari')
+    const grid2 = createMock24Grid('ferrari')
+
+    let stateA = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId: `${careerId}_A`,
+      season: 2026,
+      round: 1,
+      circuitName: 'Spa-Francorchamps',
+      circuitCountry: 'Bélgica',
+      totalLaps: 44,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid1,
+      persistState: false,
+    })
+
+    let stateB = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId: `${careerId}_B`,
+      season: 2026,
+      round: 1,
+      circuitName: 'Spa-Francorchamps',
+      circuitCountry: 'Bélgica',
+      totalLaps: 44,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid2,
+      persistState: false,
+    })
+
+    // Com o mesmo seedOverride, ambos produzem exatamente os mesmos tempos
+    stateA = canonicalRaceEngineService.advanceOneLap(stateA, { seedOverride: 77777 })
+    stateB = canonicalRaceEngineService.advanceOneLap(stateB, { seedOverride: 77777 })
+
+    expect(stateA.drivers[0].raceTime).toBe(stateB.drivers[0].raceTime)
+    expect(stateA.drivers[10].raceTime).toBe(stateB.drivers[10].raceTime)
+  })
+
+  // RC1-21 — MAIN REGRESSION: Safety Car e VSC integrados no Race Control
+  it('RC1-21 — MAIN REGRESSION: Controle de prova, Safety Car e VSC na corrida principal', () => {
+    const careerId = 'test_rc1_21'
+    const grid = createMock24Grid('ferrari')
+
+    let state = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Monaco',
+      circuitCountry: 'Monaco',
+      totalLaps: 78,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      persistState: false,
+    })
+
+    // Aciona Safety Car via forceRaceControlStatus
+    state = canonicalRaceEngineService.advanceOneLap(state, {
+      seedOverride: 999,
+      forceRaceControlStatus: 'SAFETY_CAR',
+    })
+
+    expect(state.safetyCarActive).toBe(true)
+    expect(state.raceControl.currentFlag).toBe('SC')
+    expect(state.raceControl.safetyCarLaps).toBeGreaterThanOrEqual(1)
+  })
+
+  // RC1-22 — MAIN REGRESSION: Incidentes e DNF
+  it('RC1-22 — MAIN REGRESSION: Tratamento de DNF sem corromper estado ou contagem de carros', () => {
+    const careerId = 'test_rc1_22'
+    const grid = createMock24Grid('ferrari')
+
+    let state = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Baku City Circuit',
+      circuitCountry: 'Azerbaijão',
+      totalLaps: 51,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      persistState: false,
+    })
+
+    // Forçar DNF mecânico no piloto 24
+    state.drivers[23].raceStatus = 'dnf'
+    state.drivers[23].isDnf = true
+    state.drivers[23].dnfReason = 'Falha no Turbo 2026'
+
+    state = canonicalRaceEngineService.advanceOneLap(state, { seedOverride: 555 })
+    const dnfDriver = state.drivers.find((d) => d.driverId === state.drivers[23].driverId)
+    expect(dnfDriver?.raceStatus).toBe('dnf')
+    expect(state.drivers.length).toBe(24) // Mantém os 24 registros
+  })
+
+  // RC1-23 — MAIN REGRESSION: Resultado oficial homologado da corrida principal
+  it('RC1-23 — MAIN REGRESSION: Homologação e geração do resultado oficial canônico', async () => {
+    const careerId = 'test_rc1_23'
+    const grid = createMock24Grid('ferrari')
+
+    let state = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 2,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      persistState: false,
+    })
+
+    // Completa as 2 voltas
+    state = canonicalRaceEngineService.advanceOneLap(state, { seedOverride: 111 })
+    state = canonicalRaceEngineService.advanceOneLap(state, { seedOverride: 222 })
+    expect(state.status).toBe('completed')
+
+    const { canonicalRaceResultService } = await import('@/services/canonicalRaceResultService')
+    const official = canonicalRaceResultService.officializeRace(state)
+
+    expect(official).toBeDefined()
+    expect(official.raceId).toBe(`race_${careerId}_s2026_r1`)
+    expect(official.entries.length).toBe(24)
+    expect(official.entries[0].finalPosition).toBe(1)
+    expect(official.entries[23].finalPosition).toBe(24)
+  })
+
+  // RC1-24 — MAIN REGRESSION: Save e reload resiliente do estado da corrida principal
+  it('RC1-24 — MAIN REGRESSION: Ciclo de persistência save/reload fiel sem corrupção', () => {
+    const careerId = 'test_rc1_24'
+    const grid = createMock24Grid('ferrari')
+
+    let state = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'MAIN_RACE',
+      careerId,
+      season: 2026,
+      round: 1,
+      circuitName: 'Suzuka',
+      circuitCountry: 'Japão',
+      totalLaps: 53,
+      playerTeamId: 'ferrari',
+      canonicalQualifyingGrid: grid,
+      persistState: true,
+    })
+
+    state = canonicalRaceEngineService.advanceOneLap(state, { seedOverride: 333 })
+    canonicalRaceInitializationService.saveCanonicalRaceState(state)
+
+    const reloaded = canonicalRaceInitializationService.readCanonicalRaceState(
+      careerId,
+      2026,
+      1,
+      'MAIN_RACE',
+    )
+    expect(reloaded).not.toBeNull()
+    expect(reloaded?.currentLap).toBe(2)
+    expect(reloaded?.totalLaps).toBe(53)
+    expect(reloaded?.drivers[0].driverId).toBe(state.drivers[0].driverId)
+    expect(reloaded?.drivers[0].lap).toBe(1)
+  })
+
+  // RC1-25 — MAIN REGRESSION: Pontuação padrão FIA do GP (25-18-15-12-10-8-6-4-2-1)
+  it('RC1-25 — MAIN REGRESSION: Tabela de pontos padrão do GP preservada', async () => {
+    const { getFiaPointsForPosition } = await import('@/lib/f1-standings-calculator')
+    const fiaPoints = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
+
+    for (let pos = 1; pos <= 10; pos++) {
+      const pts = getFiaPointsForPosition(pos)
+      expect(pts).toBe(fiaPoints[pos - 1])
+    }
+    expect(getFiaPointsForPosition(11)).toBe(0)
+    expect(getFiaPointsForPosition(24)).toBe(0)
+  })
 })
