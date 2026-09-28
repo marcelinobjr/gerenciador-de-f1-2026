@@ -548,6 +548,116 @@ export class RaceQualifyingOrchestratorService {
   }
 
   /**
+   * Executa a subfase SQ2 do Sprint Qualifying de forma determinística, idempotente e estrita.
+   * Transição: READY_FOR_SQ2 → SQ2 → SQ2_COMPLETE → READY_FOR_SQ3.
+   * Recebe EXATAMENTE os 18 classificados persistidos do SQ1.
+   * 18 participantes -> 10 classificados, 8 eliminados.
+   * Pneus no seco: Médio (+650ms). Na chuva: 0ms.
+   */
+  public async executeSQ2(
+    params: Omit<ExecuteQualifyingPhaseParams, 'phase'>,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'SQ2',
+    })
+  }
+
+  /**
+   * Executa a subfase SQ3 do Sprint Qualifying de forma determinística, idempotente e estrita.
+   * Transição: READY_FOR_SQ3 → SQ3 → SQ3_COMPLETE → SPRINT_QUALIFYING_COMPLETE.
+   * Recebe EXATAMENTE os 10 classificados persistidos do SQ2.
+   * 10 participantes -> 10 classificados (P1..P10), 0 eliminados.
+   * Pneus no seco: Macio (sem delta +650ms). Na chuva: 0ms.
+   */
+  public async executeSQ3(
+    params: Omit<ExecuteQualifyingPhaseParams, 'phase'>,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'SQ3',
+    })
+  }
+
+  /**
+   * Conclui a sessão de Qualificação Sprint (slot 2) e avança o fim de semana para o slot 3 (SPRINT_RACE / READY),
+   * após garantir que SQ1, SQ2, SQ3, SPRINT_QUALIFYING_RESULT e SPRINT_STARTING_GRID foram todos gerados e persistidos com sucesso.
+   * Não executa a corrida Sprint, não roda voltas e não computa pontos.
+   */
+  public async transitionSprintQualifyingToSprintRaceSlot(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<{
+    currentSlot: number
+    slotType: string
+    slotStatus: string
+  }> {
+    const { careerId, seasonId, round } = params
+
+    // 1. Validar existência e completude de SQ1
+    const sq1 = await this.loadPersistedSQ1State(careerId, seasonId, round)
+    if (!sq1 || !sq1.isCompleted) {
+      throw new Error(`Transição slot 2->3 abortada: SQ1 não está concluído para round ${round}.`)
+    }
+
+    // 2. Validar existência e completude de SQ2
+    const sq2 = await this.loadPersistedSQ2State(careerId, seasonId, round)
+    if (!sq2 || !sq2.isCompleted) {
+      throw new Error(`Transição slot 2->3 abortada: SQ2 não está concluído para round ${round}.`)
+    }
+
+    // 3. Validar existência e completude de SQ3
+    const sq3 = await this.loadPersistedSQ3State(careerId, seasonId, round)
+    if (!sq3 || !sq3.isCompleted) {
+      throw new Error(`Transição slot 2->3 abortada: SQ3 não está concluído para round ${round}.`)
+    }
+
+    // 4. Validar ou construir SPRINT_QUALIFYING_RESULT
+    let sprintQualiResult = await this.loadPersistedSprintQualifyingResult(
+      careerId,
+      seasonId,
+      round,
+    )
+    if (!sprintQualiResult || sprintQualiResult.status !== 'SPRINT_QUALIFYING_RESULT_READY') {
+      sprintQualiResult = await this.buildSprintQualifyingResult({ careerId, seasonId, round })
+    }
+
+    // 5. Validar ou construir SPRINT_STARTING_GRID
+    let sprintGrid = await this.loadPersistedSprintStartingGrid(careerId, seasonId, round)
+    if (!sprintGrid || sprintGrid.status !== 'SPRINT_GRID_READY') {
+      sprintGrid = await this.buildSprintStartingGrid({ careerId, seasonId, round })
+    }
+
+    // 6. Atualizar transição canônica de slot (slot 2 -> slot 3) via canonicalWeekendSlotPersistenceService
+    const { canonicalWeekendSlotPersistenceService } =
+      await import('@/services/canonicalWeekendSlotPersistenceService')
+    const currentSlotState = await canonicalWeekendSlotPersistenceService.getWeekendSlotState({
+      careerId,
+      seasonId,
+      round,
+    })
+
+    if (currentSlotState.currentSlot === 2) {
+      // Conclui slot 2 e avança para slot 3 (SPRINT_RACE)
+      await canonicalWeekendSlotPersistenceService.completeSlot(currentSlotState, 2)
+      await canonicalWeekendSlotPersistenceService.saveSlotState(currentSlotState)
+    }
+
+    const updatedSlot = await canonicalWeekendSlotPersistenceService.getWeekendSlotState({
+      careerId,
+      seasonId,
+      round,
+    })
+
+    return {
+      currentSlot: updatedSlot.currentSlot,
+      slotType: updatedSlot.slotType,
+      slotStatus: updatedSlot.slotStatus,
+    }
+  }
+
+  /**
    * Executa qualquer fase de classificação (Q1 | Q2 | Q3 | SQ1 | SQ2 | SQ3) sob a mesma máquina matemática unificada.
    */
   public async executeQualifyingPhase(
@@ -706,10 +816,70 @@ export class RaceQualifyingOrchestratorService {
           setup: r.setup, // Mantém exatamente o mesmo setup dos TLs consolidado no Q1
         }
       })
-    } else if (phase === 'SQ2' || phase === 'SQ3') {
-      throw new Error(
-        `Subfase ${phase} não está disponível nesta versão. Apenas SQ1 está homologada na microentrega atual.`,
-      )
+    } else if (phase === 'SQ2') {
+      // SQ2 EXIGE SQ1 CONCLUÍDO (READY_FOR_SQ2)
+      const sq1State = await this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+      if (!sq1State || !sq1State.isCompleted) {
+        throw new Error(
+          `Ordem de sessões violada: SQ2 só pode ser iniciado após a conclusão do SQ1 (READY_FOR_SQ2). SQ1 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+        )
+      }
+
+      // Herança esportiva estrita: os participantes de SQ2 são EXATAMENTE os 10/18 classificados de SQ1
+      const sq1ClassifiedSet = new Set(sq1State.classifiedDriverIds)
+      const sq1ClassifiedResults = sq1State.results.filter((r) => sq1ClassifiedSet.has(r.driverId))
+
+      const inputDriverMap = new Map((participants || []).map((p) => [p.driverId, p]))
+
+      effectiveParticipants = sq1ClassifiedResults.map((r) => {
+        const extra = inputDriverMap.get(r.driverId)
+        return {
+          driverId: r.driverId,
+          driverName: r.driverName,
+          teamId: r.teamId,
+          teamName: r.teamName,
+          carIndex: r.carIndex,
+          carPerformance: extra?.carPerformance ?? 80,
+          speed: extra?.speed ?? 80,
+          qualifying: extra?.qualifying ?? 80,
+          form: extra?.form ?? 50,
+          morale: extra?.morale ?? 50,
+          wet_skill: extra?.wet_skill ?? 50,
+          setup: r.setup, // Mantém exatamente o mesmo setup do TL1 herdado do SQ1
+        }
+      })
+    } else if (phase === 'SQ3') {
+      // SQ3 EXIGE SQ2 CONCLUÍDO (READY_FOR_SQ3)
+      const sq2State = await this.loadPersistedPhaseState('SQ2', careerId, seasonId, round)
+      if (!sq2State || !sq2State.isCompleted) {
+        throw new Error(
+          `Ordem de sessões violada: SQ3 só pode ser iniciado após a conclusão do SQ2 (READY_FOR_SQ3). SQ2 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+        )
+      }
+
+      // Herança esportiva estrita: os participantes de SQ3 são EXATAMENTE os 10 classificados de SQ2
+      const sq2ClassifiedSet = new Set(sq2State.classifiedDriverIds)
+      const sq2ClassifiedResults = sq2State.results.filter((r) => sq2ClassifiedSet.has(r.driverId))
+
+      const inputDriverMap = new Map((participants || []).map((p) => [p.driverId, p]))
+
+      effectiveParticipants = sq2ClassifiedResults.map((r) => {
+        const extra = inputDriverMap.get(r.driverId)
+        return {
+          driverId: r.driverId,
+          driverName: r.driverName,
+          teamId: r.teamId,
+          teamName: r.teamName,
+          carIndex: r.carIndex,
+          carPerformance: extra?.carPerformance ?? 80,
+          speed: extra?.speed ?? 80,
+          qualifying: extra?.qualifying ?? 80,
+          form: extra?.form ?? 50,
+          morale: extra?.morale ?? 50,
+          wet_skill: extra?.wet_skill ?? 50,
+          setup: r.setup, // Mantém exatamente o mesmo setup do TL1 herdado do SQ2
+        }
+      })
     } else if (phase === 'Q3') {
       // Q3 EXIGE Q2 CONCLUÍDO (READY_FOR_Q3)
       const q2State = await this.loadPersistedPhaseState('Q2', careerId, seasonId, round)
@@ -1021,7 +1191,13 @@ export class RaceQualifyingOrchestratorService {
 
     // 2. PocketBase session_setups
     try {
-      const pbSessionFilter = isSprint ? 'q1' : sessionName
+      const pbSessionFilter = isSprint
+        ? phase === 'SQ1'
+          ? 'q1'
+          : phase === 'SQ2'
+            ? 'q2'
+            : 'q3'
+        : sessionName
       const records = await pb.collection('session_setups').getList(1, 1, {
         filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${pbSessionFilter}"`,
       })
@@ -1125,6 +1301,8 @@ export class RaceQualifyingOrchestratorService {
     // 1. Gravação no PocketBase
     // Para session no PB, o enum de schema aceita (tp1 | tp2 | tp3 | q1 | q2 | q3 | race).
     // Para SQ1 usamos 'q1' com namespace 'sprint_sq1State'.
+    // Para SQ2 usamos 'q2' com namespace 'sprint_sq2State'.
+    // Para SQ3 usamos 'q3' com namespace 'sprint_sq3State'.
     const pbSession =
       phase === 'SQ1' ? 'q1' : phase === 'SQ2' ? 'q2' : phase === 'SQ3' ? 'q3' : sessionName
 
@@ -2943,6 +3121,95 @@ export class RaceQualifyingOrchestratorService {
         // ignore
       }
     }
+  }
+
+  /**
+   * Conclui a Qualificação Sprint no weekend e avança para o Slot 3 (SPRINT_RACE / SPRINT).
+   *
+   * PRÉ-CONDIÇÕES OBRIGATÓRIAS (Item 19):
+   * 1. SQ1 concluído e persistido.
+   * 2. SQ2 concluído e persistido (18 -> 10).
+   * 3. SQ3 concluído e persistido (10 classificados).
+   * 4. SPRINT_QUALIFYING_RESULT construído, válido e persistido.
+   * 5. SPRINT_STARTING_GRID construído, válido e persistido.
+   *
+   * Efeito:
+   * currentSlot = 3
+   * slotType = SPRINT_RACE (ou SPRINT)
+   * slotStatus = AVAILABLE / READY
+   * Não inicia a corrida Sprint. Não processa voltas. Não pontua.
+   */
+  public async transitionToSprintRaceSlot(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<import('@/types/weekend-slot-types').CanonicalWeekendSlotState> {
+    const { careerId, seasonId, round } = params
+
+    // 1. Validar existência e integridade de SQ1, SQ2, SQ3
+    const sq1 = await this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+    if (!sq1 || !sq1.isCompleted) {
+      throw new Error(
+        `Transição para slot 3 bloqueada: SQ1 não concluído para careerId='${careerId}', round=${round}.`,
+      )
+    }
+
+    const sq2 = await this.loadPersistedPhaseState('SQ2', careerId, seasonId, round)
+    if (!sq2 || !sq2.isCompleted) {
+      throw new Error(
+        `Transição para slot 3 bloqueada: SQ2 não concluído para careerId='${careerId}', round=${round}.`,
+      )
+    }
+
+    const sq3 = await this.loadPersistedPhaseState('SQ3', careerId, seasonId, round)
+    if (!sq3 || !sq3.isCompleted) {
+      throw new Error(
+        `Transição para slot 3 bloqueada: SQ3 não concluído para careerId='${careerId}', round=${round}.`,
+      )
+    }
+
+    // 2. Validar existência e integridade de SPRINT_QUALIFYING_RESULT
+    let sprintQualiResult = await this.loadPersistedSprintQualifyingResult(
+      careerId,
+      seasonId,
+      round,
+    )
+    if (!sprintQualiResult || sprintQualiResult.status !== 'SPRINT_QUALIFYING_RESULT_READY') {
+      sprintQualiResult = await this.buildSprintQualifyingResult({ careerId, seasonId, round })
+    }
+
+    // 3. Validar existência e integridade de SPRINT_STARTING_GRID
+    let sprintGrid = await this.loadPersistedSprintStartingGrid(careerId, seasonId, round)
+    if (!sprintGrid || sprintGrid.status !== 'SPRINT_GRID_READY') {
+      sprintGrid = await this.buildSprintStartingGrid({ careerId, seasonId, round })
+    }
+
+    // 4. Executar transição no canonicalWeekendSlotPersistenceService
+    const { canonicalWeekendSlotPersistenceService } =
+      await import('@/services/canonicalWeekendSlotPersistenceService')
+    const slotState = await canonicalWeekendSlotPersistenceService.getWeekendSlotState({
+      careerId,
+      seasonId,
+      round,
+    })
+
+    if (slotState.currentSlot !== 2) {
+      // Se já está no slot 3 ou além, retorna o estado atual (idempotência)
+      if (slotState.currentSlot >= 3) {
+        return slotState
+      }
+      throw new Error(
+        `Transição inválida: o slot atual é ${slotState.currentSlot} (${slotState.slotType}), esperado slot 2.`,
+      )
+    }
+
+    const updatedSlotState = await canonicalWeekendSlotPersistenceService.completeSlot(
+      slotState,
+      2,
+      'SQ3',
+    )
+
+    return updatedSlotState
   }
 
   public clearMemoryCache(): void {
