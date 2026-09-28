@@ -583,6 +583,12 @@ export class RaceQualifyingOrchestratorService {
     })
   }
 
+  public async executePhase(
+    params: ExecuteQualifyingPhaseParams,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase(params)
+  }
+
   /**
    * Conclui a sessão de Qualificação Sprint (slot 2) e avança o fim de semana para o slot 3 (SPRINT_RACE / READY),
    * após garantir que SQ1, SQ2, SQ3, SPRINT_QUALIFYING_RESULT e SPRINT_STARTING_GRID foram todos gerados e persistidos com sucesso.
