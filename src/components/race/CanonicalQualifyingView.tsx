@@ -30,24 +30,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Play, FastForward, Flag, ArrowDown, Trophy, ShieldAlert, CheckCircle2 } from 'lucide-react'
 import { QualifyingPhaseView } from './QualifyingPhaseView'
 
-interface CanonicalQualifyingViewProps {
+export interface CanonicalQualifyingViewProps {
   careerId: string
   seasonId: string
   round: number
+  variant?: 'MAIN_QUALIFYING' | 'SPRINT_QUALIFYING'
   state?: QualifyingWeekendState
   onStateUpdate?: (newState: QualifyingWeekendState) => void
   onAdvanceToRace?: () => void
+  onAdvanceToSprint?: () => void
 }
 
 export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = ({
   careerId,
   seasonId,
   round,
+  variant = 'MAIN_QUALIFYING',
   state: legacyState,
   onStateUpdate,
   onAdvanceToRace,
+  onAdvanceToSprint,
 }) => {
-  const [activeTab, setActiveTab] = useState<string>('q1')
+  const isSprint = variant === 'SPRINT_QUALIFYING'
+  const [activeTab, setActiveTab] = useState<string>(isSprint ? 'sq1' : 'q1')
+  const [sq1State, setSq1State] = useState<QualifyingPhaseExecutionState | null>(null)
+  const [sq2State, setSq2State] = useState<QualifyingPhaseExecutionState | null>(null)
+  const [sq3State, setSq3State] = useState<QualifyingPhaseExecutionState | null>(null)
+  const [sprintResult, setSprintResult] = useState<SprintQualifyingResultState | null>(null)
+  const [sprintGrid, setSprintGrid] = useState<SprintStartingGridState | null>(null)
   const [q1State, setQ1State] = useState<QualifyingPhaseExecutionState | null>(null)
   const [q2State, setQ2State] = useState<QualifyingPhaseExecutionState | null>(null)
   const [q3State, setQ3State] = useState<QualifyingPhaseExecutionState | null>(null)
@@ -61,23 +71,39 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
     setError(null)
     setLoading(true)
     try {
-      const [q1, q2, q3, gQuali, grid] = await Promise.all([
-        raceQualifyingOrchestratorService.loadPersistedPhaseState('Q1', careerId, seasonId, round),
-        raceQualifyingOrchestratorService.loadPersistedPhaseState('Q2', careerId, seasonId, round),
-        raceQualifyingOrchestratorService.loadPersistedPhaseState('Q3', careerId, seasonId, round),
-        raceQualifyingOrchestratorService.loadPersistedGlobalQualifyingResult(
-          careerId,
-          seasonId,
-          round,
-        ),
-        raceQualifyingOrchestratorService.loadPersistedStartingGrid(careerId, seasonId, round),
-      ])
+      if (isSprint) {
+        const [sq1, sq2, sq3, sResult, sGrid] = await Promise.all([
+          raceQualifyingOrchestratorService.loadPersistedPhaseState('SQ1', careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState('SQ2', careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState('SQ3', careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedSprintQualifyingResult(careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedSprintStartingGrid(careerId, seasonId, round),
+        ])
 
-      setQ1State(q1)
-      setQ2State(q2)
-      setQ3State(q3)
-      setGlobalQuali(gQuali)
-      setStartingGrid(grid)
+        setSq1State(sq1)
+        setSq2State(sq2)
+        setSq3State(sq3)
+        setSprintResult(sResult)
+        setSprintGrid(sGrid)
+      } else {
+        const [q1, q2, q3, gQuali, grid] = await Promise.all([
+          raceQualifyingOrchestratorService.loadPersistedPhaseState('Q1', careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState('Q2', careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState('Q3', careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedGlobalQualifyingResult(
+            careerId,
+            seasonId,
+            round,
+          ),
+          raceQualifyingOrchestratorService.loadPersistedStartingGrid(careerId, seasonId, round),
+        ])
+
+        setQ1State(q1)
+        setQ2State(q2)
+        setQ3State(q3)
+        setGlobalQuali(gQuali)
+        setStartingGrid(grid)
+      }
 
       // Validação estrita de integridade do STARTING_GRID:
       // Se status é GRID_READY, deve ter exatamente os participantes previstos, posições contínuas P1..N sem duplicados
