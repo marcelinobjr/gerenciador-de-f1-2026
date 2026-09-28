@@ -673,12 +673,12 @@ describe('QUALI-PROVENANCE-01-FIX-A3B: Suíte Canônica de Formalização de 1 T
         round,
       })
       expect(officialGrid).toBeDefined()
-      expect(officialGrid!.entries).toHaveLength(24)
+      expect(officialGrid!.grid).toHaveLength(24)
 
       const driverIds = new Set<string>()
       const positions = new Set<number>()
 
-      officialGrid!.entries.forEach((e) => {
+      officialGrid!.grid.forEach((e) => {
         expect(driverIds.has(e.driverId)).toBe(false)
         driverIds.add(e.driverId)
 
@@ -736,12 +736,12 @@ describe('QUALI-PROVENANCE-01-FIX-A3B: Suíte Canônica de Formalização de 1 T
         round,
       })
       expect(sprintGrid).toBeDefined()
-      expect(sprintGrid!.entries).toHaveLength(24)
+      expect(sprintGrid!.grid).toHaveLength(24)
 
       const driverIds = new Set<string>()
       const positions = new Set<number>()
 
-      sprintGrid!.entries.forEach((e) => {
+      sprintGrid!.grid.forEach((e) => {
         expect(driverIds.has(e.driverId)).toBe(false)
         driverIds.add(e.driverId)
 
