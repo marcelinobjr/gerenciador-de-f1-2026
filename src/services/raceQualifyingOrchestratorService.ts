@@ -1016,8 +1016,9 @@ export class RaceQualifyingOrchestratorService {
     // Ruído gaussiano com multiplicador de chuva:
     // Seco: sigma = qualifying_noise_sd_ms (150 ms)
     // Molhado: sigma = qualifying_noise_sd_ms * wet_noise_multiplier (225 ms)
+    const isWetCondition = Boolean(wet)
     const { sigma_ms: effectiveQualifyingSigmaMs } = calculateQualifyingNoiseSigma(
-      { wet },
+      { wet: isWetCondition },
       raceParams,
     )
 
@@ -1048,7 +1049,7 @@ export class RaceQualifyingOrchestratorService {
       const baseRecordMs = trackRecordMs ?? 80000
       const qualifyingBaseOverRecordFactor = raceParams.qualifying_base_over_record_factor ?? 0
       const baseQualiMs = baseRecordMs * (1 + qualifyingBaseOverRecordFactor)
-      const wetBaseFactor = wet ? 1 + (raceParams.light_rain_time_fraction ?? 0.08) : 1
+      const wetBaseFactor = isWetCondition ? 1 + (raceParams.light_rain_time_fraction ?? 0.08) : 1
       const basePaceMs = baseQualiMs * wetBaseFactor + ratingDeltaMs
 
       const attempts: QualifyingLapAttempt[] = []

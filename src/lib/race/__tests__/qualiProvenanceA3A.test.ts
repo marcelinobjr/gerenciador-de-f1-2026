@@ -164,6 +164,129 @@ describe('QUALI-PROVENANCE-01-FIX-A3A: Chuva Canônica no Qualifying', () => {
     expect(sigma.sigma_ms).toBe(180 * 1.75) // 315
   })
 
+  // Integração completa orquestrada (MAIN e Sprint em wet vs dry)
+  it('QFIX-A3A-07-INT: raceQualifyingOrchestratorService aplica wet base (+8%) e wet sigma (225ms) no Q1', async () => {
+    const { raceQualifyingOrchestratorService } = await import('@/services/raceQualifyingOrchestratorService')
+    const participants = [
+      {
+        driverId: 'd1',
+        driverName: 'Driver 1',
+        teamId: 't1',
+        teamName: 'Team 1',
+        carPerformance: 80,
+        speed: 80,
+        qualifying: 80,
+        setup: 80,
+      },
+      {
+        driverId: 'd2',
+        driverName: 'Driver 2',
+        teamId: 't2',
+        teamName: 'Team 2',
+        carPerformance: 70,
+        speed: 70,
+        qualifying: 70,
+        setup: 80,
+      },
+    ]
+
+    const dryResult = await raceQualifyingOrchestratorService.executeQ1({
+      careerId: 'test-career-a3a',
+      seasonId: 's1',
+      round: 1,
+      participants,
+      trackRecordMs: 80000,
+      wet: false,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+
+    const wetResult = await raceQualifyingOrchestratorService.executeQ1({
+      careerId: 'test-career-a3a-wet',
+      seasonId: 's1',
+      round: 1,
+      participants,
+      trackRecordMs: 80000,
+      wet: true,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+
+    // No molhado, o basePace deve ser maior devido ao fator de 1.08 no baseQualiMs
+    const dryD1 = dryResult.results.find((r) => r.driverId === 'd1')!
+    const wetD1 = wetResult.results.find((r) => r.driverId === 'd1')!
+
+    // baseQualiMs = 80000 * (1 - 0.015) = 78800
+    // Diferença esperada no basePaceMs = 78800 * 0.08 = 6304 ms
+    const paceDiff = wetD1.basePaceMs - dryD1.basePaceMs
+    expect(paceDiff).toBeCloseTo(78800 * 0.08, 1)
+
+    // Bônus de setup é idêntico em seco e chuva
+    expect(wetD1.bonusMs).toBe(dryD1.bonusMs)
+  })
+
+  // Integração completa Sprint SQ1 em chuva
+  it('QFIX-A3A-08-INT: raceQualifyingOrchestratorService aplica compoundDelta=0 no SQ1 em chuva', async () => {
+    const { raceQualifyingOrchestratorService } = await import('@/services/raceQualifyingOrchestratorService')
+    const participants = [
+      {
+        driverId: 'd1',
+        driverName: 'Driver 1',
+        teamId: 't1',
+        teamName: 'Team 1',
+        carPerformance: 80,
+        speed: 80,
+        qualifying: 80,
+        setup: 80,
+      },
+      {
+        driverId: 'd2',
+        driverName: 'Driver 2',
+        teamId: 't2',
+        teamName: 'Team 2',
+        carPerformance: 70,
+        speed: 70,
+        qualifying: 70,
+        setup: 80,
+      },
+    ]
+
+    const sprintDry = await raceQualifyingOrchestratorService.executeQualifyingPhase({
+      phase: 'SQ1',
+      careerId: 'test-sprint-dry',
+      seasonId: 's1',
+      round: 1,
+      participants,
+      trackRecordMs: 80000,
+      wet: false,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+
+    const sprintWet = await raceQualifyingOrchestratorService.executeQualifyingPhase({
+      phase: 'SQ1',
+      careerId: 'test-sprint-wet',
+      seasonId: 's1',
+      round: 1,
+      participants,
+      trackRecordMs: 80000,
+      wet: true,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+
+    const dryD1 = sprintDry.results.find((r) => r.driverId === 'd1')!
+    const wetD1 = sprintWet.results.find((r) => r.driverId === 'd1')!
+
+    // SQ1 Seco tem compoundDelta = 650ms (Medium)
+    expect(dryD1.compoundDeltaMs).toBe(650)
+    expect(dryD1.attempts[0].compoundDeltaMs).toBe(650)
+
+    // SQ1 Molhado tem compoundDelta = 0
+    expect(wetD1.compoundDeltaMs).toBe(0)
+    expect(wetD1.attempts[0].compoundDeltaMs).toBe(0)
+  })
+
   // QFIX-A3A-07 — MAIN WET: Q1 em chuva usa wet base + wet sigma
   it('QFIX-A3A-07: MAIN Q1 em chuva aplica wet base (+8%) e wet sigma (225ms)', () => {
     const basePaceDry = 80000
