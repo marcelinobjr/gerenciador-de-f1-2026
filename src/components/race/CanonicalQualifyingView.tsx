@@ -538,19 +538,20 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
             <Card>
               <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
                 <div>
-  <CardTitle className="text-sm font-bold flex items-center gap-2">
-    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-    <span>Grid de Largada da Corrida Sprint (P1 – P24)</span>
-  </CardTitle>
-  <CardDescription className="text-xs">
-    Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE de SPRINT_STARTING_GRID.
-  </CardDescription>
-</div>
-{isSprintGridReady && finalSprintGridList.length > 0 && (
-  <Badge className="bg-emerald-600 text-white font-bold text-xs">
-    {finalSprintGridList.length} CARROS BIJETIVO
-  </Badge>
-)}
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <span>Grid de Largada da Corrida Sprint (P1 – P24)</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE de
+                    SPRINT_STARTING_GRID.
+                  </CardDescription>
+                </div>
+                {isSprintGridReady && finalSprintGridList.length > 0 && (
+                  <Badge className="bg-emerald-600 text-white font-bold text-xs">
+                    {finalSprintGridList.length} CARROS BIJETIVO
+                  </Badge>
+                )}
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">

@@ -55,17 +55,11 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
               SPRINT_GRID_READY
             </Badge>
           ) : sq3State?.isCompleted ? (
-            <Badge className="bg-purple-600 text-white text-xs font-semibold">
-              SQ3_CONCLUÍDO
-            </Badge>
+            <Badge className="bg-purple-600 text-white text-xs font-semibold">SQ3_CONCLUÍDO</Badge>
           ) : sq2State?.isCompleted ? (
-            <Badge className="bg-indigo-600 text-white text-xs font-semibold">
-              SQ2_CONCLUÍDO
-            </Badge>
+            <Badge className="bg-indigo-600 text-white text-xs font-semibold">SQ2_CONCLUÍDO</Badge>
           ) : sq1State?.isCompleted ? (
-            <Badge className="bg-blue-600 text-white text-xs font-semibold">
-              SQ1_CONCLUÍDO
-            </Badge>
+            <Badge className="bg-blue-600 text-white text-xs font-semibold">SQ1_CONCLUÍDO</Badge>
           ) : (
             <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-xs">
               READY_FOR_SQ1
@@ -88,23 +82,23 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
           <TabsTrigger value="result" className="text-xs" disabled={!sprintResult}>
             Resultado Sprint {sprintResult && '✓'}
           </TabsTrigger>
-          <TabsTrigger value="grid" className="text-xs" disabled={!sprintGrid || (sprintGrid.grid && sprintGrid.grid.length === 0)}>
+          <TabsTrigger
+            value="grid"
+            className="text-xs"
+            disabled={!sprintGrid || (sprintGrid.grid && sprintGrid.grid.length === 0)}
+          >
             Grid da Sprint {sprintGrid && sprintGrid.grid && sprintGrid.grid.length > 0 && '✓'}
           </TabsTrigger>
         </TabsList>
-
         <TabsContent value="sq1" className="mt-4">
           <QualifyingPhaseView phase="SQ1" state={sq1State} loading={loading} error={error} />
         </TabsContent>
-
         <TabsContent value="sq2" className="mt-4">
           <QualifyingPhaseView phase="SQ2" state={sq2State} loading={loading} error={error} />
         </TabsContent>
-
         <TabsContent value="sq3" className="mt-4">
           <QualifyingPhaseView phase="SQ3" state={sq3State} loading={loading} error={error} />
         </TabsContent>
-
         <TabsContent value="result" className="mt-4">
           <Card>
             <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40">
@@ -175,13 +169,15 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="grid" className="mt-4">
           <Card className="border-purple-500/20">
             <CardHeader className="py-3 px-4 bg-purple-950/10 border-b border-border/40">
               <CardTitle className="text-sm font-bold flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="border-purple-500/50 text-purple-400 font-bold text-[10px] uppercase">
+                  <Badge
+                    variant="outline"
+                    className="border-purple-500/50 text-purple-400 font-bold text-[10px] uppercase"
+                  >
                     SPRINT_STARTING_GRID
                   </Badge>
                   <span>Grid de Largada da Corrida Sprint</span>
@@ -193,7 +189,8 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
                 )}
               </CardTitle>
               <CardDescription className="text-xs">
-                Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE do SPRINT_STARTING_GRID persistido.
+                Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE do
+                SPRINT_STARTING_GRID persistido.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -263,7 +260,8 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>      </Tabs>
+        </TabsContent>{' '}
+      </Tabs>
     </div>
   )
 }
