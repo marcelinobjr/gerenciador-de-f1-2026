@@ -16,9 +16,12 @@ describe('inspect probe', () => {
     const resolvedReal = DPR.resolveDriverPhoto({ driverId: 'mbj-001', name: 'Max Verstappen' })
     expect(resolvedReal).toBeDefined()
 
-    const resolvedFictional = DPR.resolveDriverPhoto({ driverId: 'mbj-custom-99', name: 'Carlos Teste' })
+    const resolvedFictional = DPR.resolveDriverPhoto({
+      driverId: 'mbj-custom-99',
+      name: 'Carlos Teste',
+    })
     expect(resolvedFictional).toBeDefined()
-    
+
     // Check what getCanonicalDriverMaster gives
     expect(CDD.getCanonicalDriverMaster('mbj-001')).not.toBeNull()
     expect(CDD.getCanonicalDriverMaster('mbj-custom-99')).toBeNull()
