@@ -165,7 +165,6 @@ describe('APEX GP MANAGER — RACE-SPRINT-SLOTS-01B3C-UI (SQUI-C01 a SQUI-C12)',
     vi.restoreAllMocks()
   })
 
-
   it('SQUI-C01 — FONTE: Grid Sprint lê exclusivamente SPRINT_STARTING_GRID', async () => {
     const mockSprintGrid = createMockSprintStartingGrid(24)
     const loadSprintGridSpy = vi
@@ -193,13 +192,8 @@ describe('APEX GP MANAGER — RACE-SPRINT-SLOTS-01B3C-UI (SQUI-C01 a SQUI-C12)',
     // O título e os pilotos do Sprint Grid devem aparecer
     expect(await screen.findByText('Sprint Pilot 1')).toBeInTheDocument()
     expect(screen.queryByText('GP Pilot 1')).not.toBeInTheDocument()
-  })    expect(loadGpGridSpy).not.toHaveBeenCalled()
-
-    // O título e os pilotos do Sprint Grid devem aparecer
-    expect(await screen.findByText('Sprint Pilot 1')).toBeInTheDocument()
-    expect(screen.queryByText('GP Pilot 1')).not.toBeInTheDocument()
+    expect(loadGpGridSpy).not.toHaveBeenCalled()
   })
-
 
   it('SQUI-C02 — PARTICIPANTES: 24 participantes renderizados no Grid Sprint', () => {
     const mockSprintGrid = createMockSprintStartingGrid(24)

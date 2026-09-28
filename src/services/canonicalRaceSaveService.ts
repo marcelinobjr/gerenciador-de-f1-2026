@@ -58,14 +58,30 @@ export class CanonicalRaceSaveService {
    * Constrói a chave canônica canônica de armazenamento no padrão FW2.1E:
    * f1_2026_canonical_race_v2_${careerId}_s${season}_r${round}
    */
-  public buildStorageKey(careerId: string, season: number, round: number): string {
+  public buildStorageKey(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
+  ): string {
+    if (raceVariant === 'SPRINT_RACE') {
+      return `${CANONICAL_RACE_STORAGE_PREFIX_V2}_sprint_${careerId}_s${season}_r${round}`
+    }
     return `${CANONICAL_RACE_STORAGE_PREFIX_V2}_${careerId}_s${season}_r${round}`
   }
 
   /**
    * Chave legada/retrocompatível para garantir continuidade
    */
-  public buildLegacyStorageKey(careerId: string, season: number, round: number): string {
+  public buildLegacyStorageKey(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
+  ): string {
+    if (raceVariant === 'SPRINT_RACE') {
+      return `apex_sprint_race_canonical_state_${careerId}_s${season}_r${round}`
+    }
     return `apex_race_v2_canonical_state_${careerId}_s${season}_r${round}`
   }
 
@@ -256,7 +272,13 @@ export class CanonicalRaceSaveService {
       }
 
       // 3. Checagem de concorrência com snapshot anterior em disco
-      const keyV2 = this.buildStorageKey(snapshot.careerId, snapshot.season, snapshot.round)
+      const raceVariant = snapshot.raceVariant || 'MAIN_RACE'
+      const keyV2 = this.buildStorageKey(
+        snapshot.careerId,
+        snapshot.season,
+        snapshot.round,
+        raceVariant,
+      )
       const existingRaw = window.localStorage.getItem(keyV2)
       if (existingRaw) {
         try {
@@ -280,6 +302,7 @@ export class CanonicalRaceSaveService {
         snapshot.careerId,
         snapshot.season,
         snapshot.round,
+        raceVariant,
       )
       window.localStorage.setItem(keyLegacy, serialized)
 
@@ -299,6 +322,7 @@ export class CanonicalRaceSaveService {
     careerId: string,
     season: number,
     round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
   ): {
     state: CanonicalRaceState | null
     error?: string
@@ -309,11 +333,11 @@ export class CanonicalRaceSaveService {
     }
 
     try {
-      const keyV2 = this.buildStorageKey(careerId, season, round)
+      const keyV2 = this.buildStorageKey(careerId, season, round, raceVariant)
       let raw = window.localStorage.getItem(keyV2)
       if (!raw) {
         // Tenta chave retrocompatível
-        const keyLegacy = this.buildLegacyStorageKey(careerId, season, round)
+        const keyLegacy = this.buildLegacyStorageKey(careerId, season, round, raceVariant)
         raw = window.localStorage.getItem(keyLegacy)
       }
 
@@ -373,14 +397,18 @@ export class CanonicalRaceSaveService {
     careerId: string,
     season: number,
     round: number,
-    options?: { force?: boolean },
+    options?: { force?: boolean; raceVariant?: import('@/types/canonical-race-v2').RaceVariant },
   ): { success: boolean; blockedReason?: string } {
     if (typeof window === 'undefined' || !window.localStorage) {
       return { success: false, blockedReason: 'localStorage indisponível' }
     }
 
-    // FW2.1E-F Requisito 18: Verificar se existe OfficialRaceResult
-    const officialResultKey = `${CANONICAL_RACE_STORAGE_PREFIX_V2.replace('_canonical_race_v2', '_canonical_official_result')}_${careerId}_s${season}_r${round}`
+    const raceVariant = options?.raceVariant || 'MAIN_RACE'
+    const resultKeyPrefix =
+      raceVariant === 'SPRINT_RACE'
+        ? `${CANONICAL_RACE_STORAGE_PREFIX_V2.replace('_canonical_race_v2', '_canonical_official_result')}_sprint`
+        : `${CANONICAL_RACE_STORAGE_PREFIX_V2.replace('_canonical_race_v2', '_canonical_official_result')}`
+    const officialResultKey = `${resultKeyPrefix}_${careerId}_s${season}_r${round}`
     const hasOfficialResult = !!window.localStorage.getItem(officialResultKey)
 
     if (hasOfficialResult && !options?.force) {
@@ -391,8 +419,8 @@ export class CanonicalRaceSaveService {
     }
 
     try {
-      const keyV2 = this.buildStorageKey(careerId, season, round)
-      const keyLegacy = this.buildLegacyStorageKey(careerId, season, round)
+      const keyV2 = this.buildStorageKey(careerId, season, round, raceVariant)
+      const keyLegacy = this.buildLegacyStorageKey(careerId, season, round, raceVariant)
       window.localStorage.removeItem(keyV2)
       window.localStorage.removeItem(keyLegacy)
       return { success: true }

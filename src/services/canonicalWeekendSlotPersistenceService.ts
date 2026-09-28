@@ -163,8 +163,9 @@ export class CanonicalWeekendSlotPersistenceService {
     seasonId: string
     round: number
     configVersion?: string
+    weekendFormat?: 'NORMAL' | 'SPRINT'
   }): Promise<CanonicalWeekendSlotState> {
-    const { careerId, seasonId, round, configVersion = 'v1' } = params
+    const { careerId, seasonId, round, configVersion = 'v1', weekendFormat } = params
     const key = buildWeekendSlotStorageKey(careerId, seasonId, round)
 
     // 1. Tenta carregar do cache em memória
@@ -432,6 +433,7 @@ export class CanonicalWeekendSlotPersistenceService {
     seasonId: string
     round: number
     configVersion?: string
+    weekendFormat?: 'NORMAL' | 'SPRINT'
   }): Promise<CanonicalWeekendSlotState> {
     return this.loadOrMigrateSlotState(params)
   }

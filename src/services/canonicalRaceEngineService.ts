@@ -121,8 +121,9 @@ export class CanonicalRaceEngineService {
     if (typeof raceState.raceSeed === 'number') {
       return (raceState.raceSeed + lap * 10007) >>> 0
     }
+    const variant = raceState.raceVariant || 'MAIN_RACE'
     const baseHash = this.hashStringToSeed(
-      `${raceState.careerId}_${raceState.raceId}_${raceState.season}_${raceState.round}`,
+      `${raceState.careerId}_${raceState.raceId}_${raceState.season}_${raceState.round}_${variant}`,
     )
     return (baseHash + lap * 10007) >>> 0
   }

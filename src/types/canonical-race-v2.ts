@@ -18,6 +18,8 @@ import type { TireCompound } from '@/types/f1'
 import type { TrackWeatherState } from '@/lib/f1-tire-system'
 import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-types'
 
+export type RaceVariant = 'MAIN_RACE' | 'SPRINT_RACE'
+
 export type CanonicalRaceStatus =
   | 'not_started'
   | 'running'
@@ -169,6 +171,7 @@ export interface DriverStrategyState {
 }
 
 export interface CanonicalRaceDriverState {
+  raceVariant?: RaceVariant
   careerId: string
   season: number
   raceId: string
@@ -218,6 +221,7 @@ export interface CanonicalRaceDriverState {
 export interface CanonicalRaceState {
   version: '2.0'
   saveSchemaVersion?: 'race-save-v1'
+  raceVariant?: RaceVariant
   careerId: string
   season: number
   round: number
@@ -283,6 +287,7 @@ export interface CanonicalRaceState {
  * Parâmetros de Inicialização da Corrida V2 (FW2.1E-A).
  */
 export interface InitializeCanonicalRaceParams {
+  raceVariant?: RaceVariant
   persistState?: boolean
   careerId: string
   season: number
@@ -377,6 +382,7 @@ export interface OfficialRaceEventSummary {
 export interface OfficialRaceResult {
   officialResultId: string
   schemaVersion: OfficialRaceResultSchemaVersion
+  raceVariant?: RaceVariant
   careerId: string
   season: number
   round: number

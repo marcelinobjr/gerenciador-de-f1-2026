@@ -42,17 +42,30 @@ const RACE_V2_STORAGE_KEY_PREFIX = 'apex_race_v2_canonical_state'
 export const canonicalRaceInitializationService = {
   /**
    * Constrói o identificador único canônico da corrida.
-   * Formato: "race_{careerId}_s{season}_r{round}"
+   * Formato: "race_{careerId}_s{season}_r{round}" ou "race_{careerId}_s{season}_r{round}_sprint"
    */
-  buildRaceId(careerId: string, season: number, round: number): string {
+  buildRaceId(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
+  ): string {
+    if (raceVariant === 'SPRINT_RACE') {
+      return `race_${careerId}_s${season}_r${round}_sprint`
+    }
     return `race_${careerId}_s${season}_r${round}`
   },
 
   /**
    * Chave de persistência de estado da Corrida V2 para reload e auditoria.
    */
-  getRaceStorageKey(careerId: string, season: number, round: number): string {
-    return canonicalRaceSaveService.buildStorageKey(careerId, season, round)
+  getRaceStorageKey(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
+  ): string {
+    return canonicalRaceSaveService.buildStorageKey(careerId, season, round, raceVariant)
   },
 
   /**
@@ -60,6 +73,7 @@ export const canonicalRaceInitializationService = {
    */
   initializeRaceFromCanonicalGrid(params: InitializeCanonicalRaceParams): CanonicalRaceState {
     const {
+      raceVariant = 'MAIN_RACE',
       careerId,
       season,
       round,
@@ -145,12 +159,14 @@ export const canonicalRaceInitializationService = {
       params.weather || weatherEvent.initialWeather || 'seco'
 
     // 4. Montar as 24 entidades canônicas
-    const raceId = this.buildRaceId(careerId, season, round)
+    const raceId = this.buildRaceId(careerId, season, round, raceVariant)
 
     // Assinalar carId de forma robusta e independente para os dois pilotos do jogador
     let playerCarCounter = 0
     const driverLookup: Record<string, CanonicalRaceDriverState> = {}
     const driverStrategies: Record<string, DriverStrategyState> = {}
+
+    const isWetWeather = initialWeather === 'chuva_fraca' || initialWeather === 'chuva_forte'
 
     const drivers: CanonicalRaceDriverState[] = sortedGrid.map((entry) => {
       const isPlayer = entry.teamId === playerTeamId || entry.isPlayer
@@ -165,8 +181,21 @@ export const canonicalRaceInitializationService = {
         params.carPreparations?.[entry.driverId] ||
         (carId ? params.carPreparations?.[carId] : undefined)
 
-      // Pneu de largada: explicitamente escolhido pelo jogador, ou composto do qualifying / médio
-      const startingCompound = explicitPrep?.startingCompound || entry.bestLapCompound || 'medio'
+      // Regra de pneu de largada:
+      // Se for SPRINT_RACE:
+      // - Seco: todos largam de 'medio'
+      // - Molhado: usar pneus de chuva existentes conforme a intensidade (chuva_fraca -> intermediario, chuva_forte -> chuva_extrema)
+      // Se for MAIN_RACE: respeita escolha explícita ou composto do qualifying / médio
+      let startingCompound: import('@/types/f1').TireCompound
+      if (raceVariant === 'SPRINT_RACE') {
+        if (isWetWeather) {
+          startingCompound = initialWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+        } else {
+          startingCompound = 'medio'
+        }
+      } else {
+        startingCompound = explicitPrep?.startingCompound || entry.bestLapCompound || 'medio'
+      }
 
       const startingFuel =
         typeof explicitPrep?.startingFuelKg === 'number'
@@ -214,6 +243,7 @@ export const canonicalRaceInitializationService = {
       }
 
       const driverState: CanonicalRaceDriverState = {
+        raceVariant,
         careerId,
         season,
         raceId,
@@ -272,6 +302,7 @@ export const canonicalRaceInitializationService = {
     const initialRaceState: CanonicalRaceState = {
       version: '2.0',
       saveSchemaVersion: 'race-save-v1',
+      raceVariant,
       careerId,
       season,
       round,
@@ -319,12 +350,203 @@ export const canonicalRaceInitializationService = {
   /**
    * Lê o estado canônico persistido de uma corrida com validação (FW2.1E-E).
    */
+  /**
+   * FW2.1E-A: Converte as 24 entradas do SPRINT_STARTING_GRID para o formato compatível FinalQualifyingGridEntry
+   */
+  adaptSprintStartingGridToFinalEntries(
+    sprintGridEntries: import('@/services/raceQualifyingOrchestratorService').SprintStartingGridEntry[],
+  ): FinalQualifyingGridEntry[] {
+    return sprintGridEntries.map((e) => ({
+      gridPosition: e.gridPosition,
+      qualifyingPosition: e.qualifyingPosition,
+      driverId: e.driverId,
+      driverName: e.driverName,
+      teamId: e.teamId,
+      teamName: e.teamName,
+      teamColor: '#999999',
+      carIndex: e.carIndex,
+      isPlayer: false,
+      bestLapTime: e.formattedQualifyingTime,
+      bestLapSec: e.qualifyingTimeMs ? e.qualifyingTimeMs / 1000 : undefined,
+      eliminationPhase: e.eliminationPhase as any,
+      eliminationStage: (e.eliminationPhase as any) || 'SQ3',
+      bestLapCompound: 'medio',
+      setupBonusApplied: 0,
+    }))
+  },
+
+  /**
+   * RACE-SPRINT-SLOTS-01C1:
+   * Calcula o número de voltas da Sprint baseado na distância alvo homologada de 100 km.
+   * sprintLaps = Math.ceil(sprintDistanceKm / circuitLengthKm)
+   */
+  calculateSprintLaps(circuitLengthKm: number, sprintDistanceKm: number = 100): number {
+    if (!circuitLengthKm || circuitLengthKm <= 0 || isNaN(circuitLengthKm)) {
+      throw new Error(`[SprintLaps] circuitLengthKm inválido: ${circuitLengthKm}`)
+    }
+    return Math.ceil(sprintDistanceKm / circuitLengthKm)
+  },
+
+  /**
+   * RACE-SPRINT-SLOTS-01C1:
+   * Inicializa o estado canônico da corrida Sprint a partir EXCLUSIVAMENTE do SPRINT_STARTING_GRID persistido.
+   *
+   * PRÉ-CONDIÇÕES OBRIGATÓRIAS:
+   * 1. weekendFormat === 'SPRINT'
+   * 2. currentSlot === 3
+   * 3. slotType === 'SPRINT_RACE' | 'SPRINT'
+   * 4. slotStatus === 'READY' | 'AVAILABLE' | 'IN_PROGRESS'
+   * 5. SPRINT_STARTING_GRID válido com 24 pilotos P1..P24 sem duplicatas nem ausências
+   * 6. Idempotência estrita: se já existir estado Sprint persistido, retorna o estado existente sem recriar
+   */
+  async initializeSprintRaceFromPersistedGrid(params: {
+    careerId: string
+    seasonId: string
+    seasonNumber?: number
+    round: number
+    circuitName: string
+    circuitCountry: string
+    circuitLengthKm: number
+    playerTeamId: string
+    weather?: TrackWeatherState
+    weatherEvent?: import('@/types/climate').RaceWeekendWeather
+  }): Promise<CanonicalRaceState> {
+    const {
+      careerId,
+      seasonId,
+      seasonNumber = 2026,
+      round,
+      circuitName,
+      circuitCountry,
+      circuitLengthKm,
+      playerTeamId,
+      weather,
+      weatherEvent,
+    } = params
+
+    // 1. CHECAGEM DE IDEMPOTÊNCIA: Se já foi inicializado e persistido, retorna exatamente o mesmo
+    const existing = this.readCanonicalRaceState(careerId, seasonNumber, round, 'SPRINT_RACE')
+    if (existing && existing.raceVariant === 'SPRINT_RACE' && existing.drivers?.length === 24) {
+      return existing
+    }
+
+    // 2. VALIDAR PRÉ-CONDIÇÕES DE SLOT E FORMATO NO canonicalWeekendSlotPersistenceService
+    const { canonicalWeekendSlotPersistenceService } =
+      await import('@/services/canonicalWeekendSlotPersistenceService')
+    const slotState = await canonicalWeekendSlotPersistenceService.getWeekendSlotState({
+      careerId,
+      seasonId,
+      round,
+    })
+
+    if (slotState.weekendFormat !== 'SPRINT') {
+      throw new Error(
+        `[SprintRaceInit] Rejeitado: formato do final de semana é '${slotState.weekendFormat}', esperado 'SPRINT'.`,
+      )
+    }
+
+    if (slotState.currentSlot !== 3) {
+      throw new Error(
+        `[SprintRaceInit] Rejeitado: slot atual é ${slotState.currentSlot} (${slotState.slotType}), esperado slot 3.`,
+      )
+    }
+
+    const validSlotTypes = ['SPRINT_RACE', 'SPRINT']
+    if (!validSlotTypes.includes(slotState.slotType)) {
+      throw new Error(
+        `[SprintRaceInit] Rejeitado: slotType é '${slotState.slotType}', esperado 'SPRINT_RACE' ou 'SPRINT'.`,
+      )
+    }
+
+    const validSlotStatuses = ['AVAILABLE', 'READY', 'IN_PROGRESS']
+    if (!validSlotStatuses.includes(slotState.slotStatus)) {
+      throw new Error(
+        `[SprintRaceInit] Rejeitado: slotStatus é '${slotState.slotStatus}', esperado READY/AVAILABLE.`,
+      )
+    }
+
+    // 3. CARREGAR EXCLUSIVAMENTE SPRINT_STARTING_GRID PERSISTIDO
+    const { raceQualifyingOrchestratorService } =
+      await import('@/services/raceQualifyingOrchestratorService')
+    const sprintGridState = await raceQualifyingOrchestratorService.loadPersistedSprintStartingGrid(
+      careerId,
+      seasonId,
+      round,
+    )
+
+    if (
+      !sprintGridState ||
+      !Array.isArray(sprintGridState.grid) ||
+      sprintGridState.grid.length !== 24
+    ) {
+      throw new Error(
+        `[SprintRaceInit] Rejeitado: SPRINT_STARTING_GRID ausente ou incompleto (${sprintGridState?.grid?.length ?? 0}/24).`,
+      )
+    }
+
+    // 4. VALIDAR UNICIDADE E BIJEÇÃO DO SPRINT_STARTING_GRID (P1..P24)
+    const sortedGrid = [...sprintGridState.grid].sort((a, b) => a.gridPosition - b.gridPosition)
+    const seenDriverIds = new Set<string>()
+    for (let i = 0; i < sortedGrid.length; i++) {
+      const entry = sortedGrid[i]
+      const expectedPos = i + 1
+      if (entry.gridPosition !== expectedPos) {
+        throw new Error(
+          `[SprintRaceInit] SPRINT_STARTING_GRID descontínuo: esperado P${expectedPos}, encontrado P${entry.gridPosition}`,
+        )
+      }
+      if (seenDriverIds.has(entry.driverId)) {
+        throw new Error(
+          `[SprintRaceInit] driverId duplicado no SPRINT_STARTING_GRID: ${entry.driverId}`,
+        )
+      }
+      seenDriverIds.add(entry.driverId)
+    }
+
+    // 5. CALCULAR VOLTAS DA SPRINT (100 km)
+    const totalLaps = this.calculateSprintLaps(circuitLengthKm, 100)
+
+    // 6. ADAPTAR PARA ENTRADAS DO MOTOR CANÔNICO
+    const adaptedQualifyingGrid = this.adaptSprintStartingGridToFinalEntries(sortedGrid)
+
+    // Resolver teamColor e isPlayer reais para o playerTeamId
+    for (const entry of adaptedQualifyingGrid) {
+      if (entry.teamId === playerTeamId) {
+        entry.isPlayer = true
+      }
+    }
+
+    // 7. INICIALIZAR ESTADO CANÔNICO DA SPRINT COM raceVariant = 'SPRINT_RACE'
+    const sprintRaceState = this.initializeRaceFromCanonicalGrid({
+      raceVariant: 'SPRINT_RACE',
+      careerId,
+      season: seasonNumber,
+      round,
+      circuitName,
+      circuitCountry,
+      totalLaps,
+      playerTeamId,
+      canonicalQualifyingGrid: adaptedQualifyingGrid,
+      weather,
+      weatherEvent,
+      persistState: true,
+    })
+
+    return sprintRaceState
+  },
+
   readCanonicalRaceState(
     careerId: string,
     season: number,
     round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
   ): CanonicalRaceState | null {
-    const res = canonicalRaceSaveService.loadCanonicalRaceState(careerId, season, round)
+    const res = canonicalRaceSaveService.loadCanonicalRaceState(
+      careerId,
+      season,
+      round,
+      raceVariant,
+    )
     return res.state
   },
 
@@ -335,7 +557,8 @@ export const canonicalRaceInitializationService = {
     careerId: string,
     season: number,
     round: number,
+    options?: { force?: boolean; raceVariant?: import('@/types/canonical-race-v2').RaceVariant },
   ): { success: boolean; blockedReason?: string } {
-    return canonicalRaceSaveService.clearCanonicalRaceState(careerId, season, round)
+    return canonicalRaceSaveService.clearCanonicalRaceState(careerId, season, round, options)
   },
 }
