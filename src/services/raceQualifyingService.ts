@@ -104,6 +104,7 @@ export interface QualifyingWeekendState {
     RaceParameters,
     | 'max_setup_qualifying_bonus_seconds'
     | 'qualifying_noise_sd_ms'
+    | 'wet_noise_multiplier'
     | 'qualifying_base_over_record_factor'
   >
   updatedAt: string
@@ -238,6 +239,7 @@ export class RaceQualifyingService {
       RaceParameters,
       | 'max_setup_qualifying_bonus_seconds'
       | 'qualifying_noise_sd_ms'
+      | 'wet_noise_multiplier'
       | 'qualifying_base_over_record_factor'
     > = {
       max_setup_qualifying_bonus_seconds:
@@ -246,6 +248,9 @@ export class RaceQualifyingService {
       qualifying_noise_sd_ms:
         params.parameters?.qualifying_noise_sd_ms ??
         DEFAULT_SOURCE_RACE_PARAMETERS.qualifying_noise_sd_ms,
+      wet_noise_multiplier:
+        params.parameters?.wet_noise_multiplier ??
+        DEFAULT_SOURCE_RACE_PARAMETERS.wet_noise_multiplier,
       qualifying_base_over_record_factor:
         params.parameters?.qualifying_base_over_record_factor ??
         DEFAULT_SOURCE_RACE_PARAMETERS.qualifying_base_over_record_factor,
