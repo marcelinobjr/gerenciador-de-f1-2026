@@ -21,12 +21,26 @@ export type WeekendSlotType =
 
 export type WeekendSlotStatus = 'LOCKED' | 'AVAILABLE' | 'IN_PROGRESS' | 'COMPLETED' | 'NOT_RUN'
 
+export type SprintQualifyingSubPhase = 'SQ1' | 'SQ2' | 'SQ3'
+export type MainQualifyingSubPhase = 'Q1' | 'Q2' | 'Q3'
+
 export interface WeekendSlotDefinition {
   slotNumber: WeekendSlotNumber
   slotType: WeekendSlotType
   displayLabel: string
   shortLabel: string
-  category: 'PRACTICE' | 'QUALIFYING' | 'SPRINT' | 'RACE'
+  category:
+    | 'PRACTICE'
+    | 'QUALIFYING'
+    | 'SPRINT'
+    | 'RACE'
+    | 'practice'
+    | 'qualifying'
+    | 'sprint'
+    | 'race'
+  isCompetitive?: boolean
+  generatesSetup?: boolean
+  description?: string
 }
 
 export interface WeekendSlotData {
@@ -38,10 +52,18 @@ export interface WeekendSlotData {
 }
 
 export interface CanonicalWeekendSlotState {
+  careerId?: string
+  seasonId?: string
+  round?: number
   weekendFormat: WeekendFormat
+  configVersion?: string
   currentSlot: WeekendSlotNumber
+  slotType?: WeekendSlotType
+  slotStatus?: WeekendSlotStatus
   subPhase?: string | null
+  completedSlots?: WeekendSlotNumber[]
   slots: Record<WeekendSlotNumber, WeekendSlotData>
+  updatedAt?: string
 }
 
 export interface WeekendSlotViewModel {

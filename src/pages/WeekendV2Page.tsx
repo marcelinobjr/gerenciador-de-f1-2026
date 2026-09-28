@@ -159,12 +159,13 @@ export default function WeekendV2Page() {
 
   const isSprint = useMemo(() => hasSprintWeekend(currentRound), [currentRound])
 
-  // Esteira canônica do fim de semana (TL1 -> TL2 -> Q1 -> Q2 -> Q3 -> CORRIDA)
-  // TL3 está tecnicamente preservado e pode ser habilitado via config `includePractice3`
+  // Esteira canônica do fim de semana:
+  // NORMAL: TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> CORRIDA
+  // SPRINT: TL1 -> QUALI_SPRINT -> SPRINT -> Q1 -> Q2 -> Q3 -> CORRIDA (sem TL2 / sem TL3)
   const pipeline = useMemo(() => {
     return getRaceWeekendPipeline({
       format: isSprint ? 'sprint' : 'standard',
-      includePractice3: false,
+      includePractice3: !isSprint,
     })
   }, [isSprint])
 
@@ -2565,7 +2566,7 @@ export default function WeekendV2Page() {
       ) : isQualifyingSession ? (
         // RENDERIZAÇÃO CANÔNICA DE QUALIFICAÇÃO (Q1, Q2, Q3)
         // Sessão real com carros na pista, consumo de pneus, desempate e eliminação
-        !completedSessions.includes('tp2') ? (
+        !completedSessions.includes('tp3') && !completedSessions.includes('tp2') ? (
           <SessionPlaceholderCard
             session={selectedSessionDef}
             isLocked={true}
@@ -3230,7 +3231,7 @@ export default function WeekendV2Page() {
             selectedSessionDef.id === 'race'
               ? !completedSessions.includes('q3') && !completedSessions.includes('qualifying')
               : selectedSessionDef.id === 'q1'
-                ? !completedSessions.includes('tp2')
+                ? !completedSessions.includes('tp3') && !completedSessions.includes('tp2')
                 : !completedSessions.includes(selectedSessionDef.id)
           }
           isPendingDevelopment={false}

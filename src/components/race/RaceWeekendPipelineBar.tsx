@@ -55,7 +55,7 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
 
       {/* Esteira Horizontal com scroll suave no mobile/tablet */}
       <div className="overflow-x-auto pb-1 -mx-1 px-1">
-        <div className="flex items-center gap-2 min-w-max md:min-w-0 md:grid md:grid-cols-6">
+        <div className="flex items-center gap-2 min-w-max md:min-w-0 md:grid md:grid-cols-7">
           {sessions.map((sess, idx) => {
             const isSelected = sess.id === selectedSessionId
             const isCompleted = completedSessions.includes(sess.id)
@@ -67,7 +67,7 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
             } else if (sess.id === 'tp3') {
               isLocked = !completedSessions.includes('tp2')
             } else if (sess.id === 'q1') {
-              isLocked = !completedSessions.includes('tp2')
+              isLocked = !completedSessions.includes('tp3') && !completedSessions.includes('tp2')
             } else if (sess.id === 'q2') {
               isLocked = !completedSessions.includes('q1')
             } else if (sess.id === 'q3') {
