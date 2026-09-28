@@ -34,9 +34,21 @@ import {
 } from '@/lib/race/pureRaceEngine'
 import { racePracticeSetupService } from '@/services/racePracticeSetupService'
 
-export type QualifyingPhaseStatus = 'READY_FOR_Q1' | 'Q1' | 'Q1_COMPLETE' | 'READY_FOR_Q2'
+export type QualifyingPhase = 'Q1' | 'Q2' | 'Q3'
 
-export interface Q1DriverInput {
+export type QualifyingPhaseStatus =
+  | 'READY_FOR_Q1'
+  | 'Q1'
+  | 'Q1_COMPLETE'
+  | 'READY_FOR_Q2'
+  | 'Q2'
+  | 'Q2_COMPLETE'
+  | 'READY_FOR_Q3'
+  | 'Q3'
+  | 'Q3_COMPLETE'
+  | 'QUALIFYING_COMPLETE'
+
+export interface QualifyingDriverInput {
   driverId: string
   driverName: string
   teamId: string
@@ -51,7 +63,10 @@ export interface Q1DriverInput {
   setup?: number // Acerto vindo dos TLs (ex: 90.2275). Se omitido, busca da persistência
 }
 
-export interface Q1LapAttempt {
+// Aliases para compatibilidade reversa com Q1
+export type Q1DriverInput = QualifyingDriverInput
+
+export interface QualifyingLapAttempt {
   attemptNumber: number
   normalDrawZ: number
   timeMs: number
@@ -59,7 +74,9 @@ export interface Q1LapAttempt {
   formattedTime: string
 }
 
-export interface Q1ParticipantResult {
+export type Q1LapAttempt = QualifyingLapAttempt
+
+export interface QualifyingParticipantResult {
   driverId: string
   driverName: string
   teamId: string
@@ -72,13 +89,16 @@ export interface Q1ParticipantResult {
   bonusMs: number
   bestTimeMs: number
   formattedBestTime: string
-  attempts: Q1LapAttempt[]
-  position: number // 1..N
-  isClassified: boolean // true = avança para Q2 (top 18 em 24)
-  isEliminated: boolean // true = eliminado no Q1 (P19-P24 em 24)
+  attempts: QualifyingLapAttempt[]
+  position: number // 1..N dentro da fase
+  isClassified: boolean // true = avança para a próxima fase (ou Q3 finalizado no top)
+  isEliminated: boolean // true = eliminado nesta fase
 }
 
-export interface Q1ExecutionState {
+export type Q1ParticipantResult = QualifyingParticipantResult
+
+export interface QualifyingPhaseExecutionState {
+  phase: QualifyingPhase
   careerId: string
   seasonId: string
   round: number
@@ -89,7 +109,7 @@ export interface Q1ExecutionState {
   totalParticipants: number
   advancingCount: number
   eliminatedCount: number
-  results: Q1ParticipantResult[]
+  results: QualifyingParticipantResult[]
   classifiedDriverIds: string[]
   eliminatedDriverIds: string[]
   trackRecordMs: number
@@ -97,16 +117,32 @@ export interface Q1ExecutionState {
   updatedAt: string
 }
 
+// Aliases para compatibilidade reversa com Q1
+export type Q1ExecutionState = QualifyingPhaseExecutionState
+
 export interface ExecuteQ1Params {
   careerId: string
   seasonId: string
   round: number
   configVersion?: string
-  participants: Q1DriverInput[]
+  participants: QualifyingDriverInput[]
   trackRecordMs?: number
   driverWeight?: number
   wet?: boolean
   forceBypassPracticeCheck?: boolean // Somente para testes sintéticos isolados de Q1
+}
+
+export interface ExecuteQualifyingPhaseParams {
+  phase: QualifyingPhase
+  careerId: string
+  seasonId: string
+  round: number
+  configVersion?: string
+  participants?: QualifyingDriverInput[] // Obrigatório no Q1; em Q2 e Q3 herdado automaticamente do resultado persistido
+  trackRecordMs?: number
+  driverWeight?: number
+  wet?: boolean
+  forceBypassPracticeCheck?: boolean
 }
 
 /**
@@ -158,24 +194,67 @@ export function formatLapTimeMs(ms: number | undefined): string {
   return `${minutes}:${secStr}`
 }
 
+export function buildQualifyingStorageKey(
+  phase: QualifyingPhase,
+  careerId: string,
+  seasonId: string,
+  round: number,
+): string {
+  const p = phase.toLowerCase()
+  return `apex_${p}_state_${careerId}_${seasonId}_r${round}`
+}
+
 export function buildQ1StorageKey(careerId: string, seasonId: string, round: number): string {
-  return `apex_q1_state_${careerId}_${seasonId}_r${round}`
+  return buildQualifyingStorageKey('Q1', careerId, seasonId, round)
+}
+
+export function buildQ2StorageKey(careerId: string, seasonId: string, round: number): string {
+  return buildQualifyingStorageKey('Q2', careerId, seasonId, round)
+}
+
+export function buildQ3StorageKey(careerId: string, seasonId: string, round: number): string {
+  return buildQualifyingStorageKey('Q3', careerId, seasonId, round)
 }
 
 export class RaceQualifyingOrchestratorService {
-  private inMemoryCache: Map<string, Q1ExecutionState> = new Map()
+  private inMemoryCache: Map<string, QualifyingPhaseExecutionState> = new Map()
 
   /**
-   * Resolve a regra de corte de classificados/eliminados baseada no número de participantes.
+   * Resolve a regra de corte de classificados/eliminados baseada na fase e no número de participantes.
    * Regra oficial FIA / Especificação:
-   * 24 carros -> 18 classificados, 6 eliminados.
-   * 22 carros -> 16 classificados, 6 eliminados.
-   * 20 carros -> 15 classificados, 5 eliminados.
+   * Q1:
+   *   24 carros -> 18 classificados, 6 eliminados.
+   *   22 carros -> 16 classificados, 6 eliminados.
+   *   20 carros -> 15 classificados, 5 eliminados.
+   * Q2:
+   *   18 carros -> 10 classificados, 8 eliminados.
+   *   16 carros -> 10 classificados, 6 eliminados.
+   *   15 carros -> 10 classificados, 5 eliminados.
+   *   Geral: Top 10 avança para o Q3.
+   * Q3:
+   *   10 carros -> 10 classificados (P1..P10), 0 eliminados.
    */
-  public resolveCutoffRules(totalParticipants: number): {
+  public resolveCutoffRules(
+    totalParticipants: number,
+    phase: QualifyingPhase = 'Q1',
+  ): {
     advancingCount: number
     eliminatedCount: number
   } {
+    if (phase === 'Q3') {
+      return {
+        advancingCount: totalParticipants,
+        eliminatedCount: 0,
+      }
+    }
+
+    if (phase === 'Q2') {
+      const advancingCount = Math.min(10, totalParticipants)
+      const eliminatedCount = Math.max(0, totalParticipants - advancingCount)
+      return { advancingCount, eliminatedCount }
+    }
+
+    // Q1
     if (totalParticipants === 24) {
       return { advancingCount: 18, eliminatedCount: 6 }
     }
@@ -197,8 +276,49 @@ export class RaceQualifyingOrchestratorService {
    * Executa a fase Q1 de forma determinística, idempotente e estrita.
    * Transição: READY_FOR_Q1 → Q1 → Q1_COMPLETE → READY_FOR_Q2.
    */
-  public async executeQ1(params: ExecuteQ1Params): Promise<Q1ExecutionState> {
+  public async executeQ1(params: ExecuteQ1Params): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'Q1',
+    })
+  }
+
+  /**
+   * Executa a fase Q2 de forma determinística, idempotente e estrita.
+   * Recebe EXATAMENTE os classificados persistidos do Q1 (18 na fixture canônica).
+   * Transição: READY_FOR_Q2 → Q2 → Q2_COMPLETE → READY_FOR_Q3.
+   */
+  public async executeQ2(
+    params: Omit<ExecuteQualifyingPhaseParams, 'phase'>,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'Q2',
+    })
+  }
+
+  /**
+   * Executa a fase Q3 de forma determinística, idempotente e estrita.
+   * Recebe EXATAMENTE os classificados persistidos do Q2 (10 na fixture canônica).
+   * Transição: READY_FOR_Q3 → Q3 → Q3_COMPLETE → QUALIFYING_COMPLETE.
+   */
+  public async executeQ3(
+    params: Omit<ExecuteQualifyingPhaseParams, 'phase'>,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'Q3',
+    })
+  }
+
+  /**
+   * Executa qualquer fase de classificação (Q1 | Q2 | Q3) sob a mesma máquina matemática unificada.
+   */
+  public async executeQualifyingPhase(
+    params: ExecuteQualifyingPhaseParams,
+  ): Promise<QualifyingPhaseExecutionState> {
     const {
+      phase,
       careerId,
       seasonId,
       round,
@@ -216,39 +336,124 @@ export class RaceQualifyingOrchestratorService {
       )
     }
 
-    if (!participants || participants.length === 0) {
-      throw new Error('Nenhum participante informado para o Q1.')
-    }
+    const storageKey = buildQualifyingStorageKey(phase, careerId, seasonId, round)
 
-    const storageKey = buildQ1StorageKey(careerId, seasonId, round)
+    // 1. CHECAGEM DE IDEMPOTÊNCIA / PERSISTÊNCIA PRÉVIA E RECUPERAÇÃO DE FALHA PARCIAL
+    // Se a fase já foi executada (mesmo com falha na transição de status final),
+    // recupera os tempos calculados sem gerar novos sorteios nem recalcular tempos.
+    const existingState = await this.loadPersistedPhaseState(phase, careerId, seasonId, round)
+    const completedStatus =
+      phase === 'Q1' ? 'READY_FOR_Q2' : phase === 'Q2' ? 'READY_FOR_Q3' : 'QUALIFYING_COMPLETE'
 
-    // 1. CHECAGEM DE IDEMPOTÊNCIA / PERSISTÊNCIA PRÉVIA
-    // Se Q1 já foi executado e persistido para este contexto, retorna imediatamente
-    // sem gerar novos sorteios nem recalcular tempos.
-    const existingState = await this.loadPersistedQ1State(careerId, seasonId, round)
-    if (existingState && (existingState.isCompleted || existingState.status === 'READY_FOR_Q2')) {
+    if (
+      existingState &&
+      (existingState.isCompleted ||
+        existingState.status === completedStatus ||
+        (existingState.results && existingState.results.length > 0))
+    ) {
+      // Se tem resultados calculados mas o status final ou isCompleted não foram finalizados (falha parcial):
+      if (existingState.status !== completedStatus || !existingState.isCompleted) {
+        existingState.status = completedStatus
+        existingState.isCompleted = true
+        await this.persistPhaseState(existingState)
+      }
       this.inMemoryCache.set(storageKey, existingState)
       return existingState
     }
 
-    // 2. VALIDAÇÃO DE ORDEM (Q1 só inicia se estado anterior for READY_FOR_Q1)
-    if (!forceBypassPracticeCheck) {
-      // Verifica se os treinos livres foram concluídos para os carros participantes
-      const checkTeams = Array.from(new Set(participants.map((p) => p.teamId)))
-      for (const tId of checkTeams) {
-        const weekendState = await racePracticeSetupService.getWeekendNormalState({
-          careerId,
-          seasonId,
-          round,
-          teamId: tId,
-          cars: [1, 2],
-        })
-        if (weekendState.status !== 'READY_FOR_Q1') {
-          throw new Error(
-            `Ordem de sessões violada: Q1 só pode ser iniciado a partir do estado READY_FOR_Q1 (TL3 concluído). Estado atual da equipe '${tId}': '${weekendState.status}'.`,
-          )
+    // 2. VALIDAÇÃO DE ORDEM E RESOLUÇÃO DE PARTICIPANTES HERDADOS
+    let effectiveParticipants: QualifyingDriverInput[] = []
+
+    if (phase === 'Q1') {
+      if (!participants || participants.length === 0) {
+        throw new Error('Nenhum participante informado para o Q1.')
+      }
+
+      if (!forceBypassPracticeCheck) {
+        // Verifica se os treinos livres foram concluídos para os carros participantes
+        const checkTeams = Array.from(new Set(participants.map((p) => p.teamId)))
+        for (const tId of checkTeams) {
+          const weekendState = await racePracticeSetupService.getWeekendNormalState({
+            careerId,
+            seasonId,
+            round,
+            teamId: tId,
+            cars: [1, 2],
+          })
+          if (weekendState.status !== 'READY_FOR_Q1') {
+            throw new Error(
+              `Ordem de sessões violada: Q1 só pode ser iniciado a partir do estado READY_FOR_Q1 (TL3 concluído). Estado atual da equipe '${tId}': '${weekendState.status}'.`,
+            )
+          }
         }
       }
+
+      effectiveParticipants = participants
+    } else if (phase === 'Q2') {
+      // Q2 EXIGE Q1 CONCLUÍDO (READY_FOR_Q2)
+      const q1State = await this.loadPersistedPhaseState('Q1', careerId, seasonId, round)
+      if (!q1State || !q1State.isCompleted) {
+        throw new Error(
+          `Ordem de sessões violada: Q2 só pode ser iniciado após a conclusão do Q1 (READY_FOR_Q2). Q1 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+        )
+      }
+
+      // Herança esportiva estrita: os participantes de Q2 são EXATAMENTE os classificados de Q1
+      const q1ClassifiedSet = new Set(q1State.classifiedDriverIds)
+      const q1ClassifiedResults = q1State.results.filter((r) => q1ClassifiedSet.has(r.driverId))
+
+      // Se o chamador forneceu metadata adicional de pilotos, mescla atributos mantendo setup e integridade
+      const inputDriverMap = new Map((participants || []).map((p) => [p.driverId, p]))
+
+      effectiveParticipants = q1ClassifiedResults.map((r) => {
+        const extra = inputDriverMap.get(r.driverId)
+        return {
+          driverId: r.driverId,
+          driverName: r.driverName,
+          teamId: r.teamId,
+          teamName: r.teamName,
+          carIndex: r.carIndex,
+          carPerformance: extra?.carPerformance ?? 80,
+          speed: extra?.speed ?? 80,
+          qualifying: extra?.qualifying ?? 80,
+          form: extra?.form ?? 50,
+          morale: extra?.morale ?? 50,
+          wet_skill: extra?.wet_skill ?? 50,
+          setup: r.setup, // Mantém exatamente o mesmo setup dos TLs consolidado no Q1
+        }
+      })
+    } else if (phase === 'Q3') {
+      // Q3 EXIGE Q2 CONCLUÍDO (READY_FOR_Q3)
+      const q2State = await this.loadPersistedPhaseState('Q2', careerId, seasonId, round)
+      if (!q2State || !q2State.isCompleted) {
+        throw new Error(
+          `Ordem de sessões violada: Q3 só pode ser iniciado após a conclusão do Q2 (READY_FOR_Q3). Q2 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+        )
+      }
+
+      // Herança esportiva estrita: os participantes de Q3 são EXATAMENTE os classificados de Q2
+      const q2ClassifiedSet = new Set(q2State.classifiedDriverIds)
+      const q2ClassifiedResults = q2State.results.filter((r) => q2ClassifiedSet.has(r.driverId))
+
+      const inputDriverMap = new Map((participants || []).map((p) => [p.driverId, p]))
+
+      effectiveParticipants = q2ClassifiedResults.map((r) => {
+        const extra = inputDriverMap.get(r.driverId)
+        return {
+          driverId: r.driverId,
+          driverName: r.driverName,
+          teamId: r.teamId,
+          teamName: r.teamName,
+          carIndex: r.carIndex,
+          carPerformance: extra?.carPerformance ?? 80,
+          speed: extra?.speed ?? 80,
+          qualifying: extra?.qualifying ?? 80,
+          form: extra?.form ?? 50,
+          morale: extra?.morale ?? 50,
+          wet_skill: extra?.wet_skill ?? 50,
+          setup: r.setup, // Mantém exatamente o mesmo setup dos TLs consolidado
+        }
+      })
     }
 
     // 3. CARREGAR CONFIGURAÇÃO VERSIONADA
@@ -261,20 +466,22 @@ export class RaceQualifyingOrchestratorService {
     const raceParams = loadedConfig?.parameters ?? DEFAULT_SOURCE_RACE_PARAMETERS
 
     // 4. GARANTIR UNICIDADE DOS PARTICIPANTES
-    // Nenhum piloto ou vaga duplicada
     const seenDrivers = new Set<string>()
-    const uniqueParticipants: Q1DriverInput[] = []
-    for (const p of participants) {
+    const uniqueParticipants: QualifyingDriverInput[] = []
+    for (const p of effectiveParticipants) {
       if (!seenDrivers.has(p.driverId)) {
         seenDrivers.add(p.driverId)
         uniqueParticipants.push(p)
       }
     }
 
-    const { advancingCount, eliminatedCount } = this.resolveCutoffRules(uniqueParticipants.length)
+    const { advancingCount, eliminatedCount } = this.resolveCutoffRules(
+      uniqueParticipants.length,
+      phase,
+    )
 
-    // 5. PROCESSAMENTO DE CADA PARTICIPANTE (2 TENTATIVAS DETERMINÍSTICAS NO Q1)
-    const results: Q1ParticipantResult[] = []
+    // 5. PROCESSAMENTO DE CADA PARTICIPANTE (2 TENTATIVAS DETERMINÍSTICAS POR FASE)
+    const results: QualifyingParticipantResult[] = []
 
     for (let pIdx = 0; pIdx < uniqueParticipants.length; pIdx++) {
       const p = uniqueParticipants[pIdx]
@@ -321,14 +528,15 @@ export class RaceQualifyingOrchestratorService {
       const ratingGap = (100 - Math.min(100, Math.max(0, rating))) * 35
       const basePaceMs = trackRecordMs + ratingGap
 
-      // Duas tentativas oficiais no Q1
-      const attempts: Q1LapAttempt[] = []
+      // Duas tentativas oficiais por fase
+      const attempts: QualifyingLapAttempt[] = []
       let bestTimeMs = Infinity
       let appliedBonusMs = 0
 
       for (let attNum = 1; attNum <= 2; attNum++) {
-        // Identidade da tentativa no RNG: career + season + round + Q1 + entry/car + attempt
-        const seedIdentity = `${careerId}:${seasonId}:r${round}:Q1:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
+        // Identidade da tentativa no RNG: career + season + round + phase + entry/car + attempt
+        // Garante namespaces distintos para Q1, Q2 e Q3
+        const seedIdentity = `${careerId}:${seasonId}:r${round}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
         const seedUint = hashStringToUint32(seedIdentity)
         const rng = mulberry32(seedUint)
         const z = getStandardNormal(rng)
@@ -387,10 +595,13 @@ export class RaceQualifyingOrchestratorService {
       return a.driverId.localeCompare(b.driverId)
     })
 
-    // Atribuição de posições 1..N únicas
+    // Atribuição de posições 1..N únicas dentro da fase
     results.forEach((r, idx) => {
       r.position = idx + 1
-      if (idx < advancingCount) {
+      if (phase === 'Q3') {
+        r.isClassified = true
+        r.isEliminated = false
+      } else if (idx < advancingCount) {
         r.isClassified = true
         r.isEliminated = false
       } else {
@@ -402,13 +613,17 @@ export class RaceQualifyingOrchestratorService {
     const classifiedDriverIds = results.filter((r) => r.isClassified).map((r) => r.driverId)
     const eliminatedDriverIds = results.filter((r) => r.isEliminated).map((r) => r.driverId)
 
-    const finalState: Q1ExecutionState = {
+    const nextStatus: QualifyingPhaseStatus =
+      phase === 'Q1' ? 'READY_FOR_Q2' : phase === 'Q2' ? 'READY_FOR_Q3' : 'QUALIFYING_COMPLETE'
+
+    const finalState: QualifyingPhaseExecutionState = {
+      phase,
       careerId,
       seasonId,
       round,
       configVersion: loadedConfig?.version ?? configVersion,
       configSha256: loadedConfig?.sha256,
-      status: 'READY_FOR_Q2',
+      status: nextStatus,
       isCompleted: true,
       totalParticipants: uniqueParticipants.length,
       advancingCount,
@@ -422,37 +637,40 @@ export class RaceQualifyingOrchestratorService {
     }
 
     // 7. PERSISTÊNCIA CANÔNICA (PocketBase + Cache Local)
-    await this.persistQ1State(finalState)
+    await this.persistPhaseState(finalState)
     this.inMemoryCache.set(storageKey, finalState)
 
     return finalState
   }
 
   /**
-   * Consulta o estado salvo de Q1.
+   * Consulta o estado salvo de uma fase (Q1 | Q2 | Q3).
    */
-  public async loadPersistedQ1State(
+  public async loadPersistedPhaseState(
+    phase: QualifyingPhase,
     careerId: string,
     seasonId: string,
     round: number,
-  ): Promise<Q1ExecutionState | null> {
-    const storageKey = buildQ1StorageKey(careerId, seasonId, round)
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    const storageKey = buildQualifyingStorageKey(phase, careerId, seasonId, round)
+    const sessionName = phase.toLowerCase()
+    const stateProp = `${sessionName}State`
 
     // 1. Memória rápida
     if (this.inMemoryCache.has(storageKey)) {
       return this.inMemoryCache.get(storageKey)!
     }
 
-    // 2. PocketBase session_setups com session = 'q1'
+    // 2. PocketBase session_setups com session = 'q1' | 'q2' | 'q3'
     try {
       const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q1"`,
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${sessionName}"`,
       })
       if (records.items.length > 0) {
         const item = records.items[0]
         const strategies = (item.driver_strategies as any) || {}
-        if (strategies.q1State) {
-          const loaded = strategies.q1State as Q1ExecutionState
+        if (strategies[stateProp]) {
+          const loaded = strategies[stateProp] as QualifyingPhaseExecutionState
           this.inMemoryCache.set(storageKey, loaded)
           return loaded
         }
@@ -466,7 +684,7 @@ export class RaceQualifyingOrchestratorService {
       try {
         const raw = localStorage.getItem(storageKey)
         if (raw) {
-          const parsed = JSON.parse(raw) as Q1ExecutionState
+          const parsed = JSON.parse(raw) as QualifyingPhaseExecutionState
           this.inMemoryCache.set(storageKey, parsed)
           return parsed
         }
@@ -479,43 +697,81 @@ export class RaceQualifyingOrchestratorService {
   }
 
   /**
-   * Grava o estado de Q1 de forma resiliente.
+   * Alias de consulta para Q1 (compatibilidade com RACE-QUALI-01A1).
    */
-  private async persistQ1State(state: Q1ExecutionState): Promise<void> {
-    const { careerId, seasonId, round } = state
-    const storageKey = buildQ1StorageKey(careerId, seasonId, round)
+  public async loadPersistedQ1State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('Q1', careerId, seasonId, round)
+  }
+
+  /**
+   * Alias de consulta para Q2.
+   */
+  public async loadPersistedQ2State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('Q2', careerId, seasonId, round)
+  }
+
+  /**
+   * Alias de consulta para Q3.
+   */
+  public async loadPersistedQ3State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('Q3', careerId, seasonId, round)
+  }
+
+  /**
+   * Grava o estado de qualquer fase (Q1 | Q2 | Q3) de forma resiliente.
+   */
+  public async persistPhaseState(state: QualifyingPhaseExecutionState): Promise<void> {
+    const { phase, careerId, seasonId, round, status } = state
+    const storageKey = buildQualifyingStorageKey(phase, careerId, seasonId, round)
+    const sessionName = phase.toLowerCase()
+    const stateProp = `${sessionName}State`
 
     // 1. Gravação no PocketBase
     try {
       const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q1"`,
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${sessionName}"`,
       })
 
       if (records.items.length > 0) {
         const existing = records.items[0]
         const strategies = (existing.driver_strategies as any) || {}
-        strategies.q1State = state
+        strategies[stateProp] = state
         await pb.collection('session_setups').update(existing.id, {
           driver_strategies: strategies,
-          notes: JSON.stringify({ phase: 'READY_FOR_Q2', completed: true }),
+          notes: JSON.stringify({ phase: status, completed: true }),
         })
       } else {
         await pb.collection('session_setups').create({
           team_id: careerId,
           season_id: seasonId,
           round,
-          session: 'q1',
+          session: sessionName,
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
-            q1State: state,
+            [stateProp]: state,
           },
-          notes: JSON.stringify({ phase: 'READY_FOR_Q2', completed: true }),
+          notes: JSON.stringify({ phase: status, completed: true }),
         })
       }
     } catch (err) {
-      console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir Q1 no PocketBase:`, err)
+      console.warn(
+        `[RaceQualifyingOrchestratorService] Erro ao persistir ${phase} no PocketBase:`,
+        err,
+      )
     }
 
     // 2. Gravação no Cache Local
@@ -526,6 +782,13 @@ export class RaceQualifyingOrchestratorService {
         // ignore
       }
     }
+  }
+
+  /**
+   * Grava o estado de Q1 de forma resiliente (compatibilidade retroativa).
+   */
+  public async persistQ1State(state: QualifyingPhaseExecutionState): Promise<void> {
+    return this.persistPhaseState({ ...state, phase: 'Q1' })
   }
 
   /**
