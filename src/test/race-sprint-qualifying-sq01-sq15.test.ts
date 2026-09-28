@@ -165,15 +165,35 @@ describe('RACE-SPRINT-SLOTS-01B1 — Homologação SQ1 (SQ1-01 a SQ1-12)', () =>
     expect(q1State.status).toBe('READY_FOR_Q2')
 
     // 3. Prova que as chaves de armazenamento são distintas
-    const sq1Key = buildQualifyingStorageKey('SQ1', careerId, seasonId, roundSprint, 'SPRINT_QUALIFYING')
-    const q1Key = buildQualifyingStorageKey('Q1', careerId, seasonId, roundSprint, 'MAIN_QUALIFYING')
+    const sq1Key = buildQualifyingStorageKey(
+      'SQ1',
+      careerId,
+      seasonId,
+      roundSprint,
+      'SPRINT_QUALIFYING',
+    )
+    const q1Key = buildQualifyingStorageKey(
+      'Q1',
+      careerId,
+      seasonId,
+      roundSprint,
+      'MAIN_QUALIFYING',
+    )
     expect(sq1Key).not.toBe(q1Key)
     expect(sq1Key).toContain('sprint_sq1')
     expect(q1Key).toContain('q1')
 
     // 4. Prova que a persistência de SQ1 não sobrescreveu Q1 e vice-versa
-    const loadedSQ1 = await raceQualifyingOrchestratorService.loadPersistedSQ1State(careerId, seasonId, roundSprint)
-    const loadedQ1 = await raceQualifyingOrchestratorService.loadPersistedQ1State(careerId, seasonId, roundSprint)
+    const loadedSQ1 = await raceQualifyingOrchestratorService.loadPersistedSQ1State(
+      careerId,
+      seasonId,
+      roundSprint,
+    )
+    const loadedQ1 = await raceQualifyingOrchestratorService.loadPersistedQ1State(
+      careerId,
+      seasonId,
+      roundSprint,
+    )
 
     expect(loadedSQ1).not.toBeNull()
     expect(loadedQ1).not.toBeNull()
@@ -203,7 +223,11 @@ describe('RACE-SPRINT-SLOTS-01B1 — Homologação SQ1 (SQ1-01 a SQ1-12)', () =>
     ).rejects.toThrow(/Quali Sprint \(SQ1\) só é permitida em finais de semana Sprint/)
 
     // Prova que nada foi persistido em round 1
-    const storedR1 = await raceQualifyingOrchestratorService.loadPersistedSQ1State(careerId, seasonId, 1)
+    const storedR1 = await raceQualifyingOrchestratorService.loadPersistedSQ1State(
+      careerId,
+      seasonId,
+      1,
+    )
     expect(storedR1).toBeNull()
 
     // Caso B: Weekend SPRINT (Round 2 China) mas no slot 1 (TL1 não concluído)
@@ -231,7 +255,11 @@ describe('RACE-SPRINT-SLOTS-01B1 — Homologação SQ1 (SQ1-01 a SQ1-12)', () =>
       round: 2,
     })
     expect(checkSlot.currentSlot).toBe(1)
-    const storedR2 = await raceQualifyingOrchestratorService.loadPersistedSQ1State(careerId, seasonId, 2)
+    const storedR2 = await raceQualifyingOrchestratorService.loadPersistedSQ1State(
+      careerId,
+      seasonId,
+      2,
+    )
     expect(storedR2).toBeNull()
 
     // Caso C: Weekend SPRINT no slot 2 é aceito
@@ -339,7 +367,11 @@ describe('RACE-SPRINT-SLOTS-01B1 — Homologação SQ1 (SQ1-01 a SQ1-12)', () =>
     expect(sq1State.status).toBe('READY_FOR_SQ2')
 
     // Prova que SQ2 NÃO foi executado
-    const sq2Loaded = await raceQualifyingOrchestratorService.loadPersistedSQ2State(careerId, seasonId, round)
+    const sq2Loaded = await raceQualifyingOrchestratorService.loadPersistedSQ2State(
+      careerId,
+      seasonId,
+      round,
+    )
     expect(sq2Loaded).toBeNull()
   })
 
@@ -526,7 +558,11 @@ describe('RACE-SPRINT-SLOTS-01B1 — Homologação SQ1 (SQ1-01 a SQ1-12)', () =>
     raceQualifyingOrchestratorService.clearMemoryCache()
 
     // Carrega do armazenamento
-    const reloaded = await raceQualifyingOrchestratorService.loadPersistedSQ1State(careerId, seasonId, round)
+    const reloaded = await raceQualifyingOrchestratorService.loadPersistedSQ1State(
+      careerId,
+      seasonId,
+      round,
+    )
 
     expect(reloaded).not.toBeNull()
     expect(reloaded?.status).toBe('READY_FOR_SQ2')
@@ -558,11 +594,19 @@ describe('RACE-SPRINT-SLOTS-01B1 — Homologação SQ1 (SQ1-01 a SQ1-12)', () =>
     })
 
     // Rodada 2 da Carreira B (ainda não executou)
-    const sq1B = await raceQualifyingOrchestratorService.loadPersistedSQ1State('career_iso_B', 'season_2026', 2)
+    const sq1B = await raceQualifyingOrchestratorService.loadPersistedSQ1State(
+      'career_iso_B',
+      'season_2026',
+      2,
+    )
     expect(sq1B).toBeNull()
 
     // Rodada 6 (outra rodada Sprint) da Carreira A
-    const sq1Round6 = await raceQualifyingOrchestratorService.loadPersistedSQ1State('career_iso_A', 'season_2026', 6)
+    const sq1Round6 = await raceQualifyingOrchestratorService.loadPersistedSQ1State(
+      'career_iso_A',
+      'season_2026',
+      6,
+    )
     expect(sq1Round6).toBeNull()
   })
 
