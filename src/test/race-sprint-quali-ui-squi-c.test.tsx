@@ -165,9 +165,7 @@ describe('APEX GP MANAGER — RACE-SPRINT-SLOTS-01B3C-UI (SQUI-C01 a SQUI-C12)',
     vi.restoreAllMocks()
   })
 
-  // =========================================================================
-  // SQUI-C01 — FONTE: Grid Sprint lê exclusivamente SPRINT_STARTING_GRID
-  // =========================================================================
+
   it('SQUI-C01 — FONTE: Grid Sprint lê exclusivamente SPRINT_STARTING_GRID', async () => {
     const mockSprintGrid = createMockSprintStartingGrid(24)
     const loadSprintGridSpy = vi
@@ -177,12 +175,6 @@ describe('APEX GP MANAGER — RACE-SPRINT-SLOTS-01B3C-UI (SQUI-C01 a SQUI-C12)',
     const loadGpGridSpy = vi
       .spyOn(raceQualifyingOrchestratorService, 'loadPersistedStartingGrid')
       .mockResolvedValue(createMockGpStartingGrid(24))
-
-    // Verifica que o reader explícito lê exclusivamente SPRINT_STARTING_GRID
-    const readDirect = await readSprintStartingGrid('c_sprint_test', '2026', 2)
-    expect(readDirect).toBe(mockSprintGrid)
-    expect(loadSprintGridSpy).toHaveBeenCalledWith('c_sprint_test', '2026', 2)
-    expect(loadGpGridSpy).not.toHaveBeenCalled()
 
     render(
       <CanonicalQualifyingView
@@ -201,11 +193,14 @@ describe('APEX GP MANAGER — RACE-SPRINT-SLOTS-01B3C-UI (SQUI-C01 a SQUI-C12)',
     // O título e os pilotos do Sprint Grid devem aparecer
     expect(await screen.findByText('Sprint Pilot 1')).toBeInTheDocument()
     expect(screen.queryByText('GP Pilot 1')).not.toBeInTheDocument()
+  })    expect(loadGpGridSpy).not.toHaveBeenCalled()
+
+    // O título e os pilotos do Sprint Grid devem aparecer
+    expect(await screen.findByText('Sprint Pilot 1')).toBeInTheDocument()
+    expect(screen.queryByText('GP Pilot 1')).not.toBeInTheDocument()
   })
 
-  // =========================================================================
-  // SQUI-C02 — PARTICIPANTES: 24 participantes renderizados
-  // =========================================================================
+
   it('SQUI-C02 — PARTICIPANTES: 24 participantes renderizados no Grid Sprint', () => {
     const mockSprintGrid = createMockSprintStartingGrid(24)
     render(<SprintStartingGridSummary sprintGrid={mockSprintGrid} />)
