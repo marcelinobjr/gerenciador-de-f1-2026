@@ -298,20 +298,6 @@ export const QualifyingPhaseView: React.FC<QualifyingPhaseViewProps> = ({
                       <td className="px-3 py-3 text-right font-mono text-xs">
                         {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
                       </td>
-                      {r.compoundUsed && (
-                        <td className="px-2 py-3 text-center">
-                          <Badge
-                            variant="outline"
-                            className={
-                              r.compoundUsed === 'MEDIUM'
-                                ? 'border-amber-400 text-amber-500 text-[10px] font-bold px-1 py-0'
-                                : 'border-red-500 text-red-500 text-[10px] font-bold px-1 py-0'
-                            }
-                          >
-                            {r.compoundUsed === 'MEDIUM' ? 'M (+0.65s)' : 'S (0s)'}
-                          </Badge>
-                        </td>
-                      )}
                       <td
                         className={`px-4 py-3 text-right font-mono text-xs ${
                           phase === 'Q3' || phase === 'SQ3' ? 'font-bold' : ''

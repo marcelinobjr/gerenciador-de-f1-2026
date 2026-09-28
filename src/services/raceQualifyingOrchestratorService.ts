@@ -1279,7 +1279,24 @@ export class RaceQualifyingOrchestratorService {
     seasonId: string,
     round: number,
   ): Promise<QualifyingPhaseExecutionState | null> {
-    return this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+    // Busca primária pelo namespace canônico SQ1
+    const state = await this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+    if (state) return state
+
+    // Suporte a chave legada/alternativa: apex_sprint_qualifying_phase_sq1_*
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const legacyKey = `apex_sprint_qualifying_phase_sq1_${careerId}_${seasonId}_r${round}`
+        const raw = localStorage.getItem(legacyKey)
+        if (raw) {
+          const parsed = JSON.parse(raw) as QualifyingPhaseExecutionState
+          return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null
   }
 
   /**
