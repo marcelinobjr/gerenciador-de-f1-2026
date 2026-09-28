@@ -19,12 +19,7 @@ export type WeekendSlotType =
   | 'Q3'
   | 'CORRIDA'
 
-export type WeekendSlotStatus =
-  | 'LOCKED'
-  | 'AVAILABLE'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'NOT_RUN'
+export type WeekendSlotStatus = 'LOCKED' | 'AVAILABLE' | 'IN_PROGRESS' | 'COMPLETED' | 'NOT_RUN'
 
 export interface WeekendSlotDefinition {
   slotNumber: WeekendSlotNumber
