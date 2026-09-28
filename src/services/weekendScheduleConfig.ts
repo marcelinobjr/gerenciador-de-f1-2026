@@ -71,7 +71,7 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       category: 'qualifying',
       order: 4,
       isPlayableInV2: true,
-      blockedMessage: 'Disponível após conclusão do TL2.',
+      blockedMessage: 'Disponível após conclusão do TL3.',
     },
     q2: {
       id: 'q2',
@@ -110,7 +110,10 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
 export function getRaceWeekendPipeline(
   options?: WeekendScheduleOptions,
 ): WeekendSessionDefinition[] {
-  const includeP3 = options?.includePractice3 ?? false
+  // No formato padrão/normal F1, TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> Corrida.
+  // includePractice3 tem padrão true para standard/normal (a menos que explicitamente false ou formato sprint).
+  const isSprint = options?.format === 'sprint'
+  const includeP3 = isSprint ? false : (options?.includePractice3 ?? true)
 
   const baseSequence: RaceWeekendSessionId[] = includeP3
     ? ['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race']
@@ -159,9 +162,9 @@ export function resolveSessionVisualState(params: {
     return completedSessions.includes('tp2') ? 'available' : 'locked'
   }
 
-  // Q1 requer conclusão dos treinos (TL2, ou TL3 se incluso)
+  // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído.
   if (sessionId === 'q1') {
-    return completedSessions.includes('tp2') ? 'available' : 'locked'
+    return completedSessions.includes('tp3') ? 'available' : 'locked'
   }
 
   if (sessionId === 'q2') {
