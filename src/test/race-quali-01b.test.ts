@@ -29,6 +29,7 @@ import {
   raceQualifyingOrchestratorService,
   QualifyingDriverInput,
   buildGlobalQualifyingStorageKey,
+  buildStartingGridStorageKey,
 } from '@/services/raceQualifyingOrchestratorService'
 import { DEFAULT_SOURCE_RACE_PARAMETERS } from '@/lib/race/pureRaceEngine'
 import { DEFAULT_RACE_DRAFT_VERSION } from '@/lib/race/loader'
@@ -546,5 +547,424 @@ describe('RACE-QUALI-01B, ETAPA 1: QUALIFYING_RESULT GLOBAL (Testes QB01–QB07)
     }))
 
     expect(run3Order).toEqual(run1Order)
+  })
+
+  // =========================================================================
+  // QB08: SEM PENALIDADES — STARTING_GRID == QUALIFYING_RESULT
+  // =========================================================================
+  it('QB08: SEM PENALIDADES — STARTING_GRID == QUALIFYING_RESULT, 24 participantes, mesma ordem, qualifyingPosition == gridPosition', async () => {
+    const context = {
+      careerId: 'career_qb08',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    await prepareQualifyingComplete(context)
+    const globalResult =
+      await raceQualifyingOrchestratorService.buildGlobalQualifyingResult(context)
+
+    const startingGridState = await raceQualifyingOrchestratorService.buildStartingGrid(context)
+
+    expect(startingGridState.status).toBe('GRID_READY')
+    expect(startingGridState.totalParticipants).toBe(24)
+    expect(startingGridState.grid).toHaveLength(24)
+
+    // Sem penalidades: para todos os 24 carros, qualifyingPosition == gridPosition e ordem idêntica
+    for (let i = 0; i < 24; i++) {
+      const gridItem = startingGridState.grid[i]
+      const qualiItem = globalResult.results[i]
+
+      expect(gridItem.gridPosition).toBe(i + 1)
+      expect(gridItem.qualifyingPosition).toBe(i + 1)
+      expect(gridItem.driverId).toBe(qualiItem.driverId)
+      expect(gridItem.hasPenalty).toBe(false)
+      expect(gridItem.totalPenaltyPositions).toBe(0)
+    }
+
+    expect(startingGridState.poleDriverId).toBe(globalResult.poleDriverId)
+  })
+
+  // =========================================================================
+  // QB09: PENALIDADE CANÔNICA DE PU — qualifyingPosition imutável, gridPosition alterada, bijeção
+  // =========================================================================
+  it('QB09: PENALIDADE CANÔNICA — usa fixture de penalidade de PU (+10), qualifyingPosition imutável, gridPosition alterada, reordenação bijetiva', async () => {
+    const context = {
+      careerId: 'career_qb09',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    await prepareQualifyingComplete(context)
+    const globalResult =
+      await raceQualifyingOrchestratorService.buildGlobalQualifyingResult(context)
+
+    // Piloto classificado em P3 recebe penalidade regulamentar canônica de PU5 (+10 posições)
+    const p3Quali = globalResult.results.find((r) => r.position === 3)!
+    expect(p3Quali).toBeDefined()
+
+    const startingGridState = await raceQualifyingOrchestratorService.buildStartingGrid({
+      ...context,
+      penaltiesByDriverId: {
+        [p3Quali.driverId]: [
+          {
+            id: `pu_pen_${p3Quali.driverId}_u5`,
+            unitIndex: 5,
+            positions: 10,
+            reason: 'Excesso de cota anual de PU (PU5: +10 posições)',
+          },
+        ],
+      },
+    })
+
+    // Piloto penalizado
+    const penalizedGridEntry = startingGridState.grid.find((g) => g.driverId === p3Quali.driverId)!
+    expect(penalizedGridEntry).toBeDefined()
+    // qualifyingPosition permanece estritamente P3 (imutável)
+    expect(penalizedGridEntry.qualifyingPosition).toBe(3)
+    // gridPosition foi deslocada para trás (alvo provisório 3 + 10 = 13)
+    expect(penalizedGridEntry.gridPosition).toBe(13)
+    expect(penalizedGridEntry.hasPenalty).toBe(true)
+    expect(penalizedGridEntry.totalPenaltyPositions).toBe(10)
+    expect(penalizedGridEntry.penaltyReason).toContain('PU5')
+
+    // P1 e P2 continuam P1 e P2
+    expect(startingGridState.grid[0].driverId).toBe(globalResult.results[0].driverId)
+    expect(startingGridState.grid[0].gridPosition).toBe(1)
+    expect(startingGridState.grid[0].qualifyingPosition).toBe(1)
+
+    expect(startingGridState.grid[1].driverId).toBe(globalResult.results[1].driverId)
+    expect(startingGridState.grid[1].gridPosition).toBe(2)
+    expect(startingGridState.grid[1].qualifyingPosition).toBe(2)
+
+    // Pilotos entre P4 e P13 foram promovidos uma posição
+    for (let p = 4; p <= 13; p++) {
+      const origDriver = globalResult.results.find((r) => r.position === p)!
+      const newGridItem = startingGridState.grid.find((g) => g.driverId === origDriver.driverId)!
+      expect(newGridItem.qualifyingPosition).toBe(p)
+      expect(newGridItem.gridPosition).toBe(p - 1)
+    }
+
+    // Bijeção total preservada
+    const gridPositions = startingGridState.grid.map((g) => g.gridPosition).sort((a, b) => a - b)
+    expect(gridPositions).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
+  })
+
+  // =========================================================================
+  // QB10: IDEMPOTÊNCIA DA PENALIDADE
+  // =========================================================================
+  it('QB10: IDEMPOTÊNCIA DA PENALIDADE — gerar novamente ou recarregar não reaplica penalidade nem adiciona novo deslocamento', async () => {
+    const context = {
+      careerId: 'career_qb10',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    await prepareQualifyingComplete(context)
+    const globalResult =
+      await raceQualifyingOrchestratorService.buildGlobalQualifyingResult(context)
+
+    const p3Quali = globalResult.results.find((r) => r.position === 3)!
+
+    const penaltyParams = {
+      ...context,
+      penaltiesByDriverId: {
+        [p3Quali.driverId]: [
+          {
+            id: `pu_pen_${p3Quali.driverId}_u5`,
+            unitIndex: 5,
+            positions: 10,
+            reason: 'PU5 +10',
+          },
+        ],
+      },
+    }
+
+    // 1ª execução
+    const grid1 = await raceQualifyingOrchestratorService.buildStartingGrid(penaltyParams)
+    const p3First = grid1.grid.find((g) => g.driverId === p3Quali.driverId)!
+    expect(p3First.gridPosition).toBe(13)
+    expect(p3First.qualifyingPosition).toBe(3)
+
+    // 2ª execução repetida na mesma instância
+    const grid2 = await raceQualifyingOrchestratorService.buildStartingGrid(penaltyParams)
+    const p3Second = grid2.grid.find((g) => g.driverId === p3Quali.driverId)!
+    expect(p3Second.gridPosition).toBe(13) // Não vira 23
+    expect(p3Second.qualifyingPosition).toBe(3)
+
+    // 3ª execução: simulação de RELOAD (nova instância de serviço, cache de memória limpo)
+    const reloadedService = new RaceQualifyingOrchestratorService()
+    const grid3 = await reloadedService.buildStartingGrid(penaltyParams)
+    const p3Third = grid3.grid.find((g) => g.driverId === p3Quali.driverId)!
+    expect(p3Third.gridPosition).toBe(13)
+    expect(p3Third.qualifyingPosition).toBe(3)
+
+    expect(grid1.grid.map((g) => g.gridPosition)).toEqual(grid3.grid.map((g) => g.gridPosition))
+    expect(grid1.grid.map((g) => g.driverId)).toEqual(grid3.grid.map((g) => g.driverId))
+  })
+
+  // =========================================================================
+  // QB11: GRID COMPLETO BIJETIVO — 24 participantes, zero duplicados, zero ausentes
+  // =========================================================================
+  it('QB11: GRID COMPLETO — após múltiplas penalidades, 24 participantes únicos, P1–P24 contínuos, zero duplicados/ausentes', async () => {
+    const context = {
+      careerId: 'career_qb11',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    await prepareQualifyingComplete(context)
+    const globalResult =
+      await raceQualifyingOrchestratorService.buildGlobalQualifyingResult(context)
+
+    // Aplicar penalidades múltiplas (PU5 de 10 posições em P1 e PU6 de 5 posições em P5)
+    const p1Driver = globalResult.results[0].driverId
+    const p5Driver = globalResult.results[4].driverId
+
+    const startingGridState = await raceQualifyingOrchestratorService.buildStartingGrid({
+      ...context,
+      penaltiesByDriverId: {
+        [p1Driver]: [{ id: 'pen_1', unitIndex: 5, positions: 10, reason: 'PU5 +10' }],
+        [p5Driver]: [{ id: 'pen_2', unitIndex: 6, positions: 5, reason: 'PU6 +5' }],
+      },
+    })
+
+    expect(startingGridState.grid).toHaveLength(24)
+
+    // Unicidade de pilotos
+    const driverIds = startingGridState.grid.map((g) => g.driverId)
+    const uniqueDrivers = new Set(driverIds)
+    expect(uniqueDrivers.size).toBe(24)
+
+    // Posições P1..P24 contínuas e bijetivas
+    const positions = startingGridState.grid.map((g) => g.gridPosition).sort((a, b) => a - b)
+    expect(positions).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
+    expect(new Set(positions).size).toBe(24)
+
+    // Identidade do carro (carIndex 1 ou 2) preservada
+    for (const entry of startingGridState.grid) {
+      expect([1, 2]).toContain(entry.carIndex)
+    }
+  })
+
+  // =========================================================================
+  // QB12: ISOLAMENTO ESTREITO ENTRE CARREIRAS E RODADAS
+  // =========================================================================
+  it('QB12: ISOLAMENTO — outra carreira ou rodada não compartilha penalidade, STARTING_GRID nem posições', async () => {
+    const contextA = { careerId: 'career_qb12_A', seasonId: 'season_2026', round: 1 }
+    const contextB = { careerId: 'career_qb12_B', seasonId: 'season_2026', round: 1 }
+
+    await prepareQualifyingComplete(contextA)
+    await prepareQualifyingComplete(contextB)
+
+    // Carreira A aplica penalidade no piloto P1
+    const qualiA = await raceQualifyingOrchestratorService.buildGlobalQualifyingResult(contextA)
+    const p1A = qualiA.results[0].driverId
+
+    const gridA = await raceQualifyingOrchestratorService.buildStartingGrid({
+      ...contextA,
+      penaltiesByDriverId: {
+        [p1A]: [{ id: 'pen_A', unitIndex: 5, positions: 10, reason: 'PU5' }],
+      },
+    })
+
+    // Carreira B roda sem penalidades
+    const gridB = await raceQualifyingOrchestratorService.buildStartingGrid(contextB)
+
+    // Carreira A teve P1 movido para trás
+    const p1AEntry = gridA.grid.find((g) => g.driverId === p1A)!
+    expect(p1AEntry.gridPosition).toBeGreaterThan(1)
+    expect(p1AEntry.hasPenalty).toBe(true)
+
+    // Carreira B não teve nenhuma penalidade
+    expect(gridB.grid.every((g) => !g.hasPenalty)).toBe(true)
+    expect(gridB.grid[0].gridPosition).toBe(1)
+    expect(gridB.grid[0].qualifyingPosition).toBe(1)
+  })
+
+  // =========================================================================
+  // QB13: RELOAD — Fluxo Direto vs Save/Reload Real
+  // =========================================================================
+  it('QB13: RELOAD — Fluxo A (direto em memória) vs Fluxo B (save/reload real descartando cache) produzem resultados idênticos', async () => {
+    const context = {
+      careerId: 'career_qb13',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    await prepareQualifyingComplete(context)
+    const globalResult =
+      await raceQualifyingOrchestratorService.buildGlobalQualifyingResult(context)
+
+    const p4Driver = globalResult.results[3].driverId
+    const penaltyParams = {
+      ...context,
+      penaltiesByDriverId: {
+        [p4Driver]: [{ id: 'pen_p4', unitIndex: 5, positions: 5, reason: 'PU6 +5' }],
+      },
+    }
+
+    // Fluxo A: direto
+    const gridFlowA = await raceQualifyingOrchestratorService.buildStartingGrid(penaltyParams)
+
+    // Fluxo B: descartar cache em memória simulando reload completo da página/app
+    const cleanReloadedService = new RaceQualifyingOrchestratorService()
+    const loadedGrid = await cleanReloadedService.loadPersistedStartingGrid(
+      context.careerId,
+      context.seasonId,
+      context.round,
+    )
+
+    expect(loadedGrid).not.toBeNull()
+    expect(loadedGrid?.status).toBe('GRID_READY')
+    expect(loadedGrid?.grid).toHaveLength(24)
+
+    // O grid recarregado deve ser estritamente idêntico ao do Fluxo A
+    expect(
+      loadedGrid?.grid.map((g) => ({
+        pos: g.gridPosition,
+        qPos: g.qualifyingPosition,
+        id: g.driverId,
+      })),
+    ).toEqual(
+      gridFlowA.grid.map((g) => ({
+        pos: g.gridPosition,
+        qPos: g.qualifyingPosition,
+        id: g.driverId,
+      })),
+    )
+  })
+
+  // =========================================================================
+  // QB14: IMUTABILIDADE DO QUALIFYING_RESULT
+  // =========================================================================
+  it('QB14: IMUTABILIDADE — gerar STARTING_GRID não altera Q1, Q2, Q3, QUALIFYING_RESULT nem qualifyingPosition', async () => {
+    const context = {
+      careerId: 'career_qb14',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    const { q1State, q2State, q3State } = await prepareQualifyingComplete(context)
+    const globalBefore =
+      await raceQualifyingOrchestratorService.buildGlobalQualifyingResult(context)
+
+    // Foto imutável de Q1, Q2, Q3 e QUALIFYING_RESULT
+    const q1Snapshot = JSON.stringify(q1State)
+    const q2Snapshot = JSON.stringify(q2State)
+    const q3Snapshot = JSON.stringify(q3State)
+    const globalSnapshot = JSON.stringify(globalBefore)
+
+    // Executa buildStartingGrid com penalidades severas
+    const p2Driver = globalBefore.results[1].driverId
+    const p3Driver = globalBefore.results[2].driverId
+
+    await raceQualifyingOrchestratorService.buildStartingGrid({
+      ...context,
+      penaltiesByDriverId: {
+        [p2Driver]: [{ id: 'pen_1', unitIndex: 5, positions: 10, reason: 'PU5' }],
+        [p3Driver]: [{ id: 'pen_2', unitIndex: 6, positions: 5, reason: 'PU6' }],
+      },
+    })
+
+    // Recarregar os artefatos das etapas anteriores
+    const q1After = await raceQualifyingOrchestratorService.loadPersistedPhaseState(
+      'Q1',
+      context.careerId,
+      context.seasonId,
+      context.round,
+    )
+    const q2After = await raceQualifyingOrchestratorService.loadPersistedPhaseState(
+      'Q2',
+      context.careerId,
+      context.seasonId,
+      context.round,
+    )
+    const q3After = await raceQualifyingOrchestratorService.loadPersistedPhaseState(
+      'Q3',
+      context.careerId,
+      context.seasonId,
+      context.round,
+    )
+    const globalAfter = await raceQualifyingOrchestratorService.loadPersistedGlobalQualifyingResult(
+      context.careerId,
+      context.seasonId,
+      context.round,
+    )
+
+    expect(JSON.stringify(q1After)).toBe(q1Snapshot)
+    expect(JSON.stringify(q2After)).toBe(q2Snapshot)
+    expect(JSON.stringify(q3After)).toBe(q3Snapshot)
+    expect(JSON.stringify(globalAfter)).toBe(globalSnapshot)
+
+    // Garantir que a ordem P1..P24 do QUALIFYING_RESULT permanece intacta
+    expect(globalAfter?.results[1].position).toBe(2)
+    expect(globalAfter?.results[1].driverId).toBe(p2Driver)
+    expect(globalAfter?.results[2].position).toBe(3)
+    expect(globalAfter?.results[2].driverId).toBe(p3Driver)
+  })
+
+  // =========================================================================
+  // REGRESSÃO DO BUG DE GRID DUPLICADO & RECUPERAÇÃO DE FALHA PARCIAL
+  // =========================================================================
+  it('REGRESSÃO DO BUG DE GRID DUPLICADO: 24 pilotos == 24 carros/entradas, falha no domínio se duplicado', async () => {
+    const context = {
+      careerId: 'career_duplicate_regression',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    await prepareQualifyingComplete(context)
+    const startingGrid = await raceQualifyingOrchestratorService.buildStartingGrid(context)
+
+    const participantCount = 24
+    const driverIds = new Set(startingGrid.grid.map((g) => g.driverId))
+    const entryKeys = new Set(startingGrid.grid.map((g) => `${g.teamId}_${g.carIndex}`))
+
+    expect(driverIds.size).toBe(participantCount)
+    expect(entryKeys.size).toBe(participantCount)
+    expect(startingGrid.grid.length).toBe(participantCount)
+
+    // Prova de falha imediata no domínio se o resultado possuir duplicata:
+    const corruptService = new RaceQualifyingOrchestratorService()
+    const globalQuali = await raceQualifyingOrchestratorService.loadPersistedGlobalQualifyingResult(
+      context.careerId,
+      context.seasonId,
+      context.round,
+    )
+    expect(globalQuali).not.toBeNull()
+
+    // Injeta piloto duplicado forçado
+    const corruptedResults = [
+      ...globalQuali!.results.slice(0, 23),
+      { ...globalQuali!.results[0], position: 24 },
+    ]
+    const corruptedQuali = { ...globalQuali!, results: corruptedResults }
+    await corruptService.persistGlobalQualifyingResult(corruptedQuali as any)
+    corruptService.clearMemoryCache()
+
+    await expect(
+      corruptService.buildStartingGrid({
+        careerId: context.careerId,
+        seasonId: context.seasonId,
+        round: context.round,
+      }),
+    ).rejects.toThrow(/Regressão de pilotos duplicados detectada no STARTING_GRID/)
+  })
+
+  it('RECUPERAÇÃO DE FALHA PARCIAL: grid persistido mas status intermediário conclui GRID_READY sem recalcular', async () => {
+    const context = {
+      careerId: 'career_partial_failure',
+      seasonId: 'season_2026',
+      round: 1,
+    }
+    await prepareQualifyingComplete(context)
+    const fullGrid = await raceQualifyingOrchestratorService.buildStartingGrid(context)
+
+    // Simula estado persistido onde status ficou como STARTING_GRID_READY
+    const partialState = {
+      ...fullGrid,
+      status: 'STARTING_GRID_READY' as const,
+    }
+    const partialService = new RaceQualifyingOrchestratorService()
+    await partialService.persistStartingGrid(partialState)
+    partialService.clearMemoryCache()
+
+    // O retry deve completar transição para GRID_READY sem recalcular
+    const recovered = await partialService.buildStartingGrid(context)
+    expect(recovered.status).toBe('GRID_READY')
+    expect(recovered.grid).toEqual(fullGrid.grid)
   })
 })

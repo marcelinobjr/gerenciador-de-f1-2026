@@ -48,6 +48,8 @@ export type QualifyingPhaseStatus =
   | 'Q3_COMPLETE'
   | 'QUALIFYING_COMPLETE'
   | 'QUALIFYING_RESULT_READY'
+  | 'STARTING_GRID_READY'
+  | 'GRID_READY'
 
 export interface QualifyingDriverInput {
   driverId: string
@@ -154,6 +156,56 @@ export interface GlobalQualifyingResultState {
   updatedAt: string
 }
 
+export interface GridPenaltyApplied {
+  id?: string
+  unitIndex?: number
+  positions: number
+  reason: string
+  appliedAt?: string
+  source?: string
+}
+
+export interface StartingGridEntry {
+  gridPosition: number // P1..P24 efetivo de largada
+  qualifyingPosition: number // P1..P24 classificação pura imutável
+  driverId: string
+  driverName: string
+  teamId: string
+  teamName: string
+  carIndex: 1 | 2
+  eliminationPhase: 'Q1' | 'Q2' | 'Q3'
+  qualifyingTimeMs: number
+  formattedQualifyingTime: string
+  setup: number
+  penalties: GridPenaltyApplied[]
+  totalPenaltyPositions: number
+  hasPenalty: boolean
+  penaltyReason?: string
+}
+
+export interface StartingGridState {
+  careerId: string
+  seasonId: string
+  round: number
+  configVersion: string
+  configSha256?: string
+  status: 'STARTING_GRID_READY' | 'GRID_READY'
+  totalParticipants: number
+  grid: StartingGridEntry[]
+  poleDriverId: string
+  poleDriverName: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BuildStartingGridParams {
+  careerId: string
+  seasonId: string
+  round: number
+  penaltiesByTeamId?: Record<string, GridPenaltyApplied[]>
+  penaltiesByDriverId?: Record<string, GridPenaltyApplied[]>
+}
+
 export interface ExecuteQ1Params {
   careerId: string
   seasonId: string
@@ -256,6 +308,14 @@ export function buildGlobalQualifyingStorageKey(
   round: number,
 ): string {
   return `apex_qualifying_result_state_${careerId}_${seasonId}_r${round}`
+}
+
+export function buildStartingGridStorageKey(
+  careerId: string,
+  seasonId: string,
+  round: number,
+): string {
+  return `apex_starting_grid_state_${careerId}_${seasonId}_r${round}`
 }
 
 export class RaceQualifyingOrchestratorService {
@@ -1176,6 +1236,310 @@ export class RaceQualifyingOrchestratorService {
         `[RaceQualifyingOrchestratorService] Erro ao persistir resultado global no PocketBase:`,
         err,
       )
+    }
+
+    // 2. Gravação no Cache Local
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Constrói e persiste o STARTING_GRID (transição para GRID_READY) a partir de:
+   * 1. QUALIFYING_RESULT imutável (fato esportivo P1..P24).
+   * 2. Penalidades regulamentares existentes (PU5 = +10, PU6+ = +5 em teams.grid_penalties / f1Service).
+   *
+   * POLÍTICA DETERMINÍSTICA E REGRAS:
+   * - qualifyingPosition permanece estritamente IMUTÁVEL.
+   * - gridPosition é calculada pelo mecanismo canônico de ordenação provisória (pos + penalidade) e desempate determinístico.
+   * - Bijeção: 24 participantes -> P1..P24 contínuos, sem duplicados, sem ausentes.
+   * - Idempotência: reexecução com o grid já persistido retorna o grid existente sem reaplicar penalidades.
+   * - Falha parcial: se o grid já foi calculado mas o status final GRID_READY não foi concluído, finaliza sem recalcular.
+   */
+  public async buildStartingGrid(params: BuildStartingGridParams): Promise<StartingGridState> {
+    const { careerId, seasonId, round, penaltiesByTeamId = {}, penaltiesByDriverId = {} } = params
+
+    if (!careerId || !seasonId || round <= 0) {
+      throw new Error(
+        `Contexto de carreira/temporada inválido: careerId='${careerId}', seasonId='${seasonId}', round=${round}`,
+      )
+    }
+
+    const storageKey = buildStartingGridStorageKey(careerId, seasonId, round)
+
+    // 1. CHECAGEM DE IDEMPOTÊNCIA E RECUPERAÇÃO DE FALHA PARCIAL
+    const existing = await this.loadPersistedStartingGrid(careerId, seasonId, round)
+    if (existing && existing.grid?.length > 0) {
+      if (existing.status !== 'GRID_READY') {
+        // Falha parcial: completa a transição para GRID_READY sem recalcular posições ou penalidades
+        existing.status = 'GRID_READY'
+        existing.updatedAt = new Date().toISOString()
+        await this.persistStartingGrid(existing)
+      }
+      this.inMemoryCache.set(storageKey, existing as any)
+      return existing
+    }
+
+    // 2. RECUPERA QUALIFYING_RESULT (OU CONSTRÓI CASO AINDA NÃO PERSISTIDO)
+    let globalQuali = await this.loadPersistedGlobalQualifyingResult(careerId, seasonId, round)
+    if (!globalQuali || globalQuali.status !== 'QUALIFYING_RESULT_READY') {
+      globalQuali = await this.buildGlobalQualifyingResult({ careerId, seasonId, round })
+    }
+
+    const qualifyingEntries = globalQuali.results
+    const totalEntrants = qualifyingEntries.length
+    if (totalEntrants === 0) {
+      throw new Error('QUALIFYING_RESULT vazio: impossível formar o grid de largada.')
+    }
+
+    // 3. RECUPERAR PENALIDADES APLICÁVEIS
+    // Busca do PocketBase / parâmetros passados
+    let teamPenaltiesMap = { ...penaltiesByTeamId }
+    try {
+      const teams = await pb.collection('teams').getFullList({
+        filter: `user_id = "${careerId}"`,
+      })
+      teams.forEach((t) => {
+        if (Array.isArray(t.grid_penalties) && t.grid_penalties.length > 0) {
+          teamPenaltiesMap[t.id] = (teamPenaltiesMap[t.id] || []).concat(t.grid_penalties)
+          if (t.team_key) {
+            teamPenaltiesMap[t.team_key] = (teamPenaltiesMap[t.team_key] || []).concat(
+              t.grid_penalties,
+            )
+          }
+        }
+      })
+    } catch {
+      // Ignora erro se estiver em ambiente simulado ou offline
+    }
+
+    // 4. MAPEAR PENALIDADES PARA CADA ENTRANTE (SEM DUPLICAR)
+    // Piloto penalizado perde posições definidas pelas unidades de potência excedentes
+    interface ProvisionalGridItem {
+      entry: GlobalQualifyingResultEntry
+      qualifyingPosition: number
+      targetPos: number
+      penalties: GridPenaltyApplied[]
+      totalPenaltyPositions: number
+    }
+
+    const provisionalItems: ProvisionalGridItem[] = qualifyingEntries.map((entry) => {
+      const driverPenalties = penaltiesByDriverId[entry.driverId] || []
+      const teamPens =
+        penaltiesByTeamId?.[entry.teamId] ||
+        penaltiesByTeamId?.[entry.teamId.replace('team_', '')] ||
+        teamPenaltiesMap[entry.teamId] ||
+        teamPenaltiesMap[entry.teamId.replace('team_', '')] ||
+        []
+
+      // As penalidades específicas do piloto têm precedência ou combinam-se com penalidades da equipe atribuídas a esta entrada/carro
+      const combinedPenalties: GridPenaltyApplied[] = [...driverPenalties]
+      for (const tp of teamPens) {
+        // Se a penalidade da equipe especificar driverId ou carIndex, aplica apenas se for compatível
+        const penaltyMatchesDriver = (tp as any).driverId
+          ? (tp as any).driverId === entry.driverId
+          : true
+        const penaltyMatchesCar = (tp as any).carIndex
+          ? (tp as any).carIndex === entry.carIndex
+          : true
+
+        if (penaltyMatchesDriver && penaltyMatchesCar) {
+          // Evita duplicata por id
+          if (!combinedPenalties.some((p) => p.id && tp.id && p.id === tp.id)) {
+            combinedPenalties.push({
+              ...tp,
+              source: tp.source || 'PU_QUOTA_REGULATION',
+            })
+          }
+        }
+      }
+
+      const totalPenaltyPositions = combinedPenalties.reduce(
+        (sum, p) => sum + (Math.max(0, p.positions) || 0),
+        0,
+      )
+
+      return {
+        entry,
+        qualifyingPosition: entry.position,
+        targetPos: entry.position + totalPenaltyPositions,
+        penalties: combinedPenalties,
+        totalPenaltyPositions,
+      }
+    })
+
+    // 5. SERVIÇO CANÔNICO DE ORDENAÇÃO BIJETIVA DO GRID
+    // Algoritmo determinístico comprovado em raceQualifyingService:
+    // 1. Menor targetPos (posição provisória calculada)
+    // 2. Se empate em targetPos: desempate por melhor qualifyingPosition original
+    // 3. Se ainda empatado: desempate lexicográfico por driverId
+    provisionalItems.sort((a, b) => {
+      if (a.targetPos !== b.targetPos) {
+        return a.targetPos - b.targetPos
+      }
+      if (a.qualifyingPosition !== b.qualifyingPosition) {
+        return a.qualifyingPosition - b.qualifyingPosition
+      }
+      return a.entry.driverId.localeCompare(b.entry.driverId)
+    })
+
+    // 6. ATRIBUIÇÃO DE POSIÇÕES FINAIS P1..P24 BIJETIVAS
+    const startingGrid: StartingGridEntry[] = provisionalItems.map((item, index) => {
+      const gridPosition = index + 1
+      return {
+        gridPosition,
+        qualifyingPosition: item.qualifyingPosition, // IMUTÁVEL
+        driverId: item.entry.driverId,
+        driverName: item.entry.driverName,
+        teamId: item.entry.teamId,
+        teamName: item.entry.teamName,
+        carIndex: item.entry.carIndex,
+        eliminationPhase: item.entry.eliminationPhase,
+        qualifyingTimeMs: item.entry.phaseBestTimeMs,
+        formattedQualifyingTime: item.entry.formattedPhaseBestTime,
+        setup: item.entry.setup,
+        penalties: item.penalties,
+        totalPenaltyPositions: item.totalPenaltyPositions,
+        hasPenalty: item.totalPenaltyPositions > 0,
+        penaltyReason:
+          item.penalties.length > 0
+            ? item.penalties.map((p) => p.reason || `+${p.positions} posições`).join(', ')
+            : undefined,
+      }
+    })
+
+    // 7. VALIDAÇÕES EXPLÍCITAS DE BIJEÇÃO E REGRESSÃO DE DUPLICAÇÃO DE PILOTOS
+    const driverIdsSet = new Set(startingGrid.map((g) => g.driverId))
+    if (driverIdsSet.size !== totalEntrants) {
+      throw new Error(
+        `Regressão de pilotos duplicados detectada no STARTING_GRID: ${totalEntrants} entradas, ${driverIdsSet.size} motoristas únicos.`,
+      )
+    }
+
+    const gridPositions = startingGrid.map((g) => g.gridPosition).sort((a, b) => a - b)
+    const expectedGridPositions = Array.from({ length: totalEntrants }, (_, i) => i + 1)
+    if (JSON.stringify(gridPositions) !== JSON.stringify(expectedGridPositions)) {
+      throw new Error(
+        `Violação de bijeção de posições no STARTING_GRID: posições não são contínuas P1..P${totalEntrants}.`,
+      )
+    }
+
+    const poleEntry = startingGrid[0]
+
+    const startingGridState: StartingGridState = {
+      careerId,
+      seasonId,
+      round,
+      configVersion: globalQuali.configVersion,
+      configSha256: globalQuali.configSha256,
+      status: 'GRID_READY',
+      totalParticipants: totalEntrants,
+      grid: startingGrid,
+      poleDriverId: poleEntry.driverId,
+      poleDriverName: poleEntry.driverName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    // 8. PERSISTÊNCIA RESILIENTE (PocketBase + Cache Local)
+    await this.persistStartingGrid(startingGridState)
+    this.inMemoryCache.set(storageKey, startingGridState as any)
+
+    return startingGridState
+  }
+
+  /**
+   * Consulta o STARTING_GRID persistido.
+   */
+  public async loadPersistedStartingGrid(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<StartingGridState | null> {
+    const storageKey = buildStartingGridStorageKey(careerId, seasonId, round)
+
+    // 1. Memória rápida
+    if (this.inMemoryCache.has(storageKey)) {
+      return this.inMemoryCache.get(storageKey) as unknown as StartingGridState
+    }
+
+    // 2. PocketBase session_setups (session = 'q3' ou 'grid')
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q3"`,
+      })
+      if (records.items.length > 0) {
+        const item = records.items[0]
+        const strategies = (item.driver_strategies as any) || {}
+        if (strategies.startingGridState) {
+          const loaded = strategies.startingGridState as StartingGridState
+          this.inMemoryCache.set(storageKey, loaded as any)
+          return loaded
+        }
+      }
+    } catch {
+      // ignora erro do PB
+    }
+
+    // 3. Cache Local (localStorage)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        if (raw) {
+          const parsed = JSON.parse(raw) as StartingGridState
+          this.inMemoryCache.set(storageKey, parsed as any)
+          return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Persiste o STARTING_GRID de forma resiliente.
+   */
+  public async persistStartingGrid(state: StartingGridState): Promise<void> {
+    const { careerId, seasonId, round, status } = state
+    const storageKey = buildStartingGridStorageKey(careerId, seasonId, round)
+
+    // 1. Gravação no PocketBase session_setups (session = 'q3')
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q3"`,
+      })
+
+      if (records.items.length > 0) {
+        const existing = records.items[0]
+        const strategies = (existing.driver_strategies as any) || {}
+        strategies.startingGridState = state
+        await pb.collection('session_setups').update(existing.id, {
+          driver_strategies: strategies,
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      } else {
+        await pb.collection('session_setups').create({
+          team_id: careerId,
+          season_id: seasonId,
+          round,
+          session: 'q3',
+          wing_level: 6,
+          suspension_stiffness: 6,
+          pu_electric_ratio: 50,
+          driver_strategies: {
+            startingGridState: state,
+          },
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      }
+    } catch (err) {
+      console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir starting grid:`, err)
     }
 
     // 2. Gravação no Cache Local
