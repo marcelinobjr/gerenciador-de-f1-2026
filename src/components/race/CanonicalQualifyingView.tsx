@@ -277,21 +277,23 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
         </CardHeader>
       </Card>
 
-      {/* Tabs com as 4 visualizações canônicas requeridas */}
+      {/* Tabs com as 4 visualizações canônicas requeridas + Resultado Global */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-xl">
-          <TabsTrigger value="q1">Q1 (24)</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+          <TabsTrigger value="q1">Q1 {q1Results.length > 0 ? `(${q1Results.length})` : ''}</TabsTrigger>
           <TabsTrigger value="q2" disabled={!isQ1Complete}>
-            Q2 {isQ1Complete ? '(18)' : '(Bloqueado)'}
+            Q2 {isQ1Complete ? `(${q2Results.length || 18})` : '(Bloqueado)'}
           </TabsTrigger>
           <TabsTrigger value="q3" disabled={!isQ2Complete}>
-            Q3 {isQ2Complete ? '(10)' : '(Bloqueado)'}
+            Q3 {isQ2Complete ? `(${q3Results.length || 10})` : '(Bloqueado)'}
+          </TabsTrigger>
+          <TabsTrigger value="result" disabled={!globalQuali}>
+            Resultado {globalQuali ? '(P1–P24)' : '(Bloqueado)'}
           </TabsTrigger>
           <TabsTrigger value="grid" disabled={!isGridReady}>
             Grid Oficial {isGridReady ? '(P1–P24)' : '(Bloqueado)'}
           </TabsTrigger>
         </TabsList>
-
         {/* ABA Q1 */}
         <TabsContent value="q1" className="mt-4">
           <Card>
@@ -545,6 +547,86 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                           </tr>
                         )
                       })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ABA RESULTADO DA CLASSIFICAÇÃO (QUALIFYING_RESULT PERSISTIDO P1–P24) */}
+        <TabsContent value="result" className="mt-4">
+          <Card>
+            <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-amber-500" />
+                  <span>Resultado Oficial da Classificação (P1 – P24)</span>
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Classificação pura obtida em pista (QUALIFYING_RESULT) antes de aplicação das penalidades de grid.
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                {globalQuali?.results.length || 0} Pilotos
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
+                    <tr>
+                      <th className="px-4 py-3 w-12 text-center">Pos</th>
+                      <th className="px-4 py-3">Piloto</th>
+                      <th className="px-4 py-3">Equipe</th>
+                      <th className="px-4 py-3 text-center">Fase de Eliminação</th>
+                      <th className="px-3 py-3 text-right">Acerto TL</th>
+                      <th className="px-4 py-3 text-right">Melhor Volta</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/20">
+                    {!globalQuali || globalQuali.results.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                          Resultado da classificação ainda não concluído.
+                        </td>
+                      </tr>
+                    ) : (
+                      globalQuali.results.map((r) => (
+                        <tr
+                          key={`global_quali_${r.position}_${r.driverId}`}
+                          className="hover:bg-muted/30 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-center font-mono font-bold text-xs">
+                            {r.position === 1 ? '🥇 P1' : `P${r.position}`}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-foreground">
+                            {r.driverName}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
+                          <td className="px-4 py-3 text-center">
+                            <Badge
+                              variant="outline"
+                              className={
+                                r.eliminationPhase === 'Q3'
+                                  ? 'border-purple-500/30 text-purple-600 text-xs'
+                                  : r.eliminationPhase === 'Q2'
+                                    ? 'border-amber-500/30 text-amber-500 text-xs'
+                                    : 'border-red-500/30 text-red-500 text-xs'
+                              }
+                            >
+                              {r.eliminationPhase}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-3 text-right font-mono text-xs">
+                            {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs font-bold">
+                            {r.formattedPhaseBestTime || '-:--.---'}
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
