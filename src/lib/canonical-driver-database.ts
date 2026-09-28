@@ -63,6 +63,13 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   drv_gabriel_bortoleto: 'DRV_0012',
   drv_nico_hulkenberg: 'DRV_0068',
   'mbj-033': 'DRV_0049', // Colton Herta
+  'mbj-042': 'DRV_0043', // Alex Palou
+  'mbj-013': 'DRV_0041', // Alexander Albon (Alex Albon)
+  'mbj-071': 'DRV_0042', // Alexander Dunne (Alex Dunne)
+  'mbj-063': 'DRV_0013', // Gabriele Mini
+  'mbj-069': 'DRV_0150', // Freddie Slater
+  'mbj-122': 'Piloto_14', // Filipe Albuquerque -> piloto gerado
+  'mbj-134': 'DRV_0151', // Helio Castroneves
 }
 
 for (const pilot of MBJ_2026_PILOTS) {
