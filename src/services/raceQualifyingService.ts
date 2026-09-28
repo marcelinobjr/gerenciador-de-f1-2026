@@ -17,7 +17,7 @@ import {
   calculateEffectiveQualifyingDriver,
   calculateTrackQualifyingRating,
   calculateQualifyingAttemptTime,
-  calculateCanonicalQualifyingBasePace,
+  calculateQualifyingRatingDeltaMs,
   calculateQualifyingNoiseSigma,
   DEFAULT_SOURCE_RACE_PARAMETERS,
 } from '../lib/race/pureRaceEngine'
@@ -286,23 +286,28 @@ export class RaceQualifyingService {
     const allRatings = precomputed.map((item) => item.rating)
     const maxRating = allRatings.length > 0 ? Math.max(...allRatings) : 100
     const minRating = allRatings.length > 0 ? Math.min(...allRatings) : 0
+    const canonicalSpreadMs = fullParams.grid_target_spread_ms ?? 2500
+
+    const baseRecordMs = trackRecordMs
+    const qualifyingBaseOverRecordFactor = fullParams.qualifying_base_over_record_factor ?? 0
+    const baseQualiMs = baseRecordMs * (1 + qualifyingBaseOverRecordFactor)
+    const wetBaseFactor = isWet ? 1 + (fullParams.light_rain_time_fraction ?? 0.08) : 1
 
     const results: QualifyingDriverResult[] = precomputed.map((item) => {
       const p = item.input
       const effective_driver = item.effective_driver
       const rating = item.rating
 
+      // Canal de rating relativo min-max canônico homologado na A1 (Classificação!L7)
+      const ratingDeltaMs = calculateQualifyingRatingDeltaMs({
+        rating,
+        minRating,
+        maxRating,
+        spreadMs: canonicalSpreadMs,
+      })
+
       // Base Pace canônico do Excel (Classificação!L7)
-      const { individual_base_ms: basePaceMs } = calculateCanonicalQualifyingBasePace(
-        {
-          track_record_ms: trackRecordMs,
-          rating,
-          max_rating: maxRating,
-          min_rating: minRating,
-          wet: isWet,
-        },
-        fullParams,
-      )
+      const basePaceMs = baseQualiMs * wetBaseFactor + ratingDeltaMs
 
       return {
         driverId: p.driverId,

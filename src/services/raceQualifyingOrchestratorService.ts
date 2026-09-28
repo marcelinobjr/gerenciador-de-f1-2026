@@ -31,7 +31,7 @@ import {
   calculateSprintQualifyingAttemptTime,
   calculateEffectiveQualifyingDriver,
   calculateTrackQualifyingRating,
-  calculateCanonicalQualifyingBasePace,
+  calculateQualifyingRatingDeltaMs,
   calculateQualifyingNoiseSigma,
   DEFAULT_SOURCE_RACE_PARAMETERS,
 } from '@/lib/race/pureRaceEngine'
@@ -1004,6 +1004,9 @@ export class RaceQualifyingOrchestratorService {
     const maxRating = allRatings.length > 0 ? Math.max(...allRatings) : 100
     const minRating = allRatings.length > 0 ? Math.min(...allRatings) : 0
 
+    // Spread canônico vindo da configuração canônica versionada / raceParams
+    const canonicalSpreadMs = raceParams.grid_target_spread_ms ?? 2500
+
     // Ruído gaussiano com multiplicador de chuva:
     // Seco: sigma = qualifying_noise_sd_ms (150 ms)
     // Molhado: sigma = qualifying_noise_sd_ms * wet_noise_multiplier (225 ms)
@@ -1025,18 +1028,22 @@ export class RaceQualifyingOrchestratorService {
       const effective_driver = item.effective_driver
       const rating = item.rating
 
+      // Canal de rating relativo min-max canônico homologado na A1 (Classificação!L7)
+      // Substitui integralmente qualquer resquício ou fórmula antiga (100 - rating) * 35
+      const ratingDeltaMs = calculateQualifyingRatingDeltaMs({
+        rating,
+        minRating,
+        maxRating,
+        spreadMs: canonicalSpreadMs,
+      })
+
       // Ritmo base individual canônico do Excel (Classificação!L7)
-      // Substitui integralmente a fórmula antiga (100 - rating) * 35
-      const { individual_base_ms: basePaceMs } = calculateCanonicalQualifyingBasePace(
-        {
-          track_record_ms: trackRecordMs,
-          rating,
-          max_rating: maxRating,
-          min_rating: minRating,
-          wet,
-        },
-        raceParams,
-      )
+      // Preserva base de pista e clima como estão nesta A2
+      const baseRecordMs = trackRecordMs ?? 80000
+      const qualifyingBaseOverRecordFactor = raceParams.qualifying_base_over_record_factor ?? 0
+      const baseQualiMs = baseRecordMs * (1 + qualifyingBaseOverRecordFactor)
+      const wetBaseFactor = wet ? 1 + (raceParams.light_rain_time_fraction ?? 0.08) : 1
+      const basePaceMs = baseQualiMs * wetBaseFactor + ratingDeltaMs
 
       const attempts: QualifyingLapAttempt[] = []
       let bestTimeMs = Infinity
