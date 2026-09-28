@@ -65,6 +65,20 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-033': 'DRV_0049', // Colton Herta
   'mbj-042': 'DRV_0043', // Alex Palou
   'mbj-013': 'DRV_0041', // Alexander Albon (Alex Albon)
+  drv_alex_lynn: 'DRV_0138',
+  drv_callum_ilott: 'DRV_0139',
+  drv_callum_voisin: 'DRV_0140',
+  drv_christian_mansell: 'DRV_0141',
+  drv_connor_de_phillippi: 'DRV_0142',
+  drv_dane_cameron: 'DRV_0143',
+  drv_dennis_hauger: 'DRV_0144',
+  drv_dries_vanthoor: 'DRV_0145',
+  drv_earl_bamber: 'DRV_0146',
+  drv_ella_stevens: 'DRV_0147',
+  drv_emerson_fittipaldi_jr: 'DRV_0148',
+  drv_enzo_fittipaldi: 'DRV_0149',
+  drv_freddie_slater: 'DRV_0150',
+  drv_helio_castroneves: 'DRV_0151',
   'mbj-071': 'DRV_0042', // Alexander Dunne (Alex Dunne)
   'mbj-063': 'DRV_0013', // Gabriele Mini
   'mbj-069': 'DRV_0150', // Freddie Slater

@@ -135,6 +135,20 @@ export const DRIVER_PORTRAIT_ASSET_MAP = {
   drv_sebastian_montoya: 'DRV_0134',
   drv_nikita_mazepin: 'DRV_0135',
   drv_daniil_kvyat: 'DRV_0136',
+  drv_alex_lynn: 'DRV_0138',
+  drv_callum_ilott: 'DRV_0139',
+  drv_callum_voisin: 'DRV_0140',
+  drv_christian_mansell: 'DRV_0141',
+  drv_connor_de_phillippi: 'DRV_0142',
+  drv_dane_cameron: 'DRV_0143',
+  drv_dennis_hauger: 'DRV_0144',
+  drv_dries_vanthoor: 'DRV_0145',
+  drv_earl_bamber: 'DRV_0146',
+  drv_ella_stevens: 'DRV_0147',
+  drv_emerson_fittipaldi_jr: 'DRV_0148',
+  drv_enzo_fittipaldi: 'DRV_0149',
+  drv_freddie_slater: 'DRV_0150',
+  drv_helio_castroneves: 'DRV_0151',
 } as const
 
 export type CanonicalPortraitDriverId = keyof typeof DRIVER_PORTRAIT_ASSET_MAP

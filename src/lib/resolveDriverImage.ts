@@ -9,6 +9,7 @@
 
 // Lista de IDs conhecidos de pilotos reais da temporada 2026
 // Pilotos fictícios da base usam IDs gerados ou têm flag isReal === false / isGenerated === true
+
 export interface ResolvableDriver {
   id?: string
   code?: string

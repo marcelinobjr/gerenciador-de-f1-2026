@@ -15,6 +15,8 @@ import {
   findCanonicalDriverMaster,
 } from '@/lib/canonical-driver-database'
 import { getGeneratedDriverPortraitProfile } from '@/lib/generated-driver-profiles'
+import { resolveCanonicalDriverImagePath } from '@/lib/driver-canonical-service'
+
 import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
 
 export interface ResolvedDriverPhoto {
@@ -117,6 +119,23 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
         assetId: genProfile.profileId,
         driverId: driverId || undefined,
       }
+    }
+  }
+
+  // 2.5 Resolução Canônica Direta BUG-PILOTOS-01
+  const directCanonicalPath = resolveCanonicalDriverImagePath(driverId, name)
+  if (directCanonicalPath) {
+    candidateUrls.push(directCanonicalPath)
+    return {
+      url: directCanonicalPath,
+      candidateUrls,
+      fallbackInitials,
+      teamColor: teamColor || '#E10600',
+      sourceType: directCanonicalPath.includes('pilotos-gerados')
+        ? 'generated_procedural'
+        : 'canonical_real',
+      assetId: directCanonicalPath.split('/').pop()?.replace('.jpg', ''),
+      driverId: driverId || undefined,
     }
   }
 

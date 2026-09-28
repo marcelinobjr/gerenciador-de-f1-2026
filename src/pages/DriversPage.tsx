@@ -69,7 +69,13 @@ import {
 } from 'lucide-react'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { getActiveDriverTeamBinding } from '@/lib/canonical-driver-database'
+import {
+  getCanonicalDisplayName,
+  getDriverCanonicalKey,
+  normalizeDriverNameToken,
+} from '@/lib/driver-canonical-service'
 
+// DriversPage inspection test
 export interface UnifiedDriverItem {
   id: string
   name: string
@@ -239,11 +245,19 @@ export default function DriversPage() {
     const mbjMap = new Map<string, (typeof MBJ_2026_PILOTS)[number]>()
     for (const pilot of MBJ_2026_PILOTS) {
       mbjMap.set(pilot.name.toLowerCase().trim(), pilot)
+      const canKey = getDriverCanonicalKey(pilot.name)
+      if (!mbjMap.has(canKey)) {
+        mbjMap.set(canKey, pilot)
+      }
     }
 
     const f1AcademyMap = new Map<string, (typeof OFFICIAL_F1_ACADEMY_MBJ_2026)[number]>()
     for (const pilot of OFFICIAL_F1_ACADEMY_MBJ_2026) {
       f1AcademyMap.set(pilot.name.toLowerCase().trim(), pilot)
+      const canKey = getDriverCanonicalKey(pilot.name)
+      if (!f1AcademyMap.has(canKey)) {
+        f1AcademyMap.set(canKey, pilot)
+      }
     }
 
     const teamById = new Map<string, TeamModel>()
@@ -252,11 +266,18 @@ export default function DriversPage() {
     }
 
     const result: UnifiedDriverItem[] = []
+    const visitedCanonicalKeys = new Set<string>()
     const visitedNames = new Set<string>()
 
     // 1. Processa todos os pilotos presentes no Banco de Dados
     for (const d of dbDrivers) {
+      const canKey = getDriverCanonicalKey(d.name)
       const normName = d.name.toLowerCase().trim()
+
+      if (visitedCanonicalKeys.has(canKey)) {
+        continue
+      }
+      visitedCanonicalKeys.add(canKey)
       visitedNames.add(normName)
 
       const mbjInfo = mbjMap.get(normName)
@@ -321,9 +342,10 @@ export default function DriversPage() {
         cat === 'f1_academy' ||
         (d.age < 22 && f1Races === 0)
 
+      const canonicalDisplayName = getCanonicalDisplayName(d.name)
       result.push({
         id: d.id,
-        name: d.name,
+        name: canonicalDisplayName,
         nationality: d.nationality || mbjInfo?.nationality || 'Mundial',
         age: calculatedAge,
         calculatedAge,
@@ -421,8 +443,11 @@ export default function DriversPage() {
     // 2. Incorpora pilotos MBJ não cadastrados no banco para catálogo estático
     const currentSeasonYear = season?.year || 2026
     for (const pilot of MBJ_2026_PILOTS) {
+      const canKey = getDriverCanonicalKey(pilot.name)
       const normName = pilot.name.toLowerCase().trim()
-      if (visitedNames.has(normName)) continue
+      if (visitedCanonicalKeys.has(canKey) || visitedNames.has(normName)) continue
+      visitedCanonicalKeys.add(canKey)
+      visitedNames.add(normName)
 
       // BUG-RETRATOS-03C2: Pilotos MBJ estáticos não vinculados a contrato ativo -> Free Agent estrito
       const mbjBinding = getActiveDriverTeamBinding(pilot.id, season, dbDrivers, dbTeams)
@@ -430,9 +455,10 @@ export default function DriversPage() {
         ? pilot.baseAge2026 + (currentSeasonYear - 2026)
         : pilot.age
 
+      const canonicalDisplayName = getCanonicalDisplayName(pilot.name)
       result.push({
         id: pilot.id,
-        name: pilot.name,
+        name: canonicalDisplayName,
         nationality: pilot.nationality,
         age: calculatedMbjAge,
         calculatedAge: calculatedMbjAge,
@@ -579,14 +605,23 @@ export default function DriversPage() {
       if (quickFilter === 'superlicense_yes' && !hasSl) return false
       if (quickFilter === 'superlicense_no' && hasSl) return false
 
-      // 2. Busca por nome ou nacionalidade
+      // 2. Busca por nome, nacionalidade ou aliases conhecidos
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim()
-        const matchesName = pilot.name.toLowerCase().includes(query)
+        const normQuery = normalizeDriverNameToken(query)
+        const normPilotName = normalizeDriverNameToken(pilot.name)
+        const matchesName =
+          pilot.name.toLowerCase().includes(query) ||
+          (normQuery.length >= 3 && normPilotName.includes(normQuery))
         const matchesNat = pilot.nationality.toLowerCase().includes(query)
-        if (!matchesName && !matchesNat) return false
-      }
 
+        // Suporte a alias de busca: se query normalizada bater com variante de nome
+        const aliasCanonicalName = getCanonicalDisplayName(query)
+        const matchesAlias =
+          aliasCanonicalName && pilot.name.toLowerCase() === aliasCanonicalName.toLowerCase()
+
+        if (!matchesName && !matchesNat && !matchesAlias) return false
+      }
       // 3. Filtro de Categoria
       if (selectedCategoryFilter !== 'all') {
         if (selectedCategoryFilter === 'wec' || selectedCategoryFilter === 'prototipos') {
