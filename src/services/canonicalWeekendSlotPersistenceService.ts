@@ -402,7 +402,8 @@ export class CanonicalWeekendSlotPersistenceService {
     currentSlotDef.completedAt = new Date().toISOString()
     if (subPhase) {
       currentSlotDef.subPhase = subPhase
-    }    if (!state.completedSlots.includes(slotNumber)) {
+    }
+    if (!state.completedSlots.includes(slotNumber)) {
       state.completedSlots.push(slotNumber)
     }
 

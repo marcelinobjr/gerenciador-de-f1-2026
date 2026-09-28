@@ -59,30 +59,15 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
         </TabsList>
 
         <TabsContent value="sq1" className="mt-4">
-          <QualifyingPhaseView
-            phase="SQ1"
-            state={sq1State}
-            loading={loading}
-            error={error}
-          />
+          <QualifyingPhaseView phase="SQ1" state={sq1State} loading={loading} error={error} />
         </TabsContent>
 
         <TabsContent value="sq2" className="mt-4">
-          <QualifyingPhaseView
-            phase="SQ2"
-            state={sq2State}
-            loading={loading}
-            error={error}
-          />
+          <QualifyingPhaseView phase="SQ2" state={sq2State} loading={loading} error={error} />
         </TabsContent>
 
         <TabsContent value="sq3" className="mt-4">
-          <QualifyingPhaseView
-            phase="SQ3"
-            state={sq3State}
-            loading={loading}
-            error={error}
-          />
+          <QualifyingPhaseView phase="SQ3" state={sq3State} loading={loading} error={error} />
         </TabsContent>
 
         <TabsContent value="result" className="mt-4">
@@ -93,7 +78,8 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
                 <Badge variant="outline">24 Pilotos</Badge>
               </CardTitle>
               <CardDescription className="text-xs">
-                Classificação pura P1..P24 formada pelas três fases eliminatórias da Sprint (SQ3, SQ2, SQ1).
+                Classificação pura P1..P24 formada pelas três fases eliminatórias da Sprint (SQ3,
+                SQ2, SQ1).
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -140,7 +126,10 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                        <td
+                          colSpan={5}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
+                        >
                           Resultado da Qualificação Sprint ainda não consolidado.
                         </td>
                       </tr>
@@ -196,7 +185,10 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                        <td
+                          colSpan={5}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
+                        >
                           Grid de largada da Sprint ainda não formado.
                         </td>
                       </tr>

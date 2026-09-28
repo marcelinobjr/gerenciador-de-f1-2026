@@ -121,7 +121,8 @@ export const DEFAULT_PHASE_CONFIGS: Record<QualifyingPhase, QualifyingPhaseConfi
   SQ1: {
     phase: 'SQ1',
     title: 'Fase SQ1 — 24 Carros Inscritos',
-    description: 'Os 18 melhores tempos avançam para o SQ2. Pneu Médio no seco (+650ms). Os 6 últimos são eliminados (P19–P24).',
+    description:
+      'Os 18 melhores tempos avançam para o SQ2. Pneu Médio no seco (+650ms). Os 6 últimos são eliminados (P19–P24).',
     participantCountBadge: '24 Pilotos',
     notRunMessage: 'Sessão SQ1 ainda não realizada (READY_FOR_SQ1).',
     loadingMessage: 'Carregando resultados da sessão SQ1...',
@@ -145,7 +146,8 @@ export const DEFAULT_PHASE_CONFIGS: Record<QualifyingPhase, QualifyingPhaseConfi
   SQ2: {
     phase: 'SQ2',
     title: 'Fase SQ2 — Somente os 18 Classificados',
-    description: 'Os 10 melhores tempos avançam ao SQ3. Pneu Médio no seco (+650ms). Os 8 eliminados ocupam P11–P18.',
+    description:
+      'Os 10 melhores tempos avançam ao SQ3. Pneu Médio no seco (+650ms). Os 8 eliminados ocupam P11–P18.',
     participantCountBadge: '18 Pilotos',
     notRunMessage: 'Sessão SQ2 ainda não realizada (aguardando conclusão do SQ1).',
     loadingMessage: 'Carregando resultados da sessão SQ2...',

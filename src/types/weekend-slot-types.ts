@@ -68,6 +68,8 @@ export interface WeekendSlotViewModel {
   isNotRun: boolean
 }
 
+export type WeekendSlotSubPhase = SprintQualifyingSubPhase | MainQualifyingSubPhase | string
+
 export interface CanonicalWeekendSlotState {
   careerId: string
   seasonId: string

@@ -73,11 +73,34 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
     try {
       if (isSprint) {
         const [sq1, sq2, sq3, sResult, sGrid] = await Promise.all([
-          raceQualifyingOrchestratorService.loadPersistedPhaseState('SQ1', careerId, seasonId, round),
-          raceQualifyingOrchestratorService.loadPersistedPhaseState('SQ2', careerId, seasonId, round),
-          raceQualifyingOrchestratorService.loadPersistedPhaseState('SQ3', careerId, seasonId, round),
-          raceQualifyingOrchestratorService.loadPersistedSprintQualifyingResult(careerId, seasonId, round),
-          raceQualifyingOrchestratorService.loadPersistedSprintStartingGrid(careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState(
+            'SQ1',
+            careerId,
+            seasonId,
+            round,
+          ),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState(
+            'SQ2',
+            careerId,
+            seasonId,
+            round,
+          ),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState(
+            'SQ3',
+            careerId,
+            seasonId,
+            round,
+          ),
+          raceQualifyingOrchestratorService.loadPersistedSprintQualifyingResult(
+            careerId,
+            seasonId,
+            round,
+          ),
+          raceQualifyingOrchestratorService.loadPersistedSprintStartingGrid(
+            careerId,
+            seasonId,
+            round,
+          ),
         ])
 
         setSq1State(sq1)
@@ -87,9 +110,24 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
         setSprintGrid(sGrid)
       } else {
         const [q1, q2, q3, gQuali, grid] = await Promise.all([
-          raceQualifyingOrchestratorService.loadPersistedPhaseState('Q1', careerId, seasonId, round),
-          raceQualifyingOrchestratorService.loadPersistedPhaseState('Q2', careerId, seasonId, round),
-          raceQualifyingOrchestratorService.loadPersistedPhaseState('Q3', careerId, seasonId, round),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState(
+            'Q1',
+            careerId,
+            seasonId,
+            round,
+          ),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState(
+            'Q2',
+            careerId,
+            seasonId,
+            round,
+          ),
+          raceQualifyingOrchestratorService.loadPersistedPhaseState(
+            'Q3',
+            careerId,
+            seasonId,
+            round,
+          ),
           raceQualifyingOrchestratorService.loadPersistedGlobalQualifyingResult(
             careerId,
             seasonId,
