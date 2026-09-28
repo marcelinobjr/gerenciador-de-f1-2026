@@ -320,50 +320,61 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
-                    {q1Results.map((r, idx) => {
-                      const pos = r.position || idx + 1
-                      const isElim = r.isEliminated || pos > 18
-                      return (
-                        <tr
-                          key={`q1_${r.driverId}`}
-                          className={`hover:bg-muted/30 transition-colors ${
-                            isElim ? 'bg-red-500/5 text-muted-foreground' : ''
-                          }`}
+                    {q1Results.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-xs text-muted-foreground"
                         >
-                          <td className="px-4 py-3 text-center font-mono font-bold text-xs">
-                            {pos}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-foreground">
-                            {r.driverName}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
-                          <td className="px-3 py-3 text-right font-mono text-xs">
-                            {r.setup?.toFixed(1) || 90.2}%
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono text-xs">
-                            {r.formattedBestTime || '-:--.---'}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {isElim ? (
-                              <Badge
-                                variant="outline"
-                                className="border-red-500/30 text-red-500 text-xs"
-                              >
-                                Eliminado Q1 (P{pos})
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="border-emerald-500/30 text-emerald-600 text-xs"
-                              >
-                                Avança ao Q2
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
+                          Sessão Q1 ainda não realizada (READY_FOR_Q1).
+                        </td>
+                      </tr>
+                    ) : (
+                      q1Results.map((r, idx) => {
+                        const pos = r.position || idx + 1
+                        const isElim = r.isEliminated || pos > 18
+                        return (
+                          <tr
+                            key={`q1_${r.driverId}`}
+                            className={`hover:bg-muted/30 transition-colors ${
+                              isElim ? 'bg-red-500/5 text-muted-foreground' : ''
+                            }`}
+                          >
+                            <td className="px-4 py-3 text-center font-mono font-bold text-xs">
+                              {pos}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-foreground">
+                              {r.driverName}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
+                            <td className="px-3 py-3 text-right font-mono text-xs">
+                              {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-xs">
+                              {r.formattedBestTime || '-:--.---'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {isElim ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-red-500/30 text-red-500 text-xs"
+                                >
+                                  Eliminado Q1 (P{pos})
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-emerald-500/30 text-emerald-600 text-xs"
+                                >
+                                  Avança ao Q2
+                                </Badge>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>{' '}
                 </table>
               </div>
             </CardContent>
@@ -400,49 +411,57 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
-                    {q2Results.map((r, idx) => {
-                      const pos = r.position || idx + 1
-                      const isElim = r.isEliminated || pos > 10
-                      return (
-                        <tr
-                          key={`q2_${r.driverId}`}
-                          className={`hover:bg-muted/30 transition-colors ${
-                            isElim ? 'bg-amber-500/5 text-muted-foreground' : ''
-                          }`}
-                        >
-                          <td className="px-4 py-3 text-center font-mono font-bold text-xs">
-                            {pos}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-foreground">
-                            {r.driverName}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
-                          <td className="px-3 py-3 text-right font-mono text-xs">
-                            {r.setup?.toFixed(1) || 90.2}%
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono text-xs">
-                            {r.formattedBestTime || '-:--.---'}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {isElim ? (
-                              <Badge
-                                variant="outline"
-                                className="border-amber-500/30 text-amber-500 text-xs"
-                              >
-                                Eliminado Q2 (P{pos + 10})
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="border-purple-500/30 text-purple-600 text-xs"
-                              >
-                                Finalista Q3
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {q2Results.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                          Sessão Q2 ainda não realizada (aguardando conclusão do Q1).
+                        </td>
+                      </tr>
+                    ) : (
+                      q2Results.map((r, idx) => {
+                        const pos = r.position || idx + 1
+                        const isElim = r.isEliminated || pos > 10
+                        return (
+                          <tr
+                            key={`q2_${r.driverId}`}
+                            className={`hover:bg-muted/30 transition-colors ${
+                              isElim ? 'bg-amber-500/5 text-muted-foreground' : ''
+                            }`}
+                          >
+                            <td className="px-4 py-3 text-center font-mono font-bold text-xs">
+                              {pos}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-foreground">
+                              {r.driverName}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
+                            <td className="px-3 py-3 text-right font-mono text-xs">
+                              {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-xs">
+                              {r.formattedBestTime || '-:--.---'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {isElim ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-500/30 text-amber-500 text-xs"
+                                >
+                                  Eliminado Q2 (P{pos + 10})
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-purple-500/30 text-purple-600 text-xs"
+                                >
+                                  Finalista Q3
+                                </Badge>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -482,43 +501,51 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
-                    {q3Results.map((r, idx) => {
-                      const pos = r.position || idx + 1
-                      return (
-                        <tr
-                          key={`q3_${r.driverId}`}
-                          className="hover:bg-muted/30 transition-colors"
-                        >
-                          <td className="px-4 py-3 text-center font-mono font-bold text-xs">
-                            {pos === 1 ? '🥇 P1' : `P${pos}`}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-foreground">
-                            {r.driverName}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
-                          <td className="px-3 py-3 text-right font-mono text-xs">
-                            {r.setup?.toFixed(1) || 90.2}%
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono text-xs font-bold">
-                            {r.formattedBestTime || '-:--.---'}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {pos === 1 ? (
-                              <Badge className="bg-amber-400 text-black text-xs font-bold">
-                                Pole Position
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="border-purple-500/30 text-purple-600 text-xs"
-                              >
-                                Top 10 (P{pos})
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {q3Results.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                          Sessão Q3 ainda não realizada (aguardando conclusão do Q2).
+                        </td>
+                      </tr>
+                    ) : (
+                      q3Results.map((r, idx) => {
+                        const pos = r.position || idx + 1
+                        return (
+                          <tr
+                            key={`q3_${r.driverId}`}
+                            className="hover:bg-muted/30 transition-colors"
+                          >
+                            <td className="px-4 py-3 text-center font-mono font-bold text-xs">
+                              {pos === 1 ? '🥇 P1' : `P${pos}`}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-foreground">
+                              {r.driverName}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
+                            <td className="px-3 py-3 text-right font-mono text-xs">
+                              {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-xs font-bold">
+                              {r.formattedBestTime || '-:--.---'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {pos === 1 ? (
+                                <Badge className="bg-amber-400 text-black text-xs font-bold">
+                                  Pole Position
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-purple-500/30 text-purple-600 text-xs"
+                                >
+                                  Top 10 (P{pos})
+                                </Badge>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
