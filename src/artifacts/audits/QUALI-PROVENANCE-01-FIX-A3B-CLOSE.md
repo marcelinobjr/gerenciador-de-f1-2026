@@ -1,17 +1,17 @@
-# QUALI-PROVENANCE-01-FIX-A3B-CLOSE: Relatório de Homologação
+# QUALI-PROVENANCE-01-FIX-A3B-CLOSE: Relatório de Auditoria e Fechamento
 
-**Data/Rodada:** QUALI-PROVENANCE-01-FIX-A3B-CLOSE  
-**Status de Homologação:** QUALI-PROVENANCE-01-FIX-A3B HOMOLOGADA  
-**Versão Base:** v0.0.637 / commit `fa08bb2` (checkpoint v0.0.642 `b97f0b4`)  
+**Data/Rodada:** QUALI-PROVENANCE-01-FIX-A3B-CLOSE-1  
+**Status:** A3B-CLOSE-1 CONCLUÍDA (Formalização e Prova de 1 Tentativa por Fase; Homologação reservada para CLOSE-2)  
+**Versão Base:** v0.0.642 / commit HEAD `b97f0b4`  
 **Engenharia/Domínio:** Apex GP Manager (Qualifying Provenance & Single-Attempt Canon)
 
 ---
 
 ## A. HEAD
 
-- **Versão:** v0.0.642 (após checkpoint inicial)
-- **Commit Base:** `fa08bb2` (v0.0.637) / `b97f0b4` (v0.0.642)
-- **Working Tree:** Limpa e verificada em cada transição.
+- **Versão do Projeto:** v0.0.642
+- **HEAD Commit:** `b97f0b4` (ref: `v0.0.642-qfix-a3b`)
+- **Working Tree:** Limpa e auditada conforme HEAD real.
 
 ---
 
@@ -96,63 +96,28 @@ Nenhum código ativo seleciona o melhor de duas voltas na produção canônica.
 
 ### Tabela de Verificação A3B-01 a A3B-12 (`src/test/quali-provenance-01-fix-a3b.test.ts`):
 
-| Teste      | Descrição Canônica                                           | PASS / FAIL | Evidência de Execução                                                                      |
-| ---------- | ------------------------------------------------------------ | :---------: | ------------------------------------------------------------------------------------------ |
-| **A3B-01** | Q1 — cada participante executa exatamente 1 tentativa        |  **PASS**   | 24 pilotos em Q1; cada um com `attempts.length === 1` e `attemptNumber === 1`.             |
-| **A3B-02** | Q2 — cada classificado executa exatamente 1 tentativa        |  **PASS**   | 18 classificados em Q2; cada um com `attempts.length === 1`.                               |
-| **A3B-03** | Q3 — cada finalista executa exatamente 1 tentativa           |  **PASS**   | 10 finalistas em Q3; cada um com `attempts.length === 1`.                                  |
-| **A3B-04** | SQ1 — 1 tentativa por participante                           |  **PASS**   | 24 pilotos em SQ1; cada um com `attempts.length === 1` e `attemptNumber === 1`.            |
-| **A3B-05** | SQ2 — 1 tentativa por classificado                           |  **PASS**   | 18 classificados em SQ2; cada um com `attempts.length === 1`.                              |
-| **A3B-06** | SQ3 — 1 tentativa por finalista                              |  **PASS**   | 10 finalistas em SQ3; cada um com `attempts.length === 1`.                                 |
-| **A3B-07** | DRAW COUNT MAIN — fixture 24→18→10 = 52 tentativas           |  **PASS**   | 24 (Q1) + 18 (Q2) + 10 (Q3) = 52 tentativas no total do qualifying principal.              |
-| **A3B-08** | DRAW COUNT SPRINT — 24+18+10 = 52 tentativas                 |  **PASS**   | 24 (SQ1) + 18 (SQ2) + 10 (SQ3) = 52 tentativas no total do sprint shootout.                |
-| **A3B-09** | SEM BEST-OF-TWO — único draw determina o tempo da fase       |  **PASS**   | O `bestTimeMs` do resultado é rigorosamente idêntico ao `timeMs` de `attempts[0]`.         |
-| **A3B-10** | DEFAULT CANÔNICO — sem override explícito, opera com 1       |  **PASS**   | Chamada com `attemptsPerPhase: undefined` produz estritamente 1 tentativa por piloto.      |
-| **A3B-11** | OVERRIDE NÃO ATIVO — parâmetros fonte não impõem >1          |  **PASS**   | `DEFAULT_SOURCE_RACE_PARAMETERS.attemptsPerPhase` é `undefined`; fonte não impõe >1.       |
-| **A3B-12** | RELOAD/IDEMPOTÊNCIA — reabrir sessão não cria nova tentativa |  **PASS**   | Reexecução sobre chave já persistida retorna o estado idêntico com 1 tentativa por piloto. |
+| Teste      | Nome Real do Teste (`it(...)`)                                                                                                          | Resultado | Evidência                                                                                                                                        |
+| :--------- | :-------------------------------------------------------------------------------------------------------------------------------------- | :-------: | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A3B-01** | `A3B-01: Q1 — cada participante executa exatamente 1 tentativa`                                                                         | **PASS**  | 24 participantes em Q1; cada um com `attempts.length === 1`, `attemptNumber === 1`, `bestTimeMs === attempts[0].timeMs`.                         |
+| **A3B-02** | `A3B-02: Q2 — cada classificado executa exatamente 1 tentativa`                                                                         | **PASS**  | 18 classificados em Q2; cada um com `attempts.length === 1`, `attemptNumber === 1`, `bestTimeMs === attempts[0].timeMs`.                         |
+| **A3B-03** | `A3B-03: Q3 — cada finalista executa exatamente 1 tentativa`                                                                            | **PASS**  | 10 finalistas em Q3; cada um com `attempts.length === 1`, `attemptNumber === 1`, `bestTimeMs === attempts[0].timeMs`.                            |
+| **A3B-04** | `A3B-04: SQ1 — 1 tentativa por participante`                                                                                            | **PASS**  | 24 pilotos em SQ1; cada um com `attempts.length === 1`, `attemptNumber === 1`, pneu MEDIUM.                                                      |
+| **A3B-05** | `A3B-05: SQ2 — 1 tentativa por classificado`                                                                                            | **PASS**  | 18 classificados em SQ2; cada um com `attempts.length === 1`, `attemptNumber === 1`, pneu MEDIUM.                                                |
+| **A3B-06** | `A3B-06: SQ3 — 1 tentativa por finalista`                                                                                               | **PASS**  | 10 finalistas em SQ3; cada um com `attempts.length === 1`, `attemptNumber === 1`, pneu SOFT.                                                     |
+| **A3B-07** | `A3B-07: DRAW COUNT MAIN — fixture 24->18->10: Q1=24, Q2=18, Q3=10, total 52 tentativas`                                                | **PASS**  | `countQ1Attempts` = 24, `countQ2Attempts` = 18, `countQ3Attempts` = 10, `totalMainAttempts` = 52.                                                |
+| **A3B-08** | `A3B-08: DRAW COUNT SPRINT — 24+18+10 = 52`                                                                                             | **PASS**  | `countSq1Attempts` = 24, `countSq2Attempts` = 18, `countSq3Attempts` = 10, `totalSprintAttempts` = 52.                                           |
+| **A3B-09** | `A3B-09: SEM BEST-OF-TWO — apenas o único draw da tentativa determina o tempo da fase`                                                  | **PASS**  | Exatamente 1 tentativa por piloto; `bestTimeMs === attempts[0].timeMs`; nenhum `attemptNumber === 2` gerado.                                     |
+| **A3B-10** | `A3B-10: DEFAULT CANÔNICO — sem override explícito, attemptsPerPhase opera estritamente com 1`                                          | **PASS**  | Invocação sem parâmetro opcional (`undefined`) produz estritamente `attempts.length === 1` e `attemptNumber === 1` para todos.                   |
+| **A3B-11** | `A3B-11: OVERRIDE NÃO ATIVO — parâmetros da fonte não impõem >1 tentativa; suporte arquitetural a override testado de forma controlada` | **PASS**  | `DEFAULT_SOURCE_RACE_PARAMETERS.attemptsPerPhase === undefined`; override pontual suportado em isolamento de teste mas sem ativação na baseline. |
+| **A3B-12** | `A3B-12: RELOAD/IDEMPOTÊNCIA — reabrir sessão persistida não cria tentativa adicional nem recalcula RNG`                                | **PASS**  | Reexecução após `clearMemoryCache` recupera estado persistido com 24 resultados intactos, `attempts.length === 1` e mesmo `normalDrawZ`.         |
 
-**Resultado A3B:** 12/12 PASS.
-
-### Regressões de Provenance:
-
-- **QFIX-A1 (`src/test/quali-provenance-01-fix-a1.test.ts`):** 6/6 PASS (min-max rating delta, spread 2500ms).
-- **QFIX-A2 (`src/test/quali-provenance-01-fix-a2.test.ts`):** 10/10 PASS (MAIN e SPRINT conectados ao núcleo canônico).
-- **QFIX-A3A1 (`src/test/quali-provenance-01-fix-a3a1.test.ts`):** 10/10 PASS (chuva +8% apenas em baseQualiMs).
-- **QFIX-A3A2 (`src/test/quali-provenance-01-fix-a3a2.test.ts`):** 12/12 PASS (sigma wet ×1.5 isolado no ruído estocástico).
-- **Total de testes da trilha QUALI-PROVENANCE:** 50/50 PASS.
+**Total de testes A3B executados:** 12/12 PASS (100%).
 
 ---
 
-## G. BIT-STABILITY
+## G. QA / STATUS DA MICRO-RODADA CLOSE-1
 
-- **MAIN Seco:** Idêntico ao fix A3A2 (mesmos tempos de volta, ordem do grid e deltas de P1 a P24).
-- **MAIN Molhado:** Idêntico ao fix A3A2 (fator base 1.08 + sigma wet 225ms preservados sem derivação de seed).
-- **Sprint Seco:** Idêntico ao fix A3A2.
-- **Sprint Molhado:** Idêntico ao fix A3A2.
-- **Conclusão:** 100% bit-stable. Como nenhuma linha de código esportivo ou gerador de números aleatórios foi alterada nesta rodada, a reprodutibilidade determinística bit-a-bit é mantida com exatidão estrita.
-
----
-
-## H. QA DE FECHAMENTO
-
-- **Setup & Dependências:** Limpo e atualizado.
-- **Oxlint (Análise Estática):** 0 erros.
-- **TypeScript Typecheck (`tsc`):** 0 erros.
-- **Vite Build:** Build de produção bem-sucedido.
-- **Suíte Global de Testes:** 1.825/1.825 testes PASS (em 79 arquivos de teste).
-- **Preview & Rotas:**
-  - Aplicação inicia normalmente sem erros no console.
-  - Rotas auditadas: `/corrida` (WeekendV2Page / CanonicalQualifyingView), `/pilotos` (DriversPage), `/standings`, `/team`.
-  - Grid MAIN e Sprint abrem com integridade formal e estrutural.
-
----
-
-## I. ESTADO FINAL
-
-- **Houve mudança de código esportivo?** **NÃO.** A produção já operava canonicamente com 1 tentativa por fase (`effectiveAttemptsPerPhase ?? 1`). A rodada foi estritamente de comprovação formal, auditoria cirúrgica e homologação.
-- **Arquivos alterados nesta rodada:**
-  - `src/artifacts/audits/QUALI-PROVENANCE-01-FIX-A3B-CLOSE.md` (criado e preenchido com a homologação A–I).
-- **Versão:** v0.0.642 (ou subsequente ao commit de homologação).
-- **Working tree:** Limpa.
-- **Veredito:** **QUALI-PROVENANCE-01-FIX-A3B HOMOLOGADA com sucesso.**
-- **Próxima etapa (NÃO INICIADA):** QUALI-BALANCE-AUDIT-02.
+- **Suíte Canônica A3B (`src/test/quali-provenance-01-fix-a3b.test.ts`):** 12/12 PASS.
+- **Suíte Global:** Não executada nesta micro-rodada (estritamente vedado pelo protocolo da micro-rodada).
+- **Homologação formal:** NÃO homologada ainda (reservada para CLOSE-2).
+- **Veredito da micro-rodada:** **A3B-CLOSE-1 CONCLUÍDA** (comprovação matemática e de código ativa de que a baseline opera com 1 tentativa por fase e sem best-of-two).
