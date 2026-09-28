@@ -506,4 +506,259 @@ describe('QUALI-PROVENANCE-01-FIX-A3B: Suíte Canônica de Formalização de 1 T
       expect(r.attempts[0].normalDrawZ).toBe(orig.attempts[0].normalDrawZ)
     })
   })
+
+  // =========================================================================
+  // PROVAS COMPLEMENTARES DE HOMOLOGAÇÃO (CLOSE-2)
+  // =========================================================================
+  describe('HOMOLOGAÇÃO CLOSE-2: Bit-Stability, Integridade de Grids e Cortes', () => {
+    it('CLOSE2-01: BIT-STABILITY — MAIN Seco, MAIN Molhado, Sprint Seco e Sprint Molhado são determinísticos e idênticos para mesmos inputs/seed', async () => {
+      const participants = createCanonical24Participants()
+
+      // 1. MAIN SECO
+      const mainDry1 = await raceQualifyingOrchestratorService.executeQ1({
+        careerId: 'c_bitstable_main_dry',
+        seasonId: 's_2026',
+        round: 1,
+        participants,
+        trackRecordMs: 80000,
+        wet: false,
+        forceBypassPracticeCheck: true,
+      })
+      raceQualifyingOrchestratorService.clearMemoryCache()
+      const mainDry2 = await raceQualifyingOrchestratorService.executeQ1({
+        careerId: 'c_bitstable_main_dry',
+        seasonId: 's_2026',
+        round: 1,
+        participants,
+        trackRecordMs: 80000,
+        wet: false,
+        forceBypassPracticeCheck: true,
+      })
+      expect(mainDry1.results.length).toBe(24)
+      for (let i = 0; i < 24; i++) {
+        expect(mainDry1.results[i].driverId).toBe(mainDry2.results[i].driverId)
+        expect(mainDry1.results[i].bestTimeMs).toBe(mainDry2.results[i].bestTimeMs)
+        expect(mainDry1.results[i].basePaceMs).toBe(mainDry2.results[i].basePaceMs)
+        expect(mainDry1.results[i].bonusMs).toBe(mainDry2.results[i].bonusMs)
+        expect(mainDry1.results[i].attempts[0].normalDrawZ).toBe(
+          mainDry2.results[i].attempts[0].normalDrawZ,
+        )
+      }
+
+      // 2. MAIN MOLHADO
+      const mainWet1 = await raceQualifyingOrchestratorService.executeQ1({
+        careerId: 'c_bitstable_main_wet',
+        seasonId: 's_2026',
+        round: 1,
+        participants,
+        trackRecordMs: 80000,
+        wet: true,
+        forceBypassPracticeCheck: true,
+      })
+      raceQualifyingOrchestratorService.clearMemoryCache()
+      const mainWet2 = await raceQualifyingOrchestratorService.executeQ1({
+        careerId: 'c_bitstable_main_wet',
+        seasonId: 's_2026',
+        round: 1,
+        participants,
+        trackRecordMs: 80000,
+        wet: true,
+        forceBypassPracticeCheck: true,
+      })
+      expect(mainWet1.results.length).toBe(24)
+      for (let i = 0; i < 24; i++) {
+        expect(mainWet1.results[i].driverId).toBe(mainWet2.results[i].driverId)
+        expect(mainWet1.results[i].bestTimeMs).toBe(mainWet2.results[i].bestTimeMs)
+        expect(mainWet1.results[i].basePaceMs).toBe(mainWet2.results[i].basePaceMs)
+        expect(mainWet1.results[i].attempts[0].normalDrawZ).toBe(
+          mainWet2.results[i].attempts[0].normalDrawZ,
+        )
+      }
+
+      // 3. SPRINT SECO
+      const sprintDry1 = await raceQualifyingOrchestratorService.executeSQ1({
+        careerId: 'c_bitstable_sprint_dry',
+        seasonId: 's_2026',
+        round: 2,
+        participants,
+        trackRecordMs: 80000,
+        wet: false,
+        forceBypassPracticeCheck: true,
+      })
+      raceQualifyingOrchestratorService.clearMemoryCache()
+      const sprintDry2 = await raceQualifyingOrchestratorService.executeSQ1({
+        careerId: 'c_bitstable_sprint_dry',
+        seasonId: 's_2026',
+        round: 2,
+        participants,
+        trackRecordMs: 80000,
+        wet: false,
+        forceBypassPracticeCheck: true,
+      })
+      expect(sprintDry1.results.length).toBe(24)
+      for (let i = 0; i < 24; i++) {
+        expect(sprintDry1.results[i].driverId).toBe(sprintDry2.results[i].driverId)
+        expect(sprintDry1.results[i].bestTimeMs).toBe(sprintDry2.results[i].bestTimeMs)
+        expect(sprintDry1.results[i].basePaceMs).toBe(sprintDry2.results[i].basePaceMs)
+        expect(sprintDry1.results[i].attempts[0].normalDrawZ).toBe(
+          sprintDry2.results[i].attempts[0].normalDrawZ,
+        )
+      }
+
+      // 4. SPRINT MOLHADO
+      const sprintWet1 = await raceQualifyingOrchestratorService.executeSQ1({
+        careerId: 'c_bitstable_sprint_wet',
+        seasonId: 's_2026',
+        round: 2,
+        participants,
+        trackRecordMs: 80000,
+        wet: true,
+        forceBypassPracticeCheck: true,
+      })
+      raceQualifyingOrchestratorService.clearMemoryCache()
+      const sprintWet2 = await raceQualifyingOrchestratorService.executeSQ1({
+        careerId: 'c_bitstable_sprint_wet',
+        seasonId: 's_2026',
+        round: 2,
+        participants,
+        trackRecordMs: 80000,
+        wet: true,
+        forceBypassPracticeCheck: true,
+      })
+      expect(sprintWet1.results.length).toBe(24)
+      for (let i = 0; i < 24; i++) {
+        expect(sprintWet1.results[i].driverId).toBe(sprintWet2.results[i].driverId)
+        expect(sprintWet1.results[i].bestTimeMs).toBe(sprintWet2.results[i].bestTimeMs)
+        expect(sprintWet1.results[i].basePaceMs).toBe(sprintWet2.results[i].basePaceMs)
+        expect(sprintWet1.results[i].attempts[0].normalDrawZ).toBe(
+          sprintWet2.results[i].attempts[0].normalDrawZ,
+        )
+      }
+    })
+
+    it('CLOSE2-02: INTEGRIDADE MAIN — cortes 24->18->10, QUALIFYING_RESULT e STARTING_GRID P1-P24 bijetivo sem NaN/Infinity', async () => {
+      const careerId = 'c_integrity_main'
+      const seasonId = 's_2026'
+      const round = 1
+      const participants = createCanonical24Participants()
+
+      const q1 = await raceQualifyingOrchestratorService.executeQ1({
+        careerId,
+        seasonId,
+        round,
+        participants,
+        trackRecordMs: 80000,
+        forceBypassPracticeCheck: true,
+      })
+      expect(q1.results).toHaveLength(24)
+
+      const q2 = await raceQualifyingOrchestratorService.executeQ2({
+        careerId,
+        seasonId,
+        round,
+      })
+      expect(q2.results).toHaveLength(18)
+
+      const q3 = await raceQualifyingOrchestratorService.executeQ3({
+        careerId,
+        seasonId,
+        round,
+      })
+      expect(q3.results).toHaveLength(10)
+
+      // Grid e resultado oficial
+      const officialGrid = await raceQualifyingOrchestratorService.buildStartingGrid({
+        careerId,
+        seasonId,
+        round,
+      })
+      expect(officialGrid).toBeDefined()
+      expect(officialGrid!.entries).toHaveLength(24)
+
+      const driverIds = new Set<string>()
+      const positions = new Set<number>()
+
+      officialGrid!.entries.forEach((e) => {
+        expect(driverIds.has(e.driverId)).toBe(false)
+        driverIds.add(e.driverId)
+
+        expect(positions.has(e.gridPosition)).toBe(false)
+        positions.add(e.gridPosition)
+
+        expect(Number.isFinite(e.gridPosition)).toBe(true)
+        expect(Number.isFinite(e.qualifyingPosition)).toBe(true)
+        expect(Number.isNaN(e.gridPosition)).toBe(false)
+        expect(Number.isNaN(e.qualifyingPosition)).toBe(false)
+      })
+
+      expect(driverIds.size).toBe(24)
+      expect(positions.size).toBe(24)
+      for (let p = 1; p <= 24; p++) {
+        expect(positions.has(p)).toBe(true)
+      }
+    })
+
+    it('CLOSE2-03: INTEGRIDADE SPRINT — cortes 24->18->10, SPRINT_QUALIFYING_RESULT e SPRINT_STARTING_GRID P1-P24 bijetivo sem NaN/Infinity', async () => {
+      const careerId = 'c_integrity_sprint'
+      const seasonId = 's_2026'
+      const round = 2
+      const participants = createCanonical24Participants()
+
+      const sq1 = await raceQualifyingOrchestratorService.executeSQ1({
+        careerId,
+        seasonId,
+        round,
+        participants,
+        trackRecordMs: 80000,
+        forceBypassPracticeCheck: true,
+      })
+      expect(sq1.results).toHaveLength(24)
+
+      const sq2 = await raceQualifyingOrchestratorService.executeSQ2({
+        careerId,
+        seasonId,
+        round,
+        forceBypassPracticeCheck: true,
+      })
+      expect(sq2.results).toHaveLength(18)
+
+      const sq3 = await raceQualifyingOrchestratorService.executeSQ3({
+        careerId,
+        seasonId,
+        round,
+        forceBypassPracticeCheck: true,
+      })
+      expect(sq3.results).toHaveLength(10)
+
+      const sprintGrid = await raceQualifyingOrchestratorService.buildSprintStartingGrid({
+        careerId,
+        seasonId,
+        round,
+      })
+      expect(sprintGrid).toBeDefined()
+      expect(sprintGrid!.entries).toHaveLength(24)
+
+      const driverIds = new Set<string>()
+      const positions = new Set<number>()
+
+      sprintGrid!.entries.forEach((e) => {
+        expect(driverIds.has(e.driverId)).toBe(false)
+        driverIds.add(e.driverId)
+
+        expect(positions.has(e.gridPosition)).toBe(false)
+        positions.add(e.gridPosition)
+
+        expect(Number.isFinite(e.gridPosition)).toBe(true)
+        expect(Number.isFinite(e.qualifyingPosition)).toBe(true)
+        expect(Number.isNaN(e.gridPosition)).toBe(false)
+        expect(Number.isNaN(e.qualifyingPosition)).toBe(false)
+      })
+
+      expect(driverIds.size).toBe(24)
+      expect(positions.size).toBe(24)
+      for (let p = 1; p <= 24; p++) {
+        expect(positions.has(p)).toBe(true)
+      }
+    })
+  })
 })

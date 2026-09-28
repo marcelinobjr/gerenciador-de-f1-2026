@@ -1,7 +1,7 @@
 # QUALI-PROVENANCE-01-FIX-A3B-CLOSE: Relatório de Auditoria e Fechamento
 
-**Data/Rodada:** QUALI-PROVENANCE-01-FIX-A3B-CLOSE-1  
-**Status:** A3B-CLOSE-1 CONCLUÍDA (Formalização e Prova de 1 Tentativa por Fase; Homologação reservada para CLOSE-2)  
+**Data/Rodada:** QUALI-PROVENANCE-01-FIX-A3B-CLOSE-2  
+**Status:** EM ANDAMENTO (Homologação Final do Qualifying Provenance e Verificação Canônica)  
 **Versão Base:** v0.0.642 / commit HEAD `b97f0b4`  
 **Engenharia/Domínio:** Apex GP Manager (Qualifying Provenance & Single-Attempt Canon)
 
