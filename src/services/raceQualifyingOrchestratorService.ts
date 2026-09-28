@@ -28,13 +28,16 @@ import { loadVersionedRaceConfig, RaceConfigLoadError } from '@/lib/race/loader'
 import type { VersionedRaceConfig } from '@/lib/race/types'
 import {
   calculateQualifyingAttemptTime,
+  calculateSprintQualifyingAttemptTime,
   calculateEffectiveQualifyingDriver,
   calculateTrackQualifyingRating,
   DEFAULT_SOURCE_RACE_PARAMETERS,
 } from '@/lib/race/pureRaceEngine'
 import { racePracticeSetupService } from '@/services/racePracticeSetupService'
 
-export type QualifyingPhase = 'Q1' | 'Q2' | 'Q3'
+export type QualifyingVariant = 'MAIN_QUALIFYING' | 'SPRINT_QUALIFYING'
+
+export type QualifyingPhase = 'Q1' | 'Q2' | 'Q3' | 'SQ1' | 'SQ2' | 'SQ3'
 
 export type QualifyingPhaseStatus =
   | 'READY_FOR_Q1'
@@ -50,6 +53,19 @@ export type QualifyingPhaseStatus =
   | 'QUALIFYING_RESULT_READY'
   | 'STARTING_GRID_READY'
   | 'GRID_READY'
+  | 'READY_FOR_SQ1'
+  | 'SQ1'
+  | 'SQ1_COMPLETE'
+  | 'READY_FOR_SQ2'
+  | 'SQ2'
+  | 'SQ2_COMPLETE'
+  | 'READY_FOR_SQ3'
+  | 'SQ3'
+  | 'SQ3_COMPLETE'
+  | 'SPRINT_QUALIFYING_COMPLETE'
+  | 'SPRINT_QUALIFYING_RESULT_READY'
+  | 'SPRINT_STARTING_GRID_READY'
+  | 'SPRINT_GRID_READY'
 
 export interface QualifyingDriverInput {
   driverId: string
@@ -74,6 +90,8 @@ export interface QualifyingLapAttempt {
   normalDrawZ: number
   timeMs: number
   bonusMs: number
+  compoundDeltaMs?: number
+  compoundUsed?: 'MEDIUM' | 'SOFT'
   formattedTime: string
 }
 
@@ -90,6 +108,8 @@ export interface QualifyingParticipantResult {
   trackRating: number
   basePaceMs: number
   bonusMs: number
+  compoundDeltaMs?: number
+  compoundUsed?: 'MEDIUM' | 'SOFT'
   bestTimeMs: number
   formattedBestTime: string
   attempts: QualifyingLapAttempt[]
@@ -101,6 +121,7 @@ export interface QualifyingParticipantResult {
 export type Q1ParticipantResult = QualifyingParticipantResult
 
 export interface QualifyingPhaseExecutionState {
+  variant?: QualifyingVariant
   phase: QualifyingPhase
   careerId: string
   seasonId: string
@@ -189,9 +210,75 @@ export interface StartingGridState {
   round: number
   configVersion: string
   configSha256?: string
-  status: 'STARTING_GRID_READY' | 'GRID_READY'
+  status: 'STARTING_GRID_READY' | 'GRID_READY' | 'SPRINT_GRID_READY'
   totalParticipants: number
   grid: StartingGridEntry[]
+  poleDriverId: string
+  poleDriverName: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SprintQualifyingResultEntry {
+  position: number // P1..P24
+  driverId: string
+  driverName: string
+  teamId: string
+  teamName: string
+  carIndex: 1 | 2
+  eliminationPhase: 'SQ1' | 'SQ2' | 'SQ3'
+  phaseBestTimeMs: number
+  formattedPhaseBestTime: string
+  setup: number
+  sq1BestTimeMs?: number
+  sq2BestTimeMs?: number
+  sq3BestTimeMs?: number
+}
+
+export interface SprintQualifyingResultState {
+  careerId: string
+  seasonId: string
+  round: number
+  configVersion: string
+  configSha256?: string
+  status: 'SPRINT_QUALIFYING_RESULT_READY'
+  totalParticipants: number
+  results: SprintQualifyingResultEntry[]
+  poleDriverId: string
+  poleDriverName: string
+  poleTimeMs: number
+  formattedPoleTime: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SprintStartingGridEntry {
+  gridPosition: number // P1..P24 efetivo de largada da Sprint
+  qualifyingPosition: number // P1..P24 puro da Quali Sprint
+  driverId: string
+  driverName: string
+  teamId: string
+  teamName: string
+  carIndex: 1 | 2
+  eliminationPhase: 'SQ1' | 'SQ2' | 'SQ3'
+  qualifyingTimeMs: number
+  formattedQualifyingTime: string
+  setup: number
+  penalties: GridPenaltyApplied[]
+  totalPenaltyPositions: number
+  hasPenalty: boolean
+  penaltyReason?: string
+}
+
+export interface SprintStartingGridState {
+  careerId: string
+  seasonId: string
+  round: number
+  configVersion: string
+  configSha256?: string
+  status: 'SPRINT_GRID_READY'
+  totalParticipants: number
+  grid: SprintStartingGridEntry[]
   poleDriverId: string
   poleDriverName: string
   createdAt: string
@@ -224,11 +311,12 @@ export interface ExecuteQualifyingPhaseParams {
   seasonId: string
   round: number
   configVersion?: string
-  participants?: QualifyingDriverInput[] // Obrigatório no Q1; em Q2 e Q3 herdado automaticamente do resultado persistido
+  participants?: QualifyingDriverInput[] // Obrigatório no Q1/SQ1; herdado nas fases seguintes
   trackRecordMs?: number
   driverWeight?: number
   wet?: boolean
   forceBypassPracticeCheck?: boolean
+  mediumDeltaMs?: number
 }
 
 /**
@@ -318,6 +406,32 @@ export function buildStartingGridStorageKey(
   return `apex_starting_grid_state_${careerId}_${seasonId}_r${round}`
 }
 
+export function buildSprintQualifyingStorageKey(
+  phase: 'SQ1' | 'SQ2' | 'SQ3',
+  careerId: string,
+  seasonId: string,
+  round: number,
+): string {
+  const p = phase.toLowerCase()
+  return `apex_${p}_state_${careerId}_${seasonId}_r${round}`
+}
+
+export function buildGlobalSprintQualifyingStorageKey(
+  careerId: string,
+  seasonId: string,
+  round: number,
+): string {
+  return `apex_sprint_qualifying_result_state_${careerId}_${seasonId}_r${round}`
+}
+
+export function buildSprintStartingGridStorageKey(
+  careerId: string,
+  seasonId: string,
+  round: number,
+): string {
+  return `apex_sprint_starting_grid_state_${careerId}_${seasonId}_r${round}`
+}
+
 export class RaceQualifyingOrchestratorService {
   private inMemoryCache: Map<string, QualifyingPhaseExecutionState> = new Map()
 
@@ -343,20 +457,20 @@ export class RaceQualifyingOrchestratorService {
     advancingCount: number
     eliminatedCount: number
   } {
-    if (phase === 'Q3') {
+    if (phase === 'Q3' || phase === 'SQ3') {
       return {
         advancingCount: totalParticipants,
         eliminatedCount: 0,
       }
     }
 
-    if (phase === 'Q2') {
+    if (phase === 'Q2' || phase === 'SQ2') {
       const advancingCount = Math.min(10, totalParticipants)
       const eliminatedCount = Math.max(0, totalParticipants - advancingCount)
       return { advancingCount, eliminatedCount }
     }
 
-    // Q1
+    // Q1 / SQ1
     if (totalParticipants === 24) {
       return { advancingCount: 18, eliminatedCount: 6 }
     }
@@ -414,7 +528,52 @@ export class RaceQualifyingOrchestratorService {
   }
 
   /**
-   * Executa qualquer fase de classificação (Q1 | Q2 | Q3) sob a mesma máquina matemática unificada.
+   * Executa a subfase SQ1 do Sprint Qualifying de forma determinística, idempotente e estrita.
+   * Transição: READY_FOR_SQ1 → SQ1 → SQ1_COMPLETE → READY_FOR_SQ2.
+   * 24 participantes -> 18 classificados, 6 eliminados.
+   * Pneus no seco: Médio (+650ms). Na chuva: 0ms.
+   */
+  public async executeSQ1(
+    params: Omit<ExecuteQualifyingPhaseParams, 'phase'>,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'SQ1',
+    })
+  }
+
+  /**
+   * Executa a subfase SQ2 do Sprint Qualifying de forma determinística, idempotente e estrita.
+   * Transição: READY_FOR_SQ2 → SQ2 → SQ2_COMPLETE → READY_FOR_SQ3.
+   * Recebe EXATAMENTE os 18 classificados do SQ1 -> 10 classificados, 8 eliminados.
+   * Pneus no seco: Médio (+650ms). Na chuva: 0ms.
+   */
+  public async executeSQ2(
+    params: Omit<ExecuteQualifyingPhaseParams, 'phase'>,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'SQ2',
+    })
+  }
+
+  /**
+   * Executa a subfase SQ3 do Sprint Qualifying de forma determinística, idempotente e estrita.
+   * Transição: READY_FOR_SQ3 → SQ3 → SQ3_COMPLETE → SPRINT_QUALIFYING_COMPLETE.
+   * Recebe EXATAMENTE os 10 classificados do SQ2 -> 10 classificados (P1..P10 Sprint).
+   * Pneus no seco: Macio (+0ms).
+   */
+  public async executeSQ3(
+    params: Omit<ExecuteQualifyingPhaseParams, 'phase'>,
+  ): Promise<QualifyingPhaseExecutionState> {
+    return this.executeQualifyingPhase({
+      ...params,
+      phase: 'SQ3',
+    })
+  }
+
+  /**
+   * Executa qualquer fase de classificação (Q1 | Q2 | Q3 | SQ1 | SQ2 | SQ3) sob a mesma máquina matemática unificada.
    */
   public async executeQualifyingPhase(
     params: ExecuteQualifyingPhaseParams,
@@ -430,6 +589,7 @@ export class RaceQualifyingOrchestratorService {
       driverWeight = 0.35,
       wet = false,
       forceBypassPracticeCheck = false,
+      mediumDeltaMs,
     } = params
 
     if (!careerId || !seasonId || round <= 0) {
@@ -439,13 +599,57 @@ export class RaceQualifyingOrchestratorService {
     }
 
     const storageKey = buildQualifyingStorageKey(phase, careerId, seasonId, round)
+    const isSprintQuali = phase === 'SQ1' || phase === 'SQ2' || phase === 'SQ3'
+    const variant: QualifyingVariant = isSprintQuali ? 'SPRINT_QUALIFYING' : 'MAIN_QUALIFYING'
+
+    // Validação esportiva: weekendFormat deve ser SPRINT para executar SQ1/SQ2/SQ3
+    if (isSprintQuali) {
+      const { resolveWeekendFormat } = await import('@/services/weekendSlotSequenceService')
+      const format = resolveWeekendFormat(round)
+      if (format !== 'SPRINT') {
+        throw new Error(
+          `Formato inválido: Quali Sprint (${phase}) só é permitida em finais de semana Sprint. Rodada ${round} é formato ${format}.`,
+        )
+      }
+
+      // Pré-condição do weekend: slot atual deve ser 2 / QUALI_SPRINT
+      if (!forceBypassPracticeCheck) {
+        try {
+          const slotState = await canonicalWeekendSlotPersistenceService.getWeekendSlotState({
+            careerId,
+            seasonId,
+            round,
+          })
+          if (slotState.currentSlot !== 2 || slotState.slotType !== 'QUALI_SPRINT') {
+            throw new Error(
+              `Pré-condição violada: Quali Sprint (${phase}) exige slot atual = 2 (QUALI_SPRINT). Slot atual: ${slotState.currentSlot} (${slotState.slotType}).`,
+            )
+          }
+        } catch (err: any) {
+          if (err?.message?.includes('Pré-condição violada')) {
+            throw err
+          }
+          // Caso não haja estado persistido ainda ou mock offline, prossegue se não for explicitamente bloqueado
+        }
+      }
+    }
 
     // 1. CHECAGEM DE IDEMPOTÊNCIA / PERSISTÊNCIA PRÉVIA E RECUPERAÇÃO DE FALHA PARCIAL
     // Se a fase já foi executada (mesmo com falha na transição de status final),
     // recupera os tempos calculados sem gerar novos sorteios nem recalcular tempos.
     const existingState = await this.loadPersistedPhaseState(phase, careerId, seasonId, round)
-    const completedStatus =
-      phase === 'Q1' ? 'READY_FOR_Q2' : phase === 'Q2' ? 'READY_FOR_Q3' : 'QUALIFYING_COMPLETE'
+    const completedStatus: QualifyingPhaseStatus =
+      phase === 'Q1'
+        ? 'READY_FOR_Q2'
+        : phase === 'Q2'
+          ? 'READY_FOR_Q3'
+          : phase === 'Q3'
+            ? 'QUALIFYING_COMPLETE'
+            : phase === 'SQ1'
+              ? 'READY_FOR_SQ2'
+              : phase === 'SQ2'
+                ? 'READY_FOR_SQ3'
+                : 'SPRINT_QUALIFYING_COMPLETE'
 
     if (
       existingState &&
@@ -491,6 +695,11 @@ export class RaceQualifyingOrchestratorService {
       }
 
       effectiveParticipants = participants
+    } else if (phase === 'SQ1') {
+      if (!participants || participants.length === 0) {
+        throw new Error('Nenhum participante informado para o SQ1.')
+      }
+      effectiveParticipants = participants
     } else if (phase === 'Q2') {
       // Q2 EXIGE Q1 CONCLUÍDO (READY_FOR_Q2)
       const q1State = await this.loadPersistedPhaseState('Q1', careerId, seasonId, round)
@@ -504,7 +713,6 @@ export class RaceQualifyingOrchestratorService {
       const q1ClassifiedSet = new Set(q1State.classifiedDriverIds)
       const q1ClassifiedResults = q1State.results.filter((r) => q1ClassifiedSet.has(r.driverId))
 
-      // Se o chamador forneceu metadata adicional de pilotos, mescla atributos mantendo setup e integridade
       const inputDriverMap = new Map((participants || []).map((p) => [p.driverId, p]))
 
       effectiveParticipants = q1ClassifiedResults.map((r) => {
@@ -522,6 +730,38 @@ export class RaceQualifyingOrchestratorService {
           morale: extra?.morale ?? 50,
           wet_skill: extra?.wet_skill ?? 50,
           setup: r.setup, // Mantém exatamente o mesmo setup dos TLs consolidado no Q1
+        }
+      })
+    } else if (phase === 'SQ2') {
+      // SQ2 EXIGE SQ1 CONCLUÍDO (READY_FOR_SQ2)
+      const sq1State = await this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+      if (!sq1State || !sq1State.isCompleted) {
+        throw new Error(
+          `Ordem de sessões violada: SQ2 só pode ser iniciado após a conclusão do SQ1 (READY_FOR_SQ2). SQ1 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+        )
+      }
+
+      // Herança esportiva estrita: os participantes de SQ2 são EXATAMENTE os classificados de SQ1
+      const sq1ClassifiedSet = new Set(sq1State.classifiedDriverIds)
+      const sq1ClassifiedResults = sq1State.results.filter((r) => sq1ClassifiedSet.has(r.driverId))
+
+      const inputDriverMap = new Map((participants || []).map((p) => [p.driverId, p]))
+
+      effectiveParticipants = sq1ClassifiedResults.map((r) => {
+        const extra = inputDriverMap.get(r.driverId)
+        return {
+          driverId: r.driverId,
+          driverName: r.driverName,
+          teamId: r.teamId,
+          teamName: r.teamName,
+          carIndex: r.carIndex,
+          carPerformance: extra?.carPerformance ?? 80,
+          speed: extra?.speed ?? 80,
+          qualifying: extra?.qualifying ?? 80,
+          form: extra?.form ?? 50,
+          morale: extra?.morale ?? 50,
+          wet_skill: extra?.wet_skill ?? 50,
+          setup: r.setup, // Mantém o setup consolidado
         }
       })
     } else if (phase === 'Q3') {
@@ -554,6 +794,38 @@ export class RaceQualifyingOrchestratorService {
           morale: extra?.morale ?? 50,
           wet_skill: extra?.wet_skill ?? 50,
           setup: r.setup, // Mantém exatamente o mesmo setup dos TLs consolidado
+        }
+      })
+    } else if (phase === 'SQ3') {
+      // SQ3 EXIGE SQ2 CONCLUÍDO (READY_FOR_SQ3)
+      const sq2State = await this.loadPersistedPhaseState('SQ2', careerId, seasonId, round)
+      if (!sq2State || !sq2State.isCompleted) {
+        throw new Error(
+          `Ordem de sessões violada: SQ3 só pode ser iniciado após a conclusão do SQ2 (READY_FOR_SQ3). SQ2 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+        )
+      }
+
+      // Herança esportiva estrita: os participantes de SQ3 são EXATAMENTE os classificados de SQ2
+      const sq2ClassifiedSet = new Set(sq2State.classifiedDriverIds)
+      const sq2ClassifiedResults = sq2State.results.filter((r) => sq2ClassifiedSet.has(r.driverId))
+
+      const inputDriverMap = new Map((participants || []).map((p) => [p.driverId, p]))
+
+      effectiveParticipants = sq2ClassifiedResults.map((r) => {
+        const extra = inputDriverMap.get(r.driverId)
+        return {
+          driverId: r.driverId,
+          driverName: r.driverName,
+          teamId: r.teamId,
+          teamName: r.teamName,
+          carIndex: r.carIndex,
+          carPerformance: extra?.carPerformance ?? 80,
+          speed: extra?.speed ?? 80,
+          qualifying: extra?.qualifying ?? 80,
+          form: extra?.form ?? 50,
+          morale: extra?.morale ?? 50,
+          wet_skill: extra?.wet_skill ?? 50,
+          setup: r.setup,
         }
       })
     }
@@ -635,36 +907,68 @@ export class RaceQualifyingOrchestratorService {
       let bestTimeMs = Infinity
       let appliedBonusMs = 0
 
+      let appliedCompoundDeltaMs = 0
+      const compoundUsed: 'MEDIUM' | 'SOFT' =
+        isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'MEDIUM' : 'SOFT'
+
       for (let attNum = 1; attNum <= 2; attNum++) {
-        // Identidade da tentativa no RNG: career + season + round + phase + entry/car + attempt
-        // Garante namespaces distintos para Q1, Q2 e Q3
-        const seedIdentity = `${careerId}:${seasonId}:r${round}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
+        // Identidade da tentativa no RNG: career + season + round + variant + phase + entry/car + attempt
+        // Garante namespaces distintos entre SQ1, SQ2, SQ3 e também de Q1, Q2, Q3
+        const seedIdentity = `${careerId}:${seasonId}:r${round}:${variant}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
         const seedUint = hashStringToUint32(seedIdentity)
         const rng = mulberry32(seedUint)
         const z = getStandardNormal(rng)
 
-        // Aplicação EXATA do motor puro oficial (pureRaceEngine.ts)
-        const calc = calculateQualifyingAttemptTime(
-          {
-            base_pace_ms: basePaceMs,
-            setup: finalSetup,
-            normal_standard_draw_z: z,
-            sigma_ms: raceParams.qualifying_noise_sd_ms,
-          },
-          raceParams,
-        )
+        let attemptTimeMs: number
+        let attemptBonusMs: number
+        let compoundDeltaMs = 0
 
-        appliedBonusMs = calc.bonus_ms
+        if (isSprintQuali) {
+          // Sprint Shootout (SQ1, SQ2 usam Médio no seco; SQ3 usa Macio)
+                const isSq3 = phase === 'SQ3'
+                const sprintCalc = calculateSprintQualifyingAttemptTime(
+                  {
+                    dry: !wet,
+                    is_sq3: isSq3,
+                    base_pace_ms: basePaceMs,
+                    setup: finalSetup,
+                    normal_standard_draw_z: z,
+                    sigma_ms: raceParams.qualifying_noise_sd_ms,
+                    medium_delta_ms: mediumDeltaMs,
+                  },
+                  raceParams,
+                )
+                attemptTimeMs = sprintCalc.time_ms
+                attemptBonusMs = sprintCalc.bonus_ms
+                compoundDeltaMs = sprintCalc.compound_delta_ms
+                appliedCompoundDeltaMs = compoundDeltaMs        } else {
+          // Qualificação Principal (Q1, Q2, Q3)
+          const mainCalc = calculateQualifyingAttemptTime(
+            {
+              base_pace_ms: basePaceMs,
+              setup: finalSetup,
+              normal_standard_draw_z: z,
+              sigma_ms: raceParams.qualifying_noise_sd_ms,
+            },
+            raceParams,
+          )
+          attemptTimeMs = mainCalc.time_ms
+          attemptBonusMs = mainCalc.bonus_ms
+        }
+
+        appliedBonusMs = attemptBonusMs
         attempts.push({
           attemptNumber: attNum,
           normalDrawZ: z,
-          timeMs: calc.time_ms,
-          bonusMs: calc.bonus_ms,
-          formattedTime: formatLapTimeMs(calc.time_ms),
+          timeMs: attemptTimeMs,
+          bonusMs: attemptBonusMs,
+          compoundDeltaMs: isSprintQuali ? compoundDeltaMs : undefined,
+          compoundUsed,
+          formattedTime: formatLapTimeMs(attemptTimeMs),
         })
 
-        if (calc.time_ms < bestTimeMs) {
-          bestTimeMs = calc.time_ms
+        if (attemptTimeMs < bestTimeMs) {
+          bestTimeMs = attemptTimeMs
         }
       }
 
@@ -679,6 +983,8 @@ export class RaceQualifyingOrchestratorService {
         trackRating: rating,
         basePaceMs,
         bonusMs: appliedBonusMs,
+        compoundDeltaMs: isSprintQuali ? appliedCompoundDeltaMs : undefined,
+        compoundUsed: isSprintQuali ? compoundUsed : undefined,
         bestTimeMs,
         formattedBestTime: formatLapTimeMs(bestTimeMs),
         attempts,
@@ -700,7 +1006,7 @@ export class RaceQualifyingOrchestratorService {
     // Atribuição de posições 1..N únicas dentro da fase
     results.forEach((r, idx) => {
       r.position = idx + 1
-      if (phase === 'Q3') {
+      if (phase === 'Q3' || phase === 'SQ3') {
         r.isClassified = true
         r.isEliminated = false
       } else if (idx < advancingCount) {
@@ -716,9 +1022,20 @@ export class RaceQualifyingOrchestratorService {
     const eliminatedDriverIds = results.filter((r) => r.isEliminated).map((r) => r.driverId)
 
     const nextStatus: QualifyingPhaseStatus =
-      phase === 'Q1' ? 'READY_FOR_Q2' : phase === 'Q2' ? 'READY_FOR_Q3' : 'QUALIFYING_COMPLETE'
+      phase === 'Q1'
+        ? 'READY_FOR_Q2'
+        : phase === 'Q2'
+          ? 'READY_FOR_Q3'
+          : phase === 'Q3'
+            ? 'QUALIFYING_COMPLETE'
+            : phase === 'SQ1'
+              ? 'READY_FOR_SQ2'
+              : phase === 'SQ2'
+                ? 'READY_FOR_SQ3'
+                : 'SPRINT_QUALIFYING_COMPLETE'
 
     const finalState: QualifyingPhaseExecutionState = {
+      variant,
       phase,
       careerId,
       seasonId,
@@ -742,6 +1059,21 @@ export class RaceQualifyingOrchestratorService {
     await this.persistPhaseState(finalState)
     this.inMemoryCache.set(storageKey, finalState)
 
+    // Atualizar subfase no slot do fim de semana quando aplicável
+    if (isSprintQuali) {
+      try {
+        await canonicalWeekendSlotPersistenceService.updateSubPhase({
+          careerId,
+          seasonId,
+          round,
+          slotNumber: 2,
+          subPhase: phase,
+        })
+      } catch {
+        // ignora se offline/mock
+      }
+    }
+
     return finalState
   }
 
@@ -763,18 +1095,19 @@ export class RaceQualifyingOrchestratorService {
       return this.inMemoryCache.get(storageKey)!
     }
 
-    // 2. PocketBase session_setups com session = 'q1' | 'q2' | 'q3'
+    // 2. PocketBase session_setups (fallback caso session no PB aceite apenas valores restritos do enum de PB)
     try {
       const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${sessionName}"`,
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round}`,
       })
       if (records.items.length > 0) {
-        const item = records.items[0]
-        const strategies = (item.driver_strategies as any) || {}
-        if (strategies[stateProp]) {
-          const loaded = strategies[stateProp] as QualifyingPhaseExecutionState
-          this.inMemoryCache.set(storageKey, loaded)
-          return loaded
+        for (const item of records.items) {
+          const strategies = (item.driver_strategies as any) || {}
+          if (strategies[stateProp]) {
+            const loaded = strategies[stateProp] as QualifyingPhaseExecutionState
+            this.inMemoryCache.set(storageKey, loaded)
+            return loaded
+          }
         }
       }
     } catch {
@@ -832,6 +1165,39 @@ export class RaceQualifyingOrchestratorService {
   }
 
   /**
+   * Alias de consulta para SQ1.
+   */
+  public async loadPersistedSQ1State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+  }
+
+  /**
+   * Alias de consulta para SQ2.
+   */
+  public async loadPersistedSQ2State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('SQ2', careerId, seasonId, round)
+  }
+
+  /**
+   * Alias de consulta para SQ3.
+   */
+  public async loadPersistedSQ3State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('SQ3', careerId, seasonId, round)
+  }
+
+  /**
    * Grava o estado de qualquer fase (Q1 | Q2 | Q3) de forma resiliente.
    */
   public async persistPhaseState(state: QualifyingPhaseExecutionState): Promise<void> {
@@ -841,9 +1207,20 @@ export class RaceQualifyingOrchestratorService {
     const stateProp = `${sessionName}State`
 
     // 1. Gravação no PocketBase
+    // Para session no PB, o enum de schema aceita (tp1 | tp2 | tp3 | q1 | q2 | q3 | race).
+    // Para SQ1/SQ2/SQ3 usamos a sessão mais compatível ou 'q1'/'q2'/'q3'.
+    const pbSession =
+      phase === 'SQ1'
+        ? 'q1'
+        : phase === 'SQ2'
+          ? 'q2'
+          : phase === 'SQ3'
+            ? 'q3'
+            : sessionName
+
     try {
       const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${sessionName}"`,
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${pbSession}"`,
       })
 
       if (records.items.length > 0) {
@@ -859,7 +1236,7 @@ export class RaceQualifyingOrchestratorService {
           team_id: careerId,
           season_id: seasonId,
           round,
-          session: sessionName,
+          session: pbSession,
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
@@ -896,6 +1273,570 @@ export class RaceQualifyingOrchestratorService {
   /**
    * Limpa o estado em memória (utilitário de teste).
    */
+  /**
+   * Alias de consulta para SQ1.
+   */
+  public async loadPersistedSQ1State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+  }
+
+  /**
+   * Alias de consulta para SQ2.
+   */
+  public async loadPersistedSQ2State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('SQ2', careerId, seasonId, round)
+  }
+
+  /**
+   * Alias de consulta para SQ3.
+   */
+  public async loadPersistedSQ3State(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<QualifyingPhaseExecutionState | null> {
+    return this.loadPersistedPhaseState('SQ3', careerId, seasonId, round)
+  }
+
+  /**
+   * Constrói e persiste o resultado global da classificação Sprint (SPRINT_QUALIFYING_RESULT_READY)
+   * a partir EXCLUSIVAMENTE dos resultados persistidos de SQ1, SQ2 e SQ3.
+   *
+   * REGRAS ESPORTIVAS E INVARIANTES:
+   * 1. SQ3_COMPLETE → SPRINT_QUALIFYING_COMPLETE → SPRINT_QUALIFYING_RESULT_READY.
+   * 2. P1–P10: ordem final do SQ3.
+   * 3. P11–P18: os 8 eliminados no SQ2, ordenados exclusivamente pelo resultado persistido do SQ2.
+   * 4. P19–P24: os 6 eliminados no SQ1, ordenados exclusivamente pelo resultado persistido do SQ1.
+   * 5. Precedência de fase: tempo de fase anterior NÃO reordena participantes de fase posterior.
+   * 6. Bijeção estrita: exatamente uma ocorrência de cada participante original, posições contínuas P1..P24.
+   *    Se houver duplicata, participante ausente ou desconhecido, lança erro explícito.
+   * 7. Zero consumo de RNG, zero recálculo de tempos ou setup.
+   * 8. Idempotência estrita: reexecutar devolve o mesmo artefato idêntico.
+   */
+  public async buildSprintQualifyingResult(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<SprintQualifyingResultState> {
+    const { careerId, seasonId, round } = params
+
+    if (!careerId || !seasonId || round <= 0) {
+      throw new Error(
+        `Contexto de carreira/temporada inválido: careerId='${careerId}', seasonId='${seasonId}', round=${round}`,
+      )
+    }
+
+    const storageKey = buildGlobalSprintQualifyingStorageKey(careerId, seasonId, round)
+
+    // 1. CHECAGEM DE IDEMPOTÊNCIA PRÉVIA
+    const existing = await this.loadPersistedSprintQualifyingResult(careerId, seasonId, round)
+    if (
+      existing &&
+      existing.status === 'SPRINT_QUALIFYING_RESULT_READY' &&
+      existing.results?.length > 0
+    ) {
+      this.inMemoryCache.set(storageKey, existing as any)
+      return existing
+    }
+
+    // 2. CARREGAR RESULTADOS PERSISTIDOS DE SQ1, SQ2 E SQ3
+    const sq1State = await this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+    if (!sq1State || !sq1State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado da Quali Sprint: SQ1 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    const sq2State = await this.loadPersistedPhaseState('SQ2', careerId, seasonId, round)
+    if (!sq2State || !sq2State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado da Quali Sprint: SQ2 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    const sq3State = await this.loadPersistedPhaseState('SQ3', careerId, seasonId, round)
+    if (!sq3State || !sq3State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado da Quali Sprint: SQ3 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    // 3. MAPAS DE TEMPOS POR FASE (FATOS JÁ PERSISTIDOS)
+    const sq1Map = new Map(sq1State.results.map((r) => [r.driverId, r]))
+    const sq2Map = new Map(sq2State.results.map((r) => [r.driverId, r]))
+    const sq3Map = new Map(sq3State.results.map((r) => [r.driverId, r]))
+
+    // 4. BIJEÇÃO E CONFERÊNCIA RIGOROSA DE PARTICIPANTES ORIGINAIS
+    const originalParticipants = sq1State.results
+    const totalEntrants = originalParticipants.length
+    if (totalEntrants === 0) {
+      throw new Error('Nenhum participante encontrado no resultado persistido do SQ1.')
+    }
+
+    const originalDriverIdsSet = new Set(originalParticipants.map((p) => p.driverId))
+    if (originalDriverIdsSet.size !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção no SQ1: participantes duplicados detectados (${totalEntrants} registros, ${originalDriverIdsSet.size} únicos).`,
+      )
+    }
+
+    // 5. AGRUPAMENTO POR FASES
+    // P1–P10: pilotos do SQ3 (ordenados pela posição já persistida do SQ3)
+    const sq3Ordered = [...sq3State.results].sort((a, b) => a.position - b.position)
+
+    // P11–P18: eliminados do SQ2 (ordenados pela posição já persistida do SQ2)
+    const sq2Eliminated = sq2State.results
+      .filter((r) => r.isEliminated || sq2State.eliminatedDriverIds.includes(r.driverId))
+      .sort((a, b) => a.position - b.position)
+
+    // P19–P24: eliminados do SQ1 (ordenados pela posição já persistida do SQ1)
+    const sq1Eliminated = sq1State.results
+      .filter((r) => r.isEliminated || sq1State.eliminatedDriverIds.includes(r.driverId))
+      .sort((a, b) => a.position - b.position)
+
+    // 6. VALIDAÇÕES EXPLÍCITAS DE INTEGRIDADE
+    const sq3DriverIds = sq3Ordered.map((r) => r.driverId)
+    const sq2ElimDriverIds = sq2Eliminated.map((r) => r.driverId)
+    const sq1ElimDriverIds = sq1Eliminated.map((r) => r.driverId)
+
+    for (const dId of sq3DriverIds) {
+      if (sq2ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto '${dId}' classificado no SQ3 consta também como eliminado no SQ2.`,
+        )
+      }
+      if (sq1ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto '${dId}' classificado no SQ3 consta também como eliminado no SQ1.`,
+        )
+      }
+    }
+    for (const dId of sq2ElimDriverIds) {
+      if (sq1ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto '${dId}' eliminado no SQ2 consta também como eliminado no SQ1.`,
+        )
+      }
+    }
+
+    const candidateIds = [...sq3DriverIds, ...sq2ElimDriverIds, ...sq1ElimDriverIds]
+    for (const dId of candidateIds) {
+      if (!originalDriverIdsSet.has(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto desconhecido '${dId}' não estava nos participantes originais do SQ1.`,
+        )
+      }
+    }
+
+    if (candidateIds.length !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção na contagem Sprint: candidatos somam ${candidateIds.length}, esperado ${totalEntrants} participantes.`,
+      )
+    }
+
+    const candidateSet = new Set(candidateIds)
+    if (candidateSet.size !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção Sprint: piloto duplicado detectado na união das fases (${candidateIds.length} registros, ${candidateSet.size} únicos).`,
+      )
+    }
+
+    for (const origId of originalDriverIdsSet) {
+      if (!candidateSet.has(origId)) {
+        throw new Error(
+          `Violação de bijeção Sprint: participante original '${origId}' ausente na consolidação do resultado global.`,
+        )
+      }
+    }
+
+    // 7. COMPOSIÇÃO BIJETIVA DO RESULTADO SPRINT (P1..P24)
+    const sprintEntries: SprintQualifyingResultEntry[] = []
+    let currentPosition = 1
+
+    // P1–P10 (SQ3)
+    for (const r of sq3Ordered) {
+      const sq1Data = sq1Map.get(r.driverId)
+      const sq2Data = sq2Map.get(r.driverId)
+      sprintEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'SQ3',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        sq1BestTimeMs: sq1Data?.bestTimeMs,
+        sq2BestTimeMs: sq2Data?.bestTimeMs,
+        sq3BestTimeMs: r.bestTimeMs,
+      })
+    }
+
+    // P11–P18 (SQ2 eliminados)
+    for (const r of sq2Eliminated) {
+      const sq1Data = sq1Map.get(r.driverId)
+      sprintEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'SQ2',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        sq1BestTimeMs: sq1Data?.bestTimeMs,
+        sq2BestTimeMs: r.bestTimeMs,
+        sq3BestTimeMs: undefined,
+      })
+    }
+
+    // P19–P24 (SQ1 eliminados)
+    for (const r of sq1Eliminated) {
+      sprintEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'SQ1',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        sq1BestTimeMs: r.bestTimeMs,
+        sq2BestTimeMs: undefined,
+        sq3BestTimeMs: undefined,
+      })
+    }
+
+    const finalPositions = sprintEntries.map((e) => e.position)
+    const expectedPositions = Array.from({ length: totalEntrants }, (_, i) => i + 1)
+    if (JSON.stringify(finalPositions) !== JSON.stringify(expectedPositions)) {
+      throw new Error(
+        `Violação de bijeção de posições Sprint: posições geradas não são contínuas de 1 a ${totalEntrants}.`,
+      )
+    }
+
+    const poleEntry = sprintEntries[0]
+    const sprintState: SprintQualifyingResultState = {
+      careerId,
+      seasonId,
+      round,
+      configVersion: sq3State.configVersion || sq1State.configVersion || 'v1',
+      configSha256: sq3State.configSha256 || sq1State.configSha256,
+      status: 'SPRINT_QUALIFYING_RESULT_READY',
+      totalParticipants: totalEntrants,
+      results: sprintEntries,
+      poleDriverId: poleEntry?.driverId || '',
+      poleDriverName: poleEntry?.driverName || '',
+      poleTimeMs: poleEntry?.phaseBestTimeMs || 0,
+      formattedPoleTime: poleEntry?.formattedPhaseBestTime || '-:--.---',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await this.persistSprintQualifyingResult(sprintState)
+    this.inMemoryCache.set(storageKey, sprintState as any)
+
+    return sprintState
+  }
+
+  /**
+   * Consulta o estado salvo do resultado da Quali Sprint.
+   */
+  public async loadPersistedSprintQualifyingResult(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<SprintQualifyingResultState | null> {
+    const storageKey = buildGlobalSprintQualifyingStorageKey(careerId, seasonId, round)
+
+    if (this.inMemoryCache.has(storageKey)) {
+      return this.inMemoryCache.get(storageKey) as unknown as SprintQualifyingResultState
+    }
+
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round}`,
+      })
+      if (records.items.length > 0) {
+        for (const item of records.items) {
+          const strategies = (item.driver_strategies as any) || {}
+          if (strategies.sprintQualifyingResult) {
+            const loaded = strategies.sprintQualifyingResult as SprintQualifyingResultState
+            this.inMemoryCache.set(storageKey, loaded as any)
+            return loaded
+          }
+        }
+      }
+    } catch {
+      // Ignora erro de PB e tenta cache local
+    }
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        if (raw) {
+          const parsed = JSON.parse(raw) as SprintQualifyingResultState
+          this.inMemoryCache.set(storageKey, parsed as any)
+          return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Persiste o resultado da Quali Sprint de forma resiliente.
+   */
+  public async persistSprintQualifyingResult(state: SprintQualifyingResultState): Promise<void> {
+    const { careerId, seasonId, round, status } = state
+    const storageKey = buildGlobalSprintQualifyingStorageKey(careerId, seasonId, round)
+
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
+      })
+
+      if (records.items.length > 0) {
+        const existing = records.items[0]
+        const strategies = (existing.driver_strategies as any) || {}
+        strategies.sprintQualifyingResult = state
+        await pb.collection('session_setups').update(existing.id, {
+          driver_strategies: strategies,
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      } else {
+        await pb.collection('session_setups').create({
+          team_id: careerId,
+          season_id: seasonId,
+          round,
+          session: 'sq3',
+          wing_level: 6,
+          suspension_stiffness: 6,
+          pu_electric_ratio: 50,
+          driver_strategies: {
+            sprintQualifyingResult: state,
+          },
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      }
+    } catch (err) {
+      console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir resultado Sprint:`, err)
+    }
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Constrói e persiste o SPRINT_STARTING_GRID a partir do SPRINT_QUALIFYING_RESULT.
+   * Não mistura com o grid da corrida principal.
+   */
+  public async buildSprintStartingGrid(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<SprintStartingGridState> {
+    const { careerId, seasonId, round } = params
+
+    if (!careerId || !seasonId || round <= 0) {
+      throw new Error(
+        `Contexto de carreira/temporada inválido: careerId='${careerId}', seasonId='${seasonId}', round=${round}`,
+      )
+    }
+
+    const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
+
+    // 1. CHECAGEM DE IDEMPOTÊNCIA
+    const existing = await this.loadPersistedSprintStartingGrid(careerId, seasonId, round)
+    if (existing && existing.grid?.length > 0) {
+      this.inMemoryCache.set(storageKey, existing as any)
+      return existing
+    }
+
+    // 2. RECUPERA SPRINT_QUALIFYING_RESULT
+    let sprintQuali = await this.loadPersistedSprintQualifyingResult(careerId, seasonId, round)
+    if (!sprintQuali || sprintQuali.status !== 'SPRINT_QUALIFYING_RESULT_READY') {
+      sprintQuali = await this.buildSprintQualifyingResult({ careerId, seasonId, round })
+    }
+
+    const qualifyingEntries = sprintQuali.results
+    const totalEntrants = qualifyingEntries.length
+    if (totalEntrants === 0) {
+      throw new Error('SPRINT_QUALIFYING_RESULT vazio: impossível formar o grid da Sprint.')
+    }
+
+    // 3. PENALIDADES: REGRA EXPLÍCITA
+    // Não inventar regra nova de penalidade para Sprint; mantém grid derivado diretamente
+    // da Quali Sprint sem penalidades de PU do GP a menos que haja regra homologada futura.
+    const startingGrid: SprintStartingGridEntry[] = qualifyingEntries.map((entry, index) => {
+      const gridPosition = index + 1
+      return {
+        gridPosition,
+        qualifyingPosition: entry.position,
+        driverId: entry.driverId,
+        driverName: entry.driverName,
+        teamId: entry.teamId,
+        teamName: entry.teamName,
+        carIndex: entry.carIndex,
+        eliminationPhase: entry.eliminationPhase,
+        qualifyingTimeMs: entry.phaseBestTimeMs,
+        formattedQualifyingTime: entry.formattedPhaseBestTime,
+        setup: entry.setup,
+        penalties: [],
+        totalPenaltyPositions: 0,
+        hasPenalty: false,
+      }
+    })
+
+    // 4. VALIDAÇÃO DE BIJEÇÃO
+    const driverIdsSet = new Set(startingGrid.map((g) => g.driverId))
+    if (driverIdsSet.size !== totalEntrants) {
+      throw new Error(
+        `Regressão de pilotos duplicados detectada no SPRINT_STARTING_GRID: ${totalEntrants} entradas, ${driverIdsSet.size} motoristas únicos.`,
+      )
+    }
+
+    const poleEntry = startingGrid[0]
+
+    const sprintGridState: SprintStartingGridState = {
+      careerId,
+      seasonId,
+      round,
+      configVersion: sprintQuali.configVersion,
+      configSha256: sprintQuali.configSha256,
+      status: 'SPRINT_GRID_READY',
+      totalParticipants: totalEntrants,
+      grid: startingGrid,
+      poleDriverId: poleEntry.driverId,
+      poleDriverName: poleEntry.driverName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await this.persistSprintStartingGrid(sprintGridState)
+    this.inMemoryCache.set(storageKey, sprintGridState as any)
+
+    return sprintGridState
+  }
+
+  /**
+   * Consulta o SPRINT_STARTING_GRID persistido.
+   */
+  public async loadPersistedSprintStartingGrid(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<SprintStartingGridState | null> {
+    const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
+
+    if (this.inMemoryCache.has(storageKey)) {
+      return this.inMemoryCache.get(storageKey) as unknown as SprintStartingGridState
+    }
+
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round}`,
+      })
+      if (records.items.length > 0) {
+        for (const item of records.items) {
+          const strategies = (item.driver_strategies as any) || {}
+          if (strategies.sprintStartingGridState) {
+            const loaded = strategies.sprintStartingGridState as SprintStartingGridState
+            this.inMemoryCache.set(storageKey, loaded as any)
+            return loaded
+          }
+        }
+      }
+    } catch {
+      // ignora erro
+    }
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        if (raw) {
+          const parsed = JSON.parse(raw) as SprintStartingGridState
+          this.inMemoryCache.set(storageKey, parsed as any)
+          return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Persiste o SPRINT_STARTING_GRID de forma resiliente.
+   */
+  public async persistSprintStartingGrid(state: SprintStartingGridState): Promise<void> {
+    const { careerId, seasonId, round, status } = state
+    const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
+
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
+      })
+
+      if (records.items.length > 0) {
+        const existing = records.items[0]
+        const strategies = (existing.driver_strategies as any) || {}
+        strategies.sprintStartingGridState = state
+        await pb.collection('session_setups').update(existing.id, {
+          driver_strategies: strategies,
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      } else {
+        await pb.collection('session_setups').create({
+          team_id: careerId,
+          season_id: seasonId,
+          round,
+          session: 'sq3',
+          wing_level: 6,
+          suspension_stiffness: 6,
+          pu_electric_ratio: 50,
+          driver_strategies: {
+            sprintStartingGridState: state,
+          },
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      }
+    } catch (err) {
+      console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir starting grid Sprint:`, err)
+    }
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   /**
    * Constrói e persiste o resultado global da classificação (QUALIFYING_RESULT_READY)
    * a partir EXCLUSIVAMENTE dos resultados persistidos de Q1, Q2 e Q3.
@@ -1549,6 +2490,613 @@ export class RaceQualifyingOrchestratorService {
       } catch {
         // ignore
       }
+    }
+  }
+
+  /**
+   * Constrói e persiste o resultado global da classificação Sprint (SPRINT_QUALIFYING_RESULT_READY)
+   * a partir EXCLUSIVAMENTE dos resultados persistidos de SQ1, SQ2 e SQ3.
+   *
+   * REGRAS ESPORTIVAS E INVARIANTES:
+   * 1. SQ3_COMPLETE → SPRINT_QUALIFYING_COMPLETE → SPRINT_QUALIFYING_RESULT_READY.
+   * 2. P1–P10: ordem final do SQ3.
+   * 3. P11–P18: os 8 eliminados no SQ2, ordenados exclusivamente pelo resultado persistido do SQ2.
+   * 4. P19–P24: os 6 eliminados no SQ1, ordenados exclusivamente pelo resultado persistido do SQ1.
+   * 5. Precedência de fase: tempo de fase anterior NÃO reordena participantes de fase posterior.
+   * 6. Bijeção estrita: exatamente uma ocorrência de cada participante original, posições contínuas P1..P24.
+   *    Se houver duplicata, participante ausente ou desconhecido, lança erro explícito.
+   * 7. Zero consumo de RNG, zero recálculo de tempos ou setup.
+   * 8. Idempotência estrita: reexecutar devolve o mesmo artefato idêntico.
+   */
+  public async buildSprintQualifyingResult(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<SprintQualifyingResultState> {
+    const { careerId, seasonId, round } = params
+
+    if (!careerId || !seasonId || round <= 0) {
+      throw new Error(
+        `Contexto de carreira/temporada inválido: careerId='${careerId}', seasonId='${seasonId}', round=${round}`,
+      )
+    }
+
+    const storageKey = buildGlobalSprintQualifyingStorageKey(careerId, seasonId, round)
+
+    // 1. CHECAGEM DE IDEMPOTÊNCIA PRÉVIA
+    const existing = await this.loadPersistedSprintQualifyingResult(careerId, seasonId, round)
+    if (
+      existing &&
+      existing.status === 'SPRINT_QUALIFYING_RESULT_READY' &&
+      existing.results?.length > 0
+    ) {
+      this.inMemoryCache.set(storageKey, existing as any)
+      return existing
+    }
+
+    // 2. CARREGAR RESULTADOS PERSISTIDOS DE SQ1, SQ2 E SQ3
+    const sq1State = await this.loadPersistedPhaseState('SQ1', careerId, seasonId, round)
+    if (!sq1State || !sq1State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado da Quali Sprint: SQ1 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    const sq2State = await this.loadPersistedPhaseState('SQ2', careerId, seasonId, round)
+    if (!sq2State || !sq2State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado da Quali Sprint: SQ2 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    const sq3State = await this.loadPersistedPhaseState('SQ3', careerId, seasonId, round)
+    if (!sq3State || !sq3State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado da Quali Sprint: SQ3 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    // 3. MAPAS DE TEMPOS POR FASE (FATOS JÁ PERSISTIDOS)
+    const sq1Map = new Map(sq1State.results.map((r) => [r.driverId, r]))
+    const sq2Map = new Map(sq2State.results.map((r) => [r.driverId, r]))
+    const sq3Map = new Map(sq3State.results.map((r) => [r.driverId, r]))
+
+    // 4. BIJEÇÃO E CONFERÊNCIA RIGOROSA DE PARTICIPANTES ORIGINAIS
+    const originalParticipants = sq1State.results
+    const totalEntrants = originalParticipants.length
+    if (totalEntrants === 0) {
+      throw new Error('Nenhum participante encontrado no resultado persistido do SQ1.')
+    }
+
+    const originalDriverIdsSet = new Set(originalParticipants.map((p) => p.driverId))
+    if (originalDriverIdsSet.size !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção no SQ1: participantes duplicados detectados (${totalEntrants} registros, ${originalDriverIdsSet.size} únicos).`,
+      )
+    }
+
+    // 5. AGRUPAMENTO POR FASES
+    // P1–P10: pilotos do SQ3 (ordenados pela posição já persistida do SQ3)
+    const sq3Ordered = [...sq3State.results].sort((a, b) => a.position - b.position)
+
+    // P11–P18: eliminados do SQ2 (ordenados pela posição já persistida do SQ2)
+    const sq2Eliminated = sq2State.results
+      .filter((r) => r.isEliminated || sq2State.eliminatedDriverIds.includes(r.driverId))
+      .sort((a, b) => a.position - b.position)
+
+    // P19–P24: eliminados do SQ1 (ordenados pela posição já persistida do SQ1)
+    const sq1Eliminated = sq1State.results
+      .filter((r) => r.isEliminated || sq1State.eliminatedDriverIds.includes(r.driverId))
+      .sort((a, b) => a.position - b.position)
+
+    // 6. VALIDAÇÕES EXPLÍCITAS DE INTEGRIDADE ANTES DA MONTAGEM
+    const sq3DriverIds = sq3Ordered.map((r) => r.driverId)
+    const sq2ElimDriverIds = sq2Eliminated.map((r) => r.driverId)
+    const sq1ElimDriverIds = sq1Eliminated.map((r) => r.driverId)
+
+    for (const dId of sq3DriverIds) {
+      if (sq2ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto '${dId}' classificado no SQ3 consta também como eliminado no SQ2.`,
+        )
+      }
+      if (sq1ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto '${dId}' classificado no SQ3 consta também como eliminado no SQ1.`,
+        )
+      }
+    }
+    for (const dId of sq2ElimDriverIds) {
+      if (sq1ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto '${dId}' eliminado no SQ2 consta também como eliminado no SQ1.`,
+        )
+      }
+    }
+
+    const candidateIds = [...sq3DriverIds, ...sq2ElimDriverIds, ...sq1ElimDriverIds]
+    for (const dId of candidateIds) {
+      if (!originalDriverIdsSet.has(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva Sprint: piloto desconhecido '${dId}' não estava nos participantes originais do SQ1.`,
+        )
+      }
+    }
+
+    if (candidateIds.length !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção Sprint na contagem: candidatos somam ${candidateIds.length}, esperado ${totalEntrants} participantes.`,
+      )
+    }
+
+    const candidateSet = new Set(candidateIds)
+    if (candidateSet.size !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção Sprint: piloto duplicado detectado na união das fases (${candidateIds.length} registros, ${candidateSet.size} únicos).`,
+      )
+    }
+
+    for (const origId of originalDriverIdsSet) {
+      if (!candidateSet.has(origId)) {
+        throw new Error(
+          `Violação de bijeção Sprint: participante original '${origId}' ausente na consolidação do resultado Sprint.`,
+        )
+      }
+    }
+
+    // 7. COMPOSIÇÃO BIJETIVA DO RESULTADO GLOBAL SPRINT (P1..P24)
+    const sprintEntries: SprintQualifyingResultEntry[] = []
+    let currentPosition = 1
+
+    // P1–P10 (SQ3)
+    for (const r of sq3Ordered) {
+      const sq1Data = sq1Map.get(r.driverId)
+      const sq2Data = sq2Map.get(r.driverId)
+      sprintEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'SQ3',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        sq1BestTimeMs: sq1Data?.bestTimeMs,
+        sq2BestTimeMs: sq2Data?.bestTimeMs,
+        sq3BestTimeMs: r.bestTimeMs,
+      })
+    }
+
+    // P11–P18 (SQ2 eliminados)
+    for (const r of sq2Eliminated) {
+      const sq1Data = sq1Map.get(r.driverId)
+      sprintEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'SQ2',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        sq1BestTimeMs: sq1Data?.bestTimeMs,
+        sq2BestTimeMs: r.bestTimeMs,
+        sq3BestTimeMs: undefined,
+      })
+    }
+
+    // P19–P24 (SQ1 eliminados)
+    for (const r of sq1Eliminated) {
+      sprintEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'SQ1',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        sq1BestTimeMs: r.bestTimeMs,
+        sq2BestTimeMs: undefined,
+        sq3BestTimeMs: undefined,
+      })
+    }
+
+    // Validação final de posições contínuas e únicas de 1 a N
+    const finalPositions = sprintEntries.map((e) => e.position)
+    const expectedPositions = Array.from({ length: totalEntrants }, (_, i) => i + 1)
+    if (JSON.stringify(finalPositions) !== JSON.stringify(expectedPositions)) {
+      throw new Error(
+        `Violação de bijeção de posições Sprint: posições geradas não são contínuas de 1 a ${totalEntrants}.`,
+      )
+    }
+
+    const poleEntry = sprintEntries[0]
+    const sprintState: SprintQualifyingResultState = {
+      careerId,
+      seasonId,
+      round,
+      configVersion: sq3State.configVersion || sq1State.configVersion || 'v1',
+      configSha256: sq3State.configSha256 || sq1State.configSha256,
+      status: 'SPRINT_QUALIFYING_RESULT_READY',
+      totalParticipants: totalEntrants,
+      results: sprintEntries,
+      poleDriverId: poleEntry?.driverId || '',
+      poleDriverName: poleEntry?.driverName || '',
+      poleTimeMs: poleEntry?.phaseBestTimeMs || 0,
+      formattedPoleTime: poleEntry?.formattedPhaseBestTime || '-:--.---',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    // 8. PERSISTÊNCIA CANÔNICA (PocketBase + Cache Local)
+    await this.persistSprintQualifyingResult(sprintState)
+    this.inMemoryCache.set(storageKey, sprintState as any)
+
+    return sprintState
+  }
+
+  /**
+   * Consulta o resultado global da classificação Sprint.
+   */
+  public async loadPersistedSprintQualifyingResult(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<SprintQualifyingResultState | null> {
+    const storageKey = buildGlobalSprintQualifyingStorageKey(careerId, seasonId, round)
+
+    // 1. Memória rápida
+    if (this.inMemoryCache.has(storageKey)) {
+      return this.inMemoryCache.get(storageKey) as unknown as SprintQualifyingResultState
+    }
+
+    // 2. PocketBase session_setups com session = 'sq3'
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
+      })
+      if (records.items.length > 0) {
+        const item = records.items[0]
+        const strategies = (item.driver_strategies as any) || {}
+        if (strategies.sprintQualifyingResult) {
+          const loaded = strategies.sprintQualifyingResult as SprintQualifyingResultState
+          this.inMemoryCache.set(storageKey, loaded as any)
+          return loaded
+        }
+      }
+    } catch {
+      // Ignora erro de PB e tenta cache local
+    }
+
+    // 3. Fallback no Cache Local (localStorage)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        if (raw) {
+          const parsed = JSON.parse(raw) as SprintQualifyingResultState
+          this.inMemoryCache.set(storageKey, parsed as any)
+          return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Grava o resultado global da classificação Sprint de forma resiliente.
+   */
+  public async persistSprintQualifyingResult(state: SprintQualifyingResultState): Promise<void> {
+    const { careerId, seasonId, round, status } = state
+    const storageKey = buildGlobalSprintQualifyingStorageKey(careerId, seasonId, round)
+
+    // 1. PocketBase session_setups (session = 'sq3')
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
+      })
+
+      if (records.items.length > 0) {
+        const existing = records.items[0]
+        const strategies = (existing.driver_strategies as any) || {}
+        strategies.sprintQualifyingResult = state
+        await pb.collection('session_setups').update(existing.id, {
+          driver_strategies: strategies,
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      } else {
+        await pb.collection('session_setups').create({
+          team_id: careerId,
+          season_id: seasonId,
+          round,
+          session: 'sq3',
+          wing_level: 6,
+          suspension_stiffness: 6,
+          pu_electric_ratio: 50,
+          driver_strategies: {
+            sprintQualifyingResult: state,
+          },
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      }
+    } catch (err) {
+      console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir resultado Sprint no PocketBase:`, err)
+    }
+
+    // 2. Cache Local
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Constrói e persiste o SPRINT_STARTING_GRID a partir de SPRINT_QUALIFYING_RESULT.
+   * Não aplica penalidades do GP por analogia silenciosa.
+   * Transição para SPRINT_GRID_READY.
+   */
+  public async buildSprintStartingGrid(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<SprintStartingGridState> {
+    const { careerId, seasonId, round } = params
+
+    if (!careerId || !seasonId || round <= 0) {
+      throw new Error(
+        `Contexto de carreira/temporada inválido: careerId='${careerId}', seasonId='${seasonId}', round=${round}`,
+      )
+    }
+
+    const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
+
+    // 1. CHECAGEM DE IDEMPOTÊNCIA
+    const existing = await this.loadPersistedSprintStartingGrid(careerId, seasonId, round)
+    if (existing && existing.grid?.length > 0) {
+      if (existing.status !== 'SPRINT_GRID_READY') {
+        existing.status = 'SPRINT_GRID_READY'
+        existing.updatedAt = new Date().toISOString()
+        await this.persistSprintStartingGrid(existing)
+      }
+      this.inMemoryCache.set(storageKey, existing as any)
+      return existing
+    }
+
+    // 2. CARREGA OU CONSTRÓI SPRINT_QUALIFYING_RESULT
+    let sprintQuali = await this.loadPersistedSprintQualifyingResult(careerId, seasonId, round)
+    if (!sprintQuali || sprintQuali.status !== 'SPRINT_QUALIFYING_RESULT_READY') {
+      sprintQuali = await this.buildSprintQualifyingResult({ careerId, seasonId, round })
+    }
+
+    const sprintEntries = sprintQuali.results
+    const totalEntrants = sprintEntries.length
+    if (totalEntrants === 0) {
+      throw new Error('SPRINT_QUALIFYING_RESULT vazio: impossível formar o grid da Sprint.')
+    }
+
+    // 3. DERIVAÇÃO DIRETA DO GRID DA SPRINT (Conforme item 16: sem penalidades do GP por analogia silenciosa)
+    const sprintGrid: SprintStartingGridEntry[] = sprintEntries.map((item, index) => {
+      const gridPosition = index + 1
+      return {
+        gridPosition,
+        qualifyingPosition: item.position,
+        driverId: item.driverId,
+        driverName: item.driverName,
+        teamId: item.teamId,
+        teamName: item.teamName,
+        carIndex: item.carIndex,
+        eliminationPhase: item.eliminationPhase,
+        qualifyingTimeMs: item.phaseBestTimeMs,
+        formattedQualifyingTime: item.formattedPhaseBestTime,
+        setup: item.setup,
+        penalties: [],
+        totalPenaltyPositions: 0,
+        hasPenalty: false,
+      }
+    })
+
+    // Validações de bijeção
+    const driverIdsSet = new Set(sprintGrid.map((g) => g.driverId))
+    if (driverIdsSet.size !== totalEntrants) {
+      throw new Error(
+        `Regressão de pilotos duplicados detectada no SPRINT_STARTING_GRID: ${totalEntrants} entradas, ${driverIdsSet.size} motoristas únicos.`,
+      )
+    }
+
+    const poleEntry = sprintGrid[0]
+    const sprintGridState: SprintStartingGridState = {
+      careerId,
+      seasonId,
+      round,
+      configVersion: sprintQuali.configVersion,
+      configSha256: sprintQuali.configSha256,
+      status: 'SPRINT_GRID_READY',
+      totalParticipants: totalEntrants,
+      grid: sprintGrid,
+      poleDriverId: poleEntry.driverId,
+      poleDriverName: poleEntry.driverName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    // Persistência
+    await this.persistSprintStartingGrid(sprintGridState)
+    this.inMemoryCache.set(storageKey, sprintGridState as any)
+
+    return sprintGridState
+  }
+
+  /**
+   * Consulta o SPRINT_STARTING_GRID persistido.
+   */
+  public async loadPersistedSprintStartingGrid(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<SprintStartingGridState | null> {
+    const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
+
+    // 1. Memória rápida
+    if (this.inMemoryCache.has(storageKey)) {
+      return this.inMemoryCache.get(storageKey) as unknown as SprintStartingGridState
+    }
+
+    // 2. PocketBase session_setups com session = 'sq3'
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
+      })
+      if (records.items.length > 0) {
+        const item = records.items[0]
+        const strategies = (item.driver_strategies as any) || {}
+        if (strategies.sprintStartingGridState) {
+          const loaded = strategies.sprintStartingGridState as SprintStartingGridState
+          this.inMemoryCache.set(storageKey, loaded as any)
+          return loaded
+        }
+      }
+    } catch {
+      // ignora erro do PB
+    }
+
+    // 3. Cache Local (localStorage)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        if (raw) {
+          const parsed = JSON.parse(raw) as SprintStartingGridState
+          this.inMemoryCache.set(storageKey, parsed as any)
+          return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Persiste o SPRINT_STARTING_GRID de forma resiliente.
+   */
+  public async persistSprintStartingGrid(state: SprintStartingGridState): Promise<void> {
+    const { careerId, seasonId, round, status } = state
+    const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
+
+    // 1. PocketBase session_setups (session = 'sq3')
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
+      })
+
+      if (records.items.length > 0) {
+        const existing = records.items[0]
+        const strategies = (existing.driver_strategies as any) || {}
+        strategies.sprintStartingGridState = state
+        await pb.collection('session_setups').update(existing.id, {
+          driver_strategies: strategies,
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      } else {
+        await pb.collection('session_setups').create({
+          team_id: careerId,
+          season_id: seasonId,
+          round,
+          session: 'sq3',
+          wing_level: 6,
+          suspension_stiffness: 6,
+          pu_electric_ratio: 50,
+          driver_strategies: {
+            sprintStartingGridState: state,
+          },
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      }
+    } catch (err) {
+      console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir sprint starting grid:`, err)
+    }
+
+    // 2. Cache Local
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Conclui integralmente a Quali Sprint no slot 2 e prepara a transição para o slot 3 (SPRINT / SPRINT_RACE).
+   * Requisitos do requisito 17:
+   * Slot 2 só termina quando existirem:
+   * - SQ1 concluído;
+   * - SQ2 concluído;
+   * - SQ3 concluído;
+   * - SPRINT_QUALIFYING_RESULT persistido;
+   * - SPRINT_STARTING_GRID válido;
+   * Depois: currentSlot = 3, slotType = SPRINT (ou SPRINT_RACE), status AVAILABLE.
+   * Não inicia a Sprint automaticamente.
+   */
+  public async completeSprintQualifyingAndTransitionToSlot3(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<{
+    sprintQualifyingResult: SprintQualifyingResultState
+    sprintStartingGrid: SprintStartingGridState
+    slotState: any
+  }> {
+    const { careerId, seasonId, round } = params
+
+    // 1. Constrói / valida SPRINT_QUALIFYING_RESULT
+    const sprintQualifyingResult = await this.buildSprintQualifyingResult({
+      careerId,
+      seasonId,
+      round,
+    })
+
+    // 2. Constrói / valida SPRINT_STARTING_GRID
+    const sprintStartingGrid = await this.buildSprintStartingGrid({
+      careerId,
+      seasonId,
+      round,
+    })
+
+    // 3. Atualiza persistência de slots do fim de semana
+    const { canonicalWeekendSlotPersistenceService } = await import(
+      '@/services/canonicalWeekendSlotPersistenceService'
+    )
+    const slotState = await canonicalWeekendSlotPersistenceService.loadOrMigrateSlotState({
+      careerId,
+      seasonId,
+      round,
+    })
+
+    if (slotState.currentSlot === 2) {
+      await canonicalWeekendSlotPersistenceService.completeSlot(
+        slotState,
+        2,
+        'SPRINT_GRID_READY',
+      )
+    }
+
+    return {
+      sprintQualifyingResult,
+      sprintStartingGrid,
+      slotState,
     }
   }
 

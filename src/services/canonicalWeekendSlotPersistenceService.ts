@@ -389,21 +389,20 @@ export class CanonicalWeekendSlotPersistenceService {
   public async completeSlot(
     state: CanonicalWeekendSlotState,
     slotNumber: WeekendSlotNumber,
-    subPhase?: SprintQualifyingSubPhase | MainQualifyingSubPhase | null,
+    subPhase?: SprintQualifyingSubPhase | MainQualifyingSubPhase | string | null,
   ): Promise<CanonicalWeekendSlotState> {
     if (state.currentSlot !== slotNumber) {
       throw new Error(
-        `Transição inválida: tentativa de concluir o slot ${slotNumber}, mas o slot atual é ${state.currentSlot}.`,
+        `Não é possível concluir o slot ${slotNumber}: o slot atual é ${state.currentSlot} (${state.slotType}).`,
       )
     }
 
-    // Marca slot atual como concluído
-    state.slots[slotNumber].status = 'COMPLETED'
-    state.slots[slotNumber].completedAt = new Date().toISOString()
+    const currentSlotDef = state.slots[slotNumber]
+    currentSlotDef.status = 'COMPLETED'
+    currentSlotDef.completedAt = new Date().toISOString()
     if (subPhase) {
-      state.slots[slotNumber].subPhase = subPhase
-    }
-    if (!state.completedSlots.includes(slotNumber)) {
+      currentSlotDef.subPhase = subPhase
+    }    if (!state.completedSlots.includes(slotNumber)) {
       state.completedSlots.push(slotNumber)
     }
 

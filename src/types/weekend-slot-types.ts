@@ -27,11 +27,14 @@ export type WeekendSlotType =
   | 'TL2'
   | 'TL3'
   | 'QUALI_SPRINT'
+  | 'SPRINT_QUALIFYING'
   | 'SPRINT'
+  | 'SPRINT_RACE'
   | 'Q1'
   | 'Q2'
   | 'Q3'
   | 'CORRIDA'
+  | 'RACE'
 
 export type WeekendSlotStatus = 'LOCKED' | 'AVAILABLE' | 'IN_PROGRESS' | 'COMPLETED' | 'NOT_RUN'
 
@@ -82,7 +85,7 @@ export interface CanonicalWeekendSlotState {
       slotNumber: WeekendSlotNumber
       slotType: WeekendSlotType
       status: WeekendSlotStatus
-      subPhase?: string | null
+      subPhase?: WeekendSlotSubPhase | string | null
       completedAt?: string | null
     }
   >

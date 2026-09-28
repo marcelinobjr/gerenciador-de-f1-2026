@@ -120,31 +120,71 @@ export const DEFAULT_PHASE_CONFIGS: Record<QualifyingPhase, QualifyingPhaseConfi
   },
   SQ1: {
     phase: 'SQ1',
-    title: 'Sprint Shootout 1 (SQ1)',
-    description: 'Primeira fase de classificação da corrida Sprint.',
-    participantCountBadge: 'Pilotos Inscritos',
-    notRunMessage: 'Sessão SQ1 ainda não realizada.',
+    title: 'Fase SQ1 — 24 Carros Inscritos',
+    description: 'Os 18 melhores tempos avançam para o SQ2. Pneu Médio no seco (+650ms). Os 6 últimos são eliminados (P19–P24).',
+    participantCountBadge: '24 Pilotos',
+    notRunMessage: 'Sessão SQ1 ainda não realizada (READY_FOR_SQ1).',
     loadingMessage: 'Carregando resultados da sessão SQ1...',
     statusColumnHeader: 'Status SQ1',
+    renderStatusBadge: (r, pos) => {
+      const isElim = r.isEliminated !== undefined ? r.isEliminated : pos > 18
+      if (isElim) {
+        return (
+          <Badge variant="outline" className="border-red-500/30 text-red-500 text-xs">
+            Eliminado SQ1 (P{pos})
+          </Badge>
+        )
+      }
+      return (
+        <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 text-xs">
+          Avança ao SQ2
+        </Badge>
+      )
+    },
   },
   SQ2: {
     phase: 'SQ2',
-    title: 'Sprint Shootout 2 (SQ2)',
-    description: 'Segunda fase de classificação da corrida Sprint.',
-    participantCountBadge: 'Classificados',
-    notRunMessage: 'Sessão SQ2 ainda não realizada.',
+    title: 'Fase SQ2 — Somente os 18 Classificados',
+    description: 'Os 10 melhores tempos avançam ao SQ3. Pneu Médio no seco (+650ms). Os 8 eliminados ocupam P11–P18.',
+    participantCountBadge: '18 Pilotos',
+    notRunMessage: 'Sessão SQ2 ainda não realizada (aguardando conclusão do SQ1).',
     loadingMessage: 'Carregando resultados da sessão SQ2...',
     statusColumnHeader: 'Status SQ2',
+    renderStatusBadge: (r, pos) => {
+      const isElim = r.isEliminated !== undefined ? r.isEliminated : pos > 10
+      if (isElim) {
+        return (
+          <Badge variant="outline" className="border-amber-500/30 text-amber-500 text-xs">
+            Eliminado SQ2
+          </Badge>
+        )
+      }
+      return (
+        <Badge variant="outline" className="border-purple-500/30 text-purple-600 text-xs">
+          Avança ao SQ3
+        </Badge>
+      )
+    },
   },
   SQ3: {
     phase: 'SQ3',
-    title: 'Sprint Shootout 3 (SQ3)',
-    description: 'Disputa da pole position da corrida Sprint.',
-    participantCountBadge: 'Finalistas',
-    notRunMessage: 'Sessão SQ3 ainda não realizada.',
+    title: 'Fase SQ3 — Os 10 Finalistas (Pole da Corrida Sprint)',
+    description: 'Disputa de P1 a P10 para o grid de largada da Sprint. Pneu Macio no seco.',
+    participantCountBadge: '10 Pilotos',
+    notRunMessage: 'Sessão SQ3 ainda não realizada (aguardando conclusão do SQ2).',
     loadingMessage: 'Carregando resultados da sessão SQ3...',
     statusColumnHeader: 'Classificação Sprint',
     showTrophyIcon: true,
+    renderStatusBadge: (_r, pos) => {
+      if (pos === 1) {
+        return <Badge className="bg-amber-400 text-black text-xs font-bold">Pole Sprint</Badge>
+      }
+      return (
+        <Badge variant="outline" className="border-purple-500/30 text-purple-600 text-xs">
+          Finalista (P{pos})
+        </Badge>
+      )
+    },
   },
 }
 
@@ -233,9 +273,23 @@ export const QualifyingPhaseView: React.FC<QualifyingPhaseViewProps> = ({
                       <td className="px-3 py-3 text-right font-mono text-xs">
                         {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
                       </td>
+                      {r.compoundUsed && (
+                        <td className="px-2 py-3 text-center">
+                          <Badge
+                            variant="outline"
+                            className={
+                              r.compoundUsed === 'MEDIUM'
+                                ? 'border-amber-400 text-amber-500 text-[10px] font-bold px-1 py-0'
+                                : 'border-red-500 text-red-500 text-[10px] font-bold px-1 py-0'
+                            }
+                          >
+                            {r.compoundUsed === 'MEDIUM' ? 'M (+0.65s)' : 'S (0s)'}
+                          </Badge>
+                        </td>
+                      )}
                       <td
                         className={`px-4 py-3 text-right font-mono text-xs ${
-                          phase === 'Q3' ? 'font-bold' : ''
+                          phase === 'Q3' || phase === 'SQ3' ? 'font-bold' : ''
                         }`}
                       >
                         {r.formattedBestTime || '-:--.---'}
