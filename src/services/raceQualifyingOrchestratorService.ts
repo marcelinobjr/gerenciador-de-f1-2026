@@ -47,6 +47,7 @@ export type QualifyingPhaseStatus =
   | 'Q3'
   | 'Q3_COMPLETE'
   | 'QUALIFYING_COMPLETE'
+  | 'QUALIFYING_RESULT_READY'
 
 export interface QualifyingDriverInput {
   driverId: string
@@ -119,6 +120,39 @@ export interface QualifyingPhaseExecutionState {
 
 // Aliases para compatibilidade reversa com Q1
 export type Q1ExecutionState = QualifyingPhaseExecutionState
+
+export interface GlobalQualifyingResultEntry {
+  position: number // P1..P24
+  driverId: string
+  driverName: string
+  teamId: string
+  teamName: string
+  carIndex: 1 | 2
+  eliminationPhase: 'Q1' | 'Q2' | 'Q3'
+  phaseBestTimeMs: number
+  formattedPhaseBestTime: string
+  setup: number
+  q1BestTimeMs?: number
+  q2BestTimeMs?: number
+  q3BestTimeMs?: number
+}
+
+export interface GlobalQualifyingResultState {
+  careerId: string
+  seasonId: string
+  round: number
+  configVersion: string
+  configSha256?: string
+  status: 'QUALIFYING_RESULT_READY'
+  totalParticipants: number
+  results: GlobalQualifyingResultEntry[]
+  poleDriverId: string
+  poleDriverName: string
+  poleTimeMs: number
+  formattedPoleTime: string
+  createdAt: string
+  updatedAt: string
+}
 
 export interface ExecuteQ1Params {
   careerId: string
@@ -214,6 +248,14 @@ export function buildQ2StorageKey(careerId: string, seasonId: string, round: num
 
 export function buildQ3StorageKey(careerId: string, seasonId: string, round: number): string {
   return buildQualifyingStorageKey('Q3', careerId, seasonId, round)
+}
+
+export function buildGlobalQualifyingStorageKey(
+  careerId: string,
+  seasonId: string,
+  round: number,
+): string {
+  return `apex_qualifying_result_state_${careerId}_${seasonId}_r${round}`
 }
 
 export class RaceQualifyingOrchestratorService {
@@ -794,6 +836,358 @@ export class RaceQualifyingOrchestratorService {
   /**
    * Limpa o estado em memória (utilitário de teste).
    */
+  /**
+   * Constrói e persiste o resultado global da classificação (QUALIFYING_RESULT_READY)
+   * a partir EXCLUSIVAMENTE dos resultados persistidos de Q1, Q2 e Q3.
+   *
+   * REGRAS ESPORTIVAS E INVARIANTES:
+   * 1. Q3_COMPLETE → QUALIFYING_COMPLETE → QUALIFYING_RESULT_READY.
+   * 2. P1–P10: ordem final do Q3.
+   * 3. P11–P18: os 8 eliminados no Q2, ordenados exclusivamente pelo resultado persistido do Q2.
+   * 4. P19–P24: os 6 eliminados no Q1, ordenados exclusivamente pelo resultado persistido do Q1.
+   * 5. Precedência de fase: tempo de fase anterior NÃO reordena participantes de fase posterior.
+   * 6. Bijeção estrita: exatamente uma ocorrência de cada participante original, posições contínuas P1..P24.
+   *    Se houver duplicata, participante ausente ou desconhecido, lança erro explícito.
+   * 7. Zero consumo de RNG, zero recálculo de tempos ou setup.
+   * 8. Idempotência estrita: reexecutar devolve o mesmo artefato idêntico.
+   */
+  public async buildGlobalQualifyingResult(params: {
+    careerId: string
+    seasonId: string
+    round: number
+  }): Promise<GlobalQualifyingResultState> {
+    const { careerId, seasonId, round } = params
+
+    if (!careerId || !seasonId || round <= 0) {
+      throw new Error(
+        `Contexto de carreira/temporada inválido: careerId='${careerId}', seasonId='${seasonId}', round=${round}`,
+      )
+    }
+
+    const storageKey = buildGlobalQualifyingStorageKey(careerId, seasonId, round)
+
+    // 1. CHECAGEM DE IDEMPOTÊNCIA PRÉVIA
+    const existing = await this.loadPersistedGlobalQualifyingResult(careerId, seasonId, round)
+    if (existing && existing.status === 'QUALIFYING_RESULT_READY' && existing.results?.length > 0) {
+      this.inMemoryCache.set(storageKey, existing as any)
+      return existing
+    }
+
+    // 2. CARREGAR RESULTADOS PERSISTIDOS DE Q1, Q2 E Q3
+    const q1State = await this.loadPersistedPhaseState('Q1', careerId, seasonId, round)
+    if (!q1State || !q1State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado global da classificação: Q1 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    const q2State = await this.loadPersistedPhaseState('Q2', careerId, seasonId, round)
+    if (!q2State || !q2State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado global da classificação: Q2 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    const q3State = await this.loadPersistedPhaseState('Q3', careerId, seasonId, round)
+    if (!q3State || !q3State.isCompleted) {
+      throw new Error(
+        `Não é possível consolidar o resultado global da classificação: Q3 não concluído para careerId='${careerId}', seasonId='${seasonId}', round=${round}.`,
+      )
+    }
+
+    // 3. MAPAS DE TEMPOS POR FASE (FATOS JÁ PERSISTIDOS)
+    const q1Map = new Map(q1State.results.map((r) => [r.driverId, r]))
+    const q2Map = new Map(q2State.results.map((r) => [r.driverId, r]))
+    const q3Map = new Map(q3State.results.map((r) => [r.driverId, r]))
+
+    // 4. BIJEÇÃO E CONFERÊNCIA RIGOROSA DE PARTICIPANTES ORIGINAIS
+    // O conjunto de participantes originais são os 24 inscritos que largaram no Q1
+    const originalParticipants = q1State.results
+    const totalEntrants = originalParticipants.length
+    if (totalEntrants === 0) {
+      throw new Error('Nenhum participante encontrado no resultado persistido do Q1.')
+    }
+
+    const originalDriverIdsSet = new Set(originalParticipants.map((p) => p.driverId))
+    if (originalDriverIdsSet.size !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção no Q1: participantes duplicados detectados (${totalEntrants} registros, ${originalDriverIdsSet.size} únicos).`,
+      )
+    }
+
+    // 5. AGRUPAMENTO POR FASES
+    // P1–P10: pilotos do Q3 (ordenados pela posição já persistida do Q3)
+    const q3Ordered = [...q3State.results].sort((a, b) => a.position - b.position)
+
+    // P11–P18: eliminados do Q2 (ordenados pela posição já persistida do Q2)
+    const q2Eliminated = q2State.results
+      .filter((r) => r.isEliminated || q2State.eliminatedDriverIds.includes(r.driverId))
+      .sort((a, b) => a.position - b.position)
+
+    // P19–P24: eliminados do Q1 (ordenados pela posição já persistida do Q1)
+    const q1Eliminated = q1State.results
+      .filter((r) => r.isEliminated || q1State.eliminatedDriverIds.includes(r.driverId))
+      .sort((a, b) => a.position - b.position)
+
+    // 6. VALIDAÇÕES EXPLÍCITAS DE INTEGRIDADE ANTES DA MONTAGEM
+    const q3DriverIds = q3Ordered.map((r) => r.driverId)
+    const q2ElimDriverIds = q2Eliminated.map((r) => r.driverId)
+    const q1ElimDriverIds = q1Eliminated.map((r) => r.driverId)
+
+    // Verificar se não há sobreposição de grupos
+    for (const dId of q3DriverIds) {
+      if (q2ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva: piloto '${dId}' classificado no Q3 consta também como eliminado no Q2.`,
+        )
+      }
+      if (q1ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva: piloto '${dId}' classificado no Q3 consta também como eliminado no Q1.`,
+        )
+      }
+    }
+    for (const dId of q2ElimDriverIds) {
+      if (q1ElimDriverIds.includes(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva: piloto '${dId}' eliminado no Q2 consta também como eliminado no Q1.`,
+        )
+      }
+    }
+
+    // Verificar se todas as entradas pertencem ao conjunto original de participantes
+    const candidateIds = [...q3DriverIds, ...q2ElimDriverIds, ...q1ElimDriverIds]
+    for (const dId of candidateIds) {
+      if (!originalDriverIdsSet.has(dId)) {
+        throw new Error(
+          `Violação de integridade esportiva: piloto desconhecido '${dId}' não estava nos participantes originais do Q1.`,
+        )
+      }
+    }
+
+    // Conferir bijeção exata: mesma quantidade e nenhum faltando
+    if (candidateIds.length !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção na contagem: candidatos somam ${candidateIds.length}, esperado ${totalEntrants} participantes.`,
+      )
+    }
+
+    const candidateSet = new Set(candidateIds)
+    if (candidateSet.size !== totalEntrants) {
+      throw new Error(
+        `Violação de bijeção: piloto duplicado detectado na união das fases (${candidateIds.length} registros, ${candidateSet.size} únicos).`,
+      )
+    }
+
+    for (const origId of originalDriverIdsSet) {
+      if (!candidateSet.has(origId)) {
+        throw new Error(
+          `Violação de bijeção: participante original '${origId}' ausente na consolidação do resultado global.`,
+        )
+      }
+    }
+
+    // 7. COMPOSIÇÃO BIJETIVA DO RESULTADO GLOBAL (P1..P24)
+    const globalEntries: GlobalQualifyingResultEntry[] = []
+    let currentPosition = 1
+
+    // P1–P10 (Q3)
+    for (const r of q3Ordered) {
+      const q1Data = q1Map.get(r.driverId)
+      const q2Data = q2Map.get(r.driverId)
+      globalEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'Q3',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        q1BestTimeMs: q1Data?.bestTimeMs,
+        q2BestTimeMs: q2Data?.bestTimeMs,
+        q3BestTimeMs: r.bestTimeMs,
+      })
+    }
+
+    // P11–P18 (Q2 eliminados)
+    for (const r of q2Eliminated) {
+      const q1Data = q1Map.get(r.driverId)
+      globalEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'Q2',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        q1BestTimeMs: q1Data?.bestTimeMs,
+        q2BestTimeMs: r.bestTimeMs,
+        q3BestTimeMs: undefined,
+      })
+    }
+
+    // P19–P24 (Q1 eliminados)
+    for (const r of q1Eliminated) {
+      globalEntries.push({
+        position: currentPosition++,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        carIndex: r.carIndex,
+        eliminationPhase: 'Q1',
+        phaseBestTimeMs: r.bestTimeMs,
+        formattedPhaseBestTime: r.formattedBestTime,
+        setup: r.setup,
+        q1BestTimeMs: r.bestTimeMs,
+        q2BestTimeMs: undefined,
+        q3BestTimeMs: undefined,
+      })
+    }
+
+    // Validação final de posições contínuas e únicas de 1 a N
+    const finalPositions = globalEntries.map((e) => e.position)
+    const expectedPositions = Array.from({ length: totalEntrants }, (_, i) => i + 1)
+    if (JSON.stringify(finalPositions) !== JSON.stringify(expectedPositions)) {
+      throw new Error(
+        `Violação de bijeção de posições: posições geradas não são contínuas de 1 a ${totalEntrants}.`,
+      )
+    }
+
+    const poleEntry = globalEntries[0]
+    const globalState: GlobalQualifyingResultState = {
+      careerId,
+      seasonId,
+      round,
+      configVersion: q3State.configVersion || q1State.configVersion || 'v1',
+      configSha256: q3State.configSha256 || q1State.configSha256,
+      status: 'QUALIFYING_RESULT_READY',
+      totalParticipants: totalEntrants,
+      results: globalEntries,
+      poleDriverId: poleEntry?.driverId || '',
+      poleDriverName: poleEntry?.driverName || '',
+      poleTimeMs: poleEntry?.phaseBestTimeMs || 0,
+      formattedPoleTime: poleEntry?.formattedPhaseBestTime || '-:--.---',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    // 8. PERSISTÊNCIA CANÔNICA (PocketBase + Cache Local)
+    await this.persistGlobalQualifyingResult(globalState)
+    this.inMemoryCache.set(storageKey, globalState as any)
+
+    return globalState
+  }
+
+  /**
+   * Consulta o estado salvo do resultado global da classificação.
+   */
+  public async loadPersistedGlobalQualifyingResult(
+    careerId: string,
+    seasonId: string,
+    round: number,
+  ): Promise<GlobalQualifyingResultState | null> {
+    const storageKey = buildGlobalQualifyingStorageKey(careerId, seasonId, round)
+
+    // 1. Memória rápida
+    if (this.inMemoryCache.has(storageKey)) {
+      return this.inMemoryCache.get(storageKey) as unknown as GlobalQualifyingResultState
+    }
+
+    // 2. PocketBase session_setups com session = 'q3'
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q3"`,
+      })
+      if (records.items.length > 0) {
+        const item = records.items[0]
+        const strategies = (item.driver_strategies as any) || {}
+        if (strategies.globalQualifyingResult) {
+          const loaded = strategies.globalQualifyingResult as GlobalQualifyingResultState
+          this.inMemoryCache.set(storageKey, loaded as any)
+          return loaded
+        }
+      }
+    } catch {
+      // Ignora erro de PB e tenta cache local
+    }
+
+    // 3. Fallback no Cache Local (localStorage)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        if (raw) {
+          const parsed = JSON.parse(raw) as GlobalQualifyingResultState
+          this.inMemoryCache.set(storageKey, parsed as any)
+          return parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Grava o estado do resultado global da classificação de forma resiliente.
+   */
+  public async persistGlobalQualifyingResult(state: GlobalQualifyingResultState): Promise<void> {
+    const { careerId, seasonId, round, status } = state
+    const storageKey = buildGlobalQualifyingStorageKey(careerId, seasonId, round)
+
+    // 1. Gravação no PocketBase session_setups (session = 'q3')
+    try {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q3"`,
+      })
+
+      if (records.items.length > 0) {
+        const existing = records.items[0]
+        const strategies = (existing.driver_strategies as any) || {}
+        strategies.globalQualifyingResult = state
+        await pb.collection('session_setups').update(existing.id, {
+          driver_strategies: strategies,
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      } else {
+        await pb.collection('session_setups').create({
+          team_id: careerId,
+          season_id: seasonId,
+          round,
+          session: 'q3',
+          wing_level: 6,
+          suspension_stiffness: 6,
+          pu_electric_ratio: 50,
+          driver_strategies: {
+            globalQualifyingResult: state,
+          },
+          notes: JSON.stringify({ phase: status, completed: true }),
+        })
+      }
+    } catch (err) {
+      console.warn(
+        `[RaceQualifyingOrchestratorService] Erro ao persistir resultado global no PocketBase:`,
+        err,
+      )
+    }
+
+    // 2. Gravação no Cache Local
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   public clearMemoryCache(): void {
     this.inMemoryCache.clear()
   }
