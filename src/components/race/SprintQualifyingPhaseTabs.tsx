@@ -38,7 +38,42 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
   const [activeTab, setActiveTab] = React.useState<string>('sq1')
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="sprint-qualifying-panel">
+      {/* Indicador de Variant SPRINT_QUALIFYING */}
+      <div className="flex items-center justify-between bg-purple-950/20 border border-purple-500/30 rounded-lg p-3">
+        <div className="flex items-center gap-2">
+          <Badge className="bg-purple-600 text-white font-bold text-xs uppercase tracking-wide">
+            VARIANT: SPRINT_QUALIFYING
+          </Badge>
+          <span className="text-xs text-muted-foreground font-medium">
+            Slot 2 — Qualificação exclusiva para a Corrida Sprint
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {sprintGrid ? (
+            <Badge className="bg-emerald-600 text-white text-xs font-semibold">
+              SPRINT_GRID_READY
+            </Badge>
+          ) : sq3State?.isCompleted ? (
+            <Badge className="bg-purple-600 text-white text-xs font-semibold">
+              SQ3_CONCLUÍDO
+            </Badge>
+          ) : sq2State?.isCompleted ? (
+            <Badge className="bg-indigo-600 text-white text-xs font-semibold">
+              SQ2_CONCLUÍDO
+            </Badge>
+          ) : sq1State?.isCompleted ? (
+            <Badge className="bg-blue-600 text-white text-xs font-semibold">
+              SQ1_CONCLUÍDO
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-xs">
+              READY_FOR_SQ1
+            </Badge>
+          )}
+        </div>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid grid-cols-5 w-full bg-muted/60 p-1">
           <TabsTrigger value="sq1" className="text-xs">
@@ -53,8 +88,8 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
           <TabsTrigger value="result" className="text-xs" disabled={!sprintResult}>
             Resultado Sprint {sprintResult && '✓'}
           </TabsTrigger>
-          <TabsTrigger value="grid" className="text-xs" disabled={!sprintGrid}>
-            Grid da Sprint {sprintGrid && '✓'}
+          <TabsTrigger value="grid" className="text-xs" disabled={!sprintGrid || (sprintGrid.grid && sprintGrid.grid.length === 0)}>
+            Grid da Sprint {sprintGrid && sprintGrid.grid && sprintGrid.grid.length > 0 && '✓'}
           </TabsTrigger>
         </TabsList>
 
@@ -142,14 +177,23 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
         </TabsContent>
 
         <TabsContent value="grid" className="mt-4">
-          <Card>
-            <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40">
+          <Card className="border-purple-500/20">
+            <CardHeader className="py-3 px-4 bg-purple-950/10 border-b border-border/40">
               <CardTitle className="text-sm font-bold flex items-center justify-between">
-                <span>Grid de Largada da Corrida Sprint</span>
-                <Badge className="bg-emerald-600 text-white text-xs">Grid Oficial</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="border-purple-500/50 text-purple-400 font-bold text-[10px] uppercase">
+                    SPRINT_STARTING_GRID
+                  </Badge>
+                  <span>Grid de Largada da Corrida Sprint</span>
+                </div>
+                {sprintGrid?.grid && sprintGrid.grid.length > 0 && (
+                  <Badge className="bg-emerald-600 text-white text-xs font-mono font-bold">
+                    {sprintGrid.grid.length} Pilotos (P1–P{sprintGrid.grid.length})
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription className="text-xs">
-                Ordem oficial de largada para a Corrida Sprint derivada da Quali Sprint.
+                Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE do SPRINT_STARTING_GRID persistido.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -160,8 +204,8 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
                       <th className="px-4 py-3 w-16 text-center">Grid</th>
                       <th className="px-4 py-3">Piloto</th>
                       <th className="px-4 py-3">Equipe</th>
-                      <th className="px-3 py-3 text-center">Quali SQ</th>
-                      <th className="px-4 py-3 text-right">Tempo SQ</th>
+                      <th className="px-3 py-3 text-center">Fase</th>
+                      <th className="px-4 py-3 text-right">Melhor Volta</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
@@ -169,14 +213,35 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
                       sprintGrid.grid.map((entry) => (
                         <tr key={`sprint_grid_${entry.driverId}`} className="hover:bg-muted/30">
                           <td className="px-4 py-3 text-center font-mono font-bold text-xs">
-                            {entry.gridPosition === 1 ? '🥇 P1' : `P${entry.gridPosition}`}
+                            <span
+                              className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${
+                                entry.gridPosition === 1
+                                  ? 'bg-amber-400 text-black'
+                                  : entry.gridPosition <= 3
+                                    ? 'bg-slate-200 text-slate-900'
+                                    : 'bg-muted text-foreground'
+                              }`}
+                            >
+                              P{entry.gridPosition}
+                            </span>
                           </td>
                           <td className="px-4 py-3 font-semibold text-foreground">
                             {entry.driverName}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">{entry.teamName}</td>
                           <td className="px-3 py-3 text-center font-mono text-xs">
-                            {entry.eliminationPhase} (P{entry.qualifyingPosition})
+                            <Badge
+                              variant="outline"
+                              className={
+                                entry.eliminationPhase === 'SQ3'
+                                  ? 'border-purple-500/40 text-purple-600'
+                                  : entry.eliminationPhase === 'SQ2'
+                                    ? 'border-amber-500/40 text-amber-500'
+                                    : 'border-red-500/40 text-red-500'
+                              }
+                            >
+                              {entry.eliminationPhase} (P{entry.qualifyingPosition})
+                            </Badge>
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-xs">
                             {entry.formattedQualifyingTime || '-:--.---'}
@@ -198,8 +263,7 @@ export const SprintQualifyingPhaseTabs: React.FC<SprintQualifyingPhaseTabsProps>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </TabsContent>      </Tabs>
     </div>
   )
 }

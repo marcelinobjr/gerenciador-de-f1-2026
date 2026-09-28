@@ -253,9 +253,21 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
   const isQ2Complete = !!q2State?.isCompleted || q2Results.length > 0
   const isQ3Complete = !!q3State?.isCompleted || q3Results.length > 0
 
-  // Grid Oficial (P1..P24 bijetivo): NÃO aparece como definitivo antes de GRID_READY
+  // Subfases Sprint (SQ1, SQ2, SQ3)
+  const sq1Results = sq1State?.results || []
+  const sq2Results = sq2State?.results || []
+  const sq3Results = sq3State?.results || []
+
+  const isSq1Complete = !!sq1State?.isCompleted || sq1Results.length > 0
+  const isSq2Complete = !!sq2State?.isCompleted || sq2Results.length > 0
+  const isSq3Complete = !!sq3State?.isCompleted || sq3Results.length > 0
+
+  // Grid Sprint vs Grid Oficial (P1..P24 bijetivo): NÃO aparece como definitivo antes de GRID_READY
   const isGridReady = startingGrid?.status === 'GRID_READY'
   const finalGridList = isGridReady && startingGrid ? startingGrid.grid : []
+
+  const isSprintGridReady = sprintGrid?.status === 'SPRINT_GRID_READY'
+  const finalSprintGridList = isSprintGridReady && sprintGrid ? sprintGrid.grid : []
 
   if (error) {
     return (
@@ -281,9 +293,27 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Classificação Oficial — Etapa {round}
+                  {isSprint
+                    ? `Qualificação Sprint — Etapa ${round}`
+                    : `Classificação Oficial — Etapa ${round}`}
                 </span>
-                {isGridReady ? (
+                {isSprint ? (
+                  isSprintGridReady ? (
+                    <Badge className="bg-emerald-600 text-white font-bold">SPRINT_GRID_READY</Badge>
+                  ) : isSq3Complete ? (
+                    <Badge className="bg-purple-600 text-white font-bold">
+                      SPRINT_QUALIFYING_COMPLETE
+                    </Badge>
+                  ) : isSq2Complete ? (
+                    <Badge className="bg-indigo-600 text-white font-bold">READY_FOR_SQ3</Badge>
+                  ) : isSq1Complete ? (
+                    <Badge className="bg-blue-600 text-white font-bold">READY_FOR_SQ2</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-500 border-amber-500/20">
+                      READY_FOR_SQ1
+                    </Badge>
+                  )
+                ) : isGridReady ? (
                   <Badge className="bg-emerald-600 text-white font-bold">GRID_READY</Badge>
                 ) : isQ3Complete ? (
                   <Badge className="bg-purple-600 text-white font-bold">QUALIFYING_COMPLETE</Badge>
@@ -298,70 +328,88 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                 )}
               </div>
               <CardTitle className="text-xl font-bold flex items-center gap-2">
-                <span>Qualifying</span>
+                <span>{isSprint ? 'Qualificação Sprint' : 'Qualifying'}</span>
                 <span className="text-sm font-normal text-muted-foreground">
-                  (Q1: 18 avançam | Q2: 10 avançam | Q3: Pole Position)
+                  {isSprint
+                    ? '(SQ1: 18 avançam | SQ2: 10 avançam | SQ3: Sprint Pole)'
+                    : '(Q1: 18 avançam | Q2: 10 avançam | Q3: Pole Position)'}
                 </span>
               </CardTitle>
               <CardDescription>
-                Tempos derivados do acerto final dos treinos livres (bônus único de setup aplicado).
+                {isSprint
+                  ? 'Sessão oficial de classificação para o Grid da Corrida Sprint (Slot 2).'
+                  : 'Tempos derivados do acerto final dos treinos livres (bônus único de setup aplicado).'}
               </CardDescription>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {!isQ1Complete && (
-                <Button
-                  onClick={handleRunQ1}
-                  disabled={loading}
-                  size="sm"
-                  className="bg-primary hover:bg-primary/90"
-                >
-                  <Play className="h-4 w-4 mr-1.5" />
-                  Iniciar Q1
-                </Button>
+              {!isSprint && (
+                <>
+                  {!isQ1Complete && (
+                    <Button
+                      onClick={handleRunQ1}
+                      disabled={loading}
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      <Play className="h-4 w-4 mr-1.5" />
+                      Iniciar Q1
+                    </Button>
+                  )}
+                  {isQ1Complete && !isQ2Complete && (
+                    <Button
+                      onClick={handleRunQ2}
+                      disabled={loading}
+                      size="sm"
+                      className="bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      <Play className="h-4 w-4 mr-1.5" />
+                      Iniciar Q2
+                    </Button>
+                  )}
+                  {isQ2Complete && !isQ3Complete && (
+                    <Button
+                      onClick={handleRunQ3}
+                      disabled={loading}
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Play className="h-4 w-4 mr-1.5" />
+                      Disputar Q3 (Pole)
+                    </Button>
+                  )}
+                  {!isGridReady && (
+                    <Button
+                      onClick={handleRunFull}
+                      disabled={loading}
+                      size="sm"
+                      variant="outline"
+                      className="border-border/60"
+                    >
+                      <FastForward className="h-4 w-4 mr-1.5" />
+                      Simular Restante
+                    </Button>
+                  )}
+                  {isGridReady && onAdvanceToRace && (
+                    <Button
+                      onClick={onAdvanceToRace}
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      <Flag className="h-4 w-4 mr-1.5" />
+                      Avançar para Corrida
+                    </Button>
+                  )}
+                </>
               )}
-              {isQ1Complete && !isQ2Complete && (
+              {isSprint && isSprintGridReady && onAdvanceToSprint && (
                 <Button
-                  onClick={handleRunQ2}
-                  disabled={loading}
-                  size="sm"
-                  className="bg-indigo-600 hover:bg-indigo-700"
-                >
-                  <Play className="h-4 w-4 mr-1.5" />
-                  Iniciar Q2
-                </Button>
-              )}
-              {isQ2Complete && !isQ3Complete && (
-                <Button
-                  onClick={handleRunQ3}
-                  disabled={loading}
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  <Play className="h-4 w-4 mr-1.5" />
-                  Disputar Q3 (Pole)
-                </Button>
-              )}
-              {!isGridReady && (
-                <Button
-                  onClick={handleRunFull}
-                  disabled={loading}
-                  size="sm"
-                  variant="outline"
-                  className="border-border/60"
-                >
-                  <FastForward className="h-4 w-4 mr-1.5" />
-                  Simular Restante
-                </Button>
-              )}
-              {isGridReady && onAdvanceToRace && (
-                <Button
-                  onClick={onAdvanceToRace}
+                  onClick={onAdvanceToSprint}
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   <Flag className="h-4 w-4 mr-1.5" />
-                  Avançar para Corrida
+                  Próxima Sessão: Corrida Sprint
                 </Button>
               )}
             </div>
@@ -369,188 +417,180 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
         </CardHeader>
       </Card>
 
-      {/* Tabs com as 4 visualizações canônicas requeridas + Resultado Global */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
-          <TabsTrigger value="q1">
-            Q1 {q1Results.length > 0 ? `(${q1Results.length})` : ''}
-          </TabsTrigger>
-          <TabsTrigger value="q2" disabled={!isQ1Complete}>
-            Q2 {isQ1Complete ? `(${q2Results.length || 18})` : '(Bloqueado)'}
-          </TabsTrigger>
-          <TabsTrigger value="q3" disabled={!isQ2Complete}>
-            Q3 {isQ2Complete ? `(${q3Results.length || 10})` : '(Bloqueado)'}
-          </TabsTrigger>
-          <TabsTrigger value="result" disabled={!globalQuali}>
-            Resultado {globalQuali ? '(P1–P24)' : '(Bloqueado)'}
-          </TabsTrigger>
-          <TabsTrigger value="grid" disabled={!isGridReady}>
-            Grid Oficial {isGridReady ? '(P1–P24)' : '(Bloqueado)'}
-          </TabsTrigger>
-        </TabsList>
-        {/* ABA Q1 */}
-        <TabsContent value="q1" className="mt-4">
-          <QualifyingPhaseView phase="Q1" state={q1State} loading={loading} />
-        </TabsContent>
+      {/* Tabs com as visualizações canônicas */}
+      {isSprint ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+            <TabsTrigger value="sq1">
+              SQ1 {sq1Results.length > 0 ? `(${sq1Results.length})` : ''}
+            </TabsTrigger>
+            <TabsTrigger value="sq2" disabled={!isSq1Complete}>
+              SQ2 {isSq1Complete ? `(${sq2Results.length || 18})` : '(Bloqueado)'}
+            </TabsTrigger>
+            <TabsTrigger value="sq3" disabled={!isSq2Complete}>
+              SQ3 {isSq2Complete ? `(${sq3Results.length || 10})` : '(Bloqueado)'}
+            </TabsTrigger>
+            <TabsTrigger value="result" disabled={!sprintResult}>
+              Resultado {sprintResult ? '(P1–P24)' : '(Bloqueado)'}
+            </TabsTrigger>
+            <TabsTrigger value="grid" disabled={!isSprintGridReady}>
+              Grid Sprint {isSprintGridReady ? '(P1–P24)' : '(Bloqueado)'}
+            </TabsTrigger>
+          </TabsList>
 
-        {/* ABA Q2 */}
-        <TabsContent value="q2" className="mt-4">
-          <QualifyingPhaseView phase="Q2" state={q2State} loading={loading} />
-        </TabsContent>
+          {/* ABA SQ1 */}
+          <TabsContent value="sq1" className="mt-4">
+            <QualifyingPhaseView phase="SQ1" state={sq1State} loading={loading} />
+          </TabsContent>
 
-        {/* ABA Q3 */}
-        <TabsContent value="q3" className="mt-4">
-          <QualifyingPhaseView phase="Q3" state={q3State} loading={loading} />
-        </TabsContent>
+          {/* ABA SQ2 */}
+          <TabsContent value="sq2" className="mt-4">
+            <QualifyingPhaseView phase="SQ2" state={sq2State} loading={loading} />
+          </TabsContent>
 
-        {/* ABA RESULTADO DA CLASSIFICAÇÃO (QUALIFYING_RESULT PERSISTIDO P1–P24) */}
-        <TabsContent value="result" className="mt-4">
-          <Card>
-            <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-amber-500" />
-                  <span>Resultado Oficial da Classificação (P1 – P24)</span>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Classificação pura obtida em pista (QUALIFYING_RESULT) antes de aplicação das
-                  penalidades de grid.
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className="font-mono text-xs">
-                {globalQuali?.results.length || 0} Pilotos
-              </Badge>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
-                    <tr>
-                      <th className="px-4 py-3 w-12 text-center">Pos</th>
-                      <th className="px-4 py-3">Piloto</th>
-                      <th className="px-4 py-3">Equipe</th>
-                      <th className="px-4 py-3 text-center">Fase de Eliminação</th>
-                      <th className="px-3 py-3 text-right">Acerto TL</th>
-                      <th className="px-4 py-3 text-right">Melhor Volta</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/20">
-                    {!globalQuali || globalQuali.results.length === 0 ? (
+          {/* ABA SQ3 */}
+          <TabsContent value="sq3" className="mt-4">
+            <QualifyingPhaseView phase="SQ3" state={sq3State} loading={loading} />
+          </TabsContent>
+
+          {/* ABA RESULTADO SPRINT (SPRINT_QUALIFYING_RESULT PERSISTIDO P1–P24) */}
+          <TabsContent value="result" className="mt-4">
+            <Card>
+              <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <span>Resultado Oficial da Qualificação Sprint (P1 – P24)</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Classificação pura da Sprint obtida nas três fases eliminatórias (SQ3, SQ2,
+                    SQ1).
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {sprintResult?.results.length || 0} Pilotos
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
                       <tr>
-                        <td
-                          colSpan={6}
-                          className="px-4 py-8 text-center text-xs text-muted-foreground"
-                        >
-                          Resultado da classificação ainda não concluído.
-                        </td>
+                        <th className="px-4 py-3 w-12 text-center">Pos</th>
+                        <th className="px-4 py-3">Piloto</th>
+                        <th className="px-4 py-3">Equipe</th>
+                        <th className="px-4 py-3 text-center">Fase de Eliminação</th>
+                        <th className="px-4 py-3 text-right">Melhor Volta</th>
                       </tr>
-                    ) : (
-                      globalQuali.results.map((r) => (
-                        <tr
-                          key={`global_quali_${r.position}_${r.driverId}`}
-                          className="hover:bg-muted/30 transition-colors"
-                        >
-                          <td className="px-4 py-3 text-center font-mono font-bold text-xs">
-                            {r.position === 1 ? '🥇 P1' : `P${r.position}`}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-foreground">
-                            {r.driverName}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
-                          <td className="px-4 py-3 text-center">
-                            <Badge
-                              variant="outline"
-                              className={
-                                r.eliminationPhase === 'Q3'
-                                  ? 'border-purple-500/30 text-purple-600 text-xs'
-                                  : r.eliminationPhase === 'Q2'
-                                    ? 'border-amber-500/30 text-amber-500 text-xs'
-                                    : 'border-red-500/30 text-red-500 text-xs'
-                              }
-                            >
-                              {r.eliminationPhase}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-3 text-right font-mono text-xs">
-                            {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono text-xs font-bold">
-                            {r.formattedPhaseBestTime || '-:--.---'}
+                    </thead>
+                    <tbody className="divide-y divide-border/20">
+                      {!sprintResult || sprintResult.results.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-8 text-center text-xs text-muted-foreground"
+                          >
+                            Resultado da Qualificação Sprint ainda não consolidado.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ABA GRID OFICIAL (STARTING_GRID PERSISTIDO) */}
-        <TabsContent value="grid" className="mt-4">
-          <Card>
-            <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  <span>Grid de Largada Oficial do Grande Prêmio (P1 – P24)</span>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Posições definitivas de largada após penalidades regulamentares de troca de
-                  unidade de potência.
-                </CardDescription>
-              </div>
-              {isGridReady && finalGridList.length > 0 && (
-                <Badge className="bg-emerald-600 text-white font-bold text-xs">
-                  {finalGridList.length} CARROS BIJETIVO
-                </Badge>
-              )}
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left font-mono">
-                  <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
-                    <tr>
-                      <th className="px-4 py-3 w-16 text-center">Grid</th>
-                      <th className="px-4 py-3">Piloto</th>
-                      <th className="px-4 py-3">Equipe</th>
-                      <th className="px-4 py-3 text-center">Classificação</th>
-                      <th className="px-4 py-3 text-center">Penalidade</th>
-                      <th className="px-4 py-3 text-right">Melhor Volta</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/20">
-                    {loading ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-4 py-8 text-center text-xs text-muted-foreground"
-                        >
-                          Carregando grid de largada oficial...
-                        </td>
-                      </tr>
-                    ) : !isGridReady || finalGridList.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-4 py-8 text-center text-xs text-muted-foreground"
-                        >
-                          Grid oficial ainda não definido (aguardando conclusão do Qualifying).
-                        </td>
-                      </tr>
-                    ) : (
-                      finalGridList.map((row) => {
-                        const diff = row.gridPosition - row.qualifyingPosition
-
-                        return (
+                      ) : (
+                        sprintResult.results.map((r) => (
                           <tr
-                            key={`final_grid_${row.gridPosition}_${row.driverId}`}
-                            className={`hover:bg-muted/30 transition-colors ${
-                              row.hasPenalty ? 'bg-amber-500/5' : ''
-                            }`}
+                            key={`sprint_result_${r.position}_${r.driverId}`}
+                            className="hover:bg-muted/30 transition-colors"
                           >
-                            {/* Posição de largada efetiva */}
+                            <td className="px-4 py-3 text-center font-mono font-bold text-xs">
+                              {r.position === 1 ? '🥇 P1' : `P${r.position}`}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-foreground">
+                              {r.driverName}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
+                            <td className="px-4 py-3 text-center">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  r.eliminationPhase === 'SQ3'
+                                    ? 'border-purple-500/30 text-purple-600 text-xs'
+                                    : r.eliminationPhase === 'SQ2'
+                                      ? 'border-amber-500/30 text-amber-500 text-xs'
+                                      : 'border-red-500/30 text-red-500 text-xs'
+                                }
+                              >
+                                {r.eliminationPhase}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-xs font-bold">
+                              {r.formattedPhaseBestTime || '-:--.---'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ABA GRID DA SPRINT (SPRINT_STARTING_GRID PERSISTIDO) */}
+          <TabsContent value="grid" className="mt-4">
+            <Card>
+              <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+                <div>
+  <CardTitle className="text-sm font-bold flex items-center gap-2">
+    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+    <span>Grid de Largada da Corrida Sprint (P1 – P24)</span>
+  </CardTitle>
+  <CardDescription className="text-xs">
+    Ordem oficial de largada para a Corrida Sprint derivada EXCLUSIVAMENTE de SPRINT_STARTING_GRID.
+  </CardDescription>
+</div>
+{isSprintGridReady && finalSprintGridList.length > 0 && (
+  <Badge className="bg-emerald-600 text-white font-bold text-xs">
+    {finalSprintGridList.length} CARROS BIJETIVO
+  </Badge>
+)}
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left font-mono">
+                    <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
+                      <tr>
+                        <th className="px-4 py-3 w-16 text-center">Grid</th>
+                        <th className="px-4 py-3">Piloto</th>
+                        <th className="px-4 py-3">Equipe</th>
+                        <th className="px-4 py-3 text-center">Quali Sprint</th>
+                        <th className="px-4 py-3 text-right">Melhor Volta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/20">
+                      {loading ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-8 text-center text-xs text-muted-foreground"
+                          >
+                            Carregando grid de largada da Sprint...
+                          </td>
+                        </tr>
+                      ) : !isSprintGridReady || finalSprintGridList.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-8 text-center text-xs text-muted-foreground"
+                          >
+                            Grid da Sprint ainda não definido (aguardando conclusão da Qualificação
+                            Sprint).
+                          </td>
+                        </tr>
+                      ) : (
+                        finalSprintGridList.map((row) => (
+                          <tr
+                            key={`sprint_grid_${row.gridPosition}_${row.driverId}`}
+                            className="hover:bg-muted/30 transition-colors"
+                          >
+                            {/* Posição de largada Sprint */}
                             <td className="px-4 py-3 text-center font-bold text-sm bg-primary/5">
                               <span
                                 className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${
@@ -575,71 +615,304 @@ export const CanonicalQualifyingView: React.FC<CanonicalQualifyingViewProps> = (
                               {row.teamName}
                             </td>
 
-                            {/* Posição pura na classificação */}
+                            {/* Posição pura na classificação Sprint */}
                             <td className="px-4 py-3 text-center font-mono text-xs">
-                              {row.hasPenalty || row.qualifyingPosition !== row.gridPosition ? (
-                                <div>
-                                  <span className="font-semibold text-foreground block">
-                                    Larga P{row.gridPosition} / Q: P{row.qualifyingPosition}
-                                  </span>
-                                  <span className="text-[11px] text-amber-500 font-medium block">
-                                    Classificou: P{row.qualifyingPosition} / Larga: P
-                                    {row.gridPosition}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground block">
-                                    ({row.eliminationPhase})
-                                  </span>
-                                </div>
-                              ) : (
-                                <div>
-                                  <span className="font-semibold text-foreground block">
-                                    P{row.qualifyingPosition}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground block">
-                                    ({row.eliminationPhase})
-                                  </span>
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Penalidade aplicada */}
-                            <td className="px-4 py-3 text-center">
-                              {row.hasPenalty ? (
-                                <div className="flex flex-col items-center justify-center gap-1">
-                                  <Badge
-                                    variant="destructive"
-                                    className="text-xs flex items-center justify-center gap-1 mx-auto w-fit font-bold"
-                                  >
-                                    <ArrowDown className="h-3 w-3" />+{row.totalPenaltyPositions}{' '}
-                                    posições
-                                    {diff > 0 ? ` (-${diff})` : ''}
-                                  </Badge>
-                                  {row.penaltyReason && (
-                                    <span className="text-[10px] text-red-500/90 font-medium block">
-                                      {row.penaltyReason}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              )}
+                              <div>
+                                <span className="font-semibold text-foreground block">
+                                  P{row.qualifyingPosition}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground block">
+                                  ({row.eliminationPhase})
+                                </span>
+                              </div>
                             </td>
 
                             {/* Melhor Volta */}
                             <td className="px-4 py-3 text-right font-mono text-xs">
-                              {row.formattedQualifyingTime}
+                              {row.formattedQualifyingTime || '-:--.---'}
                             </td>
                           </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+            <TabsTrigger value="q1">
+              Q1 {q1Results.length > 0 ? `(${q1Results.length})` : ''}
+            </TabsTrigger>
+            <TabsTrigger value="q2" disabled={!isQ1Complete}>
+              Q2 {isQ1Complete ? `(${q2Results.length || 18})` : '(Bloqueado)'}
+            </TabsTrigger>
+            <TabsTrigger value="q3" disabled={!isQ2Complete}>
+              Q3 {isQ2Complete ? `(${q3Results.length || 10})` : '(Bloqueado)'}
+            </TabsTrigger>
+            <TabsTrigger value="result" disabled={!globalQuali}>
+              Resultado {globalQuali ? '(P1–P24)' : '(Bloqueado)'}
+            </TabsTrigger>
+            <TabsTrigger value="grid" disabled={!isGridReady}>
+              Grid Oficial {isGridReady ? '(P1–P24)' : '(Bloqueado)'}
+            </TabsTrigger>
+          </TabsList>
+          {/* ABA Q1 */}
+          <TabsContent value="q1" className="mt-4">
+            <QualifyingPhaseView phase="Q1" state={q1State} loading={loading} />
+          </TabsContent>
+
+          {/* ABA Q2 */}
+          <TabsContent value="q2" className="mt-4">
+            <QualifyingPhaseView phase="Q2" state={q2State} loading={loading} />
+          </TabsContent>
+
+          {/* ABA Q3 */}
+          <TabsContent value="q3" className="mt-4">
+            <QualifyingPhaseView phase="Q3" state={q3State} loading={loading} />
+          </TabsContent>
+
+          {/* ABA RESULTADO DA CLASSIFICAÇÃO (QUALIFYING_RESULT PERSISTIDO P1–P24) */}
+          <TabsContent value="result" className="mt-4">
+            <Card>
+              <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <span>Resultado Oficial da Classificação (P1 – P24)</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Classificação pura obtida em pista (QUALIFYING_RESULT) antes de aplicação das
+                    penalidades de grid.
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {globalQuali?.results.length || 0} Pilotos
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
+                      <tr>
+                        <th className="px-4 py-3 w-12 text-center">Pos</th>
+                        <th className="px-4 py-3">Piloto</th>
+                        <th className="px-4 py-3">Equipe</th>
+                        <th className="px-4 py-3 text-center">Fase de Eliminação</th>
+                        <th className="px-3 py-3 text-right">Acerto TL</th>
+                        <th className="px-4 py-3 text-right">Melhor Volta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/20">
+                      {!globalQuali || globalQuali.results.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-4 py-8 text-center text-xs text-muted-foreground"
+                          >
+                            Resultado da classificação ainda não concluído.
+                          </td>
+                        </tr>
+                      ) : (
+                        globalQuali.results.map((r) => (
+                          <tr
+                            key={`global_quali_${r.position}_${r.driverId}`}
+                            className="hover:bg-muted/30 transition-colors"
+                          >
+                            <td className="px-4 py-3 text-center font-mono font-bold text-xs">
+                              {r.position === 1 ? '🥇 P1' : `P${r.position}`}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-foreground">
+                              {r.driverName}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{r.teamName}</td>
+                            <td className="px-4 py-3 text-center">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  r.eliminationPhase === 'Q3'
+                                    ? 'border-purple-500/30 text-purple-600 text-xs'
+                                    : r.eliminationPhase === 'Q2'
+                                      ? 'border-amber-500/30 text-amber-500 text-xs'
+                                      : 'border-red-500/30 text-red-500 text-xs'
+                                }
+                              >
+                                {r.eliminationPhase}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono text-xs">
+                              {r.setup !== undefined ? `${r.setup.toFixed(1)}%` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-xs font-bold">
+                              {r.formattedPhaseBestTime || '-:--.---'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ABA GRID OFICIAL (STARTING_GRID PERSISTIDO) */}
+          <TabsContent value="grid" className="mt-4">
+            <Card>
+              <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <span>Grid de Largada Oficial do Grande Prêmio (P1 – P24)</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Posições definitivas de largada após penalidades regulamentares de troca de
+                    unidade de potência.
+                  </CardDescription>
+                </div>
+                {isGridReady && finalGridList.length > 0 && (
+                  <Badge className="bg-emerald-600 text-white font-bold text-xs">
+                    {finalGridList.length} CARROS BIJETIVO
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left font-mono">
+                    <thead className="text-xs uppercase bg-muted/50 border-b border-border/40 text-muted-foreground font-semibold">
+                      <tr>
+                        <th className="px-4 py-3 w-16 text-center">Grid</th>
+                        <th className="px-4 py-3">Piloto</th>
+                        <th className="px-4 py-3">Equipe</th>
+                        <th className="px-4 py-3 text-center">Classificação</th>
+                        <th className="px-4 py-3 text-center">Penalidade</th>
+                        <th className="px-4 py-3 text-right">Melhor Volta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/20">
+                      {loading ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-4 py-8 text-center text-xs text-muted-foreground"
+                          >
+                            Carregando grid de largada oficial...
+                          </td>
+                        </tr>
+                      ) : !isGridReady || finalGridList.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-4 py-8 text-center text-xs text-muted-foreground"
+                          >
+                            Grid oficial ainda não definido (aguardando conclusão do Qualifying).
+                          </td>
+                        </tr>
+                      ) : (
+                        finalGridList.map((row) => {
+                          const diff = row.gridPosition - row.qualifyingPosition
+
+                          return (
+                            <tr
+                              key={`final_grid_${row.gridPosition}_${row.driverId}`}
+                              className={`hover:bg-muted/30 transition-colors ${
+                                row.hasPenalty ? 'bg-amber-500/5' : ''
+                              }`}
+                            >
+                              {/* Posição de largada efetiva */}
+                              <td className="px-4 py-3 text-center font-bold text-sm bg-primary/5">
+                                <span
+                                  className={`inline-flex items-center justify-center w-7 h-7 rounded font-bold text-xs ${
+                                    row.gridPosition === 1
+                                      ? 'bg-amber-400 text-black'
+                                      : row.gridPosition <= 3
+                                        ? 'bg-slate-200 text-slate-900'
+                                        : 'bg-muted text-foreground'
+                                  }`}
+                                >
+                                  P{row.gridPosition}
+                                </span>
+                              </td>
+
+                              {/* Piloto */}
+                              <td className="px-4 py-3 font-sans font-semibold text-foreground">
+                                {row.driverName}
+                              </td>
+
+                              {/* Equipe */}
+                              <td className="px-4 py-3 font-sans text-muted-foreground">
+                                {row.teamName}
+                              </td>
+
+                              {/* Posição pura na classificação */}
+                              <td className="px-4 py-3 text-center font-mono text-xs">
+                                {row.hasPenalty || row.qualifyingPosition !== row.gridPosition ? (
+                                  <div>
+                                    <span className="font-semibold text-foreground block">
+                                      Larga P{row.gridPosition} / Q: P{row.qualifyingPosition}
+                                    </span>
+                                    <span className="text-[11px] text-amber-500 font-medium block">
+                                      Classificou: P{row.qualifyingPosition} / Larga: P
+                                      {row.gridPosition}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground block">
+                                      ({row.eliminationPhase})
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <span className="font-semibold text-foreground block">
+                                      P{row.qualifyingPosition}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground block">
+                                      ({row.eliminationPhase})
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Penalidade aplicada */}
+                              <td className="px-4 py-3 text-center">
+                                {row.hasPenalty ? (
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    <Badge
+                                      variant="destructive"
+                                      className="text-xs flex items-center justify-center gap-1 mx-auto w-fit font-bold"
+                                    >
+                                      <ArrowDown className="h-3 w-3" />+{row.totalPenaltyPositions}{' '}
+                                      posições
+                                      {diff > 0 ? ` (-${diff})` : ''}
+                                    </Badge>
+                                    {row.penaltyReason && (
+                                      <span className="text-[10px] text-red-500/90 font-medium block">
+                                        {row.penaltyReason}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                )}
+                              </td>
+
+                              {/* Melhor Volta */}
+                              <td className="px-4 py-3 text-right font-mono text-xs">
+                                {row.formattedQualifyingTime}
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   )
 }

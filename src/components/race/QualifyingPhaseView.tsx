@@ -132,7 +132,7 @@ export const DEFAULT_PHASE_CONFIGS: Record<QualifyingPhase, QualifyingPhaseConfi
       if (isElim) {
         return (
           <Badge variant="outline" className="border-red-500/30 text-red-500 text-xs">
-            Eliminado SQ1 (P{pos})
+            Eliminado SQ1
           </Badge>
         )
       }
@@ -179,7 +179,11 @@ export const DEFAULT_PHASE_CONFIGS: Record<QualifyingPhase, QualifyingPhaseConfi
     showTrophyIcon: true,
     renderStatusBadge: (_r, pos) => {
       if (pos === 1) {
-        return <Badge className="bg-amber-400 text-black text-xs font-bold">Pole Sprint</Badge>
+        return (
+          <Badge className="bg-amber-400 text-black text-xs font-bold" data-testid="sq3-pole-badge">
+            P1 — Sprint Pole
+          </Badge>
+        )
       }
       return (
         <Badge variant="outline" className="border-purple-500/30 text-purple-600 text-xs">
@@ -203,13 +207,32 @@ export const QualifyingPhaseView: React.FC<QualifyingPhaseViewProps> = ({
     ...customConfig,
   }
 
-  // Resultados vêm estritamente do estado persistido
+  // Distinção clara visual entre variant MAIN_QUALIFYING e SPRINT_QUALIFYING
+  const isSprintPhase = phase === 'SQ1' || phase === 'SQ2' || phase === 'SQ3'
+
+  // Resultados vêm estritamente do estado persistido (sem cálculo, sem sort por tempo)
   const results = state?.results || []
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+    <Card className={isSprintPhase ? 'border-purple-500/30' : ''}>
+      <CardHeader
+        className={`py-3 px-4 border-b border-border/40 flex flex-row items-center justify-between ${
+          isSprintPhase ? 'bg-purple-950/10' : 'bg-muted/30'
+        }`}
+      >
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Badge
+              variant="outline"
+              className={
+                isSprintPhase
+                  ? 'border-purple-500/50 text-purple-400 font-bold text-[10px] uppercase tracking-wider'
+                  : 'border-blue-500/50 text-blue-400 font-bold text-[10px] uppercase tracking-wider'
+              }
+            >
+              {isSprintPhase ? 'Qualificação Sprint' : 'Classificação Principal'}
+            </Badge>
+          </div>
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             {config.showTrophyIcon && <Trophy className="h-4 w-4 text-amber-400" />}
             <span>{config.title}</span>
