@@ -13,6 +13,7 @@ export type WeekendSlotType =
   | 'TL2'
   | 'TL3'
   | 'QUALI_SPRINT'
+  | 'SPRINT_QUALIFYING'
   | 'SPRINT'
   | 'Q1'
   | 'Q2'
