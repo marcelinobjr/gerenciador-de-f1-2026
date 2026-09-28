@@ -232,8 +232,8 @@ describe('RACE-QUALI-01B / ETAPA 2B: Integração da UI da Classificação e Gri
     const eliminatedBadges = screen.getAllByText(/Eliminado Q2/)
     expect(eliminatedBadges).toHaveLength(8)
 
-    // 10 finalistas
-    const finalistBadges = screen.getAllByText('Finalista Q3')
+    // 10 finalistas que avançam ao Q3
+    const finalistBadges = screen.getAllByText('Avança ao Q3')
     expect(finalistBadges).toHaveLength(10)
 
     // Nenhum piloto de Q1 com identificador diferente aparece no Q2
