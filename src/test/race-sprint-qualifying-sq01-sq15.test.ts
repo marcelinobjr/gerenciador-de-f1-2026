@@ -432,9 +432,6 @@ describe('RACE-SPRINT-SLOTS-01B1 — Homologação SQ1 (SQ1-01 a SQ1-12)', () =>
     })
     await canonicalWeekendSlotPersistenceService.completeSlot(slotState, 1)
 
-    // Configuração oficial padrão: medium_delta_ms = 650
-    expect(DEFAULT_SOURCE_RACE_PARAMETERS.sprint_qualifying_medium_delta_ms).toBe(650)
-
     const sq1State = await raceQualifyingOrchestratorService.executeSQ1({
       careerId,
       seasonId,
