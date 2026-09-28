@@ -65,6 +65,21 @@ import {
   type RaceWeekendSessionId,
   type WeekendSessionDefinition,
 } from '@/services/weekendScheduleConfig'
+import {
+  resolveWeekendFormat,
+  getWeekendSlotSequence,
+  NORMAL_SLOT_TYPES,
+  SPRINT_SLOT_TYPES,
+} from '@/services/weekendSlotSequenceService'
+import { canonicalWeekendSlotPersistenceService } from '@/services/canonicalWeekendSlotPersistenceService'
+import { resolveWeekendSlotsViewModel } from '@/services/weekendSlotViewModelResolver'
+import type {
+  WeekendFormat,
+  WeekendSlotNumber,
+  WeekendSlotType,
+  CanonicalWeekendSlotState,
+  WeekendSlotViewModel,
+} from '@/types/weekend-slot-types'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 
@@ -165,6 +180,9 @@ export default function WeekendV2Page() {
 
   // Sessões concluídas salvas no armazenamento
   const [completedSessions, setCompletedSessions] = useState<string[]>([])
+
+  // Estado canônico de 7 slots do fim de semana (RACE-SPRINT-SLOTS-01A)
+  const [weekendSlotState, setWeekendSlotState] = useState<CanonicalWeekendSlotState | null>(null)
 
   // Sessão atualmente selecionada na esteira
   const [selectedSessionId, setSelectedSessionId] = useState<RaceWeekendSessionId>('tp1')
@@ -268,6 +286,23 @@ export default function WeekendV2Page() {
         // 3.3. Carregar sessões concluídas
         const stored = readStoredCompletedSessions(season.id, currentRound)
         setCompletedSessions(stored)
+
+        // 3.3.1. Carregar ou migrar estado canônico dos 7 slots (RACE-SPRINT-SLOTS-01A)
+        const canonicalCareerId = resolveCanonicalCareerId(season, team)
+        canonicalWeekendSlotPersistenceService
+          .loadOrMigrateSlotState({
+            careerId: canonicalCareerId,
+            seasonId: season.id,
+            round: currentRound,
+          })
+          .then((slotState) => {
+            if (isMounted) {
+              setWeekendSlotState(slotState)
+            }
+          })
+          .catch((err) => {
+            console.warn('[WeekendV2Page] Erro ao carregar slotState:', err)
+          })
 
         // 3.4. Determinar sessão canônica inicial
         const initialSessionId = resolveInitialRaceSession({
