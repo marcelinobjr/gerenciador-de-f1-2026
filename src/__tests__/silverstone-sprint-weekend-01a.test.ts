@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   NORMAL_WEEKEND_SCHEDULE,
   SPRINT_WEEKEND_SCHEDULE,
+  CANONICAL_SPRINT_WEEKEND_SCHEDULE,
   getCanonicalWeekendSchedule,
   getNextRequiredWeekendSession,
   hasSprintWeekend,
