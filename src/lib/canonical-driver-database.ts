@@ -87,6 +87,24 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-109': 'DRV_0003', // Andre Lotterer (André Lotterer)
   'mbj-122': 'Piloto_14', // Filipe Albuquerque -> piloto gerado
   'mbj-134': 'DRV_0151', // Helio Castroneves
+
+  // BUG-PILOTOS-01B1A: Lote dos 16 pilotos (Ponte PocketBase ID / MBJ ID -> Foto Canônica)
+  '9v5e8eui71eusma': 'DRV_0001', // 1. Alba Hurup Larsen
+  '96j5j7yw9rzrniw': 'DRV_0081', // 2. Alessandro Pier Guidi
+  hl14dawcbv4jv79: 'DRV_0042', // 3. Alex Dunne
+  'mbj-103': 'DRV_0138', // 4. Alex Lynn
+  y6yxh8xqcjon2un: 'DRV_0082', // 5. Alisha Palmowski
+  '1jtl9kaxbv1ptps': 'DRV_0083', // 6. Amauri Cordell / Amaury Cordeel
+  v29qlvsii7r9us0: 'DRV_0084', // 7. Antonio Fuoco
+  kw21vwkrfiludy2: 'DRV_0086', // 8. Ava Dobson
+  zdxbpd8b2jrtq1y: 'DRV_0004', // 9. Brad Keselowski
+  h3llycw9bdhwrac: 'DRV_0088', // 10. Callum Hedge
+  'mbj-100': 'DRV_0139', // 11. Callum Ilott
+  'mbj-076': 'DRV_0140', // 12. Callum Voisin
+  m2tpbn2r0mak1ut: 'DRV_0006', // 13. Chase Elliott
+  'mbj-077': 'DRV_0141', // 14. Christian Mansell
+  ap51biwjhwsh2pf: 'DRV_0048', // 15. Christopher Bell
+  'mbj-115': 'DRV_0142', // 16. Connor de Phillippi
 }
 
 for (const pilot of MBJ_2026_PILOTS) {
@@ -532,6 +550,118 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'charles_leclerc',
     'lc6cma46f01dgrj',
     'drv_0047',
+  ],
+  // BUG-PILOTOS-01B1A: Lote dos 16 pilotos
+  // 1. Alba Hurup Larsen
+  '9v5e8eui71eusma': [
+    'alba_hurup_larsen',
+    'driver_alba_hurup_larsen',
+    'drv_alba_hurup_larsen',
+    'alba_larsen',
+    'drv_0001',
+  ],
+  // 2. Alessandro Pier Guidi
+  '96j5j7yw9rzrniw': [
+    'alessandro_pier_guidi',
+    'driver_alessandro_pier_guidi',
+    'drv_alessandro_pier_guidi',
+    'pier_guidi',
+    'drv_0081',
+  ],
+  // 3. Alex Dunne
+  hl14dawcbv4jv79: [
+    'alex_dunne',
+    'driver_alex_dunne',
+    'drv_alex_dunne',
+    'alexander_dunne',
+    'driver_alexander_dunne',
+    'drv_alexander_dunne',
+    'mbj-071',
+    'drv_0042',
+  ],
+  'mbj-071': ['alex_dunne', 'alexander_dunne', 'hl14dawcbv4jv79', 'drv_0042'],
+  // 4. Alex Lynn
+  'mbj-103': ['alex_lynn', 'driver_alex_lynn', 'drv_alex_lynn', 'drv_0138'],
+  // 5. Alisha Palmowski
+  y6yxh8xqcjon2un: [
+    'alisha_palmowski',
+    'driver_alisha_palmowski',
+    'drv_alisha_palmowski',
+    'palmowski',
+    'drv_0082',
+  ],
+  // 6. Amauri Cordell / Amaury Cordeel
+  '1jtl9kaxbv1ptps': [
+    'amauri_cordell',
+    'amaury_cordeel',
+    'driver_amauri_cordell',
+    'drv_amauri_cordell',
+    'drv_0083',
+  ],
+  // 7. Antonio Fuoco
+  v29qlvsii7r9us0: [
+    'antonio_fuoco',
+    'driver_antonio_fuoco',
+    'drv_antonio_fuoco',
+    'fuoco',
+    'drv_0084',
+  ],
+  // 8. Ava Dobson
+  kw21vwkrfiludy2: ['ava_dobson', 'driver_ava_dobson', 'drv_ava_dobson', 'dobson', 'drv_0086'],
+  // 9. Brad Keselowski
+  zdxbpd8b2jrtq1y: [
+    'brad_keselowski',
+    'driver_brad_keselowski',
+    'drv_brad_keselowski',
+    'brad_keselowiski',
+    'keselowski',
+    'drv_0004',
+  ],
+  // 10. Callum Hedge
+  h3llycw9bdhwrac: ['callum_hedge', 'driver_callum_hedge', 'drv_callum_hedge', 'hedge', 'drv_0088'],
+  // 11. Callum Ilott
+  'mbj-100': [
+    'callum_ilott',
+    'driver_callum_ilott',
+    'drv_callum_ilott',
+    'callum_llott',
+    'ilott',
+    'drv_0139',
+  ],
+  // 12. Callum Voisin
+  'mbj-076': ['callum_voisin', 'driver_callum_voisin', 'drv_callum_voisin', 'voisin', 'drv_0140'],
+  // 13. Chase Elliott
+  m2tpbn2r0mak1ut: [
+    'chase_elliott',
+    'driver_chase_elliott',
+    'drv_chase_elliott',
+    'elliott',
+    'drv_0006',
+  ],
+  // 14. Christian Mansell
+  'mbj-077': [
+    'christian_mansell',
+    'driver_christian_mansell',
+    'drv_christian_mansell',
+    'mansell',
+    'drv_0141',
+  ],
+  // 15. Christopher Bell
+  ap51biwjhwsh2pf: [
+    'christopher_bell',
+    'driver_christopher_bell',
+    'drv_christopher_bell',
+    'bell',
+    'drv_0048',
+  ],
+  // 16. Connor de Phillippi
+  'mbj-115': [
+    'connor_de_phillippi',
+    'connor_dephillippi',
+    'driver_connor_de_phillippi',
+    'drv_connor_de_phillippi',
+    'phillippi',
+    'drv_0142',
   ],
   // O'Ward runtime ID
   nwhacbop67hucir: ['patricio_oward', 'patricio_o_ward', 'oward', 'mbj-025', 'drv_0042'],

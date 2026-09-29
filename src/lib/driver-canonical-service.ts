@@ -158,6 +158,24 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   // Felipe Albuquerque -> usar Piloto-xx.jpg da pasta pilotos-gerados
   felipealbuquerque: '/pilotos-gerados/Piloto_22.jpg',
   filipealbuquerque: '/pilotos-gerados/Piloto_22.jpg',
+
+  // BUG-PILOTOS-01B1A: IDs PocketBase / MBJ diretos mapeando para as fotos canônicas dos 16 pilotos
+  '9v5e8eui71eusma': '/pilotos/DRV_0001.jpg', // Alba Hurup Larsen
+  '96j5j7yw9rzrniw': '/pilotos/DRV_0081.jpg', // Alessandro Pier Guidi
+  hl14dawcbv4jv79: '/pilotos/DRV_0042.jpg', // Alex Dunne
+  'mbj-103': '/pilotos/DRV_0138.jpg', // Alex Lynn
+  y6yxh8xqcjon2un: '/pilotos/DRV_0082.jpg', // Alisha Palmowski
+  '1jtl9kaxbv1ptps': '/pilotos/DRV_0083.jpg', // Amauri Cordell / Amaury Cordeel
+  v29qlvsii7r9us0: '/pilotos/DRV_0084.jpg', // Antonio Fuoco
+  kw21vwkrfiludy2: '/pilotos/DRV_0086.jpg', // Ava Dobson
+  zdxbpd8b2jrtq1y: '/pilotos/DRV_0004.jpg', // Brad Keselowski
+  h3llycw9bdhwrac: '/pilotos/DRV_0088.jpg', // Callum Hedge
+  'mbj-100': '/pilotos/DRV_0139.jpg', // Callum Ilott
+  'mbj-076': '/pilotos/DRV_0140.jpg', // Callum Voisin
+  m2tpbn2r0mak1ut: '/pilotos/DRV_0006.jpg', // Chase Elliott
+  'mbj-077': '/pilotos/DRV_0141.jpg', // Christian Mansell
+  ap51biwjhwsh2pf: '/pilotos/DRV_0048.jpg', // Christopher Bell
+  'mbj-115': '/pilotos/DRV_0142.jpg', // Connor de Phillippi
 }
 
 /**
@@ -184,6 +202,10 @@ export function resolveCanonicalDriverImagePath(
     const key = normalizeDriverNameToken(driverId)
     if (DRIVER_CANONICAL_PHOTO_MAP[key]) {
       return DRIVER_CANONICAL_PHOTO_MAP[key]
+    }
+    // Suporte direto a chaves case-preserved ou diretas
+    if (DRIVER_CANONICAL_PHOTO_MAP[driverId]) {
+      return DRIVER_CANONICAL_PHOTO_MAP[driverId]
     }
   }
 
