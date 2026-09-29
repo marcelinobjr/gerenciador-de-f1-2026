@@ -4,9 +4,10 @@
  * Configuração e definição canônica de sessões do fim de semana para a aba CORRIDA.
  *
  * Arquitetura extensível por formato de evento (Padrão, Sprint, etc.):
- * - Padrão F1 2026 oficial na esteira principal: TL1 -> TL2 -> Q1 -> Q2 -> Q3 -> CORRIDA.
- * - TL3 permanece 100% implementado no backend, runners e testes (isolado por configuração
- *   `includePractice3InSchedule`, permitindo reinserção futura sem alteração de código das sessões).
+ * - Weekend Normal: TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> RACE.
+ * - Weekend Sprint: TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> SPRINT -> Q1 -> Q2 -> Q3 -> RACE.
+ *   (TL3 ausente explicitamente; TL2 presente; bloco próprio de SPRINT_QUALIFYING com SQ1, SQ2, SQ3;
+ *    Sprint Race entre SQ3 e MAIN_QUALIFYING; MAIN_QUALIFYING com Q1, Q2, Q3; Main Race por último).
  */
 
 export type RaceWeekendSessionId =
@@ -21,6 +22,18 @@ export type RaceWeekendSessionId =
   | 'q2'
   | 'q3'
   | 'race'
+
+/**
+ * Slots de alto nível do fim de semana para mapeamento macro/granular.
+ */
+export type WeekendMacroSlot =
+  | 'PRACTICE_1'
+  | 'PRACTICE_2'
+  | 'PRACTICE_3'
+  | 'SPRINT_QUALIFYING'
+  | 'SPRINT_RACE'
+  | 'MAIN_QUALIFYING'
+  | 'MAIN_RACE'
 
 export type SessionVisualState = 'locked' | 'available' | 'active' | 'paused' | 'completed'
 
@@ -149,39 +162,76 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
     },
   }
 /**
+ * Mapeamento canônico de macro-slots para sessões detalhadas da esteira.
+ */
+export const MACRO_SLOT_SESSION_EXPANSION: Record<WeekendMacroSlot, RaceWeekendSessionId[]> = {
+  PRACTICE_1: ['tp1'],
+  PRACTICE_2: ['tp2'],
+  PRACTICE_3: ['tp3'],
+  SPRINT_QUALIFYING: ['sq1', 'sq2', 'sq3'],
+  SPRINT_RACE: ['sprint_race'],
+  MAIN_QUALIFYING: ['q1', 'q2', 'q3'],
+  MAIN_RACE: ['race'],
+}
+
+/**
+ * Macro slots ordenados para fim de semana NORMAL:
+ * PRACTICE_1 -> PRACTICE_2 -> PRACTICE_3 -> MAIN_QUALIFYING -> MAIN_RACE
+ */
+export const NORMAL_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.freeze([
+  'PRACTICE_1',
+  'PRACTICE_2',
+  'PRACTICE_3',
+  'MAIN_QUALIFYING',
+  'MAIN_RACE',
+])
+
+/**
+ * Macro slots ordenados para fim de semana SPRINT:
+ * PRACTICE_1 -> PRACTICE_2 -> SPRINT_QUALIFYING -> SPRINT_RACE -> MAIN_QUALIFYING -> MAIN_RACE
+ * (TL3 rigorosamente ausente; TL2 presente; SQ próprio antes de Sprint; Main Quali antes de GP Race).
+ */
+export const SPRINT_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.freeze([
+  'PRACTICE_1',
+  'PRACTICE_2',
+  'SPRINT_QUALIFYING',
+  'SPRINT_RACE',
+  'MAIN_QUALIFYING',
+  'MAIN_RACE',
+])
+
+/**
+ * Expande uma sequência de macro slots nas sessões detalhadas canônicas correspondentes.
+ */
+export function expandMacroSlotsToSessions(
+  slots: readonly WeekendMacroSlot[],
+): RaceWeekendSessionId[] {
+  return slots.flatMap((slot) => MACRO_SLOT_SESSION_EXPANSION[slot])
+}
+
+/**
  * Retorna as sessões da esteira para o evento.
- * Na esteira padrão da aba CORRIDA: [ TL1, TL2, Q1, Q2, Q3, CORRIDA ].
- * Se `includePractice3` for true (ou regulamento específico exigir), TL3 é inserido entre TL2 e Q1.
+ * No formato normal: [ TL1, TL2, TL3, Q1, Q2, Q3, CORRIDA ].
+ * No formato sprint: [ TL1, TL2, SQ1, SQ2, SQ3, SPRINT, Q1, Q2, Q3, CORRIDA ].
  */
 export function getRaceWeekendPipeline(
   options?: WeekendScheduleOptions,
 ): WeekendSessionDefinition[] {
-  // No formato padrão/normal F1, TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> Corrida.
-  // includePractice3 tem padrão true para standard/normal (a menos que explicitamente false ou formato sprint).
   const isSprint = options?.format === 'sprint'
   if (isSprint) {
     // SPRINT: TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> SPRINT RACE -> Q1 -> Q2 -> Q3 -> CORRIDA PRINCIPAL
-    const sprintSequence: RaceWeekendSessionId[] = [
-      'tp1',
-      'tp2',
-      'sq1',
-      'sq2',
-      'sq3',
-      'sprint_race',
-      'q1',
-      'q2',
-      'q3',
-      'race',
-    ]
+    // TL3 rigorosamente excluído do weekend Sprint
+    const sprintSequence = expandMacroSlotsToSessions(SPRINT_WEEKEND_MACRO_SLOTS)
     return sprintSequence.map((id) => CANONICAL_SESSION_DEFINITIONS[id])
   }
 
   const includeP3 = options?.includePractice3 ?? true
-  const baseSequence: RaceWeekendSessionId[] = includeP3
-    ? ['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race']
-    : ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race']
+  const macroSlots: WeekendMacroSlot[] = includeP3
+    ? [...NORMAL_WEEKEND_MACRO_SLOTS]
+    : ['PRACTICE_1', 'PRACTICE_2', 'MAIN_QUALIFYING', 'MAIN_RACE']
 
-  return baseSequence.map((id) => CANONICAL_SESSION_DEFINITIONS[id])
+  const normalSequence = expandMacroSlotsToSessions(macroSlots)
+  return normalSequence.map((id) => CANONICAL_SESSION_DEFINITIONS[id])
 }
 
 /**
