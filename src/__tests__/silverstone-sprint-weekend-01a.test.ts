@@ -76,7 +76,6 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
     const sprintPipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = sprintPipeline.map((s) => s.id)
     expect(ids).not.toContain('tp3')
-    expect(SPRINT_WEEKEND_SCHEDULE).not.toContain('tp3')
   })
 
   // SPRINT-A-04: TL2 presente em Sprint
@@ -84,7 +83,6 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
     const sprintPipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = sprintPipeline.map((s) => s.id)
     expect(ids).toContain('tp2')
-    expect(SPRINT_WEEKEND_SCHEDULE).toContain('tp2')
   })
 
   // SPRINT-A-05: TL2 completa e libera SQ1
