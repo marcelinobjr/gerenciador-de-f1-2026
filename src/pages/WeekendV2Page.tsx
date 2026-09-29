@@ -3058,6 +3058,45 @@ export default function WeekendV2Page() {
                 })
               }
             }}
+            onSubmitWeatherDecision={(driverId, action, selectedCompound) => {
+              try {
+                const res = raceStrategyService.submitWeatherDecision({
+                  raceState: canonicalRaceState,
+                  driverId,
+                  action,
+                  selectedCompound,
+                })
+                if (res.success) {
+                  canonicalRaceInitializationService.saveCanonicalRaceState(res.updatedState)
+                  setCanonicalRaceState(res.updatedState)
+                  const drvName =
+                    res.updatedState.drivers.find((d) => d.driverId === driverId)?.driverName ||
+                    driverId
+                  toast({
+                    title: 'Decisão Climática Confirmada',
+                    description:
+                      action === 'PIT_NOW'
+                        ? `${drvName}: Box chamado com pneus ${selectedCompound?.toUpperCase()}.`
+                        : `${drvName}: Permanecerá na pista (Stay Out).`,
+                  })
+                  return { success: true }
+                } else {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao aplicar decisão',
+                    description: res.error || 'Erro na validação da decisão.',
+                  })
+                  return { success: false, error: res.error }
+                }
+              } catch (err: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Erro ao registrar decisão',
+                  description: err?.message || 'Falha inesperada.',
+                })
+                return { success: false, error: err?.message }
+              }
+            }}
             onAdvanceMultipleLaps={(count) => {
               try {
                 const nextState = canonicalRaceEngineService.advanceMultipleLaps(

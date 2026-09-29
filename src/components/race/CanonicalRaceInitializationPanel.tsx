@@ -20,6 +20,8 @@ import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 import { DriverStrategyCockpitPanel } from './DriverStrategyCockpitPanel'
 import { RaceSimulator, convertToRaceCars } from './RaceSimulator'
 import { resolveTrackFromCircuitName } from './tracks'
+import { CanonicalWeatherDecisionModal } from './CanonicalWeatherDecisionModal'
+import type { WeatherDecisionAction } from '@/types/canonical-race-v2'
 
 interface CanonicalRaceInitializationPanelProps {
   raceState: CanonicalRaceState
@@ -37,6 +39,14 @@ interface CanonicalRaceInitializationPanelProps {
   onManualSave?: () => void
   onOfficializeRace?: () => void
   hasOfficialResult?: boolean
+  onSubmitWeatherDecision?: (
+    driverId: string,
+    action: WeatherDecisionAction,
+    selectedCompound?: TireCompound,
+  ) =>
+    | Promise<{ success: boolean; error?: string } | void>
+    | { success: boolean; error?: string }
+    | void
 }
 
 export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializationPanelProps> = ({
@@ -52,8 +62,10 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   onManualSave,
   onOfficializeRace,
   hasOfficialResult = false,
+  onSubmitWeatherDecision,
 }) => {
   const [isSimulating, setIsSimulating] = useState(false)
+  const isAwaitingWeatherDecision = raceState.status === 'awaiting_player_weather_decision'
   const leaderDriver =
     raceState.drivers[0] || raceState.drivers.find((d) => d.currentPosition === 1)
   const playerDrivers = raceState.drivers.filter((d) => d.isPlayer)
@@ -160,12 +172,21 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
               <Button
                 type="button"
                 size="sm"
-                disabled={isFinished || isSimulating}
+                disabled={isFinished || isSimulating || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap()}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1.5 h-9 px-3"
+                title={
+                  isAwaitingWeatherDecision
+                    ? 'Decisão climática pendente. Resolva a estratégia dos pilotos para continuar.'
+                    : 'Avançar 1 volta'
+                }
+                className={`text-xs font-bold gap-1.5 h-9 px-3 ${
+                  isAwaitingWeatherDecision
+                    ? 'bg-amber-600/60 text-amber-200 border border-amber-500/50 cursor-not-allowed opacity-75'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                Avançar 1 Volta
+                {isAwaitingWeatherDecision ? 'Aguardando Decisão' : 'Avançar 1 Volta'}
               </Button>
             )}
 
@@ -175,7 +196,12 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={isFinished || isSimulating || currentFlag === 'RED_FLAG'}
+                  disabled={
+                    isFinished ||
+                    isSimulating ||
+                    currentFlag === 'RED_FLAG' ||
+                    isAwaitingWeatherDecision
+                  }
                   onClick={() => onAdvanceMultipleLaps(5)}
                   className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
                 >
@@ -187,7 +213,12 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={isFinished || isSimulating || currentFlag === 'RED_FLAG'}
+                  disabled={
+                    isFinished ||
+                    isSimulating ||
+                    currentFlag === 'RED_FLAG' ||
+                    isAwaitingWeatherDecision
+                  }
                   onClick={() => onAdvanceMultipleLaps(10)}
                   className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
                 >
@@ -199,7 +230,12 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   type="button"
                   size="sm"
                   variant="secondary"
-                  disabled={isFinished || isSimulating || currentFlag === 'RED_FLAG'}
+                  disabled={
+                    isFinished ||
+                    isSimulating ||
+                    currentFlag === 'RED_FLAG' ||
+                    isAwaitingWeatherDecision
+                  }
                   onClick={handleSimulateRest}
                   className="bg-red-600 hover:bg-red-500 text-white text-xs font-black gap-1.5 h-9 px-3"
                 >
@@ -265,7 +301,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished}
+                disabled={isFinished || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'GREEN' })}
                 className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-emerald-300 border-emerald-700/50 hover:bg-emerald-900/60"
               >
@@ -275,7 +311,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished}
+                disabled={isFinished || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW_LOCAL' })}
                 className="h-7 px-2 text-[10px] font-bold bg-yellow-950/40 text-yellow-300 border-yellow-700/50 hover:bg-yellow-900/60"
               >
@@ -285,7 +321,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished}
+                disabled={isFinished || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW' })}
                 className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-700/50 hover:bg-amber-900/60"
               >
@@ -295,7 +331,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished}
+                disabled={isFinished || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'VSC' })}
                 className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-600/50 hover:bg-amber-900/60"
               >
@@ -305,7 +341,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished}
+                disabled={isFinished || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'SAFETY_CAR' })}
                 className="h-7 px-2 text-[10px] font-bold bg-orange-950/40 text-orange-300 border-orange-600/50 hover:bg-orange-900/60"
               >
@@ -315,7 +351,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished}
+                disabled={isFinished || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'RESTART' })}
                 className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-cyan-300 border-cyan-600/50 hover:bg-cyan-900/60"
               >
@@ -325,7 +361,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished}
+                disabled={isFinished || isAwaitingWeatherDecision}
                 onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'RED_FLAG' })}
                 className="h-7 px-2 text-[10px] font-bold bg-red-950/50 text-red-300 border-red-600/60 hover:bg-red-900/70"
               >
@@ -335,6 +371,12 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
           </div>
         </CardContent>
       </Card>
+
+      {/* RACE-PROVENANCE-AUDIT-02B-E1B: Modal Canônico de Decisão Humana em Mudança de Clima */}
+      <CanonicalWeatherDecisionModal
+        raceState={raceState}
+        onSubmitDecision={onSubmitWeatherDecision}
+      />
 
       {/* DOIS PAINÉIS INDEPENDENTES DE ESTRATÉGIA — CARRO 1 E CARRO 2 (FW2.1E-D) */}
       {playerDrivers.length >= 2 && (
