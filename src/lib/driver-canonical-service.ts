@@ -183,21 +183,34 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   dennishauger: '/pilotos/DRV_0144.jpg',
   // 20. Denny Hamlin -> DRV_0051.jpg
   dennyhamlin: '/pilotos/DRV_0051.jpg',
+
+  // === BLOCO 1 — CP3 (PRÓXIMOS 10 MAPPINGS CANÔNICOS VALIDADOS: PILOTOS-FOTOS-GITHUB-01B-CP3) ===
+  // 21. Dries Vanthoor -> DRV_0145.jpg
   driesvanthoor: '/pilotos/DRV_0145.jpg',
+  // 22. Earl Bamber -> DRV_0146.jpg
   earlbamber: '/pilotos/DRV_0146.jpg',
+  // 23. Edoardo Mortara -> DRV_0090.jpg
   edoardomortara: '/pilotos/DRV_0090.jpg',
+  // 24. Ella Lloyd -> DRV_0091.jpg
   ellalloyd: '/pilotos/DRV_0091.jpg',
+  // 25. Ella Stevens -> DRV_0147.jpg
   ellastevens: '/pilotos/DRV_0147.jpg',
+  // 26. Emerson Fittipaldi Jr. -> DRV_0148.jpg
   emersonfittipaldijr: '/pilotos/DRV_0148.jpg',
   emersonfittipaldijunior: '/pilotos/DRV_0148.jpg',
+  // 27. Emma Felbermayr -> DRV_0010.jpg
   emmafelbermayr: '/pilotos/DRV_0010.jpg',
+  // 28. Enzo Fittipaldi -> DRV_0149.jpg
   enzofittipaldi: '/pilotos/DRV_0149.jpg',
+  // 29. Esmee Kosterman -> DRV_0092.jpg
   esmeekosterman: '/pilotos/DRV_0092.jpg',
+  // 30. Gabriele Mini / Gabriele Minì -> DRV_0013.jpg
+  gabrielemini: '/pilotos/DRV_0013.jpg',
+
   felipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
   filipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
   freddieslater: '/pilotos/DRV_0150.jpg',
   drvdrv0150: '/pilotos/DRV_0150.jpg',
-  gabrielemini: '/pilotos/DRV_0013.jpg',
   heliocastroneves: '/pilotos/DRV_0151.jpg',
   alexalbon: '/pilotos/DRV_0041.jpg',
   alexanderalbon: '/pilotos/DRV_0041.jpg',
@@ -323,6 +336,18 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-111': '/pilotos/DRV_0143.jpg',
   'mbj-137': '/pilotos/DRV_0136.jpg',
   'mbj-059': '/pilotos/DRV_0144.jpg',
+
+  // CP3 direct ID keys
+  'mbj-119': '/pilotos/DRV_0145.jpg',
+  'mbj-102': '/pilotos/DRV_0146.jpg',
+  du0sd86hxglnw4a: '/pilotos/DRV_0090.jpg',
+  g0xh5dajfkkaa3b: '/pilotos/DRV_0091.jpg',
+  m7e24lcm065h1xg: '/pilotos/DRV_0147.jpg',
+  v5llmbtfjovvv4c: '/pilotos/DRV_0148.jpg',
+  fah70cg7nh6uzki: '/pilotos/DRV_0010.jpg',
+  'mbj-057': '/pilotos/DRV_0149.jpg',
+  '8srxswzj5r17dma': '/pilotos/DRV_0092.jpg',
+  'mbj-063': '/pilotos/DRV_0013.jpg',
 }
 
 /**

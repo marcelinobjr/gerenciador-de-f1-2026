@@ -108,6 +108,18 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-111': 'DRV_0143', // 17. Dane Cameron
   'mbj-137': 'DRV_0136', // 18. Daniil Kvyat
   'mbj-059': 'DRV_0144', // 19. Dennis Hauger
+
+  // BUG-PILOTOS-01B-CP3: Lote dos 10 pilotos (Dries Vanthoor a Gabriele Mini)
+  'mbj-119': 'DRV_0145', // 21. Dries Vanthoor
+  'mbj-102': 'DRV_0146', // 22. Earl Bamber
+  du0sd86hxglnw4a: 'DRV_0090', // 23. Edoardo Mortara
+  g0xh5dajfkkaa3b: 'DRV_0091', // 24. Ella Lloyd
+  m7e24lcm065h1xg: 'DRV_0147', // 25. Ella Stevens
+  v5llmbtfjovvv4c: 'DRV_0148', // 26. Emerson Fittipaldi Jr.
+  fah70cg7nh6uzki: 'DRV_0010', // 27. Emma Felbermayr
+  'mbj-057': 'DRV_0149', // 28. Enzo Fittipaldi
+  '8srxswzj5r17dma': 'DRV_0092', // 29. Esmee Kosterman
+  // 30. Gabriele Mini já mapeado via 'mbj-063': 'DRV_0013'
 }
 
 for (const pilot of MBJ_2026_PILOTS) {
