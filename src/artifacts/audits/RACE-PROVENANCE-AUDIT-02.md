@@ -3,7 +3,7 @@
 **Data:** 2026  
 **Versão Base (HEAD):** v0.0.660 (c10cef4)  
 **Tipo:** Auditoria de Proveniência Esportiva (Engine Audit — Fase 02A2: Seções C–D)  
-**Status:** EM ANDAMENTO (02A2: Seções C e D em diagnóstico e formalização)  
+**Status:** EM ANDAMENTO (02A2: Seção C concluída, Seção D em formalização)  
 **Princípio:** SÓ AUDITORIA — Nenhuma alteração no motor de simulação, UI ou dados de pilotos.
 
 ---
@@ -98,58 +98,84 @@ Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/racePr
 
 ## C. NÚMERO DE VOLTAS — 24 GPs (Tabela Canônica 24/24)
 
-### Respostas Canônicas C1..C4
+### Proveniência, Arquivos e Funções Envolvidas
+- **Fonte canônica:** `src/lib/f1-data.ts` (`F1_2026_CALENDAR`) — espelho canônico do calendário oficial FIA 2026 e do arquivo de parâmetros `01raceregraseparametros-3c0c5.json` (aba Circuitos / Rounds 1–24). Cada entrada possui o campo `laps`.
+- **Motor atual (Race Engine V2):**
+  - **Ponto de entrada:** `src/services/canonicalRaceInitializationService.ts:74` (`initializeRaceFromCanonicalGrid`).
+  - **Parâmetro recebido:** `params.totalLaps` (número regulamentar de voltas da corrida).
+  - **Gravação de estado:** `CanonicalRaceState.totalLaps` (`Math.max(1, totalLaps)` em `canonicalRaceInitializationService.ts:312`).
+  - **Consumo durante a corrida:** `src/services/canonicalRaceEngineService.ts:471` (`const totalLaps = currentState.totalLaps`), utilizado para detecção de bandeira quadriculada (`leaderLaps >= totalLaps` em `:1108`).
+  - **Orquestração na UI:** `src/pages/WeekendV2Page.tsx:3133, 3160, 3194` (`totalLaps: gpInfo.laps || 57`), onde `gpInfo = F1_2026_CALENDAR.find((c) => c.round === currentRound)`.
+  - **Motor Legado/Pitwall SVG:** `src/components/race/tracks.ts` (`TRACKS` e `resolveTrackFromCircuitName`). Contém apenas 4 circuitos animados com `totalLaps: 10` para simulação rápida/visual, mas **NÃO** alimenta a simulação oficial da temporada (WeekendV2Page consome `canonicalRaceInitializationService` e `canonicalRaceEngineService`).
+
+---
+
+### Respostas C1–C4
 
 - **C1. De onde vem o número de voltas na fonte canônica?**
-  - Vem da aba `Pistas` da fonte oficial Excel (`src/assets/01raceregraseparametros-3c0c5.json`, bloco `"tracks"`, linhas `source_row: 4` a `27`), especificamente da **Coluna C: "Voltas"**, associada a cada rodada esportiva (`Coluna M: "Rodada (jogo)"`).
+  Vem da constante canônica `F1_2026_CALENDAR` em `src/lib/f1-data.ts:3-340`, correspondente à aba de Circuitos do regulamento FIA 2026 / arquivo `01raceregraseparametros-3c0c5.json`. O campo de cada GP é `laps: number`.
 - **C2. De onde o motor atual obtém raceLaps?**
-  - O motor de corrida (`canonicalRaceInitializationService.ts:82` e `canonicalRaceRunner.ts:85`) obtém `totalLaps` do catálogo de etapas `F1_2026_CALENDAR` localizado em `src/lib/f1-data.ts` (campo `laps`), acessado pelo round da carreira/fim de semana (`F1_2026_CALENDAR[round - 1].laps` ou `gp.laps`), passado ao inicializador `canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({ totalLaps })`.
+  O motor atual obtém o número de voltas via parâmetro `totalLaps` passado para `canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({ totalLaps })`, que armazena em `CanonicalRaceState.totalLaps`. Na execução do final de semana (`src/pages/WeekendV2Page.tsx:138-150, 3133, 3194`), o valor é injetado diretamente a partir de `gpInfo.laps` (`F1_2026_CALENDAR.find(c => c.round === currentRound).laps`).
 - **C3. O motor resolve por circuitId canônico?**
-  - **SIM.** Cada etapa possui round formal (1 a 24) e identificador de circuito canônico unívoco sincronizado entre `f1-data.ts`, `src/data/circuit-performance-profiles.ts` (`circuit_01` a `circuit_24`) e `circuitAssets.ts`.
+  **SIM.** O pipeline esportivo resolve por round canônico (1 a 24) e circuitId canônico (`circuit_01` a `circuit_24` em `src/data/circuit-performance-profiles.ts`), pareado 1:1 com os 24 rounds de `F1_2026_CALENDAR`.
 - **C4. Existe fallback/default de voltas?**
-  - **SIM.** Se `totalLaps` for omitido ou inválido, `canonicalRaceInitializationService.ts:312` aplica a guarda `totalLaps: Math.max(1, totalLaps)`. Adicionalmente, no componente visual legado `src/components/race/tracks.ts:150`, existe uma constante fallback `totalLaps: 10` exclusiva para preview visual / traçado SVG de 4 pistas em modo demonstração rápida, não afetando o motor principal da corrida.
+  **SIM.** Existe fallback em dois níveis com valor **57 voltas** (correspondente ao GP do Bahrein):
+  1. Em `src/pages/WeekendV2Page.tsx:146` (`gpInfo` fallback: `{ laps: 57, ... }` se o round não for encontrado no calendário).
+  2. Em `src/pages/WeekendV2Page.tsx:3133, 3160, 3194` (`gpInfo.laps || 57`).
+  No entanto, nos 24 rounds válidos do calendário (rounds 1 a 24), `gpInfo.laps` é estritamente resolvido sem acionar o fallback.
+  *(Nota adicional: em `canonicalPreparationInformedService.ts:504` há um fallback de apoio de `53 voltas` para o cálculo estimado de stint caso `gpInfo.laps` seja nulo).*
 
-### Tabela Obrigatória 24/24 (Fonte Canônica vs Motor Atual)
+---
 
-| #   | GP                        | Circuit ID                 | Fonte laps | Motor laps | Origem motor     | Status |
-| --- | ------------------------- | -------------------------- | ---------- | ---------- | ---------------- | ------ |
-| 01  | GP da Austrália           | `circuit_01` (melbourne)   | 58         | 58         | `f1-data.ts:10`  | MATCH  |
-| 02  | GP da China               | `circuit_02` (china)       | 56         | 56         | `f1-data.ts:24`  | MATCH  |
-| 03  | GP do Japão               | `circuit_03` (suzuka)      | 53         | 53         | `f1-data.ts:38`  | MATCH  |
-| 04  | GP do Bahrein             | `circuit_04` (bahrain)     | 57         | 57         | `f1-data.ts:52`  | MATCH  |
-| 05  | GP da Arábia Saudita      | `circuit_05` (jeddah)      | 50         | 50         | `f1-data.ts:66`  | MATCH  |
-| 06  | GP de Miami               | `circuit_06` (miami)       | 57         | 57         | `f1-data.ts:80`  | MATCH  |
-| 07  | GP do Canadá              | `circuit_07` (canada)      | 70         | 70         | `f1-data.ts:94`  | MATCH  |
-| 08  | GP de Mônaco              | `circuit_08` (monaco)      | 78         | 78         | `f1-data.ts:108` | MATCH  |
-| 09  | GP da Espanha (Barcelona) | `circuit_09` (barcelona)   | 66         | 66         | `f1-data.ts:122` | MATCH  |
-| 10  | GP da Áustria             | `circuit_10` (austria)     | 71         | 71         | `f1-data.ts:136` | MATCH  |
-| 11  | GP da Grã-Bretanha        | `circuit_11` (silverstone) | 52         | 52         | `f1-data.ts:150` | MATCH  |
-| 12  | GP da Bélgica             | `circuit_12` (spa)         | 44         | 44         | `f1-data.ts:164` | MATCH  |
-| 13  | GP da Hungria             | `circuit_13` (hungaroring) | 70         | 70         | `f1-data.ts:178` | MATCH  |
-| 14  | GP dos Países Baixos      | `circuit_14` (zandvoort)   | 72         | 72         | `f1-data.ts:192` | MATCH  |
-| 15  | GP da Itália              | `circuit_15` (monza)       | 53         | 53         | `f1-data.ts:206` | MATCH  |
-| 16  | GP de Madri               | `circuit_16` (madrid)      | 66         | 66         | `f1-data.ts:220` | MATCH  |
-| 17  | GP do Azerbaijão          | `circuit_17` (baku)        | 51         | 51         | `f1-data.ts:234` | MATCH  |
-| 18  | GP de Singapura           | `circuit_18` (singapore)   | 62         | 62         | `f1-data.ts:248` | MATCH  |
-| 19  | GP dos Estados Unidos     | `circuit_19` (cota)        | 56         | 56         | `f1-data.ts:262` | MATCH  |
-| 20  | GP do México              | `circuit_20` (mexico)      | 71         | 71         | `f1-data.ts:276` | MATCH  |
-| 21  | GP de São Paulo           | `circuit_21` (interlagos)  | 71         | 71         | `f1-data.ts:290` | MATCH  |
-| 22  | GP de Las Vegas           | `circuit_22` (las_vegas)   | 50         | 50         | `f1-data.ts:304` | MATCH  |
-| 23  | GP do Catar               | `circuit_23` (lusail)      | 57         | 57         | `f1-data.ts:318` | MATCH  |
-| 24  | GP de Abu Dhabi           | `circuit_24` (yas_marina)  | 58         | 58         | `f1-data.ts:332` | MATCH  |
+### Tabela Obrigatória 24/24
 
-### Resultado Agregado C5..C10
+| # | GP | Circuit ID | Fonte laps | Motor laps | Origem motor | Status |
+|---|---|---|---|---|---|---|
+| 1 | Grande Prêmio da Austrália | `circuit_01` | 58 | 58 | `F1_2026_CALENDAR[0].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 2 | Grande Prêmio da China | `circuit_02` | 56 | 56 | `F1_2026_CALENDAR[1].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 3 | Grande Prêmio do Japão | `circuit_03` | 53 | 53 | `F1_2026_CALENDAR[2].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 4 | Grande Prêmio do Bahrein | `circuit_04` | 57 | 57 | `F1_2026_CALENDAR[3].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 5 | Grande Prêmio da Arábia Saudita | `circuit_05` | 50 | 50 | `F1_2026_CALENDAR[4].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 6 | Grande Prêmio de Miami | `circuit_06` | 57 | 57 | `F1_2026_CALENDAR[5].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 7 | Grande Prêmio do Canadá | `circuit_07` | 70 | 70 | `F1_2026_CALENDAR[6].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 8 | Grande Prêmio de Mônaco | `circuit_08` | 78 | 78 | `F1_2026_CALENDAR[7].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 9 | Grande Prêmio da Espanha (Barcelona) | `circuit_09` | 66 | 66 | `F1_2026_CALENDAR[8].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 10 | Grande Prêmio da Áustria | `circuit_10` | 71 | 71 | `F1_2026_CALENDAR[9].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 11 | Grande Prêmio da Grã-Bretanha | `circuit_11` | 52 | 52 | `F1_2026_CALENDAR[10].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 12 | Grande Prêmio da Bélgica | `circuit_12` | 44 | 44 | `F1_2026_CALENDAR[11].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 13 | Grande Prêmio da Hungria | `circuit_13` | 70 | 70 | `F1_2026_CALENDAR[12].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 14 | Grande Prêmio dos Países Baixos | `circuit_14` | 72 | 72 | `F1_2026_CALENDAR[13].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 15 | Grande Prêmio da Itália | `circuit_15` | 53 | 53 | `F1_2026_CALENDAR[14].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 16 | Grande Prêmio de Madri | `circuit_16` | 66 | 66 | `F1_2026_CALENDAR[15].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 17 | Grande Prêmio do Azerbaijão | `circuit_17` | 51 | 51 | `F1_2026_CALENDAR[16].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 18 | Grande Prêmio de Singapura | `circuit_18` | 62 | 62 | `F1_2026_CALENDAR[17].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 19 | Grande Prêmio dos Estados Unidos | `circuit_19` | 56 | 56 | `F1_2026_CALENDAR[18].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 20 | Grande Prêmio do México | `circuit_20` | 71 | 71 | `F1_2026_CALENDAR[19].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 21 | Grande Prêmio de São Paulo | `circuit_21` | 71 | 71 | `F1_2026_CALENDAR[20].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 22 | Grande Prêmio de Las Vegas | `circuit_22` | 50 | 50 | `F1_2026_CALENDAR[21].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 23 | Grande Prêmio do Catar | `circuit_23` | 57 | 57 | `F1_2026_CALENDAR[22].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 24 | Grande Prêmio de Abu Dhabi | `circuit_24` | 58 | 58 | `F1_2026_CALENDAR[23].laps` -> `canonicalRaceInitializationService` | **MATCH** |
 
-- **C5. Total de circuitos:** **24**
+---
+
+### Sanity Checks
+- **Bahrain (Round 4):** 57 voltas canônicas = 57 voltas motor (**CONFIRMADO**)
+- **Abu Dhabi (Round 24):** 58 voltas canônicas = 58 voltas motor (**CONFIRMADO**)
+
+---
+
+### Resultado Agregado (C5–C10)
+- **C5. Total de circuitos auditados:** **24**
 - **C6. MATCH:** **24**
 - **C7. DIVERGENTE:** **0**
-- **C8. FALLBACK:** **0**
+- **C8. FALLBACK:** **0** (fallback de 57 existe no código como salvaguarda, mas 0 circuitos precisaram dele)
 - **C9. AUSENTE:** **0**
-- **C10. Causa raiz de cada divergência:** Nenhuma divergência. O calendário do motor (`F1_2026_CALENDAR`) coincide integralmente com as voltas regulamentares estipuladas na Coluna C da aba Pistas da planilha fonte 01.
+- **C10. Causa raiz de divergências:** Nenhuma divergência detectada. O pipeline canônico de inicialização de corrida lê diretamente de `F1_2026_CALENDAR`, que possui os 24 rounds com seus números oficiais de voltas rigorosamente cadastrados e validados.
+
+---
 
 ### Classificação da Seção C
-
-**Classificação: OK** (24/24 MATCH, 100% de integridade e proveniência comprovadas).
+- **Classificação:** **OK** (24/24 MATCH, 100% íntegro)
 
 ---
 
