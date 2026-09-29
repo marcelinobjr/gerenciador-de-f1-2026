@@ -1,9 +1,9 @@
 # RACE-PROVENANCE-AUDIT-02: AUDITORIA CIRÚRGICA — PNEUS, SPREAD, VOLTAS, COMBUSTÍVEL, CHUVA, ESTRATÉGIA E PESOS DE EQUIPE
 
-**Data:** 2025  
-**Versão Base (HEAD):** v0.0.659 (ae8a6e2)  
-**Tipo:** Auditoria de Proveniência Esportiva (Engine Audit — Fase 02A1: Seções A–B)  
-**Status:** CONCLUÍDA (02A1: TL2/Pneus e Spread 2500ms)  
+**Data:** 2026  
+**Versão Base (HEAD):** v0.0.660 (c10cef4)  
+**Tipo:** Auditoria de Proveniência Esportiva (Engine Audit — Fase 02A2: Seções C–D)  
+**Status:** EM ANDAMENTO (02A2: Seções C e D em diagnóstico e formalização)  
 **Princípio:** SÓ AUDITORIA — Nenhuma alteração no motor de simulação, UI ou dados de pilotos.
 
 ---

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { PracticeSessionRunner, type PracticeTickContext } from '@/services/canonicalPracticeRunner'
 import type { PracticeSessionRecordState } from '@/types/practice-session'
-import raceQualifyingOrchestratorService from '@/services/raceQualifyingOrchestratorService'
-const { calculateQualifyingRatingDeltaMs } = raceQualifyingOrchestratorService
+import { calculateQualifyingRatingDeltaMs } from '@/lib/race/pureRaceEngine'
+import { getTrack, getAllTracks, TRACKS } from '@/components/race/tracks'
+import race01Params from '@/assets/01raceregraseparametros-3c0c5.json'
 
 describe('RACE-PROVENANCE-AUDIT-02A1 Probes', () => {
   it('A. TL2 / Pneus: prova de desgaste e tyreAge em TL2 com composto MEDIUM', () => {
@@ -127,9 +128,10 @@ describe('RACE-PROVENANCE-AUDIT-02A1 Probes', () => {
 
     const context: PracticeTickContext = {
       round: 1,
-      weather: 'dry',
+      gpName: 'GP do Bahrein',
+      circuitName: 'Circuito Internacional do Bahrein',
+      weather: 'seco',
       tireAbrasiveness: 3,
-      trackEvolution: 50,
       lengthKm: 5.3,
       teamName: 'Audi Test Team',
       teamColor: '#C0C0C0',
@@ -187,9 +189,24 @@ describe('RACE-PROVENANCE-AUDIT-02A1 Probes', () => {
     const maxRating = 100
     const targetSpreadMs = 2500
 
-    const bestDelta = calculateQualifyingRatingDeltaMs(100, minRating, maxRating, targetSpreadMs)
-    const midDelta = calculateQualifyingRatingDeltaMs(80, minRating, maxRating, targetSpreadMs)
-    const worstDelta = calculateQualifyingRatingDeltaMs(60, minRating, maxRating, targetSpreadMs)
+    const bestDelta = (calculateQualifyingRatingDeltaMs as any)(
+      100,
+      minRating,
+      maxRating,
+      targetSpreadMs,
+    )
+    const midDelta = (calculateQualifyingRatingDeltaMs as any)(
+      80,
+      minRating,
+      maxRating,
+      targetSpreadMs,
+    )
+    const worstDelta = (calculateQualifyingRatingDeltaMs as any)(
+      60,
+      minRating,
+      maxRating,
+      targetSpreadMs,
+    )
 
     expect(bestDelta).toBe(0)
     expect(midDelta).toBe(1250)
@@ -202,5 +219,10 @@ describe('RACE-PROVENANCE-AUDIT-02A1 Probes', () => {
       worstDelta,
       isSpreadExact: worstDelta - bestDelta === 2500,
     })
+  })
+
+  it('C. Proba de 24 GPs e circuitos no JSON de parâmetros', () => {
+    const keys = Object.keys(race01Params)
+    console.log('RACE01_JSON_KEYS:', keys)
   })
 })
