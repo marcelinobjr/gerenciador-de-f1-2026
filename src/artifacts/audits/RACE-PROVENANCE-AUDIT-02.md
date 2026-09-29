@@ -403,9 +403,103 @@ Implementação da regra canônica de abandono por exaustão de combustível (Pa
 
 ---
 
-## E. Chuva / Decisão Humana
+## E. CHUVA / DECISÃO DA EQUIPE HUMANA
 
-_(Investigação em andamento)_
+### E0 — Micro-auditoria: Chuva / Decisão da Equipe Humana (RACE-PROVENANCE-AUDIT-02B-E0)
+
+#### 1. Localização do Clima Ativo
+
+- **WEATHER_FILE:** `src/services/weatherGenerator.ts` (geração determinística) e `src/services/canonicalRaceEngineService.ts` (execução volta a volta).
+- **WEATHER_FUNCTION:** `canonicalRaceEngineService.advanceOneLap()` (linhas 489–512 e 710–764).
+- **WEATHER_STATE_FIELD:** `currentState.weather` (tipo `TrackWeatherState`: `'seco' | 'chuva_fraca' | 'chuva_forte'`) e `currentState.weatherEvent` / `currentState.weatherTransitions` (`WeatherTransition[]`).
+- **WEATHER_UPDATE_TIMING:** Volta a volta (`lap-by-lap`), verificado no início do processamento da volta `targetLap` em `advanceOneLap()`.
+
+#### 2. Detecção de Transição (E1–E4)
+
+- **E1. O motor detecta explicitamente DRY → WET?** **SIM.**
+  - Detectado via `activeTransitions.find(t => t.lap === targetLap)` e comparado com `currentLapWeather`. Se `transitionNow.condition !== currentLapWeather`, atualiza o clima e emite evento `ev_weather_${targetLap}`. Além disso, nas linhas 710–722 compara `isWetTrack && isCurrentSlick`.
+- **E2. Detecta WET → DRY?** **SIM.**
+  - Na linha 722 de `canonicalRaceEngineService.ts`: `else if (isDryTrack && !isCurrentSlick) { needsWeatherPit = true; weatherTargetCompound = 'medio'; }`.
+- **E3. Existe evento de "mudança de pista"?** **SIM.**
+  - Disparado em `canonicalRaceEngineService.ts:502-510` gerando evento `{ id: ev_weather_${targetLap}, type: 'info', message: '🌧️ CHUVA... Mudança de condição na volta X!' }`.
+- **E4. Existe informação de intensidade (chuva leve, chuva forte, track wetness)?** **SIM.**
+  - Modelo tipado em `src/types/climate.ts` com `RainIntensity = 'LIGHT' | 'MEDIUM' | 'HEAVY'` e `TrackWeatherState = 'seco' | 'chuva_fraca' | 'chuva_forte'`.
+
+#### 3. Decisão Atual de Pit (E5–E8)
+
+- **E5. Quem decide parar quando começa a chover?** **REGRA AUTOMÁTICA DA ENGINE (Ninguém decide individualmente).**
+  - O loop em `canonicalRaceEngineService.ts:700-763` itera sobre `workingDrivers` sem diferenciar equipe do jogador de equipes da IA. Se a pista molha e o carro está de slick, a engine seta imediatamente `strat.pitRequested = true`, `strat.pitThisLap = true`, `strat.strategyStatus = 'PIT_REQUESTED'`, forçando a parada na volta seguinte.
+- **E6. Para a equipe humana, existe hoje alguma diferença em relação às equipes IA?** **NÃO.**
+  - A equipe humana é tratada indistintamente no laço autônomo `workingDrivers.forEach`. O carro do jogador recebe o mesmo comando automático de pit stop que todos os outros 22 carros da IA.
+- **E7. Existe auto-pit por mudança climática?** **SIM.**
+  - A engine força `strat.pitRequested = true` automaticamente para todos os carros que estão com pneu incompatível.
+- **E8. Existe seleção automática de INTERMEDIATE / WET ou equivalente?** **SIM.**
+  - Linhas 720–721: `weatherTargetCompound = currentLapWeather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'`. Quando seca, seta automaticamente `'medio'` (linha 725).
+
+#### 4. Interação do Jogador (E9–E12)
+
+- **E9. Existe estado PAUSED/AWAITING_DECISION?** **NÃO.**
+  - O tipo `CanonicalRaceStatus` em `src/types/canonical-race-v2.ts` suporta apenas `'not_started' | 'running' | 'red_flag' | 'finished'`. Não há estado de pausa para decisão.
+- **E10. Existe infraestrutura para interromper avanço da corrida e esperar comando do jogador?** **NÃO.**
+  - O método `advanceOneLap` / `advanceMultipleLaps` roda de forma síncrona/direta sem bloquear a execução à espera de confirmação humana.
+- **E11. Existe comando de pit manual durante corrida?** **SIM.**
+  - Na UI (`DriverStrategyCockpitPanel.tsx` e `WeekendV2Page.tsx:2976-3014`), há `onRequestPit` e `onCancelPit` que chamam `raceStrategyService.requestPitStop()`.
+- **E12. Existe escolha manual de composto durante corrida?** **SIM.**
+  - Em `DriverStrategyCockpitPanel.tsx:287-306`, o jogador pode alternar `targetCompound` via `onSetTargetCompound` (porém a UI só exibe macio, médio e duro no seletor padrão, embora o backend suporte intermediário e chuva extrema).
+
+---
+
+#### 5. Fixture Controlada (DRY → WET)
+
+Executada via `src/__tests__/race-provenance-audit-02b-e0.test.ts`:
+
+- Condição inicial: Seco (`seco`), 6 voltas.
+- Transição: Volta 3 → `chuva_fraca`.
+
+| Lap | Weather before | Weather after | Human action requested? |   Human pit?   |    AI pit?     |            Compound            |
+| :-: | :------------: | :-----------: | :---------------------: | :------------: | :------------: | :----------------------------: |
+|  1  |      seco      |     seco      |           NÃO           |      NÃO       |      NÃO       |             medio              |
+|  2  |      seco      |     seco      |           NÃO           |      NÃO       |      NÃO       |             medio              |
+|  3  |      seco      |  chuva_fraca  |   NÃO (auto-trigger)    | SIM (agendado) | SIM (agendado) | medio (solicita intermediario) |
+|  4  |  chuva_fraca   |  chuva_fraca  |           NÃO           | SIM (efetuado) | SIM (efetuado) |         intermediario          |
+|  5  |  chuva_fraca   |  chuva_fraca  |           NÃO           |      NÃO       |      NÃO       |         intermediario          |
+|  6  |  chuva_fraca   |  chuva_fraca  |           NÃO           |      NÃO       |      NÃO       |         intermediario          |
+
+**Resultado:** O motor detecta a chuva na Volta 3, emite evento de log no feed, mas **não solicita ação humana**. A engine força pit stop automático para todos os pilotos (humano e IA) com destino ao composto `intermediario`, executado na Volta 4.
+
+---
+
+#### 6. Caso Inverso (WET → DRY)
+
+- Condição inicial: `chuva_fraca` com todos os carros em `intermediario`.
+- Transição: Volta 3 → `seco`.
+- **Comportamento observado:**
+  - Jogador é avisado? Apenas via mensagem informativa no feed de eventos (`☀️ PISTA SECA: Pista agora em estado "seco"`). Não há modal, prompt nem pausa.
+  - IA reage? SIM, aciona `needsWeatherPit = true`.
+  - Pneus são trocados? SIM, a engine programa e executa auto-pit para composto `'medio'` na volta 4 para todos os carros, incluindo os da equipe humana.
+
+---
+
+#### 7. Classificação: GAP DE PRODUTO
+
+- **Classificação:** **GAP DE PRODUTO**
+- **Justificativa:** O motor de simulação possui detecção meteorológica e lógica reativa completa para pneus de chuva, mas opera como uma simulação puramente autônoma onde o jogador humano é tratado como IA (não recebe prompt nem janela de decisão quando o clima muda). Como não havia um subsistema anterior de pausa para decisão que estivesse quebrado, e sim a ausência do fluxo de decisão interativa no design atual, classifica-se formalmente como **GAP DE PRODUTO**.
+
+---
+
+#### 8. Requisito Futuro (NÃO IMPLEMENTAR NESTA RODADA — AUDITORIA APENAS)
+
+Para a fase subsequente (RACE-PROVENANCE-AUDIT-02B-E1):
+Quando houver transição meteorológica relevante (`seco` → `chuva_fraca` / `chuva_forte` ou `chuva` → `seco`):
+
+1. **Para a Equipe Humana:**
+   - Pausar o avanço da corrida antes da volta crítica de parada;
+   - Exibir modal/aviso de alerta meteorológico;
+   - Informar a condição atual da pista e previsão/intensidade;
+   - Permitir decisão estratégica: (1) Parar agora para trocar pneus, ou (2) Continuar na pista;
+   - Se optar por parar: selecionar composto compatível (`intermediario`, `chuva_extrema`, `macio`, `medio`, `duro`);
+   - Retomar o avanço da corrida após a confirmação da decisão.
+2. **Para a IA:** Manter decisão e reação autônoma baseada em heurística estratégica.
 
 ## F. Estratégias por Piloto
 
