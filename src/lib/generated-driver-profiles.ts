@@ -41,6 +41,8 @@ export const GENERATED_DRIVER_MALE_INDICES = new Set<number>([
   1, 2, 6, 8, 10, 12,
   // 14..53
   14, 17, 19, 20, 21, 23, 28, 30, 31, 33, 35, 37, 39, 42, 46, 49,
+  // 54..64 (Piloto_58 é Noah Taylor, masculino)
+  58,
 ])
 
 export const TOTAL_GENERATED_DRIVER_PROFILES = 53
