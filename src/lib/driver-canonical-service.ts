@@ -26,7 +26,7 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   'alex dunne': 'Alexander Dunne',
   'alexander dunne': 'Alexander Dunne',
 
-  // Álex Palou vs Alex Palou -> "Alex Palou" (preferência especificada no BUG-PILOTOS-01A item 7: Alex Palou)
+  // Álex Palou vs Alex Palou -> "Alex Palou"
   'alex palou': 'Alex Palou',
   'alex palou ': 'Alex Palou',
   'álex palou': 'Alex Palou',

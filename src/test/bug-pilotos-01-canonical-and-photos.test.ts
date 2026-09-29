@@ -11,8 +11,8 @@ describe('BUG-PILOTOS-01: Canonical Deduplication & Photo Resolver Integration',
     it('unifica Alex Palou e Álex Palou para mesma chave canônica e nome único', () => {
       const name1 = 'Alex Palou'
       const name2 = 'Álex Palou'
-      expect(getCanonicalDisplayName(name1)).toBe('Álex Palou')
-      expect(getCanonicalDisplayName(name2)).toBe('Álex Palou')
+      expect(getCanonicalDisplayName(name1)).toBe('Alex Palou')
+      expect(getCanonicalDisplayName(name2)).toBe('Alex Palou')
       expect(getDriverCanonicalKey(name1)).toBe(getDriverCanonicalKey(name2))
     })
 
