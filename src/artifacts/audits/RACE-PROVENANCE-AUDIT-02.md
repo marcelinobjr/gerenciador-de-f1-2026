@@ -147,56 +147,72 @@ Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/racePr
 
 ### Tabela Obrigatória 24/24
 
-| #   | GP                                   | Circuit ID   | Fonte laps | Motor laps | Origem motor                                                        | Status    |
-| --- | ------------------------------------ | ------------ | ---------- | ---------- | ------------------------------------------------------------------- | --------- |
-| 1   | Grande Prêmio da Austrália           | `circuit_01` | 58         | 58         | `F1_2026_CALENDAR[0].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 2   | Grande Prêmio da China               | `circuit_02` | 56         | 56         | `F1_2026_CALENDAR[1].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 3   | Grande Prêmio do Japão               | `circuit_03` | 53         | 53         | `F1_2026_CALENDAR[2].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 4   | Grande Prêmio do Bahrein             | `circuit_04` | 57         | 57         | `F1_2026_CALENDAR[3].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 5   | Grande Prêmio da Arábia Saudita      | `circuit_05` | 50         | 50         | `F1_2026_CALENDAR[4].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 6   | Grande Prêmio de Miami               | `circuit_06` | 57         | 57         | `F1_2026_CALENDAR[5].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 7   | Grande Prêmio do Canadá              | `circuit_07` | 70         | 70         | `F1_2026_CALENDAR[6].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 8   | Grande Prêmio de Mônaco              | `circuit_08` | 78         | 78         | `F1_2026_CALENDAR[7].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 9   | Grande Prêmio da Espanha (Barcelona) | `circuit_09` | 66         | 66         | `F1_2026_CALENDAR[8].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 10  | Grande Prêmio da Áustria             | `circuit_10` | 71         | 71         | `F1_2026_CALENDAR[9].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
-| 11  | Grande Prêmio da Grã-Bretanha        | `circuit_11` | 52         | 52         | `F1_2026_CALENDAR[10].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 12  | Grande Prêmio da Bélgica             | `circuit_12` | 44         | 44         | `F1_2026_CALENDAR[11].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 13  | Grande Prêmio da Hungria             | `circuit_13` | 70         | 70         | `F1_2026_CALENDAR[12].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 14  | Grande Prêmio dos Países Baixos      | `circuit_14` | 72         | 72         | `F1_2026_CALENDAR[13].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 15  | Grande Prêmio da Itália              | `circuit_15` | 53         | 53         | `F1_2026_CALENDAR[14].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 16  | Grande Prêmio de Madri               | `circuit_16` | 66         | 66         | `F1_2026_CALENDAR[15].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 17  | Grande Prêmio do Azerbaijão          | `circuit_17` | 51         | 51         | `F1_2026_CALENDAR[16].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 18  | Grande Prêmio de Singapura           | `circuit_18` | 62         | 62         | `F1_2026_CALENDAR[17].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 19  | Grande Prêmio dos Estados Unidos     | `circuit_19` | 56         | 56         | `F1_2026_CALENDAR[18].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 20  | Grande Prêmio do México              | `circuit_20` | 71         | 71         | `F1_2026_CALENDAR[19].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 21  | Grande Prêmio de São Paulo           | `circuit_21` | 71         | 71         | `F1_2026_CALENDAR[20].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 22  | Grande Prêmio de Las Vegas           | `circuit_22` | 50         | 50         | `F1_2026_CALENDAR[21].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 23  | Grande Prêmio do Catar               | `circuit_23` | 57         | 57         | `F1_2026_CALENDAR[22].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 24  | Grande Prêmio de Abu Dhabi           | `circuit_24` | 58         | 58         | `F1_2026_CALENDAR[23].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| Round | GP                                   | Circuit ID   | Fonte laps | Motor totalLaps | Fallback acionado? | Status |
+| ----- | ------------------------------------ | ------------ | ---------- | --------------- | ------------------ | ------ |
+| 1     | Grande Prêmio da Austrália           | `circuit_01` | 58         | 58              | NÃO                | MATCH  |
+| 2     | Grande Prêmio da China               | `circuit_02` | 56         | 56              | NÃO                | MATCH  |
+| 3     | Grande Prêmio do Japão               | `circuit_03` | 53         | 53              | NÃO                | MATCH  |
+| 4     | Grande Prêmio do Bahrein             | `circuit_04` | 57         | 57              | NÃO                | MATCH  |
+| 5     | Grande Prêmio da Arábia Saudita      | `circuit_05` | 50         | 50              | NÃO                | MATCH  |
+| 6     | Grande Prêmio de Miami               | `circuit_06` | 57         | 57              | NÃO                | MATCH  |
+| 7     | Grande Prêmio do Canadá              | `circuit_07` | 70         | 70              | NÃO                | MATCH  |
+| 8     | Grande Prêmio de Mônaco              | `circuit_08` | 78         | 78              | NÃO                | MATCH  |
+| 9     | Grande Prêmio da Espanha (Barcelona) | `circuit_09` | 66         | 66              | NÃO                | MATCH  |
+| 10    | Grande Prêmio da Áustria             | `circuit_10` | 71         | 71              | NÃO                | MATCH  |
+| 11    | Grande Prêmio da Grã-Bretanha        | `circuit_11` | 52         | 52              | NÃO                | MATCH  |
+| 12    | Grande Prêmio da Bélgica             | `circuit_12` | 44         | 44              | NÃO                | MATCH  |
+| 13    | Grande Prêmio da Hungria             | `circuit_13` | 70         | 70              | NÃO                | MATCH  |
+| 14    | Grande Prêmio dos Países Baixos      | `circuit_14` | 72         | 72              | NÃO                | MATCH  |
+| 15    | Grande Prêmio da Itália              | `circuit_15` | 53         | 53              | NÃO                | MATCH  |
+| 16    | Grande Prêmio de Madri               | `circuit_16` | 66         | 66              | NÃO                | MATCH  |
+| 17    | Grande Prêmio do Azerbaijão          | `circuit_17` | 51         | 51              | NÃO                | MATCH  |
+| 18    | Grande Prêmio de Singapura           | `circuit_18` | 62         | 62              | NÃO                | MATCH  |
+| 19    | Grande Prêmio dos Estados Unidos     | `circuit_19` | 56         | 56              | NÃO                | MATCH  |
+| 20    | Grande Prêmio do México              | `circuit_20` | 71         | 71              | NÃO                | MATCH  |
+| 21    | Grande Prêmio de São Paulo           | `circuit_21` | 71         | 71              | NÃO                | MATCH  |
+| 22    | Grande Prêmio de Las Vegas           | `circuit_22` | 50         | 50              | NÃO                | MATCH  |
+| 23    | Grande Prêmio do Catar               | `circuit_23` | 57         | 57              | NÃO                | MATCH  |
+| 24    | Grande Prêmio de Abu Dhabi           | `circuit_24` | 58         | 58              | NÃO                | MATCH  |
 
 ---
 
 ### Sanity Checks
 
-- **Bahrain (Round 4):** 57 voltas canônicas = 57 voltas motor (**CONFIRMADO**)
-- **Abu Dhabi (Round 24):** 58 voltas canônicas = 58 voltas motor (**CONFIRMADO**)
+- **Bahrain (Round 4):** fonte = 57, motor = 57 (**CONFIRMADO**)
+- **Abu Dhabi (Round 24):** fonte = 58, motor = 58 (**CONFIRMADO**)
 
 ---
 
-### Resultado Agregado (C5–C10)
+### Análise e Classificação do Fallback 57 (C1-F1..C1-F5)
 
-- **C5. Total de circuitos auditados:** **24**
-- **C6. MATCH:** **24**
-- **C7. DIVERGENTE:** **0**
-- **C8. FALLBACK:** **0** (fallback de 57 existe no código como salvaguarda, mas 0 circuitos precisaram dele)
-- **C9. AUSENTE:** **0**
-- **C10. Causa raiz de divergências:** Nenhuma divergência detectada. O pipeline canônico de inicialização de corrida lê diretamente de `F1_2026_CALENDAR`, que possui os 24 rounds com seus números oficiais de voltas rigorosamente cadastrados e validados.
+- **C1-F1. Nos 24 GPs canônicos atuais, gpInfo.laps || 57 dispara alguma vez?**
+  **NÃO.** Em todos os 24 rounds (1 a 24), `F1_2026_CALENDAR.find((c) => c.round === currentRound)` retorna com sucesso o objeto do Grande Prêmio contendo `laps` estritamente definido como número inteiro positivo entre 44 e 78. A expressão `gpInfo.laps || 57` sempre avalia para o valor numérico truthy de `gpInfo.laps`.
+- **C1-F2. Existe algum GP com laps undefined/null/0/NaN ou inválido?**
+  **NÃO.** Todos os 24 rounds em `F1_2026_CALENDAR` possuem `laps` válido (`typeof laps === 'number' && Number.isInteger(laps) && laps > 0`), sem nenhum valor nulo, indefinido, zero ou NaN.
+- **C1-F3. O fallback altera hoje algum totalLaps real?**
+  **NÃO.** Nenhum GP da temporada 2026 tem seu número de voltas alterado pelo fallback. Os 24 GPs mantêm exatamente o valor canônico da fonte.
+- **C1-F4. Classificação do fallback:**
+  **DEFENSIVO INATIVO.**
+- **C1-F5. Explicação:**
+  O fallback `|| 57` em `WeekendV2Page.tsx` atua exclusivamente como uma proteção de tipagem/runtime caso o objeto do GP venha a ser nulo ou o campo `laps` seja falsy durante transições de carregamento assíncrono ou round inválido. Na esteira canônica dos 24 GPs oficiais de 2026, todos os rounds 1–24 possuem `laps` perfeitamente definido, de modo que o fallback permanece completamente inativo e sem impacto sobre o motor esportivo.
+
+---
+
+### Contagens Agregadas (C5–C10)
+
+- **C5. Total:** 24
+- **C6. MATCH:** 24
+- **C7. DIVERGENTE:** 0
+- **C8. FALLBACK:** 0
+- **C9. AUSENTE:** 0
+- **C10. Lista de divergências:** Nenhuma (zero divergências).
 
 ---
 
 ### Classificação da Seção C
 
-- **Classificação:** **OK** (24/24 MATCH, 100% íntegro)
+- **Classificação:** **OK**
+- **Observação sobre o fallback:** O fallback `|| 57` em `WeekendV2Page.tsx` (linhas 146, 3133, 3160, 3194) é **DEFENSIVO INATIVO**, sem interferência no comportamento atual do motor esportivo. Conforme as regras da auditoria, nenhuma alteração de código ou remoção do fallback é realizada nesta rodada.
 
 ---
 
