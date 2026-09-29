@@ -79,6 +79,9 @@ describe('RACE-PROVENANCE-AUDIT-02A2 Formal Test Suite', () => {
       physicalCondition: 85,
       pitLap: 99,
       pitStopsDone: 0,
+      points: 0,
+      fastestLap: false,
+      usedOvertake: false,
     }
 
     const baseParams = {
@@ -92,7 +95,12 @@ describe('RACE-PROVENANCE-AUDIT-02A2 Formal Test Suite', () => {
       playerCarTactics: { drv_fuel_audit: 'normal' as const },
       playerPaceOrders: { drv_fuel_audit: 'normal' as const },
       mechanicalIssues: [],
-      redFlagState: { active: false, ticksFrozen: 0, usedThisRace: false, safetyCarLapsRemaining: 0 },
+      redFlagState: {
+        active: false,
+        ticksFrozen: 0,
+        usedThisRace: false,
+        safetyCarLapsRemaining: 0,
+      },
     }
 
     // Lap 1 execution

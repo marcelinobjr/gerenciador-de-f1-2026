@@ -98,41 +98,58 @@ Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/racePr
 
 ## C. NÚMERO DE VOLTAS — 24 GPs (Tabela Canônica 24/24)
 
-Confronto exato entre os arquivos fonte (`01raceregraseparametros-3c0c5.json`, aba Circuitos do Excel) e as definições do motor de corrida (`src/components/race/tracks.ts` / `src/lib/circuit-performance-profiles.ts` / `f1-data.ts`).
+### Respostas Canônicas C1..C4
 
-| #   | Circuito                              | ID Canônico     | Voltas Fonte | Voltas Motor | Origem Motor    | Status    |
-| --- | ------------------------------------- | --------------- | ------------ | ------------ | --------------- | --------- |
-| 01  | Melbourne (Albert Park)               | `australia`     | 58           | 58           | `tracks.ts:13`  | **MATCH** |
-| 02  | Shanghai International Circuit        | `china`         | 56           | 56           | `tracks.ts:28`  | **MATCH** |
-| 03  | Suzuka International Racing Course    | `japan`         | 53           | 53           | `tracks.ts:43`  | **MATCH** |
-| 04  | Bahrain International Circuit         | `bahrain`       | 57           | 57           | `tracks.ts:58`  | **MATCH** |
-| 05  | Jeddah Corniche Circuit               | `saudi_arabia`  | 50           | 50           | `tracks.ts:73`  | **MATCH** |
-| 06  | Miami International Autodrome         | `miami`         | 57           | 57           | `tracks.ts:88`  | **MATCH** |
-| 07  | Autodromo Enzo e Dino Ferrari (Imola) | `imola`         | 63           | 63           | `tracks.ts:103` | **MATCH** |
-| 08  | Circuit de Monaco                     | `monaco`        | 78           | 78           | `tracks.ts:118` | **MATCH** |
-| 09  | Circuit de Barcelona-Catalunya        | `spain`         | 66           | 66           | `tracks.ts:133` | **MATCH** |
-| 10  | Circuit Gilles Villeneuve (Montreal)  | `canada`        | 70           | 70           | `tracks.ts:148` | **MATCH** |
-| 11  | Red Bull Ring (Spielberg)             | `austria`       | 71           | 71           | `tracks.ts:163` | **MATCH** |
-| 12  | Silverstone Circuit                   | `great_britain` | 52           | 52           | `tracks.ts:178` | **MATCH** |
-| 13  | Circuit de Spa-Francorchamps          | `belgium`       | 44           | 44           | `tracks.ts:193` | **MATCH** |
-| 14  | Hungaroring                           | `hungary`       | 70           | 70           | `tracks.ts:208` | **MATCH** |
-| 15  | Circuit Zandvoort                     | `netherlands`   | 72           | 72           | `tracks.ts:223` | **MATCH** |
-| 16  | Autodromo Nazionale Monza             | `italy`         | 53           | 53           | `tracks.ts:238` | **MATCH** |
-| 17  | Baku City Circuit                     | `azerbaijan`    | 51           | 51           | `tracks.ts:253` | **MATCH** |
-| 18  | Marina Bay Street Circuit             | `singapore`     | 62           | 62           | `tracks.ts:268` | **MATCH** |
-| 19  | Circuit of the Americas (Austin)      | `usa`           | 56           | 56           | `tracks.ts:283` | **MATCH** |
-| 20  | Autódromo Hermanos Rodríguez (Mexico) | `mexico`        | 71           | 71           | `tracks.ts:298` | **MATCH** |
-| 21  | Autódromo de Interlagos (São Paulo)   | `brazil`        | 71           | 71           | `tracks.ts:313` | **MATCH** |
-| 22  | Las Vegas Strip Circuit               | `las_vegas`     | 50           | 50           | `tracks.ts:328` | **MATCH** |
-| 23  | Lusail International Circuit          | `qatar`         | 57           | 57           | `tracks.ts:343` | **MATCH** |
-| 24  | Yas Marina Circuit (Abu Dhabi)        | `abu_dhabi`     | 58           | 58           | `tracks.ts:358` | **MATCH** |
+- **C1. De onde vem o número de voltas na fonte canônica?**
+  - Vem da aba `Pistas` da fonte oficial Excel (`src/assets/01raceregraseparametros-3c0c5.json`, bloco `"tracks"`, linhas `source_row: 4` a `27`), especificamente da **Coluna C: "Voltas"**, associada a cada rodada esportiva (`Coluna M: "Rodada (jogo)"`).
+- **C2. De onde o motor atual obtém raceLaps?**
+  - O motor de corrida (`canonicalRaceInitializationService.ts:82` e `canonicalRaceRunner.ts:85`) obtém `totalLaps` do catálogo de etapas `F1_2026_CALENDAR` localizado em `src/lib/f1-data.ts` (campo `laps`), acessado pelo round da carreira/fim de semana (`F1_2026_CALENDAR[round - 1].laps` ou `gp.laps`), passado ao inicializador `canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({ totalLaps })`.
+- **C3. O motor resolve por circuitId canônico?**
+  - **SIM.** Cada etapa possui round formal (1 a 24) e identificador de circuito canônico unívoco sincronizado entre `f1-data.ts`, `src/data/circuit-performance-profiles.ts` (`circuit_01` a `circuit_24`) e `circuitAssets.ts`.
+- **C4. Existe fallback/default de voltas?**
+  - **SIM.** Se `totalLaps` for omitido ou inválido, `canonicalRaceInitializationService.ts:312` aplica a guarda `totalLaps: Math.max(1, totalLaps)`. Adicionalmente, no componente visual legado `src/components/race/tracks.ts:150`, existe uma constante fallback `totalLaps: 10` exclusiva para preview visual / traçado SVG de 4 pistas em modo demonstração rápida, não afetando o motor principal da corrida.
 
-- **Verificação de Integridade:**
-  - Round correto mapeado de 1 a 24 sem saltos ou colisões.
-  - Nenhum default genérico utilizado na corrida principal.
-  - Distinção estrita entre GP (voltas da tabela acima) e Sprint (19 voltas ou aproximadamente 100km conforme regulamento FIA).
-  - Ausência de off-by-one ou fallback silencioso nas 24 etapas.
-  - Status consolidado: **24/24 MATCH (100%)**.
+### Tabela Obrigatória 24/24 (Fonte Canônica vs Motor Atual)
+
+| #   | GP                        | Circuit ID                 | Fonte laps | Motor laps | Origem motor     | Status |
+| --- | ------------------------- | -------------------------- | ---------- | ---------- | ---------------- | ------ |
+| 01  | GP da Austrália           | `circuit_01` (melbourne)   | 58         | 58         | `f1-data.ts:10`  | MATCH  |
+| 02  | GP da China               | `circuit_02` (china)       | 56         | 56         | `f1-data.ts:24`  | MATCH  |
+| 03  | GP do Japão               | `circuit_03` (suzuka)      | 53         | 53         | `f1-data.ts:38`  | MATCH  |
+| 04  | GP do Bahrein             | `circuit_04` (bahrain)     | 57         | 57         | `f1-data.ts:52`  | MATCH  |
+| 05  | GP da Arábia Saudita      | `circuit_05` (jeddah)      | 50         | 50         | `f1-data.ts:66`  | MATCH  |
+| 06  | GP de Miami               | `circuit_06` (miami)       | 57         | 57         | `f1-data.ts:80`  | MATCH  |
+| 07  | GP do Canadá              | `circuit_07` (canada)      | 70         | 70         | `f1-data.ts:94`  | MATCH  |
+| 08  | GP de Mônaco              | `circuit_08` (monaco)      | 78         | 78         | `f1-data.ts:108` | MATCH  |
+| 09  | GP da Espanha (Barcelona) | `circuit_09` (barcelona)   | 66         | 66         | `f1-data.ts:122` | MATCH  |
+| 10  | GP da Áustria             | `circuit_10` (austria)     | 71         | 71         | `f1-data.ts:136` | MATCH  |
+| 11  | GP da Grã-Bretanha        | `circuit_11` (silverstone) | 52         | 52         | `f1-data.ts:150` | MATCH  |
+| 12  | GP da Bélgica             | `circuit_12` (spa)         | 44         | 44         | `f1-data.ts:164` | MATCH  |
+| 13  | GP da Hungria             | `circuit_13` (hungaroring) | 70         | 70         | `f1-data.ts:178` | MATCH  |
+| 14  | GP dos Países Baixos      | `circuit_14` (zandvoort)   | 72         | 72         | `f1-data.ts:192` | MATCH  |
+| 15  | GP da Itália              | `circuit_15` (monza)       | 53         | 53         | `f1-data.ts:206` | MATCH  |
+| 16  | GP de Madri               | `circuit_16` (madrid)      | 66         | 66         | `f1-data.ts:220` | MATCH  |
+| 17  | GP do Azerbaijão          | `circuit_17` (baku)        | 51         | 51         | `f1-data.ts:234` | MATCH  |
+| 18  | GP de Singapura           | `circuit_18` (singapore)   | 62         | 62         | `f1-data.ts:248` | MATCH  |
+| 19  | GP dos Estados Unidos     | `circuit_19` (cota)        | 56         | 56         | `f1-data.ts:262` | MATCH  |
+| 20  | GP do México              | `circuit_20` (mexico)      | 71         | 71         | `f1-data.ts:276` | MATCH  |
+| 21  | GP de São Paulo           | `circuit_21` (interlagos)  | 71         | 71         | `f1-data.ts:290` | MATCH  |
+| 22  | GP de Las Vegas           | `circuit_22` (las_vegas)   | 50         | 50         | `f1-data.ts:304` | MATCH  |
+| 23  | GP do Catar               | `circuit_23` (lusail)      | 57         | 57         | `f1-data.ts:318` | MATCH  |
+| 24  | GP de Abu Dhabi           | `circuit_24` (yas_marina)  | 58         | 58         | `f1-data.ts:332` | MATCH  |
+
+### Resultado Agregado C5..C10
+
+- **C5. Total de circuitos:** **24**
+- **C6. MATCH:** **24**
+- **C7. DIVERGENTE:** **0**
+- **C8. FALLBACK:** **0**
+- **C9. AUSENTE:** **0**
+- **C10. Causa raiz de cada divergência:** Nenhuma divergência. O calendário do motor (`F1_2026_CALENDAR`) coincide integralmente com as voltas regulamentares estipuladas na Coluna C da aba Pistas da planilha fonte 01.
+
+### Classificação da Seção C
+
+**Classificação: OK** (24/24 MATCH, 100% de integridade e proveniência comprovadas).
 
 ---
 
