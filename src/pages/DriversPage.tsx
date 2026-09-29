@@ -244,20 +244,20 @@ export default function DriversPage() {
   const unifiedDrivers: UnifiedDriverItem[] = useMemo(() => {
     const mbjMap = new Map<string, (typeof MBJ_2026_PILOTS)[number]>()
     for (const pilot of MBJ_2026_PILOTS) {
-      mbjMap.set(pilot.name.toLowerCase().trim(), pilot)
       const canKey = getDriverCanonicalKey(pilot.name)
       if (!mbjMap.has(canKey)) {
         mbjMap.set(canKey, pilot)
       }
+      mbjMap.set(pilot.name.toLowerCase().trim(), pilot)
     }
 
     const f1AcademyMap = new Map<string, (typeof OFFICIAL_F1_ACADEMY_MBJ_2026)[number]>()
     for (const pilot of OFFICIAL_F1_ACADEMY_MBJ_2026) {
-      f1AcademyMap.set(pilot.name.toLowerCase().trim(), pilot)
       const canKey = getDriverCanonicalKey(pilot.name)
       if (!f1AcademyMap.has(canKey)) {
         f1AcademyMap.set(canKey, pilot)
       }
+      f1AcademyMap.set(pilot.name.toLowerCase().trim(), pilot)
     }
 
     const teamById = new Map<string, TeamModel>()
@@ -267,21 +267,18 @@ export default function DriversPage() {
 
     const result: UnifiedDriverItem[] = []
     const visitedCanonicalKeys = new Set<string>()
-    const visitedNames = new Set<string>()
 
     // 1. Processa todos os pilotos presentes no Banco de Dados
     for (const d of dbDrivers) {
       const canKey = getDriverCanonicalKey(d.name)
-      const normName = d.name.toLowerCase().trim()
 
       if (visitedCanonicalKeys.has(canKey)) {
         continue
       }
       visitedCanonicalKeys.add(canKey)
-      visitedNames.add(normName)
 
-      const mbjInfo = mbjMap.get(normName)
-      const f1aInfo = f1AcademyMap.get(normName)
+      const mbjInfo = mbjMap.get(canKey) || mbjMap.get(d.name.toLowerCase().trim())
+      const f1aInfo = f1AcademyMap.get(canKey) || f1AcademyMap.get(d.name.toLowerCase().trim())
 
       // BUG-INTEGRIDADE-05A: Consumo exclusivo via getActiveDriverTeamBinding
       const binding = getActiveDriverTeamBinding(d.id, season, dbDrivers, dbTeams)
@@ -445,9 +442,15 @@ export default function DriversPage() {
     for (const pilot of MBJ_2026_PILOTS) {
       const canKey = getDriverCanonicalKey(pilot.name)
       const normName = pilot.name.toLowerCase().trim()
-      if (visitedCanonicalKeys.has(canKey) || visitedNames.has(normName)) continue
+      const normCanKey = normalizeDriverNameToken(getCanonicalDisplayName(pilot.name))
+      if (
+        visitedCanonicalKeys.has(canKey) ||
+        visitedCanonicalKeys.has(normName) ||
+        visitedCanonicalKeys.has(normCanKey)
+      ) {
+        continue
+      }
       visitedCanonicalKeys.add(canKey)
-      visitedNames.add(normName)
 
       // BUG-RETRATOS-03C2: Pilotos MBJ estáticos não vinculados a contrato ativo -> Free Agent estrito
       const mbjBinding = getActiveDriverTeamBinding(pilot.id, season, dbDrivers, dbTeams)

@@ -9,6 +9,7 @@
 
 import { MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
 import { DRIVER_PORTRAIT_ASSET_MAP } from '@/lib/driver-portrait-map'
+import { getCanonicalDisplayName } from '@/lib/driver-canonical-service'
 
 export const MBJ_DRIVERS = MBJ_2026_PILOTS
 
@@ -82,6 +83,8 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-071': 'DRV_0042', // Alexander Dunne (Alex Dunne)
   'mbj-063': 'DRV_0013', // Gabriele Mini
   'mbj-069': 'DRV_0150', // Freddie Slater
+  'mbj-085': 'DRV_0044', // Antonio Felix da Costa (António Félix da Costa)
+  'mbj-109': 'DRV_0003', // Andre Lotterer (André Lotterer)
   'mbj-122': 'Piloto_14', // Filipe Albuquerque -> piloto gerado
   'mbj-134': 'DRV_0151', // Helio Castroneves
 }
@@ -628,6 +631,19 @@ export function findCanonicalDriverMaster(
 
   // 2. Busca por nome se fornecido
   if (name && name.trim()) {
+    // 2.0 Tentar resolver pelo nome canônico de exibição
+    const canonicalDisplay = getCanonicalDisplayName(name)
+    const normCanonicalDisplay = normalizeIdentityToken(canonicalDisplay)
+    if (normCanonicalDisplay) {
+      for (const driver of CANONICAL_DRIVERS_MASTER) {
+        if (
+          normalizeIdentityToken(driver.fullName) === normCanonicalDisplay ||
+          normalizeIdentityToken(getCanonicalDisplayName(driver.fullName)) === normCanonicalDisplay
+        ) {
+          return driver
+        }
+      }
+    }
     const normTarget = normalizeIdentityToken(name)
     if (normTarget) {
       // 2.1 Casamento exato por fullName

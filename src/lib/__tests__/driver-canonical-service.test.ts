@@ -19,8 +19,8 @@ describe('BUG-PILOTOS-01: Canonical Driver Service & Photo Mapping', () => {
     expect(getDriverCanonicalKey('Alex Dunne')).toBe(getDriverCanonicalKey('Alexander Dunne'))
 
     // Álex Palou vs Alex Palou
-    expect(getCanonicalDisplayName('Alex Palou')).toBe('Álex Palou')
-    expect(getCanonicalDisplayName('Álex Palou')).toBe('Álex Palou')
+    expect(getCanonicalDisplayName('Alex Palou')).toBe('Alex Palou')
+    expect(getCanonicalDisplayName('Álex Palou')).toBe('Alex Palou')
     expect(getDriverCanonicalKey('Alex Palou')).toBe(getDriverCanonicalKey('Álex Palou'))
 
     // André Lotterer vs Andre Lotterer
