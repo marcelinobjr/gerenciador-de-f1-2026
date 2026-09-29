@@ -241,7 +241,7 @@ export const SPRINT_WEEKEND_SCHEDULE_CONFIG = {
 export function expandMacroSlotsToSessions(
   slots: readonly WeekendMacroSlot[],
 ): RaceWeekendSessionId[] {
-  return slots.flatMap((slot) => MACRO_SLOT_SESSION_EXPANSION[slot])
+  return slots.flatMap((slot) => [...MACRO_SLOT_SESSION_EXPANSION[slot]])
 }
 
 /**
