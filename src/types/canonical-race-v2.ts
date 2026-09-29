@@ -28,6 +28,7 @@ export type CanonicalRaceStatus =
   | 'virtual_safety_car'
   | 'red_flag'
   | 'completed'
+  | 'awaiting_player_weather_decision'
 
 export type CanonicalDriverRaceStatus = 'racing' | 'in_pit' | 'dnf' | 'finished' | 'disqualified'
 
@@ -287,6 +288,43 @@ export interface CanonicalRaceState {
 
   // FW2.1E-C: Race Control Canônico Integrado
   raceControl?: RaceControlState
+
+  // RACE-PROVENANCE-AUDIT-02B-E1A: Decisão Humana em Mudança de Clima
+  pendingWeatherDecision?: PendingWeatherDecisionState
+}
+
+/**
+ * Ações permitidas para decisão climática do piloto humano.
+ */
+export type WeatherDecisionAction = 'PIT_NOW' | 'STAY_OUT'
+
+/**
+ * Estado de decisão individual por piloto humano ativo.
+ */
+export interface DriverWeatherDecisionItem {
+  driverId: string
+  driverName?: string
+  carSlot?: 'car1' | 'car2'
+  currentCompound: TireCompound
+  tyreAge: number
+  status: 'pending' | 'decided'
+  action?: WeatherDecisionAction
+  selectedCompound?: TireCompound
+  decidedAt?: string
+}
+
+/**
+ * Estado Canônico de Decisão Climática Pendente (CanonicalRaceState.pendingWeatherDecision)
+ */
+export interface PendingWeatherDecisionState {
+  active: boolean
+  decisionKey: string // chave determinística: career_season_round_lap_transition_drivers
+  triggeredLap: number
+  transition: 'DRY_TO_WET' | 'WET_TO_DRY'
+  weatherBefore: TrackWeatherState
+  weatherAfter: TrackWeatherState
+  rainIntensity?: import('@/types/climate').RainIntensity
+  drivers: DriverWeatherDecisionItem[]
 }
 
 /**

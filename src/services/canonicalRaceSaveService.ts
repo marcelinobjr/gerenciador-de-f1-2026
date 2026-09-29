@@ -231,6 +231,20 @@ export class CanonicalRaceSaveService {
       }
     }
 
+    // 5.5 Pending Weather Decision (RACE-PROVENANCE-AUDIT-02B-E1A)
+    if (state.pendingWeatherDecision) {
+      const pwd = state.pendingWeatherDecision
+      if (typeof pwd.active !== 'boolean') {
+        errors.push('pendingWeatherDecision.active deve ser boolean')
+      }
+      if (!pwd.transition || (pwd.transition !== 'DRY_TO_WET' && pwd.transition !== 'WET_TO_DRY')) {
+        errors.push(`pendingWeatherDecision.transition inválida: ${pwd.transition}`)
+      }
+      if (!Array.isArray(pwd.drivers)) {
+        errors.push('pendingWeatherDecision.drivers deve ser um array')
+      }
+    }
+
     // 6. Estratégias
     if (state.driverStrategies) {
       for (const [drvId, strat] of Object.entries(state.driverStrategies)) {

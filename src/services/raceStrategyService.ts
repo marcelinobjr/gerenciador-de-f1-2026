@@ -42,6 +42,7 @@ import type {
   DriverTrafficStatus,
   PitWindow,
   PlannedStint,
+  WeatherDecisionAction,
 } from '@/types/canonical-race-v2'
 import type { TireCompound } from '@/types/f1'
 import { TIRE_SPECS, calculateTireCliffStatus } from '@/lib/f1-tire-system'
@@ -377,6 +378,148 @@ export class RaceStrategyService {
     const nextState = this.deepClone(raceState)
     nextState.pitPriority = priority
     return nextState
+  }
+
+  /**
+   * RACE-PROVENANCE-AUDIT-02B-E1A:
+   * Submete a decisão climática de um piloto humano ('PIT_NOW' ou 'STAY_OUT').
+   * - Cada carro da equipe humana decide independentemente.
+   * - Se PIT_NOW: exige selectedCompound válido para a transição:
+   *   - DRY_TO_WET: somente compostos molhados ('intermediario', 'chuva_extrema')
+   *   - WET_TO_DRY: somente compostos secos ('macio', 'medio', 'duro')
+   *   - Se válido, gera a MESMA instrução canônica de pit stop que requestPitStop(driverId, compound).
+   * - Se STAY_OUT: preserva composto atual e não agenda pit.
+   * - Marca a decisão do carro como 'decided'.
+   * - Se TODOS os carros humanos elegíveis tiverem decidido:
+   *   - pendingWeatherDecision.active passa a false
+   *   - status da corrida volta de 'awaiting_player_weather_decision' para 'running' (ou status apropriado de bandeira)
+   */
+  public submitWeatherDecision(params: {
+    raceState: CanonicalRaceState
+    driverId: string
+    action: WeatherDecisionAction
+    selectedCompound?: TireCompound
+  }): {
+    success: boolean
+    error?: string
+    updatedState: CanonicalRaceState
+  } {
+    const { driverId, action, selectedCompound } = params
+    const raceState = params.raceState
+
+    if (!raceState.pendingWeatherDecision || !raceState.pendingWeatherDecision.active) {
+      return {
+        success: false,
+        error: 'Nenhuma decisão climática pendente ativa nesta corrida.',
+        updatedState: raceState,
+      }
+    }
+
+    const pending = raceState.pendingWeatherDecision
+    const driverDecision = pending.drivers.find((d) => d.driverId === driverId)
+
+    if (!driverDecision) {
+      return {
+        success: false,
+        error: `Piloto ${driverId} não está na lista de decisões climáticas pendentes.`,
+        updatedState: raceState,
+      }
+    }
+
+    if (action === 'PIT_NOW') {
+      if (!selectedCompound) {
+        return {
+          success: false,
+          error: 'selectedCompound é obrigatório para a ação PIT_NOW.',
+          updatedState: raceState,
+        }
+      }
+
+      // Validação de compostos permitidos conforme a transição
+      if (pending.transition === 'DRY_TO_WET') {
+        const wetCompounds: TireCompound[] = ['intermediario', 'chuva_extrema']
+        if (!wetCompounds.includes(selectedCompound)) {
+          return {
+            success: false,
+            error: `Composto inválido "${selectedCompound}" para transição DRY->WET. Permitidos: intermediario, chuva_extrema.`,
+            updatedState: raceState,
+          }
+        }
+      } else if (pending.transition === 'WET_TO_DRY') {
+        const dryCompounds: TireCompound[] = ['macio', 'medio', 'duro']
+        if (!dryCompounds.includes(selectedCompound)) {
+          return {
+            success: false,
+            error: `Composto inválido "${selectedCompound}" para transição WET->DRY. Permitidos: macio, medio, duro.`,
+            updatedState: raceState,
+          }
+        }
+      }
+    }
+
+    let nextState = this.deepClone(raceState)
+
+    // Se a ação for PIT_NOW, reutilizar a mesma lógica canônica de pit manual existente
+    if (action === 'PIT_NOW' && selectedCompound) {
+      nextState = this.requestPitStop(nextState, driverId, selectedCompound)
+    }
+
+    // Atualizar a decisão individual do piloto no pendingWeatherDecision
+    const nextPending = nextState.pendingWeatherDecision!
+    const targetDriver = nextPending.drivers.find((d) => d.driverId === driverId)!
+    targetDriver.status = 'decided'
+    targetDriver.action = action
+    targetDriver.selectedCompound = action === 'PIT_NOW' ? selectedCompound : undefined
+    targetDriver.decidedAt = new Date().toISOString()
+
+    // Registrar evento descritivo no feed
+    const drvObj = nextState.drivers.find((d) => d.driverId === driverId)
+    const driverName = drvObj?.driverName || driverId
+    const actionDesc =
+      action === 'PIT_NOW'
+        ? `PARAR AGORA (composto: ${selectedCompound?.toUpperCase()})`
+        : 'CONTINUAR NA PISTA (STAY OUT)'
+
+    const nextEvents = [...(nextState.events || [])]
+    nextEvents.push({
+      id: `ev_wdecision_${nextState.currentLap}_${driverId}_${Date.now()}`,
+      lap: nextState.currentLap,
+      type: 'info',
+      message: `📋 ESTRATÉGIA CLIMA: Decisão confirmada para ${driverName} — ${actionDesc}.`,
+      driverId,
+      driverName,
+      teamColor: drvObj?.teamColor,
+      timestamp: new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    })
+    nextState.events = nextEvents.slice(-60)
+
+    // Checar se todos os pilotos elegíveis decidiram
+    const allDecided = nextPending.drivers.every((d) => d.status === 'decided')
+    if (allDecided) {
+      nextPending.active = false
+      if (nextState.status === 'awaiting_player_weather_decision') {
+        // Restaurar status esportivo
+        const rcFlag = nextState.raceControl?.currentFlag
+        if (rcFlag === 'SAFETY_CAR' || rcFlag === 'RESTART') {
+          nextState.status = 'safety_car'
+        } else if (rcFlag === 'VSC') {
+          nextState.status = 'virtual_safety_car'
+        } else if (rcFlag === 'RED_FLAG') {
+          nextState.status = 'red_flag'
+        } else {
+          nextState.status = 'running'
+        }
+      }
+    }
+
+    return {
+      success: true,
+      updatedState: nextState,
+    }
   }
 
   /**

@@ -468,6 +468,27 @@ export class CanonicalRaceEngineService {
       return currentState
     }
 
+    // RACE-PROVENANCE-AUDIT-02B-E1A:
+    // Se houver decisão climática humana pendente ativa, advanceOneLap bloqueia o avanço da corrida
+    // e retorna o estado sem avançar nova volta.
+    if (
+      currentState.pendingWeatherDecision &&
+      currentState.pendingWeatherDecision.active &&
+      currentState.pendingWeatherDecision.drivers.some((d) => d.status === 'pending')
+    ) {
+      if (currentState.status !== 'awaiting_player_weather_decision') {
+        const waitingState: CanonicalRaceState = {
+          ...currentState,
+          status: 'awaiting_player_weather_decision',
+        }
+        if (options?.persistState !== false) {
+          canonicalRaceInitializationService.saveCanonicalRaceState(waitingState)
+        }
+        return waitingState
+      }
+      return currentState
+    }
+
     const targetLap = currentState.currentLap
     const totalLaps = currentState.totalLaps
 
@@ -485,13 +506,21 @@ export class CanonicalRaceEngineService {
     // Garantir estado de Race Control inicial
     let rcState: RaceControlState = raceControlService.ensureRaceControlState(currentState)
 
-    // CLIMATE-01: Avaliar transição climática dinâmica para a volta atual (se houver no evento sorteado)
+    // CLIMATE-01 & RACE-PROVENANCE-AUDIT-02B-E1A: Avaliar transição climática dinâmica para a volta atual
     let currentLapWeather = currentState.weather
+    let weatherTransitionDetected: {
+      transitionType: 'DRY_TO_WET' | 'WET_TO_DRY'
+      weatherBefore: typeof currentState.weather
+      weatherAfter: typeof currentState.weather
+      rainIntensity?: import('@/types/climate').RainIntensity
+    } | null = null
+
     const activeTransitions =
       currentState.weatherTransitions || currentState.weatherEvent?.transitions
     if (activeTransitions && activeTransitions.length > 0) {
       const transitionNow = activeTransitions.find((t) => t.lap === targetLap)
       if (transitionNow && transitionNow.condition !== currentLapWeather) {
+        const weatherBefore = currentLapWeather
         currentLapWeather = transitionNow.condition
         const rainBadge =
           transitionNow.condition === 'chuva_forte'
@@ -508,6 +537,29 @@ export class CanonicalRaceEngineService {
           }`,
           timestamp: timestampStr,
         })
+
+        const wasDry = weatherBefore === 'seco'
+        const isNowWet = currentLapWeather === 'chuva_fraca' || currentLapWeather === 'chuva_forte'
+        const wasWet = weatherBefore === 'chuva_fraca' || weatherBefore === 'chuva_forte'
+        const isNowDry = currentLapWeather === 'seco'
+
+        if (wasDry && isNowWet) {
+          weatherTransitionDetected = {
+            transitionType: 'DRY_TO_WET',
+            weatherBefore,
+            weatherAfter: currentLapWeather,
+            rainIntensity:
+              transitionNow.rainIntensity ||
+              (currentLapWeather === 'chuva_forte' ? 'HEAVY' : 'LIGHT'),
+          }
+        } else if (wasWet && isNowDry) {
+          weatherTransitionDetected = {
+            transitionType: 'WET_TO_DRY',
+            weatherBefore,
+            weatherAfter: currentLapWeather,
+            rainIntensity: undefined,
+          }
+        }
       }
     }
 
@@ -692,11 +744,64 @@ export class CanonicalRaceEngineService {
       strategy: workingStrategies[d.driverId] || d.strategy,
     }))
 
-    // 1.5.1 GATILHO AUTÔNOMO DE PIT STOP DA IA (SD-02A)
-    // Pilotos que atingiram a volta ótima ou o fim da janela de pit (ou pneu em condição incompatível/crítica)
-    // solicitam pit stop usando o raceStrategyService.
+    // 1.5.1 GATILHO AUTÔNOMO DE PIT STOP DA IA (SD-02A) & DECISÃO CLIMÁTICA HUMANA (E1A)
+    // - IA: mantém reação automática atual (DRY->WET e WET->DRY).
+    // - PLAYER TEAM: NÃO recebe auto-pit climático. Cria pendingWeatherDecision por piloto humano ativo.
+    let createdPendingWeatherDecision:
+      | import('@/types/canonical-race-v2').PendingWeatherDecisionState
+      | undefined = currentState.pendingWeatherDecision
+
     const isRedActiveLap = rcState.currentFlag === 'RED_FLAG'
     if (!isRedActiveLap) {
+      // Se ocorreu transição climática relevante nesta volta, avaliar necessidade de criar pending decision para o Player
+      if (weatherTransitionDetected) {
+        const transType = weatherTransitionDetected.transitionType
+        const decisionKey = `${currentState.careerId}_s${currentState.season}_r${currentState.round}_l${targetLap}_${transType}`
+
+        // Idempotência: não recriar se a mesma chave determinística já foi criada
+        const alreadyCreated =
+          createdPendingWeatherDecision && createdPendingWeatherDecision.decisionKey === decisionKey
+
+        if (!alreadyCreated) {
+          // Identificar pilotos humanos ativos (NÃO DNF, NÃO FINISHED, raceStatus === 'racing' ou similar ativo)
+          const eligiblePlayerDrivers = workingDrivers.filter(
+            (d) =>
+              (d.isPlayer || d.teamId === currentState.playerTeamId) &&
+              d.raceStatus !== 'dnf' &&
+              !d.isDnf &&
+              d.raceStatus !== 'finished',
+          )
+
+          if (eligiblePlayerDrivers.length > 0) {
+            createdPendingWeatherDecision = {
+              active: true,
+              decisionKey,
+              triggeredLap: targetLap,
+              transition: transType,
+              weatherBefore: weatherTransitionDetected.weatherBefore,
+              weatherAfter: weatherTransitionDetected.weatherAfter,
+              rainIntensity: weatherTransitionDetected.rainIntensity,
+              drivers: eligiblePlayerDrivers.map((pd) => ({
+                driverId: pd.driverId,
+                driverName: pd.driverName,
+                carSlot: pd.carId,
+                currentCompound: pd.tyreCompound || 'medio',
+                tyreAge: pd.tyreAge,
+                status: 'pending',
+              })),
+            }
+
+            nextEvents.push({
+              id: `ev_weather_decision_prompt_${targetLap}`,
+              lap: targetLap,
+              type: 'info',
+              message: `⚠️ MUDANÇA CLIMÁTICA: Equipe aguardando decisão estratégica de pneus para ${eligiblePlayerDrivers.map((d) => d.driverName).join(' e ')}!`,
+              timestamp: timestampStr,
+            })
+          }
+        }
+      }
+
       workingDrivers.forEach((d) => {
         if (d.raceStatus === 'dnf' || d.raceStatus === 'finished') return
         const strat = workingStrategies[d.driverId]
@@ -705,6 +810,7 @@ export class CanonicalRaceEngineService {
         // Se já está com pitRequested ativo, mantém
         if (strat.pitRequested || strat.pitThisLap) return
 
+        const isPlayerDriver = d.isPlayer || d.teamId === currentState.playerTeamId
         const currentCompound = d.tyreCompound || 'medio'
         const isCurrentSlick = ['macio', 'medio', 'duro'].includes(currentCompound)
         const isWetTrack =
@@ -736,14 +842,19 @@ export class CanonicalRaceEngineService {
         const reachedCriticalTire = d.tyreAge >= 32 && isCurrentSlick
 
         if (needsWeatherPit) {
-          strat.pitRequested = true
-          strat.pitThisLap = true
-          strat.strategyStatus = 'PIT_REQUESTED'
-          if (weatherTargetCompound) {
-            strat.targetCompound = weatherTargetCompound
+          // E1A PRINCÍPIO CENTRAL:
+          // Se for piloto do jogador (isPlayerDriver): NÃO recebe auto-pit climático!
+          // Apenas a IA recebe o auto-pit climático automático.
+          if (!isPlayerDriver) {
+            strat.pitRequested = true
+            strat.pitThisLap = true
+            strat.strategyStatus = 'PIT_REQUESTED'
+            if (weatherTargetCompound) {
+              strat.targetCompound = weatherTargetCompound
+            }
+            workingStrategies[d.driverId] = strat
+            d.strategy = strat
           }
-          workingStrategies[d.driverId] = strat
-          d.strategy = strat
         } else if (reachedPitWindow || reachedCriticalTire) {
           strat.pitRequested = true
           strat.pitThisLap = true
@@ -1219,19 +1330,29 @@ export class CanonicalRaceEngineService {
     const isVscActive = rcState.currentFlag === 'VSC'
     const isRedActive = rcState.currentFlag === 'RED_FLAG'
 
-    const updatedState: CanonicalRaceState = {
-      ...currentState,
-      saveSchemaVersion: 'race-save-v1',
-      currentLap: Math.min(totalLaps, targetLap + (isRaceFinished ? 0 : 1)),
-      status: isRaceFinished
-        ? 'completed'
+    // Se houver decisão climática humana pendente criada nesta volta, definir status como 'awaiting_player_weather_decision'
+    const hasPendingDecisionNow =
+      createdPendingWeatherDecision &&
+      createdPendingWeatherDecision.active &&
+      createdPendingWeatherDecision.drivers.some((d) => d.status === 'pending')
+
+    const calculatedStatus: CanonicalRaceStatus = isRaceFinished
+      ? 'completed'
+      : hasPendingDecisionNow
+        ? 'awaiting_player_weather_decision'
         : isRedActive
           ? 'red_flag'
           : isScActive
             ? 'safety_car'
             : isVscActive
               ? 'virtual_safety_car'
-              : nextStatus,
+              : nextStatus
+
+    const updatedState: CanonicalRaceState = {
+      ...currentState,
+      saveSchemaVersion: 'race-save-v1',
+      currentLap: Math.min(totalLaps, targetLap + (isRaceFinished ? 0 : 1)),
+      status: calculatedStatus,
       safetyCarActive: isScActive,
       vscActive: isVscActive,
       redFlagActive: isRedActive,
@@ -1245,6 +1366,7 @@ export class CanonicalRaceEngineService {
       raceSeed: lapSeed,
       raceControl: rcState,
       driverStrategies: workingStrategies,
+      pendingWeatherDecision: createdPendingWeatherDecision,
       revision: currentState.revision + 1,
       updatedAt: new Date().toISOString(),
     }

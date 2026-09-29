@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { canonicalRaceInitializationService } from '../services/canonicalRaceInitializationService'
 import { canonicalRaceEngineService } from '../services/canonicalRaceEngineService'
+import { raceStrategyService } from '../services/raceStrategyService'
 import type { WeatherTransition } from '../types/climate'
 
 describe('RACE-PROVENANCE-AUDIT-02B-E0: Micro-auditoria Chuva / Decisão Humana', () => {
@@ -78,21 +79,31 @@ describe('RACE-PROVENANCE-AUDIT-02B-E0: Micro-auditoria Chuva / Decisão Humana'
     expect(state.weather).toBe('seco')
 
     // Volta 3: transição para chuva_fraca!
-    // A engine detecta a chuva, agenda pit stop automaticamente para humano e IA (pitRequested: true)
+    // Na E0 comprovou-se o diagnóstico inicial (auto-pit sem decisão humana).
+    // Com a E1A implementada, a IA recebe auto-pit (intermediario) e o jogador recebe pending decision.
     state = canonicalRaceEngineService.advanceOneLap(state, { persistState: false })
     expect(state.weather).toBe('chuva_fraca')
 
     const humanStratL3 = state.driverStrategies[humanD0.driverId]
     const aiStratL3 = state.driverStrategies[aiD0.driverId]
 
-    // Prova E5, E6, E7, E8:
-    // Auto-pit disparado pela engine para ambos sem perguntar nada
-    expect(humanStratL3.pitRequested).toBe(true)
-    expect(humanStratL3.targetCompound).toBe('intermediario')
+    // IA mantém auto-pit
     expect(aiStratL3.pitRequested).toBe(true)
     expect(aiStratL3.targetCompound).toBe('intermediario')
 
-    // Volta 4: pit stop executado automaticamente
+    // Humano NÃO recebe auto-pit antes da decisão; recebe pendingWeatherDecision
+    expect(humanStratL3.pitRequested).toBeFalsy()
+    expect(state.pendingWeatherDecision?.active).toBe(true)
+
+    // Humano decide PIT_NOW + intermediario (simulando a decisão que antes era forçada)
+    state = raceStrategyService.submitWeatherDecision({
+      raceState: state,
+      driverId: humanD0.driverId,
+      action: 'PIT_NOW',
+      selectedCompound: 'intermediario',
+    }).updatedState
+
+    // Volta 4: pit stop executado após a decisão
     state = canonicalRaceEngineService.advanceOneLap(state, { persistState: false })
     const humanL4 = state.drivers.find((d) => d.isPlayer)!
     const aiL4 = state.drivers.find((d) => !d.isPlayer)!
@@ -149,11 +160,21 @@ describe('RACE-PROVENANCE-AUDIT-02B-E0: Micro-auditoria Chuva / Decisão Humana'
     const humanStratL3 = state.driverStrategies['drv_human']
     const aiStratL3 = state.driverStrategies['drv_ai_1']
 
-    // Engine programa pit stop automaticamente para voltar a pneus secos ('medio')
-    expect(humanStratL3.pitRequested).toBe(true)
-    expect(humanStratL3.targetCompound).toBe('medio')
+    // IA programa pit stop automaticamente para voltar a pneus secos ('medio')
     expect(aiStratL3.pitRequested).toBe(true)
     expect(aiStratL3.targetCompound).toBe('medio')
+
+    // Humano NÃO recebe auto-pit; recebe pending decision
+    expect(humanStratL3.pitRequested).toBeFalsy()
+    expect(state.pendingWeatherDecision?.active).toBe(true)
+
+    // Humano decide PIT_NOW + medio
+    state = raceStrategyService.submitWeatherDecision({
+      raceState: state,
+      driverId: 'drv_human',
+      action: 'PIT_NOW',
+      selectedCompound: 'medio',
+    }).updatedState
 
     // Volta 4: pit efetuado, trocam para 'medio'
     state = canonicalRaceEngineService.advanceOneLap(state, { persistState: false })

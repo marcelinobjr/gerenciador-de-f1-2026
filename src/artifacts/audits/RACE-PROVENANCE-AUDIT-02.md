@@ -501,6 +501,101 @@ Quando houver transição meteorológica relevante (`seco` → `chuva_fraca` / `
    - Retomar o avanço da corrida após a confirmação da decisão.
 2. **Para a IA:** Manter decisão e reação autônoma baseada em heurística estratégica.
 
+---
+
+### E1A — Backend da decisão humana em clima (RACE-PROVENANCE-AUDIT-02B-E1A)
+
+Implementação estrita e canônica da camada de backend/estado para decisão humana em mudanças climáticas (sem UI/modal nesta rodada).
+
+#### 1. Estado Criado (CanonicalRaceState)
+
+- **Estrutura Canônica:** `pendingWeatherDecision: PendingWeatherDecisionState`
+
+  ```typescript
+  export interface PendingWeatherDecisionState {
+    active: boolean
+    decisionKey: string // career_s{season}_r{round}_l{lap}_{transition}
+    triggeredLap: number
+    transition: 'DRY_TO_WET' | 'WET_TO_DRY'
+    weatherBefore: TrackWeatherState
+    weatherAfter: TrackWeatherState
+    rainIntensity?: RainIntensity
+    drivers: DriverWeatherDecisionItem[]
+  }
+
+  export interface DriverWeatherDecisionItem {
+    driverId: string
+    driverName?: string
+    carSlot?: 'car1' | 'car2'
+    currentCompound: TireCompound
+    tyreAge: number
+    status: 'pending' | 'decided'
+    action?: 'PIT_NOW' | 'STAY_OUT'
+    selectedCompound?: TireCompound
+    decidedAt?: string
+  }
+  ```
+
+- **Status Canônico de Espera:** `status: 'awaiting_player_weather_decision'` em `CanonicalRaceStatus`.
+- **Bloqueio Canônico:** Enquanto houver decisão climática ativa com pilotos pendentes, `canonicalRaceEngineService.advanceOneLap()` bloqueia qualquer avanço de voltas e mantém o status `awaiting_player_weather_decision`.
+
+#### 2. Trigger DRY→WET e WET→DRY
+
+- Na volta `targetLap` da transição de clima:
+  - Condição climática é atualizada no estado (`currentState.weather = currentLapWeather`).
+  - Evento de mudança climática é registrado no feed (`ev_weather_${targetLap}`).
+  - Se for detectada transição `DRY_TO_WET` ou `WET_TO_DRY`:
+    - Verifica se a chave determinística (`decisionKey`) já foi disparada.
+    - Identifica os pilotos elegíveis da equipe humana (somente pilotos ativos: `!isDnf && raceStatus !== 'dnf' && raceStatus !== 'finished'`).
+    - Cria o objeto `pendingWeatherDecision` com status `'pending'` para cada carro humano ativo.
+    - Emite evento no feed informando que a equipe aguarda decisão estratégica.
+
+#### 3. Diferença PLAYER vs IA
+
+- **IA (Equipes Rivais):** Preserva integralmente o comportamento autônomo atual:
+  - DRY→WET: agenda pit stop automático (`pitRequested: true`, composto `intermediario` ou `chuva_extrema`).
+  - WET→DRY: agenda pit stop automático (`pitRequested: true`, composto `medio`).
+- **PLAYER TEAM (Equipe Humana):**
+  - **NÃO** recebe auto-pit climático.
+  - Recebe `pendingWeatherDecision` no estado canônico da corrida.
+  - Não executa nova volta até que ambos os carros (ou todos os carros ativos) tenham suas decisões registradas.
+
+#### 4. Decisão por Carro e Actions Canônicas
+
+- Cada piloto humano decide de forma 100% independente (ex: Carro 1 para e coloca intermediário; Carro 2 continua na pista).
+- Função canônica: `raceStrategyService.submitWeatherDecision({ raceState, driverId, action, selectedCompound })`.
+- Ações:
+  - `PIT_NOW`: Exige `selectedCompound` compatível com a transição.
+    - DRY→WET: apenas `intermediario` ou `chuva_extrema`.
+    - WET→DRY: apenas `macio`, `medio` ou `duro`.
+    - Se selecionado composto incompatível: rejeita com erro descritivo.
+    - Se válido: invoca o mesmo pipeline canônico de pit manual (`requestPitStop`), configurando `pitRequested: true`, `pitThisLap: true` e `targetCompound`.
+  - `STAY_OUT`: Não agenda pit; preserva composto atual; marca decisão do carro como `decided`.
+- Retomada: Quando todos os carros elegíveis tiverem decidido (`status === 'decided'`), `pendingWeatherDecision.active` passa a `false` e o status da prova retorna para o status de corrida (`running`, `safety_car`, etc.), permitindo que `advanceOneLap` execute as voltas subsequentes normalmente.
+
+#### 5. Integração com Pit Stop Existente
+
+- Reutiliza diretamente `raceStrategyService.requestPitStop()`. Nenhuma lógica paralela de troca de pneus foi criada.
+- Os tempos de parada, double stack e transição continuam regidos pelo mesmo mecanismo de `raceStrategyService.processLapPitStops()`.
+
+#### 6. Persistência e Reload (Save/Reload)
+
+- O schema de snapshot `race-save-v1` em `canonicalRaceSaveService` valida e persiste `pendingWeatherDecision` no localStorage.
+- Se a página for recarregada enquanto a decisão estiver pendente:
+  - O estado recarregado preserva `pendingWeatherDecision`, as decisões parciais já submetidas e o status `awaiting_player_weather_decision`.
+  - O reload não executa auto-decisão nem limpa os dados.
+  - `advanceOneLap` continua bloqueado até que as decisões pendentes sejam enviadas.
+
+#### 7. Idempotência
+
+- Chave determinística de decisão: `${careerId}_s${season}_r${round}_l${lap}_${transition}`.
+- Impede duplicação de `pendingWeatherDecision`, requisições de pit ou eventos caso `advanceOneLap` seja chamado repetidamente na mesma volta.
+
+#### 8. Cobertura de Testes (E1A-01 a E1A-16)
+
+- `src/__tests__/race-provenance-audit-02b-e1a.test.ts`: 16/16 testes unitários e de integração verdes cobrindo todos os cenários da especificação.
+- Atualização em `src/__tests__/race-provenance-audit-02b-e0.test.ts` para validar o fluxo compatível.
+
 ## F. Estratégias por Piloto
 
 _(Investigação em andamento)_
