@@ -603,16 +603,19 @@ Implementação estrita e canônica da camada de backend/estado para decisão hu
 Implementação da camada visual de alta prioridade para o jogador resolver `pendingWeatherDecision`. A UI obedece estritamente ao princípio de não decidir regras esportivas no frontend: consome os dados do backend E1A, despacha `submitWeatherDecision` e reflete o estado atualizado.
 
 #### 1. Componente Criado
+
 - **`src/components/race/CanonicalWeatherDecisionModal.tsx`**:
   - Renderizado quando `raceState.status === 'awaiting_player_weather_decision'` e `pendingWeatherDecision.active === true`.
   - Backdrop modal inquebrável: sem botão "X" de fecho, bloqueia cliques fora (`pointer-events` cancelados) e bloqueia tecla ESC.
   - Design alinhado à identidade visual de cockpit do Apex GP Manager com temas escuros (`#090D15`/`#0F172A`), bordas ciano/âmbar e badges de status.
 
 #### 2. Ponto de Integração com CanonicalRaceState
+
 - Integrado em `CanonicalRaceInitializationPanel` (`src/components/race/CanonicalRaceInitializationPanel.tsx`), recebendo `raceState` e o callback `onSubmitWeatherDecision`.
 - No controller da página (`src/pages/WeekendV2Page.tsx`), `onSubmitWeatherDecision` invoca `raceStrategyService.submitWeatherDecision(...)`, salva o novo snapshot com `canonicalRaceInitializationService.saveCanonicalRaceState(...)` e dispara toast canônico de confirmação ou erro.
 
 #### 3. Fluxo por Carro e Compostos
+
 - **Decisões Independentes por Piloto:**
   - Carro 1 e Carro 2 aparecem com cards independentes (`weather-decision-card-{driverId}`).
   - Informações reais do estado canônico: nome do piloto, vaga do carro (Carro 1 / Carro 2), posição atual, composto atual e idade das borrachas.
@@ -626,6 +629,7 @@ Implementação da camada visual de alta prioridade para o jogador resolver `pen
   - Após confirmação, exibe "Pit programado — [COMPOSTO]".
 
 #### 4. Bloqueio e Retomada
+
 - Enquanto `raceState.status === 'awaiting_player_weather_decision'`:
   - Botão de avançar 1 volta muda para "Aguardando Decisão" e fica desabilitado.
   - Botões de simulação acelerada (+5 Voltas, +10 Voltas, Simular até o Fim) ficam desabilitados.
@@ -633,10 +637,12 @@ Implementação da camada visual de alta prioridade para o jogador resolver `pen
 - Assim que o último carro pendente tiver sua decisão confirmada, o backend atualiza `active: false` e `status: 'running'`, fechando o modal e reabilitando instantaneamente os controles de corrida.
 
 #### 5. Save / Reload & Prevenção de Duplo Clique
+
 - Suporte total a recarregamento de página: `loadCanonicalRaceState` restaura o modal e preserva decisões já salvas para um carro enquanto o outro aguarda escolha.
 - Proteção contra double click: botões exibem estado de carregamento (`Loader2`), desabilitam reentrância e isolam erros sem alterar o estado local.
 
 #### 6. Cobertura de Testes E1B (18/18)
+
 - `src/__tests__/race-provenance-audit-02b-e1b.test.tsx`:
   - **E1B-01:** Modal aparece quando `raceStatus = awaiting_player_weather_decision`.
   - **E1B-02:** Modal não aparece em corrida normal.
