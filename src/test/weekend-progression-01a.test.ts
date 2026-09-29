@@ -91,6 +91,121 @@ describe('HOTFIX WEEKEND-01A: Validação Canônica de Progressão de Sessões d
   })
 
   // =========================================================================
+  // CP1C: APEX GP MANAGER — SILVERSTONE-RACE-REVIEW-01A-CP1C
+  // PROGRESSÃO SPRINT ALINHADA À SCHEDULE CANÔNICA
+  // =========================================================================
+  describe('CP1C: Alinhamento Canônico da Progressão Sprint', () => {
+    const roundSprint = 2 // Shanghai (hasSprint = true)
+
+    it('CP1C-01 TL1 → TL2', () => {
+      expect(getNextRequiredWeekendSession(roundSprint, [])).toBe('tp1')
+      expect(getNextRequiredWeekendSession(roundSprint, ['tp1'])).toBe('tp2')
+    })
+
+    it('CP1C-02 TL2 → SQ1 (TL3 rigorosamente ausente)', () => {
+      const schedule = getCanonicalWeekendSchedule(roundSprint)
+      expect(schedule).toContain('tp2')
+      expect(schedule).not.toContain('tp3')
+      expect(getNextRequiredWeekendSession(roundSprint, ['tp1', 'tp2'])).toBe('sq1')
+    })
+
+    it('CP1C-03 SQ1 → SQ2', () => {
+      expect(getNextRequiredWeekendSession(roundSprint, ['tp1', 'tp2', 'sq1'])).toBe('sq2')
+    })
+
+    it('CP1C-04 SQ2 → SQ3', () => {
+      expect(getNextRequiredWeekendSession(roundSprint, ['tp1', 'tp2', 'sq1', 'sq2'])).toBe('sq3')
+    })
+
+    it('CP1C-05 SQ3 → Sprint', () => {
+      expect(getNextRequiredWeekendSession(roundSprint, ['tp1', 'tp2', 'sq1', 'sq2', 'sq3'])).toBe(
+        'sprint_race',
+      )
+    })
+
+    it('CP1C-06 Sprint → GP Q1 (SPRINT-A-09)', () => {
+      expect(
+        getNextRequiredWeekendSession(roundSprint, [
+          'tp1',
+          'tp2',
+          'sq1',
+          'sq2',
+          'sq3',
+          'sprint_race',
+        ]),
+      ).toBe('q1')
+    })
+
+    it('CP1C-07 GP Q1 → GP Q2', () => {
+      expect(
+        getNextRequiredWeekendSession(roundSprint, [
+          'tp1',
+          'tp2',
+          'sq1',
+          'sq2',
+          'sq3',
+          'sprint_race',
+          'q1',
+        ]),
+      ).toBe('q2')
+    })
+
+    it('CP1C-08 GP Q2 → GP Q3', () => {
+      expect(
+        getNextRequiredWeekendSession(roundSprint, [
+          'tp1',
+          'tp2',
+          'sq1',
+          'sq2',
+          'sq3',
+          'sprint_race',
+          'q1',
+          'q2',
+        ]),
+      ).toBe('q3')
+    })
+
+    it('CP1C-09 GP Q3 → Main Race', () => {
+      expect(
+        getNextRequiredWeekendSession(roundSprint, [
+          'tp1',
+          'tp2',
+          'sq1',
+          'sq2',
+          'sq3',
+          'sprint_race',
+          'q1',
+          'q2',
+          'q3',
+        ]),
+      ).toBe('race')
+
+      // Main race desbloqueia após Q3
+      const gate = checkWeekendRaceAccess(roundSprint, [
+        'tp1',
+        'tp2',
+        'sq1',
+        'sq2',
+        'sq3',
+        'sprint_race',
+        'q1',
+        'q2',
+        'q3',
+      ])
+      expect(gate.allowed).toBe(true)
+      expect(gate.nextRequiredSession).toBe('race')
+    })
+
+    it('CP1C-10 Main Race → weekend complete', () => {
+      const allDone = ['tp1', 'tp2', 'sq1', 'sq2', 'sq3', 'sprint_race', 'q1', 'q2', 'q3', 'race']
+      expect(getNextRequiredWeekendSession(roundSprint, allDone)).toBeNull()
+      const gate = checkWeekendRaceAccess(roundSprint, allDone)
+      expect(gate.allowed).toBe(true)
+      expect(gate.nextRequiredSession).toBeNull()
+    })
+  })
+
+  // =========================================================================
   // CENÁRIO D: Sprint: sequência correta com TL1 e TL2, sem TL3 (SILVERSTONE-RACE-REVIEW-01A)
   // =========================================================================
   it('Cenário D: Formato Sprint — sequência correta (tp1 → tp2 → sq1 → sq2 → sq3 → sprint_race → q1 → q2 → q3 → race) sem TL3', () => {

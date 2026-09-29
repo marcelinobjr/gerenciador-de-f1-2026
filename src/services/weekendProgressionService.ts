@@ -27,14 +27,15 @@ export type CanonicalWeekendSession =
   | 'qualifying'
   | 'race'
 
+import {
+  SPRINT_WEEKEND_SCHEDULE_CONFIG,
+  NORMAL_WEEKEND_MACRO_SLOTS,
+  SPRINT_WEEKEND_MACRO_SLOTS,
+  expandMacroSlotsToSessions,
+} from '@/services/weekendScheduleConfig'
+
 export const NORMAL_WEEKEND_SCHEDULE: CanonicalWeekendSession[] = [
-  'tp1',
-  'tp2',
-  'tp3',
-  'q1',
-  'q2',
-  'q3',
-  'race',
+  ...expandMacroSlotsToSessions(NORMAL_WEEKEND_MACRO_SLOTS),
 ]
 
 export const NORMAL_WEEKEND_MACRO_SCHEDULE: CanonicalWeekendSession[] = [
@@ -46,16 +47,7 @@ export const NORMAL_WEEKEND_MACRO_SCHEDULE: CanonicalWeekendSession[] = [
 ]
 
 export const SPRINT_WEEKEND_SCHEDULE: CanonicalWeekendSession[] = [
-  'tp1',
-  'tp2',
-  'sq1',
-  'sq2',
-  'sq3',
-  'sprint_race',
-  'q1',
-  'q2',
-  'q3',
-  'race',
+  ...SPRINT_WEEKEND_SCHEDULE_CONFIG.sessionIds,
 ]
 
 export const SPRINT_WEEKEND_MACRO_SCHEDULE: CanonicalWeekendSession[] = [
