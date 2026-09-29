@@ -1,20 +1,34 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { canonicalRaceInitializationService } from '../services/canonicalRaceInitializationService'
 import { canonicalRaceEngineService } from '../services/canonicalRaceEngineService'
-import type { CanonicalRaceState } from '../services/canonicalRaceEngineService'
+import type { CanonicalRaceState } from '@/types/canonical-race-v2'
 
 describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0', () => {
   let baseState: CanonicalRaceState
 
   beforeEach(() => {
     localStorage.clear()
+    const qualifyingGrid = Array.from({ length: 24 }, (_, i) => ({
+      position: i + 1,
+      driverId: `driver_${i + 1}`,
+      driverName: `Driver ${i + 1}`,
+      teamId: `team_${Math.floor(i / 2) + 1}`,
+      teamName: `Team ${Math.floor(i / 2) + 1}`,
+      teamColor: '#ff0000',
+      qBestMs: 80000 + i * 100,
+    }))
+
     // Criar uma corrida determinística de 6 voltas com combustível reduzido (5.0 kg)
     baseState = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'audit-d0-career',
+      season: 2026,
       round: 1,
       circuitName: 'Albert Park Circuit',
+      circuitCountry: 'Australia',
       totalLaps: 6,
       initialFuelKg: 5.0,
-      weatherCondition: 'seco',
+      playerTeamId: 'team_1',
+      canonicalQualifyingGrid: qualifyingGrid,
     })
   })
 
@@ -25,7 +39,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
 
     // Volta 1: Consumo aproximado de 1.75 kg -> fuel deve reduzir para ~3.25 kg
     const stateLap1 = canonicalRaceEngineService.advanceOneLap(baseState, {
-      rng: () => 0.5,
+      seedOverride: 42,
       persistState: false,
     })
     const dLap1 = stateLap1.drivers.find((d) => d.driverId === p1.driverId)!
@@ -35,7 +49,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
 
     // Volta 2: Consumo adicional -> fuel deve reduzir ainda mais
     const stateLap2 = canonicalRaceEngineService.advanceOneLap(stateLap1, {
-      rng: () => 0.5,
+      seedOverride: 43,
       persistState: false,
     })
     const dLap2 = stateLap2.drivers.find((d) => d.driverId === p1.driverId)!
@@ -44,7 +58,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
 
     // Volta 3: Combustível esgota (fuel era menor que consumo de ~1.75 kg) -> clampa exatamente em 0
     const stateLap3 = canonicalRaceEngineService.advanceOneLap(stateLap2, {
-      rng: () => 0.5,
+      seedOverride: 44,
       persistState: false,
     })
     const dLap3 = stateLap3.drivers.find((d) => d.driverId === p1.driverId)!
@@ -64,7 +78,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
 
     // Executar volta com fuel = 0
     const nextState = canonicalRaceEngineService.advanceOneLap(stateWithZeroFuel, {
-      rng: () => 0.5,
+      seedOverride: 100,
       persistState: false,
     })
 
@@ -98,7 +112,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
     }
 
     const stateAfterLap = canonicalRaceEngineService.advanceOneLap(stateLowFuel, {
-      rng: () => 0.5,
+      seedOverride: 200,
       persistState: false,
     })
 
@@ -152,7 +166,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
     for (let lap = 1; lap <= 6; lap++) {
       const fuelBefore = currentState.drivers[0].fuel
       currentState = canonicalRaceEngineService.advanceOneLap(currentState, {
-        rng: () => 0.5,
+        seedOverride: lap * 10,
         persistState: false,
       })
       const driver = currentState.drivers[0]
