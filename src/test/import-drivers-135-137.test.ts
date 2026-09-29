@@ -50,7 +50,7 @@ describe('IMPORT-DRIVERS-135-137 / 135-137A — Importação e Proveniência Can
 
     expect(photoMazepin.url).toContain('DRV_0135.jpg')
     expect(photoKvyat.url).toContain('DRV_0136.jpg')
-    expect(photoBourdais.url).toContain('DRV_0137.jpg')
+    expect(photoBourdais.url).toContain('DRV_0075.jpg')
   })
 
   it('identidades canônicas no CANONICAL_DRIVERS_MASTER devem estar íntegras via getCanonicalDriverMaster', () => {

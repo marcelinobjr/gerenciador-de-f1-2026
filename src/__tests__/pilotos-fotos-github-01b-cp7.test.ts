@@ -22,11 +22,11 @@ import { DRIVER_PORTRAIT_ASSET_MAP } from '@/lib/driver-portrait-map'
  * 67. Ugo Ugochukwu -> DRV_0186.jpg (mbj-070)
  * 68. Will Stevens -> DRV_0187.jpg (mbj-101)
  * 69. Zak O'Sullivan -> DRV_0188.jpg (mbj-058)
- * 70. Sébastien Bourdais -> DRV_0189.jpg (mbj-136) [se presente no catálogo]
+ * 70. Sébastien Bourdais -> DRV_0075.jpg (mbj-128) [corrigido de DRV_0189/DRV_0137 para DRV_0075]
  */
 
 describe('PILOTOS-FOTOS-GITHUB-01B-CP7: Mappings Canônicos (61–70)', () => {
-  // Os 9 pilotos com arquivos físicos existentes no lote DRV_0180..0188
+  // Os 10 pilotos do lote, incluindo Sébastien Bourdais apontando para DRV_0075.jpg
   const CP7_MAPPINGS = [
     {
       name: 'Sheldon van der Linde',
@@ -81,6 +81,12 @@ describe('PILOTOS-FOTOS-GITHUB-01B-CP7: Mappings Canônicos (61–70)', () => {
       expectedAsset: 'DRV_0188',
       expectedFile: 'DRV_0188.jpg',
       id: 'mbj-058',
+    },
+    {
+      name: 'Sébastien Bourdais',
+      expectedAsset: 'DRV_0075',
+      expectedFile: 'DRV_0075.jpg',
+      id: 'mbj-128',
     },
   ] as const
 
@@ -146,6 +152,12 @@ describe('PILOTOS-FOTOS-GITHUB-01B-CP7: Mappings Canônicos (61–70)', () => {
     expect(getDriverCanonicalKey('Sébastien Bourdais')).toBe(
       getDriverCanonicalKey('Sebastien Bourdais'),
     )
+    const resBourdais1 = resolveDriverPhoto({ name: 'Sébastien Bourdais' })
+    const resBourdais2 = resolveDriverPhoto({ name: 'Sebastien Bourdais' })
+    expect(resBourdais1.url).toBe('/pilotos/DRV_0075.jpg')
+    expect(resBourdais2.url).toBe('/pilotos/DRV_0075.jpg')
+    expect(resBourdais1.assetId).toBe('DRV_0075')
+    expect(resBourdais2.assetId).toBe('DRV_0075')
 
     // 3. Verificações anti-prefixo duplicado (ex.: DRV_DRV_0180..0188 não existem)
     const pilotosDir = path.resolve(process.cwd(), 'public', 'pilotos')

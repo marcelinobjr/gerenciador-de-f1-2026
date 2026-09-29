@@ -176,8 +176,8 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-058': 'DRV_0188', // 69. Zak O'Sullivan
   drv_zak_o_sullivan: 'DRV_0188',
   drv_zak_osullivan: 'DRV_0188',
-  'mbj-136': 'DRV_0189', // 70. Sébastien Bourdais
-  drv_sebastien_bourdais: 'DRV_0189',
+  'mbj-128': 'DRV_0075', // 70. Sébastien Bourdais
+  drv_sebastien_bourdais: 'DRV_0075',
 }
 
 for (const pilot of MBJ_2026_PILOTS) {

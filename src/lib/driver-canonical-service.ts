@@ -414,9 +414,9 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   zakosullivan: '/pilotos/DRV_0188.jpg',
   zakosulivan: '/pilotos/DRV_0188.jpg',
   zakosullivann: '/pilotos/DRV_0188.jpg',
-  // 70. Sébastien Bourdais -> DRV_0189.jpg
-  sebastienbourdais: '/pilotos/DRV_0189.jpg',
-  sébastienbourdais: '/pilotos/DRV_0189.jpg',
+  // 70. Sébastien Bourdais -> DRV_0075.jpg
+  sebastienbourdais: '/pilotos/DRV_0075.jpg',
+  sébastienbourdais: '/pilotos/DRV_0075.jpg',
 
   // Chaves MBJ e PocketBase diretas
   'mbj-122': '/pilotos-gerados/Piloto_14.jpg',
@@ -484,7 +484,7 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-070': '/pilotos/DRV_0186.jpg',
   'mbj-101': '/pilotos/DRV_0187.jpg',
   'mbj-058': '/pilotos/DRV_0188.jpg',
-  'mbj-136': '/pilotos/DRV_0189.jpg',
+  'mbj-128': '/pilotos/DRV_0075.jpg',
 }
 
 /**

@@ -73,7 +73,7 @@ export const DRIVER_PORTRAIT_ASSET_MAP = {
   drv_rubens_barrichello: 'DRV_0072',
   drv_ryan_blaney: 'DRV_0073',
   drv_scott_dixon: 'DRV_0074',
-  drv_sebastien_bourdais: 'DRV_0137',
+  drv_sebastien_bourdais: 'DRV_0075',
   drv_sergio_perez: 'DRV_0076',
   drv_will_power: 'DRV_0077',
   drv_william_byron: 'DRV_0078',
