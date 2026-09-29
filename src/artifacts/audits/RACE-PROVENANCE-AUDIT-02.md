@@ -12,6 +12,7 @@
 
 Auditoria cirúrgica do motor de corrida e sessões do final de semana contra as especificações canônicas dos arquivos Excel (01raceregraseparametros, 02racecenariosetestes, 03raceformulasefonte).
 Fase 02A cobre estritamente:
+
 - A. TL2 / Pneus (Desgaste e Comportamento)
 - B. Spread P1–P24 = 2500 ms
 - C. 24 GPs / Número de Voltas
