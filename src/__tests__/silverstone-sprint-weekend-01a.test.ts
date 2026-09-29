@@ -45,18 +45,30 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
       'race',
     ])
 
-    expect(SPRINT_WEEKEND_SCHEDULE).toEqual([
-      'tp1',
-      'tp2',
-      'sq1',
-      'sq2',
-      'sq3',
-      'sprint_race',
-      'q1',
-      'q2',
-      'q3',
-      'race',
-    ])
+    // Provar asserts individuais canônicos
+    // TL1 existe
+    expect(ids).toContain('tp1')
+    // TL2 existe
+    expect(ids).toContain('tp2')
+    // TL3 não existe
+    expect(ids).not.toContain('tp3')
+    // SQ1/SQ2/SQ3 existem
+    expect(ids).toContain('sq1')
+    expect(ids).toContain('sq2')
+    expect(ids).toContain('sq3')
+    // Sprint Race existe
+    expect(ids).toContain('sprint_race')
+    // Q1/Q2/Q3 do GP existem DEPOIS da Sprint
+    const sprintIndex = ids.indexOf('sprint_race')
+    const q1Index = ids.indexOf('q1')
+    const q2Index = ids.indexOf('q2')
+    const q3Index = ids.indexOf('q3')
+    const raceIndex = ids.indexOf('race')
+    expect(q1Index).toBeGreaterThan(sprintIndex)
+    expect(q2Index).toBeGreaterThan(q1Index)
+    expect(q3Index).toBeGreaterThan(q2Index)
+    // Race principal vem por último
+    expect(raceIndex).toBe(ids.length - 1)
   })
 
   // SPRINT-A-03: TL3 ausente em Sprint

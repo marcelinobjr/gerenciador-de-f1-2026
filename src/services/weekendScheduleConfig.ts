@@ -56,16 +56,6 @@ export interface WeekendScheduleOptions {
   includePractice3?: boolean
 }
 
-export const MACRO_SLOT_SESSION_EXPANSION: Record<WeekendMacroSlot, readonly RaceWeekendSessionId[]> = {
-  PRACTICE_1: ['tp1'],
-  PRACTICE_2: ['tp2'],
-  PRACTICE_3: ['tp3'],
-  SPRINT_QUALIFYING: ['sq1', 'sq2', 'sq3'],
-  SPRINT_RACE: ['sprint_race'],
-  MAIN_QUALIFYING: ['q1', 'q2', 'q3'],
-  MAIN_RACE: ['race'],
-}
-
 /**
  * Definições canônicas de todas as sessões suportadas pela esteira.
  */
@@ -171,10 +161,14 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       blockedMessage: 'Disponível após conclusão da classificação (Q3).',
     },
   }
+
 /**
  * Mapeamento canônico de macro-slots para sessões detalhadas da esteira.
  */
-export const MACRO_SLOT_SESSION_EXPANSION: Record<WeekendMacroSlot, RaceWeekendSessionId[]> = {
+export const MACRO_SLOT_SESSION_EXPANSION: Record<
+  WeekendMacroSlot,
+  readonly RaceWeekendSessionId[]
+> = {
   PRACTICE_1: ['tp1'],
   PRACTICE_2: ['tp2'],
   PRACTICE_3: ['tp3'],
@@ -215,18 +209,7 @@ export const SPRINT_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.fr
  */
 export const SPRINT_WEEKEND_SCHEDULE_CONFIG = {
   macroSlots: SPRINT_WEEKEND_MACRO_SLOTS,
-  sessionIds: [
-    'tp1',
-    'tp2',
-    'sq1',
-    'sq2',
-    'sq3',
-    'sprint_race',
-    'q1',
-    'q2',
-    'q3',
-    'race',
-  ] as const,
+  sessionIds: ['tp1', 'tp2', 'sq1', 'sq2', 'sq3', 'sprint_race', 'q1', 'q2', 'q3', 'race'] as const,
   hasPractice3: false,
   hasPractice2: true,
   hasSprintQualifying: true,
