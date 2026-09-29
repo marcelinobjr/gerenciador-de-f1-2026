@@ -134,20 +134,30 @@ export function getCanonicalDisplayName(name: string): string {
  * Mapeamento direto de nomes normalizados (ou IDs) para arquivo de foto em public/pilotos ou public/pilotos-gerados
  */
 export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
-  // === BLOCO 1 ===
+  // === BLOCO 1 — CP1 (PRIMEIROS 10 MAPPINGS CANÔNICOS VALIDADOS) ===
+  // 1. Alba Hurup Larsen -> DRV_0001.jpg
   albahuruplarsen: '/pilotos/DRV_0001.jpg',
   albalarsen: '/pilotos/DRV_0001.jpg',
+  // 2. Alessandro Pier Guidi -> DRV_0081.jpg
   alessandropierguidi: '/pilotos/DRV_0081.jpg',
+  // 3. Alex Dunne / Alexander Dunne -> DRV_0042.jpg (Alias canônico obrigatório)
   alexdunne: '/pilotos/DRV_0042.jpg',
   alexanderdunne: '/pilotos/DRV_0042.jpg',
+  // 4. Alex Lynn -> DRV_0138.jpg
   alexlynn: '/pilotos/DRV_0138.jpg',
+  // 5. Alisha Palmowski -> DRV_0082.jpg
   alishapalmowski: '/pilotos/DRV_0082.jpg',
+  // 6. Amauri Cordell / Amaury Cordeel -> DRV_0083.jpg
   amaurycordeel: '/pilotos/DRV_0083.jpg',
   amauricordell: '/pilotos/DRV_0083.jpg',
+  // 7. Antonio Fuoco -> DRV_0084.jpg
   antoniofuoco: '/pilotos/DRV_0084.jpg',
+  // 8. Ava Dobson -> DRV_0086.jpg
   avadobson: '/pilotos/DRV_0086.jpg',
+  // 9. Brad Keselowski / Brad Keselowiski -> DRV_0004.jpg
   bradkeselowski: '/pilotos/DRV_0004.jpg',
   bradkeselowiski: '/pilotos/DRV_0004.jpg',
+  // 10. Callum Hedge -> DRV_0088.jpg
   callumhedge: '/pilotos/DRV_0088.jpg',
   callumilott: '/pilotos/DRV_0139.jpg',
   callumllott: '/pilotos/DRV_0139.jpg',

@@ -672,13 +672,7 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'drv_0150',
     'drvdrv0150',
   ],
-  freddie_slater: [
-    'mbj-069',
-    'driver_freddie_slater',
-    'drv_freddie_slater',
-    'slater',
-    'drv_0150',
-  ],
+  freddie_slater: ['mbj-069', 'driver_freddie_slater', 'drv_freddie_slater', 'slater', 'drv_0150'],
   // O'Ward runtime ID
   nwhacbop67hucir: ['patricio_oward', 'patricio_o_ward', 'oward', 'mbj-025', 'drv_0042'],
   // Nikita Mazepin
