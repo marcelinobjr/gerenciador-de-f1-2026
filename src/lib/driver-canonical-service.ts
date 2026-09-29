@@ -159,16 +159,29 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   bradkeselowiski: '/pilotos/DRV_0004.jpg',
   // 10. Callum Hedge -> DRV_0088.jpg
   callumhedge: '/pilotos/DRV_0088.jpg',
-  callumilott: '/pilotos/DRV_0139.jpg',
+
+  // === BLOCO 1 — CP2 (PRÓXIMOS 10 MAPPINGS CANÔNICOS VALIDADOS: PILOTOS-FOTOS-GITHUB-01B-CP2) ===
+  // 11. Callum Llott / Callum Ilott -> DRV_0139.jpg
   callumllott: '/pilotos/DRV_0139.jpg',
+  callumilott: '/pilotos/DRV_0139.jpg',
+  // 12. Callum Voisin -> DRV_0140.jpg
   callumvoisin: '/pilotos/DRV_0140.jpg',
+  // 13. Chase Elliott / Chase Elliot -> DRV_0006.jpg
   chaseelliott: '/pilotos/DRV_0006.jpg',
+  chaseelliot: '/pilotos/DRV_0006.jpg',
+  // 14. Christian Mansell -> DRV_0141.jpg
   christianmansell: '/pilotos/DRV_0141.jpg',
+  // 15. Christopher Bell -> DRV_0048.jpg
   christopherbell: '/pilotos/DRV_0048.jpg',
+  // 16. Connor de Phillippi / Connor De Phillippi -> DRV_0142.jpg
   connordephillippi: '/pilotos/DRV_0142.jpg',
+  // 17. Dane Cameron -> DRV_0143.jpg
   danecameron: '/pilotos/DRV_0143.jpg',
+  // 18. Daniil Kvyat -> DRV_0136.jpg
   daniilkvyat: '/pilotos/DRV_0136.jpg',
+  // 19. Dennis Hauger -> DRV_0144.jpg
   dennishauger: '/pilotos/DRV_0144.jpg',
+  // 20. Denny Hamlin -> DRV_0051.jpg
   dennyhamlin: '/pilotos/DRV_0051.jpg',
   driesvanthoor: '/pilotos/DRV_0145.jpg',
   earlbamber: '/pilotos/DRV_0146.jpg',
@@ -307,6 +320,9 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-077': '/pilotos/DRV_0141.jpg',
   ap51biwjhwsh2pf: '/pilotos/DRV_0048.jpg',
   'mbj-115': '/pilotos/DRV_0142.jpg',
+  'mbj-111': '/pilotos/DRV_0143.jpg',
+  'mbj-137': '/pilotos/DRV_0136.jpg',
+  'mbj-059': '/pilotos/DRV_0144.jpg',
 }
 
 /**

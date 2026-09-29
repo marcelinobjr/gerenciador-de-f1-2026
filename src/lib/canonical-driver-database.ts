@@ -105,6 +105,9 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-077': 'DRV_0141', // 14. Christian Mansell
   ap51biwjhwsh2pf: 'DRV_0048', // 15. Christopher Bell
   'mbj-115': 'DRV_0142', // 16. Connor de Phillippi
+  'mbj-111': 'DRV_0143', // 17. Dane Cameron
+  'mbj-137': 'DRV_0136', // 18. Daniil Kvyat
+  'mbj-059': 'DRV_0144', // 19. Dennis Hauger
 }
 
 for (const pilot of MBJ_2026_PILOTS) {
