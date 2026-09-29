@@ -120,6 +120,18 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   'mbj-057': 'DRV_0149', // 28. Enzo Fittipaldi
   '8srxswzj5r17dma': 'DRV_0092', // 29. Esmee Kosterman
   // 30. Gabriele Mini já mapeado via 'mbj-063': 'DRV_0013'
+
+  // BUG-PILOTOS-01B-CP4: Lote dos 10 pilotos (Helio Castroneves a Freddie Slater)
+  // 31. Helio Castroneves já mapeado via 'mbj-134': 'DRV_0151'
+  drv_jade_jacquet: 'DRV_0097', // 32. Jade Jacquet
+  drv_james_calado: 'DRV_0099', // 33. James Calado
+  drv_joey_logano: 'DRV_0058', // 34. Joey Logano
+  drv_jonathan_browne: 'DRV_0100', // 35. Jonathan Browne
+  drv_josef_newgarden: 'DRV_0016', // 36. Josef Newgarden
+  drv_josep_maria_marti: 'DRV_0101', // 37. Josep Maria Marti
+  drv_joshua_durksen: 'DRV_0116', // 38. Joshua Dürksen
+  drv_kamui_kobayashi: 'DRV_0017', // 39. Kamui Kobayashi
+  // 40. Freddie Slater já mapeado via 'mbj-069': 'DRV_0150'
 }
 
 for (const pilot of MBJ_2026_PILOTS) {

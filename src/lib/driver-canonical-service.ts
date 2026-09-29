@@ -207,11 +207,42 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   // 30. Gabriele Mini / Gabriele Minì -> DRV_0013.jpg
   gabrielemini: '/pilotos/DRV_0013.jpg',
 
-  felipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
-  filipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
+  // === BLOCO 1 — CP4 (PRÓXIMOS 10 MAPPINGS CANÔNICOS VALIDADOS: PILOTOS-FOTOS-GITHUB-01B-CP4) ===
+  // 31. Helio Castroneves / Hélio Castroneves -> DRV_0151.jpg
+  // 32. Jade Jacquet -> DRV_0097.jpg
+  // 33. James Calado -> DRV_0099.jpg
+  // 34. Joey Logano -> DRV_0058.jpg
+  // 35. Jonathan Browne -> DRV_0100.jpg
+  // 36. Josef Newgarden / Josef Nesgarden -> DRV_0016.jpg
+  // 37. Josep Maria Marti / Pepe Marti / Josep Maria Martí -> DRV_0101.jpg
+  // 38. Joshua Dürksen / Joshua Durksen / Joshua Duerksen -> DRV_0116.jpg
+  // 39. Kamui Kobayashi -> DRV_0017.jpg
+  // 40. Freddie Slater -> DRV_0150.jpg (Verificado: DRV_0150.jpg existe; DRV_DRV_0150.jpg é alias/inexistente)
+  // 32. Freddie Slater -> DRV_0150.jpg (verificado arquivo real DRV_0150.jpg)
   freddieslater: '/pilotos/DRV_0150.jpg',
   drvdrv0150: '/pilotos/DRV_0150.jpg',
-  heliocastroneves: '/pilotos/DRV_0151.jpg',
+  // 33. Jack Aitken -> DRV_0152.jpg
+  jackaitken: '/pilotos/DRV_0152.jpg',
+  // 34. Jacob Abel -> DRV_0153.jpg
+  jacobabel: '/pilotos/DRV_0153.jpg',
+  // 35. Jordan Taylor -> DRV_0154.jpg
+  jordantaylor: '/pilotos/DRV_0154.jpg',
+  // 36. José María López / Jose Maria Lopez -> DRV_0155.jpg
+  josemarialopez: '/pilotos/DRV_0155.jpg',
+  josemaríalopez: '/pilotos/DRV_0155.jpg',
+  josémaríalópez: '/pilotos/DRV_0155.jpg',
+  // 37. Kyffin Simpson -> DRV_0156.jpg
+  kyffinsimpson: '/pilotos/DRV_0156.jpg',
+  // 38. Linus Lundqvist -> DRV_0157.jpg
+  linuslundqvist: '/pilotos/DRV_0157.jpg',
+  // 39. Logan Sargeant -> DRV_0158.jpg
+  logansargeant: '/pilotos/DRV_0158.jpg',
+  // 40. Louis Delétraz / Louis Deletraz -> DRV_0159.jpg
+  louisdeletraz: '/pilotos/DRV_0159.jpg',
+  loisdeletraz: '/pilotos/DRV_0159.jpg',
+
+  felipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
+  filipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
   alexalbon: '/pilotos/DRV_0041.jpg',
   alexanderalbon: '/pilotos/DRV_0041.jpg',
   alexpalou: '/pilotos/DRV_0043.jpg',
@@ -271,17 +302,6 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   williambryon: '/pilotos/DRV_0078.jpg',
 
   // === BLOCO D: NOVOS PILOTOS ===
-  jackaitken: '/pilotos/DRV_0152.jpg',
-  jacobabel: '/pilotos/DRV_0153.jpg',
-  jordantaylor: '/pilotos/DRV_0154.jpg',
-  josemarialopez: '/pilotos/DRV_0155.jpg',
-  josemaríalopez: '/pilotos/DRV_0155.jpg',
-  josémaríalópez: '/pilotos/DRV_0155.jpg',
-  kyffinsimpson: '/pilotos/DRV_0156.jpg',
-  linuslundqvist: '/pilotos/DRV_0157.jpg',
-  logansargeant: '/pilotos/DRV_0158.jpg',
-  loisdeletraz: '/pilotos/DRV_0159.jpg',
-  louisdeletraz: '/pilotos/DRV_0159.jpg',
   marcowittmann: '/pilotos/DRV_0160.jpg',
   marcusarmstrong: '/pilotos/DRV_0161.jpg',
   mathieujaminet: '/pilotos/DRV_0162.jpg',
