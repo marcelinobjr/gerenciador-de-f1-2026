@@ -642,6 +642,7 @@ Implementação da camada visual de alta prioridade para o jogador resolver `pen
 - Proteção contra double click: botões exibem estado de carregamento (`Loader2`), desabilitam reentrância e isolam erros sem alterar o estado local.
 
 #### 6. Cobertura de Testes E1B (18/18 PASS — Números Reais Homologados)
+
 - `src/__tests__/race-provenance-audit-02b-e1b.test.tsx`: **18/18 PASS (100%)**
   - **E1B-01 (PASS):** Modal aparece quando `raceStatus = awaiting_player_weather_decision`.
   - **E1B-02 (PASS):** Modal não aparece em corrida normal (`running`).
@@ -663,6 +664,7 @@ Implementação da camada visual de alta prioridade para o jogador resolver `pen
   - **E1B-18 (PASS):** Fluxo canônico de pit manual fora de evento climático permanece 100% operacional.
 
 #### 7. Resultados de QA e Homologação de Regressão
+
 - **Suíte E1B:** 18/18 PASS (100% dos testes unitários e de componente React).
 - **Suíte E1A (Regressão Backend):** 16/16 PASS (E1A-01 a E1A-16 intactos).
 - **Suíte E0 (Micro-auditoria Clima):** 2/2 PASS (DRY→WET e WET→DRY determinísticos).
@@ -671,6 +673,7 @@ Implementação da camada visual de alta prioridade para o jogador resolver `pen
 - **QA Global da Aplicação:** Lint (oxlint), Typecheck (tsc), Vite Production Build e Testes Globais: **CLEAN (0 erros, 0 warnings de tipo, 0 falhas)**.
 
 #### 8. Validação de Fixtures no Preview
+
 - **Fixture DRY→WET (Volta 3 Chuva Fraca):**
   - Voltas 1–2 em pista seca; na volta 3 a condição muda para chuva fraca.
   - A corrida entra em `awaiting_player_weather_decision`, avanço bloqueado.

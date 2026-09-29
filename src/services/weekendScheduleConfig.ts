@@ -148,7 +148,6 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       blockedMessage: 'Disponível após conclusão da classificação (Q3).',
     },
   }
-
 /**
  * Retorna as sessões da esteira para o evento.
  * Na esteira padrão da aba CORRIDA: [ TL1, TL2, Q1, Q2, Q3, CORRIDA ].
@@ -244,9 +243,10 @@ export function resolveSessionVisualState(params: {
       : 'locked'
   }
 
-  // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído. No Sprint, requer sprint_race.
+  // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído. No Sprint, requer sprint_race concluída.
   if (sessionId === 'q1') {
     const normalOk = completedSessions.includes('tp3')
+    // No formato Sprint, TL3 não existe. Q1 desbloqueia APÓS a sprint_race ser concluída.
     const sprintOk =
       completedSessions.includes('sprint_race') || completedSessions.includes('sprint')
     return normalOk || sprintOk ? 'available' : 'locked'

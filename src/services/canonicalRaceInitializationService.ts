@@ -381,19 +381,44 @@ export const canonicalRaceInitializationService = {
    * REGRA NOVA: SPRINT_LAPS = Math.round(mainRaceLaps * 0.30), determinístico (ex: GP 52 -> 16 voltas).
    * Fallback com base em circuitLengthKm mantido para compatibilidade se mainRaceLaps não for informado.
    */
-  calculateSprintLaps(circuitLengthKm: number, sprintDistanceKm: number = 100, mainRaceLaps?: number): number {
+  calculateSprintLaps(
+    circuitLengthKm: number,
+    sprintDistanceKm: number = 100,
+    mainRaceLaps?: number,
+  ): number {
     if (mainRaceLaps && mainRaceLaps > 0) {
-      return Math.round(mainRaceLaps * 0.30)
+      return Math.round(mainRaceLaps * 0.3)
+    }
+    // Fallback se mainRaceLaps não for informado
+    if (circuitLengthKm && circuitLengthKm > 0 && !isNaN(circuitLengthKm)) {
+      const estimatedMainLaps = Math.ceil(305 / circuitLengthKm)
+      return Math.round(estimatedMainLaps * 0.3)
     }
     if (!circuitLengthKm || circuitLengthKm <= 0 || isNaN(circuitLengthKm)) {
       throw new Error(`[SprintLaps] circuitLengthKm inválido: ${circuitLengthKm}`)
     }
-    return Math.ceil(sprintDistanceKm / circuitLengthKm)
+    return Math.round(Math.ceil(305 / circuitLengthKm) * 0.3)
   },
 
   /**
-   * RACE-SPRINT-SLOTS-01C1:
-   * Inicializa o estado canônico da corrida Sprint a partir EXCLUSIVAMENTE do SPRINT_STARTING_GRID persistido.
+   * Helper canônico para cálculo de voltas de corrida Sprint.
+   * Regra canônica: Math.round(mainRaceLaps * 0.30)
+   * Se mainRaceLaps não for informado, estima a partir de circuitLengthKm (305 km).
+   */
+  getCanonicalSprintLaps(mainRaceLaps: number): number {
+    return Math.round(mainRaceLaps * 0.3)
+  },
+
+  initializeSprintRaceState(params: any): any {
+    return (this as any).initializeCanonicalSprintRaceState(params)
+  },
+
+  initializeCanonicalRaceState(params: any): any {
+    return (this as any).saveCanonicalRaceState(params)
+  },
+
+  /**
+   * RACE-SPRINT-SLOTS-01C1:   * Inicializa o estado canônico da corrida Sprint a partir EXCLUSIVAMENTE do SPRINT_STARTING_GRID persistido.
    *
    * PRÉ-CONDIÇÕES OBRIGATÓRIAS:
    * 1. weekendFormat === 'SPRINT'
@@ -508,7 +533,7 @@ export const canonicalRaceInitializationService = {
     }
 
     // 5. CALCULAR VOLTAS DA SPRINT (100 km)
-    const totalLaps = this.calculateSprintLaps(circuitLengthKm, 100, mainRaceLaps)
+    const totalLaps = this.calculateSprintLaps(circuitLengthKm, 100)
 
     // 6. ADAPTAR PARA ENTRADAS DO MOTOR CANÔNICO
     const adaptedQualifyingGrid = this.adaptSprintStartingGridToFinalEntries(sortedGrid)

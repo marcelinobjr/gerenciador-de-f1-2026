@@ -56,7 +56,15 @@ const compoundColorMap: Record<TireCompound, string> = {
   chuva_extrema: '#3B82F6',
 }
 
-export function RaceWeatherDisplay({ weather, rainIntensity, trackCondition }: { weather?: string; rainIntensity?: number; trackCondition?: string }) {
+export function RaceWeatherDisplay({
+  weather,
+  rainIntensity,
+  trackCondition,
+}: {
+  weather?: string
+  rainIntensity?: number
+  trackCondition?: string
+}) {
   const rawWx = (weather || trackCondition || 'dry').toLowerCase()
   let label = 'SECO'
   let icon = <Sun className="w-4 h-4 text-amber-400" />
@@ -68,7 +76,12 @@ export function RaceWeatherDisplay({ weather, rainIntensity, trackCondition }: {
     icon = <CloudRain className="w-4 h-4 text-blue-400 animate-pulse" />
     badgeClass = 'border-blue-500/50 text-blue-300 bg-blue-500/20'
     intensityLabel = rainIntensity ? `${Math.round(rainIntensity * 100)}%` : '85%'
-  } else if (rawWx.includes('light') || rawWx === 'light_rain' || rawWx === 'drizzle' || rawWx === 'intermediate') {
+  } else if (
+    rawWx.includes('light') ||
+    rawWx === 'light_rain' ||
+    rawWx === 'drizzle' ||
+    rawWx === 'intermediate'
+  ) {
     label = 'CHUVA FRACA'
     icon = <CloudDrizzle className="w-4 h-4 text-cyan-400" />
     badgeClass = 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10'
@@ -103,9 +116,6 @@ export function LiveRaceHUD({
   isRaceFinished = false,
   gpName,
   gpCountry,
-  weather,
-  rainIntensity,
-  trackCondition,
   tacticalModes,
   onChangeTacticalMode,
   formatTireName,
@@ -131,7 +141,12 @@ export function LiveRaceHUD({
       icon = <CloudRain className="w-4 h-4 text-blue-400 animate-pulse" />
       badgeClass = 'border-blue-500/50 text-blue-300 bg-blue-500/20'
       intensityLabel = rainIntensity ? `${Math.round(rainIntensity * 100)}%` : '85%'
-    } else if (rawWx.includes('light') || rawWx === 'light_rain' || rawWx === 'drizzle' || rawWx === 'intermediate') {
+    } else if (
+      rawWx.includes('light') ||
+      rawWx === 'light_rain' ||
+      rawWx === 'drizzle' ||
+      rawWx === 'intermediate'
+    ) {
       label = 'CHUVA FRACA'
       icon = <CloudDrizzle className="w-4 h-4 text-cyan-400" />
       badgeClass = 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10'

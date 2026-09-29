@@ -26,7 +26,18 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
   it('SPRINT-02-02: Formato Sprint tem TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race', () => {
     const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = pipeline.map((s) => s.id)
-    expect(ids).toEqual(['tp1', 'tp2', 'sq1', 'sq2', 'sq3', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    expect(ids).toEqual([
+      'tp1',
+      'tp2',
+      'sq1',
+      'sq2',
+      'sq3',
+      'sprint_race',
+      'q1',
+      'q2',
+      'q3',
+      'race',
+    ])
   })
 
   // SPRINT-02-03: TL3 NÃO existe em fim de semana Sprint
@@ -48,7 +59,9 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
   it('SPRINT-02-05: Sprint Qualifying precede a Sprint Race e tem slots isolados', () => {
     expect(SPRINT_SLOT_TYPES).toContain('QUALI_SPRINT')
     expect(SPRINT_SLOT_TYPES).toContain('SPRINT')
-    expect(SPRINT_SLOT_TYPES.indexOf('QUALI_SPRINT')).toBeLessThan(SPRINT_SLOT_TYPES.indexOf('SPRINT'))
+    expect(SPRINT_SLOT_TYPES.indexOf('QUALI_SPRINT')).toBeLessThan(
+      SPRINT_SLOT_TYPES.indexOf('SPRINT'),
+    )
   })
 
   // SPRINT-02-06: GP Qualifying vem após a Sprint Race no fim de semana Sprint

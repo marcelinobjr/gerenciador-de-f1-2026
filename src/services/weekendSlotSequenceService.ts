@@ -233,7 +233,12 @@ export function getWeekendSlotSequence(format: WeekendFormat): WeekendSlotDefini
   const dict =
     format === 'SPRINT' ? CANONICAL_SPRINT_SLOT_DEFINITIONS : CANONICAL_NORMAL_SLOT_DEFINITIONS
 
-  return ([1, 2, 3, 4, 5, 6, 7] as const).map((slotNum) => dict[slotNum])
+  const slots =
+    format === 'SPRINT'
+      ? ([1, 2, 3, 4, 5, 6, 7, 8] as const)
+      : ([1, 2, 3, 4, 5, 6, 7] as const)
+
+  return slots.map((slotNum) => dict[slotNum])
 }
 
 /**
