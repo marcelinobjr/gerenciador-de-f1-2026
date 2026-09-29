@@ -63,6 +63,11 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   'helio castroneves': 'Hélio Castroneves',
   'hélio castroneves': 'Hélio Castroneves',
 
+  // Emerson Fittipaldi Jr.
+  'emerson fittipaldi jr': 'Emerson Fittipaldi Jr.',
+  'emerson fittipaldi jr.': 'Emerson Fittipaldi Jr.',
+  'emerson fittipaldi junior': 'Emerson Fittipaldi Jr.',
+
   // Felipe Albuquerque
   'felipe albuquerque': 'Felipe Albuquerque',
   'filipe albuquerque': 'Felipe Albuquerque',
@@ -98,6 +103,7 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   // Robin Frijns (WEC deve ser excluído ou unificado em Robin Frijns)
   'robin frijns': 'Robin Frijns',
   'robin frijns wec': 'Robin Frijns',
+  'robin frijns-wec': 'Robin Frijns',
 }
 
 /**
@@ -142,7 +148,7 @@ export function getCanonicalDisplayName(name: string): string {
  * Mapeamento direto de nomes normalizados (ou IDs) para arquivo de foto em public/pilotos ou public/pilotos-gerados
  */
 export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
-  // Pilotos requisitados no BUG-PILOTOS-01
+  // Pilotos Bloco 1 (DRV_0001 a DRV_0151 e Piloto_14)
   albahuruplarsen: '/pilotos/DRV_0001.jpg',
   albalarsen: '/pilotos/DRV_0001.jpg',
   alessandropierguidi: '/pilotos/DRV_0081.jpg',
@@ -178,7 +184,8 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   emmafelbermayr: '/pilotos/DRV_0010.jpg',
   enzofittipaldi: '/pilotos/DRV_0149.jpg',
   esmeekosterman: '/pilotos/DRV_0092.jpg',
-  freddieslater: '/pilotos/DRV_0150.jpg', // arquivo real validado: DRV_0150.jpg
+  freddieslater: '/pilotos/DRV_0150.jpg', // arquivo real no GitHub/repo: DRV_0150.jpg
+  drvdrv0150: '/pilotos/DRV_0150.jpg',
   gabrielemini: '/pilotos/DRV_0013.jpg',
   heliocastroneves: '/pilotos/DRV_0151.jpg',
   alexalbon: '/pilotos/DRV_0041.jpg',
@@ -187,7 +194,7 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   antoniofelixdacosta: '/pilotos/DRV_0044.jpg',
   andrelotterer: '/pilotos/DRV_0003.jpg',
 
-  // Felipe Albuquerque -> usar Piloto-xx.jpg da pasta pilotos-gerados (Piloto_14 = masculino no catálogo GÊNERO-PILOTOS-01)
+  // Felipe Albuquerque -> usar Piloto_xx.jpg em "pilotos-gerados" (Piloto_14 masculino)
   felipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
   filipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
   'mbj-122': '/pilotos-gerados/Piloto_14.jpg',

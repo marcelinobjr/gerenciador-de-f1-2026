@@ -70,4 +70,54 @@ describe('PIL-GH: Acceptance Tests — Deduplicação e Identidade Canônica', (
     expect(frijnsEntries.length).toBe(1)
     expect(frijnsEntries[0].name).toBe('Robin Frijns')
   })
+
+  // Testes de Resolução de Fotos Bloco 1
+  it('Resolve fotos do Bloco 1 para arquivos físicos válidos em public', () => {
+    const bloco1Map: Record<string, string> = {
+      'Alba Hurup Larsen': '/pilotos/DRV_0001.jpg',
+      'Alessandro Pier Guidi': '/pilotos/DRV_0081.jpg',
+      'Alex Dunne': '/pilotos/DRV_0042.jpg',
+      'Alex Lynn': '/pilotos/DRV_0138.jpg',
+      'Alisha Palmowski': '/pilotos/DRV_0082.jpg',
+      'Amauri Cordell': '/pilotos/DRV_0083.jpg',
+      'Antonio Fuoco': '/pilotos/DRV_0084.jpg',
+      'Ava Dobson': '/pilotos/DRV_0086.jpg',
+      'Brad Keselowiski': '/pilotos/DRV_0004.jpg',
+      'Callum Hedge': '/pilotos/DRV_0088.jpg',
+      'Callum Llott': '/pilotos/DRV_0139.jpg',
+      'Callum Voisin': '/pilotos/DRV_0140.jpg',
+      'Chase Elliott': '/pilotos/DRV_0006.jpg',
+      'Christian Mansell': '/pilotos/DRV_0141.jpg',
+      'Christopher Bell': '/pilotos/DRV_0048.jpg',
+      'Connor de Phillippi': '/pilotos/DRV_0142.jpg',
+      'Dane Cameron': '/pilotos/DRV_0143.jpg',
+      'Daniil Kvyat': '/pilotos/DRV_0136.jpg',
+      'Dennis Hauger': '/pilotos/DRV_0144.jpg',
+      'Denny Hamlin': '/pilotos/DRV_0051.jpg',
+      'Dries Vanthoor': '/pilotos/DRV_0145.jpg',
+      'Earl Bamber': '/pilotos/DRV_0146.jpg',
+      'Edoardo Mortara': '/pilotos/DRV_0090.jpg',
+      'Ella Lloyd': '/pilotos/DRV_0091.jpg',
+      'Ella Stevens': '/pilotos/DRV_0147.jpg',
+      'Emerson Fittipaldi Jr.': '/pilotos/DRV_0148.jpg',
+      'Emma Felbermayr': '/pilotos/DRV_0010.jpg',
+      'Enzo Fittipaldi': '/pilotos/DRV_0149.jpg',
+      'Esmee Kosterman': '/pilotos/DRV_0092.jpg',
+      'Felipe Albuquerque': '/pilotos-gerados/Piloto_14.jpg',
+      'Freddie Slater': '/pilotos/DRV_0150.jpg',
+      'Gabriele Mini': '/pilotos/DRV_0013.jpg',
+      'Helio Castroneves': '/pilotos/DRV_0151.jpg',
+    }
+
+    for (const [name, expectedPath] of Object.entries(bloco1Map)) {
+      const resolved = resolveCanonicalDriverImagePath(null, name)
+      expect(resolved, `Path para ${name} não deveria ser nulo`).toBe(expectedPath)
+      const photo = resolveDriverPhoto({ name })
+      expect(photo.url).toBe(expectedPath)
+
+      // Prova de existência do arquivo local
+      const physicalPath = path.resolve(process.cwd(), 'public', expectedPath.replace(/^\//, ''))
+      expect(fs.existsSync(physicalPath), `Arquivo físico ${physicalPath} deve existir`).toBe(true)
+    }
+  })
 })
