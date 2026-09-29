@@ -350,17 +350,56 @@ Quando o combustível chega a 0:
 
 ---
 
-#### Regra Futura (Documentação formal para RACE-PROVENANCE-AUDIT-02A2-D1 — NÃO IMPLEMENTAR AGORA):
+#### D1 — Correção implementada (RACE-PROVENANCE-AUDIT-02A2-D1)
 
-Se o carro não possuir combustível suficiente para completar a próxima volta (ou ao esgotar `fuel <= 0` durante a volta), o motor deverá tratar o esgotamento como evento esportivo canônico:
+Implementação da regra canônica de abandono por exaustão de combustível (Pane Seca):
 
-1. Cessar a simulação de novas voltas para o piloto.
-2. Definir `drv.raceStatus = 'dnf'`, `drv.isDnf = true`, `drv.dnfReason = 'OUT_OF_FUEL'`.
-3. Registrar a volta de abandono (`drv.dnfLap = targetLap`).
-4. Preservar `completedLaps` e o tempo acumulado `raceTime` até a volta do abandono.
-5. Classificar o piloto junto aos demais abandonos da prova (critério de voltas completadas / tempo).
-6. Persistir no `CanonicalRaceState` e em `race_results` com status `'dnf'`.
-7. O reload do estado não poderá ressuscitar o carro.
+1. **Regra Esportiva Implementada:**
+   - Se após o cálculo e aplicação do consumo da volta o combustível zera (`fuel === 0`):
+     - **Caso da Última Volta:** Se `newLapsCompleted >= totalLaps`, o carro cruzou a linha de chegada na última volta e concluiu a corrida normalmente (`raceStatus: 'finished'`, `isDnf: false/undefined`).
+     - **Caso Antes do Fim da Prova:** Se `newLapsCompleted < totalLaps`, o carro não possui combustível suficiente para realizar a volta seguinte. É marcado imediatamente como abandono canônico:
+       - `raceStatus = 'dnf'`
+       - `isDnf = true`
+       - `dnfReason = 'OUT_OF_FUEL'`
+       - `dnfLap = targetLap`
+       - `gap = 'ABANDONO'`
+   - Nenhuma volta posterior é executada para carros em DNF (`intermediateDrivers` filtra e congela).
+   - Voltas já completadas (`lap`) e tempo acumulado (`raceTime`) são rigorosamente preservados.
+   - O consumo nunca gera fuel negativo (`Math.max(0, ...)` mantido).
+   - O Race Control é acionado com `reason = CANONICAL_DNF_REASON_OUT_OF_FUEL` para eventual resolução de bandeira/neutralização.
+
+2. **Arquivos Alterados:**
+   - `src/types/canonical-race-v2.ts`: Definição de `CANONICAL_DNF_REASON_OUT_OF_FUEL = 'OUT_OF_FUEL'` e tipo `CanonicalDnfReason`.
+   - `src/services/canonicalRaceEngineService.ts`: Integração da transição para DNF por falta de combustível em `advanceOneLap()`.
+   - `src/__tests__/race-provenance-audit-02a2-d0.test.ts`: Atualização das asserções de D0 para refletir o novo comportamento canônico.
+   - `src/__tests__/race-provenance-audit-02a2-d1.test.ts`: Criação da suíte de testes D1-01 a D1-12.
+   - `package.json`: Bump de versão para `v0.0.669`.
+
+3. **Reason Canônico:**
+   - `'OUT_OF_FUEL'` (exportado como `CANONICAL_DNF_REASON_OUT_OF_FUEL`).
+
+4. **Comportamento Limite:**
+   - Fuel suficiente: corrida e classificação normais.
+   - Fuel chega a 0 antes do fim: transiciona para DNF `OUT_OF_FUEL` e não executa voltas seguintes.
+   - Fuel chega a 0 exatamente na última volta: classificado como `finished`, não DNF.
+   - Fuel menor que o consumo da volta: consome até 0, clampa em 0, completa a volta em curso e abandona antes da próxima.
+
+5. **Fixture Mínima D0 — Antes vs Depois:**
+   - **Antes (D0 - Diagnóstico):**
+     - Lap 1: 5.00 → 3.25 kg, racing
+     - Lap 2: 3.25 → 1.50 kg, racing
+     - Lap 3: 1.50 → 0.00 kg, racing
+     - Laps 4–6: 0.00 kg, racing (corria sem combustível)
+     - Lap 6: 0.00 kg, finished
+   - **Depois (D1 - Corrigido):**
+     - Lap 1: 5.00 → 3.25 kg, racing
+     - Lap 2: 3.25 → 1.50 kg, racing
+     - Lap 3: 1.50 → 0.00 kg → DNF / OUT_OF_FUEL
+     - Laps 4–6: Carro congelado em DNF, 0 voltas adicionais, tempo congelado.
+
+6. **Testes e Validação:**
+   - Suíte D1: D1-01 a D1-12 implementados e 100% aprovados.
+   - Persistência e reload validados com preservação de DNF e `fuel = 0`.
 
 ---
 

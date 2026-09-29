@@ -34,10 +34,11 @@
  *    - Base 2026 permanece intocada
  */
 
-import type {
-  CanonicalRaceState,
-  CanonicalRaceDriverState,
-  CanonicalRaceStatus,
+import {
+  CANONICAL_DNF_REASON_OUT_OF_FUEL,
+  type CanonicalRaceState,
+  type CanonicalRaceDriverState,
+  type CanonicalRaceStatus,
 } from '@/types/canonical-race-v2'
 import type { TireCompound } from '@/types/f1'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
@@ -897,6 +898,78 @@ export class CanonicalRaceEngineService {
         isGreenPace && (!drv.bestLapSec || effectiveLapTime < drv.bestLapSec)
           ? effectiveLapTime
           : drv.bestLapSec
+
+      // REGRA ESPORTIVA CANÔNICA DE COMBUSTÍVEL (RACE-PROVENANCE-AUDIT-02A2-D1):
+      // Se após o consumo da volta o combustível zera (fuel === 0):
+      // - Se completou a prova (newLapsCompleted >= totalLaps), não é DNF (cruzou a bandeirada na última volta);
+      // - Se ainda restam voltas (newLapsCompleted < totalLaps), o carro não tem combustível suficiente para
+      //   completar a próxima volta e transiciona imediatamente para DNF com reason canônico OUT_OF_FUEL.
+      const isOutOfFuelBeforeFinish = newFuel === 0 && newLapsCompleted < totalLaps
+
+      if (isOutOfFuelBeforeFinish) {
+        nextEvents.push({
+          id: `ev_dnf_fuel_${targetLap}_${drv.driverId}`,
+          lap: targetLap,
+          type: 'dnf',
+          message: `🚨 ABANDONO: ${drv.driverName} (${drv.teamName}) — Falta de Combustível (Pane Seca)`,
+          driverId: drv.driverId,
+          driverName: drv.driverName,
+          teamColor: drv.teamColor,
+          timestamp: timestampStr,
+        })
+
+        const rcResponse = raceControlService.resolveRaceControlResponse(
+          {
+            type: 'dnf',
+            driver: drv,
+            reason: CANONICAL_DNF_REASON_OUT_OF_FUEL,
+            lap: targetLap,
+          },
+          rng,
+        )
+
+        if (rcResponse && rcState.currentFlag === 'GREEN') {
+          const trans = raceControlService.transitionStatus(rcState, rcResponse.targetStatus, {
+            lap: targetLap,
+            reason: rcResponse.reason,
+            severity: rcResponse.severity,
+            sector: rcResponse.sector,
+            durationLaps: rcResponse.durationLaps,
+            affectedDriverId: drv.driverId,
+            affectedDriverName: drv.driverName,
+            driversOrder: prevOrder,
+            customMessage: rcResponse.message,
+          })
+          rcState = trans.updatedRc
+          trans.newEvents.forEach((ev) => {
+            nextEvents.push({
+              id: ev.id,
+              lap: ev.lap,
+              type: 'incident',
+              message: ev.message,
+              timestamp: ev.timestamp,
+            })
+          })
+        }
+
+        return {
+          ...drv,
+          lap: newLapsCompleted,
+          raceTime: Number(newAccumulatedTime.toFixed(3)),
+          lastLapTimeSec: effectiveLapTime,
+          lastLapTimeFormatted: formatLapTime(effectiveLapTime),
+          bestLapSec,
+          bestLapFormatted: bestLapSec ? formatLapTime(bestLapSec) : undefined,
+          tyreAge: newTyreAge,
+          fuel: 0,
+          carCondition: newCondition,
+          raceStatus: 'dnf',
+          isDnf: true,
+          dnfReason: CANONICAL_DNF_REASON_OUT_OF_FUEL,
+          dnfLap: targetLap,
+          gap: 'ABANDONO',
+        }
+      }
 
       return {
         ...drv,

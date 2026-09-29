@@ -57,18 +57,20 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
     expect(dLap2.fuel).toBeLessThan(dLap1.fuel)
     expect(dLap2.raceStatus).toBe('racing')
 
-    // Volta 3: Combustível esgota (fuel era menor que consumo de ~1.75 kg) -> clampa exatamente em 0
+    // Volta 3: Combustível esgota (fuel era menor que consumo de ~1.75 kg) -> clampa em 0 e agora vira DNF
     const stateLap3 = canonicalRaceEngineService.advanceOneLap(stateLap2, {
       seedOverride: 44,
       persistState: false,
     })
     const dLap3 = stateLap3.drivers.find((d) => d.driverId === p1.driverId)!
     expect(dLap3.fuel).toBe(0)
-    expect(dLap3.raceStatus).toBe('racing') // Prova D5: Não abandona!
+    expect(dLap3.raceStatus).toBe('dnf') // D1: Agora abandona!
+    expect(dLap3.isDnf).toBe(true)
+    expect(dLap3.dnfReason).toBe('OUT_OF_FUEL')
   })
 
-  it('D5..D7: prova que com fuel = 0 o carro continua recebendo simulação, tempos e voltas sem DNF', () => {
-    // Forçar piloto com fuel = 0 no estado inicial
+  it('D5..D7: prova que com fuel = 0 antes do fim da prova a volta termina em DNF OUT_OF_FUEL', () => {
+    // Forçar piloto com fuel = 0 no estado inicial (corrida de 6 voltas)
     const stateWithZeroFuel: CanonicalRaceState = {
       ...baseState,
       drivers: baseState.drivers.map((d) => ({
@@ -77,7 +79,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
       })),
     }
 
-    // Executar volta com fuel = 0
+    // Executar volta com fuel = 0: completa a volta 1, clampa em 0 e transiciona para DNF
     const nextState = canonicalRaceEngineService.advanceOneLap(stateWithZeroFuel, {
       seedOverride: 100,
       persistState: false,
@@ -85,25 +87,16 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
 
     const driver = nextState.drivers[0]
 
-    // A. carro continua recebendo lap simulation? SIM.
+    // Completa a volta 1 mas abandona
     expect(driver.lap).toBe(1)
-    // B. tempo de volta continua sendo calculado? SIM.
-    expect(driver.lastLapTimeSec).toBeGreaterThan(0)
-    expect(driver.raceTime).toBeGreaterThan(0)
-    // C. posição continua sendo atualizada? SIM.
-    expect(driver.currentPosition).toBeGreaterThanOrEqual(1)
-    // D. completedLaps continua subindo? SIM.
-    expect(driver.lap).toBe(1)
-    // E. status continua RUNNING/ACTIVE? SIM (racing).
-    expect(driver.raceStatus).toBe('racing')
-    // F. algum DNF é disparado? NÃO.
-    expect(driver.isDnf).toBeFalsy()
-    expect(driver.dnfReason).toBeUndefined()
-    expect(driver.fuel).toBe(0) // Clamped em 0
+    expect(driver.raceStatus).toBe('dnf')
+    expect(driver.isDnf).toBe(true)
+    expect(driver.dnfReason).toBe('OUT_OF_FUEL')
+    expect(driver.fuel).toBe(0)
   })
 
-  it('Passo 7 (Teste de Limite): fuel restante > 0 mas < consumo da volta permite iniciar volta e clampa em 0', () => {
-    // Configurar fuel para 0.5 kg (menor que consumo nominal de 1.75 kg)
+  it('Passo 7 (Teste de Limite): fuel restante > 0 mas < consumo da volta permite completar volta e transiciona para DNF', () => {
+    // Configurar fuel para 0.5 kg (menor que consumo nominal de 1.75 kg em prova de 6 voltas)
     const stateLowFuel: CanonicalRaceState = {
       ...baseState,
       drivers: baseState.drivers.map((d) => ({
@@ -118,20 +111,25 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
     })
 
     const driver = stateAfterLap.drivers[0]
-    // Comportamento comprovado: (1) permite iniciar a volta e clampa depois em 0
+    // Comportamento canônico D1: permite completar a volta, clampa em 0 e marca DNF
     expect(driver.fuel).toBe(0)
     expect(driver.lap).toBe(1)
-    expect(driver.raceStatus).toBe('racing')
-    expect(driver.isDnf).toBeFalsy()
+    expect(driver.raceStatus).toBe('dnf')
+    expect(driver.isDnf).toBe(true)
+    expect(driver.dnfReason).toBe('OUT_OF_FUEL')
   })
 
-  it('D8..D9: prova save/reload com fuel = 0 preserva estado ativo e fuel zero', () => {
-    // Gerar estado com fuel = 0
+  it('D8..D9: prova save/reload preserva DNF e fuel zero', () => {
+    // Gerar estado com fuel = 0 e status dnf
     const stateWithZeroFuel: CanonicalRaceState = {
       ...baseState,
       drivers: baseState.drivers.map((d) => ({
         ...d,
         fuel: 0,
+        raceStatus: 'dnf',
+        isDnf: true,
+        dnfReason: 'OUT_OF_FUEL',
+        dnfLap: 1,
       })),
     }
 
@@ -147,14 +145,15 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
     expect(loadedState).not.toBeNull()
 
     const loadedDriver = loadedState!.drivers[0]
-    // D8: fuel restante persiste corretamente? SIM (0).
+    // D8: fuel restante persiste corretamente (0)
     expect(loadedDriver.fuel).toBe(0)
-    // D9: se carro continua ativo com fuel zero, reload mantém esse estado? SIM.
-    expect(loadedDriver.raceStatus).toBe('racing')
-    expect(loadedDriver.isDnf).toBeFalsy()
+    // D9: reload mantém DNF
+    expect(loadedDriver.raceStatus).toBe('dnf')
+    expect(loadedDriver.isDnf).toBe(true)
+    expect(loadedDriver.dnfReason).toBe('OUT_OF_FUEL')
   })
 
-  it('Passo 5: executa fixture determinística completa de 6 voltas e valida comportamento', () => {
+  it('Passo 5 (Evolução D1): antiga fixture determinística agora gera DNF na volta 3 e bloqueia voltas 4-6', () => {
     let currentState = baseState
     const lapLog: Array<{
       lap: number
@@ -162,6 +161,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
       fuelAfter: number
       status: string
       isDnf: boolean
+      dnfReason?: string
     }> = []
 
     for (let lap = 1; lap <= 6; lap++) {
@@ -177,22 +177,33 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
         fuelAfter: driver.fuel,
         status: driver.raceStatus,
         isDnf: !!driver.isDnf,
+        dnfReason: driver.dnfReason,
       })
     }
 
-    // Verificar que na volta 3 ou 4 o combustível zera e permanece 0
+    // Lap 1: 5.00 -> ~3.25, racing
     expect(lapLog[0].fuelAfter).toBeLessThan(5.0)
+    expect(lapLog[0].status).toBe('racing')
+    expect(lapLog[0].isDnf).toBe(false)
+
+    // Lap 2: 3.25 -> ~1.50, racing
+    expect(lapLog[1].fuelAfter).toBeLessThan(lapLog[0].fuelAfter)
+    expect(lapLog[1].status).toBe('racing')
+    expect(lapLog[1].isDnf).toBe(false)
+
+    // Lap 3: 1.50 -> 0.00 -> DNF OUT_OF_FUEL
     expect(lapLog[2].fuelAfter).toBe(0)
-    expect(lapLog[3].fuelAfter).toBe(0)
-    expect(lapLog[4].fuelAfter).toBe(0)
-    expect(lapLog[5].fuelAfter).toBe(0)
+    expect(lapLog[2].status).toBe('dnf')
+    expect(lapLog[2].isDnf).toBe(true)
+    expect(lapLog[2].dnfReason).toBe('OUT_OF_FUEL')
 
-    // Verificar que em nenhuma volta houve DNF
-    lapLog.forEach((log) => {
-      expect(log.isDnf).toBe(false)
-    })
-
-    // Na volta 6, por ser a última volta da corrida (totalLaps = 6), status vira 'finished'
-    expect(lapLog[5].status).toBe('finished')
+    // Laps 4-6: NÃO executadas para esse carro (permanece congelado em DNF / 0 fuel / lap 3)
+    expect(lapLog[3].status).toBe('dnf')
+    expect(lapLog[3].isDnf).toBe(true)
+    expect(lapLog[4].status).toBe('dnf')
+    expect(lapLog[4].isDnf).toBe(true)
+    expect(lapLog[5].status).toBe('dnf')
+    expect(lapLog[5].isDnf).toBe(true)
+    expect(currentState.drivers[0].lap).toBe(3)
   })
 })

@@ -32,6 +32,12 @@ export type CanonicalRaceStatus =
 export type CanonicalDriverRaceStatus = 'racing' | 'in_pit' | 'dnf' | 'finished' | 'disqualified'
 
 /**
+ * Razão canônica de DNF por exaustão de combustível (Pane Seca).
+ */
+export const CANONICAL_DNF_REASON_OUT_OF_FUEL = 'OUT_OF_FUEL' as const
+export type CanonicalDnfReason = typeof CANONICAL_DNF_REASON_OUT_OF_FUEL | string
+
+/**
  * FW2.1E-C: Status Canônico Unificado de Race Control.
  * Enum único para todo o controle de corrida.
  */
