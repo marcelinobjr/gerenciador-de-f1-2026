@@ -35,6 +35,7 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   // Gabriele Mini
   'gabriele mini': 'Gabriele Mini',
   'gabriele minì': 'Gabriele Mini',
+  'gabriele miní': 'Gabriele Mini',
   'gabriele mini ': 'Gabriele Mini',
 
   // Brad Keselowski
