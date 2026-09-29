@@ -134,7 +134,7 @@ export function getCanonicalDisplayName(name: string): string {
  * Mapeamento direto de nomes normalizados (ou IDs) para arquivo de foto em public/pilotos ou public/pilotos-gerados
  */
 export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
-  // === BLOCO 1 — CP1 (PRIMEIROS 10 MAPPINGS CANÔNICOS VALIDADOS) ===
+  // === BLOCO 1 — CP1 (PRIMEIROS 10 MAPPINGS CANÔNICOS VALIDADOS: PILOTOS-FOTOS-GITHUB-01B-CP1) ===
   // 1. Alba Hurup Larsen -> DRV_0001.jpg
   albahuruplarsen: '/pilotos/DRV_0001.jpg',
   albalarsen: '/pilotos/DRV_0001.jpg',

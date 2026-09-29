@@ -10,7 +10,7 @@ import {
 
 /**
  * Suite de Testes Focada: PILOTOS-FOTOS-GITHUB-01B-CP1
- * 
+ *
  * Bloco 1 - Primeiros 10 Pilotos Canônicos Mapeados:
  * 1. Alba Hurup Larsen -> DRV_0001.jpg
  * 2. Alessandro Pier Guidi -> DRV_0081.jpg
@@ -48,7 +48,9 @@ describe('PILOTOS-FOTOS-GITHUB-01B-CP1: Primeiros 10 Mappings Canônicos', () =>
       expect(resolved.sourceType).toBe('canonical_real')
 
       const canonicalPath = resolveCanonicalDriverImagePath(null, item.name)
-      expect(canonicalPath, `Path canônico não vazio para ${item.name}`).toBe(`/pilotos/${item.expectedFile}`)
+      expect(canonicalPath, `Path canônico não vazio para ${item.name}`).toBe(
+        `/pilotos/${item.expectedFile}`,
+      )
     }
   })
 
@@ -61,7 +63,9 @@ describe('PILOTOS-FOTOS-GITHUB-01B-CP1: Primeiros 10 Mappings Canônicos', () =>
     for (const item of CP1_MAPPINGS) {
       const filePath = path.resolve(pilotosDir, item.expectedFile)
       const fileExists = fs.existsSync(filePath)
-      expect(fileExists, `Arquivo físico ${item.expectedFile} deve existir em public/pilotos`).toBe(true)
+      expect(fileExists, `Arquivo físico ${item.expectedFile} deve existir em public/pilotos`).toBe(
+        true,
+      )
 
       const stat = fs.statSync(filePath)
       expect(stat.size, `Arquivo ${item.expectedFile} não pode ser vazio`).toBeGreaterThan(100)
