@@ -66,6 +66,38 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   // Felipe Albuquerque
   'felipe albuquerque': 'Felipe Albuquerque',
   'filipe albuquerque': 'Felipe Albuquerque',
+
+  // Aliases canônicos especificados na frente PILOTOS-FOTOS-GITHUB-01
+  'nyck de vries': 'Nyck de Vries',
+  'nicky de vries': 'Nyck de Vries',
+  'rubens barichello': 'Rubens Barrichello',
+  'rubens barrichello': 'Rubens Barrichello',
+  'lucas di gassi': 'Lucas di Grassi',
+  'lucas di grassi': 'Lucas di Grassi',
+  'william bryon': 'William Byron',
+  'william byron': 'William Byron',
+  'jose maria lopez': 'José María López',
+  'josé maría lópez': 'José María López',
+  'jose maria lópez': 'José María López',
+  'patricio o’ward': "Pato O'Ward",
+  "patricio o'ward": "Pato O'Ward",
+  'pato o’ward': "Pato O'Ward",
+  "pato o'ward": "Pato O'Ward",
+  'rene rast': 'René Rast',
+  'rené rast': 'René Rast',
+  'noel león': 'Noel León',
+  'noel leon': 'Noel León',
+  'sebastián montoya': 'Sebastián Montoya',
+  'sebastian montoya': 'Sebastián Montoya',
+  'roman stanêk': 'Roman Staněk',
+  'roman stanek': 'Roman Staněk',
+  'roman staněk': 'Roman Staněk',
+  'kévin estre': 'Kévin Estre',
+  'kevin estre': 'Kévin Estre',
+
+  // Robin Frijns (WEC deve ser excluído ou unificado em Robin Frijns)
+  'robin frijns': 'Robin Frijns',
+  'robin frijns wec': 'Robin Frijns',
 }
 
 /**

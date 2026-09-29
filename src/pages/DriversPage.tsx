@@ -270,6 +270,14 @@ export default function DriversPage() {
 
     // 1. Processa todos os pilotos presentes no Banco de Dados
     for (const d of dbDrivers) {
+      // Regra de exclusão estrita: "Robin Frijns WEC" deve ser ignorado
+      if (
+        d.name.toLowerCase().trim() === 'robin frijns wec' ||
+        normalizeDriverNameToken(d.name) === 'robinfrijnswec'
+      ) {
+        continue
+      }
+
       const canKey = getDriverCanonicalKey(d.name)
 
       if (visitedCanonicalKeys.has(canKey)) {
@@ -440,6 +448,14 @@ export default function DriversPage() {
     // 2. Incorpora pilotos MBJ não cadastrados no banco para catálogo estático
     const currentSeasonYear = season?.year || 2026
     for (const pilot of MBJ_2026_PILOTS) {
+      // Regra de exclusão estrita: "Robin Frijns WEC" deve ser ignorado
+      if (
+        pilot.name.toLowerCase().trim() === 'robin frijns wec' ||
+        normalizeDriverNameToken(pilot.name) === 'robinfrijnswec'
+      ) {
+        continue
+      }
+
       const canKey = getDriverCanonicalKey(pilot.name)
       const normName = pilot.name.toLowerCase().trim()
       const normCanKey = normalizeDriverNameToken(getCanonicalDisplayName(pilot.name))
