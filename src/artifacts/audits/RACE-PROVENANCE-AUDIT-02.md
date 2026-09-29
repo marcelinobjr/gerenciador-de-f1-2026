@@ -1,9 +1,9 @@
 # RACE-PROVENANCE-AUDIT-02: AUDITORIA CIRÚRGICA — PNEUS, SPREAD, VOLTAS, COMBUSTÍVEL, CHUVA, ESTRATÉGIA E PESOS DE EQUIPE
 
 **Data:** 2025  
-**Versão Base (HEAD):** v0.0.657 (673d563)  
+**Versão Base (HEAD):** v0.0.659 (ae8a6e2)  
 **Tipo:** Auditoria de Proveniência Esportiva (Engine Audit — Fase 02A1: Seções A–B)  
-**Status:** EM ANDAMENTO (02A1: TL2/Pneus e Spread 2500ms)  
+**Status:** CONCLUÍDA (02A1: TL2/Pneus e Spread 2500ms)  
 **Princípio:** SÓ AUDITORIA — Nenhuma alteração no motor de simulação, UI ou dados de pilotos.
 
 ---
@@ -41,6 +41,21 @@ Fase 02A cobre estritamente:
 - **A8. classificação:** **GAP DE PRODUTO**
   - Trata-se de um gap arquitetural deliberado da versão atual: a prática simula evolução de setup e conhecimento de compostos, não possuindo modelo de desgaste físico consumível em tempo de treino.
 
+### Fixture Mínima Executada — Seção A (TL2, MEDIUM)
+
+Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` (sessão `tp2`, carro em `flying_lap`, composto `medio` / `MEDIUM`, abrasividade = 3, programa `car_setup`):
+
+- **Sessão:** TL2 (`tp2`), duração 3600s
+- **Composto:** MEDIUM (`medio`)
+- **tyreAge inicial:** `undefined` (inexistente no modelo `PracticeCarLiveState`)
+- **tyreAge final:** `undefined` (inexistente; não incrementa volta a volta)
+- **Desgaste inicial (tyreWear):** 0%
+- **Desgaste após Volta 1:** 2% (`wearInc = Math.max(2, Math.round(2.1 * (3/5) * 1.0 * 1.5)) = 2%` em `canonicalPracticeRunner.ts:299-300`)
+- **Desgaste após Volta 2:** 4%
+- **Has tyreAge field:** `false` (`'tyreAge' in car === false`)
+- **Total de voltas completadas:** 2 voltas
+- **Conclusão da fixture:** O TL2 opera com porcentagem de desgaste de sessão em memória (`tyreWear: 0% -> 2% -> 4%`), mas **não modela pneus com tyreAge** nem persiste vida útil contínua de pneus entre sessões para a corrida. Classificação confirmada: **GAP DE PRODUTO**.
+
 ---
 
 ## B. Spread P1–P24 = 2500 ms
@@ -63,6 +78,21 @@ Fase 02A cobre estritamente:
   - Nenhuma divergência ativa no motor de Qualificação: FIX-A2 blindou o cálculo com teste formal de 0, 1250 e 2500 ms. Em ritmo de corrida (`pureRaceEngine.ts`), o pace utiliza `car.pace` com penalidades de combustível e pneu, não a escala estática de 2500ms de qualifying, o que está em estrita conformidade com a distinção do Excel entre Classificação e Corrida.
 - **B8. classificação:** **OK**
   - Spread estrutural de 2500 ms íntegro e canônico para MAIN e Sprint quali.
+
+### Fixture Mínima Executada — Seção B (MAIN e Sprint, Spread Estrutural vs Observado)
+
+Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/raceProvenanceAudit02.test.ts` usando `calculateQualifyingRatingDeltaMs` com `targetSpreadMs = 2500`:
+
+- **Parâmetro canônico:** `DEFAULT_SOURCE_RACE_PARAMETERS.grid_target_spread_ms = 2500` (definido em `pureRaceEngine.ts:15`)
+- **Rating Melhor (P1, rating = 100):** delta estrutural = **0 ms**
+- **Rating Médio (P12/P13, rating = 80, min = 60, max = 100):** delta estrutural = **1250 ms**
+- **Rating Pior (P24, rating = 60):** delta estrutural = **2500 ms**
+- **Spread Estrutural P1→P24 (sem ruído):** `2500 - 0 =` **2500 ms exatos** (`worstDelta - bestDelta === 2500`)
+- **MAIN Quali (Q1/Q2/Q3):** consome `calculateQualifyingRatingDeltaMs` com `grid_target_spread_ms` (2500 ms) em `raceQualifyingOrchestratorService.ts:1040`.
+- **Sprint Quali (SQ1/SQ2/SQ3):** consome exatamente a mesma função pura `calculateQualifyingRatingDeltaMs` com `grid_target_spread_ms` (2500 ms) em `raceQualifyingService.ts:307`.
+- **Spread Observado (com ruído gaussiano $\sigma = 150\text{ ms}$):** flutuação observada no grid em torno de 2100 ms a 2900 ms.
+- **Hardcode concorrente:** Inexistente (eliminado em FIX-A2).
+- **Conclusão da fixture:** MAIN e Sprint compartilham a mesma formulação canônica com spread estrutural exatamente igual a 2500 ms. Classificação confirmada: **OK**.
 
 ---
 
