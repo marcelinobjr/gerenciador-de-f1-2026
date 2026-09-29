@@ -120,9 +120,9 @@ describe('Base Canônica de Pilotos 2026 & Catálogo de Fotos', () => {
     expect(resNewgen13.sourceType).toBe('generated_procedural')
   })
 
-  it('catálogo gerado possui exatamente 13 perfis', () => {
-    expect(GENERATED_DRIVER_PORTRAIT_PROFILES.length).toBe(13)
-    for (let i = 1; i <= 13; i++) {
+  it('catálogo gerado possui exatamente 53 perfis', () => {
+    expect(GENERATED_DRIVER_PORTRAIT_PROFILES.length).toBe(53)
+    for (let i = 1; i <= 53; i++) {
       const pad = String(i).padStart(2, '0')
       const p = getGeneratedDriverPortraitProfile(`GEN_${pad}`)
       expect(p).toBeDefined()
