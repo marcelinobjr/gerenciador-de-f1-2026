@@ -160,6 +160,16 @@ export const DRIVER_PORTRAIT_ASSET_MAP = {
   drv_robert_shwartzman: 'DRV_0177',
   drv_robin_frijns: 'DRV_0178',
   drv_romain_grosjean: 'DRV_0179',
+  drv_sheldon_van_der_linde: 'DRV_0180',
+  drv_takuma_sato: 'DRV_0181',
+  drv_tim_tramnitz: 'DRV_0182',
+  drv_tom_blomqvist: 'DRV_0183',
+  drv_tony_kanaan: 'DRV_0184',
+  drv_tuukka_taponen: 'DRV_0185',
+  drv_ugo_ugochukwu: 'DRV_0186',
+  drv_will_stevens: 'DRV_0187',
+  drv_zak_o_sullivan: 'DRV_0188',
+  drv_zak_osullivan: 'DRV_0188',
 } as const
 
 export type CanonicalPortraitDriverId = keyof typeof DRIVER_PORTRAIT_ASSET_MAP

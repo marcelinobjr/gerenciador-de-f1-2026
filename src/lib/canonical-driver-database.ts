@@ -155,6 +155,29 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   drv_robin_frijns: 'DRV_0178',
   'mbj-130': 'DRV_0179', // 60. Romain Grosjean
   drv_romain_grosjean: 'DRV_0179',
+
+  // BUG-PILOTOS-01B-CP7: Lote dos 10 pilotos (Sheldon van der Linde a Zak O'Sullivan)
+  'mbj-116': 'DRV_0180', // 61. Sheldon van der Linde
+  drv_sheldon_van_der_linde: 'DRV_0180',
+  'mbj-132': 'DRV_0181', // 62. Takuma Sato
+  drv_takuma_sato: 'DRV_0181',
+  'mbj-075': 'DRV_0182', // 63. Tim Tramnitz
+  drv_tim_tramnitz: 'DRV_0182',
+  'mbj-125': 'DRV_0183', // 64. Tom Blomqvist
+  drv_tom_blomqvist: 'DRV_0183',
+  'mbj-135': 'DRV_0184', // 65. Tony Kanaan
+  drv_tony_kanaan: 'DRV_0184',
+  'mbj-068': 'DRV_0185', // 66. Tuukka Taponen
+  drv_tuukka_taponen: 'DRV_0185',
+  'mbj-070': 'DRV_0186', // 67. Ugo Ugochukwu
+  drv_ugo_ugochukwu: 'DRV_0186',
+  'mbj-101': 'DRV_0187', // 68. Will Stevens
+  drv_will_stevens: 'DRV_0187',
+  'mbj-058': 'DRV_0188', // 69. Zak O'Sullivan
+  drv_zak_o_sullivan: 'DRV_0188',
+  drv_zak_osullivan: 'DRV_0188',
+  'mbj-136': 'DRV_0189', // 70. Sébastien Bourdais
+  drv_sebastien_bourdais: 'DRV_0189',
 }
 
 for (const pilot of MBJ_2026_PILOTS) {

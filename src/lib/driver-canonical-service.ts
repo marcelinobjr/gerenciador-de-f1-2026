@@ -114,6 +114,20 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   'ricky taylor': 'Ricky Taylor',
   'robert shwartzman': 'Robert Shwartzman',
   'romain grosjean': 'Romain Grosjean',
+
+  // CP7 ALIASES CANÔNICOS
+  'sheldon van der linde': 'Sheldon van der Linde',
+  'takuma sato': 'Takuma Sato',
+  'tim tramnitz': 'Tim Tramnitz',
+  'tom blomqvist': 'Tom Blomqvist',
+  'tony kanaan': 'Tony Kanaan',
+  'tuukka taponen': 'Tuukka Taponen',
+  'ugo ugochukwu': 'Ugo Ugochukwu',
+  'will stevens': 'Will Stevens',
+  "zak o'sullivan": "Zak O'Sullivan",
+  'zak osullivan': "Zak O'Sullivan",
+  'sébastien bourdais': 'Sébastien Bourdais',
+  'sebastien bourdais': 'Sébastien Bourdais',
 }
 
 /**
@@ -398,8 +412,9 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   // 69. Zak O'Sullivan -> DRV_0188.jpg
   zakosullivan: '/pilotos/DRV_0188.jpg',
   zakosulivan: '/pilotos/DRV_0188.jpg',
-  // 70. Noah Taylor -> Piloto_58.jpg
-  noahtaylor: '/pilotos-gerados/Piloto_58.jpg',
+  // 70. Sébastien Bourdais -> DRV_0189.jpg
+  sebastienbourdais: '/pilotos/DRV_0189.jpg',
+  sébastienbourdais: '/pilotos/DRV_0189.jpg',
 
   // Chaves MBJ e PocketBase diretas
   'mbj-122': '/pilotos-gerados/Piloto_14.jpg',
@@ -456,7 +471,17 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-084': '/pilotos/DRV_0178.jpg',
   'mbj-087': '/pilotos/DRV_0178.jpg',
   'mbj-130': '/pilotos/DRV_0179.jpg',
-  'mbj-132': '/pilotos/DRV_0179.jpg',
+  'mbj-132': '/pilotos/DRV_0181.jpg',
+
+  // CP7 direct ID keys
+  'mbj-116': '/pilotos/DRV_0180.jpg',
+  'mbj-075': '/pilotos/DRV_0182.jpg',
+  'mbj-125': '/pilotos/DRV_0183.jpg',
+  'mbj-068': '/pilotos/DRV_0185.jpg',
+  'mbj-070': '/pilotos/DRV_0186.jpg',
+  'mbj-101': '/pilotos/DRV_0187.jpg',
+  'mbj-058': '/pilotos/DRV_0188.jpg',
+  'mbj-136': '/pilotos/DRV_0189.jpg',
 }
 
 /**
