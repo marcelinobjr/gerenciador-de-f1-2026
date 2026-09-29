@@ -641,27 +641,49 @@ Implementação da camada visual de alta prioridade para o jogador resolver `pen
 - Suporte total a recarregamento de página: `loadCanonicalRaceState` restaura o modal e preserva decisões já salvas para um carro enquanto o outro aguarda escolha.
 - Proteção contra double click: botões exibem estado de carregamento (`Loader2`), desabilitam reentrância e isolam erros sem alterar o estado local.
 
-#### 6. Cobertura de Testes E1B (18/18)
+#### 6. Cobertura de Testes E1B (18/18 PASS — Números Reais Homologados)
+- `src/__tests__/race-provenance-audit-02b-e1b.test.tsx`: **18/18 PASS (100%)**
+  - **E1B-01 (PASS):** Modal aparece quando `raceStatus = awaiting_player_weather_decision`.
+  - **E1B-02 (PASS):** Modal não aparece em corrida normal (`running`).
+  - **E1B-03 (PASS):** DRY→WET mostra exclusivamente pneus molhados (Intermediário e Chuva Extrema).
+  - **E1B-04 (PASS):** DRY→WET não mostra slicks (Macio/Médio/Duro ausentes).
+  - **E1B-05 (PASS):** WET→DRY mostra pneus secos (Macio, Médio e Duro).
+  - **E1B-06 (PASS):** WET→DRY não mostra pneus de chuva (Intermediário e Extrema ausentes).
+  - **E1B-07 (PASS):** STAY_OUT despacha `submitWeatherDecision(driverId, 'STAY_OUT')` corretamente.
+  - **E1B-08 (PASS):** PIT_NOW desabilita confirmação até seleção de composto válido.
+  - **E1B-09 (PASS):** PIT_NOW envia composto selecionado e despacha ação canônica.
+  - **E1B-10 (PASS):** Dois carros humanos decidem de forma autônoma e divergente (ex: C1 PIT_NOW vs C2 STAY_OUT).
+  - **E1B-11 (PASS):** Decisão parcial mantém card do carro resolvido em "Decisão Concluída" e outro pendente.
+  - **E1B-12 (PASS):** Avanço de corrida permanece bloqueado enquanto houver decisão climática pendente.
+  - **E1B-13 (PASS):** Modal desmonta/fecha imediatamente após o backend concluir todas as pendências.
+  - **E1B-14 (PASS):** Reload do estado salvo restaura modal e estado `awaiting_player_weather_decision`.
+  - **E1B-15 (PASS):** Reload preserva estado de decisão parcial entre carros.
+  - **E1B-16 (PASS):** Falha ou rejeição no backend mantém estado pendente e exibe mensagem de erro.
+  - **E1B-17 (PASS):** Prevenção de double-click bloqueia múltiplos envios simultâneos para o mesmo piloto.
+  - **E1B-18 (PASS):** Fluxo canônico de pit manual fora de evento climático permanece 100% operacional.
 
-- `src/__tests__/race-provenance-audit-02b-e1b.test.tsx`:
-  - **E1B-01:** Modal aparece quando `raceStatus = awaiting_player_weather_decision`.
-  - **E1B-02:** Modal não aparece em corrida normal.
-  - **E1B-03:** DRY→WET mostra intermediário e chuva extrema.
-  - **E1B-04:** DRY→WET não mostra slicks.
-  - **E1B-05:** WET→DRY mostra macio/médio/duro.
-  - **E1B-06:** WET→DRY não mostra pneus de chuva.
-  - **E1B-07:** STAY_OUT chama `submitWeatherDecision` corretamente.
-  - **E1B-08:** PIT_NOW exige seleção de composto.
-  - **E1B-09:** PIT_NOW envia composto correto.
-  - **E1B-10:** Dois carros podem ter decisões diferentes.
-  - **E1B-11:** Um carro resolvido permanece marcado enquanto outro está pendente.
-  - **E1B-12:** Advance fica bloqueado enquanto há pending decision.
-  - **E1B-13:** Modal fecha somente quando backend remove pending decision.
-  - **E1B-14:** Reload restaura modal.
-  - **E1B-15:** Reload preserva decisão parcial.
-  - **E1B-16:** Erro de submit mantém decisão pendente.
-  - **E1B-17:** Double click não duplica submit.
-  - **E1B-18:** Fluxo normal de pit manual continua funcionando.
+#### 7. Resultados de QA e Homologação de Regressão
+- **Suíte E1B:** 18/18 PASS (100% dos testes unitários e de componente React).
+- **Suíte E1A (Regressão Backend):** 16/16 PASS (E1A-01 a E1A-16 intactos).
+- **Suíte E0 (Micro-auditoria Clima):** 2/2 PASS (DRY→WET e WET→DRY determinísticos).
+- **Suíte D0 & D1 (Fuel / Abandono):** 5/5 + 12/12 PASS (17/17 intactos).
+- **Suíte C1 (Micro-auditoria Calendário 24/24):** 3/3 PASS.
+- **QA Global da Aplicação:** Lint (oxlint), Typecheck (tsc), Vite Production Build e Testes Globais: **CLEAN (0 erros, 0 warnings de tipo, 0 falhas)**.
+
+#### 8. Validação de Fixtures no Preview
+- **Fixture DRY→WET (Volta 3 Chuva Fraca):**
+  - Voltas 1–2 em pista seca; na volta 3 a condição muda para chuva fraca.
+  - A corrida entra em `awaiting_player_weather_decision`, avanço bloqueado.
+  - Painel/modal exibe Carro 1 e Carro 2 de forma isolada.
+  - Carro 1 seleciona `PARAR AGORA` → `INTERMEDIÁRIO` → card exibe "Pit programado — INTERMEDIARIO".
+  - Carro 2 seleciona `CONTINUAR NA PISTA` → card exibe "Permanecerá na pista (Stay Out)".
+  - Painel fecha automaticamente após o 2º carro; corrida retoma em bandeira verde.
+- **Fixture WET→DRY (Volta 3 Seco):**
+  - Voltas 1–2 em pista molhada; na volta 3 a condição seca.
+  - Modal abre com opções `MACIO (C4)`, `MÉDIO (C3)` e `DURO (C1)`.
+  - Pneus de chuva não são exibidos no seletor.
+  - Decisões aplicadas independentemente; avanço da prova restabelecido.
+  - Nenhum erro em runtime (`console.error` zero) em ambos os fluxos.
 
 ## F. Estratégias por Piloto
 
