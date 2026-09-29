@@ -98,6 +98,23 @@ Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/racePr
 
 ## C. NÚMERO DE VOLTAS — 24 GPs (Tabela Canônica 24/24)
 
+### C0 — Localização das fontes de raceLaps
+
+- Fonte canônica:
+  - arquivo: `src/lib/f1-data.ts` (espelho canônico de `src/assets/01raceregraseparametros-3c0c5.json`)
+  - estrutura: `F1_2026_CALENDAR: GrandPrixInfo[]`
+  - campo: `laps: number`
+  - exemplo Bahrain: Bahrain (Round 4) = 57 voltas (`F1_2026_CALENDAR[3].laps = 57`)
+  - exemplo Abu Dhabi: Abu Dhabi (Round 24) = 58 voltas (`F1_2026_CALENDAR[23].laps = 58`)
+
+- Motor atual:
+  - arquivo: `src/services/canonicalRaceInitializationService.ts`
+  - função: `initializeRaceFromCanonicalGrid(params: InitializeCanonicalRaceParams): CanonicalRaceState`
+  - campo: `totalLaps: Math.max(1, totalLaps)` em `CanonicalRaceState.totalLaps` (alimentado pela UI em `WeekendV2Page.tsx:3133, 3160, 3194` via `gpInfo.laps || 57`)
+  - resolve por circuitId?: SIM (`circuit_01` a `circuit_24` pareado com `round` 1–24 de `F1_2026_CALENDAR`)
+  - fallback?: SIM
+  - valor fallback: 57 voltas (`gpInfo.laps || 57` em `WeekendV2Page.tsx` e fallback de round não encontrado em `:146`)
+
 ### Proveniência, Arquivos e Funções Envolvidas
 
 - **Fonte canônica:** `src/lib/f1-data.ts` (`F1_2026_CALENDAR`) — espelho canônico do calendário oficial FIA 2026 e do arquivo de parâmetros `01raceregraseparametros-3c0c5.json` (aba Circuitos / Rounds 1–24). Cada entrada possui o campo `laps`.
