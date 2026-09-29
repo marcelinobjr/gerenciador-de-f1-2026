@@ -181,10 +181,6 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
 }
 
 for (const pilot of MBJ_2026_PILOTS) {
-  if (pilot.id === 'mbj-135') {
-    CANONICAL_DRIVER_ID_TO_ASSET_ID['mbj-135'] = null // Tony Kanaan: sem foto por design
-    continue
-  }
   const slugKey = getDriverSlugKey(pilot.name)
   const assetId = (DRIVER_PORTRAIT_ASSET_MAP as Record<string, string>)[slugKey] || null
   CANONICAL_DRIVER_ID_TO_ASSET_ID[pilot.id] = assetId

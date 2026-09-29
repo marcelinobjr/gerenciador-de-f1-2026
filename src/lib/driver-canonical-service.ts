@@ -125,6 +125,7 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   'ugo ugochukwu': 'Ugo Ugochukwu',
   'will stevens': 'Will Stevens',
   "zak o'sullivan": "Zak O'Sullivan",
+  'zak o’sullivan': "Zak O'Sullivan",
   'zak osullivan': "Zak O'Sullivan",
   'sébastien bourdais': 'Sébastien Bourdais',
   'sebastien bourdais': 'Sébastien Bourdais',
@@ -412,6 +413,7 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   // 69. Zak O'Sullivan -> DRV_0188.jpg
   zakosullivan: '/pilotos/DRV_0188.jpg',
   zakosulivan: '/pilotos/DRV_0188.jpg',
+  zakosullivann: '/pilotos/DRV_0188.jpg',
   // 70. Sébastien Bourdais -> DRV_0189.jpg
   sebastienbourdais: '/pilotos/DRV_0189.jpg',
   sébastienbourdais: '/pilotos/DRV_0189.jpg',
@@ -456,7 +458,7 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-113': '/pilotos/DRV_0162.jpg',
   'mbj-114': '/pilotos/DRV_0163.jpg',
   'mbj-107': '/pilotos/DRV_0165.jpg',
-  'mbj-101': '/pilotos/DRV_0168.jpg',
+  'mbj-098': '/pilotos/DRV_0168.jpg', // Nolan Siegel
 
   // CP6 direct ID keys
   'mbj-039': '/pilotos/DRV_0170.jpg',
@@ -478,6 +480,7 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-075': '/pilotos/DRV_0182.jpg',
   'mbj-125': '/pilotos/DRV_0183.jpg',
   'mbj-068': '/pilotos/DRV_0185.jpg',
+  'mbj-135': '/pilotos/DRV_0184.jpg',
   'mbj-070': '/pilotos/DRV_0186.jpg',
   'mbj-101': '/pilotos/DRV_0187.jpg',
   'mbj-058': '/pilotos/DRV_0188.jpg',
