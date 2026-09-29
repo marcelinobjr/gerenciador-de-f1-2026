@@ -56,6 +56,16 @@ export interface WeekendScheduleOptions {
   includePractice3?: boolean
 }
 
+export const MACRO_SLOT_SESSION_EXPANSION: Record<WeekendMacroSlot, readonly RaceWeekendSessionId[]> = {
+  PRACTICE_1: ['tp1'],
+  PRACTICE_2: ['tp2'],
+  PRACTICE_3: ['tp3'],
+  SPRINT_QUALIFYING: ['sq1', 'sq2', 'sq3'],
+  SPRINT_RACE: ['sprint_race'],
+  MAIN_QUALIFYING: ['q1', 'q2', 'q3'],
+  MAIN_RACE: ['race'],
+}
+
 /**
  * Definições canônicas de todas as sessões suportadas pela esteira.
  */
@@ -199,6 +209,31 @@ export const SPRINT_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.fr
   'MAIN_QUALIFYING',
   'MAIN_RACE',
 ])
+
+/**
+ * Configuração canônica da sequência Sprint exportada explicitamente para consumidores da esteira.
+ */
+export const SPRINT_WEEKEND_SCHEDULE_CONFIG = {
+  macroSlots: SPRINT_WEEKEND_MACRO_SLOTS,
+  sessionIds: [
+    'tp1',
+    'tp2',
+    'sq1',
+    'sq2',
+    'sq3',
+    'sprint_race',
+    'q1',
+    'q2',
+    'q3',
+    'race',
+  ] as const,
+  hasPractice3: false,
+  hasPractice2: true,
+  hasSprintQualifying: true,
+  hasSprintRace: true,
+  hasMainQualifying: true,
+  hasMainRace: true,
+} as const
 
 /**
  * Expande uma sequência de macro slots nas sessões detalhadas canônicas correspondentes.
