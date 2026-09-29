@@ -98,6 +98,13 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   // Norman Nato / Norm Nato
   'norman nato': 'Norman Nato',
   'norm nato': 'Norman Nato',
+
+  // CP6 ALIASES CANÔNICOS
+  'lello marciello': 'Raffaele Marciello',
+  'raffaele marciello': 'Raffaele Marciello',
+  'renger v.d. zande': 'Renger van der Zande',
+  'renger vd zande': 'Renger van der Zande',
+  'rinus van kalmthout': 'Rinus VeeKay',
 }
 
 /**
@@ -334,20 +341,36 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   normannato: '/pilotos/DRV_0169.jpg',
   normnato: '/pilotos/DRV_0169.jpg',
 
-  // === BLOCO D: NOVOS PILOTOS ===
-  noahtaylor: '/pilotos-gerados/Piloto_58.jpg',
+  // === BLOCO 1 — CP6 (PRÓXIMOS 10 MAPPINGS CANÔNICOS VALIDADOS: PILOTOS-FOTOS-GITHUB-01B-CP6) ===
+  // 51. Nyck de Vries / Nicky de Vries -> DRV_0170.jpg (mbj-039)
   nickydevries: '/pilotos/DRV_0170.jpg',
   nyckdevries: '/pilotos/DRV_0170.jpg',
+  // 52. Patricio O'Ward / Pato O'Ward -> DRV_0171.jpg (mbj-025)
   patriciooward: '/pilotos/DRV_0171.jpg',
   patooward: '/pilotos/DRV_0171.jpg',
+  // 53. Raffaele Marciello / Lello Marciello -> DRV_0172.jpg (mbj-120)
   raffaelemarciello: '/pilotos/DRV_0172.jpg',
+  lellomarciello: '/pilotos/DRV_0172.jpg',
+  // 54. Rene Rast / René Rast -> DRV_0173.jpg (mbj-106)
   renerast: '/pilotos/DRV_0173.jpg',
+  renérast: '/pilotos/DRV_0173.jpg',
+  // 55. Renger van der Zande -> DRV_0174.jpg (mbj-131)
   rengervanderzande: '/pilotos/DRV_0174.jpg',
+  rengervdzande: '/pilotos/DRV_0174.jpg',
+  // 56. Ricky Taylor -> DRV_0175.jpg (mbj-121)
   rickytaylor: '/pilotos/DRV_0175.jpg',
+  // 57. Rinus VeeKay / Rinus van Kalmthout -> DRV_0176.jpg (mbj-094)
   rinusveekay: '/pilotos/DRV_0176.jpg',
+  rinusvankalmthout: '/pilotos/DRV_0176.jpg',
+  // 58. Robert Shwartzman -> DRV_0177.jpg (mbj-040)
   robertshwartzman: '/pilotos/DRV_0177.jpg',
+  // 59. Robin Frijns -> DRV_0178.jpg (mbj-087)
   robinfrijns: '/pilotos/DRV_0178.jpg',
+  // 60. Romain Grosjean -> DRV_0179.jpg (mbj-132)
   romaingrosjean: '/pilotos/DRV_0179.jpg',
+
+  // === BLOCO D: DEMAIS PILOTOS DO CATÁLOGO ===
+  noahtaylor: '/pilotos-gerados/Piloto_58.jpg',
   sheldonvanderlinde: '/pilotos/DRV_0180.jpg',
   takumasato: '/pilotos/DRV_0181.jpg',
   timtramnitz: '/pilotos/DRV_0182.jpg',
@@ -399,6 +422,18 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-114': '/pilotos/DRV_0163.jpg',
   'mbj-107': '/pilotos/DRV_0165.jpg',
   'mbj-101': '/pilotos/DRV_0168.jpg',
+
+  // CP6 direct ID keys
+  'mbj-039': '/pilotos/DRV_0170.jpg',
+  'mbj-025': '/pilotos/DRV_0171.jpg',
+  'mbj-120': '/pilotos/DRV_0172.jpg',
+  'mbj-106': '/pilotos/DRV_0173.jpg',
+  'mbj-131': '/pilotos/DRV_0174.jpg',
+  'mbj-121': '/pilotos/DRV_0175.jpg',
+  'mbj-094': '/pilotos/DRV_0176.jpg',
+  'mbj-040': '/pilotos/DRV_0177.jpg',
+  'mbj-087': '/pilotos/DRV_0178.jpg',
+  'mbj-132': '/pilotos/DRV_0179.jpg',
 }
 
 /**
