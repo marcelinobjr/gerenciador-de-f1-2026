@@ -99,6 +99,7 @@ Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/racePr
 ## C. NÚMERO DE VOLTAS — 24 GPs (Tabela Canônica 24/24)
 
 ### Proveniência, Arquivos e Funções Envolvidas
+
 - **Fonte canônica:** `src/lib/f1-data.ts` (`F1_2026_CALENDAR`) — espelho canônico do calendário oficial FIA 2026 e do arquivo de parâmetros `01raceregraseparametros-3c0c5.json` (aba Circuitos / Rounds 1–24). Cada entrada possui o campo `laps`.
 - **Motor atual (Race Engine V2):**
   - **Ponto de entrada:** `src/services/canonicalRaceInitializationService.ts:74` (`initializeRaceFromCanonicalGrid`).
@@ -122,49 +123,51 @@ Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/racePr
   **SIM.** Existe fallback em dois níveis com valor **57 voltas** (correspondente ao GP do Bahrein):
   1. Em `src/pages/WeekendV2Page.tsx:146` (`gpInfo` fallback: `{ laps: 57, ... }` se o round não for encontrado no calendário).
   2. Em `src/pages/WeekendV2Page.tsx:3133, 3160, 3194` (`gpInfo.laps || 57`).
-  No entanto, nos 24 rounds válidos do calendário (rounds 1 a 24), `gpInfo.laps` é estritamente resolvido sem acionar o fallback.
-  *(Nota adicional: em `canonicalPreparationInformedService.ts:504` há um fallback de apoio de `53 voltas` para o cálculo estimado de stint caso `gpInfo.laps` seja nulo).*
+     No entanto, nos 24 rounds válidos do calendário (rounds 1 a 24), `gpInfo.laps` é estritamente resolvido sem acionar o fallback.
+     _(Nota adicional: em `canonicalPreparationInformedService.ts:504` há um fallback de apoio de `53 voltas` para o cálculo estimado de stint caso `gpInfo.laps` seja nulo)._
 
 ---
 
 ### Tabela Obrigatória 24/24
 
-| # | GP | Circuit ID | Fonte laps | Motor laps | Origem motor | Status |
-|---|---|---|---|---|---|---|
-| 1 | Grande Prêmio da Austrália | `circuit_01` | 58 | 58 | `F1_2026_CALENDAR[0].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 2 | Grande Prêmio da China | `circuit_02` | 56 | 56 | `F1_2026_CALENDAR[1].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 3 | Grande Prêmio do Japão | `circuit_03` | 53 | 53 | `F1_2026_CALENDAR[2].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 4 | Grande Prêmio do Bahrein | `circuit_04` | 57 | 57 | `F1_2026_CALENDAR[3].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 5 | Grande Prêmio da Arábia Saudita | `circuit_05` | 50 | 50 | `F1_2026_CALENDAR[4].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 6 | Grande Prêmio de Miami | `circuit_06` | 57 | 57 | `F1_2026_CALENDAR[5].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 7 | Grande Prêmio do Canadá | `circuit_07` | 70 | 70 | `F1_2026_CALENDAR[6].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 8 | Grande Prêmio de Mônaco | `circuit_08` | 78 | 78 | `F1_2026_CALENDAR[7].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 9 | Grande Prêmio da Espanha (Barcelona) | `circuit_09` | 66 | 66 | `F1_2026_CALENDAR[8].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 10 | Grande Prêmio da Áustria | `circuit_10` | 71 | 71 | `F1_2026_CALENDAR[9].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 11 | Grande Prêmio da Grã-Bretanha | `circuit_11` | 52 | 52 | `F1_2026_CALENDAR[10].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 12 | Grande Prêmio da Bélgica | `circuit_12` | 44 | 44 | `F1_2026_CALENDAR[11].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 13 | Grande Prêmio da Hungria | `circuit_13` | 70 | 70 | `F1_2026_CALENDAR[12].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 14 | Grande Prêmio dos Países Baixos | `circuit_14` | 72 | 72 | `F1_2026_CALENDAR[13].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 15 | Grande Prêmio da Itália | `circuit_15` | 53 | 53 | `F1_2026_CALENDAR[14].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 16 | Grande Prêmio de Madri | `circuit_16` | 66 | 66 | `F1_2026_CALENDAR[15].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 17 | Grande Prêmio do Azerbaijão | `circuit_17` | 51 | 51 | `F1_2026_CALENDAR[16].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 18 | Grande Prêmio de Singapura | `circuit_18` | 62 | 62 | `F1_2026_CALENDAR[17].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 19 | Grande Prêmio dos Estados Unidos | `circuit_19` | 56 | 56 | `F1_2026_CALENDAR[18].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 20 | Grande Prêmio do México | `circuit_20` | 71 | 71 | `F1_2026_CALENDAR[19].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 21 | Grande Prêmio de São Paulo | `circuit_21` | 71 | 71 | `F1_2026_CALENDAR[20].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 22 | Grande Prêmio de Las Vegas | `circuit_22` | 50 | 50 | `F1_2026_CALENDAR[21].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 23 | Grande Prêmio do Catar | `circuit_23` | 57 | 57 | `F1_2026_CALENDAR[22].laps` -> `canonicalRaceInitializationService` | **MATCH** |
-| 24 | Grande Prêmio de Abu Dhabi | `circuit_24` | 58 | 58 | `F1_2026_CALENDAR[23].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| #   | GP                                   | Circuit ID   | Fonte laps | Motor laps | Origem motor                                                        | Status    |
+| --- | ------------------------------------ | ------------ | ---------- | ---------- | ------------------------------------------------------------------- | --------- |
+| 1   | Grande Prêmio da Austrália           | `circuit_01` | 58         | 58         | `F1_2026_CALENDAR[0].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 2   | Grande Prêmio da China               | `circuit_02` | 56         | 56         | `F1_2026_CALENDAR[1].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 3   | Grande Prêmio do Japão               | `circuit_03` | 53         | 53         | `F1_2026_CALENDAR[2].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 4   | Grande Prêmio do Bahrein             | `circuit_04` | 57         | 57         | `F1_2026_CALENDAR[3].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 5   | Grande Prêmio da Arábia Saudita      | `circuit_05` | 50         | 50         | `F1_2026_CALENDAR[4].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 6   | Grande Prêmio de Miami               | `circuit_06` | 57         | 57         | `F1_2026_CALENDAR[5].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 7   | Grande Prêmio do Canadá              | `circuit_07` | 70         | 70         | `F1_2026_CALENDAR[6].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 8   | Grande Prêmio de Mônaco              | `circuit_08` | 78         | 78         | `F1_2026_CALENDAR[7].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 9   | Grande Prêmio da Espanha (Barcelona) | `circuit_09` | 66         | 66         | `F1_2026_CALENDAR[8].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 10  | Grande Prêmio da Áustria             | `circuit_10` | 71         | 71         | `F1_2026_CALENDAR[9].laps` -> `canonicalRaceInitializationService`  | **MATCH** |
+| 11  | Grande Prêmio da Grã-Bretanha        | `circuit_11` | 52         | 52         | `F1_2026_CALENDAR[10].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 12  | Grande Prêmio da Bélgica             | `circuit_12` | 44         | 44         | `F1_2026_CALENDAR[11].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 13  | Grande Prêmio da Hungria             | `circuit_13` | 70         | 70         | `F1_2026_CALENDAR[12].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 14  | Grande Prêmio dos Países Baixos      | `circuit_14` | 72         | 72         | `F1_2026_CALENDAR[13].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 15  | Grande Prêmio da Itália              | `circuit_15` | 53         | 53         | `F1_2026_CALENDAR[14].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 16  | Grande Prêmio de Madri               | `circuit_16` | 66         | 66         | `F1_2026_CALENDAR[15].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 17  | Grande Prêmio do Azerbaijão          | `circuit_17` | 51         | 51         | `F1_2026_CALENDAR[16].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 18  | Grande Prêmio de Singapura           | `circuit_18` | 62         | 62         | `F1_2026_CALENDAR[17].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 19  | Grande Prêmio dos Estados Unidos     | `circuit_19` | 56         | 56         | `F1_2026_CALENDAR[18].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 20  | Grande Prêmio do México              | `circuit_20` | 71         | 71         | `F1_2026_CALENDAR[19].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 21  | Grande Prêmio de São Paulo           | `circuit_21` | 71         | 71         | `F1_2026_CALENDAR[20].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 22  | Grande Prêmio de Las Vegas           | `circuit_22` | 50         | 50         | `F1_2026_CALENDAR[21].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 23  | Grande Prêmio do Catar               | `circuit_23` | 57         | 57         | `F1_2026_CALENDAR[22].laps` -> `canonicalRaceInitializationService` | **MATCH** |
+| 24  | Grande Prêmio de Abu Dhabi           | `circuit_24` | 58         | 58         | `F1_2026_CALENDAR[23].laps` -> `canonicalRaceInitializationService` | **MATCH** |
 
 ---
 
 ### Sanity Checks
+
 - **Bahrain (Round 4):** 57 voltas canônicas = 57 voltas motor (**CONFIRMADO**)
 - **Abu Dhabi (Round 24):** 58 voltas canônicas = 58 voltas motor (**CONFIRMADO**)
 
 ---
 
 ### Resultado Agregado (C5–C10)
+
 - **C5. Total de circuitos auditados:** **24**
 - **C6. MATCH:** **24**
 - **C7. DIVERGENTE:** **0**
@@ -175,6 +178,7 @@ Executada via `src/test/raceProvenanceAudit02a1Probe.test.ts` e `src/test/racePr
 ---
 
 ### Classificação da Seção C
+
 - **Classificação:** **OK** (24/24 MATCH, 100% íntegro)
 
 ---
