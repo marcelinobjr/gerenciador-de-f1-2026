@@ -120,7 +120,9 @@ export function normalizeCompletedSessions(completedSessions: string[]): string[
     const norm = normalizeSessionKey(item)
     set.add(norm)
   }
-  // Se q3 foi concluído, o bloco de qualifying inteiro é considerado concluído (e suas fases para compatibilidade)
+  // Se q3 foi concluído, o bloco de qualifying inteiro é considerado concluído (e suas fases para compatibilidade).
+  // Nota: 'qualifying' só expande q1..q3 se for expressamente marcado como completo no formato macro.
+  // SQ e Q permanecem estritamente isolados (SQ não expande Q; Q não expande SQ).
   if (set.has('q3') || set.has('qualifying')) {
     set.add('qualifying')
     set.add('q1')
@@ -130,7 +132,8 @@ export function normalizeCompletedSessions(completedSessions: string[]): string[
   if (set.has('q2')) {
     set.add('q1')
   }
-  // Se sq3 foi concluído, o bloco de sprint_qualifying é considerado concluído (e suas fases)
+  // Se sq3 foi concluído, o bloco de sprint_qualifying é considerado concluído (e suas fases).
+  // SQ3 não conclui Q1/Q2/Q3 e não pula a Sprint Race.
   if (set.has('sq3') || set.has('sprint_qualifying')) {
     set.add('sprint_qualifying')
     set.add('sq1')
