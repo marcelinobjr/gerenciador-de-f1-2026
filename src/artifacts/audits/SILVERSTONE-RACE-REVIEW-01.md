@@ -104,6 +104,37 @@ Exemplos canônicos:
 
 ---
 
-## 7. Próxima Etapa
+## 7. Fechamento CP1C — Progressão Sprint e Isolamento de Sessões
 
-- **SILVERSTONE-RACE-REVIEW-01B:** HUD climático permanente: seco/chuva fraca/chuva forte, intensidade, temperatura somente se existir fonte real, atualização em tempo real (NÃO INICIADO).
+- **Frente:** SILVERSTONE-RACE-REVIEW-01A-CP1C
+- **Status:** HOMOLOGADO
+- **Commit Base:** `302c079`
+- **Sequência Sprint Canônica:** `TL1 → TL2 → SQ1 → SQ2 → SQ3 → SPRINT → Q1 → Q2 → Q3 → RACE` (10 sessões)
+- **Sequência Normal Preservada:** `TL1 → TL2 → TL3 → Q1 → Q2 → Q3 → RACE` (7 sessões)
+- **Isolamento SQ × Q:**
+  - `TL3` rigorosamente ausente em finais de semana Sprint.
+  - `SQ3` NÃO conclui e NÃO expande `Q1`, `Q2`, `Q3` ou `qualifying`.
+  - `Q1` / `Q2` / `Q3` NÃO concluem e NÃO expandem `SQ1`, `SQ2`, `SQ3` ou `sprint_qualifying`.
+  - `Sprint Race` não é pulada após qualificação sprint.
+  - `Main Qualifying` (Q1) só fica disponível após conclusão da `Sprint Race`.
+  - `Main Race` só fica disponível após conclusão do `GP Q3`.
+
+### Matriz de Testes CP1C (10/10 PASS) + Gate SPRINT-A-09:
+
+- **CP1C-01:** TL1 complete → TL2 ready (PASS)
+- **CP1C-02:** TL2 complete → SQ1 ready (TL3 ausente) (PASS)
+- **CP1C-03:** SQ1 complete → SQ2 ready (PASS)
+- **CP1C-04:** SQ2 complete → SQ3 ready (PASS)
+- **CP1C-05:** SQ3 complete → SPRINT ready (PASS)
+- **CP1C-06:** SPRINT complete → GP Q1 ready (PASS)
+- **CP1C-07:** GP Q1 complete → GP Q2 ready (PASS)
+- **CP1C-08:** GP Q2 complete → GP Q3 ready (PASS)
+- **CP1C-09:** GP Q3 complete → MAIN RACE ready (PASS)
+- **CP1C-10:** MAIN RACE complete → weekend complete (PASS)
+- **SPRINT-A-09:** Sprint complete → GP Q1 ready (gate principal do CP1C) (PASS)
+
+---
+
+## 8. Próxima Etapa
+
+- **SILVERSTONE-RACE-REVIEW-01A-CP2:** Regressões Sprint completas, save/reload, grids independentes, Silverstone end-to-end, suíte global, preview (NÃO INICIADO).
