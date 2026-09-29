@@ -207,6 +207,7 @@ export const NORMAL_SLOT_TYPES: readonly WeekendSlotType[] = Object.freeze([
  */
 export const SPRINT_SLOT_TYPES: readonly WeekendSlotType[] = Object.freeze([
   'TL1',
+  'TL2',
   'QUALI_SPRINT',
   'SPRINT',
   'Q1',

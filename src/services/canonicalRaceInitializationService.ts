@@ -376,11 +376,15 @@ export const canonicalRaceInitializationService = {
   },
 
   /**
-   * RACE-SPRINT-SLOTS-01C1:
-   * Calcula o número de voltas da Sprint baseado na distância alvo homologada de 100 km.
-   * sprintLaps = Math.ceil(sprintDistanceKm / circuitLengthKm)
+   * SILVERSTONE-RACE-REVIEW-01 / Bloco A:
+   * Calcula o número de voltas da Sprint:
+   * REGRA NOVA: SPRINT_LAPS = Math.round(mainRaceLaps * 0.30), determinístico (ex: GP 52 -> 16 voltas).
+   * Fallback com base em circuitLengthKm mantido para compatibilidade se mainRaceLaps não for informado.
    */
-  calculateSprintLaps(circuitLengthKm: number, sprintDistanceKm: number = 100): number {
+  calculateSprintLaps(circuitLengthKm: number, sprintDistanceKm: number = 100, mainRaceLaps?: number): number {
+    if (mainRaceLaps && mainRaceLaps > 0) {
+      return Math.round(mainRaceLaps * 0.30)
+    }
     if (!circuitLengthKm || circuitLengthKm <= 0 || isNaN(circuitLengthKm)) {
       throw new Error(`[SprintLaps] circuitLengthKm inválido: ${circuitLengthKm}`)
     }
@@ -504,18 +508,17 @@ export const canonicalRaceInitializationService = {
     }
 
     // 5. CALCULAR VOLTAS DA SPRINT (100 km)
-    const totalLaps = this.calculateSprintLaps(circuitLengthKm, 100)
+    const totalLaps = this.calculateSprintLaps(circuitLengthKm, 100, mainRaceLaps)
 
     // 6. ADAPTAR PARA ENTRADAS DO MOTOR CANÔNICO
     const adaptedQualifyingGrid = this.adaptSprintStartingGridToFinalEntries(sortedGrid)
 
     // Resolver teamColor e isPlayer reais para o playerTeamId
     for (const entry of adaptedQualifyingGrid) {
-      if (entry.teamId === playerTeamId) {
+      if (playerTeamId && entry.teamId === playerTeamId) {
         entry.isPlayer = true
       }
     }
-
     // 7. INICIALIZAR ESTADO CANÔNICO DA SPRINT COM raceVariant = 'SPRINT_RACE'
     const sprintRaceState = this.initializeRaceFromCanonicalGrid({
       raceVariant: 'SPRINT_RACE',
@@ -531,6 +534,11 @@ export const canonicalRaceInitializationService = {
       weatherEvent,
       persistState: true,
     })
+
+    if (sprintRaceState && sprintRaceState.regulations) {
+      sprintRaceState.regulations.mandatedStops = 0
+      sprintRaceState.regulations.minimumDryCompounds = 1
+    }
 
     return sprintRaceState
   },

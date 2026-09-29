@@ -9,7 +9,18 @@
  *   `includePractice3InSchedule`, permitindo reinserção futura sem alteração de código das sessões).
  */
 
-export type RaceWeekendSessionId = 'tp1' | 'tp2' | 'tp3' | 'q1' | 'q2' | 'q3' | 'race'
+export type RaceWeekendSessionId =
+  | 'tp1'
+  | 'tp2'
+  | 'tp3'
+  | 'sq1'
+  | 'sq2'
+  | 'sq3'
+  | 'sprint_race'
+  | 'q1'
+  | 'q2'
+  | 'q3'
+  | 'race'
 
 export type SessionVisualState = 'locked' | 'available' | 'active' | 'paused' | 'completed'
 
@@ -64,6 +75,42 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       isPlayableInV2: true,
       blockedMessage: 'Disponível após a conclusão do TL2.',
     },
+    sq1: {
+      id: 'sq1',
+      shortLabel: 'SQ1',
+      fullName: 'Qualificação Sprint — Fase 1',
+      category: 'qualifying',
+      order: 3.1,
+      isPlayableInV2: true,
+      blockedMessage: 'Disponível após conclusão do TL2.',
+    },
+    sq2: {
+      id: 'sq2',
+      shortLabel: 'SQ2',
+      fullName: 'Qualificação Sprint — Fase 2',
+      category: 'qualifying',
+      order: 3.2,
+      isPlayableInV2: true,
+      blockedMessage: 'Disponível após conclusão do SQ1.',
+    },
+    sq3: {
+      id: 'sq3',
+      shortLabel: 'SQ3',
+      fullName: 'Qualificação Sprint — Fase 3',
+      category: 'qualifying',
+      order: 3.3,
+      isPlayableInV2: true,
+      blockedMessage: 'Disponível após conclusão do SQ2.',
+    },
+    sprint_race: {
+      id: 'sprint_race',
+      shortLabel: 'SPRINT',
+      fullName: 'Corrida Sprint',
+      category: 'race',
+      order: 3.4,
+      isPlayableInV2: false,
+      blockedMessage: 'Disponível após conclusão da Qualificação Sprint (SQ3).',
+    },
     q1: {
       id: 'q1',
       shortLabel: 'Q1',
@@ -71,7 +118,7 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       category: 'qualifying',
       order: 4,
       isPlayableInV2: true,
-      blockedMessage: 'Disponível após conclusão do TL3.',
+      blockedMessage: 'Disponível após conclusão dos treinos ou da Corrida Sprint.',
     },
     q2: {
       id: 'q2',
@@ -113,8 +160,24 @@ export function getRaceWeekendPipeline(
   // No formato padrão/normal F1, TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> Corrida.
   // includePractice3 tem padrão true para standard/normal (a menos que explicitamente false ou formato sprint).
   const isSprint = options?.format === 'sprint'
-  const includeP3 = isSprint ? false : (options?.includePractice3 ?? true)
+  if (isSprint) {
+    // SPRINT: TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> SPRINT RACE -> Q1 -> Q2 -> Q3 -> CORRIDA PRINCIPAL
+    const sprintSequence: RaceWeekendSessionId[] = [
+      'tp1',
+      'tp2',
+      'sq1',
+      'sq2',
+      'sq3',
+      'sprint_race',
+      'q1',
+      'q2',
+      'q3',
+      'race',
+    ]
+    return sprintSequence.map((id) => CANONICAL_SESSION_DEFINITIONS[id])
+  }
 
+  const includeP3 = options?.includePractice3 ?? true
   const baseSequence: RaceWeekendSessionId[] = includeP3
     ? ['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race']
     : ['tp1', 'tp2', 'q1', 'q2', 'q3', 'race']
@@ -162,9 +225,31 @@ export function resolveSessionVisualState(params: {
     return completedSessions.includes('tp2') ? 'available' : 'locked'
   }
 
-  // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído.
+  // Desbloqueio de sessões Sprint
+  if (sessionId === 'sq1') {
+    return completedSessions.includes('tp2') ? 'available' : 'locked'
+  }
+
+  if (sessionId === 'sq2') {
+    return completedSessions.includes('sq1') ? 'available' : 'locked'
+  }
+
+  if (sessionId === 'sq3') {
+    return completedSessions.includes('sq2') ? 'available' : 'locked'
+  }
+
+  if (sessionId === 'sprint_race') {
+    return completedSessions.includes('sq3') || completedSessions.includes('sprint_qualifying')
+      ? 'available'
+      : 'locked'
+  }
+
+  // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído. No Sprint, requer sprint_race.
   if (sessionId === 'q1') {
-    return completedSessions.includes('tp3') ? 'available' : 'locked'
+    const normalOk = completedSessions.includes('tp3')
+    const sprintOk =
+      completedSessions.includes('sprint_race') || completedSessions.includes('sprint')
+    return normalOk || sprintOk ? 'available' : 'locked'
   }
 
   if (sessionId === 'q2') {

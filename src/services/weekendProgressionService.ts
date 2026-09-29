@@ -30,6 +30,7 @@ export const NORMAL_WEEKEND_SCHEDULE: CanonicalWeekendSession[] = [
 
 export const SPRINT_WEEKEND_SCHEDULE: CanonicalWeekendSession[] = [
   'tp1',
+  'tp2',
   'sprint_qualifying',
   'sprint_race',
   'qualifying',
@@ -88,6 +89,10 @@ export function normalizeCompletedSessions(completedSessions: string[]): string[
   // Se q3 foi concluído, o bloco de qualifying inteiro é considerado concluído
   if (set.has('q3')) {
     set.add('qualifying')
+  }
+  // Se sq3 foi concluído, o bloco de sprint_qualifying é considerado concluído
+  if (set.has('sq3')) {
+    set.add('sprint_qualifying')
   }
   return Array.from(set)
 }
