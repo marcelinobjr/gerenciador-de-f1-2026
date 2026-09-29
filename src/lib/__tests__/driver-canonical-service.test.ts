@@ -87,9 +87,9 @@ describe('BUG-PILOTOS-01: Canonical Driver Service & Photo Mapping', () => {
     expect(resolveCanonicalDriverImagePath(null, 'Hélio Castroneves')).toBe('/pilotos/DRV_0151.jpg')
   })
 
-  it('resolve Felipe Albuquerque para pasta pilotos-gerados', () => {
+  it('resolve Felipe Albuquerque para pasta pilotos-gerados com gênero masculino', () => {
     const img = resolveCanonicalDriverImagePath(null, 'Felipe Albuquerque')
     expect(img).toBeTruthy()
-    expect(img).toMatch(/\/pilotos-gerados\/Piloto_22\.jpg/)
+    expect(img).toMatch(/\/pilotos-gerados\/Piloto_14\.jpg/)
   })
 })

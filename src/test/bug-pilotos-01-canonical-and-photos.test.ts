@@ -101,8 +101,8 @@ describe('BUG-PILOTOS-01: Canonical Deduplication & Photo Resolver Integration',
 
     it('resolve Felipe Albuquerque para foto em public/pilotos-gerados', () => {
       const result = resolveDriverPhoto({ name: 'Felipe Albuquerque' })
-      expect(result.url).toBe('/pilotos-gerados/Piloto_22.jpg')
-      expect(result.candidateUrls).toContain('/pilotos-gerados/Piloto_22.jpg')
+      expect(result.url).toBe('/pilotos-gerados/Piloto_14.jpg')
+      expect(result.candidateUrls).toContain('/pilotos-gerados/Piloto_14.jpg')
     })
   })
 })

@@ -156,8 +156,8 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   andrelotterer: '/pilotos/DRV_0003.jpg',
 
   // Felipe Albuquerque -> usar Piloto-xx.jpg da pasta pilotos-gerados
-  felipealbuquerque: '/pilotos-gerados/Piloto_22.jpg',
-  filipealbuquerque: '/pilotos-gerados/Piloto_22.jpg',
+  felipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
+  filipealbuquerque: '/pilotos-gerados/Piloto_14.jpg',
 
   // BUG-PILOTOS-01B1A: IDs PocketBase / MBJ diretos mapeando para as fotos canônicas dos 16 pilotos
   '9v5e8eui71eusma': '/pilotos/DRV_0001.jpg', // Alba Hurup Larsen
