@@ -378,17 +378,28 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   // 60. Romain Grosjean -> DRV_0179.jpg (mbj-130)
   romaingrosjean: '/pilotos/DRV_0179.jpg',
 
-  // === BLOCO D: DEMAIS PILOTOS DO CATÁLOGO ===
-  noahtaylor: '/pilotos-gerados/Piloto_58.jpg',
+  // === BLOCO 1 — CP7 (PRÓXIMOS 10 MAPPINGS CANÔNICOS VALIDADOS: PILOTOS-FOTOS-GITHUB-01B-CP7) ===
+  // 61. Sheldon van der Linde -> DRV_0180.jpg
   sheldonvanderlinde: '/pilotos/DRV_0180.jpg',
+  // 62. Takuma Sato -> DRV_0181.jpg
   takumasato: '/pilotos/DRV_0181.jpg',
+  // 63. Tim Tramnitz -> DRV_0182.jpg
   timtramnitz: '/pilotos/DRV_0182.jpg',
+  // 64. Tom Blomqvist -> DRV_0183.jpg
   tomblomqvist: '/pilotos/DRV_0183.jpg',
+  // 65. Tony Kanaan -> DRV_0184.jpg
   tonykanaan: '/pilotos/DRV_0184.jpg',
+  // 66. Tuukka Taponen -> DRV_0185.jpg
   tuukkataponen: '/pilotos/DRV_0185.jpg',
+  // 67. Ugo Ugochukwu -> DRV_0186.jpg
   ugougochukwu: '/pilotos/DRV_0186.jpg',
+  // 68. Will Stevens -> DRV_0187.jpg
   willstevens: '/pilotos/DRV_0187.jpg',
+  // 69. Zak O'Sullivan -> DRV_0188.jpg
   zakosullivan: '/pilotos/DRV_0188.jpg',
+  zakosulivan: '/pilotos/DRV_0188.jpg',
+  // 70. Noah Taylor -> Piloto_58.jpg
+  noahtaylor: '/pilotos-gerados/Piloto_58.jpg',
 
   // Chaves MBJ e PocketBase diretas
   'mbj-122': '/pilotos-gerados/Piloto_14.jpg',
