@@ -13,8 +13,8 @@ import { CIRCUIT_PERFORMANCE_PROFILES } from '@/data/circuit-performance-profile
 
 describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
   // Encontrar o round de Silverstone
-  const silverstoneCircuit = CIRCUIT_PERFORMANCE_PROFILES.find(
-    (c) => c.circuitName.toLowerCase().includes('silverstone')
+  const silverstoneCircuit = CIRCUIT_PERFORMANCE_PROFILES.find((c) =>
+    c.circuitName.toLowerCase().includes('silverstone'),
   )
   const silverstoneRound = silverstoneCircuit?.round ?? 8
   // SPRINT-A-01: weekend normal permanece TL1→TL2→TL3→Q1→Q2→Q3→Race

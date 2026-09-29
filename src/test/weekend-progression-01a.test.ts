@@ -91,9 +91,9 @@ describe('HOTFIX WEEKEND-01A: Validação Canônica de Progressão de Sessões d
   })
 
   // =========================================================================
-  // CENÁRIO D: Sprint: sequência correta sem TL2/TL3
+  // CENÁRIO D: Sprint: sequência correta com TL1 e TL2, sem TL3 (SILVERSTONE-RACE-REVIEW-01A)
   // =========================================================================
-  it('Cenário D: Formato Sprint — sequência correta (tp1 → sprint_qualifying → sprint_race → qualifying → race) sem exigir TL2/TL3', () => {
+  it('Cenário D: Formato Sprint — sequência correta (tp1 → tp2 → sq1 → sq2 → sq3 → sprint_race → q1 → q2 → q3 → race) sem TL3', () => {
     // Round 2 é Shanghai (Chinese GP, hasSprint = true)
     const roundSprint = 2
     expect(hasSprintWeekend(roundSprint)).toBe(true)
@@ -101,43 +101,48 @@ describe('HOTFIX WEEKEND-01A: Validação Canônica de Progressão de Sessões d
     const sprintSchedule = getCanonicalWeekendSchedule(roundSprint)
     expect(sprintSchedule).toEqual([
       'tp1',
-      'sprint_qualifying',
+      'tp2',
+      'sq1',
+      'sq2',
+      'sq3',
       'sprint_race',
-      'qualifying',
+      'q1',
+      'q2',
+      'q3',
       'race',
     ])
-    expect(sprintSchedule).not.toContain('tp2')
+    expect(sprintSchedule).toContain('tp2')
     expect(sprintSchedule).not.toContain('tp3')
 
     // Passo 1: Nenhum concluído -> próximo é tp1
     expect(getNextRequiredWeekendSession(roundSprint, [])).toBe('tp1')
 
-    // Passo 2: Apenas tp1 concluído -> próximo é sprint_qualifying
-    expect(getNextRequiredWeekendSession(roundSprint, ['tp1'])).toBe('sprint_qualifying')
+    // Passo 2: Apenas tp1 concluído -> próximo é tp2
+    expect(getNextRequiredWeekendSession(roundSprint, ['tp1'])).toBe('tp2')
     let gate = checkWeekendRaceAccess(roundSprint, ['tp1'])
     expect(gate.allowed).toBe(false)
-    expect(gate.nextRequiredSession).toBe('sprint_qualifying')
-    expect(gate.blockingReason).toBe('Conclua ou simule Quali Sprint para continuar.')
+    expect(gate.nextRequiredSession).toBe('tp2')
 
-    // Passo 3: tp1 e sprint_qualifying concluídos -> próximo é sprint_race
-    expect(getNextRequiredWeekendSession(roundSprint, ['tp1', 'sprint_qualifying'])).toBe(
+    // Passo 3: tp1 e tp2 concluídos -> próximo é sq1
+    expect(getNextRequiredWeekendSession(roundSprint, ['tp1', 'tp2'])).toBe('sq1')
+
+    // Passo 4: tp1, tp2, sq1, sq2, sq3 concluídos -> próximo é sprint_race
+    expect(getNextRequiredWeekendSession(roundSprint, ['tp1', 'tp2', 'sq1', 'sq2', 'sq3'])).toBe(
       'sprint_race',
     )
-    gate = checkWeekendRaceAccess(roundSprint, ['tp1', 'sprint_qualifying'])
-    expect(gate.allowed).toBe(false)
-    expect(gate.nextRequiredSession).toBe('sprint_race')
-    expect(gate.blockingReason).toBe('Conclua ou simule Sprint para continuar.')
 
-    // Passo 4: tp1, sprint_qualifying, sprint_race concluídos -> próximo é qualifying
-    expect(
-      getNextRequiredWeekendSession(roundSprint, ['tp1', 'sprint_qualifying', 'sprint_race']),
-    ).toBe('qualifying')
-    gate = checkWeekendRaceAccess(roundSprint, ['tp1', 'sprint_qualifying', 'sprint_race'])
-    expect(gate.allowed).toBe(false)
-    expect(gate.nextRequiredSession).toBe('qualifying')
-
-    // Passo 5: Todas preliminares concluídas -> corrida LIBERADA sem jamais exigir tp2 ou tp3!
-    const allSprintPreliminary = ['tp1', 'sprint_qualifying', 'sprint_race', 'qualifying']
+    // Passo 5: Todas preliminares concluídas -> corrida LIBERADA sem jamais exigir tp3!
+    const allSprintPreliminary = [
+      'tp1',
+      'tp2',
+      'sq1',
+      'sq2',
+      'sq3',
+      'sprint_race',
+      'q1',
+      'q2',
+      'q3',
+    ]
     gate = checkWeekendRaceAccess(roundSprint, allSprintPreliminary)
     expect(gate.allowed).toBe(true)
     expect(gate.nextRequiredSession).toBe('race')

@@ -1,11 +1,12 @@
 /**
  * weekendProgressionService.ts
  *
- * HOTFIX WEEKEND-01A: Bloquear bypass de sessões do fim de semana.
+ * HOTFIX WEEKEND-01A / SILVERSTONE-RACE-REVIEW-01A:
+ * Bloquear bypass de sessões do fim de semana.
  * Define o cronograma canônico e calcula a próxima sessão obrigatória pendente.
  * Formatos:
- *  - GP Normal: tp1 → tp2 → tp3 → qualifying → race
- *  - GP Sprint: tp1 → sprint_qualifying → sprint_race → qualifying → race
+ *  - GP Normal: tp1 → tp2 → tp3 → q1 → q2 → q3 → race
+ *  - GP Sprint: tp1 → tp2 → sq1 → sq2 → sq3 → sprint_race → q1 → q2 → q3 → race
  * (Detecção via CIRCUIT_PERFORMANCE_PROFILES[round].hasSprint)
  */
 
@@ -133,29 +134,18 @@ export function normalizeCompletedSessions(completedSessions: string[]): string[
     set.add('q1')
     set.add('q2')
     set.add('q3')
-  } else if (set.has('q2')) {
+  }
+  if (set.has('q2')) {
     set.add('q1')
   }
-
   // Se sq3 foi concluído, o bloco de sprint_qualifying é considerado concluído (e suas fases)
   if (set.has('sq3') || set.has('sprint_qualifying')) {
     set.add('sprint_qualifying')
     set.add('sq1')
     set.add('sq2')
     set.add('sq3')
-  } else if (set.has('sq2')) {
-    set.add('sq1')
   }
-  } else if (set.has('q2')) {
-    set.add('q1')
-  }
-  // Se sq3 foi concluído, o bloco de sprint_qualifying é considerado concluído
-  if (set.has('sq3') || set.has('sprint_qualifying')) {
-    set.add('sprint_qualifying')
-    set.add('sq1')
-    set.add('sq2')
-    set.add('sq3')
-  } else if (set.has('sq2')) {
+  if (set.has('sq2')) {
     set.add('sq1')
   }
   // Se sprint_race foi concluído, marcar alias 'sprint'
@@ -176,8 +166,8 @@ export function hasSprintWeekend(round: number): boolean {
 
 /**
  * Retorna o cronograma canônico ordenado para a rodada especificada.
- * - GP Normal: tp1 → tp2 → tp3 → qualifying → race
- * - GP Sprint: tp1 → sprint_qualifying → sprint_race → qualifying → race
+ * - GP Normal: tp1 → tp2 → tp3 → q1 → q2 → q3 → race
+ * - GP Sprint: tp1 → tp2 → sq1 → sq2 → sq3 → sprint_race → q1 → q2 → q3 → race
  */
 export function getCanonicalWeekendSchedule(round: number): CanonicalWeekendSession[] {
   return hasSprintWeekend(round) ? [...SPRINT_WEEKEND_SCHEDULE] : [...NORMAL_WEEKEND_SCHEDULE]
