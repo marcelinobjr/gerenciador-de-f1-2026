@@ -378,8 +378,8 @@ export const canonicalRaceInitializationService = {
   /**
    * SILVERSTONE-RACE-REVIEW-01 / Bloco A:
    * Calcula o número de voltas da Sprint:
-   * REGRA NOVA: SPRINT_LAPS = Math.round(mainRaceLaps * 0.30), determinístico (ex: GP 52 -> 16 voltas).
-   * Fallback com base em circuitLengthKm mantido para compatibilidade se mainRaceLaps não for informado.
+   * REGRA PRIMÁRIA: SPRINT_LAPS = Math.round(mainRaceLaps * 0.30), determinístico (ex: GP 52 -> 16 voltas).
+   * FALLBACK: com base em circuitLengthKm mantido apenas quando mainRaceLaps não for informado.
    */
   calculateSprintLaps(
     circuitLengthKm: number,
@@ -437,6 +437,7 @@ export const canonicalRaceInitializationService = {
     circuitCountry: string
     circuitLengthKm: number
     playerTeamId: string
+    mainRaceLaps?: number
     weather?: TrackWeatherState
     weatherEvent?: import('@/types/climate').RaceWeekendWeather
   }): Promise<CanonicalRaceState> {
@@ -449,6 +450,7 @@ export const canonicalRaceInitializationService = {
       circuitCountry,
       circuitLengthKm,
       playerTeamId,
+      mainRaceLaps,
       weather,
       weatherEvent,
     } = params
@@ -532,8 +534,8 @@ export const canonicalRaceInitializationService = {
       seenDriverIds.add(entry.driverId)
     }
 
-    // 5. CALCULAR VOLTAS DA SPRINT (100 km)
-    const totalLaps = this.calculateSprintLaps(circuitLengthKm, 100)
+    // 5. CALCULAR VOLTAS DA SPRINT (regra primária: 30% das voltas da corrida principal)
+    const totalLaps = this.calculateSprintLaps(circuitLengthKm, 100, mainRaceLaps)
 
     // 6. ADAPTAR PARA ENTRADAS DO MOTOR CANÔNICO
     const adaptedQualifyingGrid = this.adaptSprintStartingGridToFinalEntries(sortedGrid)
