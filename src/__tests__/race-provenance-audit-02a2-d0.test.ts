@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { canonicalRaceInitializationService } from '../services/canonicalRaceInitializationService'
 import { canonicalRaceEngineService } from '../services/canonicalRaceEngineService'
 import type { CanonicalRaceState } from '@/types/canonical-race-v2'
+import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-types'
 
 describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0', () => {
   let baseState: CanonicalRaceState
@@ -28,7 +29,7 @@ describe('RACE-PROVENANCE-AUDIT-02A2-D0: Caminho Real do Combustível / Fuel = 0
       totalLaps: 6,
       initialFuelKg: 5.0,
       playerTeamId: 'team_1',
-      canonicalQualifyingGrid: qualifyingGrid,
+      canonicalQualifyingGrid: qualifyingGrid as unknown as FinalQualifyingGridEntry[],
     })
   })
 
