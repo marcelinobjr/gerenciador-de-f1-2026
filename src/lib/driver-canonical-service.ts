@@ -72,8 +72,12 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   'jose maria lópez': 'José María López',
   'patricio o’ward': "Pato O'Ward",
   "patricio o'ward": "Pato O'Ward",
+  'patricio oward': "Pato O'Ward",
+  'patricio o ward': "Pato O'Ward",
   'pato o’ward': "Pato O'Ward",
   "pato o'ward": "Pato O'Ward",
+  'pato oward': "Pato O'Ward",
+  'pato o ward': "Pato O'Ward",
   'rene rast': 'René Rast',
   'rené rast': 'René Rast',
   'noel león': 'Noel León',
@@ -104,7 +108,12 @@ export const CANONICAL_NAME_MAP: Record<string, string> = {
   'raffaele marciello': 'Raffaele Marciello',
   'renger v.d. zande': 'Renger van der Zande',
   'renger vd zande': 'Renger van der Zande',
+  'renger van der zande': 'Renger van der Zande',
   'rinus van kalmthout': 'Rinus VeeKay',
+  'rinus veekay': 'Rinus VeeKay',
+  'ricky taylor': 'Ricky Taylor',
+  'robert shwartzman': 'Robert Shwartzman',
+  'romain grosjean': 'Romain Grosjean',
 }
 
 /**
@@ -354,7 +363,7 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   // 54. Rene Rast / René Rast -> DRV_0173.jpg (mbj-106)
   renerast: '/pilotos/DRV_0173.jpg',
   renérast: '/pilotos/DRV_0173.jpg',
-  // 55. Renger van der Zande -> DRV_0174.jpg (mbj-131)
+  // 55. Renger van der Zande -> DRV_0174.jpg (mbj-129)
   rengervanderzande: '/pilotos/DRV_0174.jpg',
   rengervdzande: '/pilotos/DRV_0174.jpg',
   // 56. Ricky Taylor -> DRV_0175.jpg (mbj-121)
@@ -364,9 +373,9 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   rinusvankalmthout: '/pilotos/DRV_0176.jpg',
   // 58. Robert Shwartzman -> DRV_0177.jpg (mbj-040)
   robertshwartzman: '/pilotos/DRV_0177.jpg',
-  // 59. Robin Frijns -> DRV_0178.jpg (mbj-087)
+  // 59. Robin Frijns -> DRV_0178.jpg (mbj-084)
   robinfrijns: '/pilotos/DRV_0178.jpg',
-  // 60. Romain Grosjean -> DRV_0179.jpg (mbj-132)
+  // 60. Romain Grosjean -> DRV_0179.jpg (mbj-130)
   romaingrosjean: '/pilotos/DRV_0179.jpg',
 
   // === BLOCO D: DEMAIS PILOTOS DO CATÁLOGO ===
@@ -428,11 +437,14 @@ export const DRIVER_CANONICAL_PHOTO_MAP: Record<string, string> = {
   'mbj-025': '/pilotos/DRV_0171.jpg',
   'mbj-120': '/pilotos/DRV_0172.jpg',
   'mbj-106': '/pilotos/DRV_0173.jpg',
+  'mbj-129': '/pilotos/DRV_0174.jpg',
   'mbj-131': '/pilotos/DRV_0174.jpg',
   'mbj-121': '/pilotos/DRV_0175.jpg',
   'mbj-094': '/pilotos/DRV_0176.jpg',
   'mbj-040': '/pilotos/DRV_0177.jpg',
+  'mbj-084': '/pilotos/DRV_0178.jpg',
   'mbj-087': '/pilotos/DRV_0178.jpg',
+  'mbj-130': '/pilotos/DRV_0179.jpg',
   'mbj-132': '/pilotos/DRV_0179.jpg',
 }
 

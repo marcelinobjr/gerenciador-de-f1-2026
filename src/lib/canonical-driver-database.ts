@@ -132,6 +132,29 @@ export const CANONICAL_DRIVER_ID_TO_ASSET_ID: Record<string, string | null> = {
   drv_joshua_durksen: 'DRV_0116', // 38. Joshua Dürksen
   drv_kamui_kobayashi: 'DRV_0017', // 39. Kamui Kobayashi
   // 40. Freddie Slater já mapeado via 'mbj-069': 'DRV_0150'
+
+  // BUG-PILOTOS-01B-CP6: Lote dos 10 pilotos (Nyck de Vries a Romain Grosjean)
+  'mbj-039': 'DRV_0170', // 51. Nyck de Vries
+  drv_nyck_de_vries: 'DRV_0170',
+  'mbj-025': 'DRV_0171', // 52. Patricio O'Ward
+  drv_patricio_o_ward: 'DRV_0171',
+  drv_pato_o_ward: 'DRV_0171',
+  'mbj-120': 'DRV_0172', // 53. Raffaele Marciello
+  drv_raffaele_marciello: 'DRV_0172',
+  'mbj-106': 'DRV_0173', // 54. Rene Rast
+  drv_rene_rast: 'DRV_0173',
+  'mbj-129': 'DRV_0174', // 55. Renger van der Zande
+  drv_renger_van_der_zande: 'DRV_0174',
+  'mbj-121': 'DRV_0175', // 56. Ricky Taylor
+  drv_ricky_taylor: 'DRV_0175',
+  'mbj-094': 'DRV_0176', // 57. Rinus VeeKay
+  drv_rinus_veekay: 'DRV_0176',
+  'mbj-040': 'DRV_0177', // 58. Robert Shwartzman
+  drv_robert_shwartzman: 'DRV_0177',
+  'mbj-084': 'DRV_0178', // 59. Robin Frijns
+  drv_robin_frijns: 'DRV_0178',
+  'mbj-130': 'DRV_0179', // 60. Romain Grosjean
+  drv_romain_grosjean: 'DRV_0179',
 }
 
 for (const pilot of MBJ_2026_PILOTS) {
