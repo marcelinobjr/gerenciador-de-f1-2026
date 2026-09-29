@@ -247,19 +247,25 @@ describe('PIL-GH: Acceptance Tests — Deduplicação e Identidade Canônica', (
     // 1. Felipe Albuquerque -> Piloto_14 (masculino)
     const felipeRes = resolveDriverPhoto({ name: 'Felipe Albuquerque' })
     expect(felipeRes.url).toBe('/pilotos-gerados/Piloto_14.jpg')
-    expect(fs.existsSync(path.resolve(process.cwd(), 'public/pilotos-gerados/Piloto_14.jpg'))).toBe(true)
+    expect(fs.existsSync(path.resolve(process.cwd(), 'public/pilotos-gerados/Piloto_14.jpg'))).toBe(
+      true,
+    )
     expect(GENERATED_DRIVER_MALE_INDICES.has(14)).toBe(true)
 
     // 2. Mariana Costa -> Piloto_55 (feminino)
     const marianaRes = resolveDriverPhoto({ name: 'Mariana Costa' })
     expect(marianaRes.url).toBe('/pilotos-gerados/Piloto_55.jpg')
-    expect(fs.existsSync(path.resolve(process.cwd(), 'public/pilotos-gerados/Piloto_55.jpg'))).toBe(true)
+    expect(fs.existsSync(path.resolve(process.cwd(), 'public/pilotos-gerados/Piloto_55.jpg'))).toBe(
+      true,
+    )
     expect(GENERATED_DRIVER_MALE_INDICES.has(55)).toBe(false) // feminino
 
     // 3. Noah Taylor -> Piloto_58 (masculino)
     const noahRes = resolveDriverPhoto({ name: 'Noah Taylor' })
     expect(noahRes.url).toBe('/pilotos-gerados/Piloto_58.jpg')
-    expect(fs.existsSync(path.resolve(process.cwd(), 'public/pilotos-gerados/Piloto_58.jpg'))).toBe(true)
+    expect(fs.existsSync(path.resolve(process.cwd(), 'public/pilotos-gerados/Piloto_58.jpg'))).toBe(
+      true,
+    )
     expect(GENERATED_DRIVER_MALE_INDICES.has(58)).toBe(true) // masculino
   })
 
