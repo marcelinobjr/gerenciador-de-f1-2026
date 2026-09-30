@@ -649,8 +649,16 @@ export class CanonicalQualifyingRunner {
 
     const circuitProfile = resolveCircuitProfile({ round: context.round })
 
-    // BALANCE-EQUATION-02C: Integração canônica da Força Estrutural no Qualifying
+    // BALANCE-EQUATION-02C / BASELINE-2026-LOCK-01: Integração canônica com setupEfficiency ativo
     const playerTeamKey = context.teamId || driver?.teamId || 'custom_team'
+    const anySetup = car.setup as any
+    const playerSetupEff =
+      typeof anySetup?.efficiency === 'number'
+        ? anySetup.efficiency
+        : typeof anySetup?.setupEfficiency === 'number'
+          ? anySetup.setupEfficiency
+          : 80
+
     const integratedPace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: playerTeamKey,
       driverId: car.driverId,
@@ -666,6 +674,7 @@ export class CanonicalQualifyingRunner {
       tyreCompound: car.currentCompound,
       tyreWearPct: car.tyreWear,
       fuelKg: car.fuelKg,
+      setupEfficiency: playerSetupEff,
       weather: context.weather,
       noise: (Math.random() - 0.5) * 0.15,
     })
@@ -702,7 +711,7 @@ export class CanonicalQualifyingRunner {
         const rivalObj = context.rivalDrivers.find((r) => r.id === aiEntry.driverId)
         const rivalTeamKey = aiEntry.teamId || 'haas'
 
-        // BALANCE-EQUATION-02C: IA rival também consome a Força Estrutural canônica no Qualifying
+        // BALANCE-EQUATION-02C / BASELINE-2026-LOCK-01: IA rival consome setupEfficiency e ruído calibrado
         const integratedAiPace = canonicalPaceIntegrationService.computeQualifyingPace({
           teamKey: rivalTeamKey,
           driverId: aiEntry.driverId,
@@ -716,8 +725,9 @@ export class CanonicalQualifyingRunner {
           },
           tyreCompound: 'macio',
           fuelKg: 12,
+          setupEfficiency: 80,
           weather: context.weather,
-          noise: (Math.random() - 0.5) * 0.25,
+          noise: (Math.random() - 0.5) * 0.16,
         })
 
         const lapSec = Number((integratedAiPace.lapTimeSec || circuitBaseSec).toFixed(3))

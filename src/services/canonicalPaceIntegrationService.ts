@@ -26,18 +26,19 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { TIRE_SPECS } from '@/lib/f1-tire-system'
 import { raceStrategyService } from '@/services/raceStrategyService'
 
-// Constantes canônicas de calibração do modificador de TrackFit
+// Constantes canônicas de calibração do modificador de TrackFit (BASELINE-2026-LOCK-01)
 // Referência neutra padrão do TrackFit: 75.0 (média do grid nas pistas)
 export const NEUTRAL_TRACKFIT_REFERENCE = 75.0
-// Scale calibrado para gerar variação de ~±3 a ±6 pontos para deltas típicos de ±15 a ±25 pts no trackFit bruto
-export const TRACKFIT_MODIFIER_SCALE = 0.22
+// Scale calibrado para gerar variação típica de -2.0 a +2.0 pts (máximo absoluto clamp ±2.5 pts em pistas extremas)
+export const TRACKFIT_MODIFIER_SCALE = 0.08
+export const TRACKFIT_MAX_CLAMP = 2.5
 
 export class CanonicalPaceIntegrationService {
   /**
-   * 1. TRACKFIT NORMALIZATION (Regras 22-24)
+   * 1. TRACKFIT NORMALIZATION (BASELINE-2026-LOCK-01)
    * Transforma o trackFitScore bruto (0-100) em um delta centrado em zero:
-   * trackFitModifier = (rawTrackFitScore - referenceTrackFit) * scale
-   * Garante: amplitude normal de aproximadamente ±3 a ±6 pontos equivalentes.
+   * trackFitModifier = clamp((rawTrackFitScore - referenceTrackFit) * scale, -2.5, +2.5)
+   * Garante: amplitude normal tipicamente -2.0 a +2.0 pts; teto máximo de ±2.5 pts.
    */
   public normalizeTrackFit(params: TrackFitNormalizationParams): {
     rawTrackFit: number
@@ -50,8 +51,8 @@ export class CanonicalPaceIntegrationService {
 
     // Delta em relação ao circuito neutro
     const delta = (raw - ref) * scale
-    // Limite de segurança fisiológica: máximo ±6.5 pontos equivalentes em condições extremas
-    const clampedModifier = Math.max(-6.5, Math.min(6.5, delta))
+    // Limite calibrado de proteção de hierarquia: máximo ±2.5 pontos (BASELINE-2026-LOCK-01)
+    const clampedModifier = Math.max(-TRACKFIT_MAX_CLAMP, Math.min(TRACKFIT_MAX_CLAMP, delta))
 
     return {
       rawTrackFit: Number(raw.toFixed(2)),
@@ -151,8 +152,11 @@ export class CanonicalPaceIntegrationService {
     }
     const weatherModifier = Number((-weatherPenaltySec * 12.0).toFixed(3))
 
-    // 9. RNG modifier (ruído de sessão independente)
-    const rngModifier = Number((noise * 12.0).toFixed(3))
+    // 9. RNG modifier (ruído de sessão independente calibrado para ~±0.75 a ±1.0 pt, clamp em ±1.0)
+    // BASELINE-2026-LOCK-01: noise calibrado com multiplicador 6.0 e clamp em [-1.0, +1.0]
+    const rawRng = noise * 6.0
+    const clampedRng = Math.max(-1.0, Math.min(1.0, rawRng))
+    const rngModifier = Number(clampedRng.toFixed(3))
 
     // 10. Final Pace Score (soma exata da decomposição)
     const effectivePaceScore = Number(
@@ -274,8 +278,10 @@ export class CanonicalPaceIntegrationService {
     }
     const weatherModifier = Number((-weatherPenaltySec * 12.0).toFixed(3))
 
-    // 8. RNG noise determinístico
-    const rngModifier = Number((rngNoise * 12.0).toFixed(3))
+    // 8. RNG noise determinístico calibrado (BASELINE-2026-LOCK-01)
+    const rawRng = rngNoise * 6.0
+    const clampedRng = Math.max(-1.0, Math.min(1.0, rawRng))
+    const rngModifier = Number(clampedRng.toFixed(3))
 
     // Setup modifier neutro de corrida
     const setupModifier = 0.0
