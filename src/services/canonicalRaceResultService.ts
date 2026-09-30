@@ -239,24 +239,269 @@ export class CanonicalRaceResultService {
       }
     }
 
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+
+/**
+ * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  return {
+    canOfficialize: reasons.length === 0,
+=======
     return {
       canOfficialize: reasons.length === 0,
       reasons,
     }
   }
 
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+=======
     return {
       canOfficialize: reasons.length === 0,
       reasons,
     }
   }
 
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+      reasons,
+    }
+  }
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+
+/**
+ * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  return {
+    canOfficialize: reasons.length === 0,
+=======
     return {
       canOfficialize: reasons.length === 0,
       reasons,
     }
   }
 
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+
+/**
+ * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  return {
+    canOfficialize: reasons.length === 0,
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+
+/**
+ * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  return {
+    canOfficialize: reasons.length === 0,
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+
+  return {
+    canOfficialize: reasons.length === 0,
+    reasons,
+  }
+}=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+
+/**
+ * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+=======
+  return {
+    canOfficialize: reasons.length === 0,
+    reasons,
+  }
+}
+=======
+    }
+  }
+
+  return {
+    canOfficialize: reasons.length === 0,
+    reasons,
+  }
+}=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+
+/**
+ * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+ */
+=======
+  return {
+    canOfficialize: reasons.length === 0,
+    reasons,
+  }
+}
+=======
+    }
+  }
+
+  return {
+    canOfficialize: reasons.length === 0,
+    reasons,
+  }
+}=======
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+=======
   /**
    * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
    */

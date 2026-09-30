@@ -472,6 +472,33 @@ export class CanonicalRaceEngineService {
       return currentState
     }
 
+    // ALL-DNF-RACE-01A: activeCars === 0 -> STOP RACE SIMULATION
+    // Se todos os carros já estão abandonados (activeCars === 0), encerrar imediatamente a corrida
+    // sem avançar voltas e sem processar nova volta.
+    const activeCarsAtStart = currentState.drivers.filter(
+      (d) => d.raceStatus !== 'dnf' && !d.isDnf && d.raceStatus !== 'finished',
+    ).length
+    if (currentState.drivers.length > 0 && activeCarsAtStart === 0) {
+      const finishFlagRc: RaceControlState = {
+        ...raceControlService.ensureRaceControlState(currentState),
+        currentFlag: 'FINISHED',
+        previousFlag: currentState.raceControl?.currentFlag,
+        lapsRemainingInPhase: 0,
+      }
+      const finishedState: CanonicalRaceState = {
+        ...currentState,
+        status: 'completed',
+        completedAt: currentState.completedAt || new Date().toISOString(),
+        raceControl: finishFlagRc,
+        revision: currentState.revision + 1,
+        updatedAt: new Date().toISOString(),
+      }
+      if (options?.persistState !== false) {
+        canonicalRaceInitializationService.saveCanonicalRaceState(finishedState)
+      }
+      return finishedState
+    }
+
     // Se houver decisão climática humana pendente ativa, advanceOneLap bloqueia o avanço da corrida
     // e retorna o estado sem avançar nova volta.
     if (
