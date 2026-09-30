@@ -312,7 +312,7 @@ export class StructuralStrengthService {
     options?: { seasonYear?: number },
   ): StructuralStrengthBreakdown {
     let cleanKey = teamKey.toLowerCase().trim()
-    // Aliases comuns para casar chaves alternativas com o baseline V0
+    // Aliases comuns para casar chaves alternativas com o baseline V0 / 2026
     if (cleanKey === 'red_bull' || cleanKey === 'rbr') cleanKey = 'redbull'
     if (cleanKey === 'aston_martin' || cleanKey === 'amr') cleanKey = 'astonmartin'
     if (cleanKey === 'racing_bulls' || cleanKey === 'rb' || cleanKey === 'vcarb')
@@ -324,22 +324,74 @@ export class StructuralStrengthService {
     const baselineEntry = baseline.teams[cleanKey]
 
     if (baselineEntry) {
-      return this.calculateStructuralStrength({
+      const isAnchorActive = seasonYear === 2026 && cleanKey in BASELINE_2026_V1_TEAMS
+      const anchor = isAnchorActive ? BASELINE_2026_V1_TEAMS[cleanKey] : null
+
+      let components = baselineEntry.chassisComponents
+      let effectivePu = baselineEntry.effectivePuRating
+      let rel = baselineEntry.carReliabilityRating
+      let cond = baselineEntry.initialCondition
+      let drivers = baselineEntry.drivers
+      let facilities = baselineEntry.facilities
+      let teamMorale = baselineEntry.teamMoraleRating
+      let qualityNotes = baselineEntry.dataQualityReason
+
+      if (anchor) {
+        // BASELINE-2026-LOCK-01-CP2: Calibração canônica dos insumos para atingir exatamente o target score
+        // FÓRMULA OFICIAL:
+        // STRUCTURAL_STRENGTH = TECHNICAL × 0.60 + DRIVER × 0.25 + TEAM × 0.15
+        // Ao calibrar os insumos (componentes e PU efetiva) para o alvo desejado da baseline 2026:
+        // - driverScore baselineEntry = D
+        // - teamScore baselineEntry = T
+        // - Precisamos que technicalScore = (anchor.score - D * 0.25 - T * 0.15) / 0.60
+        // Para preservar a fórmula intacta e permitir evolução técnica natural a partir do estado inicial:
+        const driverBreakdown = this.calculateDriverScore({ drivers })
+        const teamBreakdown = this.calculateTeamScore({ facilities, teamMorale })
+        const targetTechScore =
+          (anchor.score - driverBreakdown.driverScore * 0.25 - teamBreakdown.teamScore * 0.15) / 0.6
+
+        // Calibra chassisComponents de modo que PARTS e EFFECTIVE_PU produzam targetTechScore:
+        // technicalScore = parts * 0.50 + effectivePu * 0.30 + rel * 0.10 + cond * 0.10
+        // Se definirmos parts e effectivePu proporcionalmente ou ajustarmos components:
+        // Queremos partsScore * 0.50 + effectivePuScore * 0.30 = targetTechScore - (rel * 0.10 + cond * 0.10)
+        const fixedRelCond = rel * 0.1 + cond * 0.1
+        const neededCarPerformance = (targetTechScore - fixedRelCond) / 0.8
+
+        // Atualiza components para refletir neededCarPerformance
+        const calibratedComponents: Record<string, number> = {}
+        for (const k of Object.keys(components)) {
+          calibratedComponents[k] = neededCarPerformance
+        }
+        components = calibratedComponents
+        effectivePu = neededCarPerformance
+        qualityNotes = `${baselineEntry.dataQualityReason} (Âncora Canônica 2026-V1 ativa)`
+      }
+
+      const result = this.calculateStructuralStrength({
         teamKey: baselineEntry.teamKey,
         teamName: baselineEntry.teamName,
-        components: baselineEntry.chassisComponents,
-        effectivePuRating: baselineEntry.effectivePuRating,
-        reliability: baselineEntry.carReliabilityRating,
-        condition: baselineEntry.initialCondition,
+        components,
+        effectivePuRating: effectivePu,
+        reliability: rel,
+        condition: cond,
         puSupplier: baselineEntry.engineSupplier,
         effectiveIntegration: baselineEntry.effectiveIntegration,
         nominalPuRating: baselineEntry.nominalPuRating,
-        drivers: baselineEntry.drivers,
-        facilities: baselineEntry.facilities,
-        teamMorale: baselineEntry.teamMoraleRating,
+        drivers,
+        facilities,
+        teamMorale,
         dataQuality: baselineEntry.dataQuality,
-        dataQualityNotes: baselineEntry.dataQualityReason,
+        dataQualityNotes: qualityNotes,
       })
+
+      if (anchor) {
+        result.baselineOrigin = 'BASELINE_2026_V1'
+        result.baselineAnchorScore = anchor.score
+        // Garante precisão exata do valor canônico no estado inicial contra micro arredondamento de float
+        result.structuralStrengthScore = anchor.score
+      }
+
+      return result
     }
 
     // Fallback gracioso para custom_team ou equipe não listada
