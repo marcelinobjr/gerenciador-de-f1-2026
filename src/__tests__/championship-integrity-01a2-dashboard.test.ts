@@ -465,6 +465,7 @@ describe('CHAMPIONSHIP-INTEGRITY-01A2 (DASHBOARD)', () => {
   })
 
   // CI01A2-12: player team não recebe tratamento esportivo especial (mesma regra de ordenação/tiebreak que as equipes IA; sem bônus de posição)
+  // Verificação canônica pós-build v0.0.728
   it('CI01A2-12: player team não recebe tratamento esportivo especial (mesma regra de ordenação/tiebreak que as equipes IA; sem bônus de posição)', () => {
     const careerId = 'career_ci01a2_12'
     const seasonYear = 2026
