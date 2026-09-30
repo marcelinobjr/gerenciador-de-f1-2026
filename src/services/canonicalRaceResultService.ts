@@ -101,7 +101,7 @@ export class CanonicalRaceResultService {
   public verifyResultIntegrity(result: OfficialRaceResult): boolean {
     if (!result) return false
     const expected = this.generateResultChecksum(result)
-    return result.integrityHash === expected || result.resultHash === expected
+    return (result as any).integrityHash === expected || result.resultHash === expected
   }
 
   public hasOfficialRaceResult(careerId: string, season: number, raceId: string): boolean {
@@ -172,24 +172,41 @@ export class CanonicalRaceResultService {
       reasons.push(`Race status must be 'completed', got '${raceState.status}'`)
     }
 
-    if (raceState.currentLap < raceState.totalLaps) {
+    const drivers = raceState.drivers || (raceState as any).cars || []
+    const activeDrivers = drivers.filter(
+      (d: any) => !d.isDnf && d.raceStatus !== 'dnf' && d.status !== 'dnf',
+    )
+
+    // Se ainda houver carros ativos na prova, a volta atual deve ter chegado ao total
+    if (activeDrivers.length > 0 && raceState.currentLap < raceState.totalLaps) {
       reasons.push(
         `Race currentLap (${raceState.currentLap}) is less than totalLaps (${raceState.totalLaps})`,
       )
     }
 
-    if (raceState.safetyCar && raceState.safetyCar.status !== 'inactive') {
-      reasons.push(
-        `Race cannot be officialized with active Safety Car (${raceState.safetyCar.status})`,
-      )
+    const isScActive = Boolean(
+      raceState.safetyCarActive ||
+      (raceState.raceControl &&
+        (raceState.raceControl.currentFlag === 'SAFETY_CAR' ||
+          raceState.raceControl.currentFlag === 'VSC')) ||
+      ((raceState as any).safetyCar && (raceState as any).safetyCar.status !== 'inactive'),
+    )
+
+    if (isScActive && raceState.status !== 'completed') {
+      reasons.push('Race cannot be officialized with active Safety Car')
     }
 
-    if (raceState.isRedFlag) {
+    const isRedFlagActive = Boolean(
+      raceState.redFlagActive ||
+      (raceState.raceControl && raceState.raceControl.currentFlag === 'RED_FLAG') ||
+      (raceState as any).isRedFlag,
+    )
+
+    if (isRedFlagActive && raceState.status !== 'completed') {
       reasons.push('Race cannot be officialized while Red Flag is active')
     }
 
-    const cars = (raceState as any).cars || raceState.leaderboard || []
-    if (!cars || cars.length === 0) {
+    if (!drivers || drivers.length === 0) {
       reasons.push('Race state does not contain any cars')
     }
 
@@ -229,20 +246,44 @@ export class CanonicalRaceResultService {
         (e.description && e.description.toLowerCase().includes('dnf')),
     ).length
 
-    const cars = (raceState as any).cars || raceState.leaderboard || []
-    const totalPitStops = cars.reduce(
+    const drivers = raceState.drivers || (raceState as any).cars || []
+    const totalPitStops = drivers.reduce(
       (acc: number, car: any) => acc + (car.pitStopsCount || car.pitStops || 0),
       0,
     )
 
-    return {
+    const significantIncidents: Array<{
+      lap: number
+      type: 'dnf' | 'safety_car' | 'vsc' | 'red_flag' | 'fastest_lap' | 'info'
+      message: string
+      driverId?: string
+      timestamp: string
+    }> = events.map((e: any) => ({
+      lap: e.lap || 0,
+      type: (e.type || 'info') as any,
+      message: e.message || e.description || '',
+      driverId: e.driverId,
+      timestamp: e.timestamp || new Date().toISOString(),
+    }))
+
+    const summary: any = {
+      safetyCarPeriods: safetyCarDeployments,
+      safetyCarLaps: raceState.raceControl?.safetyCarLaps ?? 0,
+      vscPeriods: virtualSafetyCarDeployments,
+      vscLaps: raceState.raceControl?.vscLaps ?? 0,
+      redFlagPeriods: redFlags,
+      dnfCount: dnfEvents,
+      totalPitStops,
+      significantIncidents,
+      // Compatibilidade legada
       safetyCarDeployments,
       virtualSafetyCarDeployments,
       redFlags,
       dnfEvents,
-      totalPitStops,
       totalOvertakes: 0,
     }
+
+    return summary as OfficialRaceEventSummary
   }
 
   public officializeRace(raceState: CanonicalRaceState): Readonly<OfficialRaceResult> {
@@ -257,37 +298,93 @@ export class CanonicalRaceResultService {
     const state = this.deepClone(raceState)
 
     // 2. Classificação oficial ordenada segundo o raceState
-    const rawCars = (state as any).cars || state.leaderboard || []
-    const sortedCars = [...rawCars].sort((a: any, b: any) => a.position - b.position)
+    const rawCars = state.drivers || (state as any).cars || []
+    const sortedCars = [...rawCars].sort((a: any, b: any) => {
+      const posA = a.currentPosition ?? a.position ?? 999
+      const posB = b.currentPosition ?? b.position ?? 999
+      return posA - posB
+    })
+
+    // Calcular voltas do líder para regra de 90% FIA e distância reduzida
+    const leaderLaps =
+      sortedCars.length > 0 ? (sortedCars[0].lap ?? sortedCars[0].lapsCompleted ?? 0) : 0
+    const totalLaps = state.totalLaps || 1
 
     const entries: OfficialRaceResultEntry[] = sortedCars.map((car: any, index: number) => {
       const finalPosition = index + 1
-      const isDnf = Boolean(car.isDnf || car.status === 'dnf' || car.dnf)
+      const isDnf = Boolean(
+        car.isDnf || car.raceStatus === 'dnf' || car.status === 'dnf' || car.dnf,
+      )
       const dnfReason = isDnf ? car.dnfReason || 'Mechanical/Accident' : undefined
+      const lapsCompleted = car.lap ?? car.lapsCompleted ?? 0
       const gridPos = car.gridPosition ?? car.startingGridPosition ?? finalPosition
       const positionsGained = gridPos - finalPosition
 
-      // Pontos FIA canônicos oficiais (respeitando regra de distância reduzida se aplicável)
-      const points = isDnf ? 0 : getFiaPointsForPosition(finalPosition)
+      // Regra FIA 90%: Piloto precisa ter completado ao menos 90% das voltas do vencedor para ser classificado
+      const meets90Percent = leaderLaps > 0 ? lapsCompleted >= Math.floor(leaderLaps * 0.9) : false
+      const classificationStatus =
+        !isDnf || meets90Percent ? ('CLASSIFIED' as const) : ('NOT_CLASSIFIED' as const)
+      const isClassified = classificationStatus === 'CLASSIFIED'
 
-      return {
+      // Pontos FIA calculados conforme percentual de distância e classificação
+      let pointsAwarded = 0
+      if (isClassified && leaderLaps >= 2) {
+        pointsAwarded = calculateFiaPoints(finalPosition, leaderLaps, totalLaps)
+      }
+
+      const bestLapSec = car.bestLapSec
+      const bestLapFormatted =
+        car.bestLapFormatted || (bestLapSec ? formatLapTime(bestLapSec) : '--:--')
+      const isFastestLap = Boolean(
+        state.fastestLap?.driverId && state.fastestLap.driverId === car.driverId,
+      )
+
+      const entry: any = {
         driverId: car.driverId,
         teamId: car.teamId,
+        driverName: car.driverName || `Driver ${car.driverId}`,
+        teamName: car.teamName || 'F1 Team',
+        teamColor: car.teamColor || '#E10600',
+        isPlayer: Boolean(car.isPlayer || car.isPlayerCar || car.isPlayerDriver),
+        gridPosition: gridPos,
         startingGridPosition: gridPos,
         finalPosition,
-        status: isDnf ? 'dnf' : 'finished',
-        dnfReason,
-        lapsCompleted: car.lapsCompleted ?? state.totalLaps,
-        totalTimeFormatted: car.totalTime ? formatLapTime(car.totalTime) : undefined,
-        gapToLeaderFormatted:
-          finalPosition === 1 ? 'WINNER' : car.gapToLeader || (isDnf ? 'DNF' : '+0.000'),
-        bestLapTimeFormatted: car.bestLapTime ? formatLapTime(car.bestLapTime) : '--:--',
-        bestLapNumber: car.bestLapNumber,
-        points,
+        positionsGainedLost: positionsGained,
         positionsGained,
-        pitStopsCount: car.pitStopsCount ?? car.pitStops ?? 0,
-        isPlayerDriver: Boolean(car.isPlayerCar || car.isPlayerDriver),
+        lapsCompleted,
+        raceTime: car.raceTime || 0,
+        raceTimeFormatted: car.raceTime ? formatLapTime(car.raceTime) : undefined,
+        totalTimeFormatted: car.raceTime ? formatLapTime(car.raceTime) : undefined,
+        gapToWinner:
+          finalPosition === 1
+            ? 'WINNER'
+            : car.gap || car.gapToLeader || (isDnf ? 'DNF' : '+0.000s'),
+        gapToLeaderFormatted:
+          finalPosition === 1
+            ? 'WINNER'
+            : car.gap || car.gapToLeader || (isDnf ? 'DNF' : '+0.000s'),
+        status: isDnf ? 'dnf' : 'finished',
+        finishStatus: isDnf ? 'dnf' : 'finished',
+        classificationStatus,
+        isClassified,
+        dnf: isDnf,
+        dnfReason,
+        dnfLap: car.dnfLap,
+        pitStops: car.pitStops ?? car.pitStopsCount ?? 0,
+        pitStopsCount: car.pitStops ?? car.pitStopsCount ?? 0,
+        bestLapSec,
+        bestLapFormatted,
+        bestLapTimeFormatted: bestLapFormatted,
+        bestLap: bestLapFormatted,
+        bestLapNumber: car.bestLapNumber,
+        fastestLap: isFastestLap,
+        tyreCompound: car.tyreCompound || 'duro',
+        points: pointsAwarded,
+        pointsAwarded,
+        isPlayerDriver: Boolean(car.isPlayer || car.isPlayerCar || car.isPlayerDriver),
       }
+
+      return entry as OfficialRaceResultEntry
     })
 
     // 3. Determinar Pole Position (largou em P1)
@@ -311,7 +408,7 @@ export class CanonicalRaceResultService {
     }
 
     // 6. Entradas dos carros do jogador (ambos os carros)
-    const playerEntries = entries.filter((e) => e.isPlayerDriver)
+    const playerEntries = entries.filter((e) => e.isPlayer || (e as any).isPlayerDriver)
 
     // 7. Checksum determinístico para integridade
     const entriesChecksum = entries
@@ -330,34 +427,49 @@ export class CanonicalRaceResultService {
       totalLaps: state.totalLaps,
     })
 
-    const officialResult: OfficialRaceResult = {
+    const officialResult: any = {
       schemaVersion: OFFICIAL_RACE_RESULT_SCHEMA_VERSION,
       officialResultId,
+      raceVariant: state.raceVariant,
       careerId: state.careerId || 'default',
       season: state.season || 2026,
-      raceId: state.raceId || 'race_default',
       round: state.round || 1,
-      circuitId: state.circuitId || 'albert_park',
+      raceId: state.raceId || 'race_default',
+      circuitId: (state as any).circuitId || state.raceId || 'circuit_default',
+      circuitName: state.circuitName || 'Grand Prix',
+      circuitCountry: state.circuitCountry || 'FIA',
+      playerTeamId: state.playerTeamId || 'team_player',
       officializedAt: new Date().toISOString(),
-      integrityHash,
-      resultHash: integrityHash,
-      entries,
+      totalLaps: state.totalLaps,
       winnerDriverId: winnerEntry?.driverId || '',
       winnerTeamId: winnerEntry?.teamId || '',
-      podiumDriverIds,
+      poleDriverId: poleCar?.driverId || entries[0]?.driverId || '',
       polePositionDriverId: poleCar?.driverId || entries[0]?.driverId || '',
       fastestLapDriverId: state.fastestLap?.driverId,
-      fastestLapTimeFormatted: state.fastestLap?.time
-        ? formatLapTime(state.fastestLap.time)
-        : undefined,
+      fastestLapSec: state.fastestLap?.lapTimeSec,
+      fastestLapFormatted:
+        state.fastestLap?.lapTimeFormatted ||
+        ((state.fastestLap as any)?.time
+          ? formatLapTime((state.fastestLap as any).time)
+          : undefined),
+      fastestLapTimeFormatted:
+        state.fastestLap?.lapTimeFormatted ||
+        ((state.fastestLap as any)?.time
+          ? formatLapTime((state.fastestLap as any).time)
+          : undefined),
       fastestLapNumber: state.fastestLap?.lap,
-      totalLaps: state.totalLaps,
+      podium: podiumDriverIds.slice(0, 3) as [string, string, string],
+      podiumDriverIds,
+      entries,
+      playerEntries: playerEntries.slice(0, 2),
+      eventsSummary: this.extractEventSummary(state),
       eventSummary: this.extractEventSummary(state),
-      playerEntries,
+      integrityHash,
+      resultHash: integrityHash,
     }
 
     // 8. Retorna snapshot completamente congelado
-    return this.deepFreeze(officialResult)
+    return this.deepFreeze(officialResult as OfficialRaceResult)
   }
 
   public terminateEarlyAndOfficialize(
@@ -368,10 +480,17 @@ export class CanonicalRaceResultService {
     const state = this.deepClone(raceState)
     state.status = 'completed'
     // Se red flag ativa ou safety car, desativa para permitir oficialização
-    if (state.safetyCar) {
-      state.safetyCar.status = 'inactive'
+    if ((state as any).safetyCar) {
+      ;(state as any).safetyCar.status = 'inactive'
     }
-    state.isRedFlag = false
+    state.safetyCarActive = false
+    state.vscActive = false
+    state.redFlagActive = false
+    ;(state as any).isRedFlag = false
+    if (state.raceControl) {
+      state.raceControl.currentFlag = 'FINISHED'
+    }
+
     // Adiciona evento
     if (!state.events) {
       state.events = []
