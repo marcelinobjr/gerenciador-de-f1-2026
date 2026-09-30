@@ -67,8 +67,8 @@ export default function IndexPage() {
   const [parts, setParts] = useState<any[]>([])
   const [circuits, setCircuits] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
-  const [constructorPoints, setConstructorPoints] = useState(65)
-  const [constructorPosition, setConstructorPosition] = useState(3)
+  const [constructorPoints, setConstructorPoints] = useState<number>(0)
+  const [constructorPosition, setConstructorPosition] = useState<number | null>(null)
   const [allConstructorStandings, setAllConstructorStandings] = useState<any[]>([])
   const [upcomingAnnouncedRegulation, setUpcomingAnnouncedRegulation] =
     useState<TechnicalRegulation | null>(null)
@@ -117,8 +117,8 @@ export default function IndexPage() {
         })
 
         if (standingsResult) {
-          setConstructorPoints(standingsResult.teamPoints ?? 65)
-          setConstructorPosition(standingsResult.playerConstructorRank ?? 3)
+          setConstructorPoints(standingsResult.teamPoints ?? 0)
+          setConstructorPosition(standingsResult.playerConstructorRank ?? null)
           setAllConstructorStandings(standingsResult.constructorStandings || [])
         }
 
@@ -376,17 +376,14 @@ export default function IndexPage() {
   // Classificação de Construtores
   const constructorStandingsList = useMemo(() => {
     if (allConstructorStandings.length > 0) {
-      return allConstructorStandings.slice(0, 6)
+      return allConstructorStandings.slice(0, 6).map((standing, idx) => ({
+        position: idx + 1,
+        teamName: standing.name || standing.teamName,
+        points: standing.points ?? 0,
+      }))
     }
-    return [
-      { position: 1, teamName: 'McLaren', points: 87 },
-      { position: 2, teamName: 'Red Bull', points: 71 },
-      { position: 3, teamName: team?.name || 'Audi F1 Team', points: constructorPoints },
-      { position: 4, teamName: 'Ferrari', points: 61 },
-      { position: 5, teamName: 'Mercedes', points: 58 },
-      { position: 6, teamName: 'Aston Martin', points: 42 },
-    ]
-  }, [allConstructorStandings, team?.name, constructorPoints])
+    return []
+  }, [allConstructorStandings])
 
   const handleApproveDecision = async () => {
     if (!pendingDecision || !team) return
@@ -483,11 +480,15 @@ export default function IndexPage() {
                 </span>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-mono">
-                    {constructorPosition}º
+                    {constructorPosition != null && constructorPosition > 0
+                      ? `${constructorPosition}º`
+                      : '—'}
                   </span>
-                  <span className="text-emerald-600 font-bold text-xs flex items-center">
-                    <TrendingUp className="w-3 h-3 mr-0.5" /> +2 pos. vs. ano anterior
-                  </span>
+                  {constructorPosition != null && constructorPosition > 0 && (
+                    <span className="text-emerald-600 font-bold text-xs flex items-center">
+                      <TrendingUp className="w-3 h-3 mr-0.5" /> +2 pos. vs. ano anterior
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -58,7 +58,7 @@ export interface FullStandingsResult {
   constructorStandings: TeamStanding[]
   driverPointsMap: Record<string, number>
   teamPoints: number
-  playerConstructorRank: number
+  playerConstructorRank: number | null
   playerWins: number
   playerPodiums: number
 }
@@ -220,8 +220,8 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
       driverStandings,
       constructorStandings,
       driverPointsMap,
-      teamPoints: playerStanding?.points || 0,
-      playerConstructorRank: playerTeamRank > 0 ? playerTeamRank : 1,
+      teamPoints: playerStanding?.points ?? 0,
+      playerConstructorRank: playerTeamRank > 0 ? playerTeamRank : null,
       playerWins: playerStanding?.wins || 0,
       playerPodiums: playerStanding?.podiums || 0,
     }
@@ -582,7 +582,8 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     return a.name.localeCompare(b.name)
   })
 
-  const playerConstructorRank = sortedTeams.findIndex((t) => t.isPlayer) + 1
+  const playerTeamRank = sortedTeams.findIndex((t) => t.isPlayer) + 1
+  const playerStanding = sortedTeams.find((t) => t.isPlayer)
 
   // Mapa de pontos dos pilotos do jogador
   const driverPointsMap: Record<string, number> = {}
@@ -590,12 +591,17 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     driverPointsMap[d.id] = dMap[d.id]?.points || 0
   })
 
+  // Se não houver corridas gravadas e pastRoundsToSimulate for 0 (início de temporada sem corridas oficiais),
+  // e nenhum ponto registrado, verificar se standings são válidos
+  const hasOfficialRaces = hasRecordedResults || (canonicalResults && canonicalResults.length > 0)
+  const isStandingsValid = hasOfficialRaces || sortedTeams.some((t) => (t.points || 0) > 0)
+
   return {
     driverStandings: sortedDrivers,
     constructorStandings: sortedTeams,
     driverPointsMap,
-    teamPoints: netPlayerTeamPts,
-    playerConstructorRank: playerConstructorRank > 0 ? playerConstructorRank : 1,
+    teamPoints: isStandingsValid ? (playerStanding?.points ?? netPlayerTeamPts ?? 0) : 0,
+    playerConstructorRank: isStandingsValid && playerTeamRank > 0 ? playerTeamRank : null,
     playerWins: playerTeamWins,
     playerPodiums: playerTeamPodiums,
   }
