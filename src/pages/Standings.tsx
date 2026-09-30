@@ -79,8 +79,15 @@ export default function StandingsPage() {
     ) {
       return championshipSnapshot.driverStandings.map((d) => {
         const binding = getActiveDriverTeamBinding(d.driverId)
-        const teamName = binding?.teamName || d.currentTeamName || 'Sem Equipe'
-        const teamColor = binding?.teamColor || d.currentTeamColor || '#71717A'
+        const teamName =
+          binding?.isContracted && binding?.teamName
+            ? binding.teamName
+            : d.currentTeamName || 'Sem Equipe'
+        const teamColor =
+          (binding?.isContracted && binding?.teamColor) ||
+          binding?.teamColor ||
+          d.currentTeamColor ||
+          '#71717A'
 
         return {
           id: d.driverId,
@@ -106,7 +113,18 @@ export default function StandingsPage() {
         }
       })
     }
-    return driverStandings || []
+    if (!driverStandings || driverStandings.length === 0) return []
+    return driverStandings.map((d) => {
+      const binding = getActiveDriverTeamBinding(d.id || d.name)
+      const teamName =
+        binding?.isContracted && binding?.teamName ? binding.teamName : d.teamName || 'Sem Equipe'
+      const teamColor = (binding?.isContracted && binding?.teamColor) || d.teamColor || '#71717A'
+      return {
+        ...d,
+        teamName,
+        teamColor,
+      }
+    })
   }, [championshipSnapshot, driverStandings])
 
   const effectiveConstructorStandings = useMemo<TeamStanding[]>(() => {

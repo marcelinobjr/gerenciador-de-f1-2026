@@ -159,7 +159,10 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     // Converter driverStandings do snapshot para DriverStanding
     const driverStandings: DriverStanding[] = snap.driverStandings.map((d) => {
       const binding = getActiveDriverTeamBinding(d.driverId)
-      const resolvedTeamName = binding?.teamName || d.currentTeamName || 'Sem Equipe'
+      const resolvedTeamName =
+        binding?.isContracted && binding?.teamName
+          ? binding.teamName
+          : d.currentTeamName || 'Sem Equipe'
       const resolvedTeamColor = binding?.teamColor || d.currentTeamColor || '#71717A'
 
       return {
@@ -257,13 +260,19 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
 
   // Inicializa pilotos do jogador
   playerDrivers.forEach((d) => {
+    const binding = getActiveDriverTeamBinding(d.id)
+    const resolvedTeamName =
+      (binding?.isContracted && binding.teamName) || team?.name || 'Escuderia Brasil'
+    const resolvedTeamColor =
+      (binding?.isContracted && binding.teamColor) || team?.color || '#FF3B30'
+
     dMap[d.id] = {
       id: d.id,
       name: d.name,
       nationality: d.nationality,
       flag: resolveCountryFlag(d.nationality),
-      teamName: team?.name || 'Escuderia Brasil',
-      teamColor: team?.color || '#FF3B30',
+      teamName: resolvedTeamName,
+      teamColor: resolvedTeamColor,
       points: 0,
       wins: 0,
       podiums: 0,
@@ -279,13 +288,17 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     const d1Stat = aiDriverStats[d1Key] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
     const d2Stat = aiDriverStats[d2Key] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
 
+    const d1Binding = getActiveDriverTeamBinding((aiTeam.driver1 as any).id || aiTeam.driver1.name)
+    const d1TeamName = (d1Binding?.isContracted && d1Binding.teamName) || aiTeam.name
+    const d1TeamColor = (d1Binding?.isContracted && d1Binding.teamColor) || aiTeam.color
+
     dMap[d1Key] = {
       id: d1Key,
       name: aiTeam.driver1.name,
       nationality: aiTeam.driver1.nationality,
       flag: resolveCountryFlag(aiTeam.driver1.nationality || aiTeam.driver1.flag),
-      teamName: aiTeam.name,
-      teamColor: aiTeam.color,
+      teamName: d1TeamName,
+      teamColor: d1TeamColor,
       points: d1Stat.points,
       wins: d1Stat.wins,
       podiums: d1Stat.podiums,
@@ -293,13 +306,17 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
       isPlayer: false,
     }
 
+    const d2Binding = getActiveDriverTeamBinding((aiTeam.driver2 as any).id || aiTeam.driver2.name)
+    const d2TeamName = (d2Binding?.isContracted && d2Binding.teamName) || aiTeam.name
+    const d2TeamColor = (d2Binding?.isContracted && d2Binding.teamColor) || aiTeam.color
+
     dMap[d2Key] = {
       id: d2Key,
       name: aiTeam.driver2.name,
       nationality: aiTeam.driver2.nationality,
       flag: resolveCountryFlag(aiTeam.driver2.nationality || aiTeam.driver2.flag),
-      teamName: aiTeam.name,
-      teamColor: aiTeam.color,
+      teamName: d2TeamName,
+      teamColor: d2TeamColor,
       points: d2Stat.points,
       wins: d2Stat.wins,
       podiums: d2Stat.podiums,

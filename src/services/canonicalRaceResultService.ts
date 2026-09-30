@@ -194,15 +194,22 @@ export class CanonicalRaceResultService {
       )
     }
     // Não permitir durante bandeiras ativas de neutralização ou pausa se não for encerramento antecipado
-    if (!isTerminatedEarly && (state.safetyCarActive || state.raceControl?.currentFlag === 'SAFETY_CAR')) {
+    if (
+      !isTerminatedEarly &&
+      (state.safetyCarActive || state.raceControl?.currentFlag === 'SAFETY_CAR')
+    ) {
       reasons.push('Corrida sob regime de Safety Car — não pode ser oficializada')
     }
     if (!isTerminatedEarly && (state.vscActive || state.raceControl?.currentFlag === 'VSC')) {
       reasons.push('Corrida sob regime de VSC — não pode ser oficializada')
     }
-    if (!isTerminatedEarly && (state.redFlagActive || state.raceControl?.currentFlag === 'RED_FLAG')) {
+    if (
+      !isTerminatedEarly &&
+      (state.redFlagActive || state.raceControl?.currentFlag === 'RED_FLAG')
+    ) {
       reasons.push('Corrida sob bandeira vermelha ativa — não pode ser oficializada')
-    }    if (state.status === 'paused') {
+    }
+    if (state.status === 'paused') {
       reasons.push('Corrida pausada — deve ser retomada e finalizada antes da oficialização')
     }
     if (state.status === 'not_started') {

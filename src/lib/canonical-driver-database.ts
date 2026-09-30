@@ -456,7 +456,9 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'gabriel_bortoleto',
     'mbj-020',
     'drv_0012',
+    'drv_0020',
   ],
+  '0mow8vmzk0y4z9s': ['albon', 'alexander albon', 'mbj-013', 'drv_0013', 'alex-albon'],
   bortoleto: [
     'driver_gabriel_bortoleto',
     'drv_gabriel_bortoleto',
@@ -824,16 +826,29 @@ export function findCanonicalDriverMaster(
     const rawKey = driverId.toLowerCase().trim()
     const aliases = CANONICAL_DRIVER_IDENTITY_ALIASES[rawKey]
     if (aliases) {
-      for (const a of aliases) {
-        const found = getCanonicalDriverMaster(a)
+      for (const alias of aliases) {
+        const found = getCanonicalDriverMaster(alias)
         if (found) return found
       }
     }
 
+    // Procura reversa no mapa de aliases (ex.: se passarem DRV_XXXX, mbj-XXX ou runtime ID que é alias de um driverId mestre)
+    for (const [canonId, aliasList] of Object.entries(CANONICAL_DRIVER_IDENTITY_ALIASES)) {
+      if (aliasList.some((a) => a.toLowerCase().trim() === rawKey)) {
+        const found = getCanonicalDriverMaster(canonId)
+        if (found) return found
+      }
+    }
     // Checar mapeamento direto de assetId para registro mestre
     const mappedAssetId = CANONICAL_DRIVER_ID_TO_ASSET_ID[driverId]
     if (mappedAssetId) {
       const byAsset = CANONICAL_DRIVERS_BY_ASSET_ID.get(mappedAssetId)
+      if (byAsset) return byAsset
+    }
+
+    // Se driverId for DRV_XXXX, buscar diretamente no CANONICAL_DRIVERS_BY_ASSET_ID
+    if (CANONICAL_DRIVERS_BY_ASSET_ID.has(driverId)) {
+      const byAsset = CANONICAL_DRIVERS_BY_ASSET_ID.get(driverId)
       if (byAsset) return byAsset
     }
   }

@@ -52,7 +52,7 @@ export function calculateFiaPoints(
     return 0
   }
 
-  if (fraction <= 0.50) {
+  if (fraction <= 0.5) {
     // Entre 25% e 50%: Top 9
     if (position >= 1 && position <= FIA_REDUCED_POINTS_50.length) {
       return FIA_REDUCED_POINTS_50[position - 1]

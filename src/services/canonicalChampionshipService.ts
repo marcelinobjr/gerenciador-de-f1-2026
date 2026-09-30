@@ -651,15 +651,20 @@ export class CanonicalChampionshipService {
       const canonicalBinding = getActiveDriverTeamBinding(d.driverId)
       const careerRec = driverBase2026Service.getCareerDriver(careerId, d.driverId)
       const currentTeamId =
-        canonicalBinding?.teamId ||
-        canonicalBinding?.teamKey ||
+        (canonicalBinding?.isContracted && (canonicalBinding.teamId || canonicalBinding.teamKey)) ||
         careerRec?.teamId ||
         d.lastTeamId ||
         null
       const currentTeamName =
-        canonicalBinding?.teamName || careerRec?.teamName || d.lastTeamName || null
+        (canonicalBinding?.isContracted && canonicalBinding.teamName) ||
+        careerRec?.teamName ||
+        d.lastTeamName ||
+        null
       const currentTeamColor =
-        canonicalBinding?.teamColor || (careerRec as any)?.teamColor || d.lastTeamColor || undefined
+        (canonicalBinding?.isContracted && canonicalBinding.teamColor) ||
+        (careerRec as any)?.teamColor ||
+        d.lastTeamColor ||
+        undefined
 
       return {
         position: pos,
