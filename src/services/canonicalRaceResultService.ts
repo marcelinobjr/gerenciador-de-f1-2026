@@ -61,8 +61,47 @@ export class CanonicalRaceResultService {
     return Object.freeze(obj)
   }
 
-  public getStorageKey(careerId: string, season: number, raceId: string): string {
+  public getStorageKey(careerId: string, season: number | string, raceId: string | number): string {
     return `${CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX}:${careerId}:${season}:${raceId}`
+  }
+
+  public hasOfficialRaceResult(careerId: string, season: number | string, raceId: string | number): boolean {
+    const key = this.getStorageKey(careerId, Number(season), raceId)
+    if (typeof localStorage === 'undefined') return false
+    return localStorage.getItem(key) !== null
+  }
+
+  public getOfficialRaceResult(
+    careerId: string,
+    season: number | string,
+    raceId: string | number,
+  ): Readonly<OfficialRaceResult> | null {
+    return this.loadOfficialResult(careerId, Number(season), raceId)
+  }
+
+  public saveOfficialRaceResult(result: Readonly<OfficialRaceResult>, overwrite = false): boolean {
+    return this.saveOfficialResult(result, overwrite)
+  }
+
+  public clearOfficialRaceResultForTesting(
+    careerId?: string,
+    season?: number | string,
+    raceId?: string | number,
+  ): void {
+    if (typeof localStorage === 'undefined') return
+    if (careerId && season !== undefined && raceId) {
+      localStorage.removeItem(this.getStorageKey(careerId, Number(season), raceId))
+    } else {
+      // Clear all keys matching prefix
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith(CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX)) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k))
+    }
   }
 
   public computeIntegrityHash(payload: {
@@ -104,18 +143,18 @@ export class CanonicalRaceResultService {
     return (result as any).integrityHash === expected || result.resultHash === expected
   }
 
-  public hasOfficialRaceResult(careerId: string, season: number, raceId: string): boolean {
-    const key = this.getStorageKey(careerId, season, raceId)
+  public hasOfficialRaceResult(careerId: string, season: number | string, raceId: string): boolean {
+    const key = this.getStorageKey(careerId, Number(season), raceId)
     if (typeof localStorage === 'undefined') return false
     return localStorage.getItem(key) !== null
   }
 
   public getOfficialRaceResult(
     careerId: string,
-    season: number,
+    season: number | string,
     raceId: string,
   ): Readonly<OfficialRaceResult> | null {
-    return this.loadOfficialResult(careerId, season, raceId)
+    return this.loadOfficialResult(careerId, Number(season), raceId)
   }
 
   public saveOfficialRaceResult(result: Readonly<OfficialRaceResult>, overwrite = false): boolean {
@@ -124,12 +163,12 @@ export class CanonicalRaceResultService {
 
   public clearOfficialRaceResultForTesting(
     careerId?: string,
-    season?: number,
+    season?: number | string,
     raceId?: string,
   ): void {
     if (typeof localStorage === 'undefined') return
     if (careerId && season !== undefined && raceId) {
-      localStorage.removeItem(this.getStorageKey(careerId, season, raceId))
+      localStorage.removeItem(this.getStorageKey(careerId, Number(season), raceId))
     } else {
       // Clear all keys matching prefix
       const keysToRemove: string[] = []
@@ -527,10 +566,10 @@ export class CanonicalRaceResultService {
 
   public loadOfficialResult(
     careerId: string,
-    season: number,
-    raceId: string,
+    season: number | string,
+    raceId: string | number,
   ): Readonly<OfficialRaceResult> | null {
-    const key = this.getStorageKey(careerId, season, raceId)
+    const key = this.getStorageKey(careerId, Number(season), raceId)
     try {
       if (typeof localStorage === 'undefined') return null
       const data = localStorage.getItem(key)
