@@ -63,25 +63,23 @@ export default function StandingsPage() {
       careerId,
       seasonYear,
       undefined,
-      team?.id,
+      team?.id || team?.team_key,
     )
-  }, [careerId, seasonYear, team?.id, driverStandings])
+  }, [careerId, seasonYear, team?.id, team?.team_key, driverStandings])
 
   const throughRound = championshipSnapshot?.throughRound || 0
 
-  // Se throughRound > 0 ou se houver resultados canônicos elegíveis, priorizar o snapshot canônico
-  // convertendo-o para as interfaces DriverStanding e TeamStanding com pontos acumulados
+  // Snapshot canônico oficial como única fonte da classificação
   const effectiveDriverStandings = useMemo<DriverStanding[]>(() => {
-    if (
-      championshipSnapshot &&
-      championshipSnapshot.throughRound > 0 &&
-      championshipSnapshot.driverStandings.length > 0
-    ) {
+    if (championshipSnapshot && championshipSnapshot.driverStandings.length > 0) {
       return championshipSnapshot.driverStandings.map((d) => {
         const binding = getActiveDriverTeamBinding(d.driverId)
         const teamName =
-          binding?.isContracted && binding?.teamName ? binding.teamName : 'Sem Equipe'
-        const teamColor = (binding?.isContracted && binding?.teamColor) || '#71717A'
+          binding?.isContracted && binding?.teamName
+            ? binding.teamName
+            : d.currentTeamName || 'Sem Equipe'
+        const teamColor =
+          (binding?.isContracted && binding?.teamColor) || d.currentTeamColor || '#71717A'
 
         return {
           id: d.driverId,
@@ -121,11 +119,7 @@ export default function StandingsPage() {
   }, [championshipSnapshot, driverStandings])
 
   const effectiveConstructorStandings = useMemo<TeamStanding[]>(() => {
-    if (
-      championshipSnapshot &&
-      championshipSnapshot.throughRound > 0 &&
-      championshipSnapshot.constructorStandings.length > 0
-    ) {
+    if (championshipSnapshot && championshipSnapshot.constructorStandings.length > 0) {
       return championshipSnapshot.constructorStandings.map((c) => ({
         id: c.teamId,
         name: c.teamName,

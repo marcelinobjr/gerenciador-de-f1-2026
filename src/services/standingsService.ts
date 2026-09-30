@@ -1,9 +1,5 @@
 import { getAICompetitors } from '@/lib/f1-data'
-import {
-  simulateAiGridFiaStandings,
-  normalizeEntityName,
-  getFiaPointsForPosition,
-} from '@/lib/f1-standings-calculator'
+import { normalizeEntityName, getFiaPointsForPosition } from '@/lib/f1-standings-calculator'
 import { resolveCountryFlag } from '@/lib/country-flag'
 import { getActiveDriverTeamBinding } from '@/lib/canonical-driver-database'
 import type { TeamModel, DriverModel, RaceResultModel, SeasonModel, PartModel } from '@/types/f1'
@@ -227,7 +223,7 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     }
   }
 
-  // Filtrar estritamente resultados da temporada atual para isolamento absoluto
+  // Se não há resultados canônicos nem corridas oficiais, consultar grid canônico neutro
   const filteredResults = season?.id
     ? raceResults.filter((r) => !r.season_id || r.season_id === season.id)
     : raceResults
@@ -240,21 +236,60 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   })
   const hasRecordedResults = recordedRounds.size > 0
 
-  // Se o banco tem resultados gravados para as rodadas, calculamos diretamente deles.
-  // Se a rodada atual está no início (ex: Round 1 ou Round 2 antes da corrida) e não há resultados anteriores,
-  // nunca simular retroativamente se já estivermos na temporada nova ou se o jogador estiver disputando rodada a rodada.
-  // A classificação deve refletir os race_results reais.
-  const pastRoundsToSimulate = hasRecordedResults ? 0 : Math.max(0, currentRound - 1)
+  // Se não há corridas oficiais registradas em race_results nem no serviço canônico,
+  // utilizar o grid canônico neutro (todas as 12 equipes oficiais participantes com 0 pontos)
+  // sem simulação paralela ou inventar posições.
+  if (!hasRecordedResults) {
+    const neutral = canonicalChampionshipService.buildNeutralSeasonGrid(team?.id || team?.team_key)
+    const neutralDriverStandings: DriverStanding[] = neutral.drivers.map((d) => ({
+      id: d.driverId,
+      name: d.driverName,
+      nationality: d.nationality,
+      flag: d.flag,
+      teamName: d.currentTeamName || 'Sem Equipe',
+      teamColor: d.currentTeamColor || '#71717A',
+      points: 0,
+      wins: 0,
+      podiums: 0,
+      bestPosition: d.position,
+      isPlayer: !!d.isPlayer,
+      racesCounted: 0,
+      finishCounts: {},
+      gapToLeader: '—',
+      positionDelta: 0,
+      positionDeltaText: '—',
+    }))
+
+    const neutralConstructorStandings: TeamStanding[] = neutral.constructors.map((c) => ({
+      id: c.teamId,
+      name: c.teamName,
+      color: c.teamColor,
+      engine: 'F1 Power Unit',
+      points: 0,
+      wins: 0,
+      podiums: 0,
+      bestPosition: c.position,
+      isPlayer: !!c.isPlayer,
+      racesCounted: 0,
+      finishCounts: {},
+      gapToLeader: '—',
+      positionDelta: 0,
+      positionDeltaText: '—',
+    }))
+
+    return {
+      driverStandings: neutralDriverStandings,
+      constructorStandings: neutralConstructorStandings,
+      driverPointsMap: {},
+      teamPoints: 0,
+      playerConstructorRank: null,
+      playerWins: 0,
+      playerPodiums: 0,
+    }
+  }
 
   const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
   const aiGrid = getAICompetitors(team?.team_key, isCustomTeam)
-
-  const { driverStandingsMap: aiDriverStats } = simulateAiGridFiaStandings(
-    team?.team_key,
-    isCustomTeam,
-    pastRoundsToSimulate,
-  )
-
   // 1. Mapa de pilotos
   const dMap: Record<string, DriverStanding> = {}
 
@@ -285,8 +320,6 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
   aiGrid.forEach((aiTeam) => {
     const d1Key = `${aiTeam.id}_d1`
     const d2Key = `${aiTeam.id}_d2`
-    const d1Stat = aiDriverStats[d1Key] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
-    const d2Stat = aiDriverStats[d2Key] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
 
     const d1Binding = getActiveDriverTeamBinding((aiTeam.driver1 as any).id || aiTeam.driver1.name)
     const d1TeamName = (d1Binding?.isContracted && d1Binding.teamName) || aiTeam.name
@@ -299,10 +332,10 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
       flag: resolveCountryFlag(aiTeam.driver1.nationality || aiTeam.driver1.flag),
       teamName: d1TeamName,
       teamColor: d1TeamColor,
-      points: d1Stat.points,
-      wins: d1Stat.wins,
-      podiums: d1Stat.podiums,
-      bestPosition: d1Stat.bestPos,
+      points: 0,
+      wins: 0,
+      podiums: 0,
+      bestPosition: 99,
       isPlayer: false,
     }
 
@@ -317,10 +350,10 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
       flag: resolveCountryFlag(aiTeam.driver2.nationality || aiTeam.driver2.flag),
       teamName: d2TeamName,
       teamColor: d2TeamColor,
-      points: d2Stat.points,
-      wins: d2Stat.wins,
-      podiums: d2Stat.podiums,
-      bestPosition: d2Stat.bestPos,
+      points: 0,
+      wins: 0,
+      podiums: 0,
+      bestPosition: 99,
       isPlayer: false,
     }
   })
