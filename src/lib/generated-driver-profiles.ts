@@ -70,7 +70,11 @@ export const generatedDriverPortraitProfiles = GENERATED_DRIVER_PORTRAIT_PROFILE
  * Perfis adicionais específicos de retratos femininos (GDP-01: Piloto_65, Piloto_66, Piloto_67).
  * Uso exclusivo para perfis femininos gerados — NUNCA atribuídos a pilotos masculinos.
  */
+// Índices canônicos adicionais para retratos femininos (GDP01)
 export const ADDITIONAL_FEMALE_GENERATED_INDICES = [65, 66, 67] as const
+export const PILOTO_65_PATH = '/pilotos-gerados/Piloto_65.jpg'
+export const PILOTO_66_PATH = '/pilotos-gerados/Piloto_66.jpg'
+export const PILOTO_67_PATH = '/pilotos-gerados/Piloto_67.jpg'
 
 export const ADDITIONAL_FEMALE_GENERATED_PORTRAITS: GeneratedDriverPortraitProfile[] =
   ADDITIONAL_FEMALE_GENERATED_INDICES.map((index) => {
