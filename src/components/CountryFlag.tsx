@@ -1,9 +1,9 @@
 import React from 'react'
-import { countryFlag, countryName } from '@/lib/country-flag'
+import { countryFlag, countryName, type CountryInput } from '@/lib/country-flag'
 import { cn } from '@/lib/utils'
 
 export interface CountryFlagProps {
-  code?: string | string[] | null
+  code?: CountryInput
   className?: string
   title?: string
 }
@@ -13,7 +13,7 @@ export const CountryFlag: React.FC<CountryFlagProps> = ({
   className,
   title: customTitle,
 }) => {
-  if (!code) {
+  if (code === null || code === undefined) {
     return null
   }
   if (typeof code === 'string' && !code.trim()) {

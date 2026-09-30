@@ -8,35 +8,43 @@ import { COUNTRY_CODE_MAP, getCountryCode } from './country-flags'
 /**
  * Mapa ISO3 -> ISO2
  */
+export type CountryInput = string | string[] | null | undefined
+
+/**
+ * Mapa canônico ISO3 -> ISO2
+ */
 export const ISO3_TO_ISO2: Record<string, string> = {
-  // Principais do universo ativo de F1 / Categorias de Base
+  // Principais do universo ativo de F1 / Categorias de Base / Base Real
+  BRA: 'BR',
   DEU: 'DE',
   GER: 'DE',
-  BRA: 'BR',
   GBR: 'GB',
   USA: 'US',
-  MCO: 'MC',
-  MON: 'MC',
   NLD: 'NL',
   NED: 'NL',
+  MCO: 'MC',
+  MON: 'MC',
   JPN: 'JP',
-  ESP: 'ES',
+  AUS: 'AU',
   FRA: 'FR',
   ITA: 'IT',
-  AUS: 'AU',
+  THA: 'TH',
+  FIN: 'FI',
+  ESP: 'ES',
   CAN: 'CA',
   MEX: 'MX',
   ARG: 'AR',
   NZL: 'NZ',
-  FIN: 'FI',
-  DEN: 'DK',
-  DNK: 'DK',
-  SWE: 'SE',
-  NOR: 'NO',
-  BEL: 'BE',
   CHE: 'CH',
   SUI: 'CH',
   AUT: 'AT',
+  BEL: 'BE',
+  SWE: 'SE',
+  DNK: 'DK',
+  DEN: 'DK',
+  NOR: 'NO',
+  IRL: 'IE',
+  CHN: 'CN',
   POL: 'PL',
   CZE: 'CZ',
   COL: 'CO',
@@ -44,10 +52,7 @@ export const ISO3_TO_ISO2: Record<string, string> = {
   PRT: 'PT',
   RSA: 'ZA',
   ZAF: 'ZA',
-  CHN: 'CN',
-  THA: 'TH',
   IND: 'IN',
-  IRL: 'IE',
   BRB: 'BB',
   EST: 'EE',
   PRY: 'PY',
@@ -62,64 +67,177 @@ export const ISO3_TO_ISO2: Record<string, string> = {
   UAE: 'AE',
   ARE: 'AE',
   RUS: 'RU',
+  ISR: 'IL',
+  TUR: 'TR',
+  IDN: 'ID',
+  INA: 'ID',
+  MYS: 'MY',
+  MAS: 'MY',
 }
+
+/**
+ * Conjunto de códigos ISO2 suportados diretamente.
+ */
+export const SUPPORTED_ISO2 = new Set<string>([
+  'BR',
+  'DE',
+  'GB',
+  'US',
+  'NL',
+  'MC',
+  'JP',
+  'AU',
+  'FR',
+  'IT',
+  'TH',
+  'FI',
+  'ES',
+  'CA',
+  'MX',
+  'AR',
+  'NZ',
+  'CH',
+  'AT',
+  'BE',
+  'SE',
+  'DK',
+  'NO',
+  'IE',
+  'CN',
+  'PL',
+  'CZ',
+  'CO',
+  'PT',
+  'ZA',
+  'IN',
+  'BB',
+  'EE',
+  'PY',
+  'BG',
+  'BH',
+  'SA',
+  'HU',
+  'AZ',
+  'SG',
+  'QA',
+  'AE',
+  'RU',
+  'IL',
+  'TR',
+  'ID',
+  'MY',
+])
 
 /**
  * Nomes amigáveis em português para acessibilidade (title / aria-label)
  */
 export const COUNTRY_NAMES_PT: Record<string, string> = {
+  // ISO3 e ISO2 mapeando para o mesmo nome canônico
+  BR: 'Brasil',
+  BRA: 'Brasil',
+  DE: 'Alemanha',
   DEU: 'Alemanha',
   GER: 'Alemanha',
-  BRA: 'Brasil',
+  GB: 'Reino Unido',
   GBR: 'Reino Unido',
+  US: 'Estados Unidos',
   USA: 'Estados Unidos',
-  MCO: 'Mônaco',
-  MON: 'Mônaco',
+  NL: 'Países Baixos',
   NLD: 'Países Baixos',
   NED: 'Países Baixos',
+  MC: 'Mônaco',
+  MCO: 'Mônaco',
+  MON: 'Mônaco',
+  JP: 'Japão',
   JPN: 'Japão',
-  ESP: 'Espanha',
-  FRA: 'França',
-  ITA: 'Itália',
+  AU: 'Austrália',
   AUS: 'Austrália',
-  CAN: 'Canadá',
-  MEX: 'México',
-  ARG: 'Argentina',
-  NZL: 'Nova Zelândia',
+  FR: 'França',
+  FRA: 'França',
+  IT: 'Itália',
+  ITA: 'Itália',
+  TH: 'Tailândia',
+  THA: 'Tailândia',
+  FI: 'Finlândia',
   FIN: 'Finlândia',
-  DEN: 'Dinamarca',
-  DNK: 'Dinamarca',
-  SWE: 'Suécia',
-  NOR: 'Noruega',
-  BEL: 'Bélgica',
+  ES: 'Espanha',
+  ESP: 'Espanha',
+  CA: 'Canadá',
+  CAN: 'Canadá',
+  MX: 'México',
+  MEX: 'México',
+  AR: 'Argentina',
+  ARG: 'Argentina',
+  NZ: 'Nova Zelândia',
+  NZL: 'Nova Zelândia',
+  CH: 'Suíça',
   CHE: 'Suíça',
   SUI: 'Suíça',
+  AT: 'Áustria',
   AUT: 'Áustria',
+  BE: 'Bélgica',
+  BEL: 'Bélgica',
+  SE: 'Suécia',
+  SWE: 'Suécia',
+  DK: 'Dinamarca',
+  DEN: 'Dinamarca',
+  DNK: 'Dinamarca',
+  NO: 'Noruega',
+  NOR: 'Noruega',
+  IE: 'Irlanda',
+  IRL: 'Irlanda',
+  CN: 'China',
+  CHN: 'China',
+  PL: 'Polônia',
   POL: 'Polônia',
+  CZ: 'República Tcheca',
   CZE: 'República Tcheca',
+  CO: 'Colômbia',
   COL: 'Colômbia',
+  PT: 'Portugal',
   POR: 'Portugal',
   PRT: 'Portugal',
+  ZA: 'África do Sul',
   RSA: 'África do Sul',
   ZAF: 'África do Sul',
-  CHN: 'China',
-  THA: 'Tailândia',
+  IN: 'Índia',
   IND: 'Índia',
-  IRL: 'Irlanda',
+  BB: 'Barbados',
   BRB: 'Barbados',
+  EE: 'Estônia',
   EST: 'Estônia',
+  PY: 'Paraguai',
   PRY: 'Paraguai',
+  BG: 'Bulgária',
   BGR: 'Bulgária',
   BUL: 'Bulgária',
+  BH: 'Bahrein',
   BHR: 'Bahrein',
+  SA: 'Arábia Saudita',
   SAU: 'Arábia Saudita',
+  HU: 'Hungria',
   HUN: 'Hungria',
+  AZ: 'Azerbaijão',
   AZE: 'Azerbaijão',
+  SG: 'Singapura',
   SGP: 'Singapura',
+  QA: 'Catar',
   QAT: 'Catar',
+  AE: 'Emirados Árabes Unidos',
   UAE: 'Emirados Árabes Unidos',
   ARE: 'Emirados Árabes Unidos',
+  RU: 'Rússia',
   RUS: 'Rússia',
+  IL: 'Israel',
+  ISR: 'Israel',
+  TR: 'Turquia',
+  TUR: 'Turquia',
+  ID: 'Indonésia',
+  IDN: 'Indonésia',
+  INA: 'Indonésia',
+  MY: 'Malásia',
+  MYS: 'Malásia',
+  MAS: 'Malásia',
 }
 
 /**
@@ -141,11 +259,11 @@ export function iso2ToEmoji(iso2: string): string {
  * Normaliza input que pode ser string, array de strings, null ou undefined.
  * Se array, utiliza a primeira entrada como principal (não descartando na UI).
  */
-export function normalizeCountryInput(input?: string | string[] | null): {
+export function normalizeCountryInput(input?: CountryInput): {
   primary: string
   rawFirst: string
 } {
-  if (!input) return { primary: '', rawFirst: '' }
+  if (input === null || input === undefined) return { primary: '', rawFirst: '' }
   if (Array.isArray(input)) {
     const first = input.find((item) => typeof item === 'string' && item.trim().length > 0)
     const raw = first ? first.trim() : ''
@@ -158,13 +276,66 @@ export function normalizeCountryInput(input?: string | string[] | null): {
   return { primary: '', rawFirst: '' }
 }
 
-export function resolveIso3(codeOrName?: string | string[] | null): string {
+/**
+ * Resolve código ISO2 e ISO3 a partir de CountryInput em memória (sem mutar dados persistidos).
+ */
+export function resolveIso2(input?: CountryInput): string {
+  const { primary: trimmed } = normalizeCountryInput(input)
+  if (!trimmed) return ''
+
+  const upper = trimmed.toUpperCase()
+
+  // Se já for ISO2 de 2 letras
+  if (upper.length === 2 && /^[A-Z]{2}$/.test(upper)) {
+    return upper
+  }
+
+  // Se for ISO3 conhecido
+  if (ISO3_TO_ISO2[upper]) {
+    return ISO3_TO_ISO2[upper]
+  }
+
+  // Tenta resolver por mapa de nomes/cidades (COUNTRY_CODE_MAP em minúsculas)
+  const mappedIso3 = COUNTRY_CODE_MAP[trimmed.toLowerCase()]
+  if (mappedIso3) {
+    const upperMapped = mappedIso3.toUpperCase()
+    if (ISO3_TO_ISO2[upperMapped]) {
+      return ISO3_TO_ISO2[upperMapped]
+    }
+    if (upperMapped.length === 2 && /^[A-Z]{2}$/.test(upperMapped)) {
+      return upperMapped
+    }
+  }
+
+  // Helper getCountryCode tolerante
+  const resolvedCode = getCountryCode(trimmed)
+  if (resolvedCode && resolvedCode !== 'F1') {
+    const upperResolved = resolvedCode.toUpperCase()
+    if (ISO3_TO_ISO2[upperResolved]) {
+      return ISO3_TO_ISO2[upperResolved]
+    }
+    if (upperResolved.length === 2 && /^[A-Z]{2}$/.test(upperResolved)) {
+      return upperResolved
+    }
+  }
+
+  return ''
+}
+
+export function resolveIso3(codeOrName?: CountryInput): string {
   const { primary: trimmed } = normalizeCountryInput(codeOrName)
   if (!trimmed) return ''
 
   const upper = trimmed.toUpperCase()
   if (ISO3_TO_ISO2[upper]) {
     return upper
+  }
+
+  // Se for ISO2, busca chave ISO3 equivalente
+  if (upper.length === 2 && /^[A-Z]{2}$/.test(upper)) {
+    for (const [iso3, iso2] of Object.entries(ISO3_TO_ISO2)) {
+      if (iso2 === upper) return iso3
+    }
   }
 
   // Tenta resolver pelo mapa existente pt/en
@@ -185,11 +356,11 @@ export function resolveIso3(codeOrName?: string | string[] | null): string {
 /**
  * Gera emoji deterministicamente para o código/nome fornecido.
  * Aceita ISO2 (BR, DE, GB, US, NL, MC, JP, AU, FR, IT, TH...) e ISO3 (BRA, DEU, GBR, USA...).
- * Se array, usa a primeira entrada como bandeira principal.
- * Fallback: código não resolvido -> retorna o CÓDIGO ORIGINAL recebido (string).
+ * Se array, usa a primeira entrada como bandeira principal (sem mutar o array).
+ * Fallback: código não resolvido -> retorna o CÓDIGO ORIGINAL recebido (string, ex: "XYZ").
  * Nunca undefined, null, '?', nem bandeira errada.
  */
-export function countryFlag(codeOrName?: string | string[] | null): string {
+export function countryFlag(codeOrName?: CountryInput): string {
   const { primary: trimmed, rawFirst } = normalizeCountryInput(codeOrName)
   if (!trimmed) return ''
 
@@ -198,37 +369,25 @@ export function countryFlag(codeOrName?: string | string[] | null): string {
     return trimmed
   }
 
-  // Caso receba direto ISO2 válido de 2 letras (ex: "BR", "DE", "GB", "US", "TH", etc.)
-  if (trimmed.length === 2 && /^[a-zA-Z]{2}$/.test(trimmed)) {
-    const emoji = iso2ToEmoji(trimmed)
-    if (emoji) return emoji
-  }
-
-  const iso3 = resolveIso3(trimmed)
-  const iso2 = ISO3_TO_ISO2[iso3]
+  // Resolução canônica ISO2 direta ou convertida de ISO3
+  const iso2 = resolveIso2(trimmed)
   if (iso2) {
     const emoji = iso2ToEmoji(iso2)
     if (emoji) return emoji
   }
 
-  // Fallback: código não resolvido -> retorna o CÓDIGO ORIGINAL recebido (string).
-  // Nunca undefined, null, '?', nem bandeira errada.
+  // Fallback D-A7: código desconhecido (XYZ) -> retorna código original recebido ("XYZ")
   return rawFirst || trimmed
 }
 
 /**
- * Resolver canônico de bandeiras com fallback seguro determinístico (para apresentação de texto/string).
- * Aceita string | string[] | null | undefined.
- * Se array, usa a PRIMEIRA entrada como bandeira principal.
- * Se fallback for omitido, o padrão é retornar o próprio código recebido (se fornecido) ou '🏳️' para vazio.
- * Quando o chamador passa fallback explicitamente (ex: resolveCountryFlag('XYZ', '🏁') ou resolveCountryFlag('XYZ')),
- * se não resolvido para emoji, honra o fallback fornecido. Se fallback não foi passado explicitamente (undefined)
- * ou se chamado no novo contrato sem fallback, código não resolvido retorna a string original recebida.
+ * Resolver canônico de bandeiras com fallback seguro determinístico.
+ * Aceita CountryInput = string | string[] | null | undefined.
+ * Se array, usa a PRIMEIRA entrada como bandeira principal (ex: ["TH", "GB"] -> TH).
+ * Se fallback for omitido, desconhecido retorna o próprio código (ex: "XYZ").
+ * Para null/undefined/[] retorna string vazia (ou fallback fornecido).
  */
-export function resolveCountryFlag(
-  codeOrName?: string | string[] | null,
-  fallback?: string,
-): string {
+export function resolveCountryFlag(codeOrName?: CountryInput, fallback?: string): string {
   const { primary: trimmed, rawFirst } = normalizeCountryInput(codeOrName)
   if (!trimmed) {
     return fallback !== undefined ? fallback : ''
@@ -240,7 +399,7 @@ export function resolveCountryFlag(
     return flag
   }
 
-  // Se o chamador especificou fallback explícito (ex: fallback padrão '🏳️' de chamadas legadas ou teste de regressão)
+  // Se o chamador especificou fallback explícito
   if (fallback !== undefined) {
     return fallback
   }
@@ -251,14 +410,29 @@ export function resolveCountryFlag(
 
 /**
  * Retorna o nome amigável em português para acessibilidade (title / aria-label).
+ * BR e BRA -> "Brasil"; DE e DEU -> "Alemanha"; GB e GBR -> "Reino Unido"; US e USA -> "Estados Unidos".
  * Desconhecido -> a própria sigla/string de entrada.
  */
-export function countryName(codeOrName?: string | string[] | null): string {
+export function countryName(codeOrName?: CountryInput): string {
   const { primary: trimmed } = normalizeCountryInput(codeOrName)
   if (!trimmed) return ''
 
+  const upper = trimmed.toUpperCase()
+
+  // 1. Busca direta por upper no dicionário canônico (cobre ISO2 e ISO3 mapeados)
+  if (COUNTRY_NAMES_PT[upper]) {
+    return COUNTRY_NAMES_PT[upper]
+  }
+
+  // 2. Tenta via ISO2
+  const iso2 = resolveIso2(trimmed)
+  if (iso2 && COUNTRY_NAMES_PT[iso2]) {
+    return COUNTRY_NAMES_PT[iso2]
+  }
+
+  // 3. Tenta via ISO3
   const iso3 = resolveIso3(trimmed)
-  if (COUNTRY_NAMES_PT[iso3]) {
+  if (iso3 && COUNTRY_NAMES_PT[iso3]) {
     return COUNTRY_NAMES_PT[iso3]
   }
 
