@@ -2,7 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
-import { standingsService } from '@/services/standingsService'
+import {
+  standingsService,
+  formatConstructorPosition,
+  calculateSeasonObjectiveProgress,
+} from '@/services/standingsService'
 import { regulationTimelineService } from '@/services/regulationService'
 import type { TechnicalRegulation } from '@/types/canonical-regulations'
 import pb from '@/lib/pocketbase/client'
@@ -378,7 +382,10 @@ export default function IndexPage() {
     if (allConstructorStandings.length > 0) {
       return allConstructorStandings.slice(0, 6).map((standing, idx) => ({
         id: standing.id,
-        position: idx + 1,
+        position:
+          standing.bestPosition != null && standing.bestPosition !== 99
+            ? standing.bestPosition
+            : idx + 1,
         teamName: standing.name || standing.teamName,
         points: standing.points ?? 0,
         isPlayer: standing.isPlayer ?? false,
@@ -482,15 +489,8 @@ export default function IndexPage() {
                 </span>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-mono">
-                    {constructorPosition != null && constructorPosition > 0
-                      ? `${constructorPosition}º`
-                      : '—'}
+                    {formatConstructorPosition(constructorPosition)}
                   </span>
-                  {constructorPosition != null && constructorPosition > 0 && (
-                    <span className="text-emerald-600 font-bold text-xs flex items-center">
-                      <TrendingUp className="w-3 h-3 mr-0.5" /> +2 pos. vs. ano anterior
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -501,9 +501,9 @@ export default function IndexPage() {
                   Pontos Acumulados
                 </span>
                 <span className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-mono">
-                  {constructorPoints > 0 || constructorPosition != null ? constructorPoints : 0}{' '}
+                  {constructorPoints}{' '}
                   <span className="text-xs font-normal text-[#64748B]">pts</span>
-                </span>{' '}
+                </span>
               </div>
             </div>
           </div>
@@ -520,49 +520,32 @@ export default function IndexPage() {
               {(() => {
                 // Cálculo dinâmico do objetivo da temporada usando o MESMO snapshot
                 // inputs: position (constructorPosition), points (constructorPoints), seasonYear, currentRound
-                const targetRank = 4
-                let pct = 0
-                if (constructorPosition != null && constructorPosition > 0) {
-                  if (constructorPosition <= targetRank) {
-                    // Está dentro do objetivo
-                    const rankBonus = (targetRank - constructorPosition + 1) * 10
-                    pct = Math.min(
-                      100,
-                      Math.max(50, 60 + rankBonus + Math.min(20, constructorPoints / 5)),
-                    )
-                  } else {
-                    // Fora do objetivo
-                    const gap = constructorPosition - targetRank
-                    pct = Math.max(
-                      0,
-                      Math.min(45, 50 - gap * 10 + Math.min(10, constructorPoints / 10)),
-                    )
-                  }
-                }
-                const formattedPct = Math.round(pct)
-                const isMeeting =
-                  constructorPosition != null &&
-                  constructorPosition > 0 &&
-                  constructorPosition <= targetRank
+                const obj = calculateSeasonObjectiveProgress({
+                  position: constructorPosition,
+                  points: constructorPoints,
+                  targetRank: 4,
+                  seasonYear,
+                  round: currentRound,
+                })
 
                 return (
                   <>
                     <div className="w-32 sm:w-44 h-2 rounded-full bg-neutral-200 overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-[#E10600] to-emerald-500 transition-all duration-500"
-                        style={{ width: `${constructorPosition ? formattedPct : 0}%` }}
+                        style={{ width: `${constructorPosition != null ? obj.percentage : 0}%` }}
                       />
                     </div>
                     <span
                       className={`font-bold font-mono text-[11px] ${
                         constructorPosition == null
                           ? 'text-[#64748B]'
-                          : isMeeting
+                          : obj.isMeeting
                             ? 'text-emerald-600'
                             : 'text-amber-600'
                       }`}
                     >
-                      {constructorPosition == null ? '—' : `${formattedPct}% atingido`}
+                      {obj.label}
                     </span>
                   </>
                 )
@@ -1291,41 +1274,46 @@ export default function IndexPage() {
                 <span className="col-span-7">Equipe</span>
                 <span className="col-span-3 text-right">Pts</span>
               </div>
+              {constructorStandingsList.length === 0 ? (
+                <div className="py-4 text-center text-xs text-[#94A3B8] font-mono">
+                  — Sem dados de classificação —
+                </div>
+              ) : (
+                constructorStandingsList.map((teamRow: any, idx: number) => {
+                  const tName = teamRow?.teamName || teamRow?.name || 'Equipe'
+                  const isUser =
+                    teamRow.isPlayer === true ||
+                    (team?.id && teamRow.id === team.id) ||
+                    (team?.name && tName.toLowerCase() === team.name.toLowerCase())
 
-              {constructorStandingsList.map((teamRow: any, idx: number) => {
-                const tName = teamRow?.teamName || teamRow?.name || 'Equipe'
-                const isUser =
-                  (team?.id && teamRow?.id === team.id) ||
-                  (team?.name && tName.toLowerCase() === team.name.toLowerCase()) ||
-                  teamRow?.isPlayer === true
-
-                return (
-                  <div
-                    key={teamRow.position || idx}
-                    className={`grid grid-cols-12 items-center px-2 py-1.5 rounded-md transition-colors ${
-                      isUser
-                        ? 'bg-[#E10600]/10 border border-[#E10600]/30 font-bold text-[#0F172A]'
-                        : 'text-[#334155] hover:bg-neutral-50'
-                    }`}
-                  >
-                    <span className="col-span-2 font-mono text-[11px] font-bold text-[#64748B]">
-                      {teamRow.position || idx + 1}º
-                    </span>
-                    <span className="col-span-7 truncate text-xs flex items-center gap-2">
-                      {isUser && <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />}
-                      <TeamCrest
-                        team={teamRow?.id || teamRow?.teamKey || tName}
-                        teamName={tName}
-                        size="sm"
-                      />
-                      <span className="truncate">{tName}</span>
-                    </span>
-                    <span className="col-span-3 text-right font-mono font-bold text-xs">
-                      {teamRow.points ?? 0}
-                    </span>
-                  </div>
-                )
-              })}
+                  return (
+                    <div
+                      key={teamRow.id || teamRow.position || idx}
+                      className={`grid grid-cols-12 items-center px-2 py-1.5 rounded-md transition-colors ${
+                        isUser
+                          ? 'bg-[#E10600]/10 border border-[#E10600]/30 font-bold text-[#0F172A]'
+                          : 'text-[#334155] hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span className="col-span-2 font-mono text-[11px] font-bold text-[#64748B]">
+                        {teamRow.position != null ? `${teamRow.position}º` : '—'}
+                      </span>
+                      <span className="col-span-7 truncate text-xs flex items-center gap-2">
+                        {isUser && <span className="w-1.5 h-1.5 rounded-full bg-[#E10600]" />}
+                        <TeamCrest
+                          team={teamRow?.id || teamRow?.teamKey || tName}
+                          teamName={tName}
+                          size="sm"
+                        />
+                        <span className="truncate">{tName}</span>
+                      </span>
+                      <span className="col-span-3 text-right font-mono font-bold text-xs">
+                        {teamRow.points ?? 0}
+                      </span>
+                    </div>
+                  )
+                })
+              )}{' '}
             </div>
           </div>
 

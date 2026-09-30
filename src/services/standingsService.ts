@@ -621,10 +621,75 @@ export function getDriversStandings(params: CalculateStandingsParams): DriverSta
   return calculateStandings(params).driverStandings
 }
 
+/**
+ * Formata a posição dos construtores para exibição na UI ("3º", "1º", ou "—" quando nulo/inválido).
+ */
+export function formatConstructorPosition(position: number | null | undefined): string {
+  if (position != null && position > 0) {
+    return `${position}º`
+  }
+  return '—'
+}
+
+export interface SeasonObjectiveInputs {
+  position: number | null
+  points: number
+  targetRank?: number
+  seasonYear?: number
+  round?: number
+}
+
+export interface SeasonObjectiveProgress {
+  percentage: number
+  formattedPercentage: string
+  isMeeting: boolean
+  label: string
+}
+
+/**
+ * Deriva de forma unificada o progresso do objetivo da temporada a partir dos inputs do snapshot atual.
+ * Quando position é nulo (sem standings válidos), retorna estado neutro ("—").
+ */
+export function calculateSeasonObjectiveProgress(
+  inputs: SeasonObjectiveInputs,
+): SeasonObjectiveProgress {
+  const { position, points = 0, targetRank = 4 } = inputs
+
+  if (position == null || position <= 0) {
+    return {
+      percentage: 0,
+      formattedPercentage: '—',
+      isMeeting: false,
+      label: '—',
+    }
+  }
+
+  let pct = 0
+  const isMeeting = position <= targetRank
+
+  if (isMeeting) {
+    const rankBonus = (targetRank - position + 1) * 10
+    pct = Math.min(100, Math.max(50, 60 + rankBonus + Math.min(20, points / 5)))
+  } else {
+    const gap = position - targetRank
+    pct = Math.max(0, Math.min(45, 50 - gap * 10 + Math.min(10, points / 10)))
+  }
+
+  const rounded = Math.round(pct)
+  return {
+    percentage: rounded,
+    formattedPercentage: `${rounded}%`,
+    isMeeting,
+    label: `${rounded}% atingido`,
+  }
+}
+
 export const standingsService = {
   calculatePointsForResults,
   getTeamMorale,
   calculateStandings,
   getConstructorsStandings,
   getDriversStandings,
+  formatConstructorPosition,
+  calculateSeasonObjectiveProgress,
 }
