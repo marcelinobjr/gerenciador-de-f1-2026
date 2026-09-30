@@ -458,7 +458,7 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'drv_0012',
     'drv_0020',
   ],
-  '0mow8vmzk0y4z9s': ['albon', 'alexander albon', 'mbj-013', 'drv_0013', 'alex-albon'],
+  'albon-runtime-alias': ['albon', 'alexander albon', 'mbj-013', 'drv_0013', 'alex-albon'],
   bortoleto: [
     'driver_gabriel_bortoleto',
     'drv_gabriel_bortoleto',
