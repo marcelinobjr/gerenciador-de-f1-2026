@@ -101,6 +101,9 @@ export interface StructuralStrengthBreakdown {
   dataQuality: DataQualityStatus
   dataQualityNotes: string
   calculatedAt: string
+  // BASELINE-2026-LOCK-01: Rastreabilidade de âncora canônica 2026
+  baselineOrigin?: string
+  baselineAnchorScore?: number
   // BALANCE-EQUATION-02B: Breakdown consolidado dos fatores faltantes
   factors02B?: {
     mguK: number

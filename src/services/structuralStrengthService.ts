@@ -388,7 +388,9 @@ export class StructuralStrengthService {
    * Auditoria completa do sistema de força estrutural:
    * Calcula e rankeia todas as 29 equipes jogáveis/selecionáveis.
    */
-  public auditStructuralStrengthSystem(options?: { seasonYear?: number }): StructuralStrengthAuditReport {
+  public auditStructuralStrengthSystem(options?: {
+    seasonYear?: number
+  }): StructuralStrengthAuditReport {
     const baseline = this.getBaselineV0()
     const allKeys = Object.keys(baseline.teams)
 
