@@ -449,10 +449,18 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                       <Badge
                         key={`${nat}-${idx}`}
                         variant="outline"
-                        className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs"
+                        className={`bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs ${
+                          idx === 0 ? 'border-neutral-400 font-semibold' : 'opacity-85'
+                        }`}
+                        title={idx === 0 ? 'Nacionalidade Principal' : 'Nacionalidade Secundária'}
                       >
                         <CountryFlag code={nat} />
                         <span>{nat}</span>
+                        {idx === 0 && nats.length > 1 && (
+                          <span className="text-[9px] uppercase tracking-wider text-slate-400 font-sans ml-0.5">
+                            (Principal)
+                          </span>
+                        )}
                       </Badge>
                     ))
                   })()}

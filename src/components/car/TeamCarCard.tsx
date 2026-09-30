@@ -1,6 +1,7 @@
 import React from 'react'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { resolveCountryFlag } from '@/lib/country-flag'
+import { CountryFlag } from '@/components/CountryFlag'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { getTeamSideView } from '@/data/assets/teamAssets'
 import { getCarroPorEquipeImage } from '@/assets/carroPorEquipe'
@@ -35,7 +36,6 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
   const carImage = getTeamSideView(teamKey) || getCarroPorEquipeImage(teamKey, isCustom)
 
   const driverNationality = driver?.nationality || 'Brasil'
-  const driverFlag = resolveCountryFlag(driverNationality)
   const teamColor = team?.color || '#E10600'
 
   return (
@@ -87,8 +87,8 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
           <div className="min-w-0">
             {driver ? (
               <>
-                <div className="flex items-center gap-1 text-xs text-slate-500">
-                  <span className="text-sm">{driverFlag}</span>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <CountryFlag code={driverNationality} className="text-sm" />
                   <span className="truncate">{driverNationality}</span>
                 </div>
                 <div className="text-sm font-bold text-slate-900 truncate">{driver.name}</div>

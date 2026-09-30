@@ -13,6 +13,7 @@ import pb from '@/lib/pocketbase/client'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { getCountryCode } from '@/lib/country-flags'
 import { countryFlag, countryName, resolveCountryFlag } from '@/lib/country-flag'
+import { CountryFlag } from '@/components/CountryFlag'
 import { TeamCrest } from '@/components/ui/TeamCrest'
 import { formatCurrency } from '@/lib/formatters'
 import { CARRO_POR_EQUIPE_MAP, IMAGEM_CARRO_PADRAO_FALLBACK } from '@/assets/carroPorEquipe'
@@ -593,19 +594,20 @@ export default function IndexPage() {
                       </span>
                       <span
                         className="align-middle text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-100 text-[#475569] border border-neutral-200 uppercase font-mono tracking-wider inline-flex items-center gap-1"
-                        aria-label={currentGP?.country || currentGPCountryCode}
+                        aria-label={countryName(
+                          currentGP?.country || currentCircuitData?.country || currentGPCountryCode,
+                        )}
                         title={countryName(
                           currentGP?.country || currentCircuitData?.country || currentGPCountryCode,
                         )}
                       >
-                        <span>
-                          {countryFlag(
+                        <CountryFlag
+                          code={
                             currentGP?.country ||
-                              currentCircuitData?.country ||
-                              currentGPCountryCode,
-                          )}
-                        </span>
-                        <span>{currentGPCountryCode}</span>
+                            currentCircuitData?.country ||
+                            currentGPCountryCode
+                          }
+                        />
                       </span>
                     </h3>
                     <p className="text-xs text-[#64748B] font-medium mt-0.5">
@@ -899,13 +901,8 @@ export default function IndexPage() {
                               className="w-14 h-16 rounded-lg overflow-hidden border border-[#CBD5E1]"
                               imgClassName="w-full h-full object-cover object-top"
                             />
-                            <span
-                              className="absolute -bottom-1 -right-1 text-sm leading-none bg-white/90 rounded shadow-xs px-0.5 select-none"
-                              role="img"
-                              aria-label={countryName(driver.nationality)}
-                              title={countryName(driver.nationality)}
-                            >
-                              {countryFlag(driver.nationality)}
+                            <span className="absolute -bottom-1 -right-1 text-sm leading-none bg-white/90 rounded shadow-xs px-0.5 select-none">
+                              <CountryFlag code={driver.nationality} />
                             </span>
                           </div>
                           <div className="min-w-0 flex-1">

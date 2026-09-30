@@ -1,6 +1,7 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { CountryFlag } from '@/components/CountryFlag'
 import { MapPin, Cpu, Flag, Star, Target, ChevronRight } from 'lucide-react'
 
 interface AboutTeamCardProps {
@@ -89,8 +90,9 @@ export const AboutTeamCard: React.FC<AboutTeamCardProps> = ({
               <Flag className="w-3.5 h-3.5 text-[#64748B]" />
               <span>Nacionalidade</span>
             </div>
-            <span className="font-semibold text-[#0F172A] text-right truncate max-w-[170px]">
-              {nationality}
+            <span className="font-semibold text-[#0F172A] text-right truncate max-w-[170px] inline-flex items-center justify-end gap-1.5">
+              <CountryFlag code={nationality} className="text-base" />
+              <span>{nationality}</span>
             </span>
           </div>
 

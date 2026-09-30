@@ -1319,13 +1319,10 @@ export default function DriversPage() {
                           {/* 2. Nacionalidade: bandeira emoji + identificação do país */}
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1.5">
-                              <span
-                                role="img"
-                                aria-label={countryLabel}
+                              <CountryFlag
+                                code={(pilot as any).nationalities || pilot.nationality}
                                 className="text-base leading-none select-none"
-                              >
-                                {flagEmoji}
-                              </span>
+                              />
                               <span className="text-slate-700 text-xs font-medium truncate">
                                 {countryLabel}
                               </span>
