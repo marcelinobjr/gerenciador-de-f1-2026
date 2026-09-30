@@ -121,13 +121,29 @@ describe('QUALI-TEAM-BREAKDOWN-AUDIT-01 Diagnostic Suite', () => {
     // Specific exact values validation for artifact
     const cadRow = fullGridData.find((r) => r.teamKey === 'cadillac')
     const alpRow = fullGridData.find((r) => r.teamKey === 'alpine')
-    expect(cadRow).toBeDefined()
-    expect(alpRow).toBeDefined()
+    const mercRow = fullGridData.find((r) => r.teamKey === 'mercedes')
+    const ferRow = fullGridData.find((r) => r.teamKey === 'ferrari')
+    const mclRow = fullGridData.find((r) => r.teamKey === 'mclaren')
+    const rbRow = fullGridData.find((r) => r.teamKey === 'redbull')
+    const astRow = fullGridData.find((r) => r.teamKey === 'astonmartin')
+    const rb2Row = fullGridData.find((r) => r.teamKey === 'racingbulls')
+    const audRow = fullGridData.find((r) => r.teamKey === 'audi')
+    const wilRow = fullGridData.find((r) => r.teamKey === 'williams')
+    const haaRow = fullGridData.find((r) => r.teamKey === 'haas')
+    const andRow = fullGridData.find((r) => r.teamKey === 'andretti')
 
-    // Log grid breakdown to Vitest output via an assertion that encodes the values
     expect(cadRow?.tfMod).toBe(5.85)
     expect(alpRow?.tfMod).toBe(4.95)
-
+    expect(mercRow?.tfMod).toBe(-3.3)
+    expect(ferRow?.tfMod).toBe(-3.74)
+    expect(mclRow?.tfMod).toBe(-2.75)
+    expect(rbRow?.tfMod).toBe(-2.2)
+    expect(astRow?.tfMod).toBe(0.77)
+    expect(rb2Row?.tfMod).toBe(2.86)
+    expect(audRow?.tfMod).toBe(-0.22)
+    expect(wilRow?.tfMod).toBe(2.53)
+    expect(haaRow?.tfMod).toBe(1.54)
+    expect(andRow?.tfMod).toBe(-0.66)
     // Specific team checks for Silverstone
     const cad = fullGridData.find((r) => r.teamKey === 'cadillac')
     const alp = fullGridData.find((r) => r.teamKey === 'alpine')
