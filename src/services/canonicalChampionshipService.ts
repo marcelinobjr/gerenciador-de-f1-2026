@@ -646,25 +646,15 @@ export class CanonicalChampionshipService {
       const prevPos = prevDriverPositions?.get(d.driverId)
       const deltaInfo = this.formatPositionDelta(prevPos, pos)
 
-      // Identificar equipe atual: resolver via getActiveDriverTeamBinding PRIMEIRO,
-      // depois career_drivers (se houver), e finalmente lastTeamId da última corrida
+      // Identificar equipe atual: resolver via getActiveDriverTeamBinding() canônico.
+      // "Sem Equipe" somente quando o binding não retornar contrato ativo.
       const canonicalBinding = getActiveDriverTeamBinding(d.driverId)
-      const careerRec = driverBase2026Service.getCareerDriver(careerId, d.driverId)
       const currentTeamId =
         (canonicalBinding?.isContracted && (canonicalBinding.teamId || canonicalBinding.teamKey)) ||
-        careerRec?.teamId ||
-        d.lastTeamId ||
         null
-      const currentTeamName =
-        (canonicalBinding?.isContracted && canonicalBinding.teamName) ||
-        careerRec?.teamName ||
-        d.lastTeamName ||
-        null
+      const currentTeamName = (canonicalBinding?.isContracted && canonicalBinding.teamName) || null
       const currentTeamColor =
-        (canonicalBinding?.isContracted && canonicalBinding.teamColor) ||
-        (careerRec as any)?.teamColor ||
-        d.lastTeamColor ||
-        undefined
+        (canonicalBinding?.isContracted && canonicalBinding.teamColor) || undefined
 
       return {
         position: pos,
