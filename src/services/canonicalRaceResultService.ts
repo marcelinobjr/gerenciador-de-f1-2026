@@ -184,7 +184,7 @@ export class CanonicalRaceResultService {
       return { canOfficialize: false, reasons: ['Estado nulo'] }
     }
     // 1. Status da corrida
-    const isCompletedStatus = state.status === 'completed'
+    const isCompletedStatus = (state.status as string) === 'completed'
     const isFinishedFlag = state.raceControl?.currentFlag === 'FINISHED'
     const isTerminatedEarly = (state as any).isTerminatedEarly === true
 
@@ -222,9 +222,19 @@ export class CanonicalRaceResultService {
         `Classificação inconsistente: esperado 24 pilotos, encontrado ${state.drivers?.length || 0}`,
       )
     } else {
-      // Verificar se há algum piloto em racing que ainda deveria estar correndo
+      const activeCount = state.drivers.filter(
+        (d) => d.raceStatus === 'racing' || d.raceStatus === 'in_pit',
+      ).length
+      // Se não for encerramento antecipado ou todos DNF, verificar líder
+      const isAllDnf = activeCount === 0
       const leader = state.drivers[0]
-      if (leader && leader.lap < state.totalLaps && leader.raceStatus !== 'dnf') {
+      if (
+        !isTerminatedEarly &&
+        !isAllDnf &&
+        leader &&
+        leader.lap < state.totalLaps &&
+        leader.raceStatus !== 'dnf'
+      ) {
         reasons.push(`Líder completou ${leader.lap}/${state.totalLaps} voltas — corrida incompleta`)
       }
     }
@@ -235,6 +245,33 @@ export class CanonicalRaceResultService {
     }
   }
 
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+    return {
+      canOfficialize: reasons.length === 0,
+      reasons,
+    }
+  }
+
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+=======
+  /**
+   * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
+   */
+  public dummyMarker() {}
+=======
+    return {
+      canOfficialize: reasons.length === 0,
+=======
   /**
    * Constrói o resumo auditável de eventos relevantes (Safety Car, VSC, Red Flag, DNFs, Pits).
    */
@@ -308,8 +345,18 @@ export class CanonicalRaceResultService {
     // Congelamos exatamente essa ordem sem recalcular.
     const rawDrivers = state.drivers
     const leader = rawDrivers[0]
-    const winnerDriverId = leader.driverId
-    const winnerTeamId = leader.teamId
+    const leaderCompletedLaps = Math.max(...rawDrivers.map((d) => d.lap || 0), 0)
+    const hasAnyCompletedLap = leaderCompletedLaps > 0
+
+    // Regra FIA 2026: 90% das voltas completadas pelo vencedor/líder (arredondado para baixo)
+    const ninetyPercentThreshold = hasAnyCompletedLap
+      ? Math.floor(leaderCompletedLaps * 0.9)
+      : 0
+
+    // Se todos abandonaram sem nenhuma volta completa, NÃO inventar vencedor/ordem pela grid
+    const hasValidWinner = hasAnyCompletedLap
+    const winnerDriverId = hasValidWinner ? leader.driverId : ''
+    const winnerTeamId = hasValidWinner ? leader.teamId : ''
 
     // Identificar pole position (quem largou em P1 do qualifying)
     const poleDriver = rawDrivers.find((d) => d.gridPosition === 1) || rawDrivers[0]
@@ -328,10 +375,20 @@ export class CanonicalRaceResultService {
       const positionsGainedLost = driver.gridPosition - finalPosition
       const isFastest = fastestLapDriverId ? driver.driverId === fastestLapDriverId : false
 
-      // Pontos FIA de acordo com o regulamento esportivo (considerando distância completada)
-      // O dado esportivo é registrado na entrada, mas nenhuma carreira é persistida nesta etapa
-      const pointsAwarded = !isDnf
-        ? calculateFiaPoints(finalPosition, leader.lap || state.currentLap, state.totalLaps)
+      // Regra de Classificação FIA:
+      // Se não há voltas completas por ninguém na prova, todos são NC (no result / no classification)
+      // Caso contrário: >= 90% das voltas do líder => CLASSIFIED. < 90% => NOT_CLASSIFIED (NC)
+      const laps = driver.lap || 0
+      const isClassified = hasAnyCompletedLap && laps >= ninetyPercentThreshold
+      const classificationStatus: 'CLASSIFIED' | 'NOT_CLASSIFIED' = isClassified
+        ? 'CLASSIFIED'
+        : 'NOT_CLASSIFIED'
+      const finishStatus = isDnf ? 'dnf' : driver.raceStatus
+
+      // Pontos FIA de acordo com o regulamento esportivo (considerando distância completada pelo líder):
+      // Condição: deve ser CLASSIFIED e líder com pelo menos 2 voltas completas
+      const pointsAwarded = isClassified
+        ? calculateFiaPoints(finalPosition, leaderCompletedLaps, state.totalLaps)
         : 0
 
       const gapToWinner =
@@ -361,6 +418,9 @@ export class CanonicalRaceResultService {
         gapToWinnerSec: driver.gapToLeaderSec,
         gapToFrontSec: driver.gapToFrontSec,
         status: isDnf ? 'dnf' : 'finished',
+        finishStatus,
+        classificationStatus,
+        isClassified,
         dnf: isDnf,
         dnfReason: isDnf ? driver.dnfReason || 'Abandono da Prova' : undefined,
         dnfLap: isDnf ? driver.dnfLap || driver.lap : undefined,
@@ -469,7 +529,6 @@ export class CanonicalRaceResultService {
    * Encerra antecipadamente uma corrida em andamento aplicando a regra FIA de distância reduzida.
    */
   public terminateEarlyAndOfficialize(state: CanonicalRaceState): OfficialRaceResult {
-    const leaderLaps = state.drivers?.[0]?.lap || state.currentLap
     const terminatedState: CanonicalRaceState = {
       ...state,
       status: 'completed',

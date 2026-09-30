@@ -464,11 +464,14 @@ export class CanonicalRaceEngineService {
     currentState: CanonicalRaceState,
     options?: AdvanceRaceOptions,
   ): CanonicalRaceState {
-    if (currentState.status === 'completed') {
+    // Se a corrida já estiver concluída, não processar nenhuma volta adicional
+    if (
+      (currentState.status as string) === 'completed' ||
+      currentState.raceControl?.currentFlag === 'FINISHED'
+    ) {
       return currentState
     }
 
-    // RACE-PROVENANCE-AUDIT-02B-E1A:
     // Se houver decisão climática humana pendente ativa, advanceOneLap bloqueia o avanço da corrida
     // e retorna o estado sem avançar nova volta.
     if (
@@ -1147,7 +1150,8 @@ export class CanonicalRaceEngineService {
       }
     }
 
-    // DNFs: quem completou mais voltas fica na frente; se mesma volta, quem teve menor tempo
+    // DNFs: quem completou mais voltas fica na frente; se mesma volta, quem cruzou a linha antes (menor raceTime na volta completada)
+    // Se nenhum piloto tem voltas completadas (ex: volta 1 antes de qualquer cruzamento de linha), manter sem fabricar ordem pela grid
     dnfDrivers.sort((a, b) => {
       if (b.lap !== a.lap) return b.lap - a.lap
       return a.raceTime - b.raceTime
@@ -1284,12 +1288,14 @@ export class CanonicalRaceEngineService {
       }
     }
 
-    // 7. Checar Finalização da Prova (Regra 11 — Bandeira Quadriculada)
-    // Quando o líder completa as voltas regulamentares (totalLaps):
+    // 7. Checar Finalização da Prova (Regra 11 — Bandeira Quadriculada ou All-DNF)
+    // Quando o líder completa as voltas regulamentares (totalLaps) OU todos os carros abandonaram:
     const leaderLaps = activeDrivers[0]?.lap || 0
     let completedAt = currentState.completedAt
     let isRaceFinished = false
-    if (leaderLaps >= totalLaps) {
+    const isAllDnf = intermediateDrivers.length > 0 && activeDrivers.length === 0
+
+    if (leaderLaps >= totalLaps || isAllDnf) {
       nextStatus = 'completed'
       isRaceFinished = true
       completedAt = new Date().toISOString()
@@ -1301,20 +1307,58 @@ export class CanonicalRaceEngineService {
         lapsRemainingInPhase: 0,
       }
 
-      // Finalizar todos os demais pilotos ativos com raceStatus = 'finished'
-      activeDrivers.forEach((d) => {
-        d.raceStatus = 'finished'
-      })
+      if (isAllDnf) {
+        // Encerramento esportivo imediato: nenhum carro ativo restante
+        const leadingDnf = dnfDrivers[0]
+        const hasCompletedLaps = leadingDnf && leadingDnf.lap > 0
+        nextEvents.push({
+          id: `ev_all_dnf_${targetLap}`,
+          lap: targetLap,
+          type: 'info',
+          message: hasCompletedLaps
+            ? `🏁 CORRIDA ENCERRADA (TODOS OS CARROS ABANDONARAM): Prova finalizada na volta ${targetLap}. Classificação canônica apurada pelas voltas completadas.`
+            : `🏁 CORRIDA ENCERRADA (TODOS OS CARROS ABANDONARAM): Prova encerrada sem voltas completas válidas (No Result / Sem classificação esportiva).`,
+          driverId: leadingDnf?.driverId,
+          driverName: leadingDnf?.driverName,
+          teamColor: leadingDnf?.teamColor,
+          timestamp: timestampStr,
+        })
+      } else {
+        // Finalizar todos os demais pilotos ativos com raceStatus = 'finished'
+        activeDrivers.forEach((d) => {
+          d.raceStatus = 'finished'
+        })
 
-      const winner = activeDrivers[0]
+        const winner = activeDrivers[0]
+        nextEvents.push({
+          id: `ev_finish_${targetLap}`,
+          lap: totalLaps,
+          type: 'info',
+          message: `🏁 BANDEIRA QUADRICULADA: GP concluído! Vitória memorável de ${winner?.driverName} (${winner?.teamName})!`,
+          driverId: winner?.driverId,
+          driverName: winner?.driverName,
+          teamColor: winner?.teamColor,
+          timestamp: timestampStr,
+        })
+      }
+    } else if (activeDrivers.length === 0) {
+      // BLOCO 10 (ALL-DNF-RACE-01): Encerramento automático quando activeCars === 0
+      nextStatus = 'completed'
+      isRaceFinished = true
+      completedAt = new Date().toISOString()
+
+      rcState = {
+        ...rcState,
+        currentFlag: 'FINISHED',
+        previousFlag: rcState.currentFlag,
+        lapsRemainingInPhase: 0,
+      }
+
       nextEvents.push({
-        id: `ev_finish_${targetLap}`,
-        lap: totalLaps,
+        id: `ev_all_dnf_finish_${targetLap}`,
+        lap: targetLap,
         type: 'info',
-        message: `🏁 BANDEIRA QUADRICULADA: GP concluído! Vitória memorável de ${winner?.driverName} (${winner?.teamName})!`,
-        driverId: winner?.driverId,
-        driverName: winner?.driverName,
-        teamColor: winner?.teamColor,
+        message: `🏁 PROVA ENCERRADA: Todos os carros abandonaram a corrida na volta ${targetLap}. Classificação canônica finalizada pela regra FIA 2026.`,
         timestamp: timestampStr,
       })
     }

@@ -368,6 +368,8 @@ export type OfficialRaceResultSchemaVersion = typeof OFFICIAL_RACE_RESULT_SCHEMA
 /**
  * Entrada individual e imutável de classificação oficial por piloto (P1 a P24).
  */
+export type OfficialClassificationStatus = 'CLASSIFIED' | 'NOT_CLASSIFIED'
+
 export interface OfficialRaceResultEntry {
   driverId: string
   teamId: string
@@ -387,6 +389,9 @@ export interface OfficialRaceResultEntry {
   gapToWinnerSec?: number
   gapToFrontSec?: number
   status: CanonicalDriverRaceStatus
+  finishStatus?: CanonicalDriverRaceStatus
+  classificationStatus?: OfficialClassificationStatus
+  isClassified?: boolean
   dnf: boolean
   dnfReason?: string
   dnfLap?: number
