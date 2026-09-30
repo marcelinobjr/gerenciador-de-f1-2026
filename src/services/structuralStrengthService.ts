@@ -40,6 +40,11 @@ import { getOverallRating } from '@/lib/mbj-drivers-data'
 import { BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
 import { balanceBaselineService } from '@/services/balanceBaselineService'
 import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
+import {
+  BASELINE_2026_V1_TEAMS,
+  BASELINE_2026_V1_ORDER,
+  BASELINE_2026_V1_METADATA,
+} from '@/data/baseline-2026-v1'
 
 // Constantes de Pesos Oficiais
 export const TECHNICAL_WEIGHTS: TechnicalScoreWeights = {
@@ -302,13 +307,18 @@ export class StructuralStrengthService {
   /**
    * Avalia a Força Estrutural para uma dada chave de equipe (usando catálogo ou baseline).
    */
-  public getTeamStructuralStrength(teamKey: string): StructuralStrengthBreakdown {
+  public getTeamStructuralStrength(
+    teamKey: string,
+    options?: { seasonYear?: number },
+  ): StructuralStrengthBreakdown {
     let cleanKey = teamKey.toLowerCase().trim()
     // Aliases comuns para casar chaves alternativas com o baseline V0
     if (cleanKey === 'red_bull' || cleanKey === 'rbr') cleanKey = 'redbull'
     if (cleanKey === 'aston_martin' || cleanKey === 'amr') cleanKey = 'astonmartin'
     if (cleanKey === 'racing_bulls' || cleanKey === 'rb' || cleanKey === 'vcarb')
       cleanKey = 'racingbulls'
+
+    const seasonYear = options?.seasonYear ?? 2026
 
     const baseline = this.getBaselineV0()
     const baselineEntry = baseline.teams[cleanKey]
@@ -378,12 +388,12 @@ export class StructuralStrengthService {
    * Auditoria completa do sistema de força estrutural:
    * Calcula e rankeia todas as 29 equipes jogáveis/selecionáveis.
    */
-  public auditStructuralStrengthSystem(): StructuralStrengthAuditReport {
+  public auditStructuralStrengthSystem(options?: { seasonYear?: number }): StructuralStrengthAuditReport {
     const baseline = this.getBaselineV0()
     const allKeys = Object.keys(baseline.teams)
 
     const allTeams: StructuralStrengthBreakdown[] = allKeys.map((key) =>
-      this.getTeamStructuralStrength(key),
+      this.getTeamStructuralStrength(key, options),
     )
 
     // Ordena por Força Estrutural decrescente
