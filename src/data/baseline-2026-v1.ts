@@ -1,7 +1,7 @@
 /**
  * baseline-2026-v1.ts
  *
- * BASELINE-2026-LOCK-01 — BASELINE CANÔNICA DEFINITIVA 2026-V1
+ * BASELINE-2026-LOCK-01-CP1 — BASELINE CANÔNICA DEFINITIVA 2026-V1
  *
  * Força Estrutural canônica inicial das 12 equipes da Fórmula 1 (temporada 2026):
  * 1. Mercedes — 100
@@ -18,7 +18,7 @@
  * 12. Andretti — 69
  *
  * Spread estrutural: 100 - 69 = 31 pts.
- * Multiplicador de conversão: ~0.080s por ponto -> Spread teórico ≈ 2.480 s.
+ * Multiplicador de conversão: 0.08s por ponto -> Spread teórico = 31 * 0.08 = 2.48s.
  */
 
 export interface TeamBaselineEntry {
@@ -101,7 +101,7 @@ export const BASELINE_2026_V1_TEAMS: Record<string, TeamBaselineEntry> = {
     teamName: 'Andretti Global',
     score: 69,
   },
-}
+} as const
 
 export const BASELINE_2026_V1_ORDER = [
   'mercedes',
@@ -126,4 +126,4 @@ export const BASELINE_2026_V1_METADATA = {
   pointSpread: 31,
   timeConversionSecPerPoint: 0.08,
   targetSpreadSec: 2.48,
-}
+} as const

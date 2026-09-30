@@ -38,7 +38,6 @@ import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerU
 import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
 import { getOverallRating } from '@/lib/mbj-drivers-data'
 import { BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
-import { BASELINE_2026_V1_TEAMS } from '@/data/baseline-2026-v1'
 import { balanceBaselineService } from '@/services/balanceBaselineService'
 import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
 
@@ -310,71 +309,6 @@ export class StructuralStrengthService {
     if (cleanKey === 'aston_martin' || cleanKey === 'amr') cleanKey = 'astonmartin'
     if (cleanKey === 'racing_bulls' || cleanKey === 'rb' || cleanKey === 'vcarb')
       cleanKey = 'racingbulls'
-
-    // BASELINE-2026-V1 Canônica: Prioridade máxima para as 12 equipes da temporada 2026
-    const v1Entry = BASELINE_2026_V1_TEAMS[cleanKey]
-    if (v1Entry) {
-      const baseline = this.getBaselineV0()
-      const baselineEntry = baseline.teams[cleanKey]
-      const teamName = v1Entry.teamName
-      const structuralStrengthScore = v1Entry.score
-
-      return {
-        teamKey: cleanKey,
-        teamName,
-        structuralStrengthScore,
-        technicalScore: structuralStrengthScore,
-        driverScore: structuralStrengthScore,
-        teamScore: structuralStrengthScore,
-        weights: STRUCTURAL_STRENGTH_WEIGHTS,
-        technicalBreakdown: {
-          partsScore: structuralStrengthScore,
-          effectivePuScore: structuralStrengthScore,
-          reliabilityScore: 90,
-          conditionScore: 100,
-          technicalScore: structuralStrengthScore,
-          weights: TECHNICAL_WEIGHTS,
-          componentsMap: baselineEntry?.chassisComponents || {},
-          puSupplier: baselineEntry?.engineSupplier || 'Oficial',
-          effectiveIntegration: 0.95,
-          nominalPuRating: structuralStrengthScore,
-          mguKScore: 90,
-          puReliabilityScore: 90,
-          puWear: 0,
-        },
-        driverBreakdown: {
-          driverAttributesScore: structuralStrengthScore,
-          moraleScore: 85,
-          adaptationScore: 75,
-          driverScore: structuralStrengthScore,
-          isAdaptationNeutral: true,
-          adaptationStatus: 'NEUTRAL_PLACEHOLDER',
-          weights: DRIVER_WEIGHTS,
-          drivers: baselineEntry?.drivers || [],
-          driverAdaptation: 75,
-          notes: 'Baseline 2026-V1 Canônica.',
-        },
-        teamBreakdown: {
-          infrastructureScore: structuralStrengthScore,
-          teamMoraleScore: 85,
-          teamScore: structuralStrengthScore,
-          weights: TEAM_WEIGHTS,
-          facilitiesLevels: baselineEntry?.facilities || {},
-          averageFacilityLevel: 4,
-          teamMorale: 85,
-        },
-        dataQuality: 'COMPLETE',
-        dataQualityNotes: 'Baseline 2026-V1 homologada.',
-        calculatedAt: new Date().toISOString(),
-        factors02B: {
-          mguK: 90,
-          puWear: 0,
-          driverAdaptation: 75,
-          puReliability: 90,
-          teamMorale: 85,
-        },
-      }
-    }
 
     const baseline = this.getBaselineV0()
     const baselineEntry = baseline.teams[cleanKey]
