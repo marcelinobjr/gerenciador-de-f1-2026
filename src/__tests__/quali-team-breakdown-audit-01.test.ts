@@ -3,6 +3,7 @@ import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegra
 import { structuralStrengthService } from '@/services/structuralStrengthService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
+import { calculateTrackFit } from '@/lib/car-session-performance-engine'
 
 describe('QUALI-TEAM-BREAKDOWN-AUDIT-01 Diagnostic Suite', () => {
   it('measures all participating teams at Silverstone', () => {
@@ -24,9 +25,27 @@ describe('QUALI-TEAM-BREAKDOWN-AUDIT-01 Diagnostic Suite', () => {
       'andretti',
     ]
 
+    const teamRows: any[] = []
     for (const key of teamKeys) {
       const structural = structuralStrengthService.getTeamStructuralStrength(key)
       expect(structural.structuralStrengthScore).toBeGreaterThan(0)
+      const baseEntry = BASELINE_V0_DATA.teams[key]
+      teamRows.push({
+        key,
+        teamName: structural.teamName,
+        structuralStrengthScore: structural.structuralStrengthScore,
+        technicalScore: structural.technicalScore,
+        driverScore: structural.driverScore,
+        teamScore: structural.teamScore,
+        technicalAttributes: baseEntry ? baseEntry.technicalAttributes : null,
+      })
+    }
+    expect(teamRows.length).toBe(12)
+    // Validate calculateTrackFit for cadillac using baseEntry technicalAttributes
+    const cadTech = teamRows.find(t => t.key === 'cadillac')?.technicalAttributes
+    if (cadTech && circuit) {
+      const tf = calculateTrackFit(cadTech, circuit)
+      expect(tf.trackFitScore).toBeGreaterThan(0)
     }
   })
 
