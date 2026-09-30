@@ -21,6 +21,61 @@ export function getFiaPointsForPosition(position: number): number {
   return 0
 }
 
+/**
+ * Tabela de pontuação FIA para corridas com distância reduzida.
+ * Menos de 2 voltas: 0 pontos
+ * 2 voltas até 25%: 6, 4, 3, 2, 1 (Top 5)
+ * 25% até 50%: 13, 10, 8, 6, 5, 4, 3, 2, 1 (Top 9)
+ * 50% até 75%: 19, 14, 12, 10, 8, 6, 5, 3, 2, 1 (Top 10)
+ * Mais de 75%: 25, 18, 15, 12, 10, 8, 6, 4, 2, 1 (Top 10, pontuação cheia)
+ */
+export const FIA_REDUCED_POINTS_25: readonly number[] = [6, 4, 3, 2, 1] as const
+export const FIA_REDUCED_POINTS_50: readonly number[] = [13, 10, 8, 6, 5, 4, 3, 2, 1] as const
+export const FIA_REDUCED_POINTS_75: readonly number[] = [19, 14, 12, 10, 8, 6, 5, 3, 2, 1] as const
+
+export function calculateFiaPoints(
+  position: number,
+  completedLaps: number,
+  totalLaps: number,
+): number {
+  if (position < 1 || totalLaps <= 0 || completedLaps < 2) {
+    return 0
+  }
+
+  const fraction = completedLaps / totalLaps
+
+  if (fraction <= 0.25) {
+    // 2 voltas até 25%: Top 5
+    if (position >= 1 && position <= FIA_REDUCED_POINTS_25.length) {
+      return FIA_REDUCED_POINTS_25[position - 1]
+    }
+    return 0
+  }
+
+  if (fraction <= 0.50) {
+    // Entre 25% e 50%: Top 9
+    if (position >= 1 && position <= FIA_REDUCED_POINTS_50.length) {
+      return FIA_REDUCED_POINTS_50[position - 1]
+    }
+    return 0
+  }
+
+  if (fraction <= 0.75) {
+    // Entre 50% e 75%: Top 10
+    if (position >= 1 && position <= FIA_REDUCED_POINTS_75.length) {
+      return FIA_REDUCED_POINTS_75[position - 1]
+    }
+    return 0
+  }
+
+  // Mais de 75%: pontuação cheia
+  if (position >= 1 && position <= FIA_POINTS_TABLE.length) {
+    return FIA_POINTS_TABLE[position - 1]
+  }
+
+  return 0
+}
+
 export interface DriverStandingItem {
   id: string
   name: string

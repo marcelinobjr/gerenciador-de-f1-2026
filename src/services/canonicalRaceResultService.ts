@@ -35,10 +35,12 @@ import type {
   OfficialRaceEventSummary,
 } from '@/types/canonical-race-v2'
 import { OFFICIAL_RACE_RESULT_SCHEMA_VERSION } from '@/types/canonical-race-v2'
-import { getFiaPointsForPosition } from '@/lib/f1-standings-calculator'
+import { getFiaPointsForPosition, calculateFiaPoints } from '@/lib/f1-standings-calculator'
 import { formatLapTime } from '@/lib/f1-race-sim-engine'
 
 export const CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX = 'f1_2026_canonical_official_result'
+
+export { calculateFiaPoints } from '@/lib/f1-standings-calculator'
 
 export class CanonicalRaceResultService {
   /**
@@ -179,30 +181,28 @@ export class CanonicalRaceResultService {
     const reasons: string[] = []
 
     if (!state) {
-      return { canOfficialize: false, reasons: ['Estado da corrida inexistente ou nulo'] }
+      return { canOfficialize: false, reasons: ['Estado nulo'] }
     }
-
     // 1. Status da corrida
     const isCompletedStatus = state.status === 'completed'
     const isFinishedFlag = state.raceControl?.currentFlag === 'FINISHED'
+    const isTerminatedEarly = (state as any).isTerminatedEarly === true
 
-    if (!isCompletedStatus && !isFinishedFlag) {
+    if (!isCompletedStatus && !isFinishedFlag && !isTerminatedEarly) {
       reasons.push(
-        `Corrida ainda não concluída (status atual: '${state.status}', bandeira: '${state.raceControl?.currentFlag || 'N/A'}')`,
+        `Corrida não concluída (status: '${state.status}', bandeira: '${state.raceControl?.currentFlag}')`,
       )
     }
-
-    // Não permitir durante bandeiras ativas de neutralização ou pausa
-    if (state.safetyCarActive || state.raceControl?.currentFlag === 'SAFETY_CAR') {
+    // Não permitir durante bandeiras ativas de neutralização ou pausa se não for encerramento antecipado
+    if (!isTerminatedEarly && (state.safetyCarActive || state.raceControl?.currentFlag === 'SAFETY_CAR')) {
       reasons.push('Corrida sob regime de Safety Car — não pode ser oficializada')
     }
-    if (state.vscActive || state.raceControl?.currentFlag === 'VSC') {
-      reasons.push('Corrida sob regime de Virtual Safety Car (VSC) — não pode ser oficializada')
+    if (!isTerminatedEarly && (state.vscActive || state.raceControl?.currentFlag === 'VSC')) {
+      reasons.push('Corrida sob regime de VSC — não pode ser oficializada')
     }
-    if (state.redFlagActive || state.raceControl?.currentFlag === 'RED_FLAG') {
-      reasons.push('Corrida sob Bandeira Vermelha não resolvida — não pode ser oficializada')
-    }
-    if (state.status === 'paused') {
+    if (!isTerminatedEarly && (state.redFlagActive || state.raceControl?.currentFlag === 'RED_FLAG')) {
+      reasons.push('Corrida sob bandeira vermelha ativa — não pode ser oficializada')
+    }    if (state.status === 'paused') {
       reasons.push('Corrida pausada — deve ser retomada e finalizada antes da oficialização')
     }
     if (state.status === 'not_started') {
@@ -321,10 +321,11 @@ export class CanonicalRaceResultService {
       const positionsGainedLost = driver.gridPosition - finalPosition
       const isFastest = fastestLapDriverId ? driver.driverId === fastestLapDriverId : false
 
-      // Pontos FIA de acordo com o regulamento esportivo (Top 10)
+      // Pontos FIA de acordo com o regulamento esportivo (considerando distância completada)
       // O dado esportivo é registrado na entrada, mas nenhuma carreira é persistida nesta etapa
-      const pointsAwarded =
-        !isDnf && finalPosition <= 10 ? getFiaPointsForPosition(finalPosition) : 0
+      const pointsAwarded = !isDnf
+        ? calculateFiaPoints(finalPosition, leader.lap || state.currentLap, state.totalLaps)
+        : 0
 
       const gapToWinner =
         finalPosition === 1
@@ -457,6 +458,28 @@ export class CanonicalRaceResultService {
    * Se já existir um resultado oficial registrado para aquela (careerId + season + raceId),
    * retorna o resultado existente sem recriar, sem alterar ID e sem duplicar efeitos (Regra 14).
    */
+  /**
+   * Encerra antecipadamente uma corrida em andamento aplicando a regra FIA de distância reduzida.
+   */
+  public terminateEarlyAndOfficialize(state: CanonicalRaceState): OfficialRaceResult {
+    const leaderLaps = state.drivers?.[0]?.lap || state.currentLap
+    const terminatedState: CanonicalRaceState = {
+      ...state,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+      raceControl: {
+        ...state.raceControl,
+        currentFlag: 'FINISHED',
+      },
+      safetyCarActive: false,
+      vscActive: false,
+      redFlagActive: false,
+    }
+    ;(terminatedState as any).isTerminatedEarly = true
+
+    return this.officializeRace(terminatedState)
+  }
+
   public officializeRace(state: CanonicalRaceState): OfficialRaceResult {
     // 1. Verificar se já existe resultado persistido
     const existing = this.getOfficialRaceResult(state.careerId, state.season, state.round)
