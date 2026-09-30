@@ -67,6 +67,51 @@ export const GENERATED_DRIVER_PORTRAIT_PROFILES: GeneratedDriverPortraitProfile[
 export const generatedDriverPortraitProfiles = GENERATED_DRIVER_PORTRAIT_PROFILES
 
 /**
+ * Perfis adicionais específicos de retratos femininos (GDP-01: Piloto_65, Piloto_66, Piloto_67).
+ * Uso exclusivo para perfis femininos gerados — NUNCA atribuídos a pilotos masculinos.
+ */
+export const ADDITIONAL_FEMALE_GENERATED_INDICES = [65, 66, 67] as const
+
+export const ADDITIONAL_FEMALE_GENERATED_PORTRAITS: GeneratedDriverPortraitProfile[] =
+  ADDITIONAL_FEMALE_GENERATED_INDICES.map((index) => {
+    const pad = String(index).padStart(2, '0')
+    return {
+      profileId: `GEN_${pad}`,
+      fileName: `Piloto_${pad}.jpg`,
+      gender: 'female' as const,
+      sourceType: 'generated_seed_profile' as const,
+      path: `/pilotos-gerados/Piloto_${pad}.jpg`,
+      index,
+    }
+  })
+
+/**
+ * Pool completo de retratos gerados para pilotos FEMININOS.
+ * Inclui os 30 femininos do catálogo base (Piloto_01..Piloto_53) mais Piloto_65, 66 e 67.
+ * Total: 33 retratos femininos.
+ */
+export const ALL_FEMALE_GENERATED_PORTRAITS: readonly GeneratedDriverPortraitProfile[] = [
+  ...GENERATED_DRIVER_PORTRAIT_PROFILES.filter((p) => p.gender === 'female'),
+  ...ADDITIONAL_FEMALE_GENERATED_PORTRAITS,
+]
+
+/**
+ * Pool completo de retratos gerados para pilotos MASCULINOS.
+ * Exatamente os 23 masculinos do catálogo base (Piloto_01..Piloto_53).
+ * NENHUM retrato de 65, 66 ou 67 é incluído aqui.
+ */
+export const ALL_MALE_GENERATED_PORTRAITS: readonly GeneratedDriverPortraitProfile[] =
+  GENERATED_DRIVER_PORTRAIT_PROFILES.filter((p) => p.gender === 'male')
+
+/**
+ * Catálogo consolidado de lookup (base 53 + novos perfis adicionais femininos 65..67).
+ */
+export const ALL_KNOWN_GENERATED_PORTRAITS: readonly GeneratedDriverPortraitProfile[] = [
+  ...GENERATED_DRIVER_PORTRAIT_PROFILES,
+  ...ADDITIONAL_FEMALE_GENERATED_PORTRAITS,
+]
+
+/**
  * Busca perfil por profileId ou nome do arquivo
  */
 export function getGeneratedDriverPortraitProfile(
@@ -75,7 +120,7 @@ export function getGeneratedDriverPortraitProfile(
   if (!idOrFileName) return null
   const cleaned = idOrFileName.trim()
   return (
-    GENERATED_DRIVER_PORTRAIT_PROFILES.find(
+    ALL_KNOWN_GENERATED_PORTRAITS.find(
       (p) =>
         p.profileId.toLowerCase() === cleaned.toLowerCase() ||
         p.fileName.toLowerCase() === cleaned.toLowerCase() ||
@@ -86,10 +131,12 @@ export function getGeneratedDriverPortraitProfile(
 
 /**
  * Alocação determinística de perfil de retrato para novos pilotos procedurais/newgens.
- * - Respeita o gênero especificado.
+ * - Respeita o gênero especificado:
+ *   - 'female': usa ALL_FEMALE_GENERATED_PORTRAITS (30 base + Piloto_65, 66, 67 = 33 retratos).
+ *   - 'male': usa ALL_MALE_GENERATED_PORTRAITS (23 perfis estritamente masculinos).
  * - Prioriza perfis ainda não alocados no save atual (allocatedProfileIds).
  * - Quando todas as sementes do mesmo gênero estiverem ocupadas, reutiliza de forma controlada
- *   usando o seed determinístico (evitando loop infinito).
+ *   usando o seed determinístico (estável, previsível, sem loop).
  * - Retorna o profile completo cuja profileId deve ser persistida como `generatedPortraitProfileId`.
  */
 export function allocateGeneratedPortraitProfile(
@@ -97,8 +144,7 @@ export function allocateGeneratedPortraitProfile(
   seed: number,
   allocatedProfileIds: string[] = [],
 ): GeneratedDriverPortraitProfile {
-  const matchingGender = GENERATED_DRIVER_PORTRAIT_PROFILES.filter((p) => p.gender === gender)
-  const pool = matchingGender.length > 0 ? matchingGender : GENERATED_DRIVER_PORTRAIT_PROFILES
+  const pool = gender === 'female' ? ALL_FEMALE_GENERATED_PORTRAITS : ALL_MALE_GENERATED_PORTRAITS
 
   const allocatedSet = new Set(allocatedProfileIds.map((id) => id.toLowerCase().trim()))
 
