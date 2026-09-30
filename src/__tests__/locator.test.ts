@@ -18,7 +18,15 @@ describe('Locator test', () => {
       }
     }
     walk('src')
-    const matches = list.filter((f) => /weekend|progression|schedule|sprint/i.test(f))
-    throw new Error('FOUND: ' + JSON.stringify(matches))
+    const matches: string[] = []
+    for (const f of list) {
+      if (f.endsWith('.ts') || f.endsWith('.tsx')) {
+        const content = fs.readFileSync(f, 'utf-8')
+        if (content.includes('sanitizeDriverProceduralData') || content.includes('allocateGeneratedPortraitProfile')) {
+          matches.push(f)
+        }
+      }
+    }
+    expect(matches).toEqual([])
   })
 })
