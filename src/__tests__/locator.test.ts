@@ -22,7 +22,10 @@ describe('Locator test', () => {
     for (const f of list) {
       if (f.endsWith('.ts') || f.endsWith('.tsx')) {
         const content = fs.readFileSync(f, 'utf-8')
-        if (content.includes('sanitizeDriverProceduralData') || content.includes('allocateGeneratedPortraitProfile')) {
+        if (
+          content.includes('sanitizeDriverProceduralData') ||
+          content.includes('allocateGeneratedPortraitProfile')
+        ) {
           matches.push(f)
         }
       }
