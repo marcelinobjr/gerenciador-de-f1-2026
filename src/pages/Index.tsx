@@ -377,9 +377,11 @@ export default function IndexPage() {
   const constructorStandingsList = useMemo(() => {
     if (allConstructorStandings.length > 0) {
       return allConstructorStandings.slice(0, 6).map((standing, idx) => ({
+        id: standing.id,
         position: idx + 1,
         teamName: standing.name || standing.teamName,
         points: standing.points ?? 0,
+        isPlayer: standing.isPlayer ?? false,
       }))
     }
     return []
@@ -499,9 +501,9 @@ export default function IndexPage() {
                   Pontos Acumulados
                 </span>
                 <span className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-mono">
-                  {constructorPoints}{' '}
+                  {constructorPoints > 0 || constructorPosition != null ? constructorPoints : 0}{' '}
                   <span className="text-xs font-normal text-[#64748B]">pts</span>
-                </span>
+                </span>{' '}
               </div>
             </div>
           </div>
@@ -515,10 +517,56 @@ export default function IndexPage() {
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-32 sm:w-44 h-2 rounded-full bg-neutral-200 overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-[#E10600] to-emerald-500 w-[78%]" />
-              </div>
-              <span className="font-bold text-emerald-600 font-mono text-[11px]">78% atingido</span>
+              {(() => {
+                // Cálculo dinâmico do objetivo da temporada usando o MESMO snapshot
+                // inputs: position (constructorPosition), points (constructorPoints), seasonYear, currentRound
+                const targetRank = 4
+                let pct = 0
+                if (constructorPosition != null && constructorPosition > 0) {
+                  if (constructorPosition <= targetRank) {
+                    // Está dentro do objetivo
+                    const rankBonus = (targetRank - constructorPosition + 1) * 10
+                    pct = Math.min(
+                      100,
+                      Math.max(50, 60 + rankBonus + Math.min(20, constructorPoints / 5)),
+                    )
+                  } else {
+                    // Fora do objetivo
+                    const gap = constructorPosition - targetRank
+                    pct = Math.max(
+                      0,
+                      Math.min(45, 50 - gap * 10 + Math.min(10, constructorPoints / 10)),
+                    )
+                  }
+                }
+                const formattedPct = Math.round(pct)
+                const isMeeting =
+                  constructorPosition != null &&
+                  constructorPosition > 0 &&
+                  constructorPosition <= targetRank
+
+                return (
+                  <>
+                    <div className="w-32 sm:w-44 h-2 rounded-full bg-neutral-200 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#E10600] to-emerald-500 transition-all duration-500"
+                        style={{ width: `${constructorPosition ? formattedPct : 0}%` }}
+                      />
+                    </div>
+                    <span
+                      className={`font-bold font-mono text-[11px] ${
+                        constructorPosition == null
+                          ? 'text-[#64748B]'
+                          : isMeeting
+                            ? 'text-emerald-600'
+                            : 'text-amber-600'
+                      }`}
+                    >
+                      {constructorPosition == null ? '—' : `${formattedPct}% atingido`}
+                    </span>
+                  </>
+                )
+              })()}
             </div>
           </div>
         </div>
@@ -1247,9 +1295,9 @@ export default function IndexPage() {
               {constructorStandingsList.map((teamRow: any, idx: number) => {
                 const tName = teamRow?.teamName || teamRow?.name || 'Equipe'
                 const isUser =
-                  (tName || '').toLowerCase().includes('audi') ||
-                  (team?.name && tName === team.name) ||
-                  teamRow?.position === constructorPosition
+                  (team?.id && teamRow?.id === team.id) ||
+                  (team?.name && tName.toLowerCase() === team.name.toLowerCase()) ||
+                  teamRow?.isPlayer === true
 
                 return (
                   <div
