@@ -127,7 +127,7 @@ export class CanonicalRaceResultService {
     return `sha256-mock-${Math.abs(hash).toString(16).padStart(8, '0')}`
   }
 
-  public generateResultChecksum(result: OfficialRaceResult): string {
+  public generateResultChecksum(result: any): string {
     return this.computeIntegrityHash({
       officialResultId: result.officialResultId,
       careerId: result.careerId,
@@ -135,9 +135,9 @@ export class CanonicalRaceResultService {
       raceId: result.raceId,
       winnerDriverId: result.winnerDriverId,
       entriesChecksum: (result.entries || [])
-        .map((e) => `${e.driverId}:${e.finalPosition}:${e.status}`)
+        .map((e: any) => `${e.driverId}:${e.finalPosition}:${e.status}`)
         .join(';'),
-      totalLaps: result.totalLaps,
+      totalLaps: result.totalLaps ?? 0,
     })
   }
 
