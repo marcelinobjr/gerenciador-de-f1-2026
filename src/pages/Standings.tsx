@@ -14,6 +14,7 @@ import { normalizeDriverSurname } from '@/lib/pilot-posters'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { canonicalChampionshipMigrationService } from '@/services/canonicalChampionshipMigrationService'
 import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
+import { getActiveDriverTeamBinding } from '@/lib/canonical-driver-database'
 import heroHorizontalAsset from '@/assets/chatgpt-image-10-de-set.de-2026-122312-fc092.png'
 
 export type { DriverStanding, TeamStanding }
@@ -76,28 +77,34 @@ export default function StandingsPage() {
       championshipSnapshot.throughRound > 0 &&
       championshipSnapshot.driverStandings.length > 0
     ) {
-      return championshipSnapshot.driverStandings.map((d) => ({
-        id: d.driverId,
-        name: d.driverName,
-        nationality: d.nationality,
-        flag: d.flag,
-        teamName: d.currentTeamName || 'Sem Equipe',
-        teamColor: d.currentTeamColor || '#71717A',
-        points: d.points,
-        wins: d.wins,
-        podiums: d.podiums,
-        bestPosition: d.position,
-        isPlayer: !!d.isPlayer,
-        secondPlaces: d.secondPlaces,
-        thirdPlaces: d.thirdPlaces,
-        fourthPlaces: d.fourthPlaces,
-        raceStarts: d.raceStarts,
-        racesCounted: d.racesCounted,
-        finishCounts: d.finishCounts,
-        gapToLeader: d.gapToLeader,
-        positionDelta: d.positionDelta,
-        positionDeltaText: d.positionDeltaText,
-      }))
+      return championshipSnapshot.driverStandings.map((d) => {
+        const binding = d.currentTeamName ? null : getActiveDriverTeamBinding(d.driverId)
+        const teamName = d.currentTeamName || binding?.teamName || 'Sem Equipe'
+        const teamColor = d.currentTeamColor || binding?.teamColor || '#71717A'
+
+        return {
+          id: d.driverId,
+          name: d.driverName,
+          nationality: d.nationality,
+          flag: d.flag,
+          teamName,
+          teamColor,
+          points: d.points,
+          wins: d.wins,
+          podiums: d.podiums,
+          bestPosition: d.position,
+          isPlayer: !!d.isPlayer,
+          secondPlaces: d.secondPlaces,
+          thirdPlaces: d.thirdPlaces,
+          fourthPlaces: d.fourthPlaces,
+          raceStarts: d.raceStarts,
+          racesCounted: d.racesCounted,
+          finishCounts: d.finishCounts,
+          gapToLeader: d.gapToLeader,
+          positionDelta: d.positionDelta,
+          positionDeltaText: d.positionDeltaText,
+        }
+      })
     }
     return driverStandings || []
   }, [championshipSnapshot, driverStandings])

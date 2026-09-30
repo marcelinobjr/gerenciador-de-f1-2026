@@ -5,6 +5,7 @@ import {
   getFiaPointsForPosition,
 } from '@/lib/f1-standings-calculator'
 import { resolveCountryFlag } from '@/lib/country-flag'
+import { getActiveDriverTeamBinding } from '@/lib/canonical-driver-database'
 import type { TeamModel, DriverModel, RaceResultModel, SeasonModel, PartModel } from '@/types/f1'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { canonicalChampionshipMigrationService } from '@/services/canonicalChampionshipMigrationService'
@@ -156,29 +157,34 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     )
 
     // Converter driverStandings do snapshot para DriverStanding
-    // BUG-INTEGRIDADE-05A: Eliminação de fallback 'F1 Team', uso estrito de d.currentTeamName ou 'Sem Equipe'
-    const driverStandings: DriverStanding[] = snap.driverStandings.map((d) => ({
-      id: d.driverId,
-      name: d.driverName,
-      nationality: d.nationality,
-      flag: d.flag,
-      teamName: d.currentTeamName || 'Sem Equipe',
-      teamColor: d.currentTeamColor || '#71717A',
-      points: d.points,
-      wins: d.wins,
-      secondPlaces: d.secondPlaces,
-      thirdPlaces: d.thirdPlaces,
-      fourthPlaces: d.fourthPlaces,
-      podiums: d.podiums,
-      bestPosition: d.position,
-      isPlayer: !!d.isPlayer,
-      raceStarts: d.raceStarts,
-      racesCounted: d.racesCounted,
-      finishCounts: d.finishCounts,
-      gapToLeader: d.gapToLeader,
-      positionDelta: d.positionDelta,
-      positionDeltaText: d.positionDeltaText,
-    }))
+    const driverStandings: DriverStanding[] = snap.driverStandings.map((d) => {
+      const binding = d.currentTeamName ? null : getActiveDriverTeamBinding(d.driverId)
+      const resolvedTeamName = d.currentTeamName || binding?.teamName || 'Sem Equipe'
+      const resolvedTeamColor = d.currentTeamColor || binding?.teamColor || '#71717A'
+
+      return {
+        id: d.driverId,
+        name: d.driverName,
+        nationality: d.nationality,
+        flag: d.flag,
+        teamName: resolvedTeamName,
+        teamColor: resolvedTeamColor,
+        points: d.points,
+        wins: d.wins,
+        secondPlaces: d.secondPlaces,
+        thirdPlaces: d.thirdPlaces,
+        fourthPlaces: d.fourthPlaces,
+        podiums: d.podiums,
+        bestPosition: d.position,
+        isPlayer: !!d.isPlayer,
+        raceStarts: d.raceStarts,
+        racesCounted: d.racesCounted,
+        finishCounts: d.finishCounts,
+        gapToLeader: d.gapToLeader,
+        positionDelta: d.positionDelta,
+        positionDeltaText: d.positionDeltaText,
+      }
+    })
 
     // Converter constructorStandings do snapshot para TeamStanding
     const constructorStandings: TeamStanding[] = snap.constructorStandings.map((c) => ({

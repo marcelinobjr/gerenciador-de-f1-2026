@@ -21,7 +21,10 @@ import {
 } from '@/services/canonicalCareerPersistenceService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { driverBase2026Service } from '@/services/driverBase2026Service'
-import { findCanonicalDriverMaster } from '@/lib/canonical-driver-database'
+import {
+  findCanonicalDriverMaster,
+  getActiveDriverTeamBinding,
+} from '@/lib/canonical-driver-database'
 import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 import { resolveCountryFlag } from '@/lib/country-flag'
 import pb from '@/lib/pocketbase/client'
@@ -632,10 +635,18 @@ export class CanonicalChampionshipService {
       const prevPos = prevDriverPositions?.get(d.driverId)
       const deltaInfo = this.formatPositionDelta(prevPos, pos)
 
-      // Identificar equipe atual via career_drivers se existir
+      // Identificar equipe atual via career_drivers se existir, ou fallback canônico via getActiveDriverTeamBinding
       const careerRec = driverBase2026Service.getCareerDriver(careerId, d.driverId)
-      const currentTeamId = careerRec?.teamId || d.lastTeamId
-      const currentTeamName = careerRec?.teamName || d.lastTeamName
+      const canonicalBinding = getActiveDriverTeamBinding(d.driverId)
+      const currentTeamId =
+        careerRec?.teamId ||
+        canonicalBinding?.teamId ||
+        canonicalBinding?.teamKey ||
+        d.lastTeamId ||
+        null
+      const currentTeamName =
+        careerRec?.teamName || canonicalBinding?.teamName || d.lastTeamName || null
+      const currentTeamColor = canonicalBinding?.teamColor || d.lastTeamColor || undefined
 
       return {
         position: pos,
@@ -653,9 +664,9 @@ export class CanonicalChampionshipService {
         racesCounted: d.racesCounted,
         finishCounts: d.finishCounts,
         gapToLeader: this.formatGap(leaderDriverPoints, d.points, isLeader),
-        currentTeamId,
-        currentTeamName,
-        currentTeamColor: d.lastTeamColor,
+        currentTeamId: currentTeamId || undefined,
+        currentTeamName: currentTeamName || undefined,
+        currentTeamColor,
         isPlayer: d.isPlayer,
         positionDelta: deltaInfo.delta,
         positionDeltaText: deltaInfo.text,
