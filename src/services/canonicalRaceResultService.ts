@@ -65,7 +65,11 @@ export class CanonicalRaceResultService {
     return `${CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX}:${careerId}:${season}:${raceId}`
   }
 
-  public hasOfficialRaceResult(careerId: string, season: number | string, raceId: string | number): boolean {
+  public hasOfficialRaceResult(
+    careerId: string,
+    season: number | string,
+    raceId: string | number,
+  ): boolean {
     const key = this.getStorageKey(careerId, Number(season), raceId)
     if (typeof localStorage === 'undefined') return false
     return localStorage.getItem(key) !== null
@@ -141,45 +145,6 @@ export class CanonicalRaceResultService {
     if (!result) return false
     const expected = this.generateResultChecksum(result)
     return (result as any).integrityHash === expected || result.resultHash === expected
-  }
-
-  public hasOfficialRaceResult(careerId: string, season: number | string, raceId: string): boolean {
-    const key = this.getStorageKey(careerId, Number(season), raceId)
-    if (typeof localStorage === 'undefined') return false
-    return localStorage.getItem(key) !== null
-  }
-
-  public getOfficialRaceResult(
-    careerId: string,
-    season: number | string,
-    raceId: string,
-  ): Readonly<OfficialRaceResult> | null {
-    return this.loadOfficialResult(careerId, Number(season), raceId)
-  }
-
-  public saveOfficialRaceResult(result: Readonly<OfficialRaceResult>, overwrite = false): boolean {
-    return this.saveOfficialResult(result, overwrite)
-  }
-
-  public clearOfficialRaceResultForTesting(
-    careerId?: string,
-    season?: number | string,
-    raceId?: string,
-  ): void {
-    if (typeof localStorage === 'undefined') return
-    if (careerId && season !== undefined && raceId) {
-      localStorage.removeItem(this.getStorageKey(careerId, Number(season), raceId))
-    } else {
-      // Clear all keys matching prefix
-      const keysToRemove: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith(CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX)) {
-          keysToRemove.push(key)
-        }
-      }
-      keysToRemove.forEach((k) => localStorage.removeItem(k))
-    }
   }
 
   public createOfficialRaceResult(raceState: CanonicalRaceState): Readonly<OfficialRaceResult> {
