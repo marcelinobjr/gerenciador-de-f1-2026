@@ -28,6 +28,7 @@ export interface TrackFitNormalizationParams {
   rawTrackFitScore: number // 0 a 100
   referenceTrackFit?: number // neutro padrão = 75 (ou média canônica)
   scale?: number // escala de calibração para ±3 a ±6 pts
+  isSpecializedTrack?: boolean
 }
 
 export interface QualifyingPaceIntegrationParams {

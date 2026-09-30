@@ -2,12 +2,15 @@
  * canonicalPaceIntegrationService.ts
  *
  * BALANCE-EQUATION-02C — Structural Strength -> Pace Integration Service
+ * BASELINE-2026-LOCK-01-CP3A — TrackFit & RNG Calibration
  *
- * Princípios Canônicos do 02C:
+ * Princípios Canônicos do 02C / CP3A:
  * 1. FORÇA ESTRUTURAL (StructuralStrengthScore) é a base primária do desempenho.
- * 2. TRACKFIT é um MODIFICADOR de pista centrado em zero (delta em torno de referência neutra, ~±3 a ±6 pts).
+ * 2. TRACKFIT é um MODIFICADOR de pista centrado em zero:
+ *    - Cenário normal: clamp efetivo entre -2.0 e +2.0 pts
+ *    - Pista altamente especializada: clamp máximo entre -2.5 e +2.5 pts
  * 3. SETUP, PNEUS, COMBUSTÍVEL, CLIMA são modificadores de evento dinâmicos.
- * 4. RNG é variação separada.
+ * 4. RNG é variação de sessão controlada (alvo: ±0.75 a ±1.00 pt, sigma ~0.45 pt para 95% na faixa).
  * 5. CHAOS é exceção separada.
  * 6. ZERO bônus por nome de equipe; ZERO tier fixo; ZERO script de resultado; ZERO duplicação de piloto/PU/wear.
  */
@@ -26,19 +29,34 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { TIRE_SPECS } from '@/lib/f1-tire-system'
 import { raceStrategyService } from '@/services/raceStrategyService'
 
-// Constantes canônicas de calibração do modificador de TrackFit (BASELINE-2026-LOCK-01)
+// Constantes canônicas de calibração do modificador de TrackFit (BASELINE-2026-LOCK-01-CP3A)
 // Referência neutra padrão do TrackFit: 75.0 (média do grid nas pistas)
 export const NEUTRAL_TRACKFIT_REFERENCE = 75.0
-// Scale calibrado para gerar variação típica de -2.0 a +2.0 pts (máximo absoluto clamp ±2.5 pts em pistas extremas)
+// Scale calibrado para gerar variação típica de -2.0 a +2.0 pts
 export const TRACKFIT_MODIFIER_SCALE = 0.08
+// Clamp canônico: cenário normal = ±2.0 pts, pista especializada = ±2.5 pts
+export const TRACKFIT_NORMAL_CLAMP = 2.0
 export const TRACKFIT_MAX_CLAMP = 2.5
+
+// Calibração canônica de RNG para Qualifying Pace (BASELINE-2026-LOCK-01-CP3A)
+// Alvo: ±0.75 a ±1.00 pt (~±0.06s a 0.08s).
+// Distribuição normal canônica: sigma ≈ 0.45 pt -> ~95% (2*sigma) dos resultados ficam dentro de ±0.90 pt.
+// Clamp absoluto preserva a faixa limite de ±1.00 pt.
+export const QUALI_RNG_TARGET_RANGE = {
+  MIN: -1.0,
+  MAX: 1.0,
+  SIGMA: 0.45,
+}
+export const QUALI_RNG_SCALE = 1.0
+export const QUALI_RNG_MAX_CLAMP = 1.0
 
 export class CanonicalPaceIntegrationService {
   /**
-   * 1. TRACKFIT NORMALIZATION (BASELINE-2026-LOCK-01)
+   * 1. TRACKFIT NORMALIZATION (BASELINE-2026-LOCK-01-CP3A)
    * Transforma o trackFitScore bruto (0-100) em um delta centrado em zero:
-   * trackFitModifier = clamp((rawTrackFitScore - referenceTrackFit) * scale, -2.5, +2.5)
-   * Garante: amplitude normal tipicamente -2.0 a +2.0 pts; teto máximo de ±2.5 pts.
+   * trackFitModifier = clamp((rawTrackFitScore - referenceTrackFit) * scale, -limit, +limit)
+   * - cenário normal: clamp entre -2.0 e +2.0 pts
+   * - pista altamente especializada: clamp máximo entre -2.5 e +2.5 pts
    */
   public normalizeTrackFit(params: TrackFitNormalizationParams): {
     rawTrackFit: number
@@ -48,11 +66,12 @@ export class CanonicalPaceIntegrationService {
     const raw = Math.max(0, Math.min(100, params.rawTrackFitScore))
     const ref = params.referenceTrackFit ?? NEUTRAL_TRACKFIT_REFERENCE
     const scale = params.scale ?? TRACKFIT_MODIFIER_SCALE
+    const maxClamp = params.isSpecializedTrack ? TRACKFIT_MAX_CLAMP : TRACKFIT_NORMAL_CLAMP
 
     // Delta em relação ao circuito neutro
     const delta = (raw - ref) * scale
-    // Limite calibrado de proteção de hierarquia: máximo ±2.5 pontos (BASELINE-2026-LOCK-01)
-    const clampedModifier = Math.max(-TRACKFIT_MAX_CLAMP, Math.min(TRACKFIT_MAX_CLAMP, delta))
+    // Limite calibrado de proteção de hierarquia (BASELINE-2026-LOCK-01-CP3A)
+    const clampedModifier = Math.max(-maxClamp, Math.min(maxClamp, delta))
 
     return {
       rawTrackFit: Number(raw.toFixed(2)),
@@ -71,12 +90,8 @@ export class CanonicalPaceIntegrationService {
   }
 
   /**
-   * 3. COMPUTE QUALIFYING PACE (Novo Fluxo Conceitual do 02C)
-   * qualiPace = structuralStrength + trackFit + setup + driverExecution + tyre + weather + small RNG
-   *
-   * Anti-Duplicação:
-   * - StructuralStrength já inclui Driver Score estável e PU nominal.
-   * - Aqui entra apenas a EXECUÇÃO ESPECÍFICA de sessão do piloto (ex: pilotagem no limite, adaptação se houver delta, clima).
+   * 3. COMPUTE QUALIFYING PACE (Novo Fluxo Conceitual do 02C / CP3A)
+   * qualiPace = structuralStrength + trackFit + setup + driverExecution + tyre + weather + calibrated RNG
    */
   public computeQualifyingPace(params: QualifyingPaceIntegrationParams): {
     breakdown: PaceBreakdown
@@ -104,8 +119,16 @@ export class CanonicalPaceIntegrationService {
     // 2. TrackFit modifier normalizado
     let trackFitModifier = 0
     if (carTechnicalAttributes && circuitProfile) {
+      const isSpecialized =
+        (circuitProfile as Record<string, unknown>).specialized === true ||
+        (circuitProfile.characteristics as Record<string, unknown> | undefined)?.specialized ===
+          true ||
+        (circuitProfile.auxiliary as Record<string, unknown> | undefined)?.isSpecialized === true
       const { trackFitScore } = calculateTrackFit(carTechnicalAttributes, circuitProfile)
-      const norm = this.normalizeTrackFit({ rawTrackFitScore: trackFitScore })
+      const norm = this.normalizeTrackFit({
+        rawTrackFitScore: trackFitScore,
+        isSpecializedTrack: Boolean(isSpecialized),
+      })
       trackFitModifier = norm.trackFitModifier
     }
 
@@ -114,7 +137,6 @@ export class CanonicalPaceIntegrationService {
     const setupModifier = Number(((setupEfficiency - 80) * 0.05).toFixed(3))
 
     // 4. Driver Session Execution modifier (apenas delta de sessão, NÃO o piloto completo)
-    // Ex: speed além da média 85 gera até ±1.5 pt; consistência reduz dispersão; adaptação residual
     const speedDelta = (driverAttributes.speed - 85) * 0.08
     const moraleDelta = ((driverAttributes.morale ?? 80) - 80) * 0.02
     let rainDelta = 0
@@ -126,13 +148,10 @@ export class CanonicalPaceIntegrationService {
 
     // 5. Tyre modifier (evento: delta composto e desgaste na volta voadora)
     const spec = TIRE_SPECS[tyreCompound as keyof typeof TIRE_SPECS] || TIRE_SPECS.macio
-    // Macio é a referência em quali (0.0); outros compostos têm perda em tempo convertida para pontos
     const tyreTimeDelta = spec.deltaPerLapSec + (tyreWearPct / 100) * 0.8
-    // Escala de conversão: ~0.08s por ponto de performance -> -1s de tempo ≈ -12 pts
     const tyreModifier = Number((-tyreTimeDelta * 12.0).toFixed(3))
 
     // 6. Fuel modifier (evento: quali opera com ~10-15kg)
-    // 12kg é a base neutra; cada kg a mais custa ~0.035s (~0.4 pts)
     const fuelDeltaSec = (fuelKg - 12) * 0.035
     const fuelModifier = Number((-fuelDeltaSec * 12.0).toFixed(3))
 
@@ -152,10 +171,13 @@ export class CanonicalPaceIntegrationService {
     }
     const weatherModifier = Number((-weatherPenaltySec * 12.0).toFixed(3))
 
-    // 9. RNG modifier (ruído de sessão independente calibrado para ~±0.75 a ±1.0 pt, clamp em ±1.0)
-    // BASELINE-2026-LOCK-01: noise calibrado com multiplicador 6.0 e clamp em [-1.0, +1.0]
-    const rawRng = noise * 6.0
-    const clampedRng = Math.max(-1.0, Math.min(1.0, rawRng))
+    // 9. RNG modifier calibrado (BASELINE-2026-LOCK-01-CP3A)
+    // Alvo: ±0.75 a ±1.00 pt, clamp máximo em ±1.0 pt
+    const rawRng = noise * QUALI_RNG_SCALE
+    const clampedRng = Math.max(
+      QUALI_RNG_TARGET_RANGE.MIN,
+      Math.min(QUALI_RNG_TARGET_RANGE.MAX, rawRng),
+    )
     const rngModifier = Number(clampedRng.toFixed(3))
 
     // 10. Final Pace Score (soma exata da decomposição)
@@ -173,7 +195,7 @@ export class CanonicalPaceIntegrationService {
       ).toFixed(2),
     )
 
-    // Base de tempo de volta do circuito (ex: 74.0s para score 100 em pista seca)
+    // Base de tempo de volta do circuito
     const baseCircuitSec = 74.0
     const performanceGapSec = (100 - effectivePaceScore) * 0.082
     const lapTimeSec = Number(
@@ -206,8 +228,7 @@ export class CanonicalPaceIntegrationService {
   }
 
   /**
-   * 4. COMPUTE RACE PACE (Novo Fluxo Conceitual do 02C)
-   * racePace = structuralStrength + trackFit + driver race factors + tyre + fuel + wear + damage + paceMode + weather + RNG determinístico
+   * 4. COMPUTE RACE PACE (Fluxo Conceitual do 02C / CP3A)
    */
   public computeRacePace(params: RacePaceIntegrationParams): {
     breakdown: PaceBreakdown
@@ -241,23 +262,31 @@ export class CanonicalPaceIntegrationService {
     // 2. TrackFit modifier normalizado
     let trackFitModifier = 0
     if (carTechnicalAttributes && circuitProfile) {
+      const isSpecialized =
+        (circuitProfile as Record<string, unknown>).specialized === true ||
+        (circuitProfile.characteristics as Record<string, unknown> | undefined)?.specialized ===
+          true ||
+        (circuitProfile.auxiliary as Record<string, unknown> | undefined)?.isSpecialized === true
       const { trackFitScore } = calculateTrackFit(carTechnicalAttributes, circuitProfile)
-      const norm = this.normalizeTrackFit({ rawTrackFitScore: trackFitScore })
+      const norm = this.normalizeTrackFit({
+        rawTrackFitScore: trackFitScore,
+        isSpecializedTrack: Boolean(isSpecialized),
+      })
       trackFitModifier = norm.trackFitModifier
     }
 
-    // 3. Driver Event Factors (específicos de corrida: racePace, tyreManagement, push)
+    // 3. Driver Event Factors
     const paceMods = raceStrategyService.getPaceModeModifiers(paceMode)
     const driverRacePace = driverAttributes.racePace ?? driverAttributes.speed
     const driverPaceDelta = (driverRacePace - 85) * 0.08
     const driverEventModifier = Number((driverPaceDelta + paceMods.paceDeltaSec * -12.0).toFixed(3))
 
-    // 4. Tyre modifier (composto, idade, desgaste progressivo)
+    // 4. Tyre modifier
     const spec = TIRE_SPECS[tyreCompound as keyof typeof TIRE_SPECS] || TIRE_SPECS.medio
     const tyreTimeDelta = spec.deltaPerLapSec + tyreAgeLaps * 0.045 + (tyreWearPct / 100) * 1.6
     const tyreModifier = Number((-tyreTimeDelta * 12.0).toFixed(3))
 
-    // 5. Fuel modifier (peso de combustível: 80kg = base de corrida, gasta progressivamente)
+    // 5. Fuel modifier
     const fuelEffectSec = (fuelKg / 100.0) * 1.5
     const fuelModifier = Number((-fuelEffectSec * 12.0).toFixed(3))
 
@@ -267,7 +296,7 @@ export class CanonicalPaceIntegrationService {
     const damageSec = (100 - carCondition) * 0.04 + puPenalty.engineWearPenalty
     const wearModifier = Number((-damageSec * 12.0).toFixed(3))
 
-    // 7. Weather & Chaos modifiers (fora da base estrutural)
+    // 7. Weather & Chaos modifiers
     let weatherPenaltySec = 0
     if (weather === 'chuva_fraca') {
       if (tyreCompound === 'intermediario') weatherPenaltySec = 0
@@ -278,15 +307,18 @@ export class CanonicalPaceIntegrationService {
     }
     const weatherModifier = Number((-weatherPenaltySec * 12.0).toFixed(3))
 
-    // 8. RNG noise determinístico calibrado (BASELINE-2026-LOCK-01)
-    const rawRng = rngNoise * 6.0
-    const clampedRng = Math.max(-1.0, Math.min(1.0, rawRng))
+    // 8. RNG noise calibrado
+    const rawRng = rngNoise * QUALI_RNG_SCALE
+    const clampedRng = Math.max(
+      QUALI_RNG_TARGET_RANGE.MIN,
+      Math.min(QUALI_RNG_TARGET_RANGE.MAX, rawRng),
+    )
     const rngModifier = Number(clampedRng.toFixed(3))
 
     // Setup modifier neutro de corrida
     const setupModifier = 0.0
 
-    // 9. Final Pace Score (fechamento matemático)
+    // 9. Final Pace Score
     const effectivePaceScore = Number(
       (
         structuralStrength +
@@ -301,13 +333,12 @@ export class CanonicalPaceIntegrationService {
       ).toFixed(2),
     )
 
-    // Base de volta de circuito em corrida (~82.0s)
+    // Base de volta de circuito em corrida
     let baseCircuitSec = 82.0
     if (circuitProfile?.auxiliary?.tyreSeverity) {
       baseCircuitSec += (circuitProfile.auxiliary.tyreSeverity - 60) * 0.05
     }
 
-    // Atraso de largada na volta 1
     let startDelaySec = 0
     if (lap === 1) {
       startDelaySec = 3.5 + (gridPosition - 1) * 0.12
@@ -319,7 +350,6 @@ export class CanonicalPaceIntegrationService {
       baseCircuitSec + performanceGapSec + weatherPenaltySec + startDelaySec,
     )
 
-    // Desgaste e consumo da volta
     const tyreMgmt = driverAttributes.tireManagement ?? 80
     const wearMultiplier = Math.max(
       0.75,
@@ -357,14 +387,11 @@ export class CanonicalPaceIntegrationService {
   }
 
   /**
-   * 5. AUDITORIA PÓS-INTEGRAÇÃO (Item 40)
-   * Retorna relatório canônico de conformidade da arquitetura de pace:
-   * { structuralConnectedQuali: true, structuralConnectedRace: true, legacyTrackFitWeight45: false, ... }
+   * 5. AUDITORIA PÓS-INTEGRAÇÃO
    */
   public auditPaceIntegration(): PaceIntegrationAuditResult {
     const divergences: string[] = []
 
-    // 1. Testa se StructuralStrength está conectado ao Qualifying
     const qualiTest = this.computeQualifyingPace({
       teamKey: 'mercedes',
       driverId: 'rus',
@@ -373,7 +400,6 @@ export class CanonicalPaceIntegrationService {
     })
     const structuralConnectedQuali = qualiTest.breakdown.structuralStrength > 0
 
-    // 2. Testa se StructuralStrength está conectado à Corrida
     const raceTest = this.computeRacePace({
       teamKey: 'mercedes',
       driverId: 'rus',
@@ -382,10 +408,7 @@ export class CanonicalPaceIntegrationService {
     })
     const structuralConnectedRace = raceTest.breakdown.structuralStrength > 0
 
-    // 3. Testa se legacyTrackFitWeight45 foi desativado
     const legacyTrackFitWeight45 = false
-
-    // 4. Verificação de duplicações e bônus por nome
     const duplicateDriverApplication = 0
     const duplicatePUApplication = 0
     const duplicateWearApplication = 0
