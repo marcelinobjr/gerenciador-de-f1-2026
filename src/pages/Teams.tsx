@@ -13,11 +13,9 @@ import {
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { carTechnicalService } from '@/services/carTechnicalService'
-import {
-  simulateAiGridFiaStandings,
-  normalizeEntityName,
-  getFiaPointsForPosition,
-} from '@/lib/f1-standings-calculator'
+import { normalizeEntityName, getFiaPointsForPosition } from '@/lib/f1-standings-calculator'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
+import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 import { resolveCountryFlag } from '@/lib/country-flag'
 import { AmbientBackground } from '@/components/AmbientBackground'
 import { PageHeader } from '@/components/PageHeader'
@@ -274,134 +272,63 @@ export default function TeamsPage() {
     fileInputRef.current?.click()
   }
 
-  // Calcula a tabela de construtores da temporada atual para sabermos posição e pontos de cada equipe
-  const constructorStandingsMap = useMemo(() => {
-    const currentRound = season?.current_round || 1
-    const isCustomTeam = team?.is_custom ?? team?.name === 'Escuderia Brasil'
-    const aiGrid = getAICompetitors(team?.team_key, isCustomTeam)
+  // Fonte canônica unificada de classificação de construtores
+  const careerId = resolveCanonicalCareerId(season, team)
+  const seasonYear = season?.year || 2026
 
-    const recordedRounds = new Set<number>()
-    raceResults.forEach((r) => {
-      if (typeof r.round === 'number') recordedRounds.add(r.round)
-    })
-    const hasRecordedResults = recordedRounds.size > 0
-    const pastRoundsToSimulate = hasRecordedResults ? 0 : Math.max(0, currentRound - 1)
-
-    const { teamStandingsMap: aiTeamStats } = simulateAiGridFiaStandings(
-      team?.team_key,
-      isCustomTeam,
-      pastRoundsToSimulate,
+  const championshipSnapshot = useMemo(() => {
+    return canonicalChampionshipService.getChampionshipStandings(
+      careerId,
+      seasonYear,
+      undefined,
+      team?.id || team?.team_key,
     )
+  }, [careerId, seasonYear, team?.id, team?.team_key, raceResults])
 
-    const standings: Record<
-      string,
-      { name: string; points: number; wins: number; isPlayer: boolean; bestPosition: number }
-    > = {}
+  const throughRound = championshipSnapshot?.throughRound || 0
 
-    // Equipes rivais da IA
-    aiGrid.forEach((aiTeam) => {
-      const stat = aiTeamStats[aiTeam.id] || { points: 0, wins: 0, podiums: 0, bestPos: 99 }
-      standings[aiTeam.id] = {
-        name: aiTeam.name,
-        points: stat.points,
-        wins: stat.wins,
-        bestPosition: stat.bestPos,
-        isPlayer: false,
-      }
-    })
-
-    // Se temos resultados gravados na collection race_results, somar os pontos reais das equipes rivais!
-    if (hasRecordedResults) {
-      raceResults.forEach((r) => {
-        const isPlayerResult =
-          r.team_id === team?.id || (r.expand?.team_id && r.expand.team_id.name === team?.name)
-        if (!isPlayerResult && r.team_id) {
-          const expTeam = (r.expand as any)?.team_id
-          const teamNameNorm = expTeam?.name ? normalizeEntityName(expTeam.name) : ''
-          const matchedAiTeam = aiGrid.find(
-            (t) =>
-              t.id === r.team_id || (teamNameNorm && normalizeEntityName(t.name) === teamNameNorm),
-          )
-          const targetKey = matchedAiTeam ? matchedAiTeam.id : r.team_id
-          const pts =
-            typeof r.points === 'number' && r.points > 0
-              ? r.points
-              : getFiaPointsForPosition(r.position)
-
-          if (!standings[targetKey]) {
-            standings[targetKey] = {
-              name: expTeam?.name || 'Equipe Rival',
-              points: 0,
-              wins: 0,
-              bestPosition: 99,
-              isPlayer: false,
-            }
-          }
-          standings[targetKey].points += pts
-          if (r.position === 1) standings[targetKey].wins += 1
-          if (r.position < standings[targetKey].bestPosition) {
-            standings[targetKey].bestPosition = r.position
-          }
-        }
-      })
-    }
-
-    // Equipe do jogador
-    let playerPoints = 0
-    let playerWins = 0
-    let playerBestPos = 99
-    raceResults.forEach((r) => {
-      const isPlayerResult =
-        r.team_id === team?.id || (r.expand?.team_id && r.expand.team_id.name === team?.name)
-      if (isPlayerResult || !r.team_id) {
-        const pts =
-          typeof r.points === 'number' && r.points > 0
-            ? r.points
-            : getFiaPointsForPosition(r.position)
-        playerPoints += pts
-        if (r.position === 1) playerWins += 1
-        if (r.position < playerBestPos) playerBestPos = r.position
-      }
-    })
-
-    const playerTeamId = team?.id || 'player'
-    standings[playerTeamId] = {
-      name: team?.name || 'Escuderia Brasil',
-      points: playerPoints,
-      wins: playerWins,
-      bestPosition: playerBestPos,
-      isPlayer: true,
-    }
-
-    // Ordenar para extrair a posição oficial segundo regulamento FIA
-    const sorted = Object.entries(standings).sort(([, a], [, b]) => {
-      if (b.points !== a.points) return b.points - a.points
-      if (b.wins !== a.wins) return b.wins - a.wins
-      if (a.bestPosition !== b.bestPosition) return a.bestPosition - b.bestPosition
-      return a.name.localeCompare(b.name)
-    })
-
+  // Mapa de construtores indexado por teamId e variações canônicas de chave/nome
+  const constructorStandingsMap = useMemo(() => {
     const resultMap: Record<string, TeamStandingSummary> = {}
-    sorted.forEach(([id, data], index) => {
-      resultMap[id] = {
-        position: index + 1,
-        points: data.points,
-        wins: data.wins,
+    if (!championshipSnapshot || !championshipSnapshot.constructorStandings) {
+      return resultMap
+    }
+
+    const hasOfficialResults = throughRound > 0
+
+    championshipSnapshot.constructorStandings.forEach((c) => {
+      // Se não houver resultados oficiais ainda (throughRound === 0), posição neutra (0)
+      const pos = hasOfficialResults ? c.position : 0
+      const summary: TeamStandingSummary = {
+        position: pos,
+        points: c.points,
+        wins: c.wins,
       }
-      resultMap[data.name.toLowerCase()] = {
-        position: index + 1,
-        points: data.points,
-        wins: data.wins,
-      }
-      resultMap[normalizeEntityName(data.name)] = {
-        position: index + 1,
-        points: data.points,
-        wins: data.wins,
+
+      resultMap[c.teamId] = summary
+      resultMap[c.teamId.toLowerCase()] = summary
+      resultMap[c.teamName.toLowerCase()] = summary
+      resultMap[normalizeEntityName(c.teamName)] = summary
+
+      // Variações sem prefixo ai_ se aplicável
+      if (c.teamId.startsWith('ai_')) {
+        resultMap[c.teamId.replace(/^ai_/, '')] = summary
       }
     })
+
+    // Mapear também para o player team caso team.id difira de team_key
+    if (team?.id && (team.team_key || team.name)) {
+      const match =
+        (team.team_key && resultMap[team.team_key]) ||
+        resultMap[team.name.toLowerCase()] ||
+        resultMap[normalizeEntityName(team.name)]
+      if (match) {
+        resultMap[team.id] = match
+      }
+    }
 
     return resultMap
-  }, [season, team, raceResults])
+  }, [championshipSnapshot, throughRound, team?.id, team?.team_key, team?.name])
 
   // Titulares e reserva da equipe do jogador
   const playerTitular1 = playerDrivers.filter((d) => d.role !== 'reserva')[0]
@@ -475,7 +402,8 @@ export default function TeamsPage() {
       )
 
       const standing = (team.id ? constructorStandingsMap[team.id] : null) ||
-        constructorStandingsMap[team.name.toLowerCase()] || {
+        constructorStandingsMap[team.name.toLowerCase()] ||
+        constructorStandingsMap[normalizeEntityName(team.name)] || {
           position: 0,
           points: 0,
           wins: 0,
@@ -613,8 +541,9 @@ export default function TeamsPage() {
       )
 
       const standing = (isThisUserTeam && team?.id ? constructorStandingsMap[team.id] : null) ||
+        constructorStandingsMap[official.key] ||
         constructorStandingsMap[official.name.toLowerCase()] ||
-        constructorStandingsMap[official.key] || {
+        constructorStandingsMap[normalizeEntityName(official.name)] || {
           position: 0,
           points: 0,
           wins: 0,
@@ -712,7 +641,7 @@ export default function TeamsPage() {
         width: '56px',
         render: (t) => (
           <span className="font-num font-bold text-xs text-[#F5F7FA]">
-            {t.position > 0 ? `${t.position}º` : '—'}
+            {t.position > 0 ? `P${t.position}` : '—'}
           </span>
         ),
       },
@@ -906,7 +835,7 @@ export default function TeamsPage() {
 
         <StatCard
           eyebrow="SUA POSIÇÃO NO MUNDIAL"
-          value={kpiData.userPos > 0 ? `${kpiData.userPos}º Lugar` : '—'}
+          value={kpiData.userPos > 0 ? `P${kpiData.userPos}` : '—'}
           subtext={
             team?.name
               ? `${team.name} • ${kpiData.userPoints} pts somados`
@@ -1156,7 +1085,7 @@ export default function TeamsPage() {
                       <div>
                         <span className="text-[#8B95A7] block text-[10px]">Posição</span>
                         <strong className="font-num text-xs text-[#F5F7FA]">
-                          {t.position > 0 ? `${t.position}º` : '—'}
+                          {t.position > 0 ? `P${t.position}` : '—'}
                         </strong>
                       </div>
                       <div>
@@ -1342,7 +1271,7 @@ export default function TeamsPage() {
                 <div className="p-3 rounded-xl bg-[#161D29] border border-[#1F2733] space-y-1">
                   <div className="eyebrow text-[10px]">Posição 2026</div>
                   <div className="font-num text-lg font-bold text-[#F5F7FA]">
-                    {selectedTeam.position > 0 ? `${selectedTeam.position}º Lugar` : '—'}
+                    {selectedTeam.position > 0 ? `P${selectedTeam.position}` : '—'}
                   </div>
                 </div>
 
