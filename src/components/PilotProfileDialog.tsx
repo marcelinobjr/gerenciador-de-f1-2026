@@ -411,13 +411,51 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
               {/* Informações V (Público - Valor Exato) */}
               <div className="flex-1 text-center sm:text-left min-w-0 w-full">
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 mb-1">
-                  <Badge
-                    variant="outline"
-                    className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs"
-                  >
-                    <CountryFlag code={pilot.nationality} />
-                    <span>{pilot.nationality}</span>
-                  </Badge>
+                  {(() => {
+                    // Suporte a nacionalidade única ou array de nacionalidades (secundárias incluídas)
+                    const nats: string[] = (() => {
+                      const raw =
+                        (pilot as any).nationalities ||
+                        (pilot as any).rawDbRecord?.nationalities ||
+                        pilot.nationality
+                      if (Array.isArray(raw)) {
+                        return raw.filter((n) => typeof n === 'string' && n.trim().length > 0)
+                      }
+                      if (typeof raw === 'string' && raw.includes(',')) {
+                        return raw
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                      }
+                      if (typeof raw === 'string' && raw.trim().length > 0) {
+                        return [raw.trim()]
+                      }
+                      return []
+                    })()
+
+                    if (nats.length === 0) {
+                      return (
+                        <Badge
+                          variant="outline"
+                          className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs"
+                        >
+                          <CountryFlag code={pilot.nationality} />
+                          <span>{pilot.nationality}</span>
+                        </Badge>
+                      )
+                    }
+
+                    return nats.map((nat, idx) => (
+                      <Badge
+                        key={`${nat}-${idx}`}
+                        variant="outline"
+                        className="bg-white border-[#CBD5E1] text-[#0F172A] font-mono text-[10px] sm:text-xs flex items-center gap-1.5 shadow-xs"
+                      >
+                        <CountryFlag code={nat} />
+                        <span>{nat}</span>
+                      </Badge>
+                    ))
+                  })()}
                   <Badge
                     variant="outline"
                     className="bg-white border-[#CBD5E1] text-[#64748B] text-[10px] sm:text-xs uppercase shadow-xs"

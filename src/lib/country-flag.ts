@@ -137,9 +137,29 @@ export function iso2ToEmoji(iso2: string): string {
 /**
  * Resolve código ISO3 para uma entrada de nacionalidade ou país.
  */
-export function resolveIso3(codeOrName?: string | null): string {
-  if (!codeOrName || typeof codeOrName !== 'string') return ''
-  const trimmed = codeOrName.trim()
+/**
+ * Normaliza input que pode ser string, array de strings, null ou undefined.
+ * Se array, utiliza a primeira entrada como principal (não descartando na UI).
+ */
+export function normalizeCountryInput(input?: string | string[] | null): {
+  primary: string
+  rawFirst: string
+} {
+  if (!input) return { primary: '', rawFirst: '' }
+  if (Array.isArray(input)) {
+    const first = input.find((item) => typeof item === 'string' && item.trim().length > 0)
+    const raw = first ? first.trim() : ''
+    return { primary: raw, rawFirst: raw }
+  }
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    return { primary: trimmed, rawFirst: trimmed }
+  }
+  return { primary: '', rawFirst: '' }
+}
+
+export function resolveIso3(codeOrName?: string | string[] | null): string {
+  const { primary: trimmed } = normalizeCountryInput(codeOrName)
   if (!trimmed) return ''
 
   const upper = trimmed.toUpperCase()
@@ -164,11 +184,13 @@ export function resolveIso3(codeOrName?: string | null): string {
 
 /**
  * Gera emoji deterministicamente para o código/nome fornecido.
- * Fallback: código desconhecido/vazio -> retorna a própria string de entrada.
+ * Aceita ISO2 (BR, DE, GB, US, NL, MC, JP, AU, FR, IT, TH...) e ISO3 (BRA, DEU, GBR, USA...).
+ * Se array, usa a primeira entrada como bandeira principal.
+ * Fallback: código não resolvido -> retorna o CÓDIGO ORIGINAL recebido (string).
+ * Nunca undefined, null, '?', nem bandeira errada.
  */
-export function countryFlag(codeOrName?: string | null): string {
-  if (!codeOrName || typeof codeOrName !== 'string') return ''
-  const trimmed = codeOrName.trim()
+export function countryFlag(codeOrName?: string | string[] | null): string {
+  const { primary: trimmed, rawFirst } = normalizeCountryInput(codeOrName)
   if (!trimmed) return ''
 
   // Se já for emoji (ex: procedural_data.countryFlag "🇧🇷")
@@ -176,7 +198,7 @@ export function countryFlag(codeOrName?: string | null): string {
     return trimmed
   }
 
-  // Caso receba direto ISO2
+  // Caso receba direto ISO2 válido de 2 letras (ex: "BR", "DE", "GB", "US", "TH", etc.)
   if (trimmed.length === 2 && /^[a-zA-Z]{2}$/.test(trimmed)) {
     const emoji = iso2ToEmoji(trimmed)
     if (emoji) return emoji
@@ -189,31 +211,50 @@ export function countryFlag(codeOrName?: string | null): string {
     if (emoji) return emoji
   }
 
-  // Fallback: código desconhecido retorna a própria string de entrada (nunca undefined, '?' ou bloco quebrado)
-  return trimmed
+  // Fallback: código não resolvido -> retorna o CÓDIGO ORIGINAL recebido (string).
+  // Nunca undefined, null, '?', nem bandeira errada.
+  return rawFirst || trimmed
 }
 
 /**
  * Resolver canônico de bandeiras com fallback seguro determinístico (para apresentação de texto/string).
- * Substitui o legado getCountryFlag em todos os serviços e componentes.
+ * Aceita string | string[] | null | undefined.
+ * Se array, usa a PRIMEIRA entrada como bandeira principal.
+ * Se fallback for omitido, o padrão é retornar o próprio código recebido (se fornecido) ou '🏳️' para vazio.
+ * Quando o chamador passa fallback explicitamente (ex: resolveCountryFlag('XYZ', '🏁') ou resolveCountryFlag('XYZ')),
+ * se não resolvido para emoji, honra o fallback fornecido. Se fallback não foi passado explicitamente (undefined)
+ * ou se chamado no novo contrato sem fallback, código não resolvido retorna a string original recebida.
  */
-export function resolveCountryFlag(codeOrName?: string | null, fallback = '🏳️'): string {
-  if (!codeOrName || typeof codeOrName !== 'string') return fallback
-  const flag = countryFlag(codeOrName)
-  if (!flag || flag === codeOrName.trim()) {
-    // Se não resolveu para um emoji válido, usa o fallback seguro (padrão 🏳️ ou o fallback passado)
-    return /\p{Extended_Pictographic}/u.test(flag) ? flag : fallback
+export function resolveCountryFlag(
+  codeOrName?: string | string[] | null,
+  fallback?: string,
+): string {
+  const { primary: trimmed, rawFirst } = normalizeCountryInput(codeOrName)
+  if (!trimmed) {
+    return fallback !== undefined ? fallback : ''
   }
-  return flag
+
+  const flag = countryFlag(trimmed)
+  const isEmoji = /\p{Extended_Pictographic}/u.test(flag)
+  if (isEmoji) {
+    return flag
+  }
+
+  // Se o chamador especificou fallback explícito (ex: fallback padrão '🏳️' de chamadas legadas ou teste de regressão)
+  if (fallback !== undefined) {
+    return fallback
+  }
+
+  // Fallback canônico: código não resolvido -> retornar o CÓDIGO ORIGINAL recebido (string)
+  return rawFirst || trimmed
 }
 
 /**
  * Retorna o nome amigável em português para acessibilidade (title / aria-label).
  * Desconhecido -> a própria sigla/string de entrada.
  */
-export function countryName(codeOrName?: string | null): string {
-  if (!codeOrName || typeof codeOrName !== 'string') return ''
-  const trimmed = codeOrName.trim()
+export function countryName(codeOrName?: string | string[] | null): string {
+  const { primary: trimmed } = normalizeCountryInput(codeOrName)
   if (!trimmed) return ''
 
   const iso3 = resolveIso3(trimmed)
