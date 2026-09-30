@@ -10,7 +10,13 @@ interface TeamHeroBannerProps {
   constructorPoints: number
   reputation: number
   seasonTarget: string
-  pointsProgress: { current: number; target: number }
+  pointsProgress: {
+    current: number
+    target: number
+    percentage?: number
+    isMeeting?: boolean
+    label?: string
+  }
   teamLogoUrl?: string
   isAudi?: boolean
 }
@@ -28,15 +34,23 @@ export const TeamHeroBanner: React.FC<TeamHeroBannerProps> = ({
   teamLogoUrl,
   isAudi = false,
 }) => {
-  const progressPct = Math.min(
-    100,
-    Math.max(0, Math.round((pointsProgress.current / Math.max(1, pointsProgress.target)) * 100)),
-  )
+  const progressPct =
+    pointsProgress.percentage !== undefined
+      ? pointsProgress.percentage
+      : Math.min(
+          100,
+          Math.max(
+            0,
+            Math.round((pointsProgress.current / Math.max(1, pointsProgress.target)) * 100),
+          ),
+        )
 
   const formattedRank =
-    typeof constructorPosition === 'number' && constructorPosition > 0
-      ? `${constructorPosition}º`
-      : constructorPosition || '—'
+    constructorPosition === '—' || constructorPosition == null || constructorPosition === 0
+      ? '—'
+      : typeof constructorPosition === 'number' && constructorPosition > 0
+        ? `${constructorPosition}º`
+        : constructorPosition || '—'
 
   return (
     <div className="relative rounded-2xl overflow-hidden shadow-sm border border-[#E2E8F0] bg-white text-[#0F172A] min-h-[340px] flex flex-col justify-between p-6 sm:p-8 isolate">
@@ -143,15 +157,24 @@ export const TeamHeroBanner: React.FC<TeamHeroBannerProps> = ({
         {/* Barra de Progresso: Objetivo da temporada */}
         <div className="space-y-1.5 pt-2 border-t border-[#E2E8F0]">
           <div className="flex items-center justify-between text-xs font-semibold">
-            <span className="text-[#475569]">Objetivo da temporada</span>
+            <span className="text-[#475569]">Objetivo da temporada: {seasonTarget}</span>
             <span className="text-[#64748B] font-mono text-[11px]">
-              {pointsProgress.current} / {pointsProgress.target} pontos
+              {pointsProgress.label ||
+                (formattedRank === '—'
+                  ? '—'
+                  : `${pointsProgress.current} / ${pointsProgress.target} pontos`)}
             </span>
           </div>
           <div className="w-full h-2 rounded-full bg-neutral-200 overflow-hidden border border-[#E2E8F0]">
             <div
-              className="h-full bg-[#E10600] rounded-full transition-all duration-700"
-              style={{ width: `${progressPct}%` }}
+              className={`h-full rounded-full transition-all duration-700 ${
+                formattedRank === '—'
+                  ? 'bg-neutral-300'
+                  : pointsProgress.isMeeting
+                    ? 'bg-emerald-500'
+                    : 'bg-[#E10600]'
+              }`}
+              style={{ width: `${formattedRank === '—' ? 0 : progressPct}%` }}
             />
           </div>
         </div>

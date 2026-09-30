@@ -18,6 +18,7 @@ interface TeamAcademySummaryCardProps {
   f3Count: number
   highlightPilot?: AcademyHighlightPilot | null
   onOpenAcademy?: () => void
+  highlightPilotMileageKm?: number
 }
 
 export const TeamAcademySummaryCard: React.FC<TeamAcademySummaryCardProps> = ({
@@ -26,6 +27,7 @@ export const TeamAcademySummaryCard: React.FC<TeamAcademySummaryCardProps> = ({
   f3Count,
   highlightPilot,
   onOpenAcademy,
+  highlightPilotMileageKm,
 }) => {
   return (
     <Card className="bg-white border-neutral-200/90 shadow-sm rounded-2xl p-5 flex flex-col justify-between h-full">
@@ -130,6 +132,11 @@ export const TeamAcademySummaryCard: React.FC<TeamAcademySummaryCardProps> = ({
                 <Star className="w-3 h-3 fill-emerald-500 text-emerald-500 inline" />
                 {highlightPilot.potential}
               </span>
+              {highlightPilotMileageKm !== undefined && (
+                <span className="text-[10px] font-mono text-neutral-500 block">
+                  {highlightPilotMileageKm.toLocaleString('pt-BR')} km
+                </span>
+              )}
             </div>
           </div>
         ) : (

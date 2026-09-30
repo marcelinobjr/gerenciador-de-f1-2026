@@ -66,7 +66,12 @@ import { managerEffectService } from '@/services/managerEffectService'
 import { financialLedgerService } from '@/services/financialLedgerService'
 import { TechnicalOrganizationSection } from '@/components/TechnicalOrganizationSection'
 import { MANAGER_DOMAINS } from '@/lib/manager-attribute-domains'
-import { standingsService } from '@/services/standingsService'
+import {
+  standingsService,
+  formatConstructorPosition,
+  calculateSeasonObjectiveProgress,
+} from '@/services/standingsService'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
 import { ROLE_DISPLAY_NAMES } from '@/types/canonical-staff'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
@@ -248,6 +253,57 @@ export default function TeamPage() {
 
   // Pilotos de Teste e Academia vinculados à equipe
   const academyDevData = useMemo(() => driverDevelopmentService.getAcademyData(team), [team])
+
+  // Helper para obter a quilometragem real persistida de formação/rookie/desenvolvimento de um piloto
+  const getDriverDevelopmentMileageKm = useCallback(
+    (driver: DriverModel): number => {
+      const pData = (driver as any)?.procedural_data
+      const rawKm =
+        (driver as any)?.mileage_km ??
+        (driver as any)?.rookie_mileage_km ??
+        (driver as any)?.development_mileage_km ??
+        (driver as any)?.accumulated_mileage_km ??
+        (driver as any)?.accumulatedHomologatedKm ??
+        pData?.mileage_km ??
+        pData?.rookie_mileage_km ??
+        pData?.developmentMileageKm ??
+        pData?.trackTestingKm ??
+        pData?.accumulatedHomologatedKm ??
+        null
+
+      const directKm = typeof rawKm === 'string' ? parseFloat(rawKm) : rawKm
+      if (typeof directKm === 'number' && !isNaN(directKm)) {
+        return directKm
+      }
+
+      // Se existir histórico de testes ou sessões na academia
+      if (Array.isArray(pData?.testSessionsHistory)) {
+        const sum = pData.testSessionsHistory.reduce(
+          (acc: number, sess: any) => acc + (Number(sess?.km) || 0),
+          0,
+        )
+        if (sum > 0) return sum
+      }
+
+      // Check no team.academy_development_data por driverId
+      const teamDevData = (team as any)?.academy_development_data
+      const driverTestInfo = teamDevData?.driverTestingRecords?.[driver.id]
+      if (typeof driverTestInfo?.accumulatedKm === 'number') {
+        return driverTestInfo.accumulatedKm
+      }
+
+      // Baseado em sessões de homologação (cada sessão TL1 = ~100 km)
+      if (
+        typeof driver.homologation_sessions_done === 'number' &&
+        driver.homologation_sessions_done > 0
+      ) {
+        return driver.homologation_sessions_done * 100
+      }
+
+      return 0
+    },
+    [team],
+  )
 
   const canonicalAcademyPilots = useMemo(() => {
     if (!team) return []
@@ -485,34 +541,6 @@ export default function TeamPage() {
     }
   }
 
-  // Action needed alerts
-  const attentionItems = [
-    {
-      id: 'alert-1',
-      icon: Flame,
-      iconColor: 'text-rose-500',
-      title: 'Contrato próximo do fim',
-      desc: 'Z. Maloney - contrato expira em 2026',
-      time: '1 ano',
-    },
-    {
-      id: 'alert-2',
-      icon: AlertTriangle,
-      iconColor: 'text-amber-500',
-      title: 'Acompanhar moral do piloto',
-      desc: 'G. Bortoleto tem demonstrado insatisfação com ritmo de desenvolvimento do carro',
-      time: '2 dias',
-    },
-    {
-      id: 'alert-3',
-      icon: Info,
-      iconColor: 'text-cyan-400',
-      title: 'Avaliar renovação de staff',
-      desc: 'E. Cardile - interesse de outras equipes',
-      time: '3 dias',
-    },
-  ]
-
   // Modais de detalhes da nova camada UX
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false)
   const [isManagerModalOpen, setIsManagerModalOpen] = useState(false)
@@ -529,9 +557,53 @@ export default function TeamPage() {
     return managerEffectService.evaluateManager(team)
   }, [team])
 
-  // Cálculo da pontuação e ranking de construtores vindo da tabela/serviço unificado
-  const { constructorRank, constructorTotalPoints } = useMemo(() => {
+  // Cálculo da pontuação e ranking de construtores vindo do snapshot canônico homologado (01A2 / 01A3 / 01A4)
+  const canonicalChampionshipSnapshot = useMemo(() => {
     try {
+      const careerId = season?.id || team?.id || 'default_career'
+      const seasonYear = season?.year || 2026
+      const playerTeamId = team?.team_key || team?.id || (isAudi ? 'audi' : '')
+      return canonicalChampionshipService.getChampionshipStandings(
+        careerId,
+        seasonYear,
+        undefined,
+        playerTeamId,
+      )
+    } catch {
+      return null
+    }
+  }, [team?.id, team?.team_key, season?.id, season?.year, isAudi])
+
+  const { constructorRank, constructorTotalPoints, hasOfficialResults } = useMemo(() => {
+    try {
+      // 1. Snapshot canônico de construtores
+      if (canonicalChampionshipSnapshot) {
+        const snap = canonicalChampionshipSnapshot
+        const throughRound = snap.throughRound || 0
+        const hasResults = throughRound > 0
+        const playerKey = (
+          (team as any)?.team_key ||
+          team?.id ||
+          (isAudi ? 'audi' : '')
+        ).toLowerCase()
+        const standing = snap.constructorStandings.find(
+          (c) =>
+            c.isPlayer ||
+            c.teamId.toLowerCase() === playerKey ||
+            c.teamName.toLowerCase() === (team?.name || '').toLowerCase(),
+        )
+
+        if (standing) {
+          const rank = hasResults && standing.position > 0 ? standing.position : null
+          return {
+            constructorRank: rank != null ? rank : ('—' as const),
+            constructorTotalPoints: standing.points ?? 0,
+            hasOfficialResults: hasResults,
+          }
+        }
+      }
+
+      // 2. Fallback via standingsService (mesmo cálculo homologado no Dashboard)
       const standingsResult = standingsService.calculateStandings({
         raceResults: seasonRaceResults,
         playerDrivers: titularDrivers,
@@ -539,13 +611,14 @@ export default function TeamPage() {
         season,
       })
       if (standingsResult) {
+        const rank =
+          standingsResult.playerConstructorRank != null && standingsResult.playerConstructorRank > 0
+            ? standingsResult.playerConstructorRank
+            : null
         return {
-          constructorRank:
-            standingsResult.playerConstructorRank != null &&
-            standingsResult.playerConstructorRank > 0
-              ? standingsResult.playerConstructorRank
-              : ('—' as const),
+          constructorRank: rank != null ? rank : ('—' as const),
           constructorTotalPoints: standingsResult.teamPoints ?? 0,
+          hasOfficialResults: rank != null,
         }
       }
     } catch {
@@ -554,8 +627,9 @@ export default function TeamPage() {
     return {
       constructorRank: '—' as const,
       constructorTotalPoints: 0,
+      hasOfficialResults: false,
     }
-  }, [seasonRaceResults, titularDrivers, team, season])
+  }, [canonicalChampionshipSnapshot, seasonRaceResults, titularDrivers, team, season, isAudi])
 
   // Objetivo real da equipe derivado do save / banco oficial de construtores
   const realTeamObjective = useMemo(() => {
@@ -664,31 +738,44 @@ export default function TeamPage() {
     }
   }, [overallMorale, boardConfidence])
 
-  // Objetivos da Diretoria derivados de board_confidence e metas da equipe
+  // Objetivos da Diretoria derivados de board_confidence, metas da equipe e cálculo canônico
+  const seasonObjectiveProgress = useMemo(() => {
+    const rankNum =
+      typeof constructorRank === 'number' && constructorRank > 0 ? constructorRank : null
+    const seasonYear = season?.year || 2026
+    const currentRound = season?.current_round || 1
+    return calculateSeasonObjectiveProgress({
+      position: rankNum,
+      points: constructorTotalPoints,
+      targetRank: 4,
+      seasonYear,
+      round: currentRound,
+    })
+  }, [constructorRank, constructorTotalPoints, season?.year, season?.current_round])
+
   const boardObjectivesList: BoardObjectiveItem[] = useMemo(() => {
     const posText = constructorRank === '—' ? '—' : `${constructorRank}º lugar`
     const pointsStatusText =
-      constructorTotalPoints > 0
-        ? `${constructorTotalPoints} pts (${posText})`
-        : `0 pts (${posText})`
+      constructorRank === '—' ? '—' : `${constructorTotalPoints} pts (${posText})`
+
+    const championshipChipStatus: BoardObjectiveItem['chipStatus'] =
+      constructorRank === '—'
+        ? 'No caminho'
+        : seasonObjectiveProgress.isMeeting
+          ? 'No caminho'
+          : constructorTotalPoints > 0
+            ? 'Atenção'
+            : 'No caminho'
 
     return [
       {
         id: 'obj-1',
         area: 'Campeonato',
         description:
-          realTeamObjective !== '—' ? realTeamObjective : 'Meta da temporada em avaliação',
-        progressPct:
-          typeof constructorRank === 'number' && constructorRank > 0
-            ? Math.min(100, Math.max(10, Math.round(((11 - constructorRank) / 10) * 100)))
-            : 0,
+          realTeamObjective !== '—' ? realTeamObjective : 'Terminar no Top 4 de Construtores',
+        progressPct: constructorRank === '—' ? 0 : seasonObjectiveProgress.percentage,
         statusValue: pointsStatusText,
-        chipStatus:
-          typeof constructorRank === 'number' && constructorRank <= 8
-            ? 'No caminho'
-            : constructorTotalPoints > 0
-              ? 'Atenção'
-              : 'No caminho',
+        chipStatus: championshipChipStatus,
       },
       {
         id: 'obj-2',
@@ -709,7 +796,7 @@ export default function TeamPage() {
       {
         id: 'obj-4',
         area: 'Desenvolvimento dos Pilotos',
-        description: 'Consolidar Bortoleto na zona de pontos frequente',
+        description: 'Consolidar pilotos na zona de pontos frequente',
         progressPct: 80,
         statusValue: 'Meta 80% cumprida',
         chipStatus: 'No caminho',
@@ -723,6 +810,7 @@ export default function TeamPage() {
     COST_CAP_LIMIT,
     remainingCostCap,
     orgCapacities.aerodynamics,
+    seasonObjectiveProgress,
   ])
 
   const currentSeasonYear = season?.year || 2026
@@ -801,13 +889,84 @@ export default function TeamPage() {
       .filter((item): item is KeyStaffMemberItem => item !== null)
   }, [currentTeamOrg, currentSeasonYear])
 
-  // Decisões pendentes organizacionais derivadas estritamente do status contratual do staff real
-  // ITEM 3: Contrato vencendo nesta temporada (CONTRACT_EXPIRING) ou vencido (CONTRACT_EXPIRED)
-  // ITEM 4: Idempotente, determinístico, recalculado na hora sem persistência duplicada
+  // Decisões pendentes organizacionais derivadas estritamente de dados reais do save:
+  // 1. Staff com contrato vencendo (CONTRACT_EXPIRING) ou vencido (CONTRACT_EXPIRED)
+  // 2. Pilotos com contrato vencendo na temporada atual (currentSeasonYear)
+  // 3. Vaga de titular ou reserva aberta no roster canônico
+  // 4. Piloto reserva em homologação pendente de TL1
+  // Idempotente, determinístico, recalculado a partir do estado do save, sem itens estáticos
   const pendingDecisionsList: PendingDecisionItem[] = useMemo(() => {
+    const decisions: PendingDecisionItem[] = []
+
+    // 1. Decisões reais de staff técnico
     const allMembers = Object.values(currentTeamOrg.members).filter(Boolean) as StaffMember[]
-    return deriveStaffPendingDecisions(allMembers, currentSeasonYear)
-  }, [currentTeamOrg, currentSeasonYear])
+    const staffDecisions = deriveStaffPendingDecisions(allMembers, currentSeasonYear)
+    decisions.push(...staffDecisions)
+
+    // 2. Pilotos titulares/reserva com contrato expirando na temporada atual
+    const driversToCheck = [...titularDrivers, ...(reserveDriver ? [reserveDriver] : [])]
+    for (const d of driversToCheck) {
+      if (d.contract_end && d.contract_end <= currentSeasonYear) {
+        const isExpiring = d.contract_end === currentSeasonYear
+        const isExpired = d.contract_end < currentSeasonYear
+        decisions.push({
+          id: `driver-contract-${d.id}`,
+          title: isExpired ? `Contrato vencido: ${d.name}` : `Renovação de piloto: ${d.name}`,
+          priority: isExpired ? 'ALTA' : 'MÉDIA',
+          actionTab: 'contratos',
+          description: isExpired
+            ? `O vínculo de ${d.name} encerrou em ${d.contract_end}. Defina renovação ou liberação.`
+            : `Contrato de ${d.name} expira ao fim desta temporada (${d.contract_end}).`,
+          contextText: `Piloto ${d.role === 'reserva' ? 'Reserva' : 'Titular'} • Vencimento ${d.contract_end}`,
+          actionLabel: 'Renovar →',
+          actionPayload: { driver: d },
+        })
+      }
+    }
+
+    // 3. Vaga aberta no Roster Canônico (se houver menos de 2 titulares ou sem reserva)
+    if (canonicalRoster.titularCount < 2) {
+      decisions.push({
+        id: 'roster-open-titular-slot',
+        title: 'Vaga de titular em aberto',
+        priority: 'ALTA',
+        actionTab: 'pilotos',
+        description: `A equipe possui apenas ${canonicalRoster.titularCount} de 2 pilotos titulares obrigatórios.`,
+        contextText: 'Roster incompleto para o campeonato',
+        actionLabel: 'Contratar →',
+      })
+    }
+
+    // 4. Piloto reserva em processo de homologação pendente
+    if (reserveDriver && reserveDriver.homologation_status === 'homologacao') {
+      const done = reserveDriver.homologation_sessions_done ?? 0
+      if (done < 2) {
+        decisions.push({
+          id: `reserve-homologation-${reserveDriver.id}`,
+          title: `Escalar TL1: ${reserveDriver.name}`,
+          priority: 'MÉDIA',
+          actionTab: 'pilotos',
+          description: `Homologação FIA: ${done}/2 sessões cumpridas. Agende TL1 obrigatório de rookie.`,
+          contextText: 'Exigência FIA de Treinos Livres',
+          actionLabel: 'Agendar →',
+        })
+      }
+    }
+
+    return decisions
+  }, [currentTeamOrg, currentSeasonYear, titularDrivers, reserveDriver, canonicalRoster])
+
+  // Action needed alerts derivados de decisões pendentes reais
+  const attentionItems = useMemo(() => {
+    return pendingDecisionsList.map((d) => ({
+      id: d.id,
+      icon: d.priority === 'ALTA' ? Flame : AlertTriangle,
+      iconColor: d.priority === 'ALTA' ? 'text-rose-500' : 'text-amber-500',
+      title: d.title,
+      desc: d.description || d.contextText || '',
+      time: 'Ação imediata',
+    }))
+  }, [pendingDecisionsList])
 
   // Handlers for engine switch
   const handleSwitchSupplier = async () => {
@@ -1297,7 +1456,13 @@ export default function TeamPage() {
                 constructorPoints={constructorTotalPoints}
                 reputation={(team as any)?.prestige_rating || (team as any)?.strength || 88}
                 seasonTarget={realTeamObjective}
-                pointsProgress={{ current: constructorTotalPoints, target: 120 }}
+                pointsProgress={{
+                  current: constructorTotalPoints,
+                  target: 120,
+                  percentage: constructorRank === '—' ? 0 : seasonObjectiveProgress.percentage,
+                  isMeeting: seasonObjectiveProgress.isMeeting,
+                  label: seasonObjectiveProgress.label,
+                }}
                 isAudi={isAudi}
               />
             </div>
@@ -1600,6 +1765,9 @@ export default function TeamPage() {
                     f2Count={f2InAcad}
                     f3Count={f3InAcad}
                     highlightPilot={highlightPilot}
+                    highlightPilotMileageKm={
+                      firstPilot ? getDriverDevelopmentMileageKm(firstPilot) : undefined
+                    }
                     onOpenAcademy={() => setActiveTab('academia')}
                   />
                 </div>
@@ -2346,6 +2514,9 @@ export default function TeamPage() {
                 {teamAcademyPilots.map((pilot) => {
                   const meta = (pilot as any).procedural_data as any
                   const latestHistory = meta?.seasonsHistory?.[0]
+                  const mileageKm = getDriverDevelopmentMileageKm(pilot)
+                  const formattedMileage = `${mileageKm.toLocaleString('pt-BR')} km`
+
                   return (
                     <div
                       key={pilot.id}
@@ -2361,12 +2532,17 @@ export default function TeamPage() {
                             <CountryFlag code={pilot.nationality} />
                           </span>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className="text-xs border-cyan-300 bg-cyan-50 text-cyan-800"
-                        >
-                          Ritmo Atual: {pilot.speed}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-cyan-300 bg-cyan-50 text-cyan-800"
+                          >
+                            Ritmo Atual: {pilot.speed}
+                          </Badge>
+                          <span className="text-[11px] font-bold text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
+                            Quilometragem: {formattedMileage}
+                          </span>
+                        </div>
                       </div>
 
                       {latestHistory && (

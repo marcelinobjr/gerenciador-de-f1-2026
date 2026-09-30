@@ -72,11 +72,27 @@ export const PendingDecisionsCard: React.FC<PendingDecisionsCardProps> = ({
               <AlertCircle className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-black uppercase tracking-wider text-neutral-900 font-sans block">
-                Decisões Pendentes
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-neutral-900 font-sans block">
+                  Decisões Pendentes
+                </span>
+                {decisions.length > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-mono px-1.5 py-0 bg-red-50 text-[#E10600] border-red-200"
+                  >
+                    {decisions.length}
+                  </Badge>
+                )}
+              </div>
               <span className="text-[11px] text-neutral-400 font-medium block">
-                Itens prioritários que demandam ação da diretoria.
+                {decisions.length > 0
+                  ? `${decisions.length} ${
+                      decisions.length === 1
+                        ? 'item prioritário demanda'
+                        : 'itens prioritários demandam'
+                    } ação da diretoria.`
+                  : 'Nenhuma decisão pendente no momento.'}
               </span>
             </div>
           </div>
@@ -140,7 +156,7 @@ export const PendingDecisionsCard: React.FC<PendingDecisionsCardProps> = ({
 
           {decisions.length === 0 && (
             <div className="py-8 text-center text-xs text-neutral-400 font-medium">
-              Nenhuma decisão organizacional pendente no momento.
+              Nenhuma decisão pendente
             </div>
           )}
         </div>
