@@ -32,23 +32,70 @@ import { raceStrategyService } from '@/services/raceStrategyService'
 // Constantes canônicas de calibração do modificador de TrackFit (BASELINE-2026-LOCK-01-CP3A)
 // Referência neutra padrão do TrackFit: 75.0 (média do grid nas pistas)
 export const NEUTRAL_TRACKFIT_REFERENCE = 75.0
-// Scale calibrado para gerar variação típica de -2.0 a +2.0 pts
+// Scale calibrado para gerar variação linear suave a partir do neutro (75.0)
 export const TRACKFIT_MODIFIER_SCALE = 0.08
-// Clamp canônico: cenário normal = ±2.0 pts, pista especializada = ±2.5 pts
+// Clamp canônico: cenário normal = ±2.0 pts, especialização relevante = ±2.5 pts
 export const TRACKFIT_NORMAL_CLAMP = 2.0
-export const TRACKFIT_MAX_CLAMP = 2.5
+export const TRACKFIT_SPECIALIZED_CLAMP = 2.5
+export const TRACKFIT_MAX_CLAMP = TRACKFIT_SPECIALIZED_CLAMP
 
 // Calibração canônica de RNG para Qualifying Pace (BASELINE-2026-LOCK-01-CP3A)
-// Alvo: ±0.75 a ±1.00 pt (~±0.06s a 0.08s).
-// Distribuição normal canônica: sigma ≈ 0.45 pt -> ~95% (2*sigma) dos resultados ficam dentro de ±0.90 pt.
+// Escala interna: PONTOS DE PACE (1 pt ≈ 0.082s em tempo de volta).
+// Alvo canônico: ±0.75 a ±1.00 pt (~±0.06s a 0.08s).
+// Distribuição Gaussiana: sigma = 0.45 pt -> 2*sigma = ±0.90 pt (~95.4% na faixa).
 // Clamp absoluto preserva a faixa limite de ±1.00 pt.
 export const QUALI_RNG_TARGET_RANGE = {
   MIN: -1.0,
   MAX: 1.0,
   SIGMA: 0.45,
-}
+} as const
 export const QUALI_RNG_SCALE = 1.0
 export const QUALI_RNG_MAX_CLAMP = 1.0
+export const QUALI_RNG_DEFAULT_SIGMA = 0.45
+
+/**
+ * Funções auxiliares determinísticas de PRNG para o pace canônico
+ */
+export function hashStringToSeed(input: string | number): number {
+  if (typeof input === 'number') {
+    return Math.floor(Math.abs(input)) || 1
+  }
+  let h = 0x811c9dc5
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+export function createMulberry32(seed: number): () => number {
+  let s = seed | 0
+  return function () {
+    s = (s + 0x6d2b79f5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * Gera ruído normal com média 0 e desvio padrão sigma, clamped entre [min, max]
+ */
+export function sampleGaussianRng(
+  rng: () => number,
+  sigma = QUALI_RNG_DEFAULT_SIGMA,
+  clampMin = QUALI_RNG_TARGET_RANGE.MIN,
+  clampMax = QUALI_RNG_TARGET_RANGE.MAX,
+): number {
+  let u1 = rng()
+  let u2 = rng()
+  while (u1 <= 1e-15) {
+    u1 = rng()
+  }
+  const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2)
+  const val = z0 * sigma
+  return Math.max(clampMin, Math.min(clampMax, val))
+}
 
 export class CanonicalPaceIntegrationService {
   /**
@@ -56,27 +103,33 @@ export class CanonicalPaceIntegrationService {
    * Transforma o trackFitScore bruto (0-100) em um delta centrado em zero:
    * trackFitModifier = clamp((rawTrackFitScore - referenceTrackFit) * scale, -limit, +limit)
    * - cenário normal: clamp entre -2.0 e +2.0 pts
-   * - pista altamente especializada: clamp máximo entre -2.5 e +2.5 pts
+   * - especialização relevante (equipe/piloto ou pista): clamp máximo entre -2.5 e +2.5 pts
+   * - preserva rigorosamente o sinal (positivo para vantagem, negativo para desvantagem)
+   * - se rawTrackFitScore == referenceTrackFit, retorna estritamente 0.000
    */
   public normalizeTrackFit(params: TrackFitNormalizationParams): {
     rawTrackFit: number
     referenceTrackFit: number
     trackFitModifier: number
+    isClamped: boolean
   } {
     const raw = Math.max(0, Math.min(100, params.rawTrackFitScore))
     const ref = params.referenceTrackFit ?? NEUTRAL_TRACKFIT_REFERENCE
     const scale = params.scale ?? TRACKFIT_MODIFIER_SCALE
-    const maxClamp = params.isSpecializedTrack ? TRACKFIT_MAX_CLAMP : TRACKFIT_NORMAL_CLAMP
+    const isSpecialized = Boolean(params.isSpecializedTrack || params.hasSpecialization)
+    const maxClamp = isSpecialized ? TRACKFIT_SPECIALIZED_CLAMP : TRACKFIT_NORMAL_CLAMP
 
-    // Delta em relação ao circuito neutro
+    // Delta linear centrado em zero: preserva rigorosamente o sinal
     const delta = (raw - ref) * scale
-    // Limite calibrado de proteção de hierarquia (BASELINE-2026-LOCK-01-CP3A)
+    // Clamp calibrado de proteção de hierarquia
     const clampedModifier = Math.max(-maxClamp, Math.min(maxClamp, delta))
+    const isClamped = Math.abs(delta) > maxClamp
 
     return {
       rawTrackFit: Number(raw.toFixed(2)),
       referenceTrackFit: Number(ref.toFixed(2)),
       trackFitModifier: Number(clampedModifier.toFixed(3)),
+      isClamped,
     }
   }
 
@@ -116,10 +169,11 @@ export class CanonicalPaceIntegrationService {
     // 1. Base estrutural
     const structuralStrength = this.resolveBaseStructuralStrength(teamKey)
 
-    // 2. TrackFit modifier normalizado
+    // 2. TrackFit modifier normalizado (aplicação única no pipeline)
     let trackFitModifier = 0
     if (carTechnicalAttributes && circuitProfile) {
       const isSpecialized =
+        params.hasSpecialization === true ||
         (circuitProfile as Record<string, unknown>).specialized === true ||
         (circuitProfile.characteristics as Record<string, unknown> | undefined)?.specialized ===
           true ||
@@ -128,6 +182,7 @@ export class CanonicalPaceIntegrationService {
       const norm = this.normalizeTrackFit({
         rawTrackFitScore: trackFitScore,
         isSpecializedTrack: Boolean(isSpecialized),
+        hasSpecialization: params.hasSpecialization,
       })
       trackFitModifier = norm.trackFitModifier
     }
@@ -172,13 +227,25 @@ export class CanonicalPaceIntegrationService {
     const weatherModifier = Number((-weatherPenaltySec * 12.0).toFixed(3))
 
     // 9. RNG modifier calibrado (BASELINE-2026-LOCK-01-CP3A)
-    // Alvo: ±0.75 a ±1.00 pt, clamp máximo em ±1.0 pt
-    const rawRng = noise * QUALI_RNG_SCALE
-    const clampedRng = Math.max(
-      QUALI_RNG_TARGET_RANGE.MIN,
-      Math.min(QUALI_RNG_TARGET_RANGE.MAX, rawRng),
-    )
-    const rngModifier = Number(clampedRng.toFixed(3))
+    // Alvo: ±0.75 a ±1.00 pt, clamp máximo em ±1.0 pt.
+    // Suporta:
+    // a) Ruído determinístico direto via params.noise (em pontos de pace)
+    // b) Ruído determinístico gerado a partir de params.seed via Mulberry32 + Box-Muller normal(0, sigma)
+    // c) Default: 0 se nenhum fornecido
+    let rngModifier = 0
+    if (params.seed !== undefined) {
+      const numericSeed = hashStringToSeed(params.seed)
+      const rngFunc = createMulberry32(numericSeed)
+      const sampled = sampleGaussianRng(rngFunc, QUALI_RNG_TARGET_RANGE.SIGMA)
+      rngModifier = Number(sampled.toFixed(3))
+    } else {
+      const rawRng = noise * QUALI_RNG_SCALE
+      const clampedRng = Math.max(
+        QUALI_RNG_TARGET_RANGE.MIN,
+        Math.min(QUALI_RNG_TARGET_RANGE.MAX, rawRng),
+      )
+      rngModifier = Number(clampedRng.toFixed(3))
+    }
 
     // 10. Final Pace Score (soma exata da decomposição)
     const effectivePaceScore = Number(
@@ -259,10 +326,11 @@ export class CanonicalPaceIntegrationService {
     // 1. Base estrutural
     const structuralStrength = this.resolveBaseStructuralStrength(teamKey)
 
-    // 2. TrackFit modifier normalizado
+    // 2. TrackFit modifier normalizado (aplicação única no pipeline)
     let trackFitModifier = 0
     if (carTechnicalAttributes && circuitProfile) {
       const isSpecialized =
+        params.hasSpecialization === true ||
         (circuitProfile as Record<string, unknown>).specialized === true ||
         (circuitProfile.characteristics as Record<string, unknown> | undefined)?.specialized ===
           true ||
@@ -271,6 +339,7 @@ export class CanonicalPaceIntegrationService {
       const norm = this.normalizeTrackFit({
         rawTrackFitScore: trackFitScore,
         isSpecializedTrack: Boolean(isSpecialized),
+        hasSpecialization: params.hasSpecialization,
       })
       trackFitModifier = norm.trackFitModifier
     }
@@ -308,12 +377,20 @@ export class CanonicalPaceIntegrationService {
     const weatherModifier = Number((-weatherPenaltySec * 12.0).toFixed(3))
 
     // 8. RNG noise calibrado
-    const rawRng = rngNoise * QUALI_RNG_SCALE
-    const clampedRng = Math.max(
-      QUALI_RNG_TARGET_RANGE.MIN,
-      Math.min(QUALI_RNG_TARGET_RANGE.MAX, rawRng),
-    )
-    const rngModifier = Number(clampedRng.toFixed(3))
+    let rngModifier = 0
+    if (params.seed !== undefined) {
+      const numericSeed = hashStringToSeed(params.seed)
+      const rngFunc = createMulberry32(numericSeed)
+      const sampled = sampleGaussianRng(rngFunc, QUALI_RNG_TARGET_RANGE.SIGMA)
+      rngModifier = Number(sampled.toFixed(3))
+    } else {
+      const rawRng = rngNoise * QUALI_RNG_SCALE
+      const clampedRng = Math.max(
+        QUALI_RNG_TARGET_RANGE.MIN,
+        Math.min(QUALI_RNG_TARGET_RANGE.MAX, rawRng),
+      )
+      rngModifier = Number(clampedRng.toFixed(3))
+    }
 
     // Setup modifier neutro de corrida
     const setupModifier = 0.0

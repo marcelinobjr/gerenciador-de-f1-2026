@@ -27,8 +27,9 @@ export interface PaceBreakdown {
 export interface TrackFitNormalizationParams {
   rawTrackFitScore: number // 0 a 100
   referenceTrackFit?: number // neutro padrão = 75 (ou média canônica)
-  scale?: number // escala de calibração para ±3 a ±6 pts
-  isSpecializedTrack?: boolean
+  scale?: number // escala de calibração para limites canônicos
+  isSpecializedTrack?: boolean // Especialização de pista: clamp ±2.5 pts (vs normal ±2.0 pts)
+  hasSpecialization?: boolean // Especialização de equipe/piloto: clamp ±2.5 pts
 }
 
 export interface QualifyingPaceIntegrationParams {
@@ -49,7 +50,9 @@ export interface QualifyingPaceIntegrationParams {
   fuelKg?: number
   setupEfficiency?: number // 0-100, padrão 80 (delta em torno de 0)
   weather?: string
-  noise?: number
+  noise?: number // ruído direto em pontos de pace [-1.0, +1.0]
+  seed?: number | string // seed determinístico opcional para geração de RNG calibrado
+  hasSpecialization?: boolean // especialização relevante de equipe/piloto para TrackFit
   puWearPct?: number
 }
 
@@ -75,6 +78,8 @@ export interface RacePaceIntegrationParams {
   carCondition?: number // 0-100
   weather?: string
   rngNoise?: number
+  seed?: number | string
+  hasSpecialization?: boolean
   lap?: number
   gridPosition?: number
 }

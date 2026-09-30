@@ -3,279 +3,237 @@ import {
   canonicalPaceIntegrationService,
   TRACKFIT_MAX_CLAMP,
   TRACKFIT_NORMAL_CLAMP,
+  TRACKFIT_SPECIALIZED_CLAMP,
+  NEUTRAL_TRACKFIT_REFERENCE,
   QUALI_RNG_TARGET_RANGE,
+  QUALI_RNG_DEFAULT_SIGMA,
+  sampleGaussianRng,
+  createMulberry32,
+  hashStringToSeed,
 } from '@/services/canonicalPaceIntegrationService'
 import { structuralStrengthService } from '@/services/structuralStrengthService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { BASELINE_V0_DATA } from '@/data/balance-baseline-v0'
-import { calculateTrackFit } from '@/lib/car-session-performance-engine'
+import { BASELINE_2026_V1_ORDER } from '@/data/baseline-2026-v1'
 
-describe('BASELINE-2026-LOCK-01-CP3A: Calibração TrackFit e RNG', () => {
+describe('BASELINE-2026-LOCK-01-CP3A — Suíte Canônica BL26-06..14 (TrackFit & RNG)', () => {
   const silverstone = resolveCircuitProfile({ round: 11 })
-  const monaco = resolveCircuitProfile({ round: 8 })
 
-  // == 4. TRACKFIT — TESTES ==
-  it('BL26-06: TrackFit efetivo nunca ultrapassa ±2.5 pts mesmo com scores extremos', () => {
-    // Testar com scores extremos: 0, 10, 50, 90, 100
-    const testScores = [0, 5, 20, 50, 75, 90, 98, 100]
+  // =========================================================================
+  // BL26-06: Clamp normal — TrackFit nunca ultrapassa +2.0 / -2.0 em cenário padrão
+  // =========================================================================
+  it('BL26-06: Clamp normal — TrackFit nunca ultrapassa +2.0 / -2.0 em cenário padrão', () => {
+    expect(TRACKFIT_NORMAL_CLAMP).toBe(2.0)
+
+    // Testar com ampla gama de scores: extremos (0, 100), moderados (30, 75, 95), limítrofes
+    const testScores = [0, 5, 10, 25, 40, 50, 75, 85, 90, 95, 99, 100]
     for (const score of testScores) {
       const normalResult = canonicalPaceIntegrationService.normalizeTrackFit({
         rawTrackFitScore: score,
         isSpecializedTrack: false,
+        hasSpecialization: false,
       })
-      const specializedResult = canonicalPaceIntegrationService.normalizeTrackFit({
+
+      expect(normalResult.trackFitModifier).toBeGreaterThanOrEqual(-TRACKFIT_NORMAL_CLAMP)
+      expect(normalResult.trackFitModifier).toBeLessThanOrEqual(TRACKFIT_NORMAL_CLAMP)
+      expect(Math.abs(normalResult.trackFitModifier)).toBeLessThanOrEqual(2.0)
+    }
+
+    // Com score 0 (máxima desvantagem normal): clamp em -2.0 exatamente
+    const minNormal = canonicalPaceIntegrationService.normalizeTrackFit({
+      rawTrackFitScore: 0,
+      isSpecializedTrack: false,
+    })
+    expect(minNormal.trackFitModifier).toBe(-2.0)
+    expect(minNormal.isClamped).toBe(true)
+
+    // Com score 100 (máxima vantagem normal): clamp em +2.0 exatamente
+    const maxNormal = canonicalPaceIntegrationService.normalizeTrackFit({
+      rawTrackFitScore: 100,
+      isSpecializedTrack: false,
+    })
+    expect(maxNormal.trackFitModifier).toBe(2.0)
+    expect(maxNormal.isClamped).toBe(true)
+  })
+
+  // =========================================================================
+  // BL26-07: Clamp especializado — TrackFit especializado nunca ultrapassa +2.5 / -2.5
+  // =========================================================================
+  it('BL26-07: Clamp especializado — TrackFit especializado nunca ultrapassa +2.5 / -2.5', () => {
+    expect(TRACKFIT_SPECIALIZED_CLAMP).toBe(2.5)
+    expect(TRACKFIT_MAX_CLAMP).toBe(2.5)
+
+    const testScores = [0, 5, 10, 20, 50, 75, 90, 98, 100]
+    for (const score of testScores) {
+      // Especialização via pista
+      const specTrackResult = canonicalPaceIntegrationService.normalizeTrackFit({
         rawTrackFitScore: score,
         isSpecializedTrack: true,
       })
+      // Especialização via equipe/piloto
+      const specTeamResult = canonicalPaceIntegrationService.normalizeTrackFit({
+        rawTrackFitScore: score,
+        hasSpecialization: true,
+      })
 
-      expect(normalResult.trackFitModifier).toBeGreaterThanOrEqual(-TRACKFIT_MAX_CLAMP)
-      expect(normalResult.trackFitModifier).toBeLessThanOrEqual(TRACKFIT_MAX_CLAMP)
-
-      expect(specializedResult.trackFitModifier).toBeGreaterThanOrEqual(-TRACKFIT_MAX_CLAMP)
-      expect(specializedResult.trackFitModifier).toBeLessThanOrEqual(TRACKFIT_MAX_CLAMP)
-      expect(Math.abs(specializedResult.trackFitModifier)).toBeLessThanOrEqual(2.5)
+      for (const res of [specTrackResult, specTeamResult]) {
+        expect(res.trackFitModifier).toBeGreaterThanOrEqual(-TRACKFIT_SPECIALIZED_CLAMP)
+        expect(res.trackFitModifier).toBeLessThanOrEqual(TRACKFIT_SPECIALIZED_CLAMP)
+        expect(Math.abs(res.trackFitModifier)).toBeLessThanOrEqual(2.5)
+      }
     }
+
+    // Com score 0 (máxima desvantagem especializada): clamp em -2.5 exatamente
+    const minSpec = canonicalPaceIntegrationService.normalizeTrackFit({
+      rawTrackFitScore: 0,
+      isSpecializedTrack: true,
+    })
+    expect(minSpec.trackFitModifier).toBe(-2.5)
+    expect(minSpec.isClamped).toBe(true)
+
+    // Com score 100 (máxima vantagem especializada): clamp em +2.5 exatamente
+    const maxSpec = canonicalPaceIntegrationService.normalizeTrackFit({
+      rawTrackFitScore: 100,
+      hasSpecialization: true,
+    })
+    expect(maxSpec.trackFitModifier).toBe(2.5)
+    expect(maxSpec.isClamped).toBe(true)
   })
 
-  it('BL26-07: em cenário normal, clamp efetivo = ±2.0 pts', () => {
-    // Para cenário normal (isSpecializedTrack: false ou default), clamp estrito em ±2.0 pts
-    const extremeScores = [0, 10, 20, 30, 95, 100]
-    for (const score of extremeScores) {
-      const result = canonicalPaceIntegrationService.normalizeTrackFit({
+  // =========================================================================
+  // BL26-08: Sinal — vantagem e desvantagem de pista preservam corretamente o sinal
+  // =========================================================================
+  it('BL26-08: Sinal — vantagem e desvantagem de pista preservam corretamente o sinal', () => {
+    expect(NEUTRAL_TRACKFIT_REFERENCE).toBe(75.0)
+
+    // Score acima da referência neutra (> 75) DEVE gerar modificador estritamente POSITIVO
+    const scoresAbove = [76, 80, 85, 90, 95, 100]
+    for (const score of scoresAbove) {
+      const res = canonicalPaceIntegrationService.normalizeTrackFit({
         rawTrackFitScore: score,
       })
-      expect(result.trackFitModifier).toBeGreaterThanOrEqual(-TRACKFIT_NORMAL_CLAMP)
-      expect(result.trackFitModifier).toBeLessThanOrEqual(TRACKFIT_NORMAL_CLAMP)
-      expect(Math.abs(result.trackFitModifier)).toBeLessThanOrEqual(2.0)
+      expect(res.trackFitModifier).toBeGreaterThan(0)
     }
 
-    // Configuração central confirma os valores
-    expect(TRACKFIT_NORMAL_CLAMP).toBe(2.0)
-    expect(TRACKFIT_MAX_CLAMP).toBe(2.5)
+    // Score abaixo da referência neutra (< 75) DEVE gerar modificador estritamente NEGATIVO
+    const scoresBelow = [0, 10, 50, 60, 70, 74]
+    for (const score of scoresBelow) {
+      const res = canonicalPaceIntegrationService.normalizeTrackFit({
+        rawTrackFitScore: score,
+      })
+      expect(res.trackFitModifier).toBeLessThan(0)
+    }
+
+    // Linearidade exata antes do clamp: (score - 75) * 0.08
+    const midAbove = canonicalPaceIntegrationService.normalizeTrackFit({ rawTrackFitScore: 85 })
+    expect(midAbove.trackFitModifier).toBeCloseTo((85 - 75) * 0.08, 3) // +0.800
+
+    const midBelow = canonicalPaceIntegrationService.normalizeTrackFit({ rawTrackFitScore: 65 })
+    expect(midBelow.trackFitModifier).toBeCloseTo((65 - 75) * 0.08, 3) // -0.800
+
+    // Simetria de sinal para deltas iguais
+    expect(midAbove.trackFitModifier).toBe(-midBelow.trackFitModifier)
   })
 
-  it('BL26-08: Cadillac não entra top 3 apenas por TrackFit', () => {
-    // Cadillac (âncora 72) vs Top 3 (Mercedes 100, McLaren 98, Ferrari 96, Red Bull 94)
-    // Mesmo no caso mais extremo de TrackFit (+2.5 para Cadillac, -2.5 para top teams),
-    // Cadillac não pode superar ou igualar as equipes do Top 3
-    const cadillacBase =
-      structuralStrengthService.getTeamStructuralStrength('cadillac').structuralStrengthScore
-    const ferrariBase =
-      structuralStrengthService.getTeamStructuralStrength('ferrari').structuralStrengthScore
-    const mclarenBase =
-      structuralStrengthService.getTeamStructuralStrength('mclaren').structuralStrengthScore
-    const mercedesBase =
-      structuralStrengthService.getTeamStructuralStrength('mercedes').structuralStrengthScore
-    const redbullBase =
-      structuralStrengthService.getTeamStructuralStrength('redbull').structuralStrengthScore
+  // =========================================================================
+  // BL26-09: Aplicação única — TrackFit não pode entrar duas vezes no cálculo final
+  // =========================================================================
+  it('BL26-09: Aplicação única — TrackFit não pode entrar duas vezes no cálculo final', () => {
+    // 1. Verificar a auditoria canônica de integrações
+    const auditRes = canonicalPaceIntegrationService.auditPaceIntegration()
+    expect(auditRes.auditPassed).toBe(true)
+    expect(auditRes.legacyTrackFitWeight45).toBe(false)
+    expect(auditRes.duplicateDriverApplication).toBe(0)
+    expect(auditRes.duplicatePUApplication).toBe(0)
+    expect(auditRes.duplicateWearApplication).toBe(0)
+    expect(auditRes.teamNameBonuses).toBe(0)
 
-    // Melhor caso possível de TrackFit para Cadillac
-    const maxCadillacTrackFitPace = cadillacBase + TRACKFIT_MAX_CLAMP // 72 + 2.5 = 74.5
-    // Pior caso de TrackFit para as equipes do top 3
-    const minMercedesPace = mercedesBase - TRACKFIT_MAX_CLAMP // 100 - 2.5 = 97.5
-    const minMclarenPace = mclarenBase - TRACKFIT_MAX_CLAMP // 98 - 2.5 = 95.5
-    const minFerrariPace = ferrariBase - TRACKFIT_MAX_CLAMP // 96 - 2.5 = 93.5
-    const minRedbullPace = redbullBase - TRACKFIT_MAX_CLAMP // 94 - 2.5 = 91.5
-
-    expect(maxCadillacTrackFitPace).toBeLessThan(minMercedesPace)
-    expect(maxCadillacTrackFitPace).toBeLessThan(minMclarenPace)
-    expect(maxCadillacTrackFitPace).toBeLessThan(minFerrariPace)
-    expect(maxCadillacTrackFitPace).toBeLessThan(minRedbullPace)
-
-    // A distância estrutural mínima para o top 3 permanece superior a 15 pontos
-    expect(minRedbullPace - maxCadillacTrackFitPace).toBeGreaterThan(15.0)
-  })
-
-  it('BL26-09: Andretti não entra top 3 apenas por TrackFit', () => {
-    // Andretti (âncora 69) vs Top 3
-    const andrettiBase =
-      structuralStrengthService.getTeamStructuralStrength('andretti').structuralStrengthScore
-    const redbullBase =
-      structuralStrengthService.getTeamStructuralStrength('redbull').structuralStrengthScore
-
-    const maxAndrettiTrackFitPace = andrettiBase + TRACKFIT_MAX_CLAMP // 69 + 2.5 = 71.5
-    const minRedbullPace = redbullBase - TRACKFIT_MAX_CLAMP // 94 - 2.5 = 91.5
-
-    expect(maxAndrettiTrackFitPace).toBeLessThan(minRedbullPace)
-    expect(minRedbullPace - maxAndrettiTrackFitPace).toBeGreaterThan(15.0)
-  })
-
-  it('BL26-10: equipes próximas ainda podem inverter com TrackFit calibrado', () => {
-    // Racing Bulls (âncora 90) vs Alpine (âncora 87): gap = 3.0 pts
-    // Se Alpine tiver TrackFit favorável (+1.8) e Racing Bulls desfavorável (-1.5), Alpine passa à frente
-    const alpineBase = 87
-    const racingBullsBase = 90
-
-    const alpineFavorableTF = canonicalPaceIntegrationService.normalizeTrackFit({
-      rawTrackFitScore: 97, // favorável
-      isSpecializedTrack: false,
-    }).trackFitModifier // +1.76
-
-    const rbUnfavorableTF = canonicalPaceIntegrationService.normalizeTrackFit({
-      rawTrackFitScore: 55, // desfavorável
-      isSpecializedTrack: false,
-    }).trackFitModifier // -1.6
-
-    const alpineNet = alpineBase + alpineFavorableTF
-    const rbNet = racingBullsBase + rbUnfavorableTF
-
-    expect(alpineNet).toBeGreaterThan(rbNet)
-
-    // Audi (84) vs Haas (81): gap = 3.0 pts
-    const audiBase = 84
-    const haasBase = 81
-    const haasFavorableTF = canonicalPaceIntegrationService.normalizeTrackFit({
-      rawTrackFitScore: 98,
-      isSpecializedTrack: false,
-    }).trackFitModifier // ~ +1.84
-    const audiUnfavorableTF = canonicalPaceIntegrationService.normalizeTrackFit({
-      rawTrackFitScore: 53,
-      isSpecializedTrack: false,
-    }).trackFitModifier // ~ -1.76
-
-    expect(haasBase + haasFavorableTF).toBeGreaterThan(audiBase + audiUnfavorableTF)
-  })
-
-  // == 7. RNG — TESTES ==
-  it('BL26-11: RNG máximo respeita a nova faixa configurada (±0.75 a ±1.00 pt)', () => {
-    expect(QUALI_RNG_TARGET_RANGE.MIN).toBe(-1.0)
-    expect(QUALI_RNG_TARGET_RANGE.MAX).toBe(1.0)
-    expect(QUALI_RNG_TARGET_RANGE.SIGMA).toBe(0.45)
-    // Em distribuição normal, 2 * sigma (95.4% dos casos) fica em ±0.90 pt
-    const twoSigma = 2 * QUALI_RNG_TARGET_RANGE.SIGMA
-    expect(twoSigma).toBeLessThanOrEqual(1.0)
-    expect(twoSigma).toBeGreaterThanOrEqual(0.75)
-
-    // Testar com valores de ruído extremos no computeQualifyingPace
-    const testCadillacPace = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'cadillac',
-      driverId: 'cad-01',
-      circuitProfile: silverstone,
-      driverAttributes: { speed: 85 },
-      noise: 0.5, // ruído positivo alto
-    })
-    expect(testCadillacPace.breakdown.rngModifier).toBeLessThanOrEqual(1.0)
-    expect(testCadillacPace.breakdown.rngModifier).toBeGreaterThanOrEqual(-1.0)
-
-    const testCadillacPaceNeg = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'cadillac',
-      driverId: 'cad-01',
-      circuitProfile: silverstone,
-      driverAttributes: { speed: 85 },
-      noise: -0.5, // ruído negativo alto
-    })
-    expect(testCadillacPaceNeg.breakdown.rngModifier).toBeLessThanOrEqual(1.0)
-    expect(testCadillacPaceNeg.breakdown.rngModifier).toBeGreaterThanOrEqual(-1.0)
-  })
-
-  it('BL26-12: RNG sozinho não quebra tiers', () => {
-    // Gap mínimo entre tiers 2026:
-    // Top (Red Bull 94) vs Mid (Racing Bulls 90) = 4.0 pts
-    // Mid (Aston Martin 75) vs Back (Cadillac 72) = 3.0 pts
-    // Com RNG máximo de ±1.0 pt, a amplitude máxima gerada por RNG é 2.0 pts
-    const maxRngDelta = QUALI_RNG_TARGET_RANGE.MAX - QUALI_RNG_TARGET_RANGE.MIN // 2.0 pts
-    const topToMidTierGap = 94 - 90 // 4.0 pts
-    const midToBackTierGap = 75 - 72 // 3.0 pts
-
-    expect(maxRngDelta).toBeLessThan(topToMidTierGap)
-    expect(maxRngDelta).toBeLessThan(midToBackTierGap)
-
-    // Red Bull com pior RNG (-1.0) vs Racing Bulls com melhor RNG (+1.0)
-    const rbWorstRng = 94 - 1.0 // 93.0
-    const vcarbBestRng = 90 + 1.0 // 91.0
-    expect(rbWorstRng).toBeGreaterThan(vcarbBestRng)
-
-    // Aston Martin com pior RNG (-1.0) vs Cadillac com melhor RNG (+1.0)
-    const astonWorstRng = 75 - 1.0 // 74.0
-    const cadillacBestRng = 72 + 1.0 // 73.0
-    expect(astonWorstRng).toBeGreaterThan(cadillacBestRng)
-  })
-
-  it('BL26-13: companheiros próximos ainda podem inverter com RNG', () => {
-    // Piloto 1 (speed 85.5) vs Piloto 2 (speed 85.0): delta de sessão = (85.5 - 85.0) * 0.08 = 0.04 pts
-    // Um RNG de ±0.3 pt é mais do que suficiente para inverter a disputa interna
-    const circuit = silverstone
+    // 2. Verificar matematicamente na decomposição do computeQualifyingPace
     const carTech = (BASELINE_V0_DATA.teams['mercedes'] as any)?.technicalAttributes
-
-    // Piloto A tem ligeira vantagem em atributos de piloto mas RNG neutro/desfavorável
-    const driverA = canonicalPaceIntegrationService.computeQualifyingPace({
+    const result = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'mercedes',
-      driverId: 'drv-a',
-      circuitProfile: circuit,
+      driverId: 'rus',
+      circuitProfile: silverstone,
       carTechnicalAttributes: carTech,
-      driverAttributes: { speed: 85.5 },
-      noise: -0.05, // -0.3 pts
+      driverAttributes: { speed: 85 },
+      setupEfficiency: 80,
+      tyreCompound: 'macio',
+      fuelKg: 12,
+      noise: 0,
     })
 
-    // Piloto B tem volta inspirada (RNG favorável)
-    const driverB = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'mercedes',
-      driverId: 'drv-b',
-      circuitProfile: circuit,
-      carTechnicalAttributes: carTech,
-      driverAttributes: { speed: 85.0 },
-      noise: 0.08, // +0.48 pts
-    })
+    const b = result.breakdown
+    // A soma exata de todos os termos com trackFitModifier aparecendo EXATAMENTE 1x
+    // deve ser igual a finalPace (effectivePaceScore).
+    const singleApplicationSum = Number(
+      (
+        b.structuralStrength +
+        b.trackFitModifier +
+        b.setupModifier +
+        b.driverEventModifier +
+        b.tyreModifier +
+        b.fuelModifier +
+        b.wearModifier +
+        b.weatherModifier +
+        b.rngModifier
+      ).toFixed(2),
+    )
 
-    expect(driverB.effectivePaceScore).toBeGreaterThan(driverA.effectivePaceScore)
+    expect(result.effectivePaceScore).toBe(singleApplicationSum)
+    expect(b.finalPace).toBe(singleApplicationSum)
+
+    // Se TrackFit entrasse uma segunda vez, haveria discrepância de b.trackFitModifier
+    if (b.trackFitModifier !== 0) {
+      const doubleApplicationSum = Number((singleApplicationSum + b.trackFitModifier).toFixed(2))
+      expect(result.effectivePaceScore).not.toBe(doubleApplicationSum)
+    }
+
+    // 3. Provar que a base estrutural pura NÃO contém TrackFit embutido
+    const structuralOnly = canonicalPaceIntegrationService.resolveBaseStructuralStrength('mercedes')
+    expect(b.structuralStrength).toBe(structuralOnly)
   })
 
-  it('BL26-14: top/mid/back continuam separados estatisticamente em quali normal', () => {
-    // Amostragem com ruído controlado simulado (~normal com sigma = 0.45)
-    // Verificar que a média e percentis dos tiers não se sobrepõem
-    const topTeams = ['mercedes', 'mclaren', 'ferrari', 'redbull']
-    const midTeams = ['racingbulls', 'alpine', 'audi', 'haas', 'williams', 'astonmartin']
-    const backTeams = ['cadillac', 'andretti']
+  // =========================================================================
+  // BL26-10: Neutralidade — TrackFit zero não altera o pace estrutural
+  // =========================================================================
+  it('BL26-10: Neutralidade — TrackFit zero não altera o pace estrutural', () => {
+    // Quando rawTrackFitScore == 75.0 (ou modificador = 0), TrackFit não altera o pace estrutural
+    const neutralTF = canonicalPaceIntegrationService.normalizeTrackFit({
+      rawTrackFitScore: 75.0,
+      referenceTrackFit: 75.0,
+    })
+    expect(neutralTF.trackFitModifier).toBe(0.0)
 
-    const evaluateTeam = (teamKey: string, noise: number) => {
-      const entry = BASELINE_V0_DATA.teams[teamKey] as any
-      const tech = entry?.technicalAttributes ?? entry?.carAttributes
-      return canonicalPaceIntegrationService.computeQualifyingPace({
+    // Avaliar para todas as 12 equipes 2026 em condição neutra (setup 80, pneus macios, combustível 12kg, RNG 0)
+    // Sem passar circuitProfile / carTechnicalAttributes (trackFitModifier = 0)
+    for (const teamKey of BASELINE_2026_V1_ORDER) {
+      const paceWithoutTF = canonicalPaceIntegrationService.computeQualifyingPace({
         teamKey,
         driverId: `${teamKey}-drv`,
-        circuitProfile: silverstone,
-        carTechnicalAttributes: tech,
+        circuitProfile: null,
+        carTechnicalAttributes: null,
         driverAttributes: { speed: 85 },
         setupEfficiency: 80,
-        noise,
-      }).effectivePaceScore
+        fuelKg: 12,
+        noise: 0,
+      })
+
+      expect(paceWithoutTF.breakdown.trackFitModifier).toBe(0)
+      // Com todos os fatores neutros, o pace final é exatamente a força estrutural
+      expect(paceWithoutTF.effectivePaceScore).toBe(paceWithoutTF.breakdown.structuralStrength)
     }
-
-    // Pior caso para o pior time do top tier (Red Bull com pior TrackFit e pior RNG)
-    const worstTopPace = evaluateTeam('redbull', -0.2) // ruído negativo
-    // Melhor caso para o melhor time do mid tier (Racing Bulls com melhor TrackFit e melhor RNG)
-    const bestMidPace = evaluateTeam('racingbulls', 0.2) // ruído positivo
-    // Pior caso para o pior time do mid tier (Aston Martin)
-    const worstMidPace = evaluateTeam('astonmartin', -0.2)
-    // Melhor caso para o melhor time do back tier (Cadillac)
-    const bestBackPace = evaluateTeam('cadillac', 0.2)
-
-    // Estatisticamente, top tier > mid tier e mid tier > back tier
-    expect(worstTopPace).toBeGreaterThan(bestMidPace)
-    expect(worstMidPace).toBeGreaterThan(bestBackPace)
   })
 
-  // == 8. FIXTURE SILVERSTONE CONTROLADA ==
-  it('Fixture Silverstone: baseline 2026 ativa, setup neutro, seco, pneus iguais, TrackFit calibrado, RNG = 0', () => {
+  // =========================================================================
+  // BL26-11: Fixture Silverstone — isolamento puro de pace estrutural + TrackFit (RNG=0)
+  // =========================================================================
+  it('BL26-11: Fixture Silverstone — isolamento puro de pace estrutural + TrackFit (RNG=0)', () => {
     expect(silverstone).toBeDefined()
     if (!silverstone) return
 
-    const teamKeys = [
-      'mercedes',
-      'mclaren',
-      'ferrari',
-      'redbull',
-      'racingbulls',
-      'alpine',
-      'audi',
-      'haas',
-      'williams',
-      'astonmartin',
-      'cadillac',
-      'andretti',
-    ]
-
-    const ranking = teamKeys.map((teamKey) => {
+    // Condições: Silverstone; pista seca; setup neutro (80); pneus equivalentes (macio 0%);
+    // mesma condição operacional (fuel 12kg); RNG = 0; nenhum incidente; nenhuma penalidade.
+    const fixtureResults = BASELINE_2026_V1_ORDER.map((teamKey) => {
       const entry = BASELINE_V0_DATA.teams[teamKey] as any
       const tech = entry?.technicalAttributes ?? entry?.carAttributes
       const pace = canonicalPaceIntegrationService.computeQualifyingPace({
@@ -283,50 +241,259 @@ describe('BASELINE-2026-LOCK-01-CP3A: Calibração TrackFit e RNG', () => {
         driverId: `${teamKey}-drv`,
         circuitProfile: silverstone,
         carTechnicalAttributes: tech,
-        driverAttributes: { speed: 85, consistency: 85 },
-        setupEfficiency: 80, // neutro
+        driverAttributes: { speed: 85, consistency: 85, morale: 80 },
+        setupEfficiency: 80,
         weather: 'seco',
         tyreCompound: 'macio',
         tyreWearPct: 0,
         fuelKg: 12,
-        noise: 0, // RNG = 0
+        puWearPct: 0,
+        noise: 0, // RNG = 0 rigoroso
       })
 
       return {
         teamKey,
+        structuralStrength: pace.breakdown.structuralStrength,
+        trackFitModifier: pace.breakdown.trackFitModifier,
         effectivePaceScore: pace.effectivePaceScore,
         lapTimeSec: pace.lapTimeSec,
         breakdown: pace.breakdown,
       }
     })
 
-    // Ordenar do mais rápido para o mais lento (maior effectivePaceScore)
-    ranking.sort((a, b) => b.effectivePaceScore - a.effectivePaceScore)
-
-    // Tier 1: Top = Mercedes, McLaren, Ferrari, Red Bull (posições 1 a 4)
-    const topTierPositions = ranking.slice(0, 4).map((r) => r.teamKey)
-    const expectedTop = ['mercedes', 'mclaren', 'ferrari', 'redbull']
-    for (const team of expectedTop) {
-      expect(topTierPositions).toContain(team)
+    // 1. Cada pace reflete estritamente: StructuralStrength + TrackFitModifier
+    for (const r of fixtureResults) {
+      const expected = Number((r.structuralStrength + r.trackFitModifier).toFixed(2))
+      expect(r.effectivePaceScore).toBe(expected)
+      expect(r.breakdown.rngModifier).toBe(0)
+      expect(r.breakdown.setupModifier).toBe(0)
+      expect(r.breakdown.driverEventModifier).toBe(0)
+      expect(r.breakdown.weatherModifier).toBe(0)
+      expect(r.breakdown.wearModifier).toBe(0)
+      expect(Math.abs(r.trackFitModifier)).toBeLessThanOrEqual(TRACKFIT_NORMAL_CLAMP)
     }
 
-    // Tier 2: Mid = Racing Bulls, Alpine, Audi, Haas, Williams, Aston Martin (posições 5 a 10)
-    const midTierPositions = ranking.slice(4, 10).map((r) => r.teamKey)
+    // 2. Ordenar por effectivePaceScore
+    const sorted = [...fixtureResults].sort((a, b) => b.effectivePaceScore - a.effectivePaceScore)
+
+    // Top tier: Mercedes, McLaren, Ferrari, Red Bull (1 a 4)
+    const top4 = sorted.slice(0, 4).map((s) => s.teamKey)
+    expect(top4).toContain('mercedes')
+    expect(top4).toContain('mclaren')
+    expect(top4).toContain('ferrari')
+    expect(top4).toContain('redbull')
+
+    // Mid tier: Racing Bulls, Alpine, Audi, Haas, Williams, Aston Martin (5 a 10)
+    const mid6 = sorted.slice(4, 10).map((s) => s.teamKey)
     const expectedMid = ['racingbulls', 'alpine', 'audi', 'haas', 'williams', 'astonmartin']
-    for (const team of expectedMid) {
-      expect(midTierPositions).toContain(team)
+    for (const m of expectedMid) {
+      expect(mid6).toContain(m)
     }
 
-    // Tier 3: Back = Cadillac, Andretti (posições 11 e 12)
-    const backTierPositions = ranking.slice(10, 12).map((r) => r.teamKey)
-    const expectedBack = ['cadillac', 'andretti']
-    for (const team of expectedBack) {
-      expect(backTierPositions).toContain(team)
+    // Back tier: Cadillac, Andretti (11 e 12)
+    const back2 = sorted.slice(10, 12).map((s) => s.teamKey)
+    expect(back2).toContain('cadillac')
+    expect(back2).toContain('andretti')
+
+    // Hierarquia preservada: pior do Top > melhor do Mid; pior do Mid > melhor do Back
+    expect(sorted[3].effectivePaceScore).toBeGreaterThan(sorted[4].effectivePaceScore)
+    expect(sorted[9].effectivePaceScore).toBeGreaterThan(sorted[10].effectivePaceScore)
+  })
+
+  // =========================================================================
+  // BL26-12: RNG — amplitude/sigma da classificação na faixa calibrada (±0.75 a ±1.0 pt)
+  // =========================================================================
+  it('BL26-12: RNG — amplitude/sigma da classificação na faixa calibrada (±0.75 a ±1.0 pt)', () => {
+    // Configurações canônicas
+    expect(QUALI_RNG_TARGET_RANGE.MIN).toBe(-1.0)
+    expect(QUALI_RNG_TARGET_RANGE.MAX).toBe(1.0)
+    expect(QUALI_RNG_TARGET_RANGE.SIGMA).toBe(0.45)
+    expect(QUALI_RNG_DEFAULT_SIGMA).toBe(0.45)
+
+    // Verificação estatística: em distribuição normal com sigma = 0.45:
+    // 2 * sigma = 0.90 pt (95.4% da distribuição fica entre -0.90 e +0.90 pt)
+    const twoSigma = 2 * QUALI_RNG_TARGET_RANGE.SIGMA
+    expect(twoSigma).toBeGreaterThanOrEqual(0.75)
+    expect(twoSigma).toBeLessThanOrEqual(1.0)
+
+    // Clamp absoluto de segurança estrito em ±1.00 pt (~±0.082s)
+    const extremeNoisePos = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'cadillac',
+      driverId: 'cad-01',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: 5.0, // ruído extremo positivo
+    })
+    expect(extremeNoisePos.breakdown.rngModifier).toBe(1.0)
+
+    const extremeNoiseNeg = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'cadillac',
+      driverId: 'cad-01',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: -5.0, // ruído extremo negativo
+    })
+    expect(extremeNoiseNeg.breakdown.rngModifier).toBe(-1.0)
+
+    // Amostragem com gerador Mulberry32 + Box-Muller em 1000 amostras
+    const rng = createMulberry32(42)
+    const samples: number[] = []
+    for (let i = 0; i < 1000; i++) {
+      const val = sampleGaussianRng(rng, QUALI_RNG_DEFAULT_SIGMA)
+      samples.push(val)
+      expect(val).toBeGreaterThanOrEqual(-1.0)
+      expect(val).toBeLessThanOrEqual(1.0)
     }
 
-    // Todos os TrackFit modifiers respeitam o clamp normal de ±2.0 pts
-    for (const row of ranking) {
-      expect(Math.abs(row.breakdown.trackFitModifier)).toBeLessThanOrEqual(TRACKFIT_NORMAL_CLAMP)
+    const mean = samples.reduce((a, b) => a + b, 0) / samples.length
+    expect(Math.abs(mean)).toBeLessThan(0.05) // média aproximadamente zero
+
+    const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length
+    const stdDev = Math.sqrt(variance)
+    // Sigma empírico deve ficar próximo de 0.45 (±0.05)
+    expect(stdDev).toBeGreaterThan(0.38)
+    expect(stdDev).toBeLessThan(0.5)
+  })
+
+  // =========================================================================
+  // BL26-13: Determinismo — mesma seed + mesmas entradas produzem exatamente o mesmo resultado
+  // =========================================================================
+  it('BL26-13: Determinismo — mesma seed + mesmas entradas produzem exatamente o mesmo resultado', () => {
+    const carTech = (BASELINE_V0_DATA.teams['ferrari'] as any)?.technicalAttributes
+
+    const seedTest = 'career_test_2026:r11:quali_q1:ferrari_lec'
+    const seedTest2 = 123456789
+
+    // Execução 1 com seed string
+    const run1 = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'ferrari',
+      driverId: 'lec',
+      circuitProfile: silverstone,
+      carTechnicalAttributes: carTech,
+      driverAttributes: { speed: 95, consistency: 90 },
+      seed: seedTest,
+    })
+
+    // Execução 2 com a mesma seed
+    const run2 = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'ferrari',
+      driverId: 'lec',
+      circuitProfile: silverstone,
+      carTechnicalAttributes: carTech,
+      driverAttributes: { speed: 95, consistency: 90 },
+      seed: seedTest,
+    })
+
+    // Exatidão bit a bit
+    expect(run1.effectivePaceScore).toBe(run2.effectivePaceScore)
+    expect(run1.lapTimeSec).toBe(run2.lapTimeSec)
+    expect(run1.breakdown.rngModifier).toBe(run2.breakdown.rngModifier)
+    expect(run1.breakdown.trackFitModifier).toBe(run2.breakdown.trackFitModifier)
+    expect(run1.breakdown.finalPace).toBe(run2.breakdown.finalPace)
+
+    // Execução 3 com seed numérica
+    const runNumeric1 = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'audi',
+      driverId: 'hul',
+      circuitProfile: silverstone,
+      carTechnicalAttributes: carTech,
+      driverAttributes: { speed: 85 },
+      seed: seedTest2,
+    })
+    const runNumeric2 = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'audi',
+      driverId: 'hul',
+      circuitProfile: silverstone,
+      carTechnicalAttributes: carTech,
+      driverAttributes: { speed: 85 },
+      seed: seedTest2,
+    })
+    expect(runNumeric1.effectivePaceScore).toBe(runNumeric2.effectivePaceScore)
+    expect(runNumeric1.breakdown.rngModifier).toBe(runNumeric2.breakdown.rngModifier)
+
+    // Funções de PRNG isoladas: determinismo estrito
+    const prng1 = createMulberry32(999)
+    const prng2 = createMulberry32(999)
+    for (let i = 0; i < 20; i++) {
+      expect(prng1()).toBe(prng2())
     }
+  })
+
+  // =========================================================================
+  // BL26-14: Hierarquia — ruído aleatório não inverte sistematicamente diferenças estruturais relevantes
+  // =========================================================================
+  it('BL26-14: Hierarquia — ruído aleatório não inverte sistematicamente diferenças estruturais relevantes', () => {
+    // Gaps estruturais 2026:
+    // Top (Red Bull 94) vs Mid (Racing Bulls 90) = 4.0 pts
+    // Mid (Aston Martin 75) vs Back (Cadillac 72) = 3.0 pts
+    // Cadillac (72) e Andretti (69) vs Top 3 (Mercedes 100, McLaren 98, Ferrari 96) = gap > 24 pts
+    const maxRngDelta = QUALI_RNG_TARGET_RANGE.MAX - QUALI_RNG_TARGET_RANGE.MIN // 1.0 - (-1.0) = 2.0 pts
+    expect(maxRngDelta).toBe(2.0)
+
+    // Gap Top->Mid (4.0 pts) é 2x maior que a amplitude máxima do RNG (2.0 pts)
+    expect(maxRngDelta).toBeLessThan(94 - 90)
+    // Gap Mid->Back (3.0 pts) é 50% maior que a amplitude máxima do RNG (2.0 pts)
+    expect(maxRngDelta).toBeLessThan(75 - 72)
+
+    // Teste de pior caso: equipe superior com pior RNG (-1.0) vs inferior com melhor RNG (+1.0)
+    const rbWorstRng = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'redbull',
+      driverId: 'rb-drv',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: -1.0, // azar máximo
+    })
+    const vcarbBestRng = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'racingbulls',
+      driverId: 'vcarb-drv',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: 1.0, // sorte máxima
+    })
+    // Red Bull estrutural 94 - 1.0 = 93.0 > Racing Bulls 90 + 1.0 = 91.0
+    expect(rbWorstRng.effectivePaceScore).toBeGreaterThan(vcarbBestRng.effectivePaceScore)
+
+    // Aston Martin (75 - 1.0 = 74.0) vs Cadillac (72 + 1.0 = 73.0)
+    const astonWorst = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'astonmartin',
+      driverId: 'ast-drv',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: -1.0,
+    })
+    const cadillacBest = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'cadillac',
+      driverId: 'cad-drv',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: 1.0,
+    })
+    expect(astonWorst.effectivePaceScore).toBeGreaterThan(cadillacBest.effectivePaceScore)
+
+    // Cadillac e Andretti nunca superam o Top 3 mesmo combinando TrackFit especializado + sorte de RNG
+    const maxCadillacCombined = 72 + TRACKFIT_SPECIALIZED_CLAMP + QUALI_RNG_TARGET_RANGE.MAX // 72 + 2.5 + 1.0 = 75.5
+    const minFerrariCombined = 96 - TRACKFIT_SPECIALIZED_CLAMP + QUALI_RNG_TARGET_RANGE.MIN // 96 - 2.5 - 1.0 = 92.5
+    expect(maxCadillacCombined).toBeLessThan(minFerrariCombined)
+    expect(minFerrariCombined - maxCadillacCombined).toBeGreaterThan(16.0)
+
+    // Companheiros de equipe ou carros com gap pequeno (< 1 pt) AINDA PODEM inverter com RNG
+    // Piloto A (speed 85.5) vs Piloto B (speed 85.0): delta de sessão = (85.5 - 85.0) * 0.08 = 0.04 pts
+    const teammateA_badRng = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'mercedes',
+      driverId: 'rus',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85.5 },
+      noise: -0.3,
+    })
+    const teammateB_goodRng = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'mercedes',
+      driverId: 'ant',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85.0 },
+      noise: 0.3,
+    })
+    expect(teammateB_goodRng.effectivePaceScore).toBeGreaterThan(
+      teammateA_badRng.effectivePaceScore,
+    )
   })
 })
