@@ -11,7 +11,7 @@ import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPer
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
-import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
+
 import { technicalOrganizationService } from '@/services/technicalOrganizationService'
 import type { DriverModel } from '@/types/f1'
 import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-types'
@@ -128,7 +128,7 @@ function resolveTeamPageMetrics({
   titularDrivers?: DriverModel[]
 }) {
   const isAudi = (team?.name || '').toLowerCase().includes('audi')
-  const careerId = resolveCanonicalCareerId(season, team)
+  const careerId = season?.id || team?.id || 'default_career'
   const seasonYear = season?.year || 2026
   const playerTeamId = team?.team_key || team?.id || (isAudi ? 'audi' : '')
 
