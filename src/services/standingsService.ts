@@ -158,9 +158,9 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
 
     // Converter driverStandings do snapshot para DriverStanding
     const driverStandings: DriverStanding[] = snap.driverStandings.map((d) => {
-      const binding = d.currentTeamName ? null : getActiveDriverTeamBinding(d.driverId)
-      const resolvedTeamName = d.currentTeamName || binding?.teamName || 'Sem Equipe'
-      const resolvedTeamColor = d.currentTeamColor || binding?.teamColor || '#71717A'
+      const binding = getActiveDriverTeamBinding(d.driverId)
+      const resolvedTeamName = binding?.teamName || d.currentTeamName || 'Sem Equipe'
+      const resolvedTeamColor = binding?.teamColor || d.currentTeamColor || '#71717A'
 
       return {
         id: d.driverId,

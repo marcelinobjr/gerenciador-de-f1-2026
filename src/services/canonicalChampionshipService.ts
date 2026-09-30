@@ -325,6 +325,17 @@ export class CanonicalChampionshipService {
       const b1 = allBase.find((b) => b.name === d1.name) || { id: `driver_${team.key}_1` }
       const b2 = allBase.find((b) => b.name === d2.name) || { id: `driver_${team.key}_2` }
 
+      const b1Binding = getActiveDriverTeamBinding(b1.id)
+      const b2Binding = getActiveDriverTeamBinding(b2.id)
+
+      const b1TeamId = b1Binding?.teamId || b1Binding?.teamKey || team.key
+      const b1TeamName = b1Binding?.teamName || team.name
+      const b1TeamColor = b1Binding?.teamColor || team.color
+
+      const b2TeamId = b2Binding?.teamId || b2Binding?.teamKey || team.key
+      const b2TeamName = b2Binding?.teamName || team.name
+      const b2TeamColor = b2Binding?.teamColor || team.color
+
       drivers.push({
         position: driverPos++,
         driverId: b1.id,
@@ -341,9 +352,9 @@ export class CanonicalChampionshipService {
         racesCounted: 0,
         finishCounts: {},
         gapToLeader: '—',
-        currentTeamId: team.key,
-        currentTeamName: team.name,
-        currentTeamColor: team.color,
+        currentTeamId: b1TeamId,
+        currentTeamName: b1TeamName,
+        currentTeamColor: b1TeamColor,
         isPlayer: isPlayerTeam,
         positionDelta: 0,
         positionDeltaText: '—',
@@ -365,9 +376,9 @@ export class CanonicalChampionshipService {
         racesCounted: 0,
         finishCounts: {},
         gapToLeader: '—',
-        currentTeamId: team.key,
-        currentTeamName: team.name,
-        currentTeamColor: team.color,
+        currentTeamId: b2TeamId,
+        currentTeamName: b2TeamName,
+        currentTeamColor: b2TeamColor,
         isPlayer: isPlayerTeam,
         positionDelta: 0,
         positionDeltaText: '—',
@@ -635,18 +646,20 @@ export class CanonicalChampionshipService {
       const prevPos = prevDriverPositions?.get(d.driverId)
       const deltaInfo = this.formatPositionDelta(prevPos, pos)
 
-      // Identificar equipe atual via career_drivers se existir, ou fallback canônico via getActiveDriverTeamBinding
-      const careerRec = driverBase2026Service.getCareerDriver(careerId, d.driverId)
+      // Identificar equipe atual: resolver via getActiveDriverTeamBinding PRIMEIRO,
+      // depois career_drivers (se houver), e finalmente lastTeamId da última corrida
       const canonicalBinding = getActiveDriverTeamBinding(d.driverId)
+      const careerRec = driverBase2026Service.getCareerDriver(careerId, d.driverId)
       const currentTeamId =
-        careerRec?.teamId ||
         canonicalBinding?.teamId ||
         canonicalBinding?.teamKey ||
+        careerRec?.teamId ||
         d.lastTeamId ||
         null
       const currentTeamName =
-        careerRec?.teamName || canonicalBinding?.teamName || d.lastTeamName || null
-      const currentTeamColor = canonicalBinding?.teamColor || d.lastTeamColor || undefined
+        canonicalBinding?.teamName || careerRec?.teamName || d.lastTeamName || null
+      const currentTeamColor =
+        canonicalBinding?.teamColor || (careerRec as any)?.teamColor || d.lastTeamColor || undefined
 
       return {
         position: pos,

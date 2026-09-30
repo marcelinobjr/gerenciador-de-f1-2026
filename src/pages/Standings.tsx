@@ -78,9 +78,9 @@ export default function StandingsPage() {
       championshipSnapshot.driverStandings.length > 0
     ) {
       return championshipSnapshot.driverStandings.map((d) => {
-        const binding = d.currentTeamName ? null : getActiveDriverTeamBinding(d.driverId)
-        const teamName = d.currentTeamName || binding?.teamName || 'Sem Equipe'
-        const teamColor = d.currentTeamColor || binding?.teamColor || '#71717A'
+        const binding = getActiveDriverTeamBinding(d.driverId)
+        const teamName = binding?.teamName || d.currentTeamName || 'Sem Equipe'
+        const teamColor = binding?.teamColor || d.currentTeamColor || '#71717A'
 
         return {
           id: d.driverId,
