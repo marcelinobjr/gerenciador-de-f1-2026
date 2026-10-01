@@ -45,6 +45,7 @@ interface DriverSidePanelProps {
   isPlayerDriverTeam?: boolean
   isMobileModal?: boolean
   visualIdentity?: any
+  totalTestMileageKm?: number
 }
 
 export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
@@ -63,6 +64,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
   isPlayerDriverTeam = false,
   isMobileModal = false,
   visualIdentity,
+  totalTestMileageKm,
 }) => {
   const overall = driver ? getOverallRating(driver) : 0
   const isContracted = contractStatusType === 'contracted' || contractStatusType === 'reserve'

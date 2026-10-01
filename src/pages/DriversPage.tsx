@@ -246,8 +246,9 @@ export default function DriversPage() {
     loadDatabaseData()
   }, [loadDatabaseData])
 
-  // Rodada atual do campeonato do save
+  // Rodada atual e ano da temporada do save
   const currentRound = season?.current_round || 1
+  const seasonYear = season?.year || 2026
   const canPreContract = currentRound >= 12
 
   // Normalização unificada unindo banco PocketBase + dados catalogados do MBJ
@@ -612,7 +613,7 @@ export default function DriversPage() {
 
     for (const p of unifiedDrivers) {
       const isProfContracted = Boolean(
-        (p.teamId || p.teamKey) && p.role !== null && p.role !== 'academia',
+        (p.teamId || p.teamKey) && p.role !== null && (p.role as string) !== 'academia',
       )
       if (isProfContracted) {
         contractedCount++
@@ -641,7 +642,9 @@ export default function DriversPage() {
     let list = unifiedDrivers.filter((pilot) => {
       const hasSl = checkDriverSuperlicense(pilot)
       const isProfContracted = Boolean(
-        (pilot.teamId || pilot.teamKey) && pilot.role !== null && pilot.role !== 'academia',
+        (pilot.teamId || pilot.teamKey) &&
+        pilot.role !== null &&
+        (pilot.role as string) !== 'academia',
       )
 
       // 1. Filtro rápido do topo
@@ -701,6 +704,7 @@ export default function DriversPage() {
 
       // 5. Filtro de Disponibilidade
       if (selectedAvailabilityFilter !== 'all') {
+        const isContracted = isProfContracted
         if (selectedAvailabilityFilter === 'available' && isContracted) return false
         if (selectedAvailabilityFilter === 'unavailable' && !isContracted) return false
       }
@@ -844,7 +848,7 @@ export default function DriversPage() {
       rawRec?.is_academy ||
       rawRec?.career_status === 'academy' ||
       rawRec?.procedural_data?.careerStatus === 'academy' ||
-      activeSideDriver.role === 'academia',
+      (activeSideDriver.role as string) === 'academia',
     )
     const hasProfessionalContract = Boolean(
       rawRec?.canonical_contract?.status === 'active' ||
@@ -854,7 +858,7 @@ export default function DriversPage() {
     if (
       isAcademy &&
       !hasProfessionalContract &&
-      (activeSideDriver.role === 'academia' || !activeSideDriver.role)
+      ((activeSideDriver.role as string) === 'academia' || !activeSideDriver.role)
     ) {
       return { label: 'Academia', type: 'reserve' as const }
     }
@@ -864,7 +868,7 @@ export default function DriversPage() {
     if (activeSideDriver.role === 'reserva') {
       return { label: 'Reserva', type: 'reserve' as const }
     }
-    if (activeSideDriver.role === 'academia') {
+    if ((activeSideDriver.role as string) === 'academia') {
       return { label: 'Academia', type: 'reserve' as const }
     }
     if (isContracted) {
@@ -976,8 +980,6 @@ export default function DriversPage() {
           existingDriverRecord = created
         }
       }
-
-      const seasonYear = season?.year || 2026
 
       const existingProcData =
         existingDriverRecord?.procedural_data ||
