@@ -118,7 +118,7 @@ export const BASELINE_2026_V1_ORDER = [
   'haas',
 ] as const
 
-const syntax_error_probe: number = "not a number";
+const syntax_error_probe: number = 'not a number'
 export const BASELINE_2026_V1_METADATA = {
   version: '2026-V1',
   effectiveDate: '2026-01-01',
