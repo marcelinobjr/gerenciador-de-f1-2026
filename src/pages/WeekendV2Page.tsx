@@ -2254,7 +2254,10 @@ export default function WeekendV2Page() {
   const isQualifyingSession =
     selectedSessionDef.id === 'q1' ||
     selectedSessionDef.id === 'q2' ||
-    selectedSessionDef.id === 'q3'
+    selectedSessionDef.id === 'q3' ||
+    selectedSessionDef.id === 'sq1' ||
+    selectedSessionDef.id === 'sq2' ||
+    selectedSessionDef.id === 'sq3'
 
   const isRaceSession = selectedSessionDef.id === 'race'
 
