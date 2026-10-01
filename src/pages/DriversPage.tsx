@@ -1060,48 +1060,6 @@ export default function DriversPage() {
         }
       }
 
-      if (false) {
-        await pb.collection('drivers').update(targetDriverId, {
-          next_team_id: team.id,
-          next_contract_role: contractRole,
-        })
-      } else {
-        const targetRec = selectedPilotForContract.rawDbRecord as any
-        const isFromAcademy = Boolean(
-          targetRec?.is_academy ||
-          targetRec?.career_status === 'academy' ||
-          targetRec?.procedural_data?.careerStatus === 'academy',
-        )
-        const originTeamId =
-          targetRec?.academy_origin_team_id ||
-          targetRec?.procedural_data?.academyOriginTeamId ||
-          (isFromAcademy ? team.id : null)
-
-        if (contractRole === 'titular') {
-          await pb.collection('drivers').update(targetDriverId, {
-            team_id: team.id,
-            reserve_team_id: null,
-            role: 'titular',
-            category: 'f1',
-            salary: selectedPilotForContract.salaryUsd,
-            career_status: 'f1_driver',
-            academy_origin_team_id: originTeamId || undefined,
-            procedural_data: updatedProceduralData,
-          })
-        } else {
-          await pb.collection('drivers').update(targetDriverId, {
-            reserve_team_id: team.id,
-            team_id: team.id,
-            role: 'reserva',
-            category: 'f1',
-            salary: selectedPilotForContract.salaryUsd,
-            career_status: 'reserve',
-            academy_origin_team_id: originTeamId || undefined,
-            procedural_data: updatedProceduralData,
-          })
-        }
-      }
-      const seasonYear = season?.year || 2026
       if (proratedSigningFeeUsd > 0) {
         try {
           await financialLedgerService.postTransaction({

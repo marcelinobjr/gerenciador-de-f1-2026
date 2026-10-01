@@ -448,7 +448,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
 
         {/* Piloto da Academia da equipe do jogador: ação de Contratar Piloto da Academia */}
         {isPlayerDriverTeam &&
-          (driver.role === 'academia' ||
+          ((driver.role as string) === 'academia' ||
             (driver.rawDbRecord as any)?.is_academy ||
             (driver.rawDbRecord as any)?.career_status === 'academy') &&
           (onOpenContract || onOpenNegotiation) && (
