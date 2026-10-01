@@ -622,6 +622,7 @@ describe('ALL-DNF-RACE-01C-C — Persistência, Save/Reload e Idempotência', ()
   })
 
   // ALLDNF01CC-20: corrida normal completa continua persistindo e oficializando sem regressão
+  // Verificação de conformidade ALL-DNF-RACE-01C-C
   it('ALLDNF01CC-20: corrida normal completa continua persistindo e oficializando sem regressão', () => {
     const normalState = createPrincipalFixtureState({
       scheduledLaps: 60,
