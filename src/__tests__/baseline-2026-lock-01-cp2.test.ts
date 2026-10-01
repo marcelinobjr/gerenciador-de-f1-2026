@@ -34,14 +34,28 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
     expect(mercedes.baselineOrigin).toBe('BASELINE_2026_V1')
   })
 
-  // BL26-CP2-03: Cadillac = 69
-  it('BL26-CP2-03: Cadillac = 69', () => {
+  // BL26-CP2-03: Haas = 69 (P12), Cadillac = 72 (P11), Williams = 75 (P10)
+  it('BL26-CP2-03: Haas = 69 (P12), Cadillac = 72 (P11), Williams = 75 (P10)', () => {
+    const haas = structuralStrengthService.getTeamStructuralStrength('haas', {
+      seasonYear: 2026,
+    })
+    expect(haas.structuralStrengthScore).toBe(69)
+    expect(haas.baselineAnchorScore).toBe(69)
+    expect(haas.baselineOrigin).toBe('BASELINE_2026_V1')
+
     const cadillac = structuralStrengthService.getTeamStructuralStrength('cadillac', {
       seasonYear: 2026,
     })
-    expect(cadillac.structuralStrengthScore).toBe(69)
-    expect(cadillac.baselineAnchorScore).toBe(69)
+    expect(cadillac.structuralStrengthScore).toBe(72)
+    expect(cadillac.baselineAnchorScore).toBe(72)
     expect(cadillac.baselineOrigin).toBe('BASELINE_2026_V1')
+
+    const williams = structuralStrengthService.getTeamStructuralStrength('williams', {
+      seasonYear: 2026,
+    })
+    expect(williams.structuralStrengthScore).toBe(75)
+    expect(williams.baselineAnchorScore).toBe(75)
+    expect(williams.baselineOrigin).toBe('BASELINE_2026_V1')
   })
 
   // BL26-CP2-04: ordem exata das 12

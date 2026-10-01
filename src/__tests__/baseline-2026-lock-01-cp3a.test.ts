@@ -426,14 +426,14 @@ describe('BASELINE-2026-LOCK-01-CP3A — Suíte Canônica BL26-06..14 (TrackFit 
   it('BL26-14: Hierarquia — ruído aleatório não inverte sistematicamente diferenças estruturais relevantes', () => {
     // Gaps estruturais 2026:
     // Top (Red Bull 94) vs Mid (Racing Bulls 90) = 4.0 pts
-    // Mid (Andretti 79) vs Bottom (Haas 75) = 4.0 pts (ou Haas 75 vs Williams 72 = 3.0 pts)
-    // Bottom 3 (Haas 75, Williams 72, Cadillac 69) vs Top 3 (Mercedes 100, McLaren 98, Ferrari 96) = gap > 20 pts
+    // Mid (Andretti 79) vs Bottom (Williams 75) = 4.0 pts (ou Williams 75 vs Cadillac 72 = 3.0 pts)
+    // Bottom 3 (Williams 75, Cadillac 72, Haas 69) vs Top 3 (Mercedes 100, McLaren 98, Ferrari 96) = gap > 20 pts
     const maxRngDelta = QUALI_RNG_TARGET_RANGE.MAX - QUALI_RNG_TARGET_RANGE.MIN // 1.0 - (-1.0) = 2.0 pts
     expect(maxRngDelta).toBe(2.0)
 
     // Gap Top->Mid (4.0 pts) é 2x maior que a amplitude máxima do RNG (2.0 pts)
     expect(maxRngDelta).toBeLessThan(94 - 90)
-    // Gap Mid->Bottom (Andretti 79 vs Haas 75 = 4.0 pts) é 2x maior que a amplitude máxima do RNG (2.0 pts)
+    // Gap Mid->Bottom (Andretti 79 vs Williams 75 = 4.0 pts) é 2x maior que a amplitude máxima do RNG (2.0 pts)
     expect(maxRngDelta).toBeLessThan(79 - 75)
 
     // Teste de pior caso: equipe superior com pior RNG (-1.0) vs inferior com melhor RNG (+1.0)
@@ -454,10 +454,27 @@ describe('BASELINE-2026-LOCK-01-CP3A — Suíte Canônica BL26-06..14 (TrackFit 
     // Red Bull estrutural 94 - 1.0 = 93.0 > Racing Bulls 90 + 1.0 = 91.0
     expect(rbWorstRng.effectivePaceScore).toBeGreaterThan(vcarbBestRng.effectivePaceScore)
 
-    // Andretti (79 - 1.0 = 78.0) vs Haas (75 + 1.0 = 76.0)
+    // Andretti (79 - 1.0 = 78.0) vs Williams (75 + 1.0 = 76.0)
     const andrettiWorst = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'andretti',
       driverId: 'and-drv',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: -1.0,
+    })
+    const williamsBest = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'williams',
+      driverId: 'wil-drv',
+      circuitProfile: silverstone,
+      driverAttributes: { speed: 85 },
+      noise: 1.0,
+    })
+    expect(andrettiWorst.effectivePaceScore).toBeGreaterThan(williamsBest.effectivePaceScore)
+
+    // Cadillac (72 - 1.0 = 71.0) vs Haas (69 + 1.0 = 70.0)
+    const cadillacWorst = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'cadillac',
+      driverId: 'cad-drv',
       circuitProfile: silverstone,
       driverAttributes: { speed: 85 },
       noise: -1.0,
@@ -469,31 +486,14 @@ describe('BASELINE-2026-LOCK-01-CP3A — Suíte Canônica BL26-06..14 (TrackFit 
       driverAttributes: { speed: 85 },
       noise: 1.0,
     })
-    expect(andrettiWorst.effectivePaceScore).toBeGreaterThan(haasBest.effectivePaceScore)
-
-    // Williams (72 - 1.0 = 71.0) vs Cadillac (69 + 1.0 = 70.0)
-    const williamsWorst = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'williams',
-      driverId: 'wil-drv',
-      circuitProfile: silverstone,
-      driverAttributes: { speed: 85 },
-      noise: -1.0,
-    })
-    const cadillacBest = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'cadillac',
-      driverId: 'cad-drv',
-      circuitProfile: silverstone,
-      driverAttributes: { speed: 85 },
-      noise: 1.0,
-    })
-    expect(williamsWorst.effectivePaceScore).toBeGreaterThan(cadillacBest.effectivePaceScore)
+    expect(cadillacWorst.effectivePaceScore).toBeGreaterThan(haasBest.effectivePaceScore)
 
     // Bottom 3 nunca supera o Top 3 mesmo combinando TrackFit especializado + sorte de RNG
-    // Exemplo: Haas 75 (melhor do bottom 3) vs Ferrari 96 (P3 do grid)
-    const maxHaasCombined = 75 + TRACKFIT_SPECIALIZED_CLAMP + QUALI_RNG_TARGET_RANGE.MAX // 75 + 2.5 + 1.0 = 78.5
+    // Exemplo: Williams 75 (melhor do bottom 3) vs Ferrari 96 (P3 do grid)
+    const maxBottomCombined = 75 + TRACKFIT_SPECIALIZED_CLAMP + QUALI_RNG_TARGET_RANGE.MAX // 75 + 2.5 + 1.0 = 78.5
     const minFerrariCombined = 96 - TRACKFIT_SPECIALIZED_CLAMP + QUALI_RNG_TARGET_RANGE.MIN // 96 - 2.5 - 1.0 = 92.5
-    expect(maxHaasCombined).toBeLessThan(minFerrariCombined)
-    expect(minFerrariCombined - maxHaasCombined).toBeGreaterThan(13.0)
+    expect(maxBottomCombined).toBeLessThan(minFerrariCombined)
+    expect(minFerrariCombined - maxBottomCombined).toBeGreaterThan(13.0)
 
     // Companheiros de equipe ou carros com gap pequeno (< 1 pt) AINDA PODEM inverter com RNG
     // Piloto A (speed 85.5) vs Piloto B (speed 85.0): delta de sessão = (85.5 - 85.0) * 0.08 = 0.04 pts

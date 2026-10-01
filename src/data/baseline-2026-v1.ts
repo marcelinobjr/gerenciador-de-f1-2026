@@ -13,9 +13,9 @@
  * 7. Audi — 84
  * 8. Aston Martin — 81
  * 9. Andretti — 79
- * 10. Haas — 75
- * 11. Williams — 72
- * 12. Cadillac — 69
+ * 10. Williams — 75
+ * 11. Cadillac — 72
+ * 12. Haas — 69
  *
  * Spread estrutural: 100 - 69 = 31 pts.
  * Multiplicador de conversão: 0.08s por ponto -> Spread teórico = 31 * 0.08 = 2.48s.
@@ -83,22 +83,22 @@ export const BASELINE_2026_V1_TEAMS: Record<string, TeamBaselineEntry> = {
     teamName: 'Andretti Global',
     score: 79,
   },
-  haas: {
-    rank: 10,
-    teamKey: 'haas',
-    teamName: 'Haas F1 Team',
-    score: 75,
-  },
   williams: {
-    rank: 11,
+    rank: 10,
     teamKey: 'williams',
     teamName: 'Williams Racing',
-    score: 72,
+    score: 75,
   },
   cadillac: {
-    rank: 12,
+    rank: 11,
     teamKey: 'cadillac',
     teamName: 'Cadillac F1 Team',
+    score: 72,
+  },
+  haas: {
+    rank: 12,
+    teamKey: 'haas',
+    teamName: 'Haas F1 Team',
     score: 69,
   },
 } as const
@@ -113,9 +113,9 @@ export const BASELINE_2026_V1_ORDER = [
   'audi',
   'astonmartin',
   'andretti',
-  'haas',
   'williams',
   'cadillac',
+  'haas',
 ] as const
 
 export const BASELINE_2026_V1_METADATA = {
