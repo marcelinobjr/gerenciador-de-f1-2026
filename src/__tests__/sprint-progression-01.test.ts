@@ -65,6 +65,7 @@ describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlo
 
   // SP05 — save + reload preserva o desbloqueio
   it('SP05 — save + reload preserva o desbloqueio via canonicalWeekendSlotPersistenceService', async () => {
+    expect(canonicalWeekendSlotPersistenceService).toBeDefined()
     // 1. Simular persistência de TL1 e TL2 concluídos
     const legacyKey = `apex_completed_sessions_2026_${SPRINT_ROUND}`
     localStorage.setItem(legacyKey, JSON.stringify(['tp1', 'tp2']))
