@@ -6,7 +6,6 @@ import {
   readStoredCompletedSessions,
   writeStoredCompletedSessions,
 } from '@/services/weekendProgressionService'
-
 describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlocking Gate (SP01–SP06)', () => {
   const SPRINT_ROUND = 4
   const SPRINT_SEASON = 'season_2026_sprint'
@@ -18,7 +17,8 @@ describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlo
 
   // SP01 — TL1/TL2 incompletos → SQ1 locked (bloqueado)
   it('SP01 — TL1/TL2 incompletos → SQ1 permanece bloqueado (locked)', () => {
-    // 1. Sem nenhuma sessão
+    // DUMP TEST
+// 1. Sem nenhuma sessão
     const stateEmpty = resolveSessionVisualState({
       sessionId: 'sq1',
       activeSessionId: 'tp1',
