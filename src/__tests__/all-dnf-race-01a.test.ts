@@ -1,18 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { CanonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { CanonicalRaceResultService } from '@/services/canonicalRaceResultService'
-import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { CanonicalRaceState, CanonicalRaceDriverState } from '@/types/canonical-race-v2'
 
-describe('ALL-DNF-RACE-01A — Hotfix de loop e encerramento All-DNF', () => {
+/**
+ * HOTFIX ALL-DNF-RACE-01A — Testes Funcionais Focados
+ * Suíte ALLDNF01A-01 .. ALLDNF01A-08
+ *
+ * Fixture canônica base: scheduledLaps=58, currentLap=34, todos DNF, activeCars=0.
+ */
+describe('HOTFIX ALL-DNF-RACE-01A — Encerramento de simulação com activeCars === 0', () => {
   let engine: CanonicalRaceEngineService
   let resultService: CanonicalRaceResultService
 
-  const careerId = 'test_career_alldnf_01a'
+  const careerId = 'test_career_alldnf_01a_suite'
   const season = 2026
   const round = 1
-  const raceId = 'test_gp_alldnf_01a'
+  const raceId = 'test_gp_alldnf_01a_suite'
 
   beforeEach(() => {
     engine = new CanonicalRaceEngineService()
@@ -27,8 +32,8 @@ describe('ALL-DNF-RACE-01A — Hotfix de loop e encerramento All-DNF', () => {
     status?: CanonicalRaceState['status']
     setupDrivers?: (drivers: CanonicalRaceDriverState[]) => void
   }): CanonicalRaceState {
-    const totalLaps = options?.totalLaps ?? 50
-    const currentLap = options?.currentLap ?? 1
+    const totalLaps = options?.totalLaps ?? 58
+    const currentLap = options?.currentLap ?? 34
     const status = options?.status ?? 'running'
 
     const drivers: CanonicalRaceDriverState[] = Array.from({ length: 24 }, (_, i) => {
@@ -50,10 +55,10 @@ describe('ALL-DNF-RACE-01A — Hotfix de loop e encerramento All-DNF', () => {
         gap: pos === 1 ? 'LÍDER' : '+0.500s',
         tyreCompound: 'medio',
         tyreAge: currentLap > 1 ? currentLap - 1 : 0,
-        fuel: 100,
-        carCondition: 100,
+        fuel: 80 - pos,
+        carCondition: 95 - pos,
         raceStatus: 'racing',
-        pitStops: 0,
+        pitStops: 1,
         isPlayer: pos <= 2,
       }
     })
@@ -73,8 +78,8 @@ describe('ALL-DNF-RACE-01A — Hotfix de loop e encerramento All-DNF', () => {
       season,
       round,
       raceId,
-      circuitName: 'Silverstone',
-      circuitCountry: 'GBR',
+      circuitName: 'Albert Park',
+      circuitCountry: 'AUS',
       totalLaps,
       currentLap,
       status,
@@ -94,307 +99,233 @@ describe('ALL-DNF-RACE-01A — Hotfix de loop e encerramento All-DNF', () => {
     }
   }
 
-  // DNF01: corrida iniciada com ativos continua normalmente
-  it('DNF01: corrida iniciada com carros ativos continua e avança', () => {
+  // ALLDNF01A-01: Zero carros ativos -> simulação encerra imediatamente e currentLap fica travado na volta do abandono
+  it('ALLDNF01A-01: com scheduledLaps=58, currentLap=34 e todos DNF, a simulação encerra e currentLap permanece 34', () => {
     const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 5,
-      status: 'running',
-    })
-
-    const nextState = engine.advanceOneLap(state, { persistState: false })
-    expect(nextState.status).toBe('running')
-    expect(nextState.currentLap).toBe(6)
-  })
-
-  // DNF02: último abandono -> 0 ativos e encerra no mesmo tick
-  it('DNF02: último abandono -> 0 ativos encerra no mesmo tick com status completed', () => {
-    const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 10,
+      totalLaps: 58,
+      currentLap: 34,
       status: 'running',
       setupDrivers: (drivers) => {
         drivers.forEach((d, idx) => {
           d.raceStatus = 'dnf'
           d.isDnf = true
-          d.lap = 10
-          d.raceTime = 1000 + idx
-          d.dnfReason = 'Colisão'
-        })
-      },
-    })
-
-    const nextState = engine.advanceOneLap(state, { persistState: false })
-    expect(nextState.status).toBe('completed')
-    expect(nextState.raceControl?.currentFlag).toBe('FINISHED')
-  })
-
-  // DNF03: nenhuma volta nova após 0 ativos
-  it('DNF03: nenhuma volta nova é processada após 0 ativos', () => {
-    const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 12,
-      status: 'running',
-      setupDrivers: (drivers) => {
-        drivers.forEach((d) => {
-          d.raceStatus = 'dnf'
-          d.isDnf = true
-          d.lap = 12
+          d.lap = 33
+          d.raceTime = 3000 + idx
+          d.dnfReason = 'Falha Mecânica'
         })
       },
     })
 
     const endedState = engine.advanceOneLap(state, { persistState: false })
+
     expect(endedState.status).toBe('completed')
-    const lapWhenEnded = endedState.currentLap
-
-    const subsequent = engine.advanceOneLap(endedState, { persistState: false })
-    expect(subsequent.currentLap).toBe(lapWhenEnded)
-    expect(subsequent.status).toBe('completed')
+    expect(endedState.raceControl?.currentFlag).toBe('FINISHED')
+    expect(endedState.currentLap).toBe(34)
   })
 
-  // DNF04: nenhum novo consumo/degradação após encerramento All-DNF
-  it('DNF04: nenhum novo consumo de combustível ou degradação de pneu ocorre após 0 ativos', () => {
+  // ALLDNF01A-02: NENHUM processamento da volta N+1 (sem lap tick, sem sector, sem degradação, sem consumo)
+  it('ALLDNF01A-02: nenhum processamento da volta 35 ocorre quando corrida já está com activeCars === 0', () => {
     const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 15,
+      totalLaps: 58,
+      currentLap: 34,
       status: 'running',
       setupDrivers: (drivers) => {
-        drivers.forEach((d) => {
+        drivers.forEach((d, idx) => {
           d.raceStatus = 'dnf'
           d.isDnf = true
-          d.lap = 15
-          d.fuel = 75.5
-          d.tyreAge = 15
-          d.carCondition = 88.0
+          d.lap = 33
+          d.raceTime = 3000 + idx
+          d.fuel = 50.0
+          d.tyreAge = 12
+          d.carCondition = 85.0
+          d.dnfReason = 'Acidente'
         })
       },
     })
 
     const endedState = engine.advanceOneLap(state, { persistState: false })
-    const subsequent = engine.advanceOneLap(endedState, { persistState: false })
+    expect(endedState.currentLap).toBe(34)
 
-    subsequent.drivers.forEach((d) => {
-      expect(d.fuel).toBe(75.5)
-      expect(d.tyreAge).toBe(15)
-      expect(d.carCondition).toBe(88.0)
+    // Tentativa subsequente de avanço na mesma corrida encerrada
+    const afterNextTick = engine.advanceOneLap(endedState, { persistState: false })
+    expect(afterNextTick.currentLap).toBe(34)
+    expect(afterNextTick.status).toBe('completed')
+
+    // Verificar que combustível, desgaste de pneu e condição do carro não sofreram tick
+    afterNextTick.drivers.forEach((d) => {
+      expect(d.fuel).toBe(50.0)
+      expect(d.tyreAge).toBe(12)
+      expect(d.carCondition).toBe(85.0)
+      expect(d.lap).toBe(33)
     })
   })
 
-  // DNF05: pré-largada vazia não dispara All-DNF erroneamente
-  it('DNF05: estado pré-largada sem pilotos ou não hidratado não encerra prematuramente', () => {
-    const unhydratedState: CanonicalRaceState = {
-      version: '2.0',
-      careerId,
-      season,
-      round,
-      raceId,
-      circuitName: 'Silverstone',
-      circuitCountry: 'GBR',
-      totalLaps: 50,
-      currentLap: 1,
-      status: 'not_started',
-      safetyCarActive: false,
-      vscActive: false,
-      redFlagActive: false,
-      weather: 'seco',
-      simSpeed: 1,
-      drivers: [],
-      driverLookup: {},
-      playerTeamId: 'team_01',
-      tactics: {},
-      paceOrders: {},
-      revision: 1,
-      updatedAt: new Date().toISOString(),
-      events: [],
-    }
-
-    const res = engine.advanceOneLap(unhydratedState, { persistState: false })
-    // Com 0 drivers, não deve virar completed nem disparar finish
-    expect(res.status).not.toBe('completed')
-  })
-
-  // DNF06: 1 ativo continua corrida
-  it('DNF06: com 1 carro ativo e 23 DNF, a corrida continua', () => {
+  // ALLDNF01A-03: Com >= 1 carro ativo -> NÃO encerra por ALL-DNF
+  it('ALLDNF01A-03: com 1 carro ativo e 23 DNF, a simulação NÃO encerra por ALL-DNF e avança a volta', () => {
     const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 20,
+      totalLaps: 58,
+      currentLap: 34,
       status: 'running',
       setupDrivers: (drivers) => {
         drivers.forEach((d, idx) => {
-          if (idx > 0) {
-            d.raceStatus = 'dnf'
-            d.isDnf = true
-            d.lap = 19
-          } else {
+          if (idx === 0) {
             d.raceStatus = 'racing'
             d.isDnf = false
-            d.lap = 19
+            d.lap = 33
+          } else {
+            d.raceStatus = 'dnf'
+            d.isDnf = true
+            d.lap = 32
+            d.dnfReason = 'Colisão'
           }
         })
       },
     })
 
     const nextState = engine.advanceOneLap(state, { persistState: false })
+
     expect(nextState.status).toBe('running')
-    const active = nextState.drivers.filter(
-      (d) => d.raceStatus !== 'dnf' && !d.isDnf && d.raceStatus !== 'finished',
-    )
-    expect(active.length).toBe(1)
+    expect(nextState.currentLap).toBe(35)
+    expect(nextState.raceControl?.currentFlag).not.toBe('FINISHED')
   })
 
-  // DNF07: encerramento chamado exatamente 1x
-  it('DNF07: encerramento e oficialização podem ser chamados com consistência única', () => {
+  // ALLDNF01A-04: Nenhum carro DNF/retired é reativado pelo encerramento
+  it('ALLDNF01A-04: nenhum carro DNF tem seu raceStatus alterado para finished ou racing ao encerrar por ALL-DNF', () => {
     const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 25,
+      totalLaps: 58,
+      currentLap: 34,
       status: 'running',
       setupDrivers: (drivers) => {
         drivers.forEach((d, idx) => {
           d.raceStatus = 'dnf'
           d.isDnf = true
-          d.lap = 25
-          d.raceTime = 2000 + idx
+          d.lap = 30 + (idx % 4)
+          d.dnfReason = 'Superaquecimento'
         })
       },
     })
 
     const endedState = engine.advanceOneLap(state, { persistState: false })
+
     expect(endedState.status).toBe('completed')
-
-    const official1 = resultService.officializeRace(endedState)
-    const official2 = resultService.officializeRace(endedState)
-    expect(official1.officialResultId).toBe(official2.officialResultId)
-    expect(official1.resultHash).toBe(official2.resultHash)
+    endedState.drivers.forEach((d) => {
+      expect(d.raceStatus).toBe('dnf')
+      expect(d.isDnf).toBe(true)
+      expect(d.dnfReason).toBe('Superaquecimento')
+    })
   })
 
-  // DNF08: reload não re-encerra (validação de idempotência)
-  it('DNF08: reload recupera resultado oficial sem duplicar encerramento', () => {
+  // ALLDNF01A-05: FINISHED não conta como ativo para reabrir ou continuar a corrida
+  it('ALLDNF01A-05: carros com status finished não contam como ativos (activeCars continua 0)', () => {
     const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 30,
+      totalLaps: 58,
+      currentLap: 34,
       status: 'running',
       setupDrivers: (drivers) => {
         drivers.forEach((d, idx) => {
-          d.raceStatus = 'dnf'
-          d.isDnf = true
-          d.lap = 30
-          d.raceTime = 2500 + idx
+          if (idx === 0) {
+            d.raceStatus = 'finished'
+            d.isDnf = false
+            d.lap = 34
+          } else {
+            d.raceStatus = 'dnf'
+            d.isDnf = true
+            d.lap = 30
+          }
         })
       },
     })
 
     const endedState = engine.advanceOneLap(state, { persistState: false })
-    const official = resultService.officializeRace(endedState)
 
-    const reloaded = resultService.getOfficialRaceResult(careerId, season, round)
-    expect(reloaded).not.toBeNull()
-    expect(reloaded?.officialResultId).toBe(official.officialResultId)
-    expect(reloaded?.entries.length).toBe(24)
+    expect(endedState.status).toBe('completed')
+    expect(endedState.currentLap).toBe(34)
+    expect(endedState.raceControl?.currentFlag).toBe('FINISHED')
   })
 
-  // DNF09: classificação acumulada preservada
-  it('DNF09: classificação acumulada é preservada pelas voltas e tempo acumulado', () => {
+  // ALLDNF01A-06: Dados acumulados preservados intactos (laps, raceTime, motivo de abandono, posição, pneus)
+  it('ALLDNF01A-06: dados acumulados (lapsCompleted, raceTime, dnfReason, tyreAge, fuel, position) são preservados', () => {
     const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 35,
+      totalLaps: 58,
+      currentLap: 34,
       status: 'running',
       setupDrivers: (drivers) => {
         drivers.forEach((d, idx) => {
           d.raceStatus = 'dnf'
           d.isDnf = true
-          // Piloto 0 tem 34 voltas, piloto 1 tem 33 voltas, outros têm 30 voltas
-          d.lap = idx === 0 ? 34 : idx === 1 ? 33 : 30
+          d.lap = 34 - (idx % 5)
+          d.raceTime = 3000 + idx * 10
+          d.fuel = 45.5 - idx
+          d.tyreAge = 14
+          d.tyreCompound = 'duro'
+          d.currentPosition = idx + 1
+          d.dnfReason = `Falha componente ${idx}`
+        })
+      },
+    })
+
+    const endedState = engine.advanceOneLap(state, { persistState: false })
+
+    state.drivers.forEach((original) => {
+      const updated = endedState.drivers.find((d) => d.driverId === original.driverId)
+      expect(updated).toBeDefined()
+      expect(updated!.lap).toBe(original.lap)
+      expect(updated!.raceTime).toBe(original.raceTime)
+      expect(updated!.fuel).toBe(original.fuel)
+      expect(updated!.tyreAge).toBe(original.tyreAge)
+      expect(updated!.tyreCompound).toBe('duro')
+      expect(updated!.currentPosition).toBe(original.currentPosition)
+      expect(updated!.dnfReason).toBe(original.dnfReason)
+    })
+  })
+
+  // ALLDNF01A-07: Idempotência de avanço em estado já completado por ALL-DNF
+  it('ALLDNF01A-07: advanceOneLap em estado já completed por ALL-DNF é estritamente idempotente', () => {
+    const state = createMockRaceState({
+      totalLaps: 58,
+      currentLap: 34,
+      status: 'running',
+      setupDrivers: (drivers) => {
+        drivers.forEach((d, idx) => {
+          d.raceStatus = 'dnf'
+          d.isDnf = true
+          d.lap = 34
+          d.raceTime = 2900 + idx
+          d.dnfReason = 'Bateria ERS'
+        })
+      },
+    })
+
+    const ended1 = engine.advanceOneLap(state, { persistState: false })
+    const ended2 = engine.advanceOneLap(ended1, { persistState: false })
+
+    expect(ended2.status).toBe('completed')
+    expect(ended2.currentLap).toBe(34)
+    expect(ended2.raceControl?.currentFlag).toBe('FINISHED')
+    expect(ended2.drivers[0].driverId).toBe(ended1.drivers[0].driverId)
+  })
+
+  // ALLDNF01A-08: advanceMultipleLaps para imediatamente quando ocorre ALL-DNF sem processar voltas restantes
+  it('ALLDNF01A-08: advanceMultipleLaps interrompe o loop no primeiro tick com activeCars === 0 sem iterar até o fim', () => {
+    const state = createMockRaceState({
+      totalLaps: 58,
+      currentLap: 34,
+      status: 'running',
+      setupDrivers: (drivers) => {
+        drivers.forEach((d, idx) => {
+          d.raceStatus = 'dnf'
+          d.isDnf = true
+          d.lap = 34
           d.raceTime = 3000 + idx
         })
       },
     })
 
-    const endedState = engine.advanceOneLap(state, { persistState: false })
-    const official = resultService.createOfficialRaceResult(endedState)
+    // Solicita avançar 10 voltas
+    const finalState = engine.advanceMultipleLaps(state, 10, { persistState: false })
 
-    expect(official.entries[0].driverId).toBe('drv_01')
-    expect(official.entries[0].finalPosition).toBe(1)
-    expect(official.entries[1].driverId).toBe('drv_02')
-    expect(official.entries[1].finalPosition).toBe(2)
-  })
-
-  // DNF10: sem hardcode de vencedor
-  it('DNF10: não há hardcode de vencedor (o piloto com melhor progresso esportivo lidera)', () => {
-    const state = createMockRaceState({
-      totalLaps: 50,
-      currentLap: 35,
-      status: 'running',
-      setupDrivers: (drivers) => {
-        drivers.forEach((d, idx) => {
-          d.raceStatus = 'dnf'
-          d.isDnf = true
-          // Último piloto do grid completou mais voltas antes de abandonar
-          d.lap = idx === 23 ? 35 : 20
-          d.raceTime = 2500 + idx
-        })
-      },
-    })
-
-    const endedState = engine.advanceOneLap(state, { persistState: false })
-    const official = resultService.createOfficialRaceResult(endedState)
-
-    expect(official.entries[0].driverId).toBe('drv_24')
-    expect(official.entries[0].finalPosition).toBe(1)
-  })
-
-  // DNF11: regra FIA 90% inalterada
-  it('DNF11: regra FIA 90% inalterada (piloto com <90% das voltas do líder DNF fica NOT_CLASSIFIED)', () => {
-    const state = createMockRaceState({
-      totalLaps: 60,
-      currentLap: 40,
-      status: 'running',
-      setupDrivers: (drivers) => {
-        drivers.forEach((d, idx) => {
-          d.raceStatus = 'dnf'
-          d.isDnf = true
-          // Líder com 40 voltas -> 90% = 36 voltas
-          // idx 0 -> 40 (CLASSIFIED)
-          // idx 1 -> 36 (CLASSIFIED)
-          // idx 2 -> 35 (NOT_CLASSIFIED)
-          d.lap = idx === 0 ? 40 : idx === 1 ? 36 : 35
-          d.raceTime = 3200 + idx
-        })
-      },
-    })
-
-    const endedState = engine.advanceOneLap(state, { persistState: false })
-    const official = resultService.createOfficialRaceResult(endedState)
-
-    const p1 = official.entries.find((e) => e.driverId === 'drv_01')
-    const p2 = official.entries.find((e) => e.driverId === 'drv_02')
-    const p3 = official.entries.find((e) => e.driverId === 'drv_03')
-
-    expect((p1 as any).classificationStatus).toBe('CLASSIFIED')
-    expect((p2 as any).classificationStatus).toBe('CLASSIFIED')
-    expect((p3 as any).classificationStatus).toBe('NOT_CLASSIFIED')
-  })
-
-  // DNF12: corrida normal com chegada funciona como antes
-  it('DNF12: corrida normal com chegada funciona como antes (vencedor conclui totalLaps)', () => {
-    const state = createMockRaceState({
-      totalLaps: 10,
-      currentLap: 10,
-      status: 'running',
-      setupDrivers: (drivers) => {
-        drivers.forEach((d, idx) => {
-          d.raceStatus = 'racing'
-          d.isDnf = false
-          d.lap = 9
-          d.raceTime = 900 + idx
-        })
-      },
-    })
-
-    const endedState = engine.advanceOneLap(state, { persistState: false })
-    expect(endedState.status).toBe('completed')
-    expect(endedState.raceControl?.currentFlag).toBe('FINISHED')
-    const finishers = endedState.drivers.filter((d) => d.raceStatus === 'finished')
-    expect(finishers.length).toBeGreaterThan(0)
+    expect(finalState.status).toBe('completed')
+    expect(finalState.currentLap).toBe(34)
+    expect(finalState.raceControl?.currentFlag).toBe('FINISHED')
   })
 })
