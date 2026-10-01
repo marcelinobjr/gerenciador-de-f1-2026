@@ -34,6 +34,9 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
   onPromoteToContract,
   isProcessing = false,
 }) => {
+  const displayKm = React.useMemo(() => {
+    return (prospect as any)?.totalTestMileageKm ?? (prospect as any)?.mileageKm ?? 0
+  }, [prospect])
   const [imageFailed, setImageFailed] = React.useState(false)
 
   const resolvedPhoto = React.useMemo(() => {
@@ -183,6 +186,14 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
               />
             </div>
           </div>
+
+          {/* KM Total acumulado em testes */}
+          {displayKm > 0 && (
+            <div className="p-2 rounded-lg bg-cyan-950/30 border border-cyan-800/50 flex justify-between items-center text-xs font-mono">
+              <span className="text-cyan-400">KM Total em Pista:</span>
+              <strong className="text-white font-bold">{displayKm.toLocaleString('pt-BR')} km</strong>
+            </div>
+          )}
 
           {/* Atributos Observados (Fog of War) */}
           <div className="grid grid-cols-2 gap-2 text-xs font-mono">

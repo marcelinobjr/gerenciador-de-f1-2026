@@ -359,31 +359,35 @@ export default function DriversPage() {
         (d.age < 22 && f1Races === 0)
 
       const canonicalDisplayName = getCanonicalDisplayName(d.name)
-      const isAcademyDriver = Boolean(d.is_academy || d.career_status === 'academy')
-      const effectiveRole = binding.role || (isAcademyDriver ? ('reserva' as const) : null)
-      const effectiveTeamName =
-        binding.teamName ||
-        (isAcademyDriver && teamId && teamById.get(teamId) ? teamById.get(teamId)!.name : null)
+const isAcademyDriver = Boolean(
+  d.is_academy ||
+  d.career_status === 'academy' ||
+  (d as any)?.procedural_data?.careerStatus === 'academy',
+)
+const effectiveRole = (binding.role as any) || (isAcademyDriver ? ('academia' as const) : null)
+const effectiveTeamName =
+  binding.teamName ||
+  (isAcademyDriver && teamId && teamById.get(teamId) ? teamById.get(teamId)!.name : null)
 
-      result.push({
-        id: d.id,
-        name: canonicalDisplayName,
-        nationality: d.nationality || mbjInfo?.nationality || 'Mundial',
-        age: calculatedAge,
-        calculatedAge,
-        isFreeAgent: !teamId && !teamKey && binding.status === 'free_agent' && !isAcademyDriver,
-        speed,
-        consistency,
-        rain,
-        defense,
-        salaryUsd,
-        contractEnd: d.contract_end || 2026,
-        teamId,
-        teamKey,
-        teamName: effectiveTeamName,
-        teamColor,
-        role: (binding.role as any) || null,
-        category: cat,
+result.push({
+  id: d.id,
+  name: canonicalDisplayName,
+  nationality: d.nationality || mbjInfo?.nationality || 'Mundial',
+  age: calculatedAge,
+  calculatedAge,
+  isFreeAgent: !teamId && !teamKey && binding.status === 'free_agent' && !isAcademyDriver,
+  speed,
+  consistency,
+  rain,
+  defense,
+  salaryUsd,
+  contractEnd: d.contract_end || 2026,
+  teamId,
+  teamKey,
+  teamName: effectiveTeamName,
+  teamColor,
+  role: (effectiveRole as any) || null,
+  category: cat,
         potentialMin,
         potentialMax,
         f1RacesCompleted: f1Races,
@@ -606,8 +610,8 @@ export default function DriversPage() {
     let noSuperlicenseCount = 0
 
     for (const p of unifiedDrivers) {
-      const isContracted = Boolean((p.teamId || p.teamKey) && p.role !== null)
-      if (isContracted) {
+      const isProfContracted = Boolean((p.teamId || p.teamKey) && p.role !== null && p.role !== 'academia')
+      if (isProfContracted) {
         contractedCount++
       } else {
         marketCount++
@@ -633,11 +637,11 @@ export default function DriversPage() {
   const filteredDrivers = useMemo(() => {
     let list = unifiedDrivers.filter((pilot) => {
       const hasSl = checkDriverSuperlicense(pilot)
-      const isContracted = Boolean((pilot.teamId || pilot.teamKey) && pilot.role !== null)
+      const isProfContracted = Boolean((pilot.teamId || pilot.teamKey) && pilot.role !== null && pilot.role !== 'academia')
 
       // 1. Filtro rápido do topo
-      if (quickFilter === 'contracted' && !isContracted) return false
-      if (quickFilter === 'market' && isContracted) return false
+      if (quickFilter === 'contracted' && !isProfContracted) return false
+      if (quickFilter === 'market' && isProfContracted) return false
       if (quickFilter === 'superlicense_yes' && !hasSl) return false
       if (quickFilter === 'superlicense_no' && hasSl) return false
 
@@ -771,6 +775,11 @@ export default function DriversPage() {
   }, [selectedDriverId, filteredDrivers, unifiedDrivers])
 
   // Estatísticas de F1 canônicas do piloto ativo (SOMENTE FÓRMULA 1)
+  const activeDriverTestKm = useMemo(() => {
+    if (!activeSideDriver) return 0
+    return calculateDriverTotalTestMileage(activeSideDriver.id, driverTests)
+  }, [activeSideDriver, driverTests])
+
   const activeF1Stats = useMemo(() => {
     if (!activeSideDriver) {
       return { races: 0, wins: 0, poles: 0, championships: 0 }
@@ -829,9 +838,15 @@ export default function DriversPage() {
     const isAcademy = Boolean(
       rawRec?.is_academy ||
       rawRec?.career_status === 'academy' ||
-      rawRec?.procedural_data?.careerStatus === 'academy'
+      rawRec?.procedural_data?.careerStatus === 'academy' ||
+      activeSideDriver.role === 'academia'
     )
-    if (isAcademy && (!activeSideDriver.role || activeSideDriver.role === null)) {
+    const hasProfessionalContract = Boolean(
+      rawRec?.canonical_contract?.status === 'active' ||
+      rawRec?.role === 'titular' ||
+      rawRec?.role === 'reserva'
+    )
+    if (isAcademy && !hasProfessionalContract && (activeSideDriver.role === 'academia' || !activeSideDriver.role)) {
       return { label: 'Academia', type: 'reserve' as const }
     }
     const isContracted = Boolean(
@@ -840,11 +855,13 @@ export default function DriversPage() {
     if (activeSideDriver.role === 'reserva') {
       return { label: 'Reserva', type: 'reserve' as const }
     }
+    if (activeSideDriver.role === 'academia') {
+      return { label: 'Academia', type: 'reserve' as const }
+    }
     if (isContracted) {
       return { label: 'Sob contrato', type: 'contracted' as const }
     }
-    return { label: 'Agente livre', type: 'free' as const }
-  }, [activeSideDriver])
+    return { label: 'Agente livre', type: 'free' as const }  }, [activeSideDriver])
 
   // Limpa todos os filtros
   const handleClearFilters = () => {
@@ -921,12 +938,14 @@ export default function DriversPage() {
     setIsSubmitting(true)
     try {
       let targetDriverId = selectedPilotForContract.rawDbRecord?.id
+      let existingDriverRecord: any = selectedPilotForContract.rawDbRecord
       if (!targetDriverId) {
         try {
           const found = await pb
             .collection('drivers')
             .getFirstListItem(`name = "${selectedPilotForContract.name}"`)
           targetDriverId = found.id
+          existingDriverRecord = found
         } catch {
           const created = await pb.collection('drivers').create({
             name: selectedPilotForContract.name,
@@ -944,10 +963,94 @@ export default function DriversPage() {
             physical_condition: 100,
           })
           targetDriverId = created.id
+          existingDriverRecord = created
         }
       }
 
+      const seasonYear = season?.year || 2026
+
+      const existingProcData =
+        existingDriverRecord?.procedural_data ||
+        (selectedPilotForContract as any)?.procedural_data ||
+        {}
+      const wasInAcademy = Boolean(
+        existingDriverRecord?.is_academy ||
+          existingDriverRecord?.career_status === 'academy' ||
+          existingProcData?.careerStatus === 'academy' ||
+          existingProcData?.academyOriginTeamId,
+      )
+      const academyOrigin =
+        existingDriverRecord?.academy_origin_team_id ||
+        existingProcData?.academyOriginTeamId ||
+        (wasInAcademy ? team.id : null)
+
+      const updatedProceduralData = {
+        ...existingProcData,
+        academyOriginTeamId: academyOrigin,
+        academyPromotedToProfessional: wasInAcademy
+          ? true
+          : existingProcData?.academyPromotedToProfessional,
+        academyPromotionDate: wasInAcademy
+          ? existingProcData?.academyPromotionDate || new Date().toISOString()
+          : existingProcData?.academyPromotionDate,
+        careerStatus: 'professional',
+      }
+
+      const canonicalContractObj = {
+        contractId: `contract_${targetDriverId}_${seasonYear}_${Date.now()}`,
+        driverId: targetDriverId,
+        driverName: selectedPilotForContract.name,
+        teamId: team.id,
+        teamName: team.name,
+        role: contractRole === 'reserva' ? 'RESERVE' : 'LEAD_DRIVER',
+        startSeason: contractMode === 'precontract' ? seasonYear + 1 : seasonYear,
+        endSeason: 2027,
+        annualSalary: annualSalaryUsd,
+        signingBonus: proratedSigningFeeUsd,
+        status: contractMode === 'precontract' ? 'future_pending' : 'active',
+        signedDate: new Date().toISOString(),
+      }
+
       if (contractMode === 'precontract') {
+        await pb.collection('drivers').update(targetDriverId, {
+          next_team_id: team.id,
+          next_contract_role: contractRole,
+          future_contract: canonicalContractObj,
+          procedural_data: updatedProceduralData,
+        })
+      } else {
+        if (contractRole === 'titular') {
+          await pb.collection('drivers').update(targetDriverId, {
+            team_id: team.id,
+            reserve_team_id: null,
+            role: 'titular',
+            contract_role: 'titular',
+            category: 'f1',
+            salary: annualSalaryUsd,
+            contract_end: 2027,
+            career_status: 'active',
+            canonical_contract: canonicalContractObj,
+            academy_origin_team_id: academyOrigin,
+            procedural_data: updatedProceduralData,
+          })
+        } else {
+          await pb.collection('drivers').update(targetDriverId, {
+            reserve_team_id: team.id,
+            team_id: null,
+            role: 'reserva',
+            contract_role: 'reserva',
+            category: 'f1',
+            salary: annualSalaryUsd,
+            contract_end: 2027,
+            career_status: 'active',
+            canonical_contract: canonicalContractObj,
+            academy_origin_team_id: academyOrigin,
+            procedural_data: updatedProceduralData,
+          })
+        }
+      }
+
+      if (false) {
         await pb.collection('drivers').update(targetDriverId, {
           next_team_id: team.id,
           next_contract_role: contractRole,
@@ -1426,6 +1529,7 @@ export default function DriversPage() {
               contractStatusType={activeContractStatusInfo.type}
               categoryLabel={formatCategoryLabel(activeSideDriver?.category || 'f1')}
               isPlayerDriverTeam={activeSideDriver?.isPlayerDriver}
+              totalTestMileageKm={activeDriverTestKm}
               visualIdentity={
                 (activeSideDriver as any)?.procedural_data?.visualIdentity ||
                 (activeSideDriver as any)?.visualIdentity ||
@@ -1455,6 +1559,7 @@ export default function DriversPage() {
             contractStatusType={activeContractStatusInfo.type}
             categoryLabel={formatCategoryLabel(activeSideDriver?.category || 'f1')}
             isPlayerDriverTeam={activeSideDriver?.isPlayerDriver}
+            totalTestMileageKm={activeDriverTestKm}
             visualIdentity={
               (activeSideDriver as any)?.procedural_data?.visualIdentity ||
               (activeSideDriver as any)?.visualIdentity ||

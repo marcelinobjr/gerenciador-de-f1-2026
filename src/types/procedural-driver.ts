@@ -205,6 +205,7 @@ export interface ProspectScoutingCardViewModel {
   juniorCategory: JuniorCategory
   categoryLabel: string
   currentTeamOrAcademyName?: string
+  totalTestMileageKm?: number
   isLinkedToPlayerAcademy: boolean
   isLinkedToRivalAcademy: boolean
   visualIdentityId: string

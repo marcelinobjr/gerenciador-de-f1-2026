@@ -1480,16 +1480,22 @@ export function getActiveDriverTeamBinding(
     }
   }
 
-  // Precedência 2: Vínculo real persistido no registro do banco (drivers.team_id / drivers.reserve_team_id)
+  // Precedência 2: Vínculo real persistido no registro do banco (drivers.team_id / drivers.reserve_team_id / drivers.academy_origin_team_id)
   // Pilotos com contrato no banco (como Verstappen e outros) refletem seu vínculo ativo do save
   if (rawMatch) {
-    const boundTeamId = rawMatch.team_id || rawMatch.reserve_team_id || null
+    const boundTeamId =
+      rawMatch.team_id ||
+      rawMatch.reserve_team_id ||
+      (rawMatch.is_academy || rawMatch.career_status === 'academy'
+        ? rawMatch.academy_origin_team_id || rawMatch.procedural_data?.currentAcademyTeamId || rawMatch.procedural_data?.academyOriginTeamId
+        : null) ||
+      null
     if (boundTeamId) {
       const matchedTeam = findTeamRecord(boundTeamId)
       let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
       if (rawMatch.reserve_team_id || rawMatch.role === 'reserva') {
         cRole = 'reserva'
-      } else if (rawMatch.is_academy || rawMatch.role === 'academia') {
+      } else if (rawMatch.is_academy || rawMatch.role === 'academia' || rawMatch.career_status === 'academy' || rawMatch.procedural_data?.careerStatus === 'academy') {
         cRole = 'academia'
       } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
         cRole = 'desenvolvimento'
