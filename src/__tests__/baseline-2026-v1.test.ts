@@ -14,30 +14,30 @@ describe('BASELINE-2026-LOCK-01-CP1 — Suíte BL26-01..05 & Integridade', () =>
     expect(BASELINE_2026_V1_ORDER).toHaveLength(12)
   })
 
-  // BL26-02: ordem estrutural exata: Mercedes > McLaren > Ferrari > Red Bull > Racing Bulls > Alpine > Audi > Aston Martin > Andretti > Williams > Cadillac > Haas
-  it('BL26-02: ordem estrutural exata: Mercedes > McLaren > Ferrari > Red Bull > Racing Bulls > Alpine > Audi > Aston Martin > Andretti > Williams > Cadillac > Haas', () => {
+  // BL26-02: ordem estrutural exata: Mercedes > Ferrari > McLaren > Red Bull > Racing Bulls >= Alpine > Audi > Haas > Williams > Aston Martin > Cadillac > Andretti
+  it('BL26-02: ordem estrutural exata: Mercedes > Ferrari > McLaren > Red Bull > Racing Bulls >= Alpine > Audi > Haas > Williams > Aston Martin > Cadillac > Andretti', () => {
     const expectedOrder = [
       'mercedes',
-      'mclaren',
       'ferrari',
+      'mclaren',
       'redbull',
       'racingbulls',
       'alpine',
       'audi',
-      'astonmartin',
-      'andretti',
-      'williams',
-      'cadillac',
       'haas',
+      'williams',
+      'astonmartin',
+      'cadillac',
+      'andretti',
     ]
 
     expect([...BASELINE_2026_V1_ORDER]).toEqual(expectedOrder)
 
     const scores = BASELINE_2026_V1_ORDER.map((k) => BASELINE_2026_V1_TEAMS[k].score)
-    expect(scores).toEqual([100, 98, 96, 94, 90, 87, 84, 81, 79, 75, 72, 69])
+    expect(scores).toEqual([100, 98, 96, 94, 87, 87, 86, 75, 70, 60, 50, 45])
 
     for (let i = 0; i < scores.length - 1; i++) {
-      expect(scores[i]).toBeGreaterThan(scores[i + 1])
+      expect(scores[i]).toBeGreaterThanOrEqual(scores[i + 1])
     }
   })
 
@@ -47,27 +47,29 @@ describe('BASELINE-2026-LOCK-01-CP1 — Suíte BL26-01..05 & Integridade', () =>
     expect(BASELINE_2026_V1_TEAMS.mercedes.rank).toBe(1)
   })
 
-  // BL26-04: Haas = 69 (P12), Cadillac = 72 (P11), Williams = 75 (P10) e Andretti = 79 (P9)
-  it('BL26-04: Haas = 69 (P12), Cadillac = 72 (P11), Williams = 75 (P10) e Andretti = 79 (P9)', () => {
-    expect(BASELINE_2026_V1_TEAMS.haas.score).toBe(69)
-    expect(BASELINE_2026_V1_TEAMS.haas.rank).toBe(12)
-    expect(BASELINE_2026_V1_TEAMS.cadillac.score).toBe(72)
+  // BL26-04: Bottom 3: Aston Martin = 60 (P10), Cadillac = 50 (P11), Andretti = 45 (P12) e Haas = 75 (P8), Williams = 70 (P9)
+  it('BL26-04: Bottom 3: Aston Martin = 60 (P10), Cadillac = 50 (P11), Andretti = 45 (P12) e Haas = 75 (P8), Williams = 70 (P9)', () => {
+    expect(BASELINE_2026_V1_TEAMS.andretti.score).toBe(45)
+    expect(BASELINE_2026_V1_TEAMS.andretti.rank).toBe(12)
+    expect(BASELINE_2026_V1_TEAMS.cadillac.score).toBe(50)
     expect(BASELINE_2026_V1_TEAMS.cadillac.rank).toBe(11)
-    expect(BASELINE_2026_V1_TEAMS.williams.score).toBe(75)
-    expect(BASELINE_2026_V1_TEAMS.williams.rank).toBe(10)
-    expect(BASELINE_2026_V1_TEAMS.andretti.score).toBe(79)
-    expect(BASELINE_2026_V1_TEAMS.andretti.rank).toBe(9)
+    expect(BASELINE_2026_V1_TEAMS.astonmartin.score).toBe(60)
+    expect(BASELINE_2026_V1_TEAMS.astonmartin.rank).toBe(10)
+    expect(BASELINE_2026_V1_TEAMS.williams.score).toBe(70)
+    expect(BASELINE_2026_V1_TEAMS.williams.rank).toBe(9)
+    expect(BASELINE_2026_V1_TEAMS.haas.score).toBe(75)
+    expect(BASELINE_2026_V1_TEAMS.haas.rank).toBe(8)
   })
 
-  // BL26-05: spread estrutural = 31 pontos e equivalente aproximado: 31 × 0.08 = 2.48s
-  it('BL26-05: spread estrutural = 31 pontos e equivalente aproximado: 31 × 0.08 = 2.48s', () => {
-    const spreadPts = BASELINE_2026_V1_TEAMS.mercedes.score - BASELINE_2026_V1_TEAMS.haas.score
-    expect(spreadPts).toBe(31)
-    expect(BASELINE_2026_V1_METADATA.pointSpread).toBe(31)
+  // BL26-05: spread estrutural = 55 pontos e equivalente aproximado: 55 × 0.08 = 4.40s
+  it('BL26-05: spread estrutural = 55 pontos e equivalente aproximado: 55 × 0.08 = 4.40s', () => {
+    const spreadPts = BASELINE_2026_V1_TEAMS.mercedes.score - BASELINE_2026_V1_TEAMS.andretti.score
+    expect(spreadPts).toBe(55)
+    expect(BASELINE_2026_V1_METADATA.pointSpread).toBe(55)
 
     const spreadSec = spreadPts * BASELINE_2026_V1_METADATA.timeConversionSecPerPoint
-    expect(Number(spreadSec.toFixed(2))).toBe(2.48)
-    expect(BASELINE_2026_V1_METADATA.targetSpreadSec).toBe(2.48)
+    expect(Number(spreadSec.toFixed(2))).toBe(4.4)
+    expect(BASELINE_2026_V1_METADATA.targetSpreadSec).toBe(4.4)
   })
 
   // Asserts de integridade

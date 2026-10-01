@@ -5,20 +5,20 @@
  *
  * Força Estrutural canônica inicial das 12 equipes da Fórmula 1 (temporada 2026):
  * 1. Mercedes — 100
- * 2. McLaren — 98
- * 3. Ferrari — 96
+ * 2. Ferrari — 98
+ * 3. McLaren — 96
  * 4. Red Bull Racing — 94
- * 5. Racing Bulls — 90
+ * 5. Racing Bulls — 87
  * 6. Alpine — 87
- * 7. Audi — 84
- * 8. Aston Martin — 81
- * 9. Andretti — 79
- * 10. Williams — 75
- * 11. Cadillac — 72
- * 12. Haas — 69
+ * 7. Audi — 86
+ * 8. Haas — 75
+ * 9. Williams — 70
+ * 10. Aston Martin — 60
+ * 11. Cadillac — 50
+ * 12. Andretti — 45
  *
- * Spread estrutural: 100 - 69 = 31 pts.
- * Multiplicador de conversão: 0.08s por ponto -> Spread teórico = 31 * 0.08 = 2.48s.
+ * Spread estrutural: 100 - 45 = 55 pts.
+ * Multiplicador de conversão: 0.08s por ponto -> Spread teórico = 55 * 0.08 = 4.40s.
  */
 
 export interface TeamBaselineEntry {
@@ -35,16 +35,16 @@ export const BASELINE_2026_V1_TEAMS: Record<string, TeamBaselineEntry> = {
     teamName: 'Mercedes-AMG Petronas',
     score: 100,
   },
-  mclaren: {
-    rank: 2,
-    teamKey: 'mclaren',
-    teamName: 'McLaren F1 Team',
-    score: 98,
-  },
   ferrari: {
-    rank: 3,
+    rank: 2,
     teamKey: 'ferrari',
     teamName: 'Scuderia Ferrari',
+    score: 98,
+  },
+  mclaren: {
+    rank: 3,
+    teamKey: 'mclaren',
+    teamName: 'McLaren F1 Team',
     score: 96,
   },
   redbull: {
@@ -57,7 +57,7 @@ export const BASELINE_2026_V1_TEAMS: Record<string, TeamBaselineEntry> = {
     rank: 5,
     teamKey: 'racingbulls',
     teamName: 'Visa Cash App RB',
-    score: 90,
+    score: 87,
   },
   alpine: {
     rank: 6,
@@ -69,61 +69,61 @@ export const BASELINE_2026_V1_TEAMS: Record<string, TeamBaselineEntry> = {
     rank: 7,
     teamKey: 'audi',
     teamName: 'Audi F1 Team',
-    score: 84,
+    score: 86,
   },
-  astonmartin: {
+  haas: {
     rank: 8,
-    teamKey: 'astonmartin',
-    teamName: 'Aston Martin Aramco',
-    score: 81,
-  },
-  andretti: {
-    rank: 9,
-    teamKey: 'andretti',
-    teamName: 'Andretti Global',
-    score: 79,
+    teamKey: 'haas',
+    teamName: 'Haas F1 Team',
+    score: 75,
   },
   williams: {
-    rank: 10,
+    rank: 9,
     teamKey: 'williams',
     teamName: 'Williams Racing',
-    score: 75,
+    score: 70,
+  },
+  astonmartin: {
+    rank: 10,
+    teamKey: 'astonmartin',
+    teamName: 'Aston Martin Aramco',
+    score: 60,
   },
   cadillac: {
     rank: 11,
     teamKey: 'cadillac',
     teamName: 'Cadillac F1 Team',
-    score: 72,
+    score: 50,
   },
-  haas: {
+  andretti: {
     rank: 12,
-    teamKey: 'haas',
-    teamName: 'Haas F1 Team',
-    score: 69,
+    teamKey: 'andretti',
+    teamName: 'Andretti Global',
+    score: 45,
   },
 } as const
 
 export const BASELINE_2026_V1_ORDER = [
   'mercedes',
-  'mclaren',
   'ferrari',
+  'mclaren',
   'redbull',
   'racingbulls',
   'alpine',
   'audi',
-  'astonmartin',
-  'andretti',
-  'williams',
-  'cadillac',
   'haas',
+  'williams',
+  'astonmartin',
+  'cadillac',
+  'andretti',
 ] as const
 
 export const BASELINE_2026_V1_METADATA = {
   version: '2026-V1',
   effectiveDate: '2026-01-01',
   topScore: 100,
-  bottomScore: 69,
-  pointSpread: 31,
+  bottomScore: 45,
+  pointSpread: 55,
   timeConversionSecPerPoint: 0.08,
-  targetSpreadSec: 2.48,
+  targetSpreadSec: 4.4,
 } as const

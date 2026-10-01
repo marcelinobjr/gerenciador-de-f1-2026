@@ -15,13 +15,13 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
       seasonYear: 2026,
     })
     expect(audi.baselineOrigin).toBe('BASELINE_2026_V1')
-    expect(audi.baselineAnchorScore).toBe(84)
+    expect(audi.baselineAnchorScore).toBe(86)
 
     const andretti = structuralStrengthService.getTeamStructuralStrength('andretti', {
       seasonYear: 2026,
     })
     expect(andretti.baselineOrigin).toBe('BASELINE_2026_V1')
-    expect(andretti.baselineAnchorScore).toBe(79)
+    expect(andretti.baselineAnchorScore).toBe(45)
   })
 
   // BL26-CP2-02: Mercedes = 100
@@ -34,28 +34,28 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
     expect(mercedes.baselineOrigin).toBe('BASELINE_2026_V1')
   })
 
-  // BL26-CP2-03: Haas = 69 (P12), Cadillac = 72 (P11), Williams = 75 (P10)
-  it('BL26-CP2-03: Haas = 69 (P12), Cadillac = 72 (P11), Williams = 75 (P10)', () => {
-    const haas = structuralStrengthService.getTeamStructuralStrength('haas', {
+  // BL26-CP2-03: Andretti = 45 (P12), Cadillac = 50 (P11), Aston Martin = 60 (P10)
+  it('BL26-CP2-03: Andretti = 45 (P12), Cadillac = 50 (P11), Aston Martin = 60 (P10)', () => {
+    const andretti = structuralStrengthService.getTeamStructuralStrength('andretti', {
       seasonYear: 2026,
     })
-    expect(haas.structuralStrengthScore).toBe(69)
-    expect(haas.baselineAnchorScore).toBe(69)
-    expect(haas.baselineOrigin).toBe('BASELINE_2026_V1')
+    expect(andretti.structuralStrengthScore).toBe(45)
+    expect(andretti.baselineAnchorScore).toBe(45)
+    expect(andretti.baselineOrigin).toBe('BASELINE_2026_V1')
 
     const cadillac = structuralStrengthService.getTeamStructuralStrength('cadillac', {
       seasonYear: 2026,
     })
-    expect(cadillac.structuralStrengthScore).toBe(72)
-    expect(cadillac.baselineAnchorScore).toBe(72)
+    expect(cadillac.structuralStrengthScore).toBe(50)
+    expect(cadillac.baselineAnchorScore).toBe(50)
     expect(cadillac.baselineOrigin).toBe('BASELINE_2026_V1')
 
-    const williams = structuralStrengthService.getTeamStructuralStrength('williams', {
+    const aston = structuralStrengthService.getTeamStructuralStrength('astonmartin', {
       seasonYear: 2026,
     })
-    expect(williams.structuralStrengthScore).toBe(75)
-    expect(williams.baselineAnchorScore).toBe(75)
-    expect(williams.baselineOrigin).toBe('BASELINE_2026_V1')
+    expect(aston.structuralStrengthScore).toBe(60)
+    expect(aston.baselineAnchorScore).toBe(60)
+    expect(aston.baselineOrigin).toBe('BASELINE_2026_V1')
   })
 
   // BL26-CP2-04: ordem exata das 12
@@ -72,7 +72,7 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
       }
     })
 
-    const expectedScores = [100, 98, 96, 94, 90, 87, 84, 81, 79, 75, 72, 69]
+    const expectedScores = [100, 98, 96, 94, 87, 87, 86, 75, 70, 60, 50, 45]
 
     scores.forEach((entry, idx) => {
       expect(entry.score).toBe(expectedScores[idx])
@@ -80,9 +80,9 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
       expect(entry.origin).toBe('BASELINE_2026_V1')
     })
 
-    // Confirma ordem estritamente decrescente
+    // Confirma ordem decrescente (com empate entre Racing Bulls e Alpine em 87)
     for (let i = 0; i < scores.length - 1; i++) {
-      expect(scores[i].score).toBeGreaterThan(scores[i + 1].score)
+      expect(scores[i].score).toBeGreaterThanOrEqual(scores[i + 1].score)
     }
   })
 
@@ -117,12 +117,12 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
     expect(lotus.baselineAnchorScore).toBeUndefined()
   })
 
-  // BL26-CP2-07: Audi 84 + melhoria técnica controlada → score > 84 (âncora não trava evolução)
-  it('BL26-CP2-07: Audi 84 + melhoria técnica controlada -> score > 84 (âncora não trava evolução)', () => {
+  // BL26-CP2-07: Audi 86 + melhoria técnica controlada → score > 86 (âncora não trava evolução)
+  it('BL26-CP2-07: Audi 86 + melhoria técnica controlada -> score > 86 (âncora não trava evolução)', () => {
     const audiInitial = structuralStrengthService.getTeamStructuralStrength('audi', {
       seasonYear: 2026,
     })
-    expect(audiInitial.structuralStrengthScore).toBe(84)
+    expect(audiInitial.structuralStrengthScore).toBe(86)
 
     // Simula uma evolução técnica (ex: upgrade de chassis/PU) a partir dos componentes iniciais da Audi
     const initialComponents = audiInitial.technicalBreakdown.componentsMap
@@ -146,7 +146,7 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
       teamMorale: audiInitial.teamBreakdown.teamMoraleScore,
     })
 
-    expect(evolvedBreakdown.structuralStrengthScore).toBeGreaterThan(84)
+    expect(evolvedBreakdown.structuralStrengthScore).toBeGreaterThan(86)
     expect(evolvedBreakdown.technicalScore).toBeGreaterThan(audiInitial.technicalScore)
   })
 
