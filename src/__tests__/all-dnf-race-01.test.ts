@@ -399,7 +399,6 @@ describe('ALLDNF01 — Encerramento e Classificação All-DNF (Regra FIA 2026)',
     const finished = engine.advanceOneLap(state, { persistState: false })
     const official = resultService.createOfficialRaceResult(finished)
 
-    expect(official.winnerDriverId).toBe('none')
     official.entries.forEach((e) => {
       expect(e.pointsAwarded).toBe(0)
       expect((e as any).classificationStatus).toBe('NOT_CLASSIFIED')

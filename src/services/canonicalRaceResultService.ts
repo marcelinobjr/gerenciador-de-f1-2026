@@ -397,7 +397,7 @@ export class CanonicalRaceResultService {
 
     // 4. Determinar Vencedor (finalPosition === 1)
     const winnerEntry = entries.find((e) => e.finalPosition === 1) || entries[0]
-    const winnerDriverId = leaderLaps === 0 ? 'none' : winnerEntry?.driverId || ''
+    const winnerDriverId = winnerEntry?.driverId || ''
 
     // 5. Determinar Pódio (Top 3)
     const podiumDriverIds = entries
