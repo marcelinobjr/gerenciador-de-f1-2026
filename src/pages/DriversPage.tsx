@@ -934,170 +934,19 @@ export default function DriversPage() {
       return
     }
 
-    const annualSalaryUsd = selectedPilotForContract.salaryUsd
-    const proratedSigningFeeUsd =
-      contractMode === 'immediate'
-        ? Math.round(annualSalaryUsd * 0.25)
-        : Math.round(annualSalaryUsd * 0.1)
-
-    if ((team.budget || 0) < proratedSigningFeeUsd) {
-      toast({
-        title: 'Orçamento Insuficiente',
-        description: `Sua equipe precisa de ao menos ${formatUsdCurrency(proratedSigningFeeUsd, 'full')} para arcar com as luvas contratuais.`,
-        variant: 'destructive',
-      })
-      return
-    }
-
     setIsSubmitting(true)
     try {
-      let targetDriverId = selectedPilotForContract.rawDbRecord?.id
-      let existingDriverRecord: any = selectedPilotForContract.rawDbRecord
-      if (!targetDriverId) {
-        try {
-          const found = await pb
-            .collection('drivers')
-            .getFirstListItem(`name = "${selectedPilotForContract.name}"`)
-          targetDriverId = found.id
-          existingDriverRecord = found
-        } catch {
-          const created = await pb.collection('drivers').create({
-            name: selectedPilotForContract.name,
-            nationality: selectedPilotForContract.nationality,
-            age: selectedPilotForContract.age,
-            speed: selectedPilotForContract.speed,
-            consistency: selectedPilotForContract.consistency,
-            rain: selectedPilotForContract.rain,
-            defense: selectedPilotForContract.defense,
-            salary: selectedPilotForContract.salaryUsd,
-            contract_end: 2027,
-            role: contractRole,
-            category: 'f1',
-            morale: 80,
-            physical_condition: 100,
-          })
-          targetDriverId = created.id
-          existingDriverRecord = created
-        }
-      }
-
-      const existingProcData =
-        existingDriverRecord?.procedural_data ||
-        (selectedPilotForContract as any)?.procedural_data ||
-        {}
-      const wasInAcademy = Boolean(
-        existingDriverRecord?.is_academy ||
-        existingDriverRecord?.career_status === 'academy' ||
-        existingProcData?.careerStatus === 'academy' ||
-        existingProcData?.academyOriginTeamId,
-      )
-      const academyOrigin =
-        existingDriverRecord?.academy_origin_team_id ||
-        existingProcData?.academyOriginTeamId ||
-        (wasInAcademy ? team.id : null)
-
-      const updatedProceduralData = {
-        ...existingProcData,
-        academyOriginTeamId: academyOrigin,
-        academyPromotedToProfessional: wasInAcademy
-          ? true
-          : existingProcData?.academyPromotedToProfessional,
-        academyPromotionDate: wasInAcademy
-          ? existingProcData?.academyPromotionDate || new Date().toISOString()
-          : existingProcData?.academyPromotionDate,
-        careerStatus: 'professional',
-      }
-
-      const canonicalContractObj = {
-        contractId: `contract_${targetDriverId}_${seasonYear}_${Date.now()}`,
-        driverId: targetDriverId,
-        driverName: selectedPilotForContract.name,
-        teamId: team.id,
-        teamName: team.name,
-        role: contractRole === 'reserva' ? 'RESERVE' : 'LEAD_DRIVER',
-        startSeason: contractMode === 'precontract' ? seasonYear + 1 : seasonYear,
-        endSeason: 2027,
-        annualSalary: annualSalaryUsd,
-        signingBonus: proratedSigningFeeUsd,
-        status: contractMode === 'precontract' ? 'future_pending' : 'active',
-        signedDate: new Date().toISOString(),
-      }
-
-      if (contractMode === 'precontract') {
-        await pb.collection('drivers').update(targetDriverId, {
-          next_team_id: team.id,
-          next_contract_role: contractRole,
-          future_contract: canonicalContractObj,
-          procedural_data: updatedProceduralData,
-        })
-      } else {
-        if (contractRole === 'titular') {
-          await pb.collection('drivers').update(targetDriverId, {
-            team_id: team.id,
-            reserve_team_id: null,
-            role: 'titular',
-            contract_role: 'titular',
-            category: 'f1',
-            salary: annualSalaryUsd,
-            contract_end: 2027,
-            career_status: 'active',
-            canonical_contract: canonicalContractObj,
-            academy_origin_team_id: academyOrigin,
-            procedural_data: updatedProceduralData,
-          })
-        } else {
-          await pb.collection('drivers').update(targetDriverId, {
-            reserve_team_id: team.id,
-            team_id: null,
-            role: 'reserva',
-            contract_role: 'reserva',
-            category: 'f1',
-            salary: annualSalaryUsd,
-            contract_end: 2027,
-            career_status: 'active',
-            canonical_contract: canonicalContractObj,
-            academy_origin_team_id: academyOrigin,
-            procedural_data: updatedProceduralData,
-          })
-        }
-      }
-
-      if (proratedSigningFeeUsd > 0) {
-        try {
-          await financialLedgerService.postTransaction({
-            teamId: team.id,
-            seasonYear,
-            round: currentRound,
-            type: 'expense',
-            category: 'driverSalaries',
-            subcategory: 'driver_signing_bonus',
-            direction: 'outflow',
-            amount: proratedSigningFeeUsd,
-            costCapClassification: 'excluded',
-            sourceSystem: 'driver_contract_signing',
-            sourceEntityId: targetDriverId,
-            idempotencyKey: `driver_signing_fee_${team.id}_${targetDriverId}_${seasonYear}_${contractMode}_${contractRole}`,
-            description: `Luvas contratuais de assinatura de contrato: ${selectedPilotForContract.name} (${contractRole})`,
-          })
-        } catch (finErr) {
-          console.warn('Erro ao lançar luvas no FinancialLedger:', finErr)
-        }
-      }
-
-      await financialLedgerService.syncTeamBudgetCache(team.id, seasonYear)
-
-      try {
-        await pb.collection('events').create({
-          team_id: team.id,
-          message:
-            contractMode === 'precontract'
-              ? `Pré-contrato assinado com ${selectedPilotForContract.name} para a próxima temporada (${contractRole}). Taxa de garantia: ${formatUsdCurrency(proratedSigningFeeUsd, 'compact')}.`
-              : `Contratação de ${selectedPilotForContract.name} formalizada com sucesso como piloto ${contractRole}. Taxa de assinatura: ${formatUsdCurrency(proratedSigningFeeUsd, 'compact')}.`,
-          type: 'contrato',
-        })
-      } catch (evErr) {
-        console.warn('Falha ao gravar evento de contrato:', evErr)
-      }
+      const { driverHiringService } = await import('@/services/driverHiringService')
+      await driverHiringService.executeDriverHire({
+        driver: selectedPilotForContract,
+        team,
+        contractRole,
+        contractMode,
+        seasonYear,
+        currentRound,
+        durationYears: 1,
+        customSalaryUsd: selectedPilotForContract.salaryUsd,
+      })
 
       toast({
         title: 'Operação Contratual Concluída!',

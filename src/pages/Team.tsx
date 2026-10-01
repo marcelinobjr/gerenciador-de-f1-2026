@@ -108,6 +108,7 @@ import { TeamInstitutionalDetailsModal } from '@/components/team/TeamInstitution
 import { ManagerProfileDetailsModal } from '@/components/team/ManagerProfileDetailsModal'
 import { PilotProfileDialog } from '@/components/PilotProfileDialog'
 import { getManagerOfficialPortrait } from '@/lib/manager-official-assets'
+import { driverHiringService } from '@/services/driverHiringService'
 import {
   Dialog,
   DialogContent,
@@ -134,6 +135,13 @@ export default function TeamPage() {
   const [salaryMultiplier, setSalaryMultiplier] = useState<number>(100)
   const [contractYears, setContractYears] = useState<number>(1)
   const [fireDriver, setFireDriver] = useState<DriverModel | null>(null)
+
+  // Modal canônico de Contratação direta pela aba Contratos (ADI-01A)
+  const [hireModalOpen, setHireModalOpen] = useState(false)
+  const [hireCandidateDriver, setHireCandidateDriver] = useState<DriverModel | null>(null)
+  const [hireContractRole, setHireContractRole] = useState<'titular' | 'reserva'>('titular')
+  const [hireDurationYears, setHireDurationYears] = useState<number>(1)
+  const [hireCustomSalary, setHireCustomSalary] = useState<number>(2000000)
 
   // Engine switch state
   const [selectedSupplier, setSelectedSupplier] = useState<EngineSupplierSpec | null>(null)
@@ -355,6 +363,19 @@ export default function TeamPage() {
         d.id !== reserveDriver?.id,
     )
   }, [allGridDrivers, academyDevData, reserveDriver])
+
+  // Candidatos elegíveis para contratação pela aba Contratos (agentes livres e jovens da academia própria)
+  const hireableTalents = useMemo(() => {
+    const activeDriverIds = new Set(
+      [...titularDrivers, ...(reserveDriver ? [reserveDriver] : [])].map((d) => d.id),
+    )
+    return allGridDrivers.filter((d) => !activeDriverIds.has(d.id))
+  }, [allGridDrivers, titularDrivers, reserveDriver])
+
+  // Vagas contratuais disponíveis no roster
+  const hasOpenStarterSlot = canonicalRoster.titularCount < 2
+  const hasOpenReserveSlot = canonicalRoster.reserveCount < 1
+  const canHire = hasOpenStarterSlot || hasOpenReserveSlot
 
   // Team identity details
   const teamName = team?.name || 'Audi F1 Team'
@@ -1101,6 +1122,42 @@ export default function TeamPage() {
         variant: 'destructive',
         title: 'Erro na renegociação',
         description: err?.message || 'Não foi possível renegociar o contrato.',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Executa o fluxo canônico de contratação pela aba Contratos
+  const handleExecuteHire = async () => {
+    if (!hireCandidateDriver || !team) return
+    setIsProcessing(true)
+    try {
+      const result = await driverHiringService.executeDriverHire({
+        driver: hireCandidateDriver,
+        team,
+        contractRole: hireContractRole,
+        contractMode: 'immediate',
+        seasonYear: currentSeasonYear,
+        currentRound: season?.current_round || 1,
+        durationYears: hireDurationYears,
+        customSalaryUsd: hireCustomSalary,
+      })
+
+      toast({
+        title: 'Piloto Contratado com Sucesso!',
+        description: `${hireCandidateDriver.name} agora é piloto ${hireContractRole === 'titular' ? 'titular' : 'reserva'} da ${team.name}. Identidade e contrato preservados integralmente.`,
+      })
+
+      setHireModalOpen(false)
+      setHireCandidateDriver(null)
+      await refreshTeamAndSeason()
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro na contratação',
+        description: err?.message || 'Falha ao processar a contratação do piloto.',
       })
     } finally {
       setIsProcessing(false)
@@ -2203,15 +2260,44 @@ export default function TeamPage() {
       {activeTab === 'contratos' && (
         <div className="space-y-6">
           <Card className="bg-white border-neutral-200/90 shadow-sm">
-            <CardHeader className="border-b border-neutral-200/80">
-              <CardTitle className="text-xl font-black text-neutral-900 flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-[#E10600]" />
-                Gestão de Vínculos Contratuais
-              </CardTitle>
-              <CardDescription className="text-xs text-neutral-500">
-                Acompanhe o vencimento de contratos, salários vigentes e planeje renovações
-                antecipadas.
-              </CardDescription>
+            <CardHeader className="border-b border-neutral-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl font-black text-neutral-900 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-[#E10600]" />
+                  Gestão de Vínculos Contratuais
+                </CardTitle>
+                <CardDescription className="text-xs text-neutral-500">
+                  Acompanhe o vencimento de contratos, salários vigentes e execute novas
+                  contratações via fluxo canônico.
+                </CardDescription>
+              </div>
+
+              {/* Ação Canônica: Botão CONTRATAR na aba Contratos */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  id="btn-contratar-contratos"
+                  data-testid="btn-contratar-contratos"
+                  size="sm"
+                  disabled={!canHire || isProcessing}
+                  onClick={() => {
+                    const defaultCandidate =
+                      teamAcademyPilots[0] ||
+                      hireableTalents.find((d) => !d.team_id) ||
+                      hireableTalents[0] ||
+                      null
+                    const defaultRole = hasOpenStarterSlot ? 'titular' : 'reserva'
+                    setHireCandidateDriver(defaultCandidate)
+                    setHireContractRole(defaultRole)
+                    setHireCustomSalary(defaultCandidate?.salary || 2000000)
+                    setHireDurationYears(1)
+                    setHireModalOpen(true)
+                  }}
+                  className="bg-[#E10600] hover:bg-[#C50500] text-white font-bold text-xs uppercase tracking-wider px-4 py-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Briefcase className="w-3.5 h-3.5 mr-1.5" />
+                  CONTRATAR
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-3 font-mono text-xs">
@@ -2986,6 +3072,184 @@ export default function TeamPage() {
               className="bg-[#E10600] hover:bg-[#C50500] text-white font-semibold"
             >
               {isProcessing ? 'Enviando proposta...' : 'Confirmar Novo Contrato'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL CANÔNICO: CONTRATAR PILOTO PELA ABA CONTRATOS */}
+      <Dialog open={hireModalOpen} onOpenChange={(open) => !open && setHireModalOpen(false)}>
+        <DialogContent className="bg-white border border-[#E2E8F0] text-[#0F172A] shadow-xl max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-[#E10600]" />
+              Contratar Piloto — Fluxo Canônico
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#64748B]">
+              Selecione o piloto elegível e formalize o vínculo preservando integralmente
+              identidade, histórico e potencial.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs font-mono">
+            {/* Seletor de Piloto */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase block">
+                Piloto Candidato
+              </label>
+              <select
+                className="w-full h-9 px-3 rounded-lg border border-[#CBD5E1] bg-white text-xs font-sans text-[#0F172A]"
+                value={hireCandidateDriver?.id || ''}
+                onChange={(e) => {
+                  const selected = hireableTalents.find((d) => d.id === e.target.value) || null
+                  setHireCandidateDriver(selected)
+                  if (selected) {
+                    setHireCustomSalary(selected.salary || 2000000)
+                  }
+                }}
+              >
+                <option value="" disabled>
+                  Selecione um piloto disponível...
+                </option>
+                {/* Pilotos da própria academia em primeiro */}
+                {teamAcademyPilots.length > 0 && (
+                  <optgroup label="— Academia Própria —">
+                    {teamAcademyPilots.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.nationality}) • Potencial:{' '}
+                        {(d as any).perceived_potential || 85} • Academia
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {/* Agentes livres */}
+                <optgroup label="— Mercado / Agentes Livres —">
+                  {hireableTalents
+                    .filter((d) => !teamAcademyPilots.some((ap) => ap.id === d.id))
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.nationality}) • OVR:{' '}
+                        {Math.round(((d.speed || 75) + (d.consistency || 75)) / 2)} • Salário:{' '}
+                        {formatCurrency(d.salary || 2000000)}
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {hireCandidateDriver && (
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 flex items-center gap-3">
+                <DriverPhotoAvatar
+                  name={hireCandidateDriver.name}
+                  driverId={hireCandidateDriver.id}
+                  visualIdentity={
+                    (hireCandidateDriver as any)?.procedural_data?.visualIdentity ||
+                    (hireCandidateDriver as any)?.visualIdentity ||
+                    null
+                  }
+                  teamColor="#E10600"
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <div className="font-bold text-sm text-neutral-900 truncate">
+                    {hireCandidateDriver.name}
+                  </div>
+                  <div className="text-[11px] text-neutral-500">
+                    Nacionalidade: {hireCandidateDriver.nationality} • Idade:{' '}
+                    {hireCandidateDriver.age || 22} anos
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Função no Roster */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase block">
+                Função Obrigatória no Roster
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={hireContractRole === 'titular' ? 'default' : 'outline'}
+                  disabled={!hasOpenStarterSlot}
+                  onClick={() => setHireContractRole('titular')}
+                  className={`text-xs h-8 ${
+                    hireContractRole === 'titular'
+                      ? 'bg-[#E10600] text-white'
+                      : 'border-[#CBD5E1] text-[#0F172A]'
+                  }`}
+                >
+                  Titular {hasOpenStarterSlot ? '(Vaga Aberta)' : '(Roster Cheio)'}
+                </Button>
+                <Button
+                  type="button"
+                  variant={hireContractRole === 'reserva' ? 'default' : 'outline'}
+                  disabled={!hasOpenReserveSlot}
+                  onClick={() => setHireContractRole('reserva')}
+                  className={`text-xs h-8 ${
+                    hireContractRole === 'reserva'
+                      ? 'bg-[#E10600] text-white'
+                      : 'border-[#CBD5E1] text-[#0F172A]'
+                  }`}
+                >
+                  Reserva {hasOpenReserveSlot ? '(Vaga Aberta)' : '(Roster Cheio)'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Duração do Contrato */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-[#64748B] uppercase block">
+                Duração do Contrato
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3].map((yrs) => (
+                  <Button
+                    key={yrs}
+                    type="button"
+                    variant={hireDurationYears === yrs ? 'default' : 'outline'}
+                    onClick={() => setHireDurationYears(yrs)}
+                    className={`text-xs h-8 ${
+                      hireDurationYears === yrs
+                        ? 'bg-[#E10600] text-white'
+                        : 'border-[#CBD5E1] text-[#0F172A]'
+                    }`}
+                  >
+                    {yrs} {yrs === 1 ? 'ano' : 'anos'} ({currentSeasonYear + yrs})
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Taxa de Luvas / Custo Imediato */}
+            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-amber-800">Salário Anual Acordado:</span>
+                <strong className="text-neutral-900">{formatCurrency(hireCustomSalary)}/ano</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-amber-800">Luvas de Assinatura (25% do salário anual):</span>
+                <strong className="text-[#E10600]">
+                  {formatCurrency(Math.round(hireCustomSalary * 0.25))}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setHireModalOpen(false)}
+              className="border-[#CBD5E1] text-[#64748B]"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExecuteHire}
+              disabled={isProcessing || !hireCandidateDriver}
+              className="bg-[#E10600] hover:bg-[#C50500] text-white font-bold cursor-pointer"
+            >
+              {isProcessing ? 'Processando Contratação...' : 'Confirmar Contratação'}
             </Button>
           </DialogFooter>
         </DialogContent>
