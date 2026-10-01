@@ -491,8 +491,10 @@ export default function WeekendV2Page() {
 
     // Normalização canônica via normalizeCompletedSessions para tratar todos os aliases de forma única e centralizada
     const normalizedStored = normalizeCompletedSessions(stored)
-    const hasTl1 = normalizedStored.includes('tp1') || stored.includes('tl1') || stored.includes('fp1')
-    const hasTl2 = normalizedStored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
+    const hasTl1 =
+      normalizedStored.includes('tp1') || stored.includes('tl1') || stored.includes('fp1')
+    const hasTl2 =
+      normalizedStored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
     const hasSq1 = normalizedStored.includes('sq1') || stored.includes('sprint_q1')
 
     if (sess === 'tp2' && !hasTl1) {
