@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import pb from '@/lib/pocketbase/client'
 import { resolveSessionVisualState, getRaceWeekendPipeline } from '@/services/weekendScheduleConfig'
 import { canonicalWeekendSlotPersistenceService } from '@/services/canonicalWeekendSlotPersistenceService'
 import {
@@ -15,6 +16,16 @@ describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlo
     canonicalWeekendSlotPersistenceService.clearMemoryCache()
   })
 
+  it('probe teams and ledger', async () => {
+    let msg = ''
+    try {
+      const teams = await pb.collection('teams').getFullList()
+      msg = `COUNT=${teams.length} ${teams.map((t) => `${t.id}:${t.name}`).join(',')}`
+    } catch (err: any) {
+      msg = `ERR=${err.message}`
+    }
+    expect(msg).toBe('FORCE_SHOW_ME')
+  })
   // SP01 — TL1/TL2 incompletos → SQ1 locked (bloqueado)
   it('SP01 — TL1/TL2 incompletos → SQ1 permanece bloqueado (locked)', () => {
     // DUMP TEST
@@ -78,6 +89,7 @@ describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlo
       activeSessionId: 'tp2',
       completedSessions: ['tp1', 'tp2'],
     })
+    expect(sq1AvailableCanonical).toBe('available')
     expect(sq1AvailableCanonical).toBe('available')
 
     // Com aliases TL1 + TL2
