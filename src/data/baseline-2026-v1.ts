@@ -71,22 +71,22 @@ export const BASELINE_2026_V1_TEAMS: Record<string, TeamBaselineEntry> = {
     teamName: 'Audi F1 Team',
     score: 84,
   },
-  astonmartin: {
-    rank: 8,
-    teamKey: 'astonmartin',
-    teamName: 'Aston Martin Aramco',
-    score: 81,
-  },
   haas: {
-    rank: 9,
+    rank: 8,
     teamKey: 'haas',
     teamName: 'Haas F1 Team',
-    score: 79,
+    score: 81,
   },
   williams: {
-    rank: 10,
+    rank: 9,
     teamKey: 'williams',
     teamName: 'Williams Racing',
+    score: 79,
+  },
+  astonmartin: {
+    rank: 10,
+    teamKey: 'astonmartin',
+    teamName: 'Aston Martin Aramco',
     score: 75,
   },
   cadillac: {
@@ -111,9 +111,9 @@ export const BASELINE_2026_V1_ORDER = [
   'racingbulls',
   'alpine',
   'audi',
-  'astonmartin',
   'haas',
   'williams',
+  'astonmartin',
   'cadillac',
   'andretti',
 ] as const
