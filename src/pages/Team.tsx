@@ -257,6 +257,29 @@ export default function TeamPage() {
   // Helper para obter a quilometragem real persistida de formação/rookie/desenvolvimento de um piloto
   const getDriverDevelopmentMileageKm = useCallback(
     (driver: DriverModel): number => {
+      // 1. Consulta testes na memória do time (academy_development_data.testResults)
+      const teamDevData = (team as any)?.academy_development_data
+      if (Array.isArray(teamDevData?.testResults)) {
+        const testsSum = teamDevData.testResults.reduce(
+          (acc: number, t: any) =>
+            t?.driverId === driver.id || t?.driver_id === driver.id
+              ? acc + (Number(t?.km) || 0)
+              : acc,
+          0,
+        )
+        if (testsSum > 0) return testsSum
+      }
+
+      // 2. Homologation program accumulated km
+      const prog = teamDevData?.homologationPrograms?.[driver.id]
+      if (
+        prog &&
+        typeof prog.accumulatedHomologatedKm === 'number' &&
+        prog.accumulatedHomologatedKm > 0
+      ) {
+        return prog.accumulatedHomologatedKm
+      }
+
       const pData = (driver as any)?.procedural_data
       const rawKm =
         (driver as any)?.mileage_km ??
@@ -286,7 +309,6 @@ export default function TeamPage() {
       }
 
       // Check no team.academy_development_data por driverId
-      const teamDevData = (team as any)?.academy_development_data
       const driverTestInfo = teamDevData?.driverTestingRecords?.[driver.id]
       if (typeof driverTestInfo?.accumulatedKm === 'number') {
         return driverTestInfo.accumulatedKm
@@ -2251,6 +2273,90 @@ export default function TeamPage() {
                     </div>
                   </div>
                 ))}
+
+                {/* Exibição de Pilotos da Academia Vinculados (sem contrato profissional F1) */}
+                {teamAcademyPilots
+                  .filter(
+                    (acadDriver) =>
+                      !titularDrivers.some((t) => t.id === acadDriver.id) &&
+                      reserveDriver?.id !== acadDriver.id,
+                  )
+                  .map((acadDriver) => {
+                    const mileageKm = getDriverDevelopmentMileageKm(acadDriver)
+                    return (
+                      <div
+                        key={acadDriver.id}
+                        className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <DriverPhotoAvatar
+                            name={acadDriver.name}
+                            driverId={acadDriver.id}
+                            visualIdentity={
+                              (acadDriver as any)?.procedural_data?.visualIdentity ||
+                              (acadDriver as any)?.visualIdentity ||
+                              null
+                            }
+                            teamColor="#0284C7"
+                            size="sm"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-neutral-900 text-sm block">
+                                {acadDriver.name}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-cyan-50 text-cyan-800 border-cyan-200"
+                              >
+                                Academia {team?.name || 'Audi'}
+                              </Badge>
+                            </div>
+                            <span className="text-[11px] text-neutral-500">
+                              Vínculo: Academia de Jovens Pilotos (Sem contrato profissional)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                          <div>
+                            <span className="text-[10px] text-neutral-400 block">KM em Pista</span>
+                            <strong className="text-cyan-700">
+                              {mileageKm.toLocaleString('pt-BR')} km
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-neutral-400 block">
+                              Bolsa Formação
+                            </span>
+                            <strong className="text-neutral-700">
+                              {formatCurrency(acadDriver.salary || 180000)}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-neutral-400 block">
+                              Status Contratual
+                            </span>
+                            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              Não Contratado (F1)
+                            </span>
+                          </div>
+                          <div className="flex gap-1.5 items-center">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPilotForProfile(acadDriver)
+                                setIsPilotProfileModalOpen(true)
+                              }}
+                              className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs h-7 font-bold cursor-pointer"
+                            >
+                              Ver Perfil / Promover
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
               </div>
             </CardContent>
           </Card>
@@ -2399,6 +2505,11 @@ export default function TeamPage() {
                           prospect={scoutView}
                           onRunTest={() => setDevManagerOpen(true)}
                           onEvaluateAgain={handleReevaluateProspect}
+                          onPromoteToContract={(driverId) => {
+                            const p = teamAcademyPilots.find((tp) => tp.id === driverId) || pilot
+                            setSelectedPilotForProfile(p)
+                            setIsPilotProfileModalOpen(true)
+                          }}
                         />
                         <div className="mt-2 flex gap-2">
                           <Button

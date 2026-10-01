@@ -69,6 +69,7 @@ import {
 } from 'lucide-react'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { getActiveDriverTeamBinding } from '@/lib/canonical-driver-database'
+import { calculateDriverTotalTestMileage } from '@/services/driverMileageResolverService'
 import {
   getCanonicalDisplayName,
   getDriverCanonicalKey,
@@ -212,19 +213,28 @@ export default function DriversPage() {
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState<boolean>(false)
 
   // Carrega motoristas e equipes reais do banco
+  const [driverTests, setDriverTests] = useState<any[]>([])
+
   const loadDatabaseData = useCallback(async () => {
     try {
       setIsLoading(true)
-      const [driversRes, teamsRes] = await Promise.all([
+      const [driversRes, teamsRes, testsRes] = await Promise.all([
         pb.collection('drivers').getFullList<DriverModel>({
           sort: '-speed',
         }),
         pb.collection('teams').getFullList<TeamModel>({
           sort: 'name',
         }),
+        pb
+          .collection('driver_tests')
+          .getFullList({
+            sort: '-created',
+          })
+          .catch(() => []),
       ])
       setDbDrivers(driversRes)
       setDbTeams(teamsRes)
+      setDriverTests(testsRes)
     } catch (err) {
       console.error('Erro ao carregar pilotos/equipes do banco:', err)
     } finally {
@@ -345,16 +355,23 @@ export default function DriversPage() {
         mbjInfo?.isAcademyProspect ||
         cat === 'f2' ||
         cat === 'f1_academy' ||
+        d.is_academy ||
         (d.age < 22 && f1Races === 0)
 
       const canonicalDisplayName = getCanonicalDisplayName(d.name)
+      const isAcademyDriver = Boolean(d.is_academy || d.career_status === 'academy')
+      const effectiveRole = binding.role || (isAcademyDriver ? ('reserva' as const) : null)
+      const effectiveTeamName =
+        binding.teamName ||
+        (isAcademyDriver && teamId && teamById.get(teamId) ? teamById.get(teamId)!.name : null)
+
       result.push({
         id: d.id,
         name: canonicalDisplayName,
         nationality: d.nationality || mbjInfo?.nationality || 'Mundial',
         age: calculatedAge,
         calculatedAge,
-        isFreeAgent: !teamId && !teamKey && binding.status === 'free_agent',
+        isFreeAgent: !teamId && !teamKey && binding.status === 'free_agent' && !isAcademyDriver,
         speed,
         consistency,
         rain,
@@ -363,7 +380,7 @@ export default function DriversPage() {
         contractEnd: d.contract_end || 2026,
         teamId,
         teamKey,
-        teamName,
+        teamName: effectiveTeamName,
         teamColor,
         role: (binding.role as any) || null,
         category: cat,
@@ -660,9 +677,14 @@ export default function DriversPage() {
           const pilotId = pilot.teamId || null
 
           // Match estrito por runtime ID ou team_key canônica
+          const rawRec = pilot.rawDbRecord as any
           const matchesTeam =
             (pilotId && pilotId === selectedTeamFilter) ||
-            (pilotKeyLower && pilotKeyLower === targetFilterLower)
+            (pilotKeyLower && pilotKeyLower === targetFilterLower) ||
+            (rawRec?.academy_origin_team_id &&
+              rawRec.academy_origin_team_id === selectedTeamFilter) ||
+            (rawRec?.procedural_data?.currentAcademyTeamId &&
+              rawRec.procedural_data.currentAcademyTeamId === selectedTeamFilter)
 
           if (!matchesTeam) return false
         }
@@ -803,6 +825,15 @@ export default function DriversPage() {
     if (!activeSideDriver) {
       return { label: 'Indisponível', type: 'contracted' as const }
     }
+    const rawRec = activeSideDriver.rawDbRecord as any
+    const isAcademy = Boolean(
+      activeSideDriver.rawDbRecord?.is_academy ||
+      activeSideDriver.rawDbRecord?.career_status === 'academy' ||
+      (activeSideDriver.rawDbRecord?.procedural_data as any)?.careerStatus === 'academy',
+    )
+    if (isAcademy && (!activeSideDriver.role || activeSideDriver.role === null)) {
+      return { label: 'Academia', type: 'reserve' as const }
+    }
     const isContracted = Boolean(
       (activeSideDriver.teamId || activeSideDriver.teamKey) && activeSideDriver.role !== null,
     )
@@ -922,6 +953,17 @@ export default function DriversPage() {
           next_contract_role: contractRole,
         })
       } else {
+        const targetRec = selectedPilotForContract.rawDbRecord as any
+        const isFromAcademy = Boolean(
+          targetRec?.is_academy ||
+          targetRec?.career_status === 'academy' ||
+          targetRec?.procedural_data?.careerStatus === 'academy',
+        )
+        const originTeamId =
+          targetRec?.academy_origin_team_id ||
+          targetRec?.procedural_data?.academyOriginTeamId ||
+          (isFromAcademy ? team.id : null)
+
         if (contractRole === 'titular') {
           await pb.collection('drivers').update(targetDriverId, {
             team_id: team.id,
@@ -929,18 +971,21 @@ export default function DriversPage() {
             role: 'titular',
             category: 'f1',
             salary: selectedPilotForContract.salaryUsd,
+            career_status: 'f1_driver',
+            academy_origin_team_id: originTeamId || undefined,
           })
         } else {
           await pb.collection('drivers').update(targetDriverId, {
             reserve_team_id: team.id,
-            team_id: null,
+            team_id: team.id,
             role: 'reserva',
             category: 'f1',
             salary: selectedPilotForContract.salaryUsd,
+            career_status: 'reserve',
+            academy_origin_team_id: originTeamId || undefined,
           })
         }
       }
-
       const seasonYear = season?.year || 2026
       if (proratedSigningFeeUsd > 0) {
         try {
@@ -1125,9 +1170,9 @@ export default function DriversPage() {
                 <SelectItem value="indycar">IndyCar</SelectItem>
                 <SelectItem value="formula_e">Formula E</SelectItem>
                 <SelectItem value="wec">WEC / Protótipos</SelectItem>
-                <SelectItem value="f1_academy">Academy</SelectItem>
+                <SelectItem value="f1_academy">Academy / Desenvolvimento</SelectItem>
                 <SelectItem value="mercado">Livre / Sem cat.</SelectItem>
-              </SelectContent>
+              </SelectContent>{' '}
             </Select>
           </div>
 
@@ -1623,7 +1668,7 @@ export default function DriversPage() {
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                     }`}
                   >
-                    <div className="font-bold text-xs">Piloto Reserva / Academia</div>
+                    <div className="font-bold text-xs">Piloto Reserva / Desenvolvimento</div>
                     <div className="text-[10px] opacity-80 mt-0.5">
                       Treinos livres e desenvolvimento
                     </div>

@@ -22,6 +22,7 @@ interface ProspectCardProps {
   onEvaluateAgain?: (driverId: string) => void
   onInviteToAcademy?: (driverId: string) => void
   onRunTest?: (driverId: string) => void
+  onPromoteToContract?: (driverId: string) => void
   isProcessing?: boolean
 }
 
@@ -30,6 +31,7 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
   onEvaluateAgain,
   onInviteToAcademy,
   onRunTest,
+  onPromoteToContract,
   isProcessing = false,
 }) => {
   const [imageFailed, setImageFailed] = React.useState(false)
@@ -275,6 +277,18 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
           >
             <UserPlus className="w-3.5 h-3.5 mr-1" />
             Contratar para Academia
+          </Button>
+        )}
+
+        {prospect.isLinkedToPlayerAcademy && onPromoteToContract && (
+          <Button
+            size="sm"
+            onClick={() => onPromoteToContract(prospect.driverId)}
+            disabled={isProcessing}
+            className="w-full text-xs bg-[#E10600] hover:bg-red-700 text-white font-semibold cursor-pointer"
+          >
+            <UserPlus className="w-3.5 h-3.5 mr-1" />
+            Contratar Piloto (F1)
           </Button>
         )}
       </div>
