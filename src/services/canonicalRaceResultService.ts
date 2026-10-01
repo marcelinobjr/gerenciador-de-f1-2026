@@ -79,11 +79,11 @@ export class CanonicalRaceResultService {
     careerId: string,
     season: number | string,
     raceId: string | number,
-  ): Readonly<OfficialRaceResult> | null {
-    return this.loadOfficialResult(careerId, Number(season), raceId)
+  ): OfficialRaceResult | null {
+    return this.loadOfficialResult(careerId, Number(season), raceId) as OfficialRaceResult | null
   }
 
-  public saveOfficialRaceResult(result: Readonly<OfficialRaceResult>, overwrite = false): boolean {
+  public saveOfficialRaceResult(result: OfficialRaceResult, overwrite = false): boolean {
     return this.saveOfficialResult(result, overwrite)
   }
 
@@ -147,8 +147,8 @@ export class CanonicalRaceResultService {
     return (result as any).integrityHash === expected || result.resultHash === expected
   }
 
-  public createOfficialRaceResult(raceState: CanonicalRaceState): Readonly<OfficialRaceResult> {
-    return this.officializeRace(raceState)
+  public createOfficialRaceResult(raceState: CanonicalRaceState): OfficialRaceResult {
+    return this.officializeRace(raceState) as OfficialRaceResult
   }
 
   public validatePreconditions(raceState: CanonicalRaceState): {
@@ -290,7 +290,7 @@ export class CanonicalRaceResultService {
     return summary as OfficialRaceEventSummary
   }
 
-  public officializeRace(raceState: CanonicalRaceState): Readonly<OfficialRaceResult> {
+  public officializeRace(raceState: CanonicalRaceState): OfficialRaceResult {
     const validation = this.validatePreconditionsForOfficialization(raceState)
     if (!validation.canOfficialize) {
       throw new Error(
@@ -397,6 +397,7 @@ export class CanonicalRaceResultService {
 
     // 4. Determinar Vencedor (finalPosition === 1)
     const winnerEntry = entries.find((e) => e.finalPosition === 1) || entries[0]
+    const winnerDriverId = leaderLaps === 0 ? 'none' : winnerEntry?.driverId || ''
 
     // 5. Determinar Pódio (Top 3)
     const podiumDriverIds = entries
@@ -426,7 +427,7 @@ export class CanonicalRaceResultService {
       careerId: state.careerId || 'default',
       season: state.season || 2026,
       raceId: state.raceId || 'race_default',
-      winnerDriverId: winnerEntry?.driverId || '',
+      winnerDriverId,
       entriesChecksum,
       totalLaps: state.totalLaps,
     })
@@ -445,7 +446,7 @@ export class CanonicalRaceResultService {
       playerTeamId: state.playerTeamId || 'team_player',
       officializedAt: new Date().toISOString(),
       totalLaps: state.totalLaps,
-      winnerDriverId: winnerEntry?.driverId || '',
+      winnerDriverId,
       winnerTeamId: winnerEntry?.teamId || '',
       poleDriverId: poleCar?.driverId || entries[0]?.driverId || '',
       polePositionDriverId: poleCar?.driverId || entries[0]?.driverId || '',
@@ -472,14 +473,14 @@ export class CanonicalRaceResultService {
       resultHash: integrityHash,
     }
 
-    // 8. Retorna snapshot completamente congelado
-    return this.deepFreeze(officialResult as OfficialRaceResult)
+    // 8. Retorna snapshot
+    return officialResult as OfficialRaceResult
   }
 
   public terminateEarlyAndOfficialize(
     raceState: CanonicalRaceState,
     reason: string = 'Race terminated early',
-  ): Readonly<OfficialRaceResult> {
+  ): OfficialRaceResult {
     // Clona o estado e marca como concluído com as voltas atuais para oficialização prematura
     const state = this.deepClone(raceState)
     state.status = 'completed'
@@ -510,7 +511,7 @@ export class CanonicalRaceResultService {
     return this.officializeRace(state)
   }
 
-  public saveOfficialResult(result: Readonly<OfficialRaceResult>, overwrite = false): boolean {
+  public saveOfficialResult(result: OfficialRaceResult, overwrite = false): boolean {
     if (!result) return false
 
     const key = this.getStorageKey(result.careerId, result.season, result.raceId)
@@ -533,14 +534,14 @@ export class CanonicalRaceResultService {
     careerId: string,
     season: number | string,
     raceId: string | number,
-  ): Readonly<OfficialRaceResult> | null {
+  ): OfficialRaceResult | null {
     const key = this.getStorageKey(careerId, Number(season), raceId)
     try {
       if (typeof localStorage === 'undefined') return null
       const data = localStorage.getItem(key)
       if (!data) return null
       const parsed = JSON.parse(data) as OfficialRaceResult
-      return this.deepFreeze(parsed)
+      return parsed
     } catch (err) {
       console.error('[CanonicalRaceResultService] Failed to load official race result:', err)
       return null

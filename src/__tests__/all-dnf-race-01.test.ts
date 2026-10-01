@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { CanonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { CanonicalRaceResultService } from '@/services/canonicalRaceResultService'
-import { CanonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { calculateFiaPoints } from '@/lib/f1-standings-calculator'
 import { CanonicalRaceState, CanonicalRaceDriverState } from '@/types/canonical-race-v2'
@@ -9,7 +9,7 @@ import { CanonicalRaceState, CanonicalRaceDriverState } from '@/types/canonical-
 describe('ALLDNF01 — Encerramento e Classificação All-DNF (Regra FIA 2026)', () => {
   let engine: CanonicalRaceEngineService
   let resultService: CanonicalRaceResultService
-  let initService: CanonicalRaceInitializationService
+  let initService: typeof canonicalRaceInitializationService
 
   const careerId = 'test_career_alldnf'
   const season = 2026
@@ -19,7 +19,7 @@ describe('ALLDNF01 — Encerramento e Classificação All-DNF (Regra FIA 2026)',
   beforeEach(() => {
     engine = new CanonicalRaceEngineService()
     resultService = new CanonicalRaceResultService()
-    initService = new CanonicalRaceInitializationService()
+    initService = canonicalRaceInitializationService
     resultService.clearOfficialRaceResultForTesting(careerId, season, round)
     canonicalChampionshipService.clearSnapshotsForTesting(careerId, season, round)
   })
