@@ -68,8 +68,12 @@ describe('ACADEMY-DRIVER-INTEGRATION-01 — Suíte Canônica ADI01–ADI16', () 
   })
 
   it('ADI03: Mariana aparece com status/vínculo de Academia mesmo sem contrato profissional', () => {
-    const isAcademyMember = Boolean(marianaDriverRecord.is_academy || marianaDriverRecord.career_status === 'academy')
-    const hasF1Role = Boolean(marianaDriverRecord.role === 'titular' || marianaDriverRecord.role === 'reserva')
+    const isAcademyMember = Boolean(
+      marianaDriverRecord.is_academy || marianaDriverRecord.career_status === 'academy',
+    )
+    const hasF1Role = Boolean(
+      marianaDriverRecord.role === 'titular' || marianaDriverRecord.role === 'reserva',
+    )
     expect(isAcademyMember).toBe(true)
     expect(hasF1Role).toBe(false)
   })

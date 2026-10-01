@@ -445,6 +445,27 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
             <span>Negociar / Oferecer contrato</span>
           </Button>
         )}
+
+        {/* Piloto da Academia da equipe do jogador: ação de Contratar Piloto da Academia */}
+        {isPlayerDriverTeam &&
+          (driver.role === 'academia' ||
+            (driver.rawDbRecord as any)?.is_academy ||
+            (driver.rawDbRecord as any)?.career_status === 'academy') &&
+          (onOpenContract || onOpenNegotiation) && (
+            <Button
+              onClick={() => {
+                if (onOpenContract) {
+                  onOpenContract(driver)
+                } else if (onOpenNegotiation) {
+                  onOpenNegotiation(driver)
+                }
+              }}
+              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 py-2 h-9 cursor-pointer shadow-sm"
+            >
+              <Briefcase className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Contratar Piloto da Academia</span>
+            </Button>
+          )}
       </div>
     </div>
   )

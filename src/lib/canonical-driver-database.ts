@@ -1354,6 +1354,7 @@ export interface ActiveDriverTeamBinding {
   role: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' | null
   status: 'active' | 'free_agent'
   isContracted: boolean
+  hasProfessionalContract?: boolean
 }
 
 /**
@@ -1424,6 +1425,10 @@ export function getActiveDriverTeamBinding(
     const teamName = resolvedTeam?.name || (teamKey ? teamKey.toUpperCase() : null)
     const teamColor = resolvedTeam?.color || '#E10600'
 
+    const finalRole = resolvedRole || 'titular'
+    const isAcademyRole = finalRole === 'academia'
+    const hasProfContract = !isAcademyRole
+
     return {
       driverId: cDriver?.driverId || driverId,
       canonicalDriver: cDriver,
@@ -1431,9 +1436,10 @@ export function getActiveDriverTeamBinding(
       teamKey,
       teamName,
       teamColor,
-      role: resolvedRole || 'titular',
+      role: finalRole,
       status: 'active',
-      isContracted: true,
+      isContracted: hasProfContract,
+      hasProfessionalContract: hasProfContract,
     }
   }
 
@@ -1487,7 +1493,9 @@ export function getActiveDriverTeamBinding(
       rawMatch.team_id ||
       rawMatch.reserve_team_id ||
       (rawMatch.is_academy || rawMatch.career_status === 'academy'
-        ? rawMatch.academy_origin_team_id || rawMatch.procedural_data?.currentAcademyTeamId || rawMatch.procedural_data?.academyOriginTeamId
+        ? rawMatch.academy_origin_team_id ||
+          rawMatch.procedural_data?.currentAcademyTeamId ||
+          rawMatch.procedural_data?.academyOriginTeamId
         : null) ||
       null
     if (boundTeamId) {
@@ -1495,7 +1503,12 @@ export function getActiveDriverTeamBinding(
       let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
       if (rawMatch.reserve_team_id || rawMatch.role === 'reserva') {
         cRole = 'reserva'
-      } else if (rawMatch.is_academy || rawMatch.role === 'academia' || rawMatch.career_status === 'academy' || rawMatch.procedural_data?.careerStatus === 'academy') {
+      } else if (
+        rawMatch.is_academy ||
+        rawMatch.role === 'academia' ||
+        rawMatch.career_status === 'academy' ||
+        rawMatch.procedural_data?.careerStatus === 'academy'
+      ) {
         cRole = 'academia'
       } else if (rawMatch.is_test_driver || rawMatch.role === 'desenvolvimento') {
         cRole = 'desenvolvimento'
@@ -1520,6 +1533,8 @@ export function getActiveDriverTeamBinding(
         // Piloto possui registro no banco com vínculo, mas sem equipe correspondente encontrada
         // Nem vínculo canônico disponível: retornar status 'unresolved' e isContracted: true
         // para NUNCA degradar silenciosamente em agente livre
+        const isAcademyRole = cRole === 'academia'
+        const hasProfContract = !isAcademyRole
         return {
           driverId: canonicalDriver?.driverId || rawMatch.id || driverId,
           canonicalDriver,
@@ -1529,7 +1544,8 @@ export function getActiveDriverTeamBinding(
           teamColor: '#888888',
           role: cRole,
           status: 'unresolved' as any,
-          isContracted: true,
+          isContracted: hasProfContract,
+          hasProfessionalContract: hasProfContract,
         }
       }
       return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)

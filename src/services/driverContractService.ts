@@ -547,10 +547,35 @@ export class DriverContractService {
 
     // 4. Atualização no banco de dados
     const updatePayload: Record<string, any> = {}
+    const existingProc = (driver as any)?.procedural_data || {}
+    const wasInAcademy = Boolean(
+      (driver as any)?.is_academy ||
+      (driver as any)?.career_status === 'academy' ||
+      existingProc?.careerStatus === 'academy' ||
+      existingProc?.academyOriginTeamId,
+    )
+    const academyOrigin =
+      (driver as any)?.academy_origin_team_id ||
+      existingProc?.academyOriginTeamId ||
+      (wasInAcademy ? signingTeam.id : null)
+
+    const updatedProceduralData = {
+      ...existingProc,
+      academyOriginTeamId: academyOrigin,
+      academyPromotedToProfessional: wasInAcademy
+        ? true
+        : existingProc?.academyPromotedToProfessional,
+      academyPromotionDate: wasInAcademy
+        ? existingProc?.academyPromotionDate || new Date().toISOString()
+        : existingProc?.academyPromotionDate,
+      careerStatus: 'professional',
+    }
+
     if (isFutureContract) {
       updatePayload.next_team_id = signingTeam.id
       updatePayload.next_contract_role = offer.role === 'RESERVE' ? 'reserva' : 'titular'
       updatePayload.future_contract = contract
+      updatePayload.procedural_data = updatedProceduralData
     } else {
       updatePayload.team_id = offer.role === 'RESERVE' ? null : signingTeam.id
       updatePayload.reserve_team_id = offer.role === 'RESERVE' ? signingTeam.id : null
@@ -558,6 +583,12 @@ export class DriverContractService {
       updatePayload.salary = offer.annualSalary
       updatePayload.contract_end = contract.endSeason
       updatePayload.canonical_contract = contract
+      updatePayload.career_status = offer.role === 'RESERVE' ? 'reserve' : 'active'
+      updatePayload.category = 'f1'
+      if (wasInAcademy) {
+        updatePayload.academy_origin_team_id = academyOrigin
+      }
+      updatePayload.procedural_data = updatedProceduralData
     }
 
     try {

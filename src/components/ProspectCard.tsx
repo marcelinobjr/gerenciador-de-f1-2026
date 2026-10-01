@@ -191,7 +191,9 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
           {displayKm > 0 && (
             <div className="p-2 rounded-lg bg-cyan-950/30 border border-cyan-800/50 flex justify-between items-center text-xs font-mono">
               <span className="text-cyan-400">KM Total em Pista:</span>
-              <strong className="text-white font-bold">{displayKm.toLocaleString('pt-BR')} km</strong>
+              <strong className="text-white font-bold">
+                {displayKm.toLocaleString('pt-BR')} km
+              </strong>
             </div>
           )}
 
