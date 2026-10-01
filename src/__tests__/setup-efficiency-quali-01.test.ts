@@ -294,10 +294,24 @@ describe('SETUP-EFFICIENCY-QUALI-01 — Suíte QSE01 (setupEfficiency no Qualify
   it('QSE01-10: qualifying runner real não ignora setupEfficiency', () => {
     // Inicializa dois estágios Q1 com setups diferentes para o Carro 1 do jogador
     const driversList: QualifyingDriverContext[] = [
-      { id: 'drv1', name: 'Player Driver 1', speed: 85, consistency: 85, teamId: 'cadillac' },
-      { id: 'drv2', name: 'Player Driver 2', speed: 85, consistency: 85, teamId: 'cadillac' },
-      { id: 'rival1', name: 'Rival 1', speed: 85, consistency: 85, teamId: 'haas' },
-      { id: 'rival2', name: 'Rival 2', speed: 85, consistency: 85, teamId: 'haas' },
+      {
+        id: 'drv1',
+        name: 'Player Driver 1',
+        speed: 85,
+        consistency: 85,
+        defense: 80,
+        teamId: 'cadillac',
+      },
+      {
+        id: 'drv2',
+        name: 'Player Driver 2',
+        speed: 85,
+        consistency: 85,
+        defense: 80,
+        teamId: 'cadillac',
+      },
+      { id: 'rival1', name: 'Rival 1', speed: 85, consistency: 85, defense: 80, teamId: 'haas' },
+      { id: 'rival2', name: 'Rival 2', speed: 85, consistency: 85, defense: 80, teamId: 'haas' },
     ]
 
     const stageBad = CanonicalQualifyingRunner.initializeStage({
