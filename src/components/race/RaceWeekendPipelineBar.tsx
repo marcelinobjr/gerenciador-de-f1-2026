@@ -1,10 +1,11 @@
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Lock, CheckCircle2, Play, Pause, ChevronRight } from 'lucide-react'
-import type {
-  WeekendSessionDefinition,
-  SessionVisualState,
-  RaceWeekendSessionId,
+import {
+  type WeekendSessionDefinition,
+  type SessionVisualState,
+  type RaceWeekendSessionId,
+  resolveSessionVisualState,
 } from '@/services/weekendScheduleConfig'
 
 export interface RaceWeekendPipelineBarProps {
@@ -60,24 +61,16 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
             const isSelected = sess.id === selectedSessionId
             const isCompleted = completedSessions.includes(sess.id)
 
-            // Determinar estado de desbloqueio canônico
-            let isLocked = false
-            if (sess.id === 'tp2') {
-              isLocked = !completedSessions.includes('tp1')
-            } else if (sess.id === 'tp3') {
-              isLocked = !completedSessions.includes('tp2')
-            } else if (sess.id === 'q1') {
-              isLocked = !completedSessions.includes('tp3') && !completedSessions.includes('tp2')
-            } else if (sess.id === 'q2') {
-              isLocked = !completedSessions.includes('q1')
-            } else if (sess.id === 'q3') {
-              isLocked = !completedSessions.includes('q2')
-            } else if (sess.id === 'race') {
-              isLocked =
-                !completedSessions.includes('q3') && !completedSessions.includes('qualifying')
-            }
+            const visualState = resolveSessionVisualState({
+              sessionId: sess.id,
+              activeSessionId: selectedSessionId,
+              completedSessions,
+              isSessionRunning: sess.id === selectedSessionId && isSessionRunning,
+              isSessionPaused: sess.id === selectedSessionId && isSessionPaused,
+            })
 
-            const isAvailable = !isLocked && !isCompleted
+            const isLocked = visualState === 'locked'
+            const isAvailable = visualState === 'available'
 
             // Classes visuais segundo a identidade APEX
             // BLOQUEADO (cinza)

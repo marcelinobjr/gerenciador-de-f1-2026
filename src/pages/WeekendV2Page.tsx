@@ -64,6 +64,7 @@ import {
   CANONICAL_SESSION_DEFINITIONS,
   type RaceWeekendSessionId,
   type WeekendSessionDefinition,
+  resolveSessionVisualState,
 } from '@/services/weekendScheduleConfig'
 import {
   resolveWeekendFormat,
@@ -506,7 +507,54 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'q1' && !stored.includes('tp2') && !stored.includes('tp3')) {
+    if (sess === 'sq1' && (!stored.includes('tp1') || !stored.includes('tp2'))) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description:
+          'Você precisa concluir o TL1 e o TL2 antes de iniciar a Qualificação Sprint (SQ1).',
+      })
+      return
+    }
+
+    if (sess === 'sq2' && !stored.includes('sq1')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o SQ1 antes de iniciar o SQ2.',
+      })
+      return
+    }
+
+    if (sess === 'sq3' && !stored.includes('sq2')) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o SQ2 antes de iniciar o SQ3.',
+      })
+      return
+    }
+
+    if (
+      sess === 'sprint_race' &&
+      !stored.includes('sq3') &&
+      !stored.includes('sprint_qualifying')
+    ) {
+      toast({
+        variant: 'destructive',
+        title: 'Sessão Bloqueada',
+        description: 'Você precisa concluir o SQ3 antes de iniciar a Corrida Sprint.',
+      })
+      return
+    }
+
+    if (
+      sess === 'q1' &&
+      !stored.includes('tp2') &&
+      !stored.includes('tp3') &&
+      !stored.includes('sprint_race') &&
+      !stored.includes('sprint')
+    ) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -570,6 +618,15 @@ export default function WeekendV2Page() {
       setSelectedSessionId(sess)
       setSessionState(null)
       await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
+    } else if (sess === 'sq1' || sess === 'sq2' || sess === 'sq3') {
+      // SQ1, SQ2 ou SQ3: inicializa ou carrega a sessão de qualificação sprint canônica
+      setSelectedSessionId(sess)
+      setSessionState(null)
+      try {
+        await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
+      } catch {
+        // Fallback tolerante se modelo de stage divergir
+      }
     } else {
       // CORRIDA: se Q3 concluído, exibe o grid final P1-P24 ou placeholder
       setSelectedSessionId(sess)
@@ -2564,21 +2621,13 @@ export default function WeekendV2Page() {
           </div>
         )
       ) : isQualifyingSession ? (
-        // RENDERIZAÇÃO CANÔNICA DE QUALIFICAÇÃO (Q1, Q2, Q3)
+        // RENDERIZAÇÃO CANÔNICA DE QUALIFICAÇÃO (Q1, Q2, Q3 e SQ1, SQ2, SQ3)
         // Sessão real com carros na pista, consumo de pneus, desempate e eliminação
-        !completedSessions.includes('tp3') && !completedSessions.includes('tp2') ? (
-          <SessionPlaceholderCard
-            session={selectedSessionDef}
-            isLocked={true}
-            isPendingDevelopment={false}
-          />
-        ) : selectedSessionDef.id === 'q2' && !completedSessions.includes('q1') ? (
-          <SessionPlaceholderCard
-            session={selectedSessionDef}
-            isLocked={true}
-            isPendingDevelopment={false}
-          />
-        ) : selectedSessionDef.id === 'q3' && !completedSessions.includes('q2') ? (
+        resolveSessionVisualState({
+          sessionId: selectedSessionDef.id,
+          activeSessionId: selectedSessionId,
+          completedSessions,
+        }) === 'locked' ? (
           <SessionPlaceholderCard
             session={selectedSessionDef}
             isLocked={true}
@@ -3267,11 +3316,11 @@ export default function WeekendV2Page() {
         <SessionPlaceholderCard
           session={selectedSessionDef}
           isLocked={
-            selectedSessionDef.id === 'race'
-              ? !completedSessions.includes('q3') && !completedSessions.includes('qualifying')
-              : selectedSessionDef.id === 'q1'
-                ? !completedSessions.includes('tp3') && !completedSessions.includes('tp2')
-                : !completedSessions.includes(selectedSessionDef.id)
+            resolveSessionVisualState({
+              sessionId: selectedSessionDef.id,
+              activeSessionId: selectedSessionId,
+              completedSessions,
+            }) === 'locked'
           }
           isPendingDevelopment={false}
         />

@@ -292,15 +292,16 @@ export function resolveSessionVisualState(params: {
     return completedSessions.includes('tp2') ? 'available' : 'locked'
   }
 
-  // Desbloqueio de sessões Sprint
+  // Desbloqueio de sessões Sprint: Requer TL1 e TL2 concluídos
   if (sessionId === 'sq1') {
-    return completedSessions.includes('tp2') ? 'available' : 'locked'
+    const tl1Done = completedSessions.includes('tp1')
+    const tl2Done = completedSessions.includes('tp2')
+    return tl1Done && tl2Done ? 'available' : 'locked'
   }
 
   if (sessionId === 'sq2') {
     return completedSessions.includes('sq1') ? 'available' : 'locked'
   }
-
   if (sessionId === 'sq3') {
     return completedSessions.includes('sq2') ? 'available' : 'locked'
   }
