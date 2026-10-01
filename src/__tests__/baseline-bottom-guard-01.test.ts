@@ -3,87 +3,118 @@ import { structuralStrengthService } from '@/services/structuralStrengthService'
 import { BASELINE_2026_V1_TEAMS, BASELINE_2026_V1_ORDER } from '@/data/baseline-2026-v1'
 
 describe('BASELINE-BOTTOM-GUARD-01 — Suíte BGB01', () => {
-  it('BGB01-01: o ranking estrutural inicial contém exatamente 12 equipes oficiais de 2026', () => {
+  // BGB01R-01: ranking inicial possui 12 equipes inscritas canônicas
+  it('BGB01R-01: ranking inicial possui 12 equipes inscritas canônicas', () => {
     const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
     const grid2026 = report.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
     expect(grid2026).toHaveLength(12)
   })
 
-  it('BGB01-02: o bottom 3 estrutural inicial entre as equipes em foco contém Williams, Cadillac e Haas', () => {
+  // BGB01R-02: ranking é determinístico
+  it('BGB01R-02: ranking é determinístico', () => {
+    const report1 = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
+    const report2 = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
+    const grid1 = report1.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    const grid2 = report2.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    expect(grid1.map((t) => ({ key: t.teamKey, score: t.structuralStrengthScore }))).toEqual(
+      grid2.map((t) => ({ key: t.teamKey, score: t.structuralStrengthScore })),
+    )
+  })
+
+  // BGB01R-03: Williams está em P10, P11 ou P12
+  it('BGB01R-03: Williams está em P10, P11 ou P12', () => {
     const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
-    const targetKeys = ['williams', 'cadillac', 'haas']
-    const scores = targetKeys.map((k) => {
-      const entry = report.rankings.find((r) => r.teamKey === k)
-      return { teamKey: k, score: entry?.structuralStrengthScore ?? 0 }
-    })
-    // Todas as 3 possuem scores bem definidos no escalão inicial inferior da temporada
-    scores.forEach((s) => {
-      expect(s.score).toBeLessThanOrEqual(81)
-      expect(s.score).toBeGreaterThanOrEqual(69)
-    })
-    expect(scores.length).toBe(3)
+    const grid2026 = report.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    const bottom3Keys = grid2026.slice(-3).map((t) => t.teamKey)
+    expect(bottom3Keys).toContain('williams')
   })
 
-  it('BGB01-03: o conjunto Williams, Cadillac e Haas é validado como o foco do guard rail estrutural', () => {
-    const focusSet = new Set(['williams', 'cadillac', 'haas'])
-    expect(focusSet.size).toBe(3)
-    focusSet.forEach((k) => {
-      const team = structuralStrengthService.getTeamStructuralStrength(k, { seasonYear: 2026 })
-      expect(team).toBeDefined()
-      expect(team.structuralStrengthScore).toBeDefined()
-    })
+  // BGB01R-04: Cadillac está em P10, P11 ou P12
+  it('BGB01R-04: Cadillac está em P10, P11 ou P12', () => {
+    const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
+    const grid2026 = report.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    const bottom3Keys = grid2026.slice(-3).map((t) => t.teamKey)
+    expect(bottom3Keys).toContain('cadillac')
   })
 
-  it('BGB01-04: pesos da fórmula estrutural estão intocados (60% Tech, 25% Driver, 15% Team)', () => {
-    const team = structuralStrengthService.getTeamStructuralStrength('cadillac', {
-      seasonYear: 2026,
-    })
-    expect(team.weights.technical).toBe(0.6)
-    expect(team.weights.driver).toBe(0.25)
-    expect(team.weights.team).toBe(0.15)
+  // BGB01R-05: Haas está em P10, P11 ou P12
+  it('BGB01R-05: Haas está em P10, P11 ou P12', () => {
+    const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
+    const grid2026 = report.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    const bottom3Keys = grid2026.slice(-3).map((t) => t.teamKey)
+    expect(bottom3Keys).toContain('haas')
   })
 
-  it('BGB01-05: sem hardcode discriminatório de penalidade por nome de equipe', () => {
+  // BGB01R-06: set(P10,P11,P12) é EXATAMENTE {Williams, Cadillac, Haas}
+  it('BGB01R-06: set(P10,P11,P12) é EXATAMENTE {Williams, Cadillac, Haas}', () => {
+    const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
+    const grid2026 = report.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    const bottom3Keys = grid2026.slice(-3).map((t) => t.teamKey)
+    expect(new Set(bottom3Keys)).toEqual(new Set(['williams', 'cadillac', 'haas']))
+  })
+
+  // BGB01R-07: Aston Martin NÃO está no bottom 3
+  it('BGB01R-07: Aston Martin NÃO está no bottom 3', () => {
+    const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
+    const grid2026 = report.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    const bottom3Keys = grid2026.slice(-3).map((t) => t.teamKey)
+    expect(bottom3Keys).not.toContain('astonmartin')
+  })
+
+  // BGB01R-08: Andretti NÃO está no bottom 3
+  it('BGB01R-08: Andretti NÃO está no bottom 3', () => {
+    const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
+    const grid2026 = report.rankings.filter((t) => t.teamKey in BASELINE_2026_V1_TEAMS)
+    const bottom3Keys = grid2026.slice(-3).map((t) => t.teamKey)
+    expect(bottom3Keys).not.toContain('andretti')
+  })
+
+  // BGB01R-09: nenhum teamName conditional produz o ranking
+  it('BGB01R-09: nenhum teamName conditional produz o ranking', () => {
     const report = structuralStrengthService.auditStructuralStrengthSystem({ seasonYear: 2026 })
     expect(report.teamNameBonuses).toBe(0)
+    expect(report.duplicateFactors).toBe(0)
   })
 
-  it('BGB01-06: Williams pode evoluir e sair do bottom 3 ao melhorar insumos estruturais', () => {
-    const baselineWilliams = structuralStrengthService.getTeamStructuralStrength('williams', {
+  // BGB01R-10: após melhoria estrutural controlada de Williams OU Cadillac OU Haas, a equipe pode sair do bottom 3
+  it('BGB01R-10: após melhoria estrutural controlada de Williams OU Cadillac OU Haas, a equipe pode sair do bottom 3', () => {
+    const targetKeys = ['williams', 'cadillac', 'haas'] as const
+    const reportInitial = structuralStrengthService.auditStructuralStrengthSystem({
       seasonYear: 2026,
     })
-    const upgradedScore = baselineWilliams.structuralStrengthScore + 15
-    expect(upgradedScore).toBeGreaterThan(80)
-  })
+    const grid2026Initial = reportInitial.rankings.filter(
+      (t) => t.teamKey in BASELINE_2026_V1_TEAMS,
+    )
+    const p9Score = grid2026Initial[grid2026Initial.length - 4]?.structuralStrengthScore ?? 80
 
-  it('BGB01-07: Cadillac pode evoluir e sair do bottom 3 ao melhorar insumos estruturais', () => {
-    const baselineCadillac = structuralStrengthService.getTeamStructuralStrength('cadillac', {
-      seasonYear: 2026,
-    })
-    const upgradedScore = baselineCadillac.structuralStrengthScore + 15
-    expect(upgradedScore).toBeGreaterThan(80)
-  })
+    for (const key of targetKeys) {
+      const baseline = structuralStrengthService.getTeamStructuralStrength(key, {
+        seasonYear: 2026,
+      })
+      const initialComponents = baseline.technicalBreakdown.componentsMap
+      const upgradedComponents: Record<string, number> = {}
+      for (const [partKey, val] of Object.entries(initialComponents)) {
+        upgradedComponents[partKey] = val + 15
+      }
 
-  it('BGB01-08: Haas pode evoluir e sair do bottom 3 ao melhorar insumos estruturais', () => {
-    const baselineHaas = structuralStrengthService.getTeamStructuralStrength('haas', {
-      seasonYear: 2026,
-    })
-    const upgradedScore = baselineHaas.structuralStrengthScore + 15
-    expect(upgradedScore).toBeGreaterThan(85)
-  })
+      const upgradedTeam = structuralStrengthService.calculateStructuralStrength({
+        teamKey: key,
+        teamName: baseline.teamName,
+        components: upgradedComponents,
+        effectivePuRating: baseline.technicalBreakdown.effectivePuScore + 10,
+        reliability: baseline.technicalBreakdown.reliabilityScore,
+        condition: baseline.technicalBreakdown.conditionScore,
+        puSupplier: baseline.technicalBreakdown.puSupplier,
+        effectiveIntegration: baseline.technicalBreakdown.effectiveIntegration,
+        nominalPuRating: baseline.technicalBreakdown.nominalPuRating,
+        drivers: baseline.driverBreakdown.drivers,
+        facilities: baseline.teamBreakdown.facilitiesLevels,
+        teamMorale: baseline.teamBreakdown.teamMoraleScore,
+      })
 
-  it('BGB01-09: imutabilidade de V0 preservada', () => {
-    const baselineV0 = structuralStrengthService.getBaselineV0()
-    expect(baselineV0).toBeDefined()
-    expect(baselineV0.schemaVersion).toBe('v0')
-  })
-
-  it('BGB01-10: integridade dos 12 scores estruturais da temporada 2026', () => {
-    const scores = BASELINE_2026_V1_ORDER.map((k) => BASELINE_2026_V1_TEAMS[k].score)
-    expect(scores).toHaveLength(12)
-    scores.forEach((s) => {
-      expect(s).toBeGreaterThanOrEqual(0)
-      expect(s).toBeLessThanOrEqual(100)
-    })
+      // Prova que com melhoria estrutural a equipe supera o corte do bottom 3 e pode sair
+      expect(upgradedTeam.structuralStrengthScore).toBeGreaterThan(p9Score)
+      expect(upgradedTeam.structuralStrengthScore).toBeGreaterThan(baseline.structuralStrengthScore)
+    }
   })
 })
