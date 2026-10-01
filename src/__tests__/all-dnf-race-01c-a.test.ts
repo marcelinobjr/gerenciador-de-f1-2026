@@ -29,8 +29,8 @@ import { calculateRacePoints, calculateFiaPoints } from '@/lib/f1-standings-calc
 describe('ALL-DNF-RACE-01C-A — Resolver Canônico de Pontos por Distância', () => {
   const scheduledLaps = 60
 
-  // ALLDNF01CA-01: não elegível para pontos -> resultado = 0, mesmo se position = P1
-  it('ALLDNF01CA-01: não elegível para pontos -> resultado = 0, mesmo se position = P1', () => {
+  // ALLDNF01CA-01: minimum eligibility = false -> P1 = 0
+  it('ALLDNF01CA-01: minimum eligibility = false -> P1 = 0', () => {
     const ptsP1IneligibleExplicit = calculateRacePoints({
       position: 1,
       scheduledLaps,
@@ -79,9 +79,9 @@ describe('ALL-DNF-RACE-01C-A — Resolver Canônico de Pontos por Distância', (
     }
   })
 
-  // ALLDNF01CA-03: >=25% e <50% retorna 13/10/8/6/5/4/3/2/1/0
-  it('ALLDNF01CA-03: >=25% e <50% retorna 13/10/8/6/5/4/3/2/1/0 (Caso B: leaderLaps = 20 em 60)', () => {
-    const leaderLaps = 20 // 33.33%
+  // ALLDNF01CA-03: scheduledLaps=60, leaderLaps=15 (25%) -> 13/10/8/6/5/4/3/2/1/0
+  it('ALLDNF01CA-03: scheduledLaps=60, leaderLaps=15 (25%) -> 13/10/8/6/5/4/3/2/1/0', () => {
+    const leaderLaps = 15 // 25% exato
     const expected = [13, 10, 8, 6, 5, 4, 3, 2, 1, 0]
 
     for (let pos = 1; pos <= 10; pos++) {
@@ -97,9 +97,9 @@ describe('ALL-DNF-RACE-01C-A — Resolver Canônico de Pontos por Distância', (
     }
   })
 
-  // ALLDNF01CA-04: >=50% e <75% retorna 19/14/12/10/8/6/4/3/2/1
-  it('ALLDNF01CA-04: >=50% e <75% retorna 19/14/12/10/8/6/4/3/2/1 (Caso C: leaderLaps = 35 em 60)', () => {
-    const leaderLaps = 35 // 58.33%
+  // ALLDNF01CA-04: scheduledLaps=60, leaderLaps=30 (50%) -> 19/14/12/10/8/6/4/3/2/1
+  it('ALLDNF01CA-04: scheduledLaps=60, leaderLaps=30 (50%) -> 19/14/12/10/8/6/4/3/2/1', () => {
+    const leaderLaps = 30 // 50% exato
     const expected = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1]
 
     for (let pos = 1; pos <= 10; pos++) {
@@ -115,9 +115,9 @@ describe('ALL-DNF-RACE-01C-A — Resolver Canônico de Pontos por Distância', (
     }
   })
 
-  // ALLDNF01CA-05: >=75% retorna 25/18/15/12/10/8/6/4/2/1
-  it('ALLDNF01CA-05: >=75% retorna 25/18/15/12/10/8/6/4/2/1 (Caso D: leaderLaps = 50 em 60)', () => {
-    const leaderLaps = 50 // 83.33%
+  // ALLDNF01CA-05: scheduledLaps=60, leaderLaps=45 (75%) -> 25/18/15/12/10/8/6/4/2/1
+  it('ALLDNF01CA-05: scheduledLaps=60, leaderLaps=45 (75%) -> 25/18/15/12/10/8/6/4/2/1', () => {
+    const leaderLaps = 45 // 75% exato
     const expected = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
 
     for (let pos = 1; pos <= 10; pos++) {
@@ -234,8 +234,8 @@ describe('ALL-DNF-RACE-01C-A — Resolver Canônico de Pontos por Distância', (
     }
   })
 
-  // ALLDNF01CA-10: DNF + CLASSIFIED pode receber pontos
-  it('ALLDNF01CA-10: DNF + CLASSIFIED pode receber pontos', () => {
+  // ALLDNF01CA-10: DNF + CLASSIFIED recebe pontos normalmente
+  it('ALLDNF01CA-10: DNF + CLASSIFIED recebe pontos normalmente', () => {
     const ptsDnfClassified = calculateRacePoints({
       position: 1,
       scheduledLaps: 60,
