@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  resolveSessionVisualState,
-  getRaceWeekendPipeline,
-} from '@/services/weekendScheduleConfig'
+import { resolveSessionVisualState, getRaceWeekendPipeline } from '@/services/weekendScheduleConfig'
 import { canonicalWeekendSlotPersistenceService } from '@/services/canonicalWeekendSlotPersistenceService'
 import {
   normalizeCompletedSessions,
@@ -204,14 +201,6 @@ describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlo
 
     // Fim de semana normal sem regressão
     const normalPipeline = getRaceWeekendPipeline({ format: 'standard', includePractice3: true })
-    expect(normalPipeline.map((s) => s.id)).toEqual([
-      'tp1',
-      'tp2',
-      'tp3',
-      'q1',
-      'q2',
-      'q3',
-      'race',
-    ])
+    expect(normalPipeline.map((s) => s.id)).toEqual(['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race'])
   })
 })

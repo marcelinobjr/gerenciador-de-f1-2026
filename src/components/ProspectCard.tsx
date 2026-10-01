@@ -152,7 +152,10 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
         <div className="p-4 space-y-3">
           <div className="p-2.5 rounded-lg bg-black/40 border border-neutral-800 space-y-1">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-neutral-400 font-mono">Potencial Percebido:</span>
+              <span className="text-neutral-400 font-mono">
+                Potencial Atual:{' '}
+                <strong className="text-neutral-200">{prospect.perceivedPotentialValue} pts</strong>
+              </span>
               <Badge
                 variant="outline"
                 className={`text-xs font-bold ${getPotentialBadgeColor(prospect.perceivedPotentialLabel)}`}

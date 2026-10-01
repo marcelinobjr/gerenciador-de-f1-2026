@@ -489,12 +489,9 @@ export default function WeekendV2Page() {
     const stored = refreshCompletedSessions()
 
     // Validações canônicas de bloqueio (com suporte a aliases tp1/tl1/fp1, tp2/tl2/fp2, sq1/sprint_q1):
-    const hasTl1 =
-      stored.includes('tp1') || stored.includes('tl1') || stored.includes('fp1')
-    const hasTl2 =
-      stored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
-    const hasSq1 =
-      stored.includes('sq1') || stored.includes('sprint_q1') || stored.includes('sq_1')
+    const hasTl1 = stored.includes('tp1') || stored.includes('tl1') || stored.includes('fp1')
+    const hasTl2 = stored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
+    const hasSq1 = stored.includes('sq1') || stored.includes('sprint_q1') || stored.includes('sq_1')
 
     if (sess === 'tp2' && !hasTl1) {
       toast({

@@ -200,17 +200,22 @@ describe('BUG-RETRATOS-04: Migração Canônica do ProspectCard (BRT04-01..12)',
     expect(fallback.textContent).toContain('F1')
   })
 
-  // (7) Dados do prospect permanecem intactos
-  it('BRT04-07: Dados técnicos, de scouting e identificadores do prospect permanecem 100% inalterados', () => {
+  // (7) Dados do prospect permanecem intactos e exibe potencial canônico numérico
+  it('BRT04-07: Dados técnicos, de scouting e identificadores do prospect permanecem 100% inalterados e exibe potencial atual numérico', () => {
     const originalCopy = JSON.parse(JSON.stringify(baseMockProspect))
 
-    render(React.createElement(ProspectCard, { prospect: baseMockProspect }))
+    const { container } = render(React.createElement(ProspectCard, { prospect: baseMockProspect }))
 
     expect(baseMockProspect).toEqual(originalCopy)
     expect(baseMockProspect.driverId).toBe('drv_proc_mariana_fagundes')
     expect(baseMockProspect.age).toBe(16)
     expect(baseMockProspect.perceivedPotentialValue).toBe(72)
     expect(baseMockProspect.evaluationConfidence).toBe(65)
+
+    // Exibe potencial numérico canônico com rótulo
+    expect(container.textContent).toContain('Potencial Atual: 72 pts')
+    expect(container.textContent).toContain('Promissor')
+    expect(container.textContent).toContain('Confiança da Avaliação: 65% (Média)')
   })
 
   // (8) Nacionalidade não é alterada
