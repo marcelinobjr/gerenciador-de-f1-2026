@@ -31,44 +31,69 @@ export function getFiaPointsForPosition(position: number): number {
  */
 export const FIA_REDUCED_POINTS_25: readonly number[] = [6, 4, 3, 2, 1] as const
 export const FIA_REDUCED_POINTS_50: readonly number[] = [13, 10, 8, 6, 5, 4, 3, 2, 1] as const
-export const FIA_REDUCED_POINTS_75: readonly number[] = [19, 14, 12, 10, 8, 6, 5, 3, 2, 1] as const
+export const FIA_REDUCED_POINTS_75: readonly number[] = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1] as const
 
 export function calculateFiaPoints(
   position: number,
   completedLaps: number,
   totalLaps: number,
+  options?: {
+    hasMinimumConsecutiveGreenLaps?: boolean
+    validConsecutiveLapsWithoutSCVSC?: number
+  },
 ): number {
   if (position < 1 || totalLaps <= 0 || completedLaps < 2) {
     return 0
   }
 
-  const fraction = completedLaps / totalLaps
+  // FIA 2026 Art A2.2.1: Mínimo de 2 voltas completas e consecutivas sem SC/VSC
+  if (typeof options === 'number') {
+    if (options < 2) return 0
+  } else if (options && typeof options === 'object') {
+    if (
+      (options as any).hasMinimumConsecutiveGreenLaps === false ||
+      (options as any).eligibleForPoints === false
+    ) {
+      return 0
+    }
+    const consec =
+      (options as any).validConsecutiveLapsWithoutSCVSC ??
+      (options as any).consecutiveLapsWithoutSCVSC
+    if (typeof consec === 'number' && consec < 2) {
+      return 0
+    }
+  }
 
-  if (fraction <= 0.25) {
-    // 2 voltas até 25%: Top 5
+  // Comparação racional exata para evitar imprecisões de ponto flutuante:
+  // Faixa 1: completedLaps * 4 < totalLaps (< 25%) -> P1..P5 (6, 4, 3, 2, 1)
+  // Faixa 2: completedLaps * 4 >= totalLaps e completedLaps * 2 < totalLaps (>= 25% e < 50%) -> P1..P9 (13, 10, 8, 6, 5, 4, 3, 2, 1, P10=0)
+  // Faixa 3: completedLaps * 2 >= totalLaps e completedLaps * 4 < totalLaps * 3 (>= 50% e < 75%) -> P1..P10 (19, 14, 12, 10, 8, 6, 4, 3, 2, 1)
+  // Faixa 4: completedLaps * 4 >= totalLaps * 3 (>= 75%) -> P1..P10 (25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
+  if (completedLaps * 4 < totalLaps) {
+    // Faixa 1: >= 2 laps e < 25%: P1=6, P2=4, P3=3, P4=2, P5=1, P6+=0
     if (position >= 1 && position <= FIA_REDUCED_POINTS_25.length) {
       return FIA_REDUCED_POINTS_25[position - 1]
     }
     return 0
   }
 
-  if (fraction <= 0.5) {
-    // Entre 25% e 50%: Top 9
+  if (completedLaps * 2 < totalLaps) {
+    // Faixa 2: >= 25% e < 50%: P1=13, P2=10, P3=8, P4=6, P5=5, P6=4, P7=3, P8=2, P9=1, P10=0
     if (position >= 1 && position <= FIA_REDUCED_POINTS_50.length) {
       return FIA_REDUCED_POINTS_50[position - 1]
     }
     return 0
   }
 
-  if (fraction <= 0.75) {
-    // Entre 50% e 75%: Top 10
+  if (completedLaps * 4 < totalLaps * 3) {
+    // Faixa 3: >= 50% e < 75%: P1=19, P2=14, P3=12, P4=10, P5=8, P6=6, P7=4, P8=3, P9=2, P10=1
     if (position >= 1 && position <= FIA_REDUCED_POINTS_75.length) {
       return FIA_REDUCED_POINTS_75[position - 1]
     }
     return 0
   }
 
-  // Mais de 75%: pontuação cheia
+  // Faixa 4: >= 75%: pontuação cheia (25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
   if (position >= 1 && position <= FIA_POINTS_TABLE.length) {
     return FIA_POINTS_TABLE[position - 1]
   }

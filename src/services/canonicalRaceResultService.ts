@@ -162,6 +162,121 @@ export class CanonicalRaceResultService {
     }
   }
 
+  /**
+   * Determina o número máximo de voltas consecutivas completas sem procedimento de SC ou VSC
+   * com base no histórico canônico da prova (raceControl, events e contadores de SC/VSC).
+   */
+  public getConsecutiveLapsWithoutSCVSC(raceState: CanonicalRaceState, leaderLaps: number): number {
+    if (leaderLaps <= 0) return 0
+
+    // Se houver propriedade explícita no estado, reutilizá-la
+    if (
+      typeof (raceState as any).completeConsecutiveLapsWithoutSCVSC === 'number' ||
+      typeof (raceState as any).validConsecutiveLapsWithoutSCVSC === 'number'
+    ) {
+      return (
+        (raceState as any).completeConsecutiveLapsWithoutSCVSC ??
+        (raceState as any).validConsecutiveLapsWithoutSCVSC ??
+        0
+      )
+    }
+
+    // Se houver lap-by-lap control status ou lapStatuses no estado
+    if (Array.isArray((raceState as any).lapStatuses)) {
+      let maxConsecutive = 0
+      let currentStreak = 0
+      for (const status of (raceState as any).lapStatuses) {
+        if (status !== 'SAFETY_CAR' && status !== 'VSC' && status !== 'SC') {
+          currentStreak++
+          if (currentStreak > maxConsecutive) maxConsecutive = currentStreak
+        } else {
+          currentStreak = 0
+        }
+      }
+      return maxConsecutive
+    }
+
+    // Reconstruir o status das voltas a partir dos eventos e contadores de raceControl
+    const neutralLaps = new Set<number>()
+    const rc = raceState.raceControl
+
+    // 1. Inspecionar eventos de SC/VSC
+    const events = (raceState.events || []) as any[]
+    for (const ev of events) {
+      const type = (ev.type || '').toLowerCase()
+      const msg = (ev.message || ev.description || '').toLowerCase()
+      const isScOrVsc =
+        type === 'safety_car' ||
+        type === 'vsc' ||
+        type === 'safety_car_deployed' ||
+        type === 'vsc_deployed' ||
+        msg.includes('safety car') ||
+        msg.includes('vsc') ||
+        msg.includes('virtual safety car')
+
+      if (isScOrVsc && typeof ev.lap === 'number' && ev.lap >= 1) {
+        neutralLaps.add(ev.lap)
+        // Se houver duração informada no evento
+        const dur = ev.durationLaps || ev.duration || 1
+        for (let l = ev.lap; l < ev.lap + dur && l <= leaderLaps; l++) {
+          neutralLaps.add(l)
+        }
+      }
+    }
+
+    // 2. Inspecionar raceControl.history se disponível
+    if (rc?.history && Array.isArray(rc.history)) {
+      for (const h of rc.history) {
+        const type = (h.type || '').toLowerCase()
+        const isScOrVsc =
+          type === 'safety_car' ||
+          type === 'vsc' ||
+          type === 'safety_car_deployed' ||
+          type === 'vsc_deployed'
+        if (isScOrVsc && typeof h.lap === 'number' && h.lap >= 1) {
+          neutralLaps.add(h.lap)
+          const start = h.startedAtLap || h.lap
+          const end = h.endedAtLap || start + ((h as any).durationLaps || 1)
+          for (let l = start; l <= end && l <= leaderLaps; l++) {
+            neutralLaps.add(l)
+          }
+        }
+      }
+    }
+
+    // 3. Se safetyCarLaps + vscLaps abrange todas ou quase todas as voltas
+    const scLapsCount = (rc?.safetyCarLaps || 0) + (rc?.vscLaps || 0)
+    if (scLapsCount >= leaderLaps) {
+      return 0
+    }
+
+    // Se temos neutralLaps mapeadas, calcular sequência máxima
+    if (neutralLaps.size > 0) {
+      let maxConsecutive = 0
+      let currentStreak = 0
+      for (let lap = 1; lap <= leaderLaps; lap++) {
+        if (!neutralLaps.has(lap)) {
+          currentStreak++
+          if (currentStreak > maxConsecutive) maxConsecutive = currentStreak
+        } else {
+          currentStreak = 0
+        }
+      }
+      return maxConsecutive
+    }
+
+    // Se scLapsCount > 0 mas não mapeado em voltas específicas, avaliar se sobra espaço para 2 consecutivas
+    if (scLapsCount > 0) {
+      const greenLaps = leaderLaps - scLapsCount
+      if (greenLaps < 2) return 0
+      // Estimativa canônica conservadora: assumir que as voltas sem SC/VSC podem ser consecutivas se greenLaps >= 2
+      return greenLaps
+    }
+
+    // Sem neutralizações registradas: todas as leaderLaps foram completas sem SC/VSC
+    return leaderLaps
+  }
+
   public validatePreconditionsForOfficialization(raceState: CanonicalRaceState): {
     canOfficialize: boolean
     reasons: string[]
@@ -314,6 +429,10 @@ export class CanonicalRaceResultService {
       sortedCars.length > 0 ? (sortedCars[0].lap ?? sortedCars[0].lapsCompleted ?? 0) : 0
     const totalLaps = state.totalLaps || 1
 
+    // FIA 2026 Art A2.2.1: Determinar se o líder completou pelo menos 2 voltas completas e consecutivas sem SC/VSC
+    const validConsecutiveLapsWithoutSCVSC = this.getConsecutiveLapsWithoutSCVSC(state, leaderLaps)
+    const hasMinimumConsecutiveGreenLaps = validConsecutiveLapsWithoutSCVSC >= 2
+
     const entries: OfficialRaceResultEntry[] = sortedCars.map((car: any, index: number) => {
       const finalPosition = index + 1
       const isDnf = Boolean(
@@ -331,9 +450,14 @@ export class CanonicalRaceResultService {
       const isClassified = classificationStatus === 'CLASSIFIED'
 
       // Pontos FIA calculados conforme percentual de distância e classificação
+      // REGRA CRÍTICA: somente CLASSIFIED pontua. NC/NOT_CLASSIFIED -> 0 pontos.
+      // E requisito mínimo de 2 voltas consecutivas completas sem SC/VSC.
       let pointsAwarded = 0
-      if (isClassified && leaderLaps >= 2) {
-        pointsAwarded = calculateFiaPoints(finalPosition, leaderLaps, totalLaps)
+      if (isClassified && hasMinimumConsecutiveGreenLaps && leaderLaps >= 2) {
+        pointsAwarded = calculateFiaPoints(finalPosition, leaderLaps, totalLaps, {
+          hasMinimumConsecutiveGreenLaps,
+          validConsecutiveLapsWithoutSCVSC,
+        })
       }
 
       const bestLapSec = car.bestLapSec
