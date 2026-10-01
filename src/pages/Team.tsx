@@ -11,6 +11,7 @@ import { CountryFlag } from '@/components/CountryFlag'
 import { calcularElegibilidade } from '@/lib/superlicense'
 import { toast } from '@/hooks/use-toast'
 import { getDriverActiveNumber, MBJ_2026_PILOTS } from '@/lib/mbj-drivers-data'
+import { calculateDriverTotalTestMileage } from '@/services/driverMileageResolverService'
 import {
   Users,
   AlertTriangle,
@@ -188,16 +189,23 @@ export default function TeamPage() {
       return
     }
     try {
-      const [tDrivers, allD, seasonResults] = await Promise.all([
+      const [tDrivers, allD, seasonResults, testsRes] = await Promise.all([
         f1Service.getTeamDrivers(team.id).catch(() => []),
         f1Service.getAllDrivers().catch(() => []),
         season?.id
           ? f1Service.getSeasonRaceResults(season.id).catch(() => [])
           : Promise.resolve([]),
+        pb
+          .collection('driver_tests')
+          .getFullList({
+            sort: '-created',
+          })
+          .catch(() => []),
       ])
       setTeamDrivers(tDrivers || [])
       setAllGridDrivers(allD || [])
       setSeasonRaceResults(seasonResults || [])
+      setDriverTests(testsRes || [])
 
       // Campeão vigente a partir do histórico de temporadas (season_histories) ou fallback para o último campeão registrado
       try {
@@ -262,10 +270,19 @@ export default function TeamPage() {
   // Pilotos de Teste e Academia vinculados à equipe
   const academyDevData = useMemo(() => driverDevelopmentService.getAcademyData(team), [team])
 
-  // Helper para obter a quilometragem real persistida de formação/rookie/desenvolvimento de um piloto
+  // Estado para armazenar registros da coleção driver_tests
+  const [driverTests, setDriverTests] = useState<any[]>([])
+
+  // Helper canônico para obter a quilometragem total real acumulada em testes de pista do piloto
   const getDriverDevelopmentMileageKm = useCallback(
     (driver: DriverModel): number => {
-      // 1. Consulta testes na memória do time (academy_development_data.testResults)
+      if (!driver?.id) return 0
+
+      // 1. Resolver canônico sobre a coleção driver_tests carregada
+      const canonicalKm = calculateDriverTotalTestMileage(driver.id, driverTests)
+      if (canonicalKm > 0) return canonicalKm
+
+      // 2. Consulta testes na memória do time (academy_development_data.testResults) como fallback
       const teamDevData = (team as any)?.academy_development_data
       if (Array.isArray(teamDevData?.testResults)) {
         const testsSum = teamDevData.testResults.reduce(
@@ -278,7 +295,7 @@ export default function TeamPage() {
         if (testsSum > 0) return testsSum
       }
 
-      // 2. Homologation program accumulated km
+      // 3. Homologation program accumulated km
       const prog = teamDevData?.homologationPrograms?.[driver.id]
       if (
         prog &&
@@ -322,17 +339,9 @@ export default function TeamPage() {
         return driverTestInfo.accumulatedKm
       }
 
-      // Baseado em sessões de homologação (cada sessão TL1 = ~100 km)
-      if (
-        typeof driver.homologation_sessions_done === 'number' &&
-        driver.homologation_sessions_done > 0
-      ) {
-        return driver.homologation_sessions_done * 100
-      }
-
       return 0
     },
-    [team],
+    [team, driverTests],
   )
 
   const canonicalAcademyPilots = useMemo(() => {
@@ -1888,11 +1897,14 @@ export default function TeamPage() {
                   const adaptation = d.f1_adaptation ?? 80
                   const status = d.homologation_status || 'elegivel'
 
+                  const dKm = getDriverDevelopmentMileageKm(d)
                   return (
                     <div
                       key={d.id}
-                      className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col justify-between space-y-4 shadow-sm"
+                      data-testid={`contract-driver-${d.id}`}
+                      className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
                     >
+                      {' '}
                       <div>
                         <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">
                           <span className="font-bold text-neutral-900 uppercase">
@@ -1909,6 +1921,7 @@ export default function TeamPage() {
                               teamName,
                               role: 'titular',
                               isPlayerDriver: true,
+                              totalTestMileageKm: getDriverDevelopmentMileageKm(d),
                               salaryUsd: d.salary,
                               contractEnd: d.contract_end ?? (d as any).contractEnd,
                             })
@@ -1964,7 +1977,6 @@ export default function TeamPage() {
                           </span>
                         </div>
                       </div>
-
                       <div className="pt-2 border-t border-neutral-200/80 text-[11px] text-neutral-500 flex justify-between">
                         <span>Contrato até {d.contract_end || 2027}</span>
                         <span className="text-neutral-900 font-semibold">
@@ -2003,6 +2015,7 @@ export default function TeamPage() {
                               teamName,
                               role: 'reserva',
                               isPlayerDriver: true,
+                              totalTestMileageKm: getDriverDevelopmentMileageKm(rd),
                               salaryUsd: rd.salary,
                               contractEnd: rd.contract_end ?? (rd as any).contractEnd,
                             })
@@ -2301,64 +2314,76 @@ export default function TeamPage() {
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-3 font-mono text-xs">
-                {titularDrivers.concat(reserveDriver ? [reserveDriver] : []).map((d) => (
-                  <div
-                    key={d.id}
-                    className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <DriverPhotoAvatar
-                        name={d.name}
-                        driverId={d.id}
-                        visualIdentity={
-                          (d as any)?.procedural_data?.visualIdentity ||
-                          (d as any)?.visualIdentity ||
-                          null
-                        }
-                        teamColor="#E10600"
-                        size="sm"
-                      />
-                      <div>
-                        <span className="font-bold text-neutral-900 text-sm block">{d.name}</span>
-                        <span className="text-[11px] text-neutral-500">
-                          Função: {d.role === 'reserva' ? 'Piloto Reserva' : 'Piloto Titular'}
-                        </span>
+                {titularDrivers.concat(reserveDriver ? [reserveDriver] : []).map((d) => {
+                  const dKm = getDriverDevelopmentMileageKm(d)
+                  return (
+                    <div
+                      key={d.id}
+                      className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <DriverPhotoAvatar
+                          name={d.name}
+                          driverId={d.id}
+                          visualIdentity={
+                            (d as any)?.procedural_data?.visualIdentity ||
+                            (d as any)?.visualIdentity ||
+                            null
+                          }
+                          teamColor="#E10600"
+                          size="sm"
+                        />
+                        <div>
+                          <span className="font-bold text-neutral-900 text-sm block">{d.name}</span>
+                          <span className="text-[11px] text-neutral-500">
+                            Função: {d.role === 'reserva' ? 'Piloto Reserva' : 'Piloto Titular'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-6">
-                      <div>
-                        <span className="text-[10px] text-neutral-400 block">Salário Anual</span>
-                        <strong className="text-neutral-900">{formatCurrency(d.salary)}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-neutral-400 block">Término</span>
-                        <strong className="text-emerald-600">{d.contract_end || 2026}</strong>
-                      </div>
-                      <div className="flex gap-1.5 items-center">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setRenegotiateDriver(d)
-                            setSalaryMultiplier(100)
-                            setContractYears(1)
-                          }}
-                          className="bg-[#E10600] hover:bg-red-700 text-white text-xs h-7 font-bold cursor-pointer"
-                        >
-                          Renovar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => setFireDriver(d)}
-                          className="bg-neutral-800 hover:bg-red-900 text-red-200 text-xs h-7 border border-red-800/40 cursor-pointer"
-                        >
-                          Dispensar
-                        </Button>
+                      <div className="flex items-center gap-6">
+                        <div>
+                          <span className="text-[10px] text-neutral-400 block">Salário Anual</span>
+                          <strong className="text-neutral-900">{formatCurrency(d.salary)}</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-neutral-400 block">Término</span>
+                          <strong className="text-emerald-600">{d.contract_end || 2026}</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-neutral-400 block">KM em Pista</span>
+                          <strong
+                            data-testid={`contract-driver-km-${d.id}`}
+                            className="text-cyan-700"
+                          >
+                            {dKm.toLocaleString('pt-BR')} km
+                          </strong>
+                        </div>
+                        <div className="flex gap-1.5 items-center">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setRenegotiateDriver(d)
+                              setSalaryMultiplier(100)
+                              setContractYears(1)
+                            }}
+                            className="bg-[#E10600] hover:bg-red-700 text-white text-xs h-7 font-bold cursor-pointer"
+                          >
+                            Renovar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => setFireDriver(d)}
+                            className="bg-neutral-800 hover:bg-red-900 text-red-200 text-xs h-7 border border-red-800/40 cursor-pointer"
+                          >
+                            Dispensar
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
 
                 {/* Exibição de Pilotos da Academia Vinculados (sem contrato profissional F1) */}
                 {teamAcademyPilots
@@ -2372,6 +2397,7 @@ export default function TeamPage() {
                     return (
                       <div
                         key={acadDriver.id}
+                        data-testid={`contract-academy-driver-${acadDriver.id}`}
                         className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
                       >
                         <div className="flex items-center gap-3">
@@ -2407,7 +2433,10 @@ export default function TeamPage() {
                         <div className="flex items-center gap-6">
                           <div>
                             <span className="text-[10px] text-neutral-400 block">KM em Pista</span>
-                            <strong className="text-cyan-700">
+                            <strong
+                              data-testid={`contract-driver-km-${acadDriver.id}`}
+                              className="text-cyan-700"
+                            >
                               {mileageKm.toLocaleString('pt-BR')} km
                             </strong>
                           </div>
@@ -2431,7 +2460,10 @@ export default function TeamPage() {
                             <Button
                               size="sm"
                               onClick={() => {
-                                setSelectedPilotForProfile(acadDriver)
+                                setSelectedPilotForProfile({
+                                  ...acadDriver,
+                                  totalTestMileageKm: mileageKm,
+                                })
                                 setIsPilotProfileModalOpen(true)
                               }}
                               className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs h-7 font-bold cursor-pointer"
@@ -2598,7 +2630,10 @@ export default function TeamPage() {
                           onEvaluateAgain={handleReevaluateProspect}
                           onPromoteToContract={(driverId) => {
                             const p = teamAcademyPilots.find((tp) => tp.id === driverId) || pilot
-                            setSelectedPilotForProfile(p)
+                            setSelectedPilotForProfile({
+                              ...p,
+                              totalTestMileageKm: getDriverDevelopmentMileageKm(p),
+                            })
                             setIsPilotProfileModalOpen(true)
                           }}
                         />
@@ -2671,10 +2706,15 @@ export default function TeamPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {scoutingCandidates.map((c) => {
                     const scoutView = driverScoutingService.createScoutingViewModel(c, team?.id)
+                    const cKm = getDriverDevelopmentMileageKm(c)
+                    const enhancedScoutView = {
+                      ...scoutView,
+                      totalTestMileageKm: cKm,
+                    }
                     return (
                       <ProspectCard
                         key={c.id}
-                        prospect={scoutView}
+                        prospect={enhancedScoutView}
                         onEvaluateAgain={handleReevaluateProspect}
                         onInviteToAcademy={handleHireProspectToAcademy}
                         onRunTest={() => setDevManagerOpen(true)}

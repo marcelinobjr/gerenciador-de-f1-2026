@@ -153,6 +153,7 @@ export interface UnifiedDriverItem {
   revealedTraits?: string[]
   exitClauseUsd?: number
   winBonusUsd?: number
+  totalTestMileageKm?: number
 }
 
 type QuickFilterType = 'all' | 'contracted' | 'market' | 'superlicense_yes' | 'superlicense_no'
@@ -891,7 +892,11 @@ export default function DriversPage() {
 
   // Abertura do perfil do piloto ao clicar
   const handleOpenPilotProfile = (pilot: UnifiedDriverItem) => {
-    setSelectedPilotForProfile(pilot)
+    const pilotTestKm = calculateDriverTotalTestMileage(pilot.id, driverTests)
+    setSelectedPilotForProfile({
+      ...pilot,
+      totalTestMileageKm: pilotTestKm,
+    })
     setIsProfileModalOpen(true)
   }
 

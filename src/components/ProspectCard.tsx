@@ -188,14 +188,12 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
           </div>
 
           {/* KM Total acumulado em testes */}
-          {displayKm > 0 && (
-            <div className="p-2 rounded-lg bg-cyan-950/30 border border-cyan-800/50 flex justify-between items-center text-xs font-mono">
-              <span className="text-cyan-400">KM Total em Pista:</span>
-              <strong className="text-white font-bold">
-                {displayKm.toLocaleString('pt-BR')} km
-              </strong>
-            </div>
-          )}
+          <div className="p-2 rounded-lg bg-cyan-950/30 border border-cyan-800/50 flex justify-between items-center text-xs font-mono">
+            <span className="text-cyan-400">KM Total em Pista:</span>
+            <strong className="text-white font-bold">
+              {(displayKm || 0).toLocaleString('pt-BR')} km
+            </strong>
+          </div>
 
           {/* Atributos Observados (Fog of War) */}
           <div className="grid grid-cols-2 gap-2 text-xs font-mono">

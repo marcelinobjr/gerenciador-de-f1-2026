@@ -257,12 +257,19 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center justify-between py-1">
+          <div className="flex items-center justify-between py-1 border-b border-slate-200/50">
             <span className="text-slate-500 font-medium">Valor de mercado</span>
             <span className="font-mono font-bold text-slate-900">
               {driver.salaryUsd > 0
                 ? formatUsdCurrency(driver.salaryUsd, 'full')
                 : marketRange.displayRange}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between py-1">
+            <span className="text-slate-500 font-medium">KM em testes</span>
+            <span className="font-mono font-bold text-cyan-700">
+              {(totalTestMileageKm ?? 0).toLocaleString('pt-BR')} km
             </span>
           </div>
         </div>

@@ -12,6 +12,7 @@ import { DriverPoster } from '@/components/DriverPoster'
 import { CountryFlag } from '@/components/CountryFlag'
 import { checkEligibility, getOverallRating, getDriverCareerStats } from '@/lib/mbj-drivers-data'
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
+import { calculateDriverTotalTestMileage } from '@/services/driverMileageResolverService'
 import pb from '@/lib/pocketbase/client'
 import {
   GraduationCap,
@@ -131,9 +132,10 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
   canPromoteToStarter,
   canRelegateToReserve,
 }) => {
-  // Carrega resultados de corrida e históricos de temporada do save para cálculo canônico de carreira
+  // Carrega resultados de corrida, históricos de temporada e testes de pista do save para cálculo canônico de carreira
   const [saveRaceResults, setSaveRaceResults] = React.useState<any[] | null>(null)
   const [saveSeasonHistories, setSaveSeasonHistories] = React.useState<any[] | null>(null)
+  const [saveDriverTests, setSaveDriverTests] = React.useState<any[] | null>(null)
 
   React.useEffect(() => {
     let isMounted = true
@@ -141,13 +143,17 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
 
     async function loadSaveCareerData() {
       try {
-        const [rr, sh] = await Promise.allSettled([
+        const [rr, sh, dt] = await Promise.allSettled([
           pb.collection('race_results').getFullList({
             filter: `driver_id = "${pilot?.id}"`,
             fields: 'id,driver_id,position,season_id',
           }),
           pb.collection('season_histories').getFullList({
             fields: 'id,season_year,drivers_champion',
+          }),
+          pb.collection('driver_tests').getFullList({
+            filter: `driver_id = "${pilot?.id}"`,
+            fields: 'id,driver_id,km,test_type,circuit,date',
           }),
         ])
 
@@ -158,6 +164,9 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
         }
         if (sh.status === 'fulfilled') {
           setSaveSeasonHistories(sh.value as any[])
+        }
+        if (dt.status === 'fulfilled') {
+          setSaveDriverTests(dt.value as any[])
         }
       } catch (err) {
         console.warn('Erro ao carregar dados de carreira do save para PilotProfileDialog:', err)
@@ -1218,6 +1227,16 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                         {isHomologation
                           ? `${homologationSessions * 310}/1.200 km`
                           : '1.200/1.200 km'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-[#64748B] block">KM Total de Carreira:</span>
+                      <strong className="text-cyan-700">
+                        {(
+                          (pilot as any)?.totalTestMileageKm ??
+                          calculateDriverTotalTestMileage(pilot.id, saveDriverTests)
+                        ).toLocaleString('pt-BR')}{' '}
+                        km
                       </strong>
                     </div>
                     <div>
