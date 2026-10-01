@@ -489,42 +489,66 @@ export class CanonicalRaceResultService {
     // Executa em microtask para não bloquear retorno síncrono da oficialização
     setTimeout(async () => {
       try {
-        const { driverMoraleService } = await import('./driverMoraleService')
-        const { f1Service } = await import('./f1Service')
-        const allDrivers = await f1Service.getAllDrivers()
-        const moraleMap: Record<string, number> = {}
-        for (const d of allDrivers) {
-          moraleMap[d.id] = d.morale ?? 80
-        }
-
-        await driverMoraleService.processOfficialRaceMorale({
-          officialResult: {
-            careerId: officialResult.careerId,
-            season: officialResult.season,
-            round: officialResult.round,
-            officializedAt: officialResult.officializedAt,
-            entries: officialResult.entries.map((e) => ({
-              driverId: e.driverId,
-              teamId: e.teamId,
-              driverName: e.driverName,
-              teamName: e.teamName,
-              finalPosition: e.finalPosition,
-              gridPosition: e.gridPosition ?? (e as any).startingGridPosition,
-              status: e.status,
-              isDnf: Boolean((e as any).isDnf || e.dnf),
-              dnf: e.dnf,
-              dnfReason: e.dnfReason,
-            })),
-          },
-          driverCurrentMoraleMap: moraleMap,
-          onSaveDriverMorale: async (driverId, newMorale) => {
-            await f1Service.updateDriver(driverId, { morale: newMorale })
-          },
-        })
+        await this.processOfficialMoraleDirect(officialResult)
       } catch (err) {
         console.warn('[CanonicalRaceResultService] Async morale update failed:', err)
       }
     }, 0)
+  }
+
+  /**
+   * Processamento canônico de moral de pilotos após oficialização
+   * Consome o driverMoraleService de forma idempotente e determinística
+   */
+  public async processOfficialMoraleDirect(officialResult: OfficialRaceResult): Promise<void> {
+    const { driverMoraleService } = await import('./driverMoraleService')
+    const { f1Service } = await import('./f1Service')
+
+    let allDrivers: any[] = []
+    try {
+      allDrivers = await f1Service.getAllDrivers()
+    } catch (e) {
+      console.warn('[CanonicalRaceResultService] Could not fetch all drivers from DB:', e)
+    }
+
+    const moraleMap: Record<string, number> = {}
+    for (const d of allDrivers) {
+      if (d && d.id) {
+        moraleMap[d.id] = d.morale ?? 80
+      }
+    }
+
+    await driverMoraleService.processOfficialRaceMorale({
+      officialResult: {
+        careerId: officialResult.careerId,
+        season: officialResult.season,
+        round: officialResult.round,
+        officializedAt: officialResult.officializedAt,
+        entries: (officialResult.entries || []).map((e) => ({
+          driverId: e.driverId,
+          teamId: e.teamId,
+          driverName: e.driverName,
+          teamName: e.teamName,
+          finalPosition: e.finalPosition,
+          gridPosition: e.gridPosition ?? (e as any).startingGridPosition,
+          status: e.status,
+          isDnf: Boolean((e as any).isDnf || e.dnf),
+          dnf: e.dnf,
+          dnfReason: e.dnfReason,
+        })),
+      },
+      driverCurrentMoraleMap: moraleMap,
+      onSaveDriverMorale: async (driverId, newMorale) => {
+        try {
+          await f1Service.updateDriver(driverId, { morale: newMorale })
+        } catch (saveErr) {
+          console.warn(
+            `[CanonicalRaceResultService] Error persisting driver ${driverId} morale:`,
+            saveErr,
+          )
+        }
+      },
+    })
   }
 
   public terminateEarlyAndOfficialize(

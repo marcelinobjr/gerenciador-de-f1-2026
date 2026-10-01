@@ -142,6 +142,7 @@ export interface UnifiedDriverItem {
   globalPopularity?: number
   localPopularity?: number
   localMarket?: string
+  morale?: number
   moraleState?: number
   confidence?: number
   physicalCondition?: number
@@ -453,7 +454,8 @@ export default function DriversPage() {
           mbjInfo?.localPopularity ??
           Math.min(100, Math.max(60, speed + 10)),
         localMarket: f1aInfo?.localMarket || mbjInfo?.localMarket,
-        moraleState: d.morale || f1aInfo?.morale || mbjInfo?.moraleState || 75,
+        morale: d.morale ?? f1aInfo?.morale ?? mbjInfo?.moraleState ?? 75,
+        moraleState: d.morale ?? f1aInfo?.morale ?? mbjInfo?.moraleState ?? 75,
         confidence: f1aInfo?.confidence ?? mbjInfo?.confidence ?? 75,
         physicalCondition:
           d.physical_condition || f1aInfo?.condition || mbjInfo?.physicalCondition || 100,

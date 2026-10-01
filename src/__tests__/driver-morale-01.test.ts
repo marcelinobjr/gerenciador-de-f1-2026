@@ -404,9 +404,9 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
   })
 
   // DM19: Atualização só ocorre após resultado oficial
-  it('DM19: canonicalRaceResultService officializeRace produz OfficialRaceResult com integrityHash', () => {
+  it('DM19: Atualização de moral só ocorre após resultado oficial (officializeRace)', async () => {
     const mockRaceState: any = {
-      careerId: 'car_test',
+      careerId: 'car_dm19',
       season: 2026,
       round: 1,
       raceId: 'gp_bahrain',
@@ -417,12 +417,12 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
       redFlagActive: false,
       drivers: [
         {
-          driverId: 'drv_1',
+          driverId: 'drv_official_1',
           driverName: 'Driver 1',
           teamId: 'team_1',
           position: 1,
           currentPosition: 1,
-          gridPosition: 1,
+          gridPosition: 5,
           lap: 57,
           raceStatus: 'finished',
         },
@@ -434,21 +434,66 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
     expect(official.officializedAt).toBeDefined()
     expect(official.entries).toHaveLength(1)
     expect(official.entries[0].finalPosition).toBe(1)
+
+    // Invoca processamento oficial direto
+    let persistedMorale = 75
+    const results = await driverMoraleService.processOfficialRaceMorale({
+      officialResult: {
+        careerId: official.careerId,
+        season: official.season,
+        round: official.round,
+        officializedAt: official.officializedAt,
+        entries: official.entries.map((e) => ({
+          driverId: e.driverId,
+          teamId: e.teamId,
+          finalPosition: e.finalPosition,
+          gridPosition: e.gridPosition,
+          status: e.status,
+        })),
+      },
+      driverCurrentMoraleMap: { drv_official_1: persistedMorale },
+      onSaveDriverMorale: async (_id, val) => {
+        persistedMorale = val
+      },
+    })
+
+    expect(results).toHaveLength(1)
+    // Grid P5 -> Finish P1: delta posições +4 (base +2) + vitória (+3) = +5 -> 75 + 5 = 80
+    expect(results[0].afterMorale).toBe(80)
+    expect(persistedMorale).toBe(80)
+    expect(
+      driverMoraleService.isMoraleAlreadyProcessed({
+        careerId: official.careerId,
+        season: official.season,
+        round: official.round,
+        driverId: 'drv_official_1',
+      }),
+    ).toBe(true)
   })
 
   // DM20: Resultado ainda não oficial não altera moral
-  it('DM20: Tentativa de oficializar corrida com bandeira vermelha ou safety car ativo falha e não oficializa', () => {
+  it('DM20: Resultado ainda não oficial não altera moral (bloqueio de oficialização e checagem de estado)', () => {
     const unfinishedRaceState: any = {
-      careerId: 'car_test',
+      careerId: 'car_dm20',
       season: 2026,
-      round: 1,
+      round: 2,
       status: 'racing',
       safetyCarActive: true, // safety car ativo impede oficialização
-      drivers: [{ driverId: 'drv_1', position: 1 }],
+      drivers: [{ driverId: 'drv_unoff_1', position: 1 }],
     }
 
+    // Tentativa de oficializar prova em andamento ou sob safety car falha
     expect(() => {
       canonicalRaceResultService.officializeRace(unfinishedRaceState)
     }).toThrow(/Cannot officialize race/)
+
+    // Verifica que chave de moral para esta rodada não foi gravada/alterada
+    const wasProcessed = driverMoraleService.isMoraleAlreadyProcessed({
+      careerId: 'car_dm20',
+      season: 2026,
+      round: 2,
+      driverId: 'drv_unoff_1',
+    })
+    expect(wasProcessed).toBe(false)
   })
 })
