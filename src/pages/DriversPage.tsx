@@ -77,6 +77,73 @@ import {
   normalizeDriverNameToken,
 } from '@/lib/driver-canonical-service'
 
+export function getDriverCanonicalPotential(
+  pilot: Partial<UnifiedDriverItem>,
+  rawDbRecord?: any,
+): number | undefined {
+  const raw = rawDbRecord || pilot.rawDbRecord
+  if (
+    raw?.perceived_potential !== undefined &&
+    raw?.perceived_potential !== null &&
+    !isNaN(Number(raw.perceived_potential))
+  ) {
+    return Number(raw.perceived_potential)
+  }
+  if (
+    raw?.true_potential !== undefined &&
+    raw?.true_potential !== null &&
+    !isNaN(Number(raw.true_potential))
+  ) {
+    return Number(raw.true_potential)
+  }
+  if (
+    raw?.procedural_data?.perceivedPotential !== undefined &&
+    raw?.procedural_data?.perceivedPotential !== null &&
+    !isNaN(Number(raw.procedural_data.perceivedPotential))
+  ) {
+    return Number(raw.procedural_data.perceivedPotential)
+  }
+  if (
+    pilot.potential !== undefined &&
+    pilot.potential !== null &&
+    !isNaN(Number(pilot.potential))
+  ) {
+    return Number(pilot.potential)
+  }
+  if (pilot.potentialMin !== undefined && pilot.potentialMax !== undefined) {
+    const avg = Math.round((pilot.potentialMin + pilot.potentialMax) / 2)
+    if (!isNaN(avg)) return avg
+  }
+  return undefined
+}
+
+export function filterByPotential(
+  pilot: Partial<UnifiedDriverItem>,
+  filterOption: string,
+): boolean {
+  if (filterOption === 'all') return true
+  const potential = getDriverCanonicalPotential(pilot)
+  if (potential === undefined || potential === null || isNaN(potential)) {
+    return false
+  }
+  if (filterOption === '90_100') {
+    return potential >= 90 && potential <= 100
+  }
+  if (filterOption === '80_89') {
+    return potential >= 80 && potential < 90
+  }
+  if (filterOption === '70_79') {
+    return potential >= 70 && potential < 80
+  }
+  if (filterOption === '60_69') {
+    return potential >= 60 && potential < 70
+  }
+  if (filterOption === 'below_60') {
+    return potential < 60
+  }
+  return true
+}
+
 // DriversPage inspection test
 export interface UnifiedDriverItem {
   id: string
@@ -110,6 +177,7 @@ export interface UnifiedDriverItem {
     | 'f1_academy'
   potentialMin: number
   potentialMax: number
+  potential?: number
   f1RacesCompleted: number
   superlicensePoints: number
   isAcademyProspect: boolean
@@ -186,6 +254,7 @@ export default function DriversPage() {
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all')
   const [selectedAvailabilityFilter, setSelectedAvailabilityFilter] = useState<string>('all')
   const [selectedSuperlicenseFilter, setSelectedSuperlicenseFilter] = useState<string>('all')
+  const [selectedPotentialFilter, setSelectedPotentialFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<SortFieldType>('default')
   const [sortAsc, setSortAsc] = useState<boolean>(true)
 
@@ -348,12 +417,21 @@ export default function DriversPage() {
       const rain = d.rain || f1aInfo?.rain || mbjInfo?.rain || 75
       const defense = d.defense || f1aInfo?.defense || mbjInfo?.defense || 75
 
+      // Potencial canônico do piloto (perceived_potential do banco ou média min/max)
+      const rawPotential =
+        (d as any).perceived_potential ??
+        (d as any).true_potential ??
+        (d as any)?.procedural_data?.perceivedPotential
       const potentialMin = f1aInfo
         ? Math.round((f1aInfo.ceilings.speed + f1aInfo.ceilings.racePace) / 2) - 4
-        : (mbjInfo?.potentialMin ?? Math.max(70, speed - 2))
+        : rawPotential !== undefined
+          ? rawPotential
+          : (mbjInfo?.potentialMin ?? Math.max(70, speed - 2))
       const potentialMax = f1aInfo
         ? Math.round((f1aInfo.ceilings.speed + f1aInfo.ceilings.racePace) / 2) + 3
-        : (mbjInfo?.potentialMax ?? Math.min(99, speed + 6))
+        : rawPotential !== undefined
+          ? rawPotential
+          : (mbjInfo?.potentialMax ?? Math.min(99, speed + 6))
       const f1Races = mbjInfo?.f1RacesCompleted ?? (cat === 'f1' ? 20 : 0)
       const superlicense =
         mbjInfo?.superlicensePoints ?? (cat === 'f1' ? 50 : cat === 'f1_academy' ? 10 : 35)
@@ -397,6 +475,8 @@ export default function DriversPage() {
         category: cat,
         potentialMin,
         potentialMax,
+        potential:
+          rawPotential !== undefined ? rawPotential : Math.round((potentialMin + potentialMax) / 2),
         f1RacesCompleted: f1Races,
         superlicensePoints: d.superlicense_points ?? superlicense,
         isAcademyProspect: Boolean(isProspect),
@@ -537,6 +617,10 @@ export default function DriversPage() {
         category: pilot.category,
         potentialMin: pilot.potentialMin,
         potentialMax: pilot.potentialMax,
+        potential:
+          pilot.potentialMin !== undefined && pilot.potentialMax !== undefined
+            ? Math.round((pilot.potentialMin + pilot.potentialMax) / 2)
+            : undefined,
         f1RacesCompleted: pilot.f1RacesCompleted,
         superlicensePoints: pilot.superlicensePoints,
         isAcademyProspect: Boolean(pilot.isAcademyProspect || pilot.category === 'f2'),
@@ -731,6 +815,11 @@ export default function DriversPage() {
         if (selectedSuperlicenseFilter === 'no' && hasSl) return false
       }
 
+      // 7. Filtro de Potencial canônico (DRIVERS-POTENTIAL-FILTER-01)
+      if (!filterByPotential(pilot, selectedPotentialFilter)) {
+        return false
+      }
+
       return true
     })
 
@@ -777,6 +866,7 @@ export default function DriversPage() {
     selectedTeamFilter,
     selectedAvailabilityFilter,
     selectedSuperlicenseFilter,
+    selectedPotentialFilter,
     sortField,
     sortAsc,
     checkDriverSuperlicense,
@@ -901,6 +991,7 @@ export default function DriversPage() {
     setSelectedTeamFilter('all')
     setSelectedAvailabilityFilter('all')
     setSelectedSuperlicenseFilter('all')
+    setSelectedPotentialFilter('all')
     setSortField('default')
     setSortAsc(true)
   }
@@ -1168,6 +1259,23 @@ export default function DriversPage() {
                 <SelectItem value="all">Todas</SelectItem>
                 <SelectItem value="yes">Com licença (Sim)</SelectItem>
                 <SelectItem value="no">Sem licença (Não)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Potencial */}
+          <div className="w-full lg:w-36">
+            <Select value={selectedPotentialFilter} onValueChange={setSelectedPotentialFilter}>
+              <SelectTrigger className="h-10 text-xs bg-slate-50/70 border-slate-200 text-slate-700 rounded-xl">
+                <SelectValue placeholder="Potencial" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-slate-200 text-slate-800">
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="90_100">90–100</SelectItem>
+                <SelectItem value="80_89">80–89</SelectItem>
+                <SelectItem value="70_79">70–79</SelectItem>
+                <SelectItem value="60_69">60–69</SelectItem>
+                <SelectItem value="below_60">Abaixo de 60</SelectItem>
               </SelectContent>
             </Select>
           </div>
