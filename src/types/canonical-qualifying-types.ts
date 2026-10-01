@@ -18,7 +18,7 @@
 import type { TireCompound, TireSetItem } from '@/types/f1'
 import type { PracticeCarSetup } from '@/types/practice-preparation'
 
-export type QualifyingStageId = 'q1' | 'q2' | 'q3'
+export type QualifyingStageId = 'q1' | 'q2' | 'q3' | 'sq1' | 'sq2' | 'sq3'
 
 export type QualifyingDriverStatus =
   | 'garage'
@@ -65,6 +65,33 @@ export const CANONICAL_QUALIFYING_RULES: Record<
   q3: {
     stageId: 'q3',
     durationSec: 12 * 60, // 720s (12 minutos)
+    participantsCount: 10,
+    advancingCount: 10,
+    eliminatedCount: 0,
+    minGridPos: 1,
+    maxGridPos: 10,
+  },
+  sq1: {
+    stageId: 'sq1',
+    durationSec: 12 * 60, // 720s (12 minutos no Sprint Shootout)
+    participantsCount: 24,
+    advancingCount: 18,
+    eliminatedCount: 6,
+    minGridPos: 19,
+    maxGridPos: 24,
+  },
+  sq2: {
+    stageId: 'sq2',
+    durationSec: 10 * 60, // 600s (10 minutos)
+    participantsCount: 18,
+    advancingCount: 10,
+    eliminatedCount: 8,
+    minGridPos: 11,
+    maxGridPos: 18,
+  },
+  sq3: {
+    stageId: 'sq3',
+    durationSec: 8 * 60, // 480s (8 minutos)
     participantsCount: 10,
     advancingCount: 10,
     eliminatedCount: 0,

@@ -491,9 +491,9 @@ export default function WeekendV2Page() {
 
     // Normalização canônica via normalizeCompletedSessions para tratar todos os aliases de forma única e centralizada
     const normalizedStored = normalizeCompletedSessions(stored)
-    const hasTl1 = normalizedStored.includes('tp1')
-    const hasTl2 = normalizedStored.includes('tp2')
-    const hasSq1 = normalizedStored.includes('sq1')
+    const hasTl1 = normalizedStored.includes('tp1') || stored.includes('tl1') || stored.includes('fp1')
+    const hasTl2 = normalizedStored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
+    const hasSq1 = normalizedStored.includes('sq1') || stored.includes('sprint_q1')
 
     if (sess === 'tp2' && !hasTl1) {
       toast({
@@ -730,15 +730,16 @@ export default function WeekendV2Page() {
       })
     })
 
-    if (stageId === 'q1') {
+    if (stageId === 'q1' || (stageId as any) === 'sq1') {
       return all24.slice(0, 24)
     }
 
-    if (stageId === 'q2') {
+    if (stageId === 'q2' || (stageId as any) === 'sq2') {
+      const parentStage = (stageId as any) === 'sq2' ? 'sq1' : 'q1'
       const q1Res = canonicalQualifyingPersistenceService.readStageResult(
         season.id,
         currentRound,
-        'q1',
+        parentStage as any,
       )
       if (q1Res && q1Res.advancingDriverIds) {
         return all24.filter((p) => q1Res.advancingDriverIds.includes(p.id))
@@ -746,11 +747,12 @@ export default function WeekendV2Page() {
       return all24.slice(0, 18)
     }
 
-    if (stageId === 'q3') {
+    if (stageId === 'q3' || (stageId as any) === 'sq3') {
+      const parentStage = (stageId as any) === 'sq3' ? 'sq2' : 'q2'
       const q2Res = canonicalQualifyingPersistenceService.readStageResult(
         season.id,
         currentRound,
-        'q2',
+        parentStage as any,
       )
       if (q2Res && q2Res.advancingDriverIds) {
         return all24.filter((p) => q2Res.advancingDriverIds.includes(p.id))

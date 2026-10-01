@@ -350,26 +350,43 @@ export class CanonicalWeekendSlotPersistenceService {
       }
     }
     if (hasSQ) {
-      state.slots[2].status = 'COMPLETED'
-      state.slots[2].subPhase = 'SQ3'
-      state.completedSlots.push(2)
-      state.slots[3].status = 'AVAILABLE'
-      state.currentSlot = 3
+      if (state.slots[3]) {
+        state.slots[3].status = 'COMPLETED'
+        state.slots[3].subPhase = 'SQ3'
+        if (!state.completedSlots.includes(3)) state.completedSlots.push(3)
+        if (state.slots[4]) {
+          state.slots[4].status = 'AVAILABLE'
+          state.currentSlot = 4
+        }
+      }
     } else if (hasSQ2) {
-      state.slots[2].status = 'IN_PROGRESS'
-      state.slots[2].subPhase = 'SQ3'
-      state.currentSlot = 2
+      if (state.slots[3]) {
+        state.slots[3].status = 'IN_PROGRESS'
+        state.slots[3].subPhase = 'SQ3'
+        state.currentSlot = 3
+      }
     } else if (hasSQ1) {
-      state.slots[2].status = 'IN_PROGRESS'
-      state.slots[2].subPhase = 'SQ2'
-      state.currentSlot = 2
+      if (state.slots[3]) {
+        state.slots[3].status = 'IN_PROGRESS'
+        state.slots[3].subPhase = 'SQ2'
+        state.currentSlot = 3
+      }
     }
 
     if (hasSprint) {
-      state.slots[3].status = 'COMPLETED'
-      if (!state.completedSlots.includes(3)) state.completedSlots.push(3)
-      state.slots[4].status = 'AVAILABLE'
-      state.currentSlot = 4
+      if (state.slots[4]) {
+        state.slots[4].status = 'COMPLETED'
+        if (!state.completedSlots.includes(4)) state.completedSlots.push(4)
+        if (state.slots[5]) {
+          state.slots[5].status = 'AVAILABLE'
+          state.currentSlot = 5
+        }
+      } else {
+        state.slots[3].status = 'COMPLETED'
+        if (!state.completedSlots.includes(3)) state.completedSlots.push(3)
+        state.slots[4].status = 'AVAILABLE'
+        state.currentSlot = 4
+      }
     }
     if (hasQ1) {
       state.slots[4].status = 'COMPLETED'

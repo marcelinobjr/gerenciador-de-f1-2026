@@ -51,6 +51,7 @@ export interface PostTransactionParams {
 }
 
 export class FinancialLedgerService {
+  // test probe
   /**
    * Determina a classificação regulatória padrão de cada categoria
    * com base nas regras financeiras da FIA 2026/2027.

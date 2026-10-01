@@ -3297,19 +3297,31 @@ export class RaceQualifyingOrchestratorService {
       round,
     })
 
-    if (slotState.currentSlot !== 2) {
-      // Se já está no slot 3 ou além, retorna o estado atual (idempotência)
-      if (slotState.currentSlot >= 3) {
-        return slotState
-      }
+    const activeSlotNum = slotState.currentSlot
+    const activeSlotType = slotState.slotType || slotState.slots[activeSlotNum]?.slotType
+
+    // No formato Sprint de 8 slots: slot 3 é QUALI_SPRINT; no de 7 slots compacto: slot 2 é QUALI_SPRINT
+    const targetSlot =
+      activeSlotType === 'QUALI_SPRINT' || activeSlotType === 'SPRINT_QUALIFYING'
+        ? activeSlotNum
+        : slotState.slots[3]?.slotType === 'QUALI_SPRINT' ||
+            slotState.slots[3]?.slotType === 'SPRINT_QUALIFYING'
+          ? 3
+          : 2
+
+    if (slotState.completedSlots.includes(targetSlot) || slotState.currentSlot > targetSlot) {
+      return slotState
+    }
+
+    if (slotState.currentSlot !== targetSlot) {
       throw new Error(
-        `Transição inválida: o slot atual é ${slotState.currentSlot} (${slotState.slotType}), esperado slot 2.`,
+        `Transição inválida: o slot atual é ${slotState.currentSlot} (${slotState.slotType}), esperado slot ${targetSlot}.`,
       )
     }
 
     const updatedSlotState = await canonicalWeekendSlotPersistenceService.completeSlot(
       slotState,
-      2,
+      targetSlot,
       'SQ3',
     )
 
