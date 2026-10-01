@@ -681,6 +681,16 @@ export default function LiveRacePage() {
         return
       }
 
+      // ALL-DNF-RACE-01A: Se todos os carros abandonaram antes do tick (activeCars === 0), parar imediatamente
+      const activeCarsInState = grid.filter((c) => !c.dnf).length
+      if (grid.length > 0 && activeCarsInState === 0 && currentLap >= 1) {
+        if (timerRef.current) clearInterval(timerRef.current)
+        setIsRaceFinished(true)
+        setIsRacePaused(true)
+        handleFinishRace(grid)
+        return
+      }
+
       // Executa avanço da volta pelo runner canônico com proteção anti-loop e conhecimento 4D.2
       const res = advanceCanonicalRaceLap({
         currentLap,
@@ -756,6 +766,15 @@ export default function LiveRacePage() {
         setIsRaceFinished(true)
         setIsRacePaused(true)
         handleFinishRace(res.nextGrid)
+      } else {
+        // ALL-DNF-RACE-01A: Se após a volta não restar nenhum carro ativo, parar imediatamente
+        const activeAfter = res.nextGrid.filter((c) => !c.dnf).length
+        if (res.nextGrid.length > 0 && activeAfter === 0) {
+          if (timerRef.current) clearInterval(timerRef.current)
+          setIsRaceFinished(true)
+          setIsRacePaused(true)
+          handleFinishRace(res.nextGrid)
+        }
       }
     }, intervalMs)
 

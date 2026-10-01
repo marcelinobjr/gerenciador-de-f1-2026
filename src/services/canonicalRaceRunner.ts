@@ -100,9 +100,27 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
     lapHistory,
   } = params
 
+  // ALL-DNF-RACE-01A: Se a corrida já começou (currentLap >= 1) e não há carros ativos na entrada,
+  // interromper imediatamente sem processar nova volta ou consumos fantasmas.
+  const initialActiveCars = grid.filter((c) => !c.dnf).length
+  if (grid.length > 0 && initialActiveCars === 0 && currentLap >= 1) {
+    return {
+      nextLap: currentLap,
+      nextGrid: grid.map((c) => ({ ...c })),
+      nextEvents: [],
+      nextLapHistory: { ...lapHistory },
+      nextMechanicalIssues: [...mechanicalIssues],
+      nextRedFlagState: { ...redFlagState },
+      isCompleted: true,
+      detectedDecisions: [],
+      requiresPause: false,
+      pauseReason: 'Todos os carros abandonaram a prova (All-DNF)',
+    }
+  }
+
   let currentGrid = grid.map((c) => ({ ...c }))
   let nextLap = Math.min(totalLaps, currentLap + 1)
-  const isCompleted = nextLap >= totalLaps
+  let isCompleted = nextLap >= totalLaps
   const circuitProfile = resolveCircuitProfile({ round })
   const circuitOvertakeFactor = getCircuitOvertakeFactor(gpName, circuitName)
   const newEventsThisLap: LiveRaceEvent[] = []
@@ -394,6 +412,24 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
     }
   })
 
+  // ALL-DNF-RACE-01A: Verificar se todos os carros abandonaram nesta volta ou se activeCars === 0
+  const activeCarsCount = intermediateStates.filter((s) => !s.entry.dnf).length
+  const allDnfOccurred = grid.length > 0 && activeCarsCount === 0
+  if (allDnfOccurred) {
+    isCompleted = true
+    newEventsThisLap.push({
+      id: `ev_all_dnf_${nextLap}`,
+      lap: nextLap,
+      type: 'incident',
+      message: `🏁 PROVA ENCERRADA (TODOS OS CARROS ABANDONARAM): Fim da corrida na volta ${nextLap}. Classificação canônica apurada.`,
+      timestamp: new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    })
+  }
+
   // 6. Ordenação final do grid
   const activeSorted = intermediateStates
     .filter((s) => !s.entry.dnf)
@@ -419,6 +455,24 @@ export function advanceCanonicalRaceLap(params: AdvanceOneLapParams): AdvanceOne
     item.entry.gapToLeader = 'ABANDONO'
     item.entry.gapToFront = '-'
   })
+
+  // ALL-DNF-RACE-01A: Se activeSorted estiver vazio (todos DNF), ordenar os DNFs por voltas completadas descrescente,
+  // e em caso de empate, por menor accumulatedTimeSec (sem inventar vencedor e sem reordenar arbitrariamente).
+  if (activeSorted.length === 0 && dnfSorted.length > 0) {
+    dnfSorted.sort((a, b) => {
+      const lapsA = a.entry.lapsCompleted || 0
+      const lapsB = b.entry.lapsCompleted || 0
+      if (lapsB !== lapsA) return lapsB - lapsA
+      const timeA = a.entry.accumulatedTimeSec || 0
+      const timeB = b.entry.accumulatedTimeSec || 0
+      return timeA - timeB
+    })
+    dnfSorted.forEach((item, idx) => {
+      item.entry.position = idx + 1
+      item.entry.gapToLeader = 'ABANDONO'
+      item.entry.gapToFront = '-'
+    })
+  }
 
   const nextGrid = [...activeSorted.map((s) => s.entry), ...dnfSorted.map((s) => s.entry)]
 

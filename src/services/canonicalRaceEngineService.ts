@@ -473,12 +473,25 @@ export class CanonicalRaceEngineService {
     }
 
     // ALL-DNF-RACE-01A: activeCars === 0 -> STOP RACE SIMULATION
-    // Se todos os carros já estão abandonados (activeCars === 0), encerrar imediatamente a corrida
-    // sem avançar voltas e sem processar nova volta.
+    // Se a corrida já começou e todos os carros já estão abandonados (activeCars === 0),
+    // parar o loop imediatamente no mesmo tick e encaminhar o estado acumulado ao fluxo canônico
+    // de encerramento/officialization já existente sem avançar voltas fantasmas nem degradar.
+    const hasRaceStarted =
+      currentState.drivers.length > 0 &&
+      (currentState.status === 'running' ||
+        currentState.status === 'red_flag' ||
+        currentState.status === 'safety_car' ||
+        currentState.status === 'virtual_safety_car' ||
+        currentState.status === 'awaiting_player_weather_decision' ||
+        Boolean(currentState.startedAt) ||
+        (currentState.currentLap &&
+          currentState.currentLap >= 1 &&
+          currentState.status !== 'not_started'))
+
     const activeCarsAtStart = currentState.drivers.filter(
       (d) => d.raceStatus !== 'dnf' && !d.isDnf && d.raceStatus !== 'finished',
     ).length
-    if (currentState.drivers.length > 0 && activeCarsAtStart === 0) {
+    if (hasRaceStarted && currentState.drivers.length > 0 && activeCarsAtStart === 0) {
       const finishFlagRc: RaceControlState = {
         ...raceControlService.ensureRaceControlState(currentState),
         currentFlag: 'FINISHED',
@@ -1369,7 +1382,7 @@ export class CanonicalRaceEngineService {
         })
       }
     } else if (activeDrivers.length === 0) {
-      // BLOCO 10 (ALL-DNF-RACE-01): Encerramento automático quando activeCars === 0
+      // BLOCO 10 (ALL-DNF-RACE-01 / ALL-DNF-RACE-01A): Encerramento automático imediato quando activeCars === 0 no tick
       nextStatus = 'completed'
       isRaceFinished = true
       completedAt = new Date().toISOString()
