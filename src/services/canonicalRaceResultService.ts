@@ -37,10 +37,15 @@ import type {
   OfficialRaceEventSummary,
 } from '@/types/canonical-race-v2'
 import { OFFICIAL_RACE_RESULT_SCHEMA_VERSION } from '@/types/canonical-race-v2'
-import { getFiaPointsForPosition, calculateFiaPoints } from '@/lib/f1-standings-calculator'
+import {
+  getFiaPointsForPosition,
+  calculateFiaPoints,
+  calculateRacePoints,
+} from '@/lib/f1-standings-calculator'
 import { formatLapTime } from '@/lib/f1-race-sim-engine'
 
-export { calculateFiaPoints } from '@/lib/f1-standings-calculator'
+export { calculateFiaPoints, calculateRacePoints } from '@/lib/f1-standings-calculator'
+export type { CalculateRacePointsParams } from '@/lib/f1-standings-calculator'
 
 export class CanonicalRaceResultService {
   public deepClone<T>(obj: T): T {
@@ -454,9 +459,15 @@ export class CanonicalRaceResultService {
       // E requisito mínimo de 2 voltas consecutivas completas sem SC/VSC.
       let pointsAwarded = 0
       if (isClassified && hasMinimumConsecutiveGreenLaps && leaderLaps >= 2) {
-        pointsAwarded = calculateFiaPoints(finalPosition, leaderLaps, totalLaps, {
-          hasMinimumConsecutiveGreenLaps,
-          validConsecutiveLapsWithoutSCVSC,
+        pointsAwarded = calculateRacePoints({
+          position: finalPosition,
+          scheduledLaps: totalLaps,
+          leaderLaps,
+          hasMinimumPointEligibility: hasMinimumConsecutiveGreenLaps,
+          isClassified,
+          classificationStatus,
+          raceStatus: car.raceStatus || car.status,
+          status: car.status || car.raceStatus,
         })
       }
 

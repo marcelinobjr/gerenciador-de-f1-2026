@@ -33,60 +33,88 @@ export const FIA_REDUCED_POINTS_25: readonly number[] = [6, 4, 3, 2, 1] as const
 export const FIA_REDUCED_POINTS_50: readonly number[] = [13, 10, 8, 6, 5, 4, 3, 2, 1] as const
 export const FIA_REDUCED_POINTS_75: readonly number[] = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1] as const
 
-export function calculateFiaPoints(
-  position: number,
-  completedLaps: number,
-  totalLaps: number,
-  options?: {
-    hasMinimumConsecutiveGreenLaps?: boolean
-    validConsecutiveLapsWithoutSCVSC?: number
-  },
-): number {
-  if (position < 1 || totalLaps <= 0 || completedLaps < 2) {
+export interface CalculateRacePointsParams {
+  position: number
+  scheduledLaps: number
+  leaderLaps: number
+  hasMinimumPointEligibility?: boolean
+  isClassified?: boolean
+  classificationStatus?: 'CLASSIFIED' | 'NOT_CLASSIFIED' | 'NC' | string
+  raceStatus?: string
+  status?: string
+}
+
+/**
+ * Resolver canônico de pontuação FIA por distância percorrida.
+ * Reutiliza e estende as regras oficiais FIA 2026:
+ * - Se classificação for NC / NOT_CLASSIFIED -> 0 pontos.
+ * - Piloto DNF mas CLASSIFIED permanece elegível para os pontos da posição.
+ * - Condição de elegibilidade mínima (ex: >= 2 voltas verdes consecutivas sem SC/VSC).
+ *   Não presume elegibilidade se hasMinimumPointEligibility for falso ou ausente sem leaderLaps >= 2.
+ * - Comparação segura por multiplicação cruzada sem float frágil.
+ */
+export function calculateRacePoints(params: CalculateRacePointsParams): number {
+  const {
+    position,
+    scheduledLaps,
+    leaderLaps,
+    hasMinimumPointEligibility,
+    isClassified,
+    classificationStatus,
+  } = params
+
+  if (position < 1 || scheduledLaps <= 0 || leaderLaps <= 0) {
     return 0
   }
 
-  // FIA 2026 Art A2.2.1: Mínimo de 2 voltas completas e consecutivas sem SC/VSC
-  if (typeof options === 'number') {
-    if (options < 2) return 0
-  } else if (options && typeof options === 'object') {
-    if (
-      (options as any).hasMinimumConsecutiveGreenLaps === false ||
-      (options as any).eligibleForPoints === false
-    ) {
-      return 0
-    }
-    const consec =
-      (options as any).validConsecutiveLapsWithoutSCVSC ??
-      (options as any).consecutiveLapsWithoutSCVSC
-    if (typeof consec === 'number' && consec < 2) {
-      return 0
-    }
+  // REGRA 2: Se classificationStatus = NC ou NOT_CLASSIFIED -> 0 pontos
+  if (classificationStatus === 'NC' || classificationStatus === 'NOT_CLASSIFIED') {
+    return 0
+  }
+  if (isClassified === false) {
+    return 0
   }
 
-  // Comparação racional exata para evitar imprecisões de ponto flutuante:
-  // Faixa 1: completedLaps * 4 < totalLaps (< 25%) -> P1..P5 (6, 4, 3, 2, 1)
-  // Faixa 2: completedLaps * 4 >= totalLaps e completedLaps * 2 < totalLaps (>= 25% e < 50%) -> P1..P9 (13, 10, 8, 6, 5, 4, 3, 2, 1, P10=0)
-  // Faixa 3: completedLaps * 2 >= totalLaps e completedLaps * 4 < totalLaps * 3 (>= 50% e < 75%) -> P1..P10 (19, 14, 12, 10, 8, 6, 4, 3, 2, 1)
-  // Faixa 4: completedLaps * 4 >= totalLaps * 3 (>= 75%) -> P1..P10 (25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
-  if (completedLaps * 4 < totalLaps) {
-    // Faixa 1: >= 2 laps e < 25%: P1=6, P2=4, P3=3, P4=2, P5=1, P6+=0
+  // REGRA 4: Elegibilidade mínima
+  // Se explicitamente falso, ou se leaderLaps < 2, não elegível
+  if (hasMinimumPointEligibility === false) {
+    return 0
+  }
+  // Se hasMinimumPointEligibility for undefined, exige que leaderLaps >= 2
+  // Mas se for fornecido explicitamente, respeita a flag
+  if (hasMinimumPointEligibility === undefined && leaderLaps < 2) {
+    return 0
+  }
+
+  // REGRA 7: Multiplicação cruzada segura líder x programado
+  // Faixa 1: < 25% -> leaderLaps * 100 < scheduledLaps * 25
+  // Faixa 2: >= 25% e < 50% -> leaderLaps * 100 >= scheduledLaps * 25 && leaderLaps * 100 < scheduledLaps * 50
+  // Faixa 3: >= 50% e < 75% -> leaderLaps * 100 >= scheduledLaps * 50 && leaderLaps * 100 < scheduledLaps * 75
+  // Faixa 4: >= 75% -> leaderLaps * 100 >= scheduledLaps * 75
+
+  const leader100 = leaderLaps * 100
+  const thresh25 = scheduledLaps * 25
+  const thresh50 = scheduledLaps * 50
+  const thresh75 = scheduledLaps * 75
+
+  if (leader100 < thresh25) {
+    // Faixa 1: P1=6, P2=4, P3=3, P4=2, P5=1, P6+=0
     if (position >= 1 && position <= FIA_REDUCED_POINTS_25.length) {
       return FIA_REDUCED_POINTS_25[position - 1]
     }
     return 0
   }
 
-  if (completedLaps * 2 < totalLaps) {
-    // Faixa 2: >= 25% e < 50%: P1=13, P2=10, P3=8, P4=6, P5=5, P6=4, P7=3, P8=2, P9=1, P10=0
+  if (leader100 < thresh50) {
+    // Faixa 2: P1=13, P2=10, P3=8, P4=6, P5=5, P6=4, P7=3, P8=2, P9=1, P10=0
     if (position >= 1 && position <= FIA_REDUCED_POINTS_50.length) {
       return FIA_REDUCED_POINTS_50[position - 1]
     }
     return 0
   }
 
-  if (completedLaps * 4 < totalLaps * 3) {
-    // Faixa 3: >= 50% e < 75%: P1=19, P2=14, P3=12, P4=10, P5=8, P6=6, P7=4, P8=3, P9=2, P10=1
+  if (leader100 < thresh75) {
+    // Faixa 3: P1=19, P2=14, P3=12, P4=10, P8=8, P6=6, P7=4, P8=3, P9=2, P10=1
     if (position >= 1 && position <= FIA_REDUCED_POINTS_75.length) {
       return FIA_REDUCED_POINTS_75[position - 1]
     }
@@ -101,6 +129,61 @@ export function calculateFiaPoints(
   return 0
 }
 
+export function calculateFiaPoints(
+  position: number,
+  completedLaps: number,
+  totalLaps: number,
+  options?: {
+    hasMinimumConsecutiveGreenLaps?: boolean
+    validConsecutiveLapsWithoutSCVSC?: number
+    hasMinimumPointEligibility?: boolean
+    isClassified?: boolean
+    classificationStatus?: string
+  },
+): number {
+  let hasMin: boolean | undefined = undefined
+  let isClassified: boolean | undefined = undefined
+  let classificationStatus: string | undefined = undefined
+
+  if (typeof options === 'number') {
+    hasMin = options >= 2
+  } else if (options && typeof options === 'object') {
+    if (
+      (options as any).hasMinimumConsecutiveGreenLaps === false ||
+      (options as any).eligibleForPoints === false ||
+      (options as any).hasMinimumPointEligibility === false
+    ) {
+      hasMin = false
+    } else if (
+      (options as any).hasMinimumConsecutiveGreenLaps === true ||
+      (options as any).eligibleForPoints === true ||
+      (options as any).hasMinimumPointEligibility === true
+    ) {
+      hasMin = true
+    }
+    const consec =
+      (options as any).validConsecutiveLapsWithoutSCVSC ??
+      (options as any).consecutiveLapsWithoutSCVSC
+    if (typeof consec === 'number' && consec < 2) {
+      hasMin = false
+    }
+    if ((options as any).isClassified !== undefined) {
+      isClassified = (options as any).isClassified
+    }
+    if ((options as any).classificationStatus !== undefined) {
+      classificationStatus = (options as any).classificationStatus
+    }
+  }
+
+  return calculateRacePoints({
+    position,
+    scheduledLaps: totalLaps,
+    leaderLaps: completedLaps,
+    hasMinimumPointEligibility: hasMin,
+    isClassified,
+    classificationStatus,
+  })
+}
 export interface DriverStandingItem {
   id: string
   name: string
