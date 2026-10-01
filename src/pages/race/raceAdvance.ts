@@ -164,7 +164,29 @@ export async function advanceRound(params: AdvanceRoundParams): Promise<void> {
     if (!alreadyProcessed) {
       for (const t of titulars) {
         const resEntry = raceResults.find((r) => r.isPlayer && r.driverId === t.id)
-        const baseMorale = resEntry?.newMorale ?? t.morale ?? 80
+        let baseMorale = resEntry?.newMorale ?? t.morale ?? 80
+
+        // DRIVER-MORALE-01: Se houver resultado da corrida com expectativa/grid e posição final,
+        // recalcular de forma canônica garantindo equivalência entre resultado esperado vs real
+        if (resEntry && typeof resEntry.position === 'number') {
+          const { driverMoraleService } = await import('@/services/driverMoraleService')
+          const isDnf = Boolean(resEntry.dnf || (resEntry as any).isDnf)
+          const calc = driverMoraleService.calculateDriverMoraleDelta({
+            driverId: t.id,
+            teamId: t.team_id || team.id,
+            driverName: t.name,
+            currentMorale: t.morale ?? 80,
+            finishPosition: resEntry.position,
+            gridPosition: (resEntry as any).gridPosition ?? (resEntry as any).startingGridPosition,
+            isDnf,
+            dnfReason: resEntry.dnfReason,
+            status: isDnf ? 'dnf' : 'finished',
+            isWinner: resEntry.position === 1,
+            isPodium: resEntry.position === 2 || resEntry.position === 3,
+          })
+          baseMorale = calc.afterMorale
+        }
+
         const basePhysical = resEntry?.newPhysical ?? t.physical_condition ?? 90
 
         if (t.is_incapacitated) {

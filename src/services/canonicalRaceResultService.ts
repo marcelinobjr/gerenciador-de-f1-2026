@@ -473,8 +473,58 @@ export class CanonicalRaceResultService {
       resultHash: integrityHash,
     }
 
-    // 8. Retorna snapshot
+    // 8. DRIVER-MORALE-01: Disparar hook de processamento assíncrono seguro após oficialização
+    try {
+      this.triggerPostOfficialMoraleProcessing(officialResult)
+    } catch (moraleErr) {
+      console.warn('[CanonicalRaceResultService] Non-blocking morale processing notice:', moraleErr)
+    }
+
+    // 9. Retorna snapshot
     return officialResult as OfficialRaceResult
+  }
+
+  private triggerPostOfficialMoraleProcessing(officialResult: OfficialRaceResult): void {
+    if (typeof window === 'undefined') return
+    // Executa em microtask para não bloquear retorno síncrono da oficialização
+    setTimeout(async () => {
+      try {
+        const { driverMoraleService } = await import('./driverMoraleService')
+        const { f1Service } = await import('./f1Service')
+        const allDrivers = await f1Service.getAllDrivers()
+        const moraleMap: Record<string, number> = {}
+        for (const d of allDrivers) {
+          moraleMap[d.id] = d.morale ?? 80
+        }
+
+        await driverMoraleService.processOfficialRaceMorale({
+          officialResult: {
+            careerId: officialResult.careerId,
+            season: officialResult.season,
+            round: officialResult.round,
+            officializedAt: officialResult.officializedAt,
+            entries: officialResult.entries.map((e) => ({
+              driverId: e.driverId,
+              teamId: e.teamId,
+              driverName: e.driverName,
+              teamName: e.teamName,
+              finalPosition: e.finalPosition,
+              gridPosition: e.gridPosition ?? (e as any).startingGridPosition,
+              status: e.status,
+              isDnf: Boolean((e as any).isDnf || e.dnf),
+              dnf: e.dnf,
+              dnfReason: e.dnfReason,
+            })),
+          },
+          driverCurrentMoraleMap: moraleMap,
+          onSaveDriverMorale: async (driverId, newMorale) => {
+            await f1Service.updateDriver(driverId, { morale: newMorale })
+          },
+        })
+      } catch (err) {
+        console.warn('[CanonicalRaceResultService] Async morale update failed:', err)
+      }
+    }, 0)
   }
 
   public terminateEarlyAndOfficialize(
