@@ -827,9 +827,9 @@ export default function DriversPage() {
     }
     const rawRec = activeSideDriver.rawDbRecord as any
     const isAcademy = Boolean(
-      activeSideDriver.rawDbRecord?.is_academy ||
-      activeSideDriver.rawDbRecord?.career_status === 'academy' ||
-      (activeSideDriver.rawDbRecord?.procedural_data as any)?.careerStatus === 'academy',
+      rawRec?.is_academy ||
+      rawRec?.career_status === 'academy' ||
+      rawRec?.procedural_data?.careerStatus === 'academy'
     )
     if (isAcademy && (!activeSideDriver.role || activeSideDriver.role === null)) {
       return { label: 'Academia', type: 'reserve' as const }
