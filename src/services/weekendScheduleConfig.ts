@@ -56,6 +56,8 @@ export interface WeekendScheduleOptions {
   includePractice3?: boolean
 }
 
+import { normalizeCompletedSessions } from '@/services/weekendProgressionService'
+
 /**
  * Definições canônicas de todas as sessões suportadas pela esteira.
  */
@@ -265,99 +267,88 @@ export function resolveSessionVisualState(params: {
   const { sessionId, activeSessionId, completedSessions, isSessionRunning, isSessionPaused } =
     params
 
-  const isCompleted = completedSessions.includes(sessionId)
+  const normalized = normalizeCompletedSessions(completedSessions)
+  const isCompleted = normalized.includes(sessionId)
 
   if (isCompleted) {
     return 'completed'
   }
 
-  const isCurrentActive = sessionId === activeSessionId
+  // Normaliza o activeSessionId também caso venha como alias
+  const normalizedActiveList = normalizeCompletedSessions([activeSessionId])
+  const isCurrentActive = sessionId === activeSessionId || normalizedActiveList.includes(sessionId)
 
-  if (isCurrentActive) {
+  // Verifica se a sessão está desbloqueada antes de marcá-la como active
+  const isUnlocked = isSessionUnlocked(sessionId, normalized)
+
+  if (isCurrentActive && isUnlocked) {
     if (isSessionRunning) return 'active'
     if (isSessionPaused) return 'paused'
     return 'active'
   }
 
-  // Regras de desbloqueio canônico
+  return isUnlocked ? 'available' : 'locked'
+}
+
+/**
+ * Função auxiliar canônica que avalia se uma sessão está desbloqueada dadas as sessões concluídas normalizadas.
+ */
+function isSessionUnlocked(
+  sessionId: RaceWeekendSessionId,
+  normalizedCompleted: string[],
+): boolean {
   if (sessionId === 'tp1') {
-    return 'available'
+    return true
   }
 
   if (sessionId === 'tp2') {
-    const tp1Done =
-      completedSessions.includes('tp1') ||
-      completedSessions.includes('tl1') ||
-      completedSessions.includes('fp1')
-    return tp1Done ? 'available' : 'locked'
+    return normalizedCompleted.includes('tp1')
   }
 
   if (sessionId === 'tp3') {
-    const tp2Done =
-      completedSessions.includes('tp2') ||
-      completedSessions.includes('tl2') ||
-      completedSessions.includes('fp2')
-    return tp2Done ? 'available' : 'locked'
+    return normalizedCompleted.includes('tp2')
   }
 
-  // Desbloqueio de sessões Sprint: Requer TL1 e TL2 concluídos (aceitando aliases canônicos tp/tl/fp)
+  // Desbloqueio de sessões Sprint: Requer estritamente TL1 e TL2 concluídos
   if (sessionId === 'sq1') {
-    const tl1Done =
-      completedSessions.includes('tp1') ||
-      completedSessions.includes('tl1') ||
-      completedSessions.includes('fp1')
-    const tl2Done =
-      completedSessions.includes('tp2') ||
-      completedSessions.includes('tl2') ||
-      completedSessions.includes('fp2')
-    return tl1Done && tl2Done ? 'available' : 'locked'
+    const tl1Done = normalizedCompleted.includes('tp1')
+    const tl2Done = normalizedCompleted.includes('tp2')
+    return tl1Done && tl2Done
   }
 
   if (sessionId === 'sq2') {
-    const sq1Done =
-      completedSessions.includes('sq1') ||
-      completedSessions.includes('sprint_q1') ||
-      completedSessions.includes('sq_1')
-    return sq1Done ? 'available' : 'locked'
+    return normalizedCompleted.includes('sq1')
   }
+
   if (sessionId === 'sq3') {
-    const sq2Done =
-      completedSessions.includes('sq2') ||
-      completedSessions.includes('sprint_q2') ||
-      completedSessions.includes('sq_2')
-    return sq2Done ? 'available' : 'locked'
+    return normalizedCompleted.includes('sq2')
   }
 
   if (sessionId === 'sprint_race') {
-    return completedSessions.includes('sq3') || completedSessions.includes('sprint_qualifying')
-      ? 'available'
-      : 'locked'
+    return normalizedCompleted.includes('sq3') || normalizedCompleted.includes('sprint_qualifying')
   }
 
   // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído. No Sprint, requer sprint_race concluída.
   if (sessionId === 'q1') {
-    const normalOk = completedSessions.includes('tp3')
-    // No formato Sprint, TL3 não existe. Q1 desbloqueia APÓS a sprint_race ser concluída.
+    const normalOk = normalizedCompleted.includes('tp3')
     const sprintOk =
-      completedSessions.includes('sprint_race') || completedSessions.includes('sprint')
-    return normalOk || sprintOk ? 'available' : 'locked'
+      normalizedCompleted.includes('sprint_race') || normalizedCompleted.includes('sprint')
+    return normalOk || sprintOk
   }
 
   if (sessionId === 'q2') {
-    return completedSessions.includes('q1') ? 'available' : 'locked'
+    return normalizedCompleted.includes('q1')
   }
 
   if (sessionId === 'q3') {
-    return completedSessions.includes('q2') ? 'available' : 'locked'
+    return normalizedCompleted.includes('q2')
   }
 
   if (sessionId === 'race') {
-    return completedSessions.includes('q3') || completedSessions.includes('qualifying')
-      ? 'available'
-      : 'locked'
+    return Boolean(normalizedCompleted.includes('q3') || normalizedCompleted.includes('qualifying'))
   }
 
-  return 'locked'
+  return false
 }
 
 /**

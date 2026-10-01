@@ -18,7 +18,7 @@ describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlo
   // SP01 — TL1/TL2 incompletos → SQ1 locked (bloqueado)
   it('SP01 — TL1/TL2 incompletos → SQ1 permanece bloqueado (locked)', () => {
     // DUMP TEST
-// 1. Sem nenhuma sessão
+    // 1. Sem nenhuma sessão
     const stateEmpty = resolveSessionVisualState({
       sessionId: 'sq1',
       activeSessionId: 'tp1',
@@ -113,6 +113,15 @@ describe('SPRINT-PROGRESSION-01: Canonical Sprint Weekend Progression & SQ1 Unlo
     })
     expect(visualState).toBe('active')
     expect(visualState).not.toBe('locked')
+
+    // SP04 Adicional: TL1 concluída + TL2 concluída + SQ1 selecionada -> SQ1 é desbloqueada e ação habilitada
+    const sq1VisualState = resolveSessionVisualState({
+      sessionId: 'sq1',
+      activeSessionId: 'sq1',
+      completedSessions: ['tl1', 'tl2'],
+    })
+    expect(sq1VisualState).toBe('active')
+    expect(sq1VisualState).not.toBe('locked')
   })
 
   // SP05 — Save + Reload e persistência canônica preservam o estado desbloqueado do save real

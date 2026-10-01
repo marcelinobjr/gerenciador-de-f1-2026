@@ -66,6 +66,7 @@ import {
   type WeekendSessionDefinition,
   resolveSessionVisualState,
 } from '@/services/weekendScheduleConfig'
+import { normalizeCompletedSessions } from '@/services/weekendProgressionService'
 import {
   resolveWeekendFormat,
   getWeekendSlotSequence,
@@ -488,10 +489,11 @@ export default function WeekendV2Page() {
     const sess = sessDef.id
     const stored = refreshCompletedSessions()
 
-    // Validações canônicas de bloqueio (com suporte a aliases tp1/tl1/fp1, tp2/tl2/fp2, sq1/sprint_q1):
-    const hasTl1 = stored.includes('tp1') || stored.includes('tl1') || stored.includes('fp1')
-    const hasTl2 = stored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
-    const hasSq1 = stored.includes('sq1') || stored.includes('sprint_q1') || stored.includes('sq_1')
+    // Normalização canônica via normalizeCompletedSessions para tratar todos os aliases de forma única e centralizada
+    const normalizedStored = normalizeCompletedSessions(stored)
+    const hasTl1 = normalizedStored.includes('tp1')
+    const hasTl2 = normalizedStored.includes('tp2')
+    const hasSq1 = normalizedStored.includes('sq1')
 
     if (sess === 'tp2' && !hasTl1) {
       toast({
@@ -530,7 +532,7 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'sq3' && !stored.includes('sq2')) {
+    if (sess === 'sq3' && !normalizedStored.includes('sq2')) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -541,8 +543,8 @@ export default function WeekendV2Page() {
 
     if (
       sess === 'sprint_race' &&
-      !stored.includes('sq3') &&
-      !stored.includes('sprint_qualifying')
+      !normalizedStored.includes('sq3') &&
+      !normalizedStored.includes('sprint_qualifying')
     ) {
       toast({
         variant: 'destructive',
@@ -554,10 +556,10 @@ export default function WeekendV2Page() {
 
     if (
       sess === 'q1' &&
-      !stored.includes('tp2') &&
-      !stored.includes('tp3') &&
-      !stored.includes('sprint_race') &&
-      !stored.includes('sprint')
+      !normalizedStored.includes('tp2') &&
+      !normalizedStored.includes('tp3') &&
+      !normalizedStored.includes('sprint_race') &&
+      !normalizedStored.includes('sprint')
     ) {
       toast({
         variant: 'destructive',
@@ -568,7 +570,7 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'q2' && !stored.includes('q1')) {
+    if (sess === 'q2' && !normalizedStored.includes('q1')) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -577,7 +579,7 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'q3' && !stored.includes('q2')) {
+    if (sess === 'q3' && !normalizedStored.includes('q2')) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -586,7 +588,11 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'race' && !stored.includes('q3') && !stored.includes('qualifying')) {
+    if (
+      sess === 'race' &&
+      !normalizedStored.includes('q3') &&
+      !normalizedStored.includes('qualifying')
+    ) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -627,7 +633,7 @@ export default function WeekendV2Page() {
       setSelectedSessionId(sess)
       setSessionState(null)
       try {
-        await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
+        await initializeQualifyingSession(sess as any, registration, invs)
       } catch {
         // Fallback tolerante se modelo de stage divergir
       }

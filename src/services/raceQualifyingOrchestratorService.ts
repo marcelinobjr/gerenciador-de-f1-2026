@@ -648,9 +648,21 @@ export class RaceQualifyingOrchestratorService {
       round,
     })
 
-    if (currentSlotState.currentSlot === 2) {
+    if (
+      currentSlotState.currentSlot === 2 &&
+      (currentSlotState.slotType === 'QUALI_SPRINT' ||
+        currentSlotState.slotType === 'SPRINT_QUALIFYING')
+    ) {
       // Conclui slot 2 e avança para slot 3 (SPRINT_RACE)
       await canonicalWeekendSlotPersistenceService.completeSlot(currentSlotState, 2)
+      await canonicalWeekendSlotPersistenceService.saveSlotState(currentSlotState)
+    } else if (
+      currentSlotState.currentSlot === 3 &&
+      (currentSlotState.slotType === 'QUALI_SPRINT' ||
+        currentSlotState.slotType === 'SPRINT_QUALIFYING')
+    ) {
+      // Conclui slot 3 e avança para slot 4 (SPRINT_RACE) em persistência com 8 slots (TL1, TL2, QUALI_SPRINT...)
+      await canonicalWeekendSlotPersistenceService.completeSlot(currentSlotState, 3)
       await canonicalWeekendSlotPersistenceService.saveSlotState(currentSlotState)
     }
 
@@ -708,7 +720,9 @@ export class RaceQualifyingOrchestratorService {
         )
       }
 
-      // Pré-condição do weekend: slot atual deve ser 2 / QUALI_SPRINT ou SPRINT_QUALIFYING
+      // Pré-condição do weekend: o fluxo canônico deve ter alcançado a Qualificação Sprint
+      // Aceita slot 2 (arquitetura compacta) ou slot 3 (TL1 concluído + TL2 concluído -> QUALI_SPRINT)
+      // bem como checagem esportiva de pré-requisitos dos treinos concluídos
       if (!forceBypassPracticeCheck) {
         const { canonicalWeekendSlotPersistenceService } =
           await import('@/services/canonicalWeekendSlotPersistenceService')
@@ -717,13 +731,21 @@ export class RaceQualifyingOrchestratorService {
           seasonId,
           round,
         })
-        const isSlot2 = slotState.currentSlot === 2
+        const currentSlotDef = slotState.slots[slotState.currentSlot]
         const isSlotTypeValid =
-          slotState.slotType === 'QUALI_SPRINT' || slotState.slotType === 'SPRINT_QUALIFYING'
+          slotState.slotType === 'QUALI_SPRINT' ||
+          slotState.slotType === 'SPRINT_QUALIFYING' ||
+          currentSlotDef?.slotType === 'QUALI_SPRINT' ||
+          currentSlotDef?.slotType === 'SPRINT_QUALIFYING'
 
-        if (!isSlot2 || !isSlotTypeValid) {
+        // Também verifica se os treinos anteriores (slots 1 e 2) já foram concluídos na persistência
+        const practicesCompleted =
+          slotState.completedSlots.includes(1) &&
+          (slotState.completedSlots.includes(2) || slotState.currentSlot === 2)
+
+        if (!isSlotTypeValid && !practicesCompleted) {
           throw new Error(
-            `Pré-condição violada: Quali Sprint (${phase}) exige slot atual = 2 (SPRINT_QUALIFYING / QUALI_SPRINT). Slot atual: ${slotState.currentSlot} (${slotState.slotType}).`,
+            `Pré-condição violada: Quali Sprint (${phase}) exige slot atual de qualificação sprint (SPRINT_QUALIFYING / QUALI_SPRINT). Slot atual: ${slotState.currentSlot} (${slotState.slotType}).`,
           )
         }
       }
