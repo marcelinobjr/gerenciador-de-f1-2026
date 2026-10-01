@@ -409,5 +409,6 @@ describe('SETUP-EFFICIENCY-QUALI-01 — Suíte QSE01 (setupEfficiency no Qualify
     // Diferença esperada no pace: (100 - 60) * 0.05 = 2.0 pts = ~0.164s
     // Devido ao ruído de ±0.075 * 1.0 pt no runner (±0.075 pt), o setup de 2.0 pts domina com folga
     expect((badCar1.bestLapSec as number) - (goodCar1.bestLapSec as number)).toBeGreaterThan(0.05)
+    console.log('[PROBE-QSE01-10] passed! badCar1:', badCar1.bestLapSec, 'goodCar1:', goodCar1.bestLapSec)
   })
 })
