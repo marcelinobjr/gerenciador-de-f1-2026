@@ -631,7 +631,10 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   Moral
                 </span>
                 <span className="font-bold text-[#0F172A]">
-                  {getQualitativeState(pilot.moraleState ?? 75, 'morale')}
+                  {getQualitativeState(
+                    (pilot as any).morale ?? (pilot as any).moraleState ?? 75,
+                    'morale',
+                  )}
                 </span>
               </div>
               <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0] shadow-xs">

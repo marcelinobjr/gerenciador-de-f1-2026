@@ -518,6 +518,19 @@ export class CanonicalRaceResultService {
       }
     }
 
+    // Se estiver em contexto de carreira, complementar moraleMap com a fonte canônica career_drivers
+    if (officialResult.careerId) {
+      const { driverBase2026Service } = await import('./driverBase2026Service')
+      const careerDrivers = driverBase2026Service.getCareerDrivers(officialResult.careerId)
+      if (careerDrivers) {
+        for (const [drvId, rec] of Object.entries(careerDrivers)) {
+          if (rec && typeof rec.morale === 'number') {
+            moraleMap[drvId] = rec.morale
+          }
+        }
+      }
+    }
+
     await driverMoraleService.processOfficialRaceMorale({
       officialResult: {
         careerId: officialResult.careerId,
@@ -546,6 +559,23 @@ export class CanonicalRaceResultService {
             `[CanonicalRaceResultService] Error persisting driver ${driverId} morale:`,
             saveErr,
           )
+        }
+
+        // Também assegura persistência na fonte canônica de career_drivers se careerId presente
+        if (officialResult.careerId) {
+          try {
+            const { driverBase2026Service } = await import('./driverBase2026Service')
+            driverBase2026Service.updateCareerDriverStats({
+              careerId: officialResult.careerId,
+              driverId,
+              newMorale,
+            })
+          } catch (careerErr) {
+            console.warn(
+              `[CanonicalRaceResultService] Error persisting driver ${driverId} in careerDrivers:`,
+              careerErr,
+            )
+          }
         }
       },
     })

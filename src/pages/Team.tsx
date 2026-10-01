@@ -110,6 +110,7 @@ import { ManagerProfileDetailsModal } from '@/components/team/ManagerProfileDeta
 import { PilotProfileDialog } from '@/components/PilotProfileDialog'
 import { getManagerOfficialPortrait } from '@/lib/manager-official-assets'
 import { driverHiringService } from '@/services/driverHiringService'
+import { driverBase2026Service } from '@/services/driverBase2026Service'
 import {
   Dialog,
   DialogContent,
@@ -1627,7 +1628,11 @@ export default function TeamPage() {
                     driverNumber={activeNum1}
                     nationality={d1.nationality || 'Austrália'}
                     overallRating={ovr1 || 87}
-                    moral={d1.morale || 78}
+                    moral={
+                      driverBase2026Service.getCareerDriver(team?.id || '', d1.id)?.morale ??
+                      d1.morale ??
+                      78
+                    }
                     forma={d1.physical_condition || 85}
                     consistency={d1.consistency || 82}
                     contractEndYear={d1.contract_end || 2026}
@@ -1690,7 +1695,11 @@ export default function TeamPage() {
                     driverNumber={activeNum2}
                     nationality={d2.nationality || 'Brasil'}
                     overallRating={ovr2 || 81}
-                    moral={d2.morale || 75}
+                    moral={
+                      driverBase2026Service.getCareerDriver(team?.id || '', d2.id)?.morale ??
+                      d2.morale ??
+                      75
+                    }
                     forma={d2.physical_condition || 80}
                     consistency={d2.consistency || 78}
                     contractEndYear={d2.contract_end || 2028}

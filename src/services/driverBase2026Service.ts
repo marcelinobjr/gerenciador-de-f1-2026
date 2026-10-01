@@ -445,6 +445,7 @@ export const driverBase2026Service = {
     deltaPositionsGained?: number
     newFinishPosition?: number
     newGridPosition?: number
+    newMorale?: number
   }): CareerDriverRecord | null {
     const { careerId, driverId } = params
     let all = this.getCareerDrivers(careerId)
@@ -522,6 +523,11 @@ export const driverBase2026Service = {
         updatedAt: nowIso,
       }
       all[driverId] = current
+    }
+
+    // Atualização de moral (DRIVER-MORALE-01)
+    if (params.newMorale !== undefined && typeof params.newMorale === 'number') {
+      current.morale = Math.max(0, Math.min(100, Math.round(params.newMorale)))
     }
 
     // Sincronizar contadores legados e FW2.1E-G

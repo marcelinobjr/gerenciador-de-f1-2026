@@ -28,6 +28,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { driverMoraleService } from '@/services/driverMoraleService'
 import { DRIVER_WEIGHTS, StructuralStrengthService } from '@/services/structuralStrengthService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
+import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
+import { driverBase2026Service } from '@/services/driverBase2026Service'
 
 describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
   beforeEach(() => {
@@ -495,5 +497,74 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
       driverId: 'drv_unoff_1',
     })
     expect(wasProcessed).toBe(false)
+  })
+
+  // DM21: Integração com canonicalCareerPersistenceService e driverBase2026Service
+  it('DM21: registerOfficialRaceResultInCareer persiste a moral calculada no registro canônico do piloto', () => {
+    const careerId = 'career_int_dm21'
+    const season = 2026
+    const round = 1
+
+    // Inicializa career drivers
+    driverBase2026Service.initializeCareerDrivers({ careerId, playerTeamId: 'audi' })
+    const drvId = 'mbj-020' // Gabriel Bortoleto
+    const initialRec = driverBase2026Service.getCareerDriver(careerId, drvId)!
+    expect(initialRec.morale).toBe(85)
+
+    // Cria mock race state oficializável
+    const mockState: any = {
+      careerId,
+      season,
+      round,
+      raceId: 'race_dm21',
+      circuitId: 'bahrain',
+      totalLaps: 57,
+      status: 'completed',
+      safetyCarActive: false,
+      vscActive: false,
+      redFlagActive: false,
+      drivers: [
+        {
+          driverId: drvId,
+          teamId: 'audi',
+          position: 1,
+          currentPosition: 1,
+          gridPosition: 5, // Expected P5, Finish P1 -> +4 delta (base +2) + win (+3) = +5
+          lap: 57,
+          raceStatus: 'finished',
+        },
+      ],
+    }
+
+    const official = canonicalRaceResultService.officializeRace(mockState)
+    const result = canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
+    expect(result.success).toBe(true)
+
+    const updatedRec = driverBase2026Service.getCareerDriver(careerId, drvId)!
+    // 85 + 5 = 90
+    expect(updatedRec.morale).toBe(90)
+
+    // Reprocessamento não duplica
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
+    const afterSecondCall = driverBase2026Service.getCareerDriver(careerId, drvId)!
+    expect(afterSecondCall.morale).toBe(90)
+  })
+
+  // DM22: Fallback determinístico de expectativa usa gridPosition
+  it('DM22: Fallback determinístico usa gridPosition quando expectedPosition não fornecida', () => {
+    const res = driverMoraleService.calculateDriverMoraleDelta({
+      driverId: 'drv_fallback',
+      currentMorale: 80,
+      finishPosition: 3,
+      gridPosition: 7, // Expected fallback = 7. Finish = 3. Delta = +4 (base +2) + podium (+2) = +4
+    })
+
+    expect(res.usedFallbackGrid).toBe(true)
+    expect(res.expectedPosition).toBe(7)
+    expect(res.performanceDelta).toBe(4)
+    expect(res.baseDelta).toBe(2)
+    expect(res.specialBonus).toBe(2)
+    expect(res.clampedRaceDelta).toBe(4)
+    expect(res.afterMorale).toBe(84)
   })
 })

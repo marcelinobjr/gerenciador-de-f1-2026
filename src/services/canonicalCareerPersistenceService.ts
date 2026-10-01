@@ -16,6 +16,7 @@
 import type { OfficialRaceResult, OfficialRaceResultEntry } from '@/types/canonical-race-v2'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { driverBase2026Service } from '@/services/driverBase2026Service'
+import { driverMoraleService } from '@/services/driverMoraleService'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import pb from '@/lib/pocketbase/client'
 
@@ -356,6 +357,53 @@ export class CanonicalCareerPersistenceService {
         // - bestGridPosition: menor número é melhor
         const newGridPosition = entry.gridPosition > 0 ? entry.gridPosition : undefined
 
+        // DRIVER-MORALE-01: Cálculo e persistência canônica da moral por piloto
+        // Idempotência estrita garantida pela chave de idempotência (career + season + round + driverId)
+        let computedNewMorale: number | undefined
+        const currentCareerDriver = driverBase2026Service.getCareerDriver(careerId, driverId)
+        const currentMorale = currentCareerDriver?.morale ?? 80
+
+        const isMoraleAlreadyDone = driverMoraleService.isMoraleAlreadyProcessed({
+          careerId,
+          season,
+          round,
+          driverId,
+        })
+
+        if (!isMoraleAlreadyDone) {
+          const moraleCalc = driverMoraleService.calculateDriverMoraleDelta({
+            driverId,
+            teamId: entry.teamId,
+            driverName: entry.driverName,
+            teamName: entry.teamName,
+            currentMorale,
+            finishPosition: entry.finalPosition,
+            gridPosition: entry.gridPosition,
+            status: entry.status,
+            isDnf,
+            dnfReason: entry.dnfReason,
+            isWinner: entry.finalPosition === 1,
+            isPodium: entry.finalPosition >= 1 && entry.finalPosition <= 3,
+          })
+
+          computedNewMorale = moraleCalc.afterMorale
+
+          driverMoraleService.markMoraleProcessed(
+            {
+              careerId,
+              season,
+              round,
+              driverId,
+            },
+            {
+              before: moraleCalc.beforeMorale,
+              after: moraleCalc.afterMorale,
+              delta: moraleCalc.clampedRaceDelta,
+              officializedAt: officialResult.officializedAt,
+            },
+          )
+        }
+
         driverBase2026Service.updateCareerDriverStats({
           careerId,
           driverId,
@@ -372,6 +420,7 @@ export class CanonicalCareerPersistenceService {
           deltaPositionsGained,
           newFinishPosition,
           newGridPosition,
+          newMorale: computedNewMorale,
         })
 
         // Registrar no journal e persistir checkpoint progressivo

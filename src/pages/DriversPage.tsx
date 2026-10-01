@@ -18,6 +18,7 @@ import {
   getOverallRating,
   getDriverCareerStats,
 } from '@/lib/mbj-drivers-data'
+import { driverBase2026Service } from '@/services/driverBase2026Service'
 import { OFFICIAL_F1_ACADEMY_MBJ_2026 } from '@/lib/f1-academy-official-data'
 import { ALL_GRID_TEAMS_DATABASE } from '@/lib/grid-teams-database'
 import pb from '@/lib/pocketbase/client'
@@ -255,6 +256,8 @@ export default function DriversPage() {
 
   // Normalização unificada unindo banco PocketBase + dados catalogados do MBJ
   const unifiedDrivers: UnifiedDriverItem[] = useMemo(() => {
+    // DRIVER-MORALE-01: Buscar dados canônicos da carreira se disponíveis
+    const careerDriversMap = team?.id ? driverBase2026Service.getCareerDrivers(team.id) : null
     const mbjMap = new Map<string, (typeof MBJ_2026_PILOTS)[number]>()
     for (const pilot of MBJ_2026_PILOTS) {
       const canKey = getDriverCanonicalKey(pilot.name)
@@ -454,8 +457,18 @@ export default function DriversPage() {
           mbjInfo?.localPopularity ??
           Math.min(100, Math.max(60, speed + 10)),
         localMarket: f1aInfo?.localMarket || mbjInfo?.localMarket,
-        morale: d.morale ?? f1aInfo?.morale ?? mbjInfo?.moraleState ?? 75,
-        moraleState: d.morale ?? f1aInfo?.morale ?? mbjInfo?.moraleState ?? 75,
+        morale:
+          careerDriversMap?.[d.id]?.morale ??
+          d.morale ??
+          f1aInfo?.morale ??
+          mbjInfo?.moraleState ??
+          75,
+        moraleState:
+          careerDriversMap?.[d.id]?.morale ??
+          d.morale ??
+          f1aInfo?.morale ??
+          mbjInfo?.moraleState ??
+          75,
         confidence: f1aInfo?.confidence ?? mbjInfo?.confidence ?? 75,
         physicalCondition:
           d.physical_condition || f1aInfo?.condition || mbjInfo?.physicalCondition || 100,
@@ -551,7 +564,7 @@ export default function DriversPage() {
         globalPopularity: pilot.globalPopularity ?? Math.max(30, pilot.speed - 10),
         localPopularity: pilot.localPopularity ?? Math.min(100, pilot.speed + 10),
         localMarket: pilot.localMarket,
-        moraleState: pilot.moraleState ?? 75,
+        moraleState: careerDriversMap?.[pilot.id]?.morale ?? pilot.moraleState ?? 75,
         confidence: pilot.confidence ?? 75,
         physicalCondition: pilot.physicalCondition ?? 100,
         stress: pilot.stress ?? 25,
