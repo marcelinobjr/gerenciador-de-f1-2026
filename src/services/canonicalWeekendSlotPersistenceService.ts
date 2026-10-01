@@ -301,20 +301,34 @@ export class CanonicalWeekendSlotPersistenceService {
 
     // Migração SPRINT:
     // slot 1 = TL1
-    // slot 2 = QUALI_SPRINT (SQ1 / SQ2 / SQ3)
-    // slot 3 = SPRINT
-    // slot 4 = Q1
-    // slot 5 = Q2
-    // slot 6 = Q3
-    // slot 7 = CORRIDA
-    // TL2 e TL3 são NULAS / NOT_RUN
-    const hasTL1 = legacyCompleted.includes('tp1')
+    // slot 2 = TL2
+    // slot 3 = QUALI_SPRINT (SQ1 / SQ2 / SQ3)
+    // slot 4 = SPRINT
+    // slot 5 = Q1
+    // slot 6 = Q2
+    // slot 7 = Q3
+    // slot 8 = CORRIDA
+    const hasTL1 =
+      legacyCompleted.includes('tp1') ||
+      legacyCompleted.includes('tl1') ||
+      legacyCompleted.includes('fp1')
+    const hasTL2 =
+      legacyCompleted.includes('tp2') ||
+      legacyCompleted.includes('tl2') ||
+      legacyCompleted.includes('fp2')
     const hasSQ =
       legacyCompleted.includes('sprint_qualifying') ||
       legacyCompleted.includes('sq') ||
-      legacyCompleted.includes('sq3')
-    const hasSQ1 = legacyCompleted.includes('sq1')
-    const hasSQ2 = legacyCompleted.includes('sq2')
+      legacyCompleted.includes('sq3') ||
+      legacyCompleted.includes('sprint_q3')
+    const hasSQ1 =
+      legacyCompleted.includes('sq1') ||
+      legacyCompleted.includes('sprint_q1') ||
+      legacyCompleted.includes('sq_1')
+    const hasSQ2 =
+      legacyCompleted.includes('sq2') ||
+      legacyCompleted.includes('sprint_q2') ||
+      legacyCompleted.includes('sq_2')
     const hasSprint = legacyCompleted.includes('sprint') || legacyCompleted.includes('sprint_race')
     const hasQ1 = legacyCompleted.includes('q1')
     const hasQ2 = legacyCompleted.includes('q2')
@@ -326,6 +340,14 @@ export class CanonicalWeekendSlotPersistenceService {
       state.completedSlots.push(1)
       state.slots[2].status = 'AVAILABLE'
       state.currentSlot = 2
+    }
+    if (hasTL2 && state.slots[2]) {
+      state.slots[2].status = 'COMPLETED'
+      if (!state.completedSlots.includes(2)) state.completedSlots.push(2)
+      if (state.slots[3]) {
+        state.slots[3].status = 'AVAILABLE'
+        state.currentSlot = 3
+      }
     }
     if (hasSQ) {
       state.slots[2].status = 'COMPLETED'

@@ -106,6 +106,24 @@ function normalizeSessionKey(session: string): string {
   if (s === 'sprint') {
     return 'sprint_race'
   }
+  if (s === 'fp1' || s === 'tl1') {
+    return 'tp1'
+  }
+  if (s === 'fp2' || s === 'tl2') {
+    return 'tp2'
+  }
+  if (s === 'fp3' || s === 'tl3') {
+    return 'tp3'
+  }
+  if (s === 'sprint_q1' || s === 'sprint_quali_1' || s === 'sq_1') {
+    return 'sq1'
+  }
+  if (s === 'sprint_q2' || s === 'sprint_quali_2' || s === 'sq_2') {
+    return 'sq2'
+  }
+  if (s === 'sprint_q3' || s === 'sprint_quali_3' || s === 'sq_3') {
+    return 'sq3'
+  }
   return s
 }
 
@@ -142,6 +160,28 @@ export function normalizeCompletedSessions(completedSessions: string[]): string[
   }
   if (set.has('sq2')) {
     set.add('sq1')
+  }
+  // Mapeamentos canônicos e reversos de aliases para compatibilidade total entre engines
+  if (set.has('tp1')) {
+    set.add('tl1')
+    set.add('fp1')
+  }
+  if (set.has('tp2')) {
+    set.add('tl2')
+    set.add('fp2')
+  }
+  if (set.has('tp3')) {
+    set.add('tl3')
+    set.add('fp3')
+  }
+  if (set.has('sq1')) {
+    set.add('sprint_q1')
+  }
+  if (set.has('sq2')) {
+    set.add('sprint_q2')
+  }
+  if (set.has('sq3')) {
+    set.add('sprint_q3')
   }
   // Se sprint_race foi concluído, marcar alias 'sprint'
   if (set.has('sprint_race') || set.has('sprint')) {

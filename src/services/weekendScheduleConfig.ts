@@ -285,25 +285,47 @@ export function resolveSessionVisualState(params: {
   }
 
   if (sessionId === 'tp2') {
-    return completedSessions.includes('tp1') ? 'available' : 'locked'
+    const tp1Done =
+      completedSessions.includes('tp1') ||
+      completedSessions.includes('tl1') ||
+      completedSessions.includes('fp1')
+    return tp1Done ? 'available' : 'locked'
   }
 
   if (sessionId === 'tp3') {
-    return completedSessions.includes('tp2') ? 'available' : 'locked'
+    const tp2Done =
+      completedSessions.includes('tp2') ||
+      completedSessions.includes('tl2') ||
+      completedSessions.includes('fp2')
+    return tp2Done ? 'available' : 'locked'
   }
 
-  // Desbloqueio de sessões Sprint: Requer TL1 e TL2 concluídos
+  // Desbloqueio de sessões Sprint: Requer TL1 e TL2 concluídos (aceitando aliases canônicos tp/tl/fp)
   if (sessionId === 'sq1') {
-    const tl1Done = completedSessions.includes('tp1')
-    const tl2Done = completedSessions.includes('tp2')
+    const tl1Done =
+      completedSessions.includes('tp1') ||
+      completedSessions.includes('tl1') ||
+      completedSessions.includes('fp1')
+    const tl2Done =
+      completedSessions.includes('tp2') ||
+      completedSessions.includes('tl2') ||
+      completedSessions.includes('fp2')
     return tl1Done && tl2Done ? 'available' : 'locked'
   }
 
   if (sessionId === 'sq2') {
-    return completedSessions.includes('sq1') ? 'available' : 'locked'
+    const sq1Done =
+      completedSessions.includes('sq1') ||
+      completedSessions.includes('sprint_q1') ||
+      completedSessions.includes('sq_1')
+    return sq1Done ? 'available' : 'locked'
   }
   if (sessionId === 'sq3') {
-    return completedSessions.includes('sq2') ? 'available' : 'locked'
+    const sq2Done =
+      completedSessions.includes('sq2') ||
+      completedSessions.includes('sprint_q2') ||
+      completedSessions.includes('sq_2')
+    return sq2Done ? 'available' : 'locked'
   }
 
   if (sessionId === 'sprint_race') {

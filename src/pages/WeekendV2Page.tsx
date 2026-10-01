@@ -488,8 +488,15 @@ export default function WeekendV2Page() {
     const sess = sessDef.id
     const stored = refreshCompletedSessions()
 
-    // Validações canônicas de bloqueio:
-    if (sess === 'tp2' && !stored.includes('tp1')) {
+    // Validações canônicas de bloqueio (com suporte a aliases tp1/tl1/fp1, tp2/tl2/fp2, sq1/sprint_q1):
+    const hasTl1 =
+      stored.includes('tp1') || stored.includes('tl1') || stored.includes('fp1')
+    const hasTl2 =
+      stored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
+    const hasSq1 =
+      stored.includes('sq1') || stored.includes('sprint_q1') || stored.includes('sq_1')
+
+    if (sess === 'tp2' && !hasTl1) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -498,7 +505,7 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'tp3' && !stored.includes('tp2')) {
+    if (sess === 'tp3' && !hasTl2) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -507,7 +514,7 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'sq1' && (!stored.includes('tp1') || !stored.includes('tp2'))) {
+    if (sess === 'sq1' && (!hasTl1 || !hasTl2)) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
@@ -517,7 +524,7 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'sq2' && !stored.includes('sq1')) {
+    if (sess === 'sq2' && !hasSq1) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
