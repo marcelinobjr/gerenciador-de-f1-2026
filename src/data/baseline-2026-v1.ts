@@ -11,11 +11,11 @@
  * 5. Racing Bulls — 90
  * 6. Alpine — 87
  * 7. Audi — 84
- * 8. Haas — 81
- * 9. Williams — 79
- * 10. Aston Martin — 75
- * 11. Cadillac — 72
- * 12. Andretti — 69
+ * 8. Aston Martin — 81
+ * 9. Andretti — 79
+ * 10. Haas — 75
+ * 11. Williams — 72
+ * 12. Cadillac — 69
  *
  * Spread estrutural: 100 - 69 = 31 pts.
  * Multiplicador de conversão: 0.08s por ponto -> Spread teórico = 31 * 0.08 = 2.48s.
@@ -71,34 +71,34 @@ export const BASELINE_2026_V1_TEAMS: Record<string, TeamBaselineEntry> = {
     teamName: 'Audi F1 Team',
     score: 84,
   },
-  haas: {
-    rank: 8,
-    teamKey: 'haas',
-    teamName: 'Haas F1 Team',
-    score: 81,
-  },
-  williams: {
-    rank: 9,
-    teamKey: 'williams',
-    teamName: 'Williams Racing',
-    score: 79,
-  },
   astonmartin: {
-    rank: 10,
+    rank: 8,
     teamKey: 'astonmartin',
     teamName: 'Aston Martin Aramco',
-    score: 75,
-  },
-  cadillac: {
-    rank: 11,
-    teamKey: 'cadillac',
-    teamName: 'Cadillac F1 Team',
-    score: 72,
+    score: 81,
   },
   andretti: {
-    rank: 12,
+    rank: 9,
     teamKey: 'andretti',
     teamName: 'Andretti Global',
+    score: 79,
+  },
+  haas: {
+    rank: 10,
+    teamKey: 'haas',
+    teamName: 'Haas F1 Team',
+    score: 75,
+  },
+  williams: {
+    rank: 11,
+    teamKey: 'williams',
+    teamName: 'Williams Racing',
+    score: 72,
+  },
+  cadillac: {
+    rank: 12,
+    teamKey: 'cadillac',
+    teamName: 'Cadillac F1 Team',
     score: 69,
   },
 } as const
@@ -111,11 +111,11 @@ export const BASELINE_2026_V1_ORDER = [
   'racingbulls',
   'alpine',
   'audi',
+  'astonmartin',
+  'andretti',
   'haas',
   'williams',
-  'astonmartin',
   'cadillac',
-  'andretti',
 ] as const
 
 export const BASELINE_2026_V1_METADATA = {

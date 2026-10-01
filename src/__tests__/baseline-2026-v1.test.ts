@@ -14,8 +14,8 @@ describe('BASELINE-2026-LOCK-01-CP1 — Suíte BL26-01..05 & Integridade', () =>
     expect(BASELINE_2026_V1_ORDER).toHaveLength(12)
   })
 
-  // BL26-02: ordem estrutural exata: Mercedes > McLaren > Ferrari > Red Bull > Racing Bulls > Alpine > Audi > Haas > Williams > Aston Martin > Cadillac > Andretti
-  it('BL26-02: ordem estrutural exata: Mercedes > McLaren > Ferrari > Red Bull > Racing Bulls > Alpine > Audi > Haas > Williams > Aston Martin > Cadillac > Andretti', () => {
+  // BL26-02: ordem estrutural exata: Mercedes > McLaren > Ferrari > Red Bull > Racing Bulls > Alpine > Audi > Aston Martin > Andretti > Haas > Williams > Cadillac
+  it('BL26-02: ordem estrutural exata: Mercedes > McLaren > Ferrari > Red Bull > Racing Bulls > Alpine > Audi > Aston Martin > Andretti > Haas > Williams > Cadillac', () => {
     const expectedOrder = [
       'mercedes',
       'mclaren',
@@ -24,11 +24,11 @@ describe('BASELINE-2026-LOCK-01-CP1 — Suíte BL26-01..05 & Integridade', () =>
       'racingbulls',
       'alpine',
       'audi',
+      'astonmartin',
+      'andretti',
       'haas',
       'williams',
-      'astonmartin',
       'cadillac',
-      'andretti',
     ]
 
     expect([...BASELINE_2026_V1_ORDER]).toEqual(expectedOrder)
@@ -47,15 +47,17 @@ describe('BASELINE-2026-LOCK-01-CP1 — Suíte BL26-01..05 & Integridade', () =>
     expect(BASELINE_2026_V1_TEAMS.mercedes.rank).toBe(1)
   })
 
-  // BL26-04: Andretti = 69
-  it('BL26-04: Andretti = 69', () => {
-    expect(BASELINE_2026_V1_TEAMS.andretti.score).toBe(69)
-    expect(BASELINE_2026_V1_TEAMS.andretti.rank).toBe(12)
+  // BL26-04: Cadillac = 69 (P12) e Andretti = 79 (P9)
+  it('BL26-04: Cadillac = 69 (P12) e Andretti = 79 (P9)', () => {
+    expect(BASELINE_2026_V1_TEAMS.cadillac.score).toBe(69)
+    expect(BASELINE_2026_V1_TEAMS.cadillac.rank).toBe(12)
+    expect(BASELINE_2026_V1_TEAMS.andretti.score).toBe(79)
+    expect(BASELINE_2026_V1_TEAMS.andretti.rank).toBe(9)
   })
 
   // BL26-05: spread estrutural = 31 pontos e equivalente aproximado: 31 × 0.08 = 2.48s
   it('BL26-05: spread estrutural = 31 pontos e equivalente aproximado: 31 × 0.08 = 2.48s', () => {
-    const spreadPts = BASELINE_2026_V1_TEAMS.mercedes.score - BASELINE_2026_V1_TEAMS.andretti.score
+    const spreadPts = BASELINE_2026_V1_TEAMS.mercedes.score - BASELINE_2026_V1_TEAMS.cadillac.score
     expect(spreadPts).toBe(31)
     expect(BASELINE_2026_V1_METADATA.pointSpread).toBe(31)
 

@@ -21,7 +21,7 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
       seasonYear: 2026,
     })
     expect(andretti.baselineOrigin).toBe('BASELINE_2026_V1')
-    expect(andretti.baselineAnchorScore).toBe(69)
+    expect(andretti.baselineAnchorScore).toBe(79)
   })
 
   // BL26-CP2-02: Mercedes = 100
@@ -34,14 +34,14 @@ describe('BASELINE-2026-LOCK-01-CP2 — Suíte BL26-CP2-01..04 (Fase 1)', () => 
     expect(mercedes.baselineOrigin).toBe('BASELINE_2026_V1')
   })
 
-  // BL26-CP2-03: Andretti = 69
-  it('BL26-CP2-03: Andretti = 69', () => {
-    const andretti = structuralStrengthService.getTeamStructuralStrength('andretti', {
+  // BL26-CP2-03: Cadillac = 69
+  it('BL26-CP2-03: Cadillac = 69', () => {
+    const cadillac = structuralStrengthService.getTeamStructuralStrength('cadillac', {
       seasonYear: 2026,
     })
-    expect(andretti.structuralStrengthScore).toBe(69)
-    expect(andretti.baselineAnchorScore).toBe(69)
-    expect(andretti.baselineOrigin).toBe('BASELINE_2026_V1')
+    expect(cadillac.structuralStrengthScore).toBe(69)
+    expect(cadillac.baselineAnchorScore).toBe(69)
+    expect(cadillac.baselineOrigin).toBe('BASELINE_2026_V1')
   })
 
   // BL26-CP2-04: ordem exata das 12
