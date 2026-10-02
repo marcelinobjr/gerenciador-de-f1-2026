@@ -31,7 +31,6 @@ import {
   TRACKFIT_NORMAL_CLAMP,
   TRACKFIT_SPECIALIZED_CLAMP,
   NEUTRAL_TRACKFIT_REFERENCE,
-  TRACKFIT_SCALE,
   QUALI_RNG_TARGET_RANGE,
   QUALI_RNG_DEFAULT_SIGMA,
 } from '@/services/canonicalPaceIntegrationService'
@@ -434,7 +433,9 @@ describe('CALIBRATION-WCA-01 — Suíte de Auditoria Williams, Cadillac e Andret
   // =========================================================================
   it('WCA16: TrackFit permanece neutral 75, scale 0.08, clamp ±2.0/±2.5', () => {
     expect(NEUTRAL_TRACKFIT_REFERENCE).toBe(75.0)
-    expect(TRACKFIT_SCALE).toBe(0.08)
+    expect(
+      canonicalPaceIntegrationService.normalizeTrackFit({ rawTrackFitScore: 76 }).trackFitModifier,
+    ).toBeCloseTo(0.08, 2)
     expect(TRACKFIT_NORMAL_CLAMP).toBe(2.0)
     expect(TRACKFIT_SPECIALIZED_CLAMP).toBe(2.5)
 
@@ -528,6 +529,96 @@ describe('CALIBRATION-WCA-01 — Suíte de Auditoria Williams, Cadillac e Andret
   })
 
   // =========================================================================
+  // BENCHMARK MATRIZ DE PISTAS (Fase 2)
+  // =========================================================================
+  it('Benchmark Matriz de Pistas: avalia as 12 equipes ao longo de perfis variados', () => {
+    // Amostra representativa do calendário canônico cobrindo perfis técnicos distintos:
+    // Round 1 (Bahrain - tração/frenagem/misto),
+    // Round 3 (Australia - média/alta velocidade),
+    // Round 4 (Suzuka - alta velocidade/downforce),
+    // Round 8 (Monaco - baixa velocidade/mecânico),
+    // Round 9 (Canada - tração/power-sensitive),
+    // Round 11 (Silverstone - alta velocidade/power/downforce),
+    // Round 14 (Spa - power-sensitive/longas retas),
+    // Round 16 (Monza - ultra high-speed/power)
+    const testRounds = [1, 3, 4, 8, 9, 11, 14, 16]
+    const trackStats: Record<
+      string,
+      {
+        positions: number[]
+        top4Inversions: number
+        midInversions: number
+        bestPos: number
+        worstPos: number
+      }
+    > = {
+      williams: { positions: [], top4Inversions: 0, midInversions: 0, bestPos: 12, worstPos: 1 },
+      cadillac: { positions: [], top4Inversions: 0, midInversions: 0, bestPos: 12, worstPos: 1 },
+      andretti: { positions: [], top4Inversions: 0, midInversions: 0, bestPos: 12, worstPos: 1 },
+    }
+
+    testRounds.forEach((roundNum) => {
+      const circuit = resolveCircuitProfile({ round: roundNum })
+      if (!circuit) return
+
+      const roundPaces = canonical12Teams.map((teamKey) => {
+        const entry = BASELINE_V0_DATA.teams[teamKey] as any
+        const tech = entry?.technicalAttributes ?? entry?.carAttributes
+        const pace = canonicalPaceIntegrationService.computeQualifyingPace({
+          teamKey,
+          driverId: `${teamKey}-eval`,
+          circuitProfile: circuit,
+          carTechnicalAttributes: tech,
+          driverAttributes: neutralDriver,
+          setupEfficiency: 80,
+          fuelKg: 12,
+          noise: 0,
+        })
+        return { teamKey, effectivePace: pace.effectivePaceScore }
+      })
+
+      roundPaces.sort((a, b) => b.effectivePace - a.effectivePace)
+
+      const top4 = ['mercedes', 'ferrari', 'mclaren', 'redbull']
+      const middle4 = ['racingbulls', 'alpine', 'audi', 'haas']
+
+      ;(['williams', 'cadillac', 'andretti'] as const).forEach((wcaKey) => {
+        const pos = roundPaces.findIndex((r) => r.teamKey === wcaKey) + 1
+        const stat = trackStats[wcaKey]
+        stat.positions.push(pos)
+        stat.bestPos = Math.min(stat.bestPos, pos)
+        stat.worstPos = Math.max(stat.worstPos, pos)
+
+        // Contabiliza inversão sobre Top 4
+        const aheadCount = roundPaces.slice(0, pos - 1).map((r) => r.teamKey)
+        const top4Beaten = top4.filter((t) => !aheadCount.includes(t))
+        if (top4Beaten.length > 0) {
+          stat.top4Inversions += top4Beaten.length
+        }
+
+        // Contabiliza quantas equipes de meio de grid foram batidas
+        const midBeaten = middle4.filter((m) => !aheadCount.includes(m))
+        stat.midInversions += midBeaten.length
+      })
+    })
+
+    // Williams (P9 estrutural) pode superar Haas ocasionalmente por TrackFit em pistas favoráveis
+    // mas Cadillac e Andretti NUNCA batem o Top 4
+    expect(trackStats.cadillac.top4Inversions).toBe(0)
+    expect(trackStats.andretti.top4Inversions).toBe(0)
+    expect(trackStats.williams.top4Inversions).toBe(0)
+
+    // A média de posições em cenário neutro fica coerentemente no grupo inferior:
+    const avgWil = trackStats.williams.positions.reduce((a, b) => a + b, 0) / trackStats.williams.positions.length
+    const avgCad = trackStats.cadillac.positions.reduce((a, b) => a + b, 0) / trackStats.cadillac.positions.length
+    const avgAnd = trackStats.andretti.positions.reduce((a, b) => a + b, 0) / trackStats.andretti.positions.length
+
+    expect(avgWil).toBeGreaterThanOrEqual(8) // Williams oscila em torno de P8-P9
+    expect(avgCad).toBeGreaterThanOrEqual(10) // Cadillac oscila em torno de P11
+    expect(avgAnd).toBeGreaterThanOrEqual(11) // Andretti oscila em torno de P12
+  })
+
+  // =========================================================================
   // BENCHMARK CONTROLADO 2: Pilotos Reais
   // =========================================================================
   it('Benchmark Controlado 2: Pilotos reais mostram que a contribuição do piloto é camada de sessão', () => {
@@ -548,5 +639,44 @@ describe('CALIBRATION-WCA-01 — Suíte de Auditoria Williams, Cadillac e Andret
       seasonYear: 2026,
     })
     expect(andStructural.structuralStrengthScore).toBe(45)
+
+    // Log detalhado para registro auditável
+    console.log('=== AUDIT BENCHMARK DATA ===')
+    console.log('WILLIAMS:', {
+      structural: wilStructural.structuralStrengthScore,
+      tech: wilStructural.technicalScore,
+      team: wilStructural.teamScore,
+      driver: wilStructural.driverScore,
+      effectivePu: wilStructural.technicalBreakdown.effectivePuScore,
+      parts: wilStructural.technicalBreakdown.partsScore,
+      rel: wilStructural.technicalBreakdown.reliabilityScore,
+      cond: wilStructural.technicalBreakdown.conditionScore,
+      infra: wilStructural.teamBreakdown.infrastructureScore,
+      morale: wilStructural.teamBreakdown.teamMoraleScore,
+    })
+    console.log('CADILLAC:', {
+      structural: cadStructural.structuralStrengthScore,
+      tech: cadStructural.technicalScore,
+      team: cadStructural.teamScore,
+      driver: cadStructural.driverScore,
+      effectivePu: cadStructural.technicalBreakdown.effectivePuScore,
+      parts: cadStructural.technicalBreakdown.partsScore,
+      rel: cadStructural.technicalBreakdown.reliabilityScore,
+      cond: cadStructural.technicalBreakdown.conditionScore,
+      infra: cadStructural.teamBreakdown.infrastructureScore,
+      morale: cadStructural.teamBreakdown.teamMoraleScore,
+    })
+    console.log('ANDRETTI:', {
+      structural: andStructural.structuralStrengthScore,
+      tech: andStructural.technicalScore,
+      team: andStructural.teamScore,
+      driver: andStructural.driverScore,
+      effectivePu: andStructural.technicalBreakdown.effectivePuScore,
+      parts: andStructural.technicalBreakdown.partsScore,
+      rel: andStructural.technicalBreakdown.reliabilityScore,
+      cond: andStructural.technicalBreakdown.conditionScore,
+      infra: andStructural.teamBreakdown.infrastructureScore,
+      morale: andStructural.teamBreakdown.teamMoraleScore,
+    })
   })
 })
