@@ -463,7 +463,8 @@ export class CanonicalPaceIntegrationService {
       Math.min(1.5, ((100 - tyreMgmt) * 0.006 + 0.85) * paceMods.wearMultiplier),
     )
     const tireWearInc = Math.max(1, Math.round(spec.wearFactor * 0.9 * wearMultiplier))
-    const fuelBurn = Number((1.75 * paceMods.fuelBurnMultiplier).toFixed(2))
+    const trackKm = circuitProfile?.lengthKm ?? 5.0
+    const fuelBurn = Number((trackKm * 0.3 * paceMods.fuelBurnMultiplier).toFixed(4))
 
     const breakdown: PaceBreakdown = {
       structuralStrength: Number(structuralStrength.toFixed(2)),

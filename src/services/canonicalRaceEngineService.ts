@@ -49,6 +49,8 @@ import { canonicalPowerUnitIntegrationService } from '@/services/canonicalPowerU
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { TIRE_SPECS, calculateTireCliffStatus } from '@/lib/f1-tire-system'
 import { calculateTrackFit } from '@/lib/car-session-performance-engine'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
+import type { TrackWeatherState } from '@/lib/f1-tire-system'
 import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegrationService'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
@@ -218,20 +220,42 @@ export class CanonicalRaceEngineService {
    * - Circuito como referência central.
    * - Pneu, combustível e desgaste influenciam o pace.
    */
+  public resolveCircuitLengthKm(round?: number, circuitName?: string): number {
+    if (round) {
+      const found = F1_2026_CALENDAR.find((gp) => gp.round === round)
+      if (found?.circuitLengthKm) return found.circuitLengthKm
+    }
+    if (circuitName) {
+      const lower = circuitName.toLowerCase()
+      const found = F1_2026_CALENDAR.find(
+        (gp) =>
+          gp.circuit.toLowerCase().includes(lower) ||
+          gp.name.toLowerCase().includes(lower) ||
+          lower.includes(gp.circuit.toLowerCase()) ||
+          lower.includes(gp.name.toLowerCase()) ||
+          (lower.includes('interlagos') &&
+            (gp.circuit.toLowerCase().includes('interlagos') ||
+              gp.name.toLowerCase().includes('são paulo') ||
+              gp.name.toLowerCase().includes('brasil'))),
+      )
+      if (found?.circuitLengthKm) return found.circuitLengthKm
+    }
+    // Se não encontrado no calendário, lançar erro explícito ou buscar fallback controlado (sem mascarar com 1.75)
+    throw new Error(
+      `[canonicalRaceEngineService] circuitLengthKm não encontrado para round=${round}, circuitName=${circuitName}`,
+    )
+  }
+
   public calculateCanonicalLapPace(params: {
     driver: CanonicalRaceDriverState
     lap: number
-    weather: CanonicalRaceState['weather']
-    round: number
-    circuitName: string
+    weather: TrackWeatherState
+    round?: number
+    circuitName?: string
+    circuitLengthKm?: number
     tireAbrasiveness?: number
-    rng: () => number
-  }): {
-    lapTimeSec: number
-    tireWearIncrement: number
-    fuelBurnKg: number
-    cliffReached: boolean
-  } {
+    rng?: () => number
+  }): { lapTimeSec: number; tireWearIncrement: number; fuelBurnKg: number; cliffReached: boolean } {
     const { driver, lap, weather, round, circuitName, tireAbrasiveness = 6, rng } = params
 
     const car = this.resolveCarPerformance(driver)
@@ -386,8 +410,10 @@ export class CanonicalRaceEngineService {
       ((spec.wearFactor * 0.9 * wearMultiplier * (tireAbrasiveness / 5)) / 2).toFixed(1),
     )
 
-    // Consumo de combustível modulado pelo modo de ritmo
-    const fuelBurn = Number((1.75 * paceMods.fuelBurnMultiplier).toFixed(2))
+    // Consumo de combustível modulado pelo modo de ritmo e extensão do circuito (FUEL-01B)
+    const circuitLengthKm =
+      params.circuitLengthKm ?? this.resolveCircuitLengthKm(params.round, params.circuitName)
+    const fuelBurn = Number((circuitLengthKm * 0.3 * paceMods.fuelBurnMultiplier).toFixed(4))
 
     return {
       lapTimeSec: Number(Math.max(60.0, lapTotalSec).toFixed(3)),
@@ -535,6 +561,9 @@ export class CanonicalRaceEngineService {
 
     const targetLap = currentState.currentLap
     const totalLaps = currentState.totalLaps
+    const circuitLengthKm =
+      (currentState as any).circuitLengthKm ??
+      this.resolveCircuitLengthKm(currentState.round, currentState.circuitName)
 
     // 1. Semente e gerador RNG determinístico centralizado
     const lapSeed = this.deriveLapSeed(currentState, targetLap, options?.seedOverride)
@@ -1045,6 +1074,7 @@ export class CanonicalRaceEngineService {
         weather: currentLapWeather,
         round: currentState.round,
         circuitName: currentState.circuitName,
+        circuitLengthKm,
         tireAbrasiveness: options?.tireAbrasiveness ?? 6,
         rng,
       })

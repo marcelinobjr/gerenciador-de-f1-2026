@@ -243,6 +243,7 @@ export interface CanonicalRaceState {
   raceId: string
   circuitName: string
   circuitCountry: string
+  circuitLengthKm?: number
   totalLaps: number
   currentLap: number
   status: CanonicalRaceStatus
@@ -400,6 +401,7 @@ export interface InitializeCanonicalRaceParams {
   round: number
   circuitName: string
   circuitCountry: string
+  circuitLengthKm?: number
   totalLaps: number
   playerTeamId: string
   canonicalQualifyingGrid: FinalQualifyingGridEntry[]

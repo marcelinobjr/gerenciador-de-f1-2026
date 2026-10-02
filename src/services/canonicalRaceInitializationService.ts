@@ -36,6 +36,8 @@ import type { TrackWeatherState } from '@/lib/f1-tire-system'
 import { raceStrategyService } from '@/services/raceStrategyService'
 import { canonicalRaceSaveService } from '@/services/canonicalRaceSaveService'
 import { weatherGenerator } from '@/services/weatherGenerator'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
+import { calculateRequiredStartingFuelKg } from '@/services/canonicalFuelModel'
 
 const RACE_V2_STORAGE_KEY_PREFIX = 'apex_race_v2_canonical_state'
 
@@ -82,8 +84,41 @@ export const canonicalRaceInitializationService = {
       totalLaps,
       playerTeamId,
       canonicalQualifyingGrid,
-      initialFuelKg = 100.0,
     } = params
+
+    // FUEL-01B: Resolver circuitLengthKm canônico da corrida
+    let resolvedCircuitLengthKm = params.circuitLengthKm
+    if (!resolvedCircuitLengthKm && round) {
+      const calGp = F1_2026_CALENDAR.find((g) => g.round === round)
+      if (calGp?.circuitLengthKm) resolvedCircuitLengthKm = calGp.circuitLengthKm
+    }
+    if (!resolvedCircuitLengthKm && circuitName) {
+      const lower = circuitName.toLowerCase()
+      const calGp = F1_2026_CALENDAR.find(
+        (g) =>
+          g.circuit.toLowerCase().includes(lower) ||
+          g.name.toLowerCase().includes(lower) ||
+          lower.includes(g.circuit.toLowerCase()) ||
+          lower.includes(g.name.toLowerCase()) ||
+          (lower.includes('interlagos') &&
+            (g.circuit.toLowerCase().includes('interlagos') ||
+              g.name.toLowerCase().includes('são paulo') ||
+              g.name.toLowerCase().includes('brasil'))),
+      )
+      if (calGp?.circuitLengthKm) resolvedCircuitLengthKm = calGp.circuitLengthKm
+    }
+
+    // FUEL-01B: Calcular requiredStartingFuelKg canônico automático
+    let autoCalculatedFuel: number | undefined
+    if (resolvedCircuitLengthKm && resolvedCircuitLengthKm > 0 && totalLaps && totalLaps > 0) {
+      autoCalculatedFuel = calculateRequiredStartingFuelKg(totalLaps, resolvedCircuitLengthKm, 1.0)
+    }
+
+    // Default quando metadata não estiver presente fica 100.0 (fallback legado apenas se metadata ausente)
+    const defaultInitialFuel =
+      typeof params.initialFuelKg === 'number'
+        ? params.initialFuelKg
+        : (autoCalculatedFuel ?? 100.0)
 
     if (!careerId || typeof careerId !== 'string') {
       throw new Error('[FW2.1E-A] careerId inválido para inicialização canônica da corrida.')
@@ -200,7 +235,7 @@ export const canonicalRaceInitializationService = {
       const startingFuel =
         typeof explicitPrep?.startingFuelKg === 'number'
           ? explicitPrep.startingFuelKg
-          : initialFuelKg
+          : defaultInitialFuel
 
       const startingTyreSetId = explicitPrep?.startingTyreSetId || entry.tyreSetId
       const initialTyreWear = explicitPrep?.initialTyreWear ?? 0
@@ -309,6 +344,7 @@ export const canonicalRaceInitializationService = {
       raceId,
       circuitName,
       circuitCountry,
+      circuitLengthKm: resolvedCircuitLengthKm,
       totalLaps: Math.max(1, totalLaps),
       currentLap: 1,
       status: 'not_started',

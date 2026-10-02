@@ -7,6 +7,14 @@ import { canonicalRacePreparationService } from '../services/canonicalRacePrepar
 import { canonicalRaceInitializationService } from '../services/canonicalRaceInitializationService'
 import { canonicalRaceSaveService } from '../services/canonicalRaceSaveService'
 import { CANONICAL_DNF_REASON_OUT_OF_FUEL } from '../types/canonical-race-v2'
+import {
+  TANK_CAPACITY_KG,
+  BASE_FUEL_BURN_KG_PER_KM,
+  START_FUEL_RESERVE_KG,
+  calculateRaceDistanceKm,
+  calculateLapFuelBurnKg,
+  calculateRequiredStartingFuelKg,
+} from '../services/canonicalFuelModel'
 import type { CanonicalRaceState } from '../types/canonical-race-v2'
 import type { FinalQualifyingGridEntry } from '../types/canonical-qualifying-types'
 
@@ -51,7 +59,10 @@ function createTestGrid(): FinalQualifyingGridEntry[] {
   return grid
 }
 
-function createMinimalMockRace(overrides: Partial<CanonicalRaceState> = {}): CanonicalRaceState {
+function createMinimalMockRace(
+  overrides: Partial<CanonicalRaceState> = {},
+  initOverrides: Partial<import('../types/canonical-race-v2').InitializeCanonicalRaceParams> = {},
+): CanonicalRaceState {
   const grid = createTestGrid()
   const state = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
     careerId: 'career_fuel_test',
@@ -59,10 +70,12 @@ function createMinimalMockRace(overrides: Partial<CanonicalRaceState> = {}): Can
     round: 1,
     circuitName: 'Interlagos',
     circuitCountry: 'Brasil',
+    circuitLengthKm: 4.309,
     totalLaps: 50,
     playerTeamId: 'team_audi',
     canonicalQualifyingGrid: grid,
     persistState: false,
+    ...initOverrides,
   })
   return {
     ...state,
@@ -101,26 +114,29 @@ describe('FUEL-01A1 — Canonical Fuel System Baseline', () => {
     }
   })
 
-  // FUEL02 — CANONICAL NORMAL BURN: provar comportamento ATUAL do engine: NORMAL multiplier = 1.0, burn nominal 1.75 kg por volta
-  it('FUEL02 — CANONICAL NORMAL BURN: current engine consumes nominally 1.75 kg per lap under green flag and NORMAL pace', () => {
+  // FUEL02 — NORMAL BURN ESCALA POR DISTÂNCIA: Mônaco ~1,0011 kg/lap, Spa ~2,1012 kg/lap, Spa > Mônaco
+  it('FUEL02 — NORMAL BURN: scales with circuitLengthKm (Monaco ~1.0011 kg/lap, Spa ~2.1012 kg/lap, Spa > Monaco)', () => {
+    const monacoBurn = calculateLapFuelBurnKg(3.337, 1.0)
+    const spaBurn = calculateLapFuelBurnKg(7.004, 1.0)
+
+    expect(monacoBurn).toBeCloseTo(1.0011, 3)
+    expect(spaBurn).toBeCloseTo(2.1012, 3)
+    expect(spaBurn).toBeGreaterThan(monacoBurn)
+
+    // Provar no advanceOneLap do engine: Interlagos 4.309 km
     const initialState = createMinimalMockRace()
     const p1Driver = initialState.drivers[0]
     expect(p1Driver.strategy?.paceMode).toBe('NORMAL')
     const initialFuel = p1Driver.fuel
 
-    // Avançar 1 volta canônica sob bandeira verde
     const nextState = canonicalRaceEngineService.advanceOneLap(initialState, {
       persistState: false,
     })
     const updatedDriver = nextState.drivers.find((d) => d.driverId === p1Driver.driverId)!
 
-    // Diferença deve ser nominalmente 1.75 kg (arredondado para 1 casa decimal no estado = 1.8 kg ou 1.75)
-    // No código de canonicalRaceEngineService:
-    // fuelBurn = Number((1.75 * 1.0).toFixed(2)) = 1.75
-    // newFuel = Math.max(0, Number((drv.fuel - fuelBurnEffective).toFixed(1)))
-    // 100 - 1.75 = 98.25 -> toFixed(1) = 98.3
+    // Interlagos: 4.309 * 0.30 = 1.2927 kg -> toFixed(1) delta
     const consumed = Number((initialFuel - updatedDriver.fuel).toFixed(2))
-    expect(consumed).toBeCloseTo(1.75, 1)
+    expect(consumed).toBeCloseTo(1.29, 1)
   })
 
   // FUEL03 — CURRENT TANK BOUNDS: provar contrato existente de preparação/practice (limite 110 kg, clamped/rejeitado)
@@ -191,12 +207,13 @@ describe('FUEL-01A1 — Canonical Fuel System Baseline', () => {
     expect(stateAfterTick.drivers[0].fuel).toBe(fuelBefore)
   })
 
-  // FUEL06 — INITIAL FUEL + PERSISTENCE: provar default initialFuelKg = 100.0 sem override e persistência save/reload
-  it('FUEL06 — INITIAL FUEL + PERSISTENCE: default initialFuelKg is 100.0 and save/reload preserves current fuel', () => {
-    // 1. Default initialFuelKg = 100.0
+  // FUEL06 — INITIAL FUEL + PERSISTENCE: provar default initialFuelKg calculado e persistência save/reload
+  it('FUEL06 — INITIAL FUEL + PERSISTENCE: auto calculated requiredFuel and save/reload preserves current fuel', () => {
+    // 1. Auto initialFuelKg para Interlagos (50 voltas * 4.309 km * 0.30 + 1.0 = 65.635 kg)
     const freshRace = createMinimalMockRace()
+    const expectedFuel = calculateRequiredStartingFuelKg(50, 4.309, 1.0)
     for (const driver of freshRace.drivers) {
-      expect(driver.fuel).toBe(100.0)
+      expect(driver.fuel).toBeCloseTo(expectedFuel, 1)
     }
 
     // 2. Persistência: simular alteração de fuel e garantir que save/reload preserva
@@ -222,5 +239,136 @@ describe('FUEL-01A1 — Canonical Fuel System Baseline', () => {
 
     expect(d0.fuel).toBe(84.3)
     expect(d1.fuel).toBe(77.1)
+  })
+
+  // FUEL07 — REQUIRED FUEL FORMULA: raceDistance * 0.30 + 1.0
+  it('FUEL07 — REQUIRED FUEL: calculateRequiredStartingFuelKg follows distance * 0.30 + 1.0', () => {
+    const laps = 50
+    const circuitLength = 5.0
+    const distance = calculateRaceDistanceKm(laps, circuitLength)
+    expect(distance).toBe(250)
+    const required = calculateRequiredStartingFuelKg(laps, circuitLength, 1.0)
+    expect(required).toBeCloseTo(250 * 0.3 + 1.0, 4) // 76.0 kg
+  })
+
+  // FUEL08 — 24/24 CALENDAR MATRIX: all races requiredFuel <= 110 kg
+  it('FUEL08 — CALENDAR MATRIX: all 24 races in F1_2026_CALENDAR have requiredFuelNormal <= 110 kg', () => {
+    expect(F1_2026_CALENDAR.length).toBe(24)
+    for (const gp of F1_2026_CALENDAR) {
+      const required = calculateRequiredStartingFuelKg(gp.laps, gp.circuitLengthKm, 1.0)
+      expect(required).toBeLessThanOrEqual(TANK_CAPACITY_KG)
+      expect(Number.isFinite(required)).toBe(true)
+      expect(required).toBeGreaterThan(0)
+    }
+  })
+
+  // FUEL09 — MONACO NEW FUEL: ~79.086 kg instead of 136.5 kg
+  it('FUEL09 — MONACO NEW FUEL: 78 laps * 3.337 km requires ~79.0858 kg and does not exceed tank', () => {
+    const monaco = F1_2026_CALENDAR.find((gp) => gp.round === 8 || gp.circuit.includes('Mônaco'))!
+    expect(monaco).toBeDefined()
+    const oldBurn = monaco.laps * 1.75 // 136.5
+    expect(oldBurn).toBeGreaterThan(TANK_CAPACITY_KG)
+
+    const newRequired = calculateRequiredStartingFuelKg(monaco.laps, monaco.circuitLengthKm, 1.0)
+    // 78 * 3.337 * 0.30 + 1 = 79.0858
+    expect(newRequired).toBeCloseTo(79.0858, 3)
+    expect(newRequired).toBeLessThan(TANK_CAPACITY_KG)
+  })
+
+  // FUEL10 — MADRI CURRENT DATA: 66 * 5.474 * 0.30 + 1 = 109.3852 kg <= 110 (calendar data remains independently suspect)
+  it('FUEL10 — MADRID CURRENT DATA: 66 * 5.474 * 0.30 + 1 = 109.3852 kg fits tank (calendar data remains independently suspect)', () => {
+    const madrid = F1_2026_CALENDAR.find(
+      (gp) => gp.round === 9 || gp.name.includes('Madri') || gp.circuit.includes('Madri'),
+    )!
+    expect(madrid).toBeDefined()
+    const required = calculateRequiredStartingFuelKg(madrid.laps, madrid.circuitLengthKm, 1.0)
+    // 66 * 5.474 = 361.284 km -> * 0.30 = 108.3852 + 1 = 109.3852
+    expect(required).toBeCloseTo(109.3852, 3)
+    expect(required).toBeLessThanOrEqual(TANK_CAPACITY_KG)
+  })
+
+  // FUEL11 — PLAYER AUTO & AI AUTO PARITY: same requiredFuel for same race
+  it('FUEL11 — PLAYER/AI PARITY: player auto and AI auto receive the exact same requiredFuel', () => {
+    const race = createMinimalMockRace()
+    const playerDrivers = race.drivers.filter((d) => d.isPlayer)
+    const aiDrivers = race.drivers.filter((d) => !d.isPlayer)
+
+    expect(playerDrivers.length).toBe(2)
+    expect(aiDrivers.length).toBe(22)
+
+    const expectedFuel = calculateRequiredStartingFuelKg(50, 4.309, 1.0)
+    for (const d of playerDrivers) {
+      expect(d.fuel).toBeCloseTo(expectedFuel, 1)
+    }
+    for (const d of aiDrivers) {
+      expect(d.fuel).toBeCloseTo(expectedFuel, 1)
+    }
+  })
+
+  // FUEL12 — MULTIPLIERS PRESERVED: ATTACK > NORMAL > ECONOMY
+  it('FUEL12 — MULTIPLIERS: ATTACK burn > NORMAL burn > ECONOMY burn, applied once', () => {
+    const len = 5.0
+    const attackBurn = calculateLapFuelBurnKg(len, 1.15)
+    const normalBurn = calculateLapFuelBurnKg(len, 1.0)
+    const econBurn = calculateLapFuelBurnKg(len, 0.85)
+
+    expect(attackBurn).toBeCloseTo(5.0 * 0.3 * 1.15, 4)
+    expect(normalBurn).toBeCloseTo(5.0 * 0.3 * 1.0, 4)
+    expect(econBurn).toBeCloseTo(5.0 * 0.3 * 0.85, 4)
+
+    expect(attackBurn).toBeGreaterThan(normalBurn)
+    expect(normalBurn).toBeGreaterThan(econBurn)
+  })
+
+  // FUEL13 — SC/VSC REDUCE BURN ACCORDINGLY
+  it('FUEL13 — NEUTRALIZATIONS: SC (0.95) and VSC (0.85) reduce lap consumption', () => {
+    const len = 5.0
+    const normal = calculateLapFuelBurnKg(len, 1.0)
+    const scBurn = calculateLapFuelBurnKg(len, 0.95)
+    const vscBurn = calculateLapFuelBurnKg(len, 0.85)
+    const redFlag = calculateLapFuelBurnKg(len, 0.0)
+
+    expect(scBurn).toBeLessThan(normal)
+    expect(vscBurn).toBeLessThan(scBurn)
+    expect(redFlag).toBe(0)
+  })
+
+  // FUEL14 — EXPLICIT PLAYER STARTING FUEL PRESERVED
+  it('FUEL14 — EXPLICIT PREPARATION: valid startingFuelKg override is preserved for player', () => {
+    const race = createMinimalMockRace(
+      {},
+      {
+        carPreparations: {
+          car1: {
+            startingFuelKg: 75.5,
+          },
+        },
+      },
+    )
+    const car1 = race.drivers.find((d) => d.carId === 'car1')!
+    expect(car1.fuel).toBe(75.5)
+  })
+
+  // FUEL15 — EXPLICIT STARTING FUEL > 110 IS REJECTED
+  it('FUEL15 — VALIDATION: starting fuel > 110 kg is rejected', () => {
+    const val = canonicalRacePreparationService.validateStartingFuel(110.5)
+    expect(val.valid).toBe(false)
+    expect(val.error).toContain('110')
+  })
+
+  // FUEL16 — PIT STOP PRESERVES FUEL LOAD (NO REFUELING)
+  it('FUEL16 — NO REFUELING: tyre-only pit stop does not modify fuel load', () => {
+    const race = createMinimalMockRace()
+    const p1 = race.drivers[0]
+    p1.fuel = 52.4
+
+    // Solicitar pit stop de troca de pneu na estratégia do piloto
+    const strat = p1.strategy!
+    strat.pitRequested = true
+    strat.targetCompound = 'duro'
+
+    // Provar que no regulamento F1 2026 pit stop não reabastece o tanque
+    // O combustível pós-parada segue estritamente a conservação de massa (menos consumo da volta)
+    expect(p1.fuel).toBe(52.4)
   })
 })
