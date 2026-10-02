@@ -162,14 +162,17 @@ describe('QUALI-DRIVER-EXECUTION-01 — Qualifying Driver Execution Specificatio
       weather: 'seco',
     })
 
-    expect(paceHigh.breakdown.driverEventModifier).toBeGreaterThan(paceLow.breakdown.driverEventModifier)
+    expect(paceHigh.breakdown.driverEventModifier).toBeGreaterThan(
+      paceLow.breakdown.driverEventModifier,
+    )
     expect(paceHigh.effectivePaceScore).toBeGreaterThan(paceLow.effectivePaceScore)
     expect(paceHigh.lapTimeSec).toBeLessThan(paceLow.lapTimeSec)
 
     // Escala: 10 pontos de speed = (90 - 80) * 0.08 = 0.80 pts de pace
     // Em tempo de volta: 0.80 pts * 0.082 s/pt = ~0.066 s na volta de classificação
-    const speedDeltaModifier = paceHigh.breakdown.driverEventModifier - paceLow.breakdown.driverEventModifier
-    expect(speedDeltaModifier).toBeCloseTo(0.80, 2)
+    const speedDeltaModifier =
+      paceHigh.breakdown.driverEventModifier - paceLow.breakdown.driverEventModifier
+    expect(speedDeltaModifier).toBeCloseTo(0.8, 2)
   })
 
   // QDE04: Maior Experience melhora pace (ou comportamento canônico documentado quando Experience source é ausente na entidade driver)
@@ -214,7 +217,9 @@ describe('QUALI-DRIVER-EXECUTION-01 — Qualifying Driver Execution Specificatio
       weather: 'seco',
     })
 
-    expect(paceHighMorale.breakdown.driverEventModifier).toBeGreaterThan(paceLowMorale.breakdown.driverEventModifier)
+    expect(paceHighMorale.breakdown.driverEventModifier).toBeGreaterThan(
+      paceLowMorale.breakdown.driverEventModifier,
+    )
     expect(paceHighMorale.effectivePaceScore).toBeGreaterThan(paceLowMorale.effectivePaceScore)
     expect(paceHighMorale.lapTimeSec).toBeLessThan(paceLowMorale.lapTimeSec)
   })
@@ -302,7 +307,9 @@ describe('QUALI-DRIVER-EXECUTION-01 — Qualifying Driver Execution Specificatio
       weather: 'seco',
     })
 
-    expect(paceDriverAlpha.breakdown.driverEventModifier).toBe(paceDriverBeta.breakdown.driverEventModifier)
+    expect(paceDriverAlpha.breakdown.driverEventModifier).toBe(
+      paceDriverBeta.breakdown.driverEventModifier,
+    )
     expect(paceDriverAlpha.effectivePaceScore).toBe(paceDriverBeta.effectivePaceScore)
     expect(paceDriverAlpha.lapTimeSec).toBe(paceDriverBeta.lapTimeSec)
   })
@@ -534,7 +541,9 @@ describe('QUALI-DRIVER-EXECUTION-01 — Qualifying Driver Execution Specificatio
     })
 
     // O gap do carro (100 vs 45 = 55 pts) não pode ser superado apenas pela pilotagem
-    expect(midDriverInMerc.effectivePaceScore).toBeGreaterThan(topDriverInAndretti.effectivePaceScore)
+    expect(midDriverInMerc.effectivePaceScore).toBeGreaterThan(
+      topDriverInAndretti.effectivePaceScore,
+    )
   })
 
   // QDE23: Sem multiplier explosivo
