@@ -1506,9 +1506,6 @@ export function getActiveDriverTeamBinding(
     canonicalDriver = findCanonicalDriverMaster(null, rawMatch.name)
   }
 
-
-
-
   // Precedência 0.5: Se o piloto tem canonicalDriver correspondente e é um titular/reserva com equipe na base 2026,
   // mas o registro no banco não possui team_id setado (ex: importação desvinculada no banco onde category='mercado'
   // mas o piloto é titular de ponta como Hamilton -> Scuderia Ferrari), consultar o baseline canônico antes de
@@ -1618,19 +1615,6 @@ export function getActiveDriverTeamBinding(
       return buildBindingResult(canonicalDriver, matchedTeam, cRole, canonicalDriver.teamId)
     }
 
-    // Piloto canônico sem equipe (agente livre / outra categoria como IndyCar, FE, WEC, etc.)
-    return {
-      driverId: canonicalDriver.driverId || driverId,
-      canonicalDriver,
-      teamId: null,
-      teamKey: null,
-      teamName: null,
-      teamColor: null,
-      role: null,
-      status: 'free_agent',
-      isContracted: false,
-    }
-  }
     // Piloto canônico sem equipe (agente livre / outra categoria como IndyCar, FE, WEC, etc.)
     return {
       driverId: canonicalDriver.driverId || driverId,
