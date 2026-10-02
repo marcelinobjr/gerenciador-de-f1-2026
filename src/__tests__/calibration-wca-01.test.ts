@@ -595,7 +595,6 @@ describe('CALIBRATION-WCA-01 — Suíte de Auditoria Williams, Cadillac e Andret
         if (top4Beaten.length > 0) {
           stat.top4Inversions += top4Beaten.length
         }
-
         // Contabiliza quantas equipes de meio de grid foram batidas
         const midBeaten = middle4.filter((m) => !aheadCount.includes(m))
         stat.midInversions += midBeaten.length
@@ -609,9 +608,15 @@ describe('CALIBRATION-WCA-01 — Suíte de Auditoria Williams, Cadillac e Andret
     expect(trackStats.williams.top4Inversions).toBe(0)
 
     // A média de posições em cenário neutro fica coerentemente no grupo inferior:
-    const avgWil = trackStats.williams.positions.reduce((a, b) => a + b, 0) / trackStats.williams.positions.length
-    const avgCad = trackStats.cadillac.positions.reduce((a, b) => a + b, 0) / trackStats.cadillac.positions.length
-    const avgAnd = trackStats.andretti.positions.reduce((a, b) => a + b, 0) / trackStats.andretti.positions.length
+    const avgWil =
+      trackStats.williams.positions.reduce((a, b) => a + b, 0) /
+      trackStats.williams.positions.length
+    const avgCad =
+      trackStats.cadillac.positions.reduce((a, b) => a + b, 0) /
+      trackStats.cadillac.positions.length
+    const avgAnd =
+      trackStats.andretti.positions.reduce((a, b) => a + b, 0) /
+      trackStats.andretti.positions.length
 
     expect(avgWil).toBeGreaterThanOrEqual(8) // Williams oscila em torno de P8-P9
     expect(avgCad).toBeGreaterThanOrEqual(10) // Cadillac oscila em torno de P11
