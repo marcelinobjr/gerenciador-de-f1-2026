@@ -1379,6 +1379,25 @@ export interface ActiveDriverTeamBinding {
  * Helper centralizado: resolve o vínculo contratual ativo de um piloto.
  * NUNCA recorre a driver.teamName, mbjInfo.teamKey ou strings históricas desprovidas de contrato ativo.
  */
+/**
+ * Canonical driver team resolver across the game.
+ * Resolves the active career binding, adhering to precedence:
+ * Persisted career binding > Active season contract > Baseline bootstrap > Free Agent.
+ */
+export function resolveCurrentDriverTeam(
+  driverId: string | null | undefined,
+  careerIdOrSeason?: any,
+  seasonYear?: number,
+  dbDrivers?: any[],
+  dbTeams?: any[],
+): ActiveDriverTeamBinding {
+  const seasonCtx =
+    typeof careerIdOrSeason === 'string'
+      ? { career_id: careerIdOrSeason, year: seasonYear }
+      : careerIdOrSeason
+  return getActiveDriverTeamBinding(driverId, seasonCtx, dbDrivers, dbTeams)
+}
+
 export function getActiveDriverTeamBinding(
   driverId: string | null | undefined,
   seasonContext?: any,
@@ -1482,9 +1501,50 @@ export function getActiveDriverTeamBinding(
     })
   }
 
-  // Se canonicalDriver não foi encontrado apenas pelo driverId, tenta pelo nome do rawMatch
+  // 2.1 Fallback resiliente: se canonicalDriver não foi encontrado pelo ID mas rawMatch tem nome
   if (!canonicalDriver && rawMatch?.name) {
     canonicalDriver = findCanonicalDriverMaster(null, rawMatch.name)
+  }
+
+  // Precedência 0: Vínculo persistido no career_drivers da carreira/save (se careerId presente)
+  const careerId =
+    seasonContext?.career_id ||
+    seasonContext?.careerId ||
+    seasonContext?.team_id ||
+    (typeof seasonContext === 'string' ? seasonContext : null)
+  if (careerId) {
+    try {
+      const { driverBase2026Service } = require('@/services/driverBase2026Service')
+      const careerDrivers = driverBase2026Service.getCareerDrivers(careerId)
+      if (careerDrivers) {
+        const cRec =
+          (driverId ? careerDrivers[driverId] : null) ||
+          (canonicalDriver ? careerDrivers[canonicalDriver.driverId] : null) ||
+          (rawMatch ? careerDrivers[rawMatch.id] : null)
+        if (cRec) {
+          if (cRec.role === 'free_agent' || cRec.teamId === 'free_agent' || !cRec.teamId) {
+            return {
+              driverId: canonicalDriver?.driverId || driverId,
+              canonicalDriver,
+              teamId: null,
+              teamKey: null,
+              teamName: null,
+              teamColor: null,
+              role: null,
+              status: 'free_agent',
+              isContracted: false,
+            }
+          }
+          const matchedTeam = findTeamRecord(cRec.teamId)
+          let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+          if (cRec.role === 'reserva') cRole = 'reserva'
+          else if (cRec.role === 'academy') cRole = 'academia'
+          return buildBindingResult(canonicalDriver, matchedTeam, cRole, cRec.teamId)
+        }
+      }
+    } catch {
+      // safe fallback
+    }
   }
 
   // BUG-INTEGRIDADE-05A:
