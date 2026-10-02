@@ -529,11 +529,20 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'drv_0022',
   ],
   // Hamilton
+  synyhb7yruf04vr: [
+    'hamilton',
+    'driver_lewis_hamilton',
+    'drv_lewis_hamilton',
+    'lewis_hamilton',
+    'mbj-003',
+    'drv_0104',
+  ],
   hamilton: [
     'driver_lewis_hamilton',
     'drv_lewis_hamilton',
     'lewis_hamilton',
     'mbj-003',
+    'synyhb7yruf04vr',
     'drv_0104',
   ],
   driver_lewis_hamilton: [
@@ -541,6 +550,15 @@ const CANONICAL_DRIVER_IDENTITY_ALIASES: Record<string, string[]> = {
     'drv_lewis_hamilton',
     'lewis_hamilton',
     'mbj-003',
+    'synyhb7yruf04vr',
+    'drv_0104',
+  ],
+  'mbj-003': [
+    'hamilton',
+    'driver_lewis_hamilton',
+    'drv_lewis_hamilton',
+    'lewis_hamilton',
+    'synyhb7yruf04vr',
     'drv_0104',
   ],
   // Leclerc
@@ -1444,7 +1462,7 @@ export function getActiveDriverTeamBinding(
   }
 
   // 1. Reconciliação canônica do piloto
-  const canonicalDriver = findCanonicalDriverMaster(driverId, null)
+  let canonicalDriver = findCanonicalDriverMaster(driverId, null)
 
   // 2. Busca o registro real do banco no dbDrivers se fornecido
   let rawMatch: any = null
@@ -1462,6 +1480,11 @@ export function getActiveDriverTeamBinding(
         return true
       return false
     })
+  }
+
+  // Se canonicalDriver não foi encontrado apenas pelo driverId, tenta pelo nome do rawMatch
+  if (!canonicalDriver && rawMatch?.name) {
+    canonicalDriver = findCanonicalDriverMaster(null, rawMatch.name)
   }
 
   // BUG-INTEGRIDADE-05A:
@@ -1550,6 +1573,20 @@ export function getActiveDriverTeamBinding(
       }
       return buildBindingResult(canonicalDriver, matchedTeam, cRole, boundTeamId)
     }
+  }
+
+  // Precedência 2.5: Se o piloto tem registro no banco MAS sem team_id preenchido (ex: importação com category='mercado' ou sem team_id como Hamilton no PocketBase inicial),
+  // MAS possui assento titular/canônico ativo para a temporada corrente no catálogo/baseline inicial (ex: Lewis Hamilton na Ferrari),
+  // a ausência de team_id no banco NÃO deve degradá-lo para agente livre.
+  if (canonicalDriver?.teamId) {
+    const matchedTeam = findTeamRecord(canonicalDriver.teamId)
+    let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
+    if (canonicalDriver.role === 'reserva') {
+      cRole = 'reserva'
+    } else if (canonicalDriver.role === 'academy') {
+      cRole = 'academia'
+    }
+    return buildBindingResult(canonicalDriver, matchedTeam, cRole, canonicalDriver.teamId)
   }
 
   // Precedência 3: Binding canônico inicial da temporada (canonicalDriver.teamId)

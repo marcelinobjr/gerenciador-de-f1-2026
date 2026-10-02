@@ -968,16 +968,17 @@ export default function DriversPage() {
     ) {
       return { label: 'Academia', type: 'reserve' as const }
     }
-    const isContracted = Boolean(
-      (activeSideDriver.teamId || activeSideDriver.teamKey) && activeSideDriver.role !== null,
+    const hasCurrentTeam = Boolean(
+      activeSideDriver.teamId || activeSideDriver.teamKey || activeSideDriver.teamName,
     )
+    const isContracted = Boolean(hasCurrentTeam && activeSideDriver.role !== null)
     if (activeSideDriver.role === 'reserva') {
       return { label: 'Reserva', type: 'reserve' as const }
     }
     if ((activeSideDriver.role as string) === 'academia') {
       return { label: 'Academia', type: 'reserve' as const }
     }
-    if (isContracted) {
+    if (isContracted || hasCurrentTeam) {
       return { label: 'Sob contrato', type: 'contracted' as const }
     }
     return { label: 'Agente livre', type: 'free' as const }
