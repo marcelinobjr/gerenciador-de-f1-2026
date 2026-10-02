@@ -16,11 +16,10 @@ import {
 
 describe('CORREÇÃO BOURDAIS DRV_0075', () => {
   it('1. Arquivo public/pilotos/DRV_0075.jpg existe fisicamente e não é vazio', () => {
-    const all = fs.readdirSync(path.resolve(process.cwd(), 'public', 'pilotos')).filter((f: string) => f.includes('0075'))
+    const all = fs
+      .readdirSync(path.resolve(process.cwd(), 'public', 'pilotos'))
+      .filter((f: string) => f.includes('0075'))
     expect(all).toEqual(['CHECK_FILE'])
-        .readdirSync(path.resolve(process.cwd(), 'public', 'pilotos'))
-        .filter((f) => f.includes('0075')),
-    )
   })
 
   it('2. Sébastien Bourdais (com e sem acento) e mbj-128 resolvem para DRV_0075.jpg', () => {

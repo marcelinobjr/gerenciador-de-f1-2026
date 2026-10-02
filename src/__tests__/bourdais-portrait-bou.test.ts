@@ -13,6 +13,8 @@ import {
 } from '@/lib/canonical-driver-database'
 import * as MbjModule from '@/lib/mbj-drivers-data'
 
+import { testSuitesAudit } from '@/lib/test-suites-audit'
+
 describe('BOU01-BOU04: Sébastien Bourdais (DRV_0075) portrait suite', () => {
   it('BOU01: DRV_0075 resolve para o asset correto', () => {
     const resAccent = resolveDriverPhoto({ name: 'Sébastien Bourdais' })
