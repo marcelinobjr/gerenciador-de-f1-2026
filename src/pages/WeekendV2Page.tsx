@@ -3112,6 +3112,89 @@ export default function WeekendV2Page() {
                 })
               }
             }}
+            onTriggerRedFlag={() => {
+              try {
+                const nextState = canonicalRaceEngineService.triggerRedFlag(canonicalRaceState, {
+                  reason: 'Bandeira Vermelha — Corrida Suspensa pela Direção de Prova',
+                })
+                setCanonicalRaceState(nextState)
+                toast({
+                  variant: 'destructive',
+                  title: '🔴 Bandeira Vermelha Acionada',
+                  description:
+                    'A corrida foi suspensa. Os carros retornaram aos boxes e a classificação foi congelada.',
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao acionar Bandeira Vermelha',
+                  description: e?.message,
+                })
+              }
+            }}
+            onPrepareRestart={() => {
+              try {
+                const nextState =
+                  canonicalRaceEngineService.prepareRedFlagRestart(canonicalRaceState)
+                setCanonicalRaceState(nextState)
+                toast({
+                  title: '🟢 Procedimento de Relargada Ativado',
+                  description:
+                    'Grid alinhado na ordem congelada da bandeira vermelha. Pronto para relargar.',
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao preparar relargada',
+                  description: e?.message,
+                })
+              }
+            }}
+            onResumeRace={() => {
+              try {
+                const nextState =
+                  canonicalRaceEngineService.resumeRaceAfterRedFlag(canonicalRaceState)
+                setCanonicalRaceState(nextState)
+                toast({
+                  title: '🟢 Corrida Reiniciada!',
+                  description: 'Bandeira verde! A prova recomeçou com o grid congelado mantido.',
+                })
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Falha ao reiniciar corrida',
+                  description: e?.message,
+                })
+              }
+            }}
+            onChangeSuspensionTyre={(driverId, compound) => {
+              try {
+                const res = canonicalRaceEngineService.changeTyresDuringSuspension({
+                  raceState: canonicalRaceState,
+                  driverId,
+                  newCompound: compound,
+                })
+                if (res.success) {
+                  setCanonicalRaceState(res.updatedState)
+                  toast({
+                    title: 'Pneu Trocado na Suspensão',
+                    description: `Composto ${compound.toUpperCase()} instalado no carro sem custo competitivo de pit stop.`,
+                  })
+                } else {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha na Troca de Pneus',
+                    description: res.error,
+                  })
+                }
+              } catch (e: any) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Erro ao trocar pneus',
+                  description: e?.message,
+                })
+              }
+            }}
             onAdvanceOneLap={(opts) => {
               try {
                 const nextState = canonicalRaceEngineService.advanceOneLap(canonicalRaceState, opts)

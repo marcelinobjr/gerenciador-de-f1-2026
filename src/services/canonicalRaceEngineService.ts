@@ -52,6 +52,7 @@ import { calculateTrackFit } from '@/lib/car-session-performance-engine'
 import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegrationService'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { raceControlService } from '@/services/raceControlService'
 import { raceStrategyService } from '@/services/raceStrategyService'
 import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
@@ -652,18 +653,28 @@ export class CanonicalRaceEngineService {
     }
 
     // Se estiver em RED FLAG ativa sem override de transição:
-    // A corrida não progride competitivamente; raceTime congela, ordem congela, voltas congelam
+    // A corrida não progride competitivamente; raceTime congela, ordem congela, voltas congelam.
+    // Garante que o snapshot canônico de suspensão exista.
     if (rcState.currentFlag === 'RED_FLAG' && !options?.forceRaceControlStatus) {
       rcState = {
         ...rcState,
         redFlagLaps: rcState.redFlagLaps + 1,
       }
+      let snapshot = currentState.redFlagSnapshot
+      let suspendedDrivers = currentState.drivers
+      if (!snapshot) {
+        const susp = this.createRedFlagSnapshot(currentState, targetLap)
+        snapshot = susp.snapshot
+        suspendedDrivers = susp.updatedDrivers
+      }
       return {
         ...currentState,
-        status: 'red_flag',
+        status: 'suspended',
         redFlagActive: true,
         safetyCarActive: false,
         vscActive: false,
+        drivers: suspendedDrivers,
+        redFlagSnapshot: snapshot,
         raceControl: rcState,
         revision: currentState.revision + 1,
         updatedAt: new Date().toISOString(),
@@ -1499,6 +1510,619 @@ export class CanonicalRaceEngineService {
    * 8. combustível não aumenta espontaneamente
    * 9. DNF não volta para RUNNING/racing
    */
+  /**
+   * RED-FLAG-RESTART-01:
+   * Cria o snapshot canônico da corrida no momento exato da suspensão por bandeira vermelha.
+   * - Congela classificação e dados dos 24 carros.
+   * - Pilotos ativos (racing / in_pit) passam para raceStatus = 'suspended'.
+   * - Pilotos DNF continuam DNF (imutáveis).
+   * - Não altera fuel, tyreWear nem adiciona pitStops.
+   */
+  public createRedFlagSnapshot(
+    state: CanonicalRaceState,
+    suspendedLap: number,
+  ): {
+    snapshot: import('@/types/canonical-race-v2').RedFlagSnapshotState
+    updatedDrivers: CanonicalRaceDriverState[]
+  } {
+    const interruptionId = `rf_snap_lap${suspendedLap}_${state.raceId || 'race'}_${Date.now()}`
+    const frozenAt = new Date().toISOString()
+
+    // Ordenar carros por posição atual P1..P24
+    const ordered = [...state.drivers].sort((a, b) => a.currentPosition - b.currentPosition)
+
+    const driverSnapshots: import('@/types/canonical-race-v2').RedFlagDriverSnapshot[] = []
+    const standingGridOrder: string[] = []
+    const activeDriverIds: string[] = []
+    const dnfDriverIds: string[] = []
+
+    const updatedDrivers: CanonicalRaceDriverState[] = ordered.map((d) => {
+      const isAlreadyDnf = d.raceStatus === 'dnf' || d.isDnf
+
+      driverSnapshots.push({
+        driverId: d.driverId,
+        teamId: d.teamId,
+        driverName: d.driverName,
+        teamName: d.teamName,
+        position: d.currentPosition,
+        gridPosition: d.gridPosition,
+        lap: d.lap,
+        raceTime: d.raceTime,
+        gap: d.gap,
+        tyreCompound: d.tyreCompound,
+        tyreSetId: d.tyreSetId,
+        tyreAge: d.tyreAge,
+        fuel: d.fuel,
+        carCondition: d.carCondition,
+        raceStatus: d.raceStatus,
+        isDnf: d.isDnf,
+        dnfReason: d.dnfReason,
+        dnfLap: d.dnfLap,
+        pitStops: d.pitStops,
+      })
+
+      standingGridOrder.push(d.driverId)
+
+      if (isAlreadyDnf) {
+        dnfDriverIds.push(d.driverId)
+        return { ...d }
+      } else {
+        activeDriverIds.push(d.driverId)
+        // Carros ativos entram em estado de suspensão / retorno aos boxes
+        return {
+          ...d,
+          raceStatus: 'suspended' as import('@/types/canonical-race-v2').CanonicalDriverRaceStatus,
+        }
+      }
+    })
+
+    const snapshot: import('@/types/canonical-race-v2').RedFlagSnapshotState = {
+      suspendedAtLap: suspendedLap,
+      interruptionId,
+      frozenAt,
+      restartType: 'STANDING',
+      driverSnapshots,
+      standingGridOrder,
+      activeDriverIds,
+      dnfDriverIds,
+      tyreChangesDuringSuspension: {},
+      restartReady: false,
+    }
+
+    return { snapshot, updatedDrivers }
+  }
+
+  /**
+   * RED-FLAG-RESTART-01:
+   * Dispara a suspensão oficial da corrida por bandeira vermelha.
+   * Idempotente: se já estiver em red_flag / suspended com o mesmo interruptionId, não duplica.
+   */
+  public triggerRedFlag(
+    currentState: CanonicalRaceState,
+    params?: {
+      reason?: string
+      restartType?: 'STANDING' | 'ROLLING'
+      persistState?: boolean
+    },
+  ): CanonicalRaceState {
+    const rc = raceControlService.ensureRaceControlState(currentState)
+
+    // Idempotência: se já está suspensa ou em red_flag com snapshot existente, retorna sem duplicar
+    if (
+      (currentState.status === 'suspended' || currentState.status === 'red_flag') &&
+      currentState.redFlagActive &&
+      currentState.redFlagSnapshot
+    ) {
+      return currentState
+    }
+
+    const targetLap = currentState.currentLap
+    const activeOrder = currentState.drivers
+      .filter((d) => d.raceStatus !== 'dnf' && !d.isDnf)
+      .sort((a, b) => a.currentPosition - b.currentPosition)
+      .map((d) => d.driverId)
+
+    const reason = params?.reason || 'Bandeira Vermelha — Corrida Suspensa pela Direção de Prova'
+
+    const trans = raceControlService.transitionStatus(rc, 'RED_FLAG', {
+      lap: targetLap,
+      reason,
+      durationLaps: 1,
+      driversOrder: activeOrder,
+      customMessage: `🔴 BANDEIRA VERMELHA: Corrida suspensa na volta ${targetLap}! Todos os carros devem retornar aos boxes em fila controlada.`,
+    })
+
+    const updatedRc = trans.updatedRc
+    const { snapshot, updatedDrivers } = this.createRedFlagSnapshot(currentState, targetLap)
+    if (params?.restartType) {
+      snapshot.restartType = params.restartType
+    }
+
+    const nextEvents: EngineLapEvent[] = [...(currentState.events || [])]
+    trans.newEvents.forEach((ev) => {
+      nextEvents.push({
+        id: ev.id,
+        lap: ev.lap,
+        type: 'incident',
+        message: ev.message,
+        timestamp: ev.timestamp,
+      })
+    })
+
+    const updatedLookup: Record<string, CanonicalRaceDriverState> = {}
+    updatedDrivers.forEach((d) => {
+      updatedLookup[d.driverId] = d
+    })
+
+    const suspendedState: CanonicalRaceState = {
+      ...currentState,
+      status: 'suspended',
+      redFlagActive: true,
+      safetyCarActive: false,
+      vscActive: false,
+      drivers: updatedDrivers,
+      driverLookup: updatedLookup,
+      raceControl: updatedRc,
+      redFlagSnapshot: snapshot,
+      events: nextEvents.slice(-60),
+      revision: currentState.revision + 1,
+      updatedAt: new Date().toISOString(),
+    }
+
+    this.assertRaceInvariants(suspendedState)
+
+    if (params?.persistState !== false) {
+      canonicalRaceInitializationService.saveCanonicalRaceState(suspendedState)
+    }
+
+    return suspendedState
+  }
+
+  /**
+   * RED-FLAG-RESTART-01:
+   * Realiza troca de pneus durante a suspensão por bandeira vermelha.
+   * Regras:
+   * - Apenas carros ATIVOS (não DNF).
+   * - Consome jogo real disponível do inventário via canonicalWeekendTyrePersistence.
+   * - Não adiciona tempo de pit stop competitivo (raceTime inalterado).
+   * - Não incrementa pitStops count (conforme especificação, troca livre sob red flag).
+   * - Idempotente: não consome duas vezes para o mesmo driverId se o mesmo set/compound já estiver ativo.
+   */
+  public changeTyresDuringSuspension(params: {
+    raceState: CanonicalRaceState
+    driverId: string
+    newCompound: import('@/types/f1').TireCompound
+    newTyreSetId?: string
+    persistState?: boolean
+  }): {
+    success: boolean
+    error?: string
+    updatedState: CanonicalRaceState
+  } {
+    const { raceState, driverId, newCompound, newTyreSetId, persistState } = params
+
+    if (
+      raceState.status !== 'suspended' &&
+      raceState.status !== 'red_flag' &&
+      !raceState.redFlagActive
+    ) {
+      return {
+        success: false,
+        error: 'A corrida não está em estado de bandeira vermelha/suspensão.',
+        updatedState: raceState,
+      }
+    }
+
+    const driver = raceState.drivers.find((d) => d.driverId === driverId)
+    if (!driver) {
+      return {
+        success: false,
+        error: `Piloto ${driverId} não encontrado.`,
+        updatedState: raceState,
+      }
+    }
+
+    if (driver.raceStatus === 'dnf' || driver.isDnf) {
+      return {
+        success: false,
+        error: 'Carros já abandonados (DNF) não podem receber troca de pneus na suspensão.',
+        updatedState: raceState,
+      }
+    }
+
+    // Idempotência: se o piloto já trocou para o mesmo jogo/composto nesta suspensão, sucesso sem reprocessar
+    const existingSuspChange = raceState.redFlagSnapshot?.tyreChangesDuringSuspension?.[driverId]
+    if (
+      existingSuspChange &&
+      existingSuspChange.newCompound === newCompound &&
+      (!newTyreSetId || existingSuspChange.newTyreSetId === newTyreSetId)
+    ) {
+      return {
+        success: true,
+        updatedState: raceState,
+      }
+    }
+
+    // Verificar e alocar no inventário real persistente
+    const seasonId = String(raceState.season || 2026)
+    const round = raceState.round || 1
+    const stored = canonicalWeekendTyrePersistence.readWeekendTireData(seasonId, round)
+    let selectedSetId = newTyreSetId
+
+    if (stored && stored.inventoriesByDriver && stored.inventoriesByDriver[driverId]) {
+      const sets = stored.inventoriesByDriver[driverId]
+      let candidateSet: import('@/types/f1').TireSetItem | undefined
+
+      if (selectedSetId) {
+        candidateSet = sets.find((s) => s.id === selectedSetId || s.tyreSetId === selectedSetId)
+      } else {
+        // Encontrar o melhor set disponível do composto escolhido (menor desgaste, não indisponível)
+        candidateSet = sets.find(
+          (s) =>
+            s.compound === newCompound &&
+            s.status !== 'devolvido_indisponivel' &&
+            (s.wear || 0) < 90 &&
+            !s.isFitted,
+        )
+      }
+
+      if (!candidateSet) {
+        return {
+          success: false,
+          error: `Nenhum jogo disponível de composto "${newCompound}" para ${driver.driverName}.`,
+          updatedState: raceState,
+        }
+      }
+
+      if (candidateSet.status === 'devolvido_indisponivel' || (candidateSet.wear || 0) >= 90) {
+        return {
+          success: false,
+          error: `O jogo de pneus selecionado (${candidateSet.id}) está indisponível ou esgotado.`,
+          updatedState: raceState,
+        }
+      }
+
+      selectedSetId = candidateSet.id
+
+      // Marcar jogo anterior como usado (não isFitted) e o novo como isFitted
+      sets.forEach((s) => {
+        if (s.id === selectedSetId || s.tyreSetId === selectedSetId) {
+          s.isFitted = true
+          s.status = 'instalado'
+        } else if (s.isFitted && s.id === driver.tyreSetId) {
+          s.isFitted = false
+          s.status = (s.lapsUsed || 0) > 0 ? 'usado' : 'disponivel'
+        }
+      })
+      canonicalWeekendTyrePersistence.updateDriverInventory(seasonId, round, driverId, sets)
+    }
+
+    const oldCompound = driver.tyreCompound
+    const updatedDrivers = raceState.drivers.map((d) => {
+      if (d.driverId !== driverId) return { ...d }
+      return {
+        ...d,
+        tyreCompound: newCompound,
+        tyreSetId: selectedSetId || d.tyreSetId,
+        tyreAge: 0, // Pneu novo montado
+        initialTyreWear: 0,
+      }
+    })
+
+    const updatedStrategies = { ...(raceState.driverStrategies || {}) }
+    if (updatedStrategies[driverId]) {
+      updatedStrategies[driverId] = {
+        ...updatedStrategies[driverId],
+        currentTyre: newCompound,
+        tyreAge: 0,
+        targetCompound: newCompound,
+      }
+    }
+
+    const currentSnapshot =
+      raceState.redFlagSnapshot ||
+      this.createRedFlagSnapshot(raceState, raceState.currentLap).snapshot
+
+    const updatedSnapshot: import('@/types/canonical-race-v2').RedFlagSnapshotState = {
+      ...currentSnapshot,
+      tyreChangesDuringSuspension: {
+        ...(currentSnapshot.tyreChangesDuringSuspension || {}),
+        [driverId]: {
+          driverId,
+          oldCompound,
+          newCompound,
+          newTyreSetId: selectedSetId,
+          changedAt: new Date().toISOString(),
+        },
+      },
+    }
+
+    const nextEvents: EngineLapEvent[] = [...(raceState.events || [])]
+    nextEvents.push({
+      id: `ev_rf_tyre_${raceState.currentLap}_${driverId}_${Date.now()}`,
+      lap: raceState.currentLap,
+      type: 'info',
+      message: `🔧 TROCA SOB BANDEIRA VERMELHA: ${driver.driverName} (${driver.teamName}) substituiu composto ${oldCompound.toUpperCase()} por ${newCompound.toUpperCase()} durante a suspensão.`,
+      driverId,
+      driverName: driver.driverName,
+      teamColor: driver.teamColor,
+      timestamp: new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    })
+
+    const updatedLookup: Record<string, CanonicalRaceDriverState> = {}
+    updatedDrivers.forEach((d) => {
+      updatedLookup[d.driverId] = d
+    })
+
+    const updatedState: CanonicalRaceState = {
+      ...raceState,
+      drivers: updatedDrivers,
+      driverLookup: updatedLookup,
+      driverStrategies: updatedStrategies,
+      redFlagSnapshot: updatedSnapshot,
+      events: nextEvents.slice(-60),
+      revision: raceState.revision + 1,
+      updatedAt: new Date().toISOString(),
+    }
+
+    this.assertRaceInvariants(updatedState)
+
+    if (persistState !== false) {
+      canonicalRaceInitializationService.saveCanonicalRaceState(updatedState)
+    }
+
+    return {
+      success: true,
+      updatedState,
+    }
+  }
+
+  /**
+   * RED-FLAG-RESTART-01:
+   * Aplica seleção autônoma de pneus para a IA durante a suspensão.
+   * Utiliza consciência de clima e inventário real da equipe.
+   */
+  public executeAiRedFlagTyreStrategy(currentState: CanonicalRaceState): CanonicalRaceState {
+    const snapshot = currentState.redFlagSnapshot
+    if (!snapshot) return currentState
+
+    let state = currentState
+    const isWetTrack =
+      currentState.weather === 'chuva_fraca' || currentState.weather === 'chuva_forte'
+    const isDryTrack = currentState.weather === 'seco'
+
+    for (const d of state.drivers) {
+      // Pilotos do jogador decidem via interface; IA decide aqui
+      if (d.isPlayer || d.teamId === currentState.playerTeamId) continue
+      if (d.raceStatus === 'dnf' || d.isDnf) continue
+
+      const currentComp = d.tyreCompound
+      const isCurrentSlick = ['macio', 'medio', 'duro'].includes(currentComp)
+
+      let shouldChange = false
+      let targetCompound: import('@/types/f1').TireCompound = currentComp
+
+      if (isWetTrack && isCurrentSlick) {
+        shouldChange = true
+        targetCompound = currentState.weather === 'chuva_forte' ? 'chuva_extrema' : 'intermediario'
+      } else if (isDryTrack && !isCurrentSlick) {
+        shouldChange = true
+        targetCompound = 'medio'
+      } else if (d.tyreAge >= 18) {
+        // Pneu já com desgaste alto: troca permitida sem custo na red flag
+        shouldChange = true
+        targetCompound = isDryTrack ? (currentComp === 'macio' ? 'medio' : 'macio') : currentComp
+      }
+
+      if (shouldChange && targetCompound !== currentComp) {
+        const res = this.changeTyresDuringSuspension({
+          raceState: state,
+          driverId: d.driverId,
+          newCompound: targetCompound,
+          persistState: false,
+        })
+        if (res.success) {
+          state = res.updatedState
+        }
+      }
+    }
+
+    return state
+  }
+
+  /**
+   * RED-FLAG-RESTART-01:
+   * Prepara o procedimento de relargada (SUSPENDED -> RESTART_PENDING).
+   * - Carros são posicionados na pista rigorosamente segundo a ordem congelada do snapshot.
+   * - Gaps são normalizados para relargada parada (STANDING RESTART).
+   * - DNFs continuam rigorosamente DNF.
+   */
+  public prepareRedFlagRestart(
+    currentState: CanonicalRaceState,
+    params?: { persistState?: boolean },
+  ): CanonicalRaceState {
+    if (
+      currentState.status !== 'suspended' &&
+      currentState.status !== 'red_flag' &&
+      !currentState.redFlagActive
+    ) {
+      return currentState
+    }
+
+    // Executa decisão da IA para carros que ainda não decidiram
+    let state = this.executeAiRedFlagTyreStrategy(currentState)
+    const snapshot =
+      state.redFlagSnapshot || this.createRedFlagSnapshot(state, state.currentLap).snapshot
+
+    const rc = raceControlService.ensureRaceControlState(state)
+    const targetLap = state.currentLap
+
+    const trans = raceControlService.transitionStatus(rc, 'RESTART', {
+      lap: targetLap,
+      reason: 'Procedimento de Relargada em Andamento',
+      durationLaps: 1,
+      customMessage:
+        '🟢 RESTART PENDENTE: Procedimento de relargada acionado! Carros alinhando no grid.',
+    })
+
+    const updatedRc = trans.updatedRc
+    updatedRc.restartPending = true
+
+    // Reorganizar pilotos ativos exatamente na ordem do snapshot
+    const activeOrderIds = snapshot.standingGridOrder.filter((id) =>
+      snapshot.activeDriverIds.includes(id),
+    )
+
+    const activeCars: CanonicalRaceDriverState[] = []
+    const dnfCars: CanonicalRaceDriverState[] = []
+
+    for (const dId of activeOrderIds) {
+      const car = state.drivers.find((d) => d.driverId === dId)
+      if (car && car.raceStatus !== 'dnf' && !car.isDnf) {
+        activeCars.push({
+          ...car,
+          raceStatus: 'racing', // Retornam à condição de pista
+        })
+      }
+    }
+
+    // Carros DNF permanecem DNF
+    for (const d of state.drivers) {
+      if (d.raceStatus === 'dnf' || d.isDnf) {
+        dnfCars.push({ ...d })
+      }
+    }
+
+    // Normalizar gaps para relargada parada
+    const leaderRaceTime = snapshot.driverSnapshots[0]?.raceTime || 0
+    raceControlService.normalizeStandingRestartGaps(activeCars, leaderRaceTime)
+
+    // Ajustar posições dos DNFs
+    dnfCars.forEach((driver, idx) => {
+      driver.currentPosition = activeCars.length + idx + 1
+      driver.gap = 'ABANDONO'
+      driver.gapToLeaderSec = undefined
+      driver.gapToFrontSec = undefined
+    })
+
+    const finalOrderedDrivers = [...activeCars, ...dnfCars]
+    const updatedLookup: Record<string, CanonicalRaceDriverState> = {}
+    finalOrderedDrivers.forEach((d) => {
+      updatedLookup[d.driverId] = d
+    })
+
+    const updatedSnapshot: import('@/types/canonical-race-v2').RedFlagSnapshotState = {
+      ...snapshot,
+      restartReady: true,
+    }
+
+    const nextEvents: EngineLapEvent[] = [...(state.events || [])]
+    trans.newEvents.forEach((ev) => {
+      nextEvents.push({
+        id: ev.id,
+        lap: ev.lap,
+        type: 'info',
+        message: ev.message,
+        timestamp: ev.timestamp,
+      })
+    })
+
+    const restartPendingState: CanonicalRaceState = {
+      ...state,
+      status: 'restart_pending',
+      redFlagActive: true, // Ainda sob procedimento de interrupção até a bandeira verde
+      drivers: finalOrderedDrivers,
+      driverLookup: updatedLookup,
+      raceControl: updatedRc,
+      redFlagSnapshot: updatedSnapshot,
+      events: nextEvents.slice(-60),
+      revision: state.revision + 1,
+      updatedAt: new Date().toISOString(),
+    }
+
+    this.assertRaceInvariants(restartPendingState)
+
+    if (params?.persistState !== false) {
+      canonicalRaceInitializationService.saveCanonicalRaceState(restartPendingState)
+    }
+
+    return restartPendingState
+  }
+
+  /**
+   * RED-FLAG-RESTART-01:
+   * Executa a relargada efetiva (RESTART_PENDING -> RUNNING / GREEN).
+   * - Carros partem na ordem congelada.
+   * - Corrida retoma sem zerar completedLaps.
+   * - Idempotente: se já estiver em running com redFlagActive=false, não re-executa.
+   */
+  public resumeRaceAfterRedFlag(
+    currentState: CanonicalRaceState,
+    params?: { persistState?: boolean },
+  ): CanonicalRaceState {
+    if (currentState.status !== 'restart_pending' && currentState.status !== 'suspended') {
+      return currentState
+    }
+
+    // Se ainda estava em suspended, prepara primeiro
+    let state = currentState
+    if (state.status === 'suspended') {
+      state = this.prepareRedFlagRestart(state, { persistState: false })
+    }
+
+    const targetLap = state.currentLap
+    const rc = raceControlService.ensureRaceControlState(state)
+
+    const trans = raceControlService.transitionStatus(rc, 'GREEN', {
+      lap: targetLap,
+      reason: 'Bandeira Verde — Corrida Reiniciada!',
+      customMessage: `🟢 BANDEIRA VERDE: CORRIDA REINICIADA! Largada autorizada na volta ${targetLap}!`,
+    })
+
+    const updatedRc = trans.updatedRc
+    updatedRc.restartPending = false
+
+    const nextEvents: EngineLapEvent[] = [...(state.events || [])]
+    trans.newEvents.forEach((ev) => {
+      nextEvents.push({
+        id: ev.id,
+        lap: ev.lap,
+        type: 'info',
+        message: ev.message,
+        timestamp: ev.timestamp,
+      })
+    })
+
+    const updatedSnapshot = state.redFlagSnapshot
+      ? { ...state.redFlagSnapshot, processedAt: new Date().toISOString() }
+      : undefined
+
+    const resumedState: CanonicalRaceState = {
+      ...state,
+      status: 'running',
+      redFlagActive: false,
+      safetyCarActive: false,
+      vscActive: false,
+      raceControl: updatedRc,
+      redFlagSnapshot: updatedSnapshot,
+      events: nextEvents.slice(-60),
+      revision: state.revision + 1,
+      updatedAt: new Date().toISOString(),
+    }
+
+    this.assertRaceInvariants(resumedState)
+
+    if (params?.persistState !== false) {
+      canonicalRaceInitializationService.saveCanonicalRaceState(resumedState)
+    }
+
+    return resumedState
+  }
+
   public assertRaceInvariants(state: CanonicalRaceState): void {
     if (!state || !Array.isArray(state.drivers)) {
       throw new Error('[FW2.1E-B Invariant] Estado da corrida ou drivers inválidos.')

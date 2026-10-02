@@ -231,6 +231,20 @@ export class CanonicalRaceSaveService {
       }
     }
 
+    // 5.1 Red Flag Snapshot (RED-FLAG-RESTART-01)
+    if (state.redFlagSnapshot) {
+      const rfs = state.redFlagSnapshot
+      if (typeof rfs.suspendedAtLap !== 'number') {
+        errors.push('redFlagSnapshot.suspendedAtLap deve ser numérico')
+      }
+      if (!Array.isArray(rfs.standingGridOrder)) {
+        errors.push('redFlagSnapshot.standingGridOrder deve ser um array')
+      }
+      if (!Array.isArray(rfs.driverSnapshots)) {
+        errors.push('redFlagSnapshot.driverSnapshots deve ser um array')
+      }
+    }
+
     // 5.5 Pending Weather Decision (RACE-PROVENANCE-AUDIT-02B-E1A)
     if (state.pendingWeatherDecision) {
       const pwd = state.pendingWeatherDecision

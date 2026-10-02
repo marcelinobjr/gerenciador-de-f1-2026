@@ -32,6 +32,7 @@ interface DriverStrategyCockpitPanelProps {
   onSetTargetCompound: (driverId: string, compound: TireCompound) => void
   isRaceFinished?: boolean
   isRedFlagActive?: boolean
+  onChangeSuspensionTyre?: (driverId: string, compound: TireCompound) => void
 }
 
 export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProps> = ({
@@ -43,6 +44,7 @@ export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProp
   onSetTargetCompound,
   isRaceFinished = false,
   isRedFlagActive = false,
+  onChangeSuspensionTyre,
 }) => {
   const strat = driver.strategy
   const isDnf = driver.raceStatus === 'dnf' || driver.isDnf
@@ -107,6 +109,18 @@ export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProp
       label: 'Duro (C1)',
       color: 'bg-slate-200/20 text-slate-200',
       border: 'border-slate-400/40',
+    },
+    {
+      value: 'intermediario',
+      label: 'Interm. (Verde)',
+      color: 'bg-emerald-500/20 text-emerald-300',
+      border: 'border-emerald-500/40',
+    },
+    {
+      value: 'chuva_extrema',
+      label: 'Chuva (Azul)',
+      color: 'bg-blue-500/20 text-blue-300',
+      border: 'border-blue-500/40',
     },
   ]
 
@@ -305,9 +319,26 @@ export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProp
             })}
           </div>
 
-          {/* Botão de Solicitação de Pit Stop do Carro */}
+          {/* Botão de Solicitação de Pit Stop do Carro ou Troca sob Bandeira Vermelha */}
           <div className="pt-1">
-            {isPitRequested ? (
+            {isRedFlagActive ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={isDnf || isRaceFinished}
+                onClick={() => {
+                  if (onChangeSuspensionTyre) {
+                    onChangeSuspensionTyre(driver.driverId, targetCompound)
+                  } else {
+                    onRequestPit(driver.driverId, targetCompound)
+                  }
+                }}
+                className="w-full h-9 text-xs font-black bg-purple-600 hover:bg-purple-500 text-white gap-1.5 shadow-md"
+              >
+                <Wrench className="w-4 h-4" />
+                Instalar {targetCompound.toUpperCase()} na Suspensão (Grátis)
+              </Button>
+            ) : isPitRequested ? (
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -325,7 +356,7 @@ export const DriverStrategyCockpitPanel: React.FC<DriverStrategyCockpitPanelProp
               <Button
                 type="button"
                 size="sm"
-                disabled={isDnf || isRaceFinished || isRedFlagActive}
+                disabled={isDnf || isRaceFinished}
                 onClick={() => onRequestPit(driver.driverId, targetCompound)}
                 className="w-full h-9 text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 shadow-md"
               >

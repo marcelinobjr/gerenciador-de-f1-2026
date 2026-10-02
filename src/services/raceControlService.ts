@@ -518,6 +518,39 @@ export class RaceControlService {
       )
     }
   }
+
+  /**
+   * Normaliza gaps de relargada para largada parada (STANDING RESTART):
+   * Reorganiza os carros ativos rigorosamente na ordem do snapshot e
+   * recria gaps iniciais padronizados de largada (grid gaps: ~0.15s - 0.25s escalonados),
+   * preservando perfeitamente a liderança e posições relativas.
+   */
+  public normalizeStandingRestartGaps(
+    activeDrivers: CanonicalRaceDriverState[],
+    leaderRaceTime: number,
+  ): void {
+    if (activeDrivers.length === 0) return
+
+    // Base de tempo do líder preservada
+    const baseTime = leaderRaceTime > 0 ? leaderRaceTime : 0
+
+    activeDrivers.forEach((driver, idx) => {
+      driver.currentPosition = idx + 1
+      if (idx === 0) {
+        driver.raceTime = baseTime
+        driver.gap = 'LÍDER'
+        driver.gapToLeaderSec = 0
+        driver.gapToFrontSec = 0
+      } else {
+        // Intervalo fixo padronizado de grid na relargada parada (+0.2s por posição de largada)
+        const gridDelta = Number((idx * 0.2).toFixed(3))
+        driver.raceTime = Number((baseTime + gridDelta).toFixed(3))
+        driver.gap = `+${gridDelta.toFixed(3)}s`
+        driver.gapToLeaderSec = gridDelta
+        driver.gapToFrontSec = 0.2
+      }
+    })
+  }
 }
 
 export const raceControlService = new RaceControlService()

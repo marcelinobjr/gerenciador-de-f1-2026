@@ -47,6 +47,10 @@ interface CanonicalRaceInitializationPanelProps {
     | Promise<{ success: boolean; error?: string } | void>
     | { success: boolean; error?: string }
     | void
+  onTriggerRedFlag?: () => void
+  onPrepareRestart?: () => void
+  onResumeRace?: () => void
+  onChangeSuspensionTyre?: (driverId: string, compound: TireCompound) => void
 }
 
 export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializationPanelProps> = ({
@@ -63,6 +67,10 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   onOfficializeRace,
   hasOfficialResult = false,
   onSubmitWeatherDecision,
+  onTriggerRedFlag,
+  onPrepareRestart,
+  onResumeRace,
+  onChangeSuspensionTyre,
 }) => {
   const [isSimulating, setIsSimulating] = useState(false)
   const isAwaitingWeatherDecision = raceState.status === 'awaiting_player_weather_decision'
@@ -71,6 +79,8 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   const playerDrivers = raceState.drivers.filter((d) => d.isPlayer)
   const isFinished = raceState.status === 'completed'
   const isNotStarted = raceState.status === 'not_started'
+  const isSuspended = raceState.status === 'suspended' || raceState.status === 'red_flag'
+  const isRestartPending = raceState.status === 'restart_pending'
   const rc = raceState.raceControl
 
   // Circuito resolvido a partir do fim de semana / raceState com fallback Interlagos
@@ -84,7 +94,9 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
       : raceState.vscActive
         ? 'VSC'
         : raceState.redFlagActive
-          ? 'RED_FLAG'
+          ? isRestartPending
+            ? 'RESTART'
+            : 'RED_FLAG'
           : raceState.status === 'completed'
             ? 'FINISHED'
             : 'GREEN')
@@ -152,13 +164,19 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 {currentFlag === 'YELLOW' && '🟡 BANDEIRA AMARELA GERAL'}
                 {currentFlag === 'VSC' && '🟡 VIRTUAL SAFETY CAR'}
                 {currentFlag === 'SAFETY_CAR' && '🚨 SAFETY CAR ATIVO'}
-                {currentFlag === 'RESTART' && '🟢 RELARGADA EM ANDAMENTO'}
-                {currentFlag === 'RED_FLAG' && '🔴 BANDEIRA VERMELHA'}
+                {currentFlag === 'RESTART' &&
+                  (isRestartPending ? '🟢 RESTART PENDENTE' : '🟢 RELARGADA EM ANDAMENTO')}
+                {currentFlag === 'RED_FLAG' &&
+                  (isSuspended ? '🔴 CORRIDA SUSPENSA (BOXES)' : '🔴 BANDEIRA VERMELHA')}
                 {currentFlag === 'FINISHED' && '🏁 BANDEIRA QUADRICULADA'}
               </Badge>
             </div>
             <p className="text-xs text-slate-400">
-              Race Control canônico: cada bandeira altera ritmo, gaps, consumo e ultrapassagens.
+              {isSuspended
+                ? '🔴 SESSÃO SUSPENSA: Carros no pit lane. Troca de pneus permitida sem perda competitiva de pit stop.'
+                : isRestartPending
+                  ? '🟢 RESTART PENDENTE: Pelotão alinhado na ordem congelada da bandeira vermelha. Pronto para relargar.'
+                  : 'Race Control canônico: cada bandeira altera ritmo, gaps, consumo e ultrapassagens.'}
               {rc?.lastIncidentReason && (
                 <span className="block text-slate-300 font-mono text-[11px] mt-0.5">
                   Motivo: {rc.lastIncidentReason}
@@ -168,25 +186,64 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Botões do Ciclo de Red Flag / Suspensão / Restart */}
+            {isSuspended && onPrepareRestart && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onPrepareRestart}
+                className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black gap-1.5 h-9 px-3 shadow-md animate-pulse"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                Preparar Relargada (Grid)
+              </Button>
+            )}
+
+            {isRestartPending && onResumeRace && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onResumeRace}
+                className="bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black gap-1.5 h-9 px-3.5 shadow-md animate-bounce"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                Autorizar Relargada (Bandeira Verde)
+              </Button>
+            )}
+
             {onAdvanceOneLap && (
               <Button
                 type="button"
                 size="sm"
-                disabled={isFinished || isSimulating || isAwaitingWeatherDecision}
+                disabled={
+                  isFinished ||
+                  isSimulating ||
+                  isAwaitingWeatherDecision ||
+                  isSuspended ||
+                  isRestartPending
+                }
                 onClick={() => onAdvanceOneLap()}
                 title={
                   isAwaitingWeatherDecision
                     ? 'Decisão climática pendente. Resolva a estratégia dos pilotos para continuar.'
-                    : 'Avançar 1 volta'
+                    : isSuspended
+                      ? 'Corrida suspensa por bandeira vermelha. Prepare a relargada.'
+                      : 'Avançar 1 volta'
                 }
                 className={`text-xs font-bold gap-1.5 h-9 px-3 ${
-                  isAwaitingWeatherDecision
+                  isAwaitingWeatherDecision || isSuspended || isRestartPending
                     ? 'bg-amber-600/60 text-amber-200 border border-amber-500/50 cursor-not-allowed opacity-75'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 }`}
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                {isAwaitingWeatherDecision ? 'Aguardando Decisão' : 'Avançar 1 Volta'}
+                {isAwaitingWeatherDecision
+                  ? 'Aguardando Decisão'
+                  : isSuspended
+                    ? 'Corrida Suspensa'
+                    : isRestartPending
+                      ? 'Restart Pendente'
+                      : 'Avançar 1 Volta'}
               </Button>
             )}
 
@@ -200,6 +257,8 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                     isFinished ||
                     isSimulating ||
                     currentFlag === 'RED_FLAG' ||
+                    isSuspended ||
+                    isRestartPending ||
                     isAwaitingWeatherDecision
                   }
                   onClick={() => onAdvanceMultipleLaps(5)}
@@ -217,6 +276,8 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                     isFinished ||
                     isSimulating ||
                     currentFlag === 'RED_FLAG' ||
+                    isSuspended ||
+                    isRestartPending ||
                     isAwaitingWeatherDecision
                   }
                   onClick={() => onAdvanceMultipleLaps(10)}
@@ -234,6 +295,8 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                     isFinished ||
                     isSimulating ||
                     currentFlag === 'RED_FLAG' ||
+                    isSuspended ||
+                    isRestartPending ||
                     isAwaitingWeatherDecision
                   }
                   onClick={handleSimulateRest}
@@ -361,8 +424,14 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision}
-                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'RED_FLAG' })}
+                disabled={isFinished || isAwaitingWeatherDecision || isSuspended}
+                onClick={() => {
+                  if (onTriggerRedFlag) {
+                    onTriggerRedFlag()
+                  } else {
+                    onAdvanceOneLap?.({ forceRaceControlStatus: 'RED_FLAG' })
+                  }
+                }}
                 className="h-7 px-2 text-[10px] font-bold bg-red-950/50 text-red-300 border-red-600/60 hover:bg-red-900/70"
               >
                 🔴 Red Flag
@@ -396,23 +465,49 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
             <DriverStrategyCockpitPanel
               driver={playerDrivers[0]}
               carSlotName="Carro 1"
-              onRequestPit={(driverId, compound) => onRequestPit?.(driverId, compound)}
+              onRequestPit={(driverId, compound) => {
+                if (isSuspended && onChangeSuspensionTyre && compound) {
+                  onChangeSuspensionTyre(driverId, compound)
+                } else {
+                  onRequestPit?.(driverId, compound)
+                }
+              }}
               onCancelPit={(driverId) => onCancelPit?.(driverId)}
               onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
-              onSetTargetCompound={(driverId, comp) => onSetTargetCompound?.(driverId, comp)}
+              onSetTargetCompound={(driverId, comp) => {
+                if (isSuspended && onChangeSuspensionTyre) {
+                  onChangeSuspensionTyre(driverId, comp)
+                } else {
+                  onSetTargetCompound?.(driverId, comp)
+                }
+              }}
               isRaceFinished={isFinished}
-              isRedFlagActive={currentFlag === 'RED_FLAG'}
+              isRedFlagActive={currentFlag === 'RED_FLAG' || isSuspended}
+              onChangeSuspensionTyre={onChangeSuspensionTyre}
             />
 
             <DriverStrategyCockpitPanel
               driver={playerDrivers[1]}
               carSlotName="Carro 2"
-              onRequestPit={(driverId, compound) => onRequestPit?.(driverId, compound)}
+              onRequestPit={(driverId, compound) => {
+                if (isSuspended && onChangeSuspensionTyre && compound) {
+                  onChangeSuspensionTyre(driverId, compound)
+                } else {
+                  onRequestPit?.(driverId, compound)
+                }
+              }}
               onCancelPit={(driverId) => onCancelPit?.(driverId)}
               onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
-              onSetTargetCompound={(driverId, comp) => onSetTargetCompound?.(driverId, comp)}
+              onSetTargetCompound={(driverId, comp) => {
+                if (isSuspended && onChangeSuspensionTyre) {
+                  onChangeSuspensionTyre(driverId, comp)
+                } else {
+                  onSetTargetCompound?.(driverId, comp)
+                }
+              }}
               isRaceFinished={isFinished}
-              isRedFlagActive={currentFlag === 'RED_FLAG'}
+              isRedFlagActive={currentFlag === 'RED_FLAG' || isSuspended}
+              onChangeSuspensionTyre={onChangeSuspensionTyre}
             />
           </div>
         </div>

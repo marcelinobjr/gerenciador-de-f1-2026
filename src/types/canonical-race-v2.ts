@@ -29,8 +29,16 @@ export type CanonicalRaceStatus =
   | 'red_flag'
   | 'completed'
   | 'awaiting_player_weather_decision'
+  | 'suspended'
+  | 'restart_pending'
 
-export type CanonicalDriverRaceStatus = 'racing' | 'in_pit' | 'dnf' | 'finished' | 'disqualified'
+export type CanonicalDriverRaceStatus =
+  | 'racing'
+  | 'in_pit'
+  | 'dnf'
+  | 'finished'
+  | 'disqualified'
+  | 'suspended'
 
 /**
  * Razão canônica de DNF por exaustão de combustível (Pane Seca).
@@ -291,6 +299,60 @@ export interface CanonicalRaceState {
 
   // RACE-PROVENANCE-AUDIT-02B-E1A: Decisão Humana em Mudança de Clima
   pendingWeatherDecision?: PendingWeatherDecisionState
+
+  // RED-FLAG-RESTART-01: Snapshot Canônico de Suspensão e Relargada
+  redFlagSnapshot?: RedFlagSnapshotState
+}
+
+/**
+ * Snapshot de um piloto no momento exato da interrupção por bandeira vermelha.
+ */
+export interface RedFlagDriverSnapshot {
+  driverId: string
+  teamId: string
+  driverName: string
+  teamName: string
+  position: number
+  gridPosition: number
+  lap: number
+  raceTime: number
+  gap: string
+  tyreCompound: TireCompound
+  tyreSetId?: string
+  tyreAge: number
+  fuel: number
+  carCondition: number
+  raceStatus: CanonicalDriverRaceStatus
+  isDnf?: boolean
+  dnfReason?: string
+  dnfLap?: number
+  pitStops: number
+}
+
+/**
+ * Estado Canônico de Suspensão por Bandeira Vermelha.
+ */
+export interface RedFlagSnapshotState {
+  suspendedAtLap: number
+  interruptionId: string
+  frozenAt: string
+  restartType: 'STANDING' | 'ROLLING'
+  driverSnapshots: RedFlagDriverSnapshot[]
+  standingGridOrder: string[] // driverIds ordenados rigorosamente do P1 ao P24
+  activeDriverIds: string[]
+  dnfDriverIds: string[]
+  tyreChangesDuringSuspension: Record<
+    string,
+    {
+      driverId: string
+      oldCompound: TireCompound
+      newCompound: TireCompound
+      newTyreSetId?: string
+      changedAt: string
+    }
+  >
+  restartReady: boolean
+  processedAt?: string
 }
 
 /**
