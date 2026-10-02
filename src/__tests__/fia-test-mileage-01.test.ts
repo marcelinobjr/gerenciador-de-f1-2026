@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { calculateDriverTotalTestMileage } from '@/services/driverMileageResolverService'
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import { HOMOLOGATION_CONFIG } from '@/types/driver-development'
-import type { DriverModel } from '@/types/driver-development'
+import type { DriverModel } from '@/types/f1'
 
 /**
  * FIA-TEST-MILEAGE-01 Test Suite (FTM01 - FTM12)
@@ -21,7 +21,7 @@ import type { DriverModel } from '@/types/driver-development'
 
 describe('FIA-TEST-MILEAGE-01: Canonical Test Mileage & FIA Homologation Integration', () => {
   const MARIANA_DRIVER_ID = 'mbj-044'
-  const MARIANA_BASE_DRIVER: Partial<DriverModel> = {
+  const MARIANA_BASE_DRIVER: any = {
     id: MARIANA_DRIVER_ID,
     name: 'Mariana Fagundes',
     team_id: 'team_audi_01',
@@ -210,8 +210,8 @@ describe('FIA-TEST-MILEAGE-01: Canonical Test Mileage & FIA Homologation Integra
       { id: 't4', driver_id: MARIANA_DRIVER_ID, km_completed: 300, status: 'concluido' as const },
     ]
 
-    // Piloto como Academia
-    const marianaAcademia = { ...MARIANA_BASE_DRIVER, role: 'academia' as const }
+    // Piloto como Academia (reserva com is_academy)
+    const marianaAcademia = { ...MARIANA_BASE_DRIVER, role: 'reserva' as const, is_academy: true }
     const kmAcademia = calculateDriverTotalTestMileage(marianaAcademia.id, tests)
     expect(kmAcademia).toBe(1200)
 

@@ -64,10 +64,26 @@ export class PracticeSessionService {
       if (records.items.length > 0) {
         const item = records.items[0]
         const strategies = item.driver_strategies as any
+        // Fonte canônica primária: driver_strategies.practiceSessionState
         if (strategies && strategies.practiceSessionState) {
           const storedState = strategies.practiceSessionState as PracticeSessionRecordState
           this.cacheLocally(storedState)
           return { session: storedState, isResumed: true }
+        }
+
+        // Fallback compatível para registros legados gravados em notes
+        if (item.notes) {
+          try {
+            const parsedNotes = JSON.parse(item.notes)
+            const fallbackState = (parsedNotes?.practiceSessionState ||
+              parsedNotes) as PracticeSessionRecordState
+            if (fallbackState && fallbackState.careerId && fallbackState.cars) {
+              this.cacheLocally(fallbackState)
+              return { session: fallbackState, isResumed: true }
+            }
+          } catch {
+            /* notes não era JSON válido do estado */
+          }
         }
       }
     } catch (err) {
@@ -476,7 +492,6 @@ export class PracticeSessionService {
 
         await pb.collection('session_setups').update(existing.id, {
           driver_strategies: mergedStrategies,
-          notes: JSON.stringify(mergedStrategies),
         })
       } else {
         const newRecordPayload = {
@@ -485,7 +500,6 @@ export class PracticeSessionService {
           round: state.round,
           session: state.sessionType,
           driver_strategies: { practiceSessionState: state },
-          notes: JSON.stringify({ practiceSessionState: state }),
         }
         await pb.collection('session_setups').create(newRecordPayload)
       }
