@@ -104,18 +104,18 @@ export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = (
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0 w-full overflow-hidden">
       {/* Título de seção */}
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+      <div className="flex flex-wrap items-center justify-between pb-3 mb-3 border-b border-slate-100 gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-slate-800">⚙ Componentes instalados</span>
           <span className="text-xs text-slate-400 font-mono">Carro #{carNumber}</span>
         </div>
-        <span className="text-[11px] text-slate-500 font-mono">FIA 2026 Homologado</span>
+        <span className="text-[11px] text-slate-500 font-mono shrink-0">FIA 2026 Homologado</span>
       </div>
 
       {/* Grade de 6 componentes instalados (2 linhas x 3 colunas) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 min-w-0">
         {CAR_PARTS_CATALOG.map((part) => {
           const { condition, specName } = getComponentData(part.id, part.defaultSpec)
 
@@ -126,11 +126,11 @@ export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = (
           return (
             <div
               key={part.id}
-              className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 flex flex-col justify-between hover:bg-slate-100/60 transition-colors"
+              className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 flex flex-col justify-between hover:bg-slate-100/60 transition-colors min-w-0 overflow-hidden"
             >
               {/* Header do componente */}
-              <div className="flex items-start justify-between gap-1 mb-1">
-                <span className="text-xs font-semibold text-slate-800 leading-tight">
+              <div className="flex items-start justify-between gap-1 mb-1 min-w-0">
+                <span className="text-xs font-semibold text-slate-800 leading-tight truncate">
                   {part.label}
                 </span>
               </div>
@@ -154,14 +154,14 @@ export const InstalledComponentsGrid: React.FC<InstalledComponentsGridProps> = (
                   />
                 </div>
 
-                <div className="pt-1 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-mono">
+                <div className="pt-1 flex items-center justify-between gap-1">
+                  <span className="text-[10px] text-slate-400 font-mono truncate">
                     #{carNumber} {driverName ? `• ${driverName.split(' ').pop()}` : ''}
                   </span>
                   <button
                     type="button"
                     onClick={() => onSwapPart?.(part.id)}
-                    className="px-2 py-0.5 text-[10px] font-medium rounded bg-white hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 shadow-xs transition-colors"
+                    className="px-2 py-0.5 text-[10px] font-medium rounded bg-white hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 shadow-xs transition-colors shrink-0 cursor-pointer"
                   >
                     Trocar
                   </button>

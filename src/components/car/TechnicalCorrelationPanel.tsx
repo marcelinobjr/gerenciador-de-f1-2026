@@ -46,11 +46,11 @@ export const TechnicalCorrelationPanel: React.FC<TechnicalCorrelationPanelProps>
   priorities = DEFAULT_PRIORITIES,
 }) => {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-          <span className="text-sm font-bold text-slate-900">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 min-w-0">
+          <span className="text-sm font-bold text-slate-900 truncate">
             📊 Correlação Técnica e Desenvolvimento
           </span>
         </div>
@@ -60,7 +60,7 @@ export const TechnicalCorrelationPanel: React.FC<TechnicalCorrelationPanelProps>
       </div>
 
       {/* Grid de 4 Colunas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-3 pt-2 min-w-0">
         {/* Coluna 1: Correlação (Túnel / CFD / Pista) */}
         <div className="space-y-3 bg-slate-50/60 p-2.5 rounded-lg border border-slate-100">
           <span className="text-[11px] font-bold text-slate-700 block">

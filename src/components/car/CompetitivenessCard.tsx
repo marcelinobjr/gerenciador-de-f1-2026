@@ -17,11 +17,11 @@ export const CompetitivenessCard: React.FC<CompetitivenessCardProps> = ({
   evolutionPotential,
 }) => {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+      <div className="flex items-center gap-2 pb-3 border-b border-slate-100 min-w-0">
         <BarChart3 className="w-4 h-4 text-emerald-600 shrink-0" />
-        <h3 className="text-sm font-bold text-slate-900">Índice de competitividade</h3>
+        <h3 className="text-sm font-bold text-slate-900 truncate">Índice de competitividade</h3>
       </div>
 
       <p className="text-[11px] text-slate-500 mt-2 mb-4">

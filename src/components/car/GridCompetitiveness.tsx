@@ -27,9 +27,9 @@ export const GridCompetitiveness: React.FC<GridCompetitivenessProps> = ({
   const sortedTeams = [...teams].sort((a, b) => b.overall - a.overall)
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0 w-full overflow-hidden">
       {/* Header com Legenda */}
-      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-2">
+      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-2 min-w-0">
         <div>
           <h3 className="text-sm font-bold text-slate-900">🏁 Competitividade no Grid</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">

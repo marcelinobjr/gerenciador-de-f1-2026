@@ -879,8 +879,8 @@ export default function CarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-100/70 text-slate-900 pb-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6 w-full min-w-0">
         {/* Top Header com Título e Subabas Reais do Design System */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-200/80 gap-3">
           <div>
@@ -937,9 +937,9 @@ export default function CarPage() {
             />
 
             {/* Grid dos Dois Monopostos: Carro #1 e Carro #2 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
               {/* CARRO #1 */}
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
                 <TeamCarCard
                   carNumber={1}
                   driver={roster.starter1}
@@ -980,7 +980,7 @@ export default function CarPage() {
               </div>
 
               {/* CARRO #2 */}
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
                 <TeamCarCard
                   carNumber={2}
                   driver={roster.starter2}
@@ -1022,7 +1022,7 @@ export default function CarPage() {
             </div>
 
             {/* Três Cards Inferiores: Integridade Estrutural + Índice Competitividade + Ações Rápidas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 min-w-0">
               {/* Integridade Estrutural */}
               <StructuralIntegrityCard
                 overallIntegrity={partsAverageCondition}
@@ -1071,13 +1071,13 @@ export default function CarPage() {
             />
 
             {/* Grid 2 Colunas: Mapa de Performance Radar + Diagnóstico Técnico */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
               <PerformanceRadarMap metrics={radarMetrics} />
               <TechnicalDiagnosisPanel />
             </div>
 
             {/* Grid 2 Colunas: Power Unit & Sistemas + Correlação Técnica P&D */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
               <PowerUnitSystemsPanel
                 supplierName={team?.engine_supplier || 'Audi Sport'}
                 overallIntegrity={

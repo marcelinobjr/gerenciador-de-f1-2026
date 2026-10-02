@@ -102,11 +102,11 @@ export const TechnicalDiagnosisPanel: React.FC<TechnicalDiagnosisPanelProps> = (
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-          <span className="text-sm font-bold text-slate-900">🔬 Diagnóstico Técnico</span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 min-w-0">
+          <span className="text-sm font-bold text-slate-900 truncate">🔬 Diagnóstico Técnico</span>
         </div>
         <p className="text-[11px] text-slate-500 mt-1">
           Principais insights da equipe de engenharia sobre o desempenho atual.
@@ -114,14 +114,17 @@ export const TechnicalDiagnosisPanel: React.FC<TechnicalDiagnosisPanelProps> = (
       </div>
 
       {/* Lista de Diagnósticos com badges canônicos */}
-      <div className="divide-y divide-slate-100 mt-2 space-y-2">
+      <div className="divide-y divide-slate-100 mt-2 space-y-2 min-w-0">
         {items.map((item) => (
-          <div key={item.id} className="pt-2 flex items-start justify-between gap-3 text-xs">
-            <div className="flex items-start gap-2.5">
+          <div
+            key={item.id}
+            className="pt-2 flex items-start justify-between gap-3 text-xs min-w-0"
+          >
+            <div className="flex items-start gap-2.5 min-w-0">
               <div className="mt-0.5 shrink-0">{item.icon}</div>
-              <div>
-                <span className="font-bold text-slate-800 block">{item.label}</span>
-                <span className="text-slate-500 text-[11px] leading-relaxed">
+              <div className="min-w-0">
+                <span className="font-bold text-slate-800 block truncate">{item.label}</span>
+                <span className="text-slate-500 text-[11px] leading-relaxed break-words">
                   {item.description}
                 </span>
               </div>

@@ -39,26 +39,26 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
   const teamColor = team?.color || '#E10600'
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-slate-800 transition-all hover:border-slate-300">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-slate-800 transition-all hover:border-slate-300 min-w-0 w-full overflow-hidden">
       {/* Top Header com Número e Piloto */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-2">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block" />
+          <span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block shrink-0" />
           <span className="text-base font-black tracking-tight text-slate-900">
             Carro #{carNumber}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-          <span>Mix de Especificação:</span>
-          <span className="font-semibold text-slate-700">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 font-mono min-w-0">
+          <span className="shrink-0">Mix de Especificação:</span>
+          <span className="font-semibold text-slate-700 truncate">
             {aeroSpec} / {chassisSpec}
           </span>
         </div>
       </div>
 
       {/* Grid: Piloto + Imagem do Carro + Status rápido */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 items-center min-w-0">
         {/* Piloto */}
         <div className="md:col-span-4 flex items-center gap-3">
           <div className="relative shrink-0">
@@ -118,19 +118,19 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
         </div>
 
         {/* Status rápido do carro */}
-        <div className="md:col-span-4 space-y-1.5 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">Motor em uso:</span>
-            <span className="font-bold text-slate-800 font-mono">
+        <div className="md:col-span-4 space-y-1.5 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-1">
+            <span className="text-slate-500 shrink-0">Motor em uso:</span>
+            <span className="font-bold text-slate-800 font-mono truncate">
               {puInUse} ({puCycleText})
             </span>
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">Confiabilidade:</span>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-slate-500 shrink-0">Confiabilidade:</span>
+            <div className="flex items-center gap-2 shrink-0">
               <span className="font-bold text-slate-800 font-mono">{reliability}%</span>
-              <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+              <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden shrink-0">
                 <div
                   className="bg-emerald-500 h-full rounded-full"
                   style={{ width: `${reliability}%` }}
@@ -139,11 +139,11 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">Desgaste total:</span>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-slate-500 shrink-0">Desgaste total:</span>
+            <div className="flex items-center gap-2 shrink-0">
               <span className="font-bold text-amber-600 font-mono">{totalWear}%</span>
-              <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+              <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden shrink-0">
                 <div
                   className="bg-amber-500 h-full rounded-full"
                   style={{ width: `${totalWear}%` }}
@@ -152,9 +152,9 @@ export const TeamCarCard: React.FC<TeamCarCardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-0.5 border-t border-slate-200/60">
-            <span className="text-slate-500">Orientação de setup:</span>
-            <span className="font-medium text-slate-800">{setupOrientation}</span>
+          <div className="flex flex-wrap items-center justify-between pt-0.5 border-t border-slate-200/60 gap-1">
+            <span className="text-slate-500 shrink-0">Orientação de setup:</span>
+            <span className="font-medium text-slate-800 truncate">{setupOrientation}</span>
           </div>
         </div>
       </div>

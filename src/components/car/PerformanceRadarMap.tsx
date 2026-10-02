@@ -58,11 +58,11 @@ export const PerformanceRadarMap: React.FC<PerformanceRadarMapProps> = ({
   const gridLevels = [0.25, 0.5, 0.75, 1.0]
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-          <span className="text-sm font-bold text-slate-900">🕸 Mapa de Performance</span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 min-w-0">
+          <span className="text-sm font-bold text-slate-900 truncate">🕸 Mapa de Performance</span>
         </div>
         <p className="text-[11px] text-slate-500 mt-1">
           Comparação do nosso carro com a média do grid nas principais áreas técnicas.
@@ -176,7 +176,7 @@ export const PerformanceRadarMap: React.FC<PerformanceRadarMapProps> = ({
       </div>
 
       {/* Legenda inferior */}
-      <div className="flex items-center justify-center gap-6 pt-2 border-t border-slate-100 text-xs">
+      <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-2 border-t border-slate-100 text-xs">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-red-600 inline-block" />
           <span className="font-semibold text-slate-800">Nosso carro</span>

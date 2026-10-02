@@ -70,16 +70,16 @@ export const PowerUnitSystemsPanel: React.FC<PowerUnitSystemsPanelProps> = ({
   const isPenaltyRisk = activeUnitIndex > totalUnitsLimit
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
       {/* Top Banner com Fornecedor e Botão de Ação Real Trocar Motor */}
-      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block" />
-            <h3 className="text-sm font-bold text-slate-900">Power Unit & Sistemas</h3>
-            <span className="text-xs text-slate-400 font-mono">{supplierName} 2026</span>
+      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-2 min-w-0">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block shrink-0" />
+            <h3 className="text-sm font-bold text-slate-900 truncate">Power Unit & Sistemas</h3>
+            <span className="text-xs text-slate-400 font-mono shrink-0">{supplierName} 2026</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+          <div className="text-[10px] text-slate-400 mt-0.5 font-mono truncate">
             Configuração atribuída ao Carro #{targetCar}
           </div>
         </div>
@@ -210,30 +210,32 @@ export const PowerUnitSystemsPanel: React.FC<PowerUnitSystemsPanelProps> = ({
       </div>
 
       {/* 3 Métricas Rápidas: Km, Ciclos, Desgaste */}
-      <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-xs mb-4">
-        <div className="flex items-center gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 border-y border-slate-100 text-xs mb-4 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-          <div>
-            <div className="text-[10px] text-slate-500">Quilometragem</div>
-            <div className="font-bold font-mono text-slate-800">
+          <div className="min-w-0">
+            <div className="text-[10px] text-slate-500 truncate">Quilometragem</div>
+            <div className="font-bold font-mono text-slate-800 truncate">
               {currentKm.toLocaleString('pt-BR')} km
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <RotateCcw className="w-4 h-4 text-slate-400 shrink-0" />
-          <div>
-            <div className="text-[10px] text-slate-500">Ciclos de uso</div>
-            <div className="font-bold font-mono text-slate-800">{usageCycles} corridas</div>
+          <div className="min-w-0">
+            <div className="text-[10px] text-slate-500 truncate">Ciclos de uso</div>
+            <div className="font-bold font-mono text-slate-800 truncate">
+              {usageCycles} corridas
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-          <div>
-            <div className="text-[10px] text-slate-500">Desgaste estim.</div>
-            <div className="font-bold font-mono text-amber-600">{estimatedWear}%</div>
+          <div className="min-w-0">
+            <div className="text-[10px] text-slate-500 truncate">Desgaste estim.</div>
+            <div className="font-bold font-mono text-amber-600 truncate">{estimatedWear}%</div>
           </div>
         </div>
       </div>

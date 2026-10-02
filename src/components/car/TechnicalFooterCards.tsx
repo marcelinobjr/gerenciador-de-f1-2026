@@ -17,12 +17,12 @@ export const TechnicalFooterCards: React.FC<TechnicalFooterCardsProps> = ({
   onOpenEngineeringRecommendations,
 }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
       {/* Card 1: Impacto do Regulamento 2026 */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 min-w-0">
           <ShieldCheck className="w-4 h-4 text-slate-700 shrink-0" />
-          <h4 className="text-xs font-bold text-slate-900">
+          <h4 className="text-xs font-bold text-slate-900 truncate">
             Impacto do Regulamento {regulationYear}
           </h4>
         </div>
@@ -44,10 +44,10 @@ export const TechnicalFooterCards: React.FC<TechnicalFooterCardsProps> = ({
       </div>
 
       {/* Card 2: Próxima atualização técnica */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 min-w-0">
           <Calendar className="w-4 h-4 text-slate-700 shrink-0" />
-          <h4 className="text-xs font-bold text-slate-900">Próxima atualização técnica</h4>
+          <h4 className="text-xs font-bold text-slate-900 truncate">Próxima atualização técnica</h4>
         </div>
 
         <p className="text-[11px] text-slate-500 mt-2 mb-3">
@@ -65,10 +65,10 @@ export const TechnicalFooterCards: React.FC<TechnicalFooterCardsProps> = ({
       </div>
 
       {/* Card 3: Recomendações da Engenharia */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between min-w-0 w-full overflow-hidden">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 min-w-0">
           <Info className="w-4 h-4 text-red-600 shrink-0" />
-          <h4 className="text-xs font-bold text-slate-900">Recomendações da Engenharia</h4>
+          <h4 className="text-xs font-bold text-slate-900 truncate">Recomendações da Engenharia</h4>
         </div>
 
         <p className="text-[11px] text-slate-600 leading-relaxed mt-2 mb-2">
