@@ -719,7 +719,7 @@ export default function PaddockPage() {
                       {/* Posição no Mundial */}
                       <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0]">
                         <span className="text-[10px] font-mono font-semibold uppercase text-[#64748B] block">
-                          Posição
+                          Posição Atual
                         </span>
                         <div className="font-mono text-base font-black text-[#0F172A] mt-0.5">
                           {activeSelectedTeam.position && activeSelectedTeam.position > 0

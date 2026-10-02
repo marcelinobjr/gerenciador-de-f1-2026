@@ -1055,7 +1055,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             {/* Grid Canônico de Estatísticas de Carreira na F1 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
+                <span className="text-[10px] uppercase font-bold text-[#64748B] block">
                   GPs
                 </span>
                 <strong className="text-lg font-black font-mono text-[#0F172A]">
@@ -1063,7 +1063,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 </strong>
               </div>
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
+                <span className="text-[10px] uppercase font-bold text-[#64748B] block">
                   Vitórias
                 </span>
                 <strong className="text-lg font-black font-mono text-emerald-600">
@@ -1071,16 +1071,16 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                 </strong>
               </div>
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
-                  Pole Positions
+                <span className="text-[10px] uppercase font-bold text-[#64748B] block">
+                  Poles
                 </span>
                 <strong className="text-lg font-black font-mono text-amber-600">
                   {careerStats.poles}
                 </strong>
               </div>
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
-                <span className="text-[10px] uppercase tracking-wider font-mono text-[#64748B] block">
-                  Títulos Mundiais
+                <span className="text-[10px] uppercase font-bold text-[#64748B] block">
+                  Títulos
                 </span>
                 <strong className="text-lg font-black font-mono text-amber-500">
                   {careerStats.championships}
