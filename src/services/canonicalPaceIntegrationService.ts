@@ -28,6 +28,12 @@ import { calculateTrackFit } from '@/lib/car-session-performance-engine'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { TIRE_SPECS } from '@/lib/f1-tire-system'
 import { raceStrategyService } from '@/services/raceStrategyService'
+import {
+  calculateF1ExperienceScore,
+  calculateQDriverExecution,
+  calculateQExecModifier,
+  resolveCanonicalF1Starts,
+} from '@/lib/qualifying-driver-execution'
 
 // Constantes canônicas de calibração do modificador de TrackFit (BASELINE-2026-LOCK-01-CP3A)
 // Referência neutra padrão do TrackFit: 75.0 (média do grid nas pistas)
@@ -191,15 +197,39 @@ export class CanonicalPaceIntegrationService {
     // setupEfficiency 80 = neutro (0.0). 100 = +0.50s / +1.2 pts. 50 = -1.5 pts.
     const setupModifier = Number(((setupEfficiency - 80) * 0.05).toFixed(3))
 
-    // 4. Driver Session Execution modifier (apenas delta de sessão, NÃO o piloto completo)
-    const speedDelta = (driverAttributes.speed - 85) * 0.08
-    const moraleDelta = ((driverAttributes.morale ?? 80) - 80) * 0.02
+    // 4. Driver Session Execution modifier (QUALI-DRIVER-EXECUTION-02)
+    // Média de pace = QUALIDADE TÉCNICA 70% + EXPERIÊNCIA F1 20% + MORAL 10%
+    // Substitui a contribuição event-level antiga (speed+morale) no qualifying (SEM empilhar).
+    let driverEventModifier = 0
     let rainDelta = 0
     if (weather !== 'seco') {
       const rainSkill = driverAttributes.rain ?? driverAttributes.speed
       rainDelta = (rainSkill - 80) * 0.1
     }
-    const driverEventModifier = Number((speedDelta + moraleDelta + rainDelta).toFixed(3))
+
+    if (params.qDriverExecutionOverride !== undefined) {
+      const qExecMod = calculateQExecModifier(params.qDriverExecutionOverride)
+      driverEventModifier = Number((qExecMod + rainDelta).toFixed(3))
+    } else {
+      // Determina starts canônicos se driverId ou f1Starts fornecido
+      const starts =
+        params.f1Starts !== undefined
+          ? Math.max(0, params.f1Starts)
+          : resolveCanonicalF1Starts(driverId, params.pilot)
+
+      const experience = calculateF1ExperienceScore(starts)
+      const technical = driverAttributes.speed
+      const morale = driverAttributes.morale ?? 80
+
+      const qDriverExecution = calculateQDriverExecution({
+        technical,
+        experience,
+        morale,
+      })
+
+      const qExecMod = calculateQExecModifier(qDriverExecution)
+      driverEventModifier = Number((qExecMod + rainDelta).toFixed(3))
+    }
 
     // 5. Tyre modifier (evento: delta composto e desgaste na volta voadora)
     const spec = TIRE_SPECS[tyreCompound as keyof typeof TIRE_SPECS] || TIRE_SPECS.macio
@@ -471,9 +501,10 @@ export class CanonicalPaceIntegrationService {
 
     const qualiTest = this.computeQualifyingPace({
       teamKey: 'mercedes',
-      driverId: 'rus',
+      driverId: 'neutral_d1',
       circuitProfile: resolveCircuitProfile({ round: 1 }),
-      driverAttributes: { speed: 94 },
+      driverAttributes: { speed: 80, morale: 80 },
+      f1Starts: 0, // starts=0 => exp=40 => qExec=80*0.7+40*0.2+80*0.1 = 72 => modifier = (72-80)*0.08 = -0.64
     })
     const structuralConnectedQuali = qualiTest.breakdown.structuralStrength > 0
 

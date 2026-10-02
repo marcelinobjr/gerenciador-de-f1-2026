@@ -54,6 +54,9 @@ export interface QualifyingPaceIntegrationParams {
   seed?: number | string // seed determinístico opcional para geração de RNG calibrado
   hasSpecialization?: boolean // especialização relevante de equipe/piloto para TrackFit
   puWearPct?: number
+  f1Starts?: number // largadas de F1 explícitas opcionais para simulação/testes
+  pilot?: any // objeto do piloto opcional para fallback canônico de largadas
+  qDriverExecutionOverride?: number // override opcional para testes analíticos diretos
 }
 
 export interface RacePaceIntegrationParams {
