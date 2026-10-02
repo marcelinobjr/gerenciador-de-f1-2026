@@ -20,7 +20,7 @@
  *    calculateQExecModifier(qDriverExecution)
  *    QExecModifier = (qDriverExecution - NEUTRAL) * SCALE
  *    NEUTRAL = 80
- *    SCALE = 0.08
+ *    SCALE = 0.24 (Calibração esportiva QDE02-H2: 10 pts QExec = 2.4 pts de pace = ~0.197s em volta de referência)
  *    Substitui a contribuição event-level antiga (speedDelta + moraleDelta) no qualifying.
  */
 
@@ -37,7 +37,7 @@ export const QDE_CONSTANTS = {
   WEIGHT_MORALE: 0.1,
 
   NEUTRAL: 80,
-  SCALE: 0.08,
+  SCALE: 0.24,
 } as const
 
 /**

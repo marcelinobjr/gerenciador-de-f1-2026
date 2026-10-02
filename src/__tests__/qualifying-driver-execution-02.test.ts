@@ -65,7 +65,6 @@ import { MBJ_2026_PILOTS, getDriverCareerStats } from '@/lib/mbj-drivers-data'
 import { STRUCTURAL_STRENGTH_WEIGHTS, DRIVER_WEIGHTS } from '@/services/structuralStrengthService'
 
 describe('QUALI-DRIVER-EXECUTION-02: Canonical Suite (40 Test Cases)', () => {
-
   const silverstone = resolveCircuitProfile({ round: 11 })
   const audiEntry = BASELINE_V0_DATA.teams['audi'] as any
   const audiTech = audiEntry?.technicalAttributes ?? audiEntry?.carAttributes
@@ -688,11 +687,41 @@ describe('QUALI-DRIVER-EXECUTION-02: Canonical Suite (40 Test Cases)', () => {
     expect(BASELINE_V0_DATA.teams['andretti'].structuralStrengthScore).toBe(45)
   })
 
-  // 37: CP4 intacto
-  it('QDE02-37: CP4 intacto', () => {
+  // 37: CP4 intacto & QDE scale calibrado esportivamente (10 pts QExec em 0.15–0.25s)
+  it('QDE02-37: CP4 intacto e calibração de scale QDE', () => {
     expect(QUALI_RNG_TARGET_RANGE.SIGMA).toBe(0.45)
-    expect(QDE_CONSTANTS.SCALE).toBe(0.08)
+    expect(QDE_CONSTANTS.SCALE).toBe(0.24)
     expect(QDE_CONSTANTS.NEUTRAL).toBe(80)
+
+    // Prova explícita: 10 QExec pts produzem impacto dentro da janela esportiva 0.15–0.25s
+    const paceExec80 = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'audi',
+      driverId: 'drv-calib-80',
+      circuitProfile: silverstone,
+      carTechnicalAttributes: audiTech,
+      driverAttributes: { speed: 80, morale: 80 },
+      qDriverExecutionOverride: 80,
+      noise: 0,
+    })
+    const paceExec90 = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'audi',
+      driverId: 'drv-calib-90',
+      circuitProfile: silverstone,
+      carTechnicalAttributes: audiTech,
+      driverAttributes: { speed: 90, morale: 80 },
+      qDriverExecutionOverride: 90,
+      noise: 0,
+    })
+
+    const deltaPacePoints = paceExec90.effectivePaceScore - paceExec80.effectivePaceScore
+    const deltaLapSec = paceExec80.lapTimeSec - paceExec90.lapTimeSec
+
+    // 10 pts * 0.24 = 2.4 pts de pace
+    expect(deltaPacePoints).toBeCloseTo(2.4, 1)
+    // 2.4 pts * 0.082 s/pt = 0.1968 s (~0.197 s), estritamente dentro de [0.15, 0.25]
+    expect(deltaLapSec).toBeGreaterThanOrEqual(0.15)
+    expect(deltaLapSec).toBeLessThanOrEqual(0.25)
+    expect(deltaLapSec).toBeCloseTo(0.197, 2)
   })
 
   // 38: Adaptation não duplicada no QExec
