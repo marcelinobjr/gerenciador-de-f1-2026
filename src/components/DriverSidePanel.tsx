@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { DriverPoster } from '@/components/DriverPoster'
 import { CountryFlag } from '@/components/CountryFlag'
+import { DRIVER_CAREER_STAT_LABELS } from '@/lib/mbj-drivers-data'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
 import { formatUsdCurrency } from '@/components/PilotProfileDialog'
 import { getOverallRating } from '@/lib/mbj-drivers-data'
@@ -283,7 +284,6 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
             </div>
             <span className="text-[10px] text-slate-400 font-medium">Somente F1 oficial</span>
           </div>
-
           <div className="grid grid-cols-4 gap-2 text-center pt-1">
             <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs">
               <div className="text-[10px] text-slate-400 uppercase font-mono font-semibold">
@@ -320,7 +320,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
                 {f1CareerStats.championships}
               </div>
             </div>
-          </div>
+          </div>{' '}
         </div>
 
         {/* ATRIBUTOS RESUMIDOS (Ritmo, Consistência, Feedback Técnico, Potencial) */}

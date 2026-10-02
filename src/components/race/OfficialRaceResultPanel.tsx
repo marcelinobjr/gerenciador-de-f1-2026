@@ -26,6 +26,7 @@ import {
   canonicalChampionshipService,
   type ChampionshipSnapshot,
 } from '@/services/canonicalChampionshipService'
+import { DRIVER_CAREER_STAT_LABELS } from '@/lib/mbj-drivers-data'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 import { PodiumVisualCard } from './PodiumVisualCard'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
@@ -685,19 +686,27 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
                         </span>
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center text-xs font-mono">
                           <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                            <span className="text-[9px] text-slate-500 block">GPs</span>
+                            <span className="text-[9px] text-slate-500 block">
+                              {DRIVER_CAREER_STAT_LABELS.races}
+                            </span>
                             <strong className="text-slate-900">{cStats.careerGps || 0}</strong>
                           </div>
                           <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                            <span className="text-[9px] text-slate-500 block">Vitórias</span>
+                            <span className="text-[9px] text-amber-600 block">
+                              {DRIVER_CAREER_STAT_LABELS.wins}
+                            </span>
                             <strong className="text-amber-600">{cStats.careerWins || 0}</strong>
                           </div>
                           <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                            <span className="text-[9px] text-slate-500 block">Pódios</span>
+                            <span className="text-[9px] text-slate-500 block">
+                              {DRIVER_CAREER_STAT_LABELS.podiums}
+                            </span>
                             <strong className="text-slate-800">{cStats.careerPodiums || 0}</strong>
                           </div>
                           <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                            <span className="text-[9px] text-slate-500 block">Poles</span>
+                            <span className="text-[9px] text-slate-500 block">
+                              {DRIVER_CAREER_STAT_LABELS.poles}
+                            </span>
                             <strong className="text-slate-800">{cStats.careerPoles || 0}</strong>
                           </div>
                           <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">

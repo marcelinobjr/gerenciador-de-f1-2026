@@ -10,7 +10,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DriverPoster } from '@/components/DriverPoster'
 import { CountryFlag } from '@/components/CountryFlag'
-import { checkEligibility, getOverallRating, getDriverCareerStats } from '@/lib/mbj-drivers-data'
+import {
+  checkEligibility,
+  getOverallRating,
+  getDriverCareerStats,
+  DRIVER_CAREER_STAT_LABELS,
+} from '@/lib/mbj-drivers-data'
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import { calculateDriverTotalTestMileage } from '@/services/driverMileageResolverService'
 import pb from '@/lib/pocketbase/client'
@@ -1056,7 +1061,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
                 <span className="text-[10px] uppercase font-bold text-[#64748B] block">
-                  GPs
+                  {DRIVER_CAREER_STAT_LABELS.races}
                 </span>
                 <strong className="text-lg font-black font-mono text-[#0F172A]">
                   {careerStats.races}
@@ -1064,7 +1069,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
               </div>
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
                 <span className="text-[10px] uppercase font-bold text-[#64748B] block">
-                  Vitórias
+                  {DRIVER_CAREER_STAT_LABELS.wins}
                 </span>
                 <strong className="text-lg font-black font-mono text-emerald-600">
                   {careerStats.wins}
@@ -1072,7 +1077,7 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
               </div>
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
                 <span className="text-[10px] uppercase font-bold text-[#64748B] block">
-                  Poles
+                  {DRIVER_CAREER_STAT_LABELS.poles}
                 </span>
                 <strong className="text-lg font-black font-mono text-amber-600">
                   {careerStats.poles}
@@ -1080,14 +1085,13 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
               </div>
               <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-center shadow-xs">
                 <span className="text-[10px] uppercase font-bold text-[#64748B] block">
-                  Títulos
+                  {DRIVER_CAREER_STAT_LABELS.championships}
                 </span>
                 <strong className="text-lg font-black font-mono text-amber-500">
                   {careerStats.championships}
                 </strong>
               </div>
             </div>
-
             <p className="text-xs text-[#334155] leading-relaxed pt-1">{biography}</p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2 text-[11px] font-mono text-[#64748B] border-t border-[#E2E8F0]">
