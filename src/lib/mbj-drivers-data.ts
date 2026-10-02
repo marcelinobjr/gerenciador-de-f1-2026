@@ -3088,7 +3088,7 @@ export const MBJ_2026_PILOTS: MBJPilotData[] = [
     f1Poles: 0,
     f1Championships: 0,
     superlicensePoints: 50,
-    photoFilename: 'bourdais.webp',
+    photoFilename: 'DRV_0075.jpg',
   },
   {
     id: 'mbj-129',

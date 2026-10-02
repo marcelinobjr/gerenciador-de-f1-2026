@@ -20,6 +20,12 @@ describe('CORREÇÃO BOURDAIS DRV_0075', () => {
     expect(fs.existsSync(filePath), 'DRV_0075.jpg deve existir fisicamente').toBe(true)
     const stats = fs.statSync(filePath)
     expect(stats.size).toBeGreaterThan(1000)
+    console.log(
+      'PUBLIC PILOTOS FILES:',
+      fs
+        .readdirSync(path.resolve(process.cwd(), 'public', 'pilotos'))
+        .filter((f) => f.includes('0075')),
+    )
   })
 
   it('2. Sébastien Bourdais (com e sem acento) e mbj-128 resolvem para DRV_0075.jpg', () => {
