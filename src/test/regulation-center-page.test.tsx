@@ -411,4 +411,50 @@ describe('ETAPA REG-01: SUÍTE DE TESTES DA CENTRAL DE REGULAMENTO FIA', () => {
     expect(audit.issues.filter((i) => i.severity === 'ERROR')).toHaveLength(0)
     expect(audit.totalRules).toBeGreaterThanOrEqual(16)
   })
+
+  it('REG-LIC-01: homologação da Super Licença está devidamente documentada no regulamento', () => {
+    const rules = getRegulationsForSeason(2026)
+    const homologRule = rules.find((r) => r.id === 'reg_super_license_homologation')
+    expect(homologRule).toBeDefined()
+    expect(homologRule?.category).toBe('licencas')
+    expect(homologRule?.sourceType).toBe('APEX_ADAPTATION')
+    expect(homologRule?.status).toBe('IMPLEMENTADO')
+
+    // 1. Estrutura do programa
+    expect(homologRule?.apexExplanation).toContain('R$ 2.500.000')
+    expect(homologRule?.apexExplanation).toContain('4 testes válidos')
+    expect(homologRule?.apexExplanation).toContain('1.200 km')
+    expect(homologRule?.apexExplanation).toContain('Homologação FIA')
+    expect(homologRule?.apexExplanation).toContain('Avaliação de Capacidade')
+    expect(homologRule?.apexExplanation).toContain('Desenvolvimento & P&D')
+    expect(homologRule?.apexExplanation).toContain(
+      'Preparação, Rookie Test e Comparativo NÃO contam',
+    )
+
+    // 2. Nota final ponderada
+    expect(homologRule?.apexExplanation).toContain('Ritmo (30%)')
+    expect(homologRule?.apexExplanation).toContain('speed × 0,95')
+    expect(homologRule?.apexExplanation).toContain('+2 pontos se o piloto tiver 21 anos ou menos')
+    expect(homologRule?.apexExplanation).toContain('Consistência (25%)')
+    expect(homologRule?.apexExplanation).toContain('Controle do carro (20%)')
+    expect(homologRule?.apexExplanation).toContain('Feedback técnico (15%)')
+    expect(homologRule?.apexExplanation).toContain('Disciplina / Segurança (10%)')
+    expect(homologRule?.apexExplanation).toContain('12 pontos')
+    expect(homologRule?.apexExplanation).toContain('18%')
+    expect(homologRule?.apexExplanation).toContain('±3 pontos')
+
+    // 3. Os três desfechos
+    expect(homologRule?.apexExplanation).toContain('Média ≥ 85')
+    expect(homologRule?.apexExplanation).toContain('SUPER LICENÇA (Licença Nível A)')
+    expect(homologRule?.apexExplanation).toContain('Média 75–84')
+    expect(homologRule?.apexExplanation).toContain('LICENÇA PROVISÓRIA NÍVEL B')
+    expect(homologRule?.apexExplanation).toContain('Média 65–74')
+    expect(homologRule?.apexExplanation).toContain('TESTE ADICIONAL OBRIGATÓRIO')
+    expect(homologRule?.apexExplanation).toContain('Média < 65')
+    expect(homologRule?.apexExplanation).toContain('REPROVADO')
+
+    // 4. Caminho de recuperação e custo total
+    expect(homologRule?.apexExplanation).toContain('R$ 7,3 milhões')
+    expect(homologRule?.apexExplanation).toContain('~88+')
+  })
 })

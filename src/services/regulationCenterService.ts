@@ -679,12 +679,70 @@ export function buildSeasonRegulations2026(): RegulationDefinition[] {
       whatItDetermines:
         'Para conduzir um carro de Fórmula 1 em sessões oficiais de Grande Prêmio (qualificação e corrida), o piloto deve possuir obrigatoriamente a Superlicença da FIA (conquistada com 40 pontos no sistema de categorias de base ou experiência pregressa comprovada).',
       apexExplanation:
-        'O APEX GP Manager adota o sistema canônico homologado de licenças de três níveis (canonicalHomologationAdapter): Licença C (categoria de base e simulador), Licença B (pilotos de testes e novatos elegíveis a TL1) e Licença A (Superlicença plena para assento titular). Estar sob contrato como "Piloto Reserva" NÃO confere automaticamente Licença A — a função contratual difere da licença desportiva.',
+        'O APEX GP Manager adota o sistema canônico homologado de licenças de três níveis (canonicalHomologationAdapter): Licença C (categoria de base e simulador), Licença B (pilotos de testes e novatos elegíveis a TL1) e Licença A (Superlicença plena para assento titular). Estar sob contrato como "Piloto Reserva" NÃO confere automaticamente Licença A — a função contratual difere da licença desportiva. Para obter a Licença A via pista, as equipes devem inscrever seus pilotos no Programa de Homologação FIA.',
       teamSituationNote:
         'Consulte no painel lateral a relação de pilotos da sua equipe e verifique quais possuem Licença A ativa.',
       relatedService: 'canonicalHomologationAdapter & superlicense.ts',
       relatedRoute: '/pilotos',
       relatedRouteLabel: 'GERENCIAR PILOTOS',
+      hasTeamContext: true,
+    },
+    {
+      id: 'reg_super_license_homologation',
+      category: 'licencas',
+      title: 'Homologação da Super Licença: Estrutura, Avaliação e Critérios de Aprovação',
+      season: 2026,
+      sourceType: 'APEX_ADAPTATION',
+      status: 'IMPLEMENTADO',
+      sourceMetadata: {
+        authority: 'FIA + APEX',
+        championship: 'FIA Formula One World Championship',
+        season: 2026,
+        section: 'Appendix L — Driver Homologation Protocol & APEX Development System',
+        documentTitle: 'FIA Homologation Protocol & APEX driverDevelopmentService',
+        articleRef: 'Art. 5.2 (Evaluation Program)',
+      },
+      tags: [
+        'homologação',
+        'superlicença',
+        'super licença',
+        'licença a',
+        'licença b',
+        'testes',
+        'avaliação',
+        'taxa',
+        'quilometragem',
+        'dossiê',
+        'driver development',
+      ],
+      whatItDetermines:
+        'Para obter a Super Licença FIA sem o acúmulo de pontos em certames de base internacionais, o piloto deve submeter-se a um programa de homologação e avaliação em pista auditado por comissários técnicos da FIA, demonstrando quilometragem mínima obrigatória em carro de especificação recente e índice de competência técnica e desportiva aprovado.',
+      apexExplanation:
+        'O APEX GP Manager implementa a mecânica integral no driverDevelopmentService com as seguintes regras canônicas:\n\n' +
+        '1. ESTRUTURA DO PROGRAMA DE HOMOLOGAÇÃO:\n' +
+        '• Taxa de abertura oficial do processo: R$ 2.500.000.\n' +
+        '• Exigência de no mínimo 4 testes válidos somando no mínimo 1.200 km auditados.\n' +
+        '• Apenas 3 dos 6 tipos de teste contam para homologação: "Homologação FIA" (330 km, R$ 1,2M), "Avaliação de Capacidade" (310 km, R$ 1,05M) e "Desenvolvimento & P&D" (340 km, R$ 1,1M). As sessões de Preparação, Rookie Test e Comparativo NÃO contam para o dossiê da FIA.\n\n' +
+        '2. NOTA FINAL PONDERADA POR TESTE:\n' +
+        'Cada teste válido recebe uma nota de 0 a 100 calculada com pesos estritos:\n' +
+        '• Ritmo (30%): derivado do atributo velocidade (speed × 0,95), com bônus de +2 pontos se o piloto tiver 21 anos ou menos.\n' +
+        '• Consistência (25%): derivado do atributo consistência (consistency × 0,96).\n' +
+        '• Controle do carro (20%): mistura de defesa (defense × 0,6) e consistência (consistency × 0,4).\n' +
+        '• Feedback técnico (15%): atributo technical_feedback do piloto, recebendo +1 a +2 pontos com gerente de talentos competente.\n' +
+        '• Disciplina / Segurança (10%): penalizada em ~12 pontos caso o piloto escape da pista durante a sessão (18% de probabilidade por teste).\n' +
+        '• Variação orgânica: há um jitter controlado de ±3 pontos por avaliação.\n\n' +
+        '3. OS TRÊS DESFECHOS DA AVALIAÇÃO FINAL (Média dos testes válidos):\n' +
+        '• Média ≥ 85: SUPER LICENÇA (Licença Nível A) CONCEDIDA — habilita imediatamente o piloto para assento titular de GP.\n' +
+        '• Média 75–84: LICENÇA PROVISÓRIA NÍVEL B — programa encerrado com sucesso parcial (homologation_status = elegivel). Permite atuar em testes e TL1, mas NÃO habilita assento titular de GP. Como o programa é encerrado, ele não aceita mais testes; para disputar a Super Licença (Nível A) é obrigatório abrir um NOVO programa (nova taxa de R$ 2.500.000 e contadores zerados).\n' +
+        '• Média 65–74: TESTE ADICIONAL OBRIGATÓRIO — o programa permanece aberto na fase teste_adicional. Cada novo teste válido entra no cômputo da média acumulada; assim que a média cruzar 85, a Super Licença é concedida (caminho de recuperação mais econômico: paga-se apenas o custo operacional dos novos testes, sem nova taxa de abertura).\n' +
+        '• Média < 65: REPROVADO — programa sumariamente fechado. Só resta abrir um novo programa do zero.\n\n' +
+        '4. CAMINHO DE RECUPERAÇÃO E CUSTO:\n' +
+        'A nota é dominada pelos atributos reais do piloto, e não pela sorte. Como as notas de cada teste válido entram permanentemente na média do dossiê, a estratégia correta para atingir 85 é desenvolver previamente speed e consistency (em corridas, testes gerais, evolução anual conforme o arquétipo de carreira e melhores instalações de fábrica) até ~88+ antes de abrir um novo programa. O custo financeiro de um ciclo completo padrão (abertura + 4 testes válidos) é de aproximadamente R$ 7,3 milhões.',
+      teamSituationNote:
+        'O custo total de um ciclo de 4 testes válidos mais taxa de abertura é de aproximadamente R$ 7,3 milhões. Pilotos em desenvolvimento na academia ou de testes podem ter programas abertos na tela de Academia/Pilotos.',
+      relatedService: 'driverDevelopmentService & HOMOLOGATION_CONFIG',
+      relatedRoute: '/pilotos',
+      relatedRouteLabel: 'VER ACADEMIA & HOMOLOGAÇÃO',
       hasTeamContext: true,
     },
 
