@@ -232,10 +232,21 @@ export const canonicalRaceInitializationService = {
         startingCompound = explicitPrep?.startingCompound || entry.bestLapCompound || 'medio'
       }
 
-      const startingFuel =
-        typeof explicitPrep?.startingFuelKg === 'number'
-          ? explicitPrep.startingFuelKg
-          : defaultInitialFuel
+      let startingFuel = defaultInitialFuel
+      if (typeof explicitPrep?.startingFuelKg === 'number') {
+        const val = explicitPrep.startingFuelKg
+        if (val > 110) {
+          // acima de 110 -> rejeitar e fallback para defaultInitialFuel
+          startingFuel = defaultInitialFuel
+        } else if (val > 0) {
+          startingFuel = val
+          if (autoCalculatedFuel && val < autoCalculatedFuel) {
+            console.warn(
+              `[canonicalRaceInitializationService] Warning: insufficient projected fuel for ${entry.driverId}: ${val} kg < required ${autoCalculatedFuel} kg`,
+            )
+          }
+        }
+      }
 
       const startingTyreSetId = explicitPrep?.startingTyreSetId || entry.tyreSetId
       const initialTyreWear = explicitPrep?.initialTyreWear ?? 0

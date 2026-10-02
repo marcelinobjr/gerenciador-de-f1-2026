@@ -25,6 +25,7 @@ import {
   type CompoundLifespanEstimate,
   type RecommendedPitWindowResult,
 } from '@/lib/canonical-tire-strategy'
+import { TANK_CAPACITY_KG } from '@/services/canonicalFuelModel'
 
 export const RACE_PREP_STORAGE_KEY_PREFIX = 'apex_race_prep_v1'
 
@@ -51,10 +52,10 @@ export const canonicalRacePreparationService = {
         error: `Combustível insuficiente para largada: ${fuelKg} kg. Mínimo regulamentar é 1 kg.`,
       }
     }
-    if (fuelKg > 110) {
+    if (fuelKg > TANK_CAPACITY_KG) {
       return {
         valid: false,
-        error: `Combustível excede capacidade máxima do tanque: ${fuelKg} kg. Máximo regulamentar é 110 kg.`,
+        error: `Combustível excede capacidade máxima do tanque: ${fuelKg} kg. Máximo regulamentar é ${TANK_CAPACITY_KG} kg.`,
       }
     }
     return { valid: true }

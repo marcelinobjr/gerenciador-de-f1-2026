@@ -14,6 +14,7 @@ import {
   DEFAULT_PRACTICE_SETUP,
   FUEL_CONSUMPTION_KG_PER_LAP,
 } from '@/types/practice-preparation'
+import { TANK_CAPACITY_KG } from '@/services/canonicalFuelModel'
 import type { DriverModel, TireSetItem, TireCompound } from '@/types/f1'
 
 export interface SessionSetupDriverData {
@@ -147,8 +148,8 @@ export function validateCarPreparation(
     }
   }
 
-  if (!car.fuelLoad || car.fuelLoad.kg < 5 || car.fuelLoad.kg > 110) {
-    errors.fuel = 'Carga de combustível inválida (permitido entre 5 kg e 110 kg).'
+  if (!car.fuelLoad || car.fuelLoad.kg < 5 || car.fuelLoad.kg > TANK_CAPACITY_KG) {
+    errors.fuel = `Carga de combustível inválida (permitido entre 5 kg e ${TANK_CAPACITY_KG} kg).`
   }
 
   const { frontWing, rearWing, suspension, differential } = car.setup || {}

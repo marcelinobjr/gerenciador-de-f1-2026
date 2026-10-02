@@ -8,6 +8,7 @@ import type {
 } from '@/types/practice-session'
 import { CANONICAL_PRACTICE_DURATION_SEC } from '@/types/practice-session'
 import { FUEL_CONSUMPTION_KG_PER_LAP } from '@/types/practice-preparation'
+import { TANK_CAPACITY_KG } from '@/services/canonicalFuelModel'
 import { TIRE_SPECS, type TrackWeatherState } from '@/lib/f1-tire-system'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { carTechnicalService } from '@/services/carTechnicalService'
@@ -180,7 +181,7 @@ export class PracticeSessionRunner {
   ): boolean {
     const car = state.cars[carId]
     if (car.status !== 'garage') return false
-    car.fuelKg = Math.max(1, Math.min(110, kg))
+    car.fuelKg = Math.max(1, Math.min(TANK_CAPACITY_KG, kg))
     return true
   }
 
