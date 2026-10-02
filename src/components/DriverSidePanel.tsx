@@ -287,7 +287,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
           <div className="grid grid-cols-4 gap-2 text-center pt-1">
             <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs">
               <div className="text-[10px] text-slate-400 uppercase font-mono font-semibold">
-                GPs
+                {DRIVER_CAREER_STAT_LABELS.races}
               </div>
               <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
                 {f1CareerStats.races}
@@ -296,7 +296,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
 
             <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs">
               <div className="text-[10px] text-slate-400 uppercase font-mono font-semibold">
-                Vitórias
+                {DRIVER_CAREER_STAT_LABELS.wins}
               </div>
               <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
                 {f1CareerStats.wins}
@@ -305,7 +305,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
 
             <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs">
               <div className="text-[10px] text-slate-400 uppercase font-mono font-semibold">
-                Poles
+                {DRIVER_CAREER_STAT_LABELS.poles}
               </div>
               <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
                 {f1CareerStats.poles}
@@ -314,7 +314,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
 
             <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs">
               <div className="text-[10px] text-slate-400 uppercase font-mono font-semibold">
-                Títulos
+                {DRIVER_CAREER_STAT_LABELS.championships}
               </div>
               <div className="text-base sm:text-lg font-black text-slate-900 font-mono">
                 {f1CareerStats.championships}

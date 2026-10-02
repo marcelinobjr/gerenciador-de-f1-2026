@@ -898,7 +898,8 @@ export default function DriversPage() {
   const activeF1Stats = useMemo(() => {
     if (!activeSideDriver) {
       return { races: 0, wins: 0, poles: 0, championships: 0 }
-    }    const mbjPilot = MBJ_2026_PILOTS.find(
+    }
+    const mbjPilot = MBJ_2026_PILOTS.find(
       (p) =>
         p.id === activeSideDriver.id ||
         p.name.toLowerCase().trim() === activeSideDriver.name.toLowerCase().trim(),

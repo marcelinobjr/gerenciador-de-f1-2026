@@ -3483,6 +3483,16 @@ export function getDriverAge(
  * CARREIRA TOTAL = BASELINE HISTÓRICO (catálogo FIA pré-2026) + RESULTADOS DO SAVE ATUAL.
  * Função puramente derivada e idempotente: zero persistência / zero escritas.
  */
+export const DRIVER_CAREER_STAT_LABELS = {
+  races: 'GPs',
+  starts: 'Largadas',
+  wins: 'Vitórias',
+  poles: 'Poles',
+  podiums: 'Pódios',
+  championships: 'Títulos',
+  titles: 'Títulos',
+} as const
+
 export interface DriverCareerStats {
   races: number
   wins: number
