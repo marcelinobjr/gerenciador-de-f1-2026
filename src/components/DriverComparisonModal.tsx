@@ -120,7 +120,9 @@ export const DriverComparisonModal: React.FC<DriverComparisonModalProps> = ({
               <span className="truncate">{primaryDriver.name}</span>
             </div>
             <div className="text-[11px] text-slate-500 truncate mt-0.5">
-              {primaryDriver.teamName || 'Agente livre'}
+              {primaryDriver.teamName && primaryDriver.teamName !== 'Sem equipe'
+                ? primaryDriver.teamName
+                : 'Agente livre'}
             </div>
             <div className="mt-2 flex items-center gap-1">
               <Badge className="bg-slate-900 text-white font-mono text-xs px-2 py-0.5">
@@ -144,7 +146,9 @@ export const DriverComparisonModal: React.FC<DriverComparisonModalProps> = ({
                   <span className="truncate">{secondaryDriver.name}</span>
                 </div>
                 <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {secondaryDriver.teamName || 'Agente livre'}
+                  {secondaryDriver.teamName && secondaryDriver.teamName !== 'Sem equipe'
+                    ? secondaryDriver.teamName
+                    : 'Agente livre'}
                 </div>
                 <div className="mt-2 flex items-center gap-1">
                   <Badge className="bg-slate-900 text-white font-mono text-xs px-2 py-0.5">

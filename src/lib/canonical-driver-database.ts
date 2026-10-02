@@ -1506,46 +1506,13 @@ export function getActiveDriverTeamBinding(
     canonicalDriver = findCanonicalDriverMaster(null, rawMatch.name)
   }
 
-  // Precedência 0: Vínculo persistido no career_drivers da carreira/save (se careerId presente)
-  const careerId =
-    seasonContext?.career_id ||
-    seasonContext?.careerId ||
-    seasonContext?.team_id ||
-    (typeof seasonContext === 'string' ? seasonContext : null)
-  if (careerId) {
-    try {
-      const { driverBase2026Service } = require('@/services/driverBase2026Service')
-      const careerDrivers = driverBase2026Service.getCareerDrivers(careerId)
-      if (careerDrivers) {
-        const cRec =
-          (driverId ? careerDrivers[driverId] : null) ||
-          (canonicalDriver ? careerDrivers[canonicalDriver.driverId] : null) ||
-          (rawMatch ? careerDrivers[rawMatch.id] : null)
-        if (cRec) {
-          if (cRec.role === 'free_agent' || cRec.teamId === 'free_agent' || !cRec.teamId) {
-            return {
-              driverId: canonicalDriver?.driverId || driverId,
-              canonicalDriver,
-              teamId: null,
-              teamKey: null,
-              teamName: null,
-              teamColor: null,
-              role: null,
-              status: 'free_agent',
-              isContracted: false,
-            }
-          }
-          const matchedTeam = findTeamRecord(cRec.teamId)
-          let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
-          if (cRec.role === 'reserva') cRole = 'reserva'
-          else if (cRec.role === 'academy') cRole = 'academia'
-          return buildBindingResult(canonicalDriver, matchedTeam, cRole, cRec.teamId)
-        }
-      }
-    } catch {
-      // safe fallback
-    }
-  }
+
+
+
+  // Precedência 0.5: Se o piloto tem canonicalDriver correspondente e é um titular/reserva com equipe na base 2026,
+  // mas o registro no banco não possui team_id setado (ex: importação desvinculada no banco onde category='mercado'
+  // mas o piloto é titular de ponta como Hamilton -> Scuderia Ferrari), consultar o baseline canônico antes de
+  // degradar em free_agent se o contrato ativo da carreira/save apontar para o time canônico.
 
   // BUG-INTEGRIDADE-05A:
   // Precedência 1: Contrato explícito e ativo na carreira/save (canonical_contract)
@@ -1635,21 +1602,10 @@ export function getActiveDriverTeamBinding(
     }
   }
 
-  // Precedência 2.5: Se o piloto tem registro no banco MAS sem team_id preenchido (ex: importação com category='mercado' ou sem team_id como Hamilton no PocketBase inicial),
-  // MAS possui assento titular/canônico ativo para a temporada corrente no catálogo/baseline inicial (ex: Lewis Hamilton na Ferrari),
-  // a ausência de team_id no banco NÃO deve degradá-lo para agente livre.
-  if (canonicalDriver?.teamId) {
-    const matchedTeam = findTeamRecord(canonicalDriver.teamId)
-    let cRole: 'titular' | 'reserva' | 'academia' | 'desenvolvimento' = 'titular'
-    if (canonicalDriver.role === 'reserva') {
-      cRole = 'reserva'
-    } else if (canonicalDriver.role === 'academy') {
-      cRole = 'academia'
-    }
-    return buildBindingResult(canonicalDriver, matchedTeam, cRole, canonicalDriver.teamId)
-  }
-
   // Precedência 3: Binding canônico inicial da temporada (canonicalDriver.teamId)
+  // Pilotos canônicos com equipe oficial definida (ex: Hamilton -> Scuderia Ferrari)
+  // resolvem para sua equipe e papel mesmo se o banco tiver registro temporariamente desvinculado
+  // (salvo se explicitamente marcado como free_agent na carreira via Precedência 0 ou canonical_contract).
   if (canonicalDriver) {
     if (canonicalDriver.teamId) {
       const matchedTeam = findTeamRecord(canonicalDriver.teamId)
@@ -1662,6 +1618,19 @@ export function getActiveDriverTeamBinding(
       return buildBindingResult(canonicalDriver, matchedTeam, cRole, canonicalDriver.teamId)
     }
 
+    // Piloto canônico sem equipe (agente livre / outra categoria como IndyCar, FE, WEC, etc.)
+    return {
+      driverId: canonicalDriver.driverId || driverId,
+      canonicalDriver,
+      teamId: null,
+      teamKey: null,
+      teamName: null,
+      teamColor: null,
+      role: null,
+      status: 'free_agent',
+      isContracted: false,
+    }
+  }
     // Piloto canônico sem equipe (agente livre / outra categoria como IndyCar, FE, WEC, etc.)
     return {
       driverId: canonicalDriver.driverId || driverId,

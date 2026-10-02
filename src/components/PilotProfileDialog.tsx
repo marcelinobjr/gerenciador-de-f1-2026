@@ -18,6 +18,7 @@ import {
 } from '@/lib/mbj-drivers-data'
 import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import { calculateDriverTotalTestMileage } from '@/services/driverMileageResolverService'
+import { resolveCurrentDriverTeam } from '@/lib/canonical-driver-database'
 import pb from '@/lib/pocketbase/client'
 import {
   GraduationCap,
