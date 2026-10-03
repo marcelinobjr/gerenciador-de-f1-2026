@@ -185,6 +185,148 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
+   * SPRINT-FDS-01-R4C3: Constrói o grid canônico da Corrida Sprint a partir do resultado oficial de SQ3.
+   * Regra canônica:
+   * - SQ3 define P1..P10 pelo resultado de SQ3 (respeitando a ordem oficial de SQ3).
+   * - SQ2 define P11..P18 pelos eliminados de SQ2 (se presentes no round).
+   * - SQ1 define P19..P24 pelos eliminados de SQ1 (se presentes no round).
+   * - Caso SQ3 contenha todas as entradas ou apenas SQ3 esteja presente, preserva a ordem final estrita de SQ3.
+   * - Retorna CompleteQualifyingWeekendResult formatado para a UI / initializeRaceFromCanonicalGrid.
+   */
+  buildSprintGridFromSQ3Result(
+    seasonId: string,
+    round: number,
+  ): CompleteQualifyingWeekendResult | null {
+    const sq3Result = this.readStageResult(seasonId, round, 'sq3')
+    if (!sq3Result || !sq3Result.entries || sq3Result.entries.length === 0) {
+      return null
+    }
+
+    const sq1Result = this.readStageResult(seasonId, round, 'sq1')
+    const sq2Result = this.readStageResult(seasonId, round, 'sq2')
+
+    // Se temos as fases completas SQ1, SQ2 e SQ3
+    if (sq1Result && sq2Result && sq3Result.stageId === 'sq3') {
+      const sq3Sorted = [...sq3Result.entries].sort((a, b) => {
+        if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+          if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+          return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+        }
+        if (a.bestLapSec > 0) return -1
+        if (b.bestLapSec > 0) return 1
+        return 0
+      })
+
+      const sq2Eliminated = [...sq2Result.entries]
+        .filter((e) => !sq3Result.entries.some((s) => s.driverId === e.driverId))
+        .sort((a, b) => {
+          if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+            if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+            return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+          }
+          if (a.bestLapSec > 0) return -1
+          if (b.bestLapSec > 0) return 1
+          return 0
+        })
+
+      const sq1Eliminated = [...sq1Result.entries]
+        .filter(
+          (e) =>
+            !sq3Result.entries.some((s) => s.driverId === e.driverId) &&
+            !sq2Result.entries.some((s) => s.driverId === e.driverId),
+        )
+        .sort((a, b) => {
+          if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+            if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+            return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+          }
+          if (a.bestLapSec > 0) return -1
+          if (b.bestLapSec > 0) return 1
+          return 0
+        })
+
+      const combined = [...sq3Sorted, ...sq2Eliminated, ...sq1Eliminated]
+      const finalGrid: FinalQualifyingGridEntry[] = combined.map((e, idx) => ({
+        gridPosition: idx + 1,
+        driverId: e.driverId,
+        driverName: e.driverName,
+        teamId: e.teamId,
+        teamName: e.teamName,
+        teamColor: e.teamColor,
+        isPlayer: e.isPlayer,
+        carId: e.carId,
+        eliminationStage:
+          idx < sq3Sorted.length
+            ? 'Q3'
+            : idx < sq3Sorted.length + sq2Eliminated.length
+              ? 'Q2'
+              : 'Q1',
+        bestLapSec: e.bestLapSec,
+        bestLapTime: e.bestLapTime,
+        bestLapCompound: e.compound,
+        tyreSetId: e.tyreSetId,
+        q1LapTime: e.bestLapTime,
+      }))
+
+      const pole = finalGrid[0]
+      return {
+        seasonId,
+        round,
+        completedAt: sq3Result.completedAt || new Date().toISOString(),
+        poleDriverId: pole?.driverId || '',
+        poleDriverName: pole?.driverName || '',
+        poleLapTime: pole?.bestLapTime || '--:--.---',
+        q1Result: sq1Result,
+        q2Result: sq2Result,
+        q3Result: sq3Result,
+        finalGrid,
+      }
+    }
+
+    // Caso onde SQ3 é fornecida isoladamente ou já possui todos os classificados
+    const sortedEntries = [...sq3Result.entries].sort((a, b) => {
+      if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+        if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+        return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+      }
+      if (a.bestLapSec > 0) return -1
+      if (b.bestLapSec > 0) return 1
+      return 0
+    })
+
+    const finalGrid: FinalQualifyingGridEntry[] = sortedEntries.map((e, idx) => ({
+      gridPosition: idx + 1,
+      driverId: e.driverId,
+      driverName: e.driverName,
+      teamId: e.teamId,
+      teamName: e.teamName,
+      teamColor: e.teamColor,
+      isPlayer: e.isPlayer,
+      carId: e.carId,
+      eliminationStage: 'Q3',
+      bestLapSec: e.bestLapSec,
+      bestLapTime: e.bestLapTime,
+      bestLapCompound: e.compound,
+      tyreSetId: e.tyreSetId,
+      q1LapTime: e.bestLapTime,
+    }))
+
+    const pole = finalGrid[0]
+    return {
+      seasonId,
+      round,
+      completedAt: sq3Result.completedAt || new Date().toISOString(),
+      poleDriverId: pole?.driverId || '',
+      poleDriverName: pole?.driverName || '',
+      poleLapTime: pole?.bestLapTime || '--:--.---',
+      q1Result: sq3Result,
+      q2Result: undefined as any,
+      q3Result: undefined as any,
+      finalGrid,
+    }
+  },
+
+  /**
    * Constrói o grid final oficial P1–P24 combinando os resultados canônicos de Q1, Q2 e Q3.
    * Regra oficial de formação de grid:
    * - Q3 (10 pilotos): define P1 a P10 ordenados pelos melhores tempos de Q3.
