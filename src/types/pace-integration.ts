@@ -98,3 +98,68 @@ export interface PaceIntegrationAuditResult {
   auditPassed: boolean
   divergences: string[]
 }
+
+export interface PracticePaceIntegrationParams {
+  teamKey: string
+  driverId: string
+  circuitProfile?: any
+  carTechnicalAttributes?: any
+  driverAttributes?: {
+    speed?: number
+    consistency?: number
+    technical_feedback?: number
+    technicalFeedback?: number
+    morale?: number
+    experience?: number
+    f1Starts?: number
+    starts?: number
+    experienceScore?: number
+    adaptation?: number
+    f1_adaptation?: number
+    rain?: number
+  }
+  tyreCompound?: string
+  tyreWearPct?: number
+  fuelKg?: number
+  setupEfficiency?: number
+  weather?: string
+  puWearPct?: number
+  program?: 'car_setup' | 'race_pace' | 'qualifying_sim' | 'tyre_knowledge' | string
+  programModifier?: number
+  isRookie?: boolean
+  rookieModifier?: number
+  adaptationModifier?: number
+  practiceExecutionOverride?: number
+  tyreModifier?: number
+  fuelModifier?: number
+  wearModifier?: number
+  weatherModifier?: number
+  rngModifier?: number
+  noise?: number
+  seed?: number | string
+  hasSpecialization?: boolean
+  careerId?: string
+  seasonYear?: number
+  round?: number
+  session?: string
+  attempt?: number
+}
+
+export interface PracticePaceBreakdown {
+  structural: number
+  practiceExecution: number
+  trackFit: number
+  setup: number
+  program: number
+  tyre: number
+  fuel: number
+  wear: number
+  weather: number
+  rookieAdaptation: number
+  rng: number
+  finalPace: number
+  lapTimeSec: number
+  teamKey: string
+  driverId: string
+  calculatedAt: string
+}
