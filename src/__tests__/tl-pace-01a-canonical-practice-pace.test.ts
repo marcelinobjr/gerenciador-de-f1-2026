@@ -19,8 +19,7 @@ describe('TL-PACE-01A — Canonical Practice Pace Core (TLPA-01..36)', () => {
   // Mesmo driver neutro (speed 80, consistency 80, technical_feedback 80, morale 80 -> exec 80 -> modifier 0),
   // TrackFit = 75 (modifier 0), setupEfficiency = 80 (modifier 0), program = 'car_setup' (modifier 0),
   // tyre = 'medio' (modifier 0), fuel = 25 kg (modifier 0), puWear = 0, condition = 100, weather = 'seco',
-  // rookie = false, adaptation = 75 (modifier 0), noise = 0 / RNG = 0.
-  const neutralDriverAttrs = {
+  // rookie = false, adaptation = 75 (modifier 0), noise = 0 / RNG = 0.  const neutralDriverAttrs = {
     speed: 80,
     consistency: 80,
     technical_feedback: 80,
