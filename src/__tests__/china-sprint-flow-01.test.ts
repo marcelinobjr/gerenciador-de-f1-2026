@@ -330,6 +330,27 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     expect(isSessionUnlocked('race', ['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3'])).toBe(true)
   })
 
+  // CFT09: os 6 circuitos Sprint de 2026 resolvem pipeline sem undefined
+  it('CFT09: os 6 circuitos Sprint de 2026 resolvem pipeline sem undefined', async () => {
+    const { getRaceWeekendPipeline } = await import('@/services/weekendScheduleConfig')
+    const { hasSprintWeekend } = await import('@/services/weekendProgressionService')
+
+    const sprintCircuits = CIRCUIT_PERFORMANCE_PROFILES.filter((c) => c.hasSprint)
+    expect(sprintCircuits).toHaveLength(6)
+
+    for (const circuit of sprintCircuits) {
+      expect(hasSprintWeekend(circuit.round)).toBe(true)
+      const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
+      expect(pipeline).toHaveLength(7)
+      expect(pipeline.every((sess) => sess !== undefined && sess !== null)).toBe(true)
+      expect(pipeline.every((sess) => typeof sess.id === 'string')).toBe(true)
+      expect(pipeline.every((sess) => typeof sess.shortLabel === 'string')).toBe(true)
+      expect(pipeline.every((sess) => typeof sess.fullName === 'string')).toBe(true)
+      const ids = pipeline.map((s) => s.id)
+      expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    }
+  })
+
   // CFT09: os 6 circuitos Sprint de 2026 (China R2, Miami, Canadá, Silverstone + os demais do calendário) resolvem pipeline de 7 slots sem undefined.
   it('CFT09: os 6 circuitos Sprint de 2026 resolvem pipeline de 7 slots sem undefined', async () => {
     const { getRaceWeekendPipeline } = await import('@/services/weekendScheduleConfig')

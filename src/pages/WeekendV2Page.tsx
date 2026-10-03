@@ -515,12 +515,11 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'sq1' && (!hasTl1 || !hasTl2)) {
+    if (sess === 'sq1' && !hasTl1) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
-        description:
-          'Você precisa concluir o TL1 e o TL2 antes de iniciar a Qualificação Sprint (SQ1).',
+        description: 'Você precisa concluir o TL1 antes de iniciar a Qualificação Sprint (SQ1).',
       })
       return
     }
@@ -545,13 +544,15 @@ export default function WeekendV2Page() {
 
     if (
       sess === 'sprint_race' &&
+      !normalizedStored.includes('sq1') &&
       !normalizedStored.includes('sq3') &&
       !normalizedStored.includes('sprint_qualifying')
     ) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',
-        description: 'Você precisa concluir o SQ3 antes de iniciar a Corrida Sprint.',
+        description:
+          'Você precisa concluir a Qualificação Sprint antes de iniciar a Corrida Sprint.',
       })
       return
     }
