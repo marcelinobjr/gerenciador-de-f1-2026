@@ -10,10 +10,9 @@ import { CANONICAL_PRACTICE_DURATION_SEC } from '@/types/practice-session'
 import { FUEL_CONSUMPTION_KG_PER_LAP } from '@/types/practice-preparation'
 import { TANK_CAPACITY_KG } from '@/services/canonicalFuelModel'
 import { TIRE_SPECS, type TrackWeatherState } from '@/lib/f1-tire-system'
-import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
-import { carTechnicalService } from '@/services/carTechnicalService'
-import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
-import { calculateCombinedPace } from '@/lib/f1-pace-model'
+import { computePracticePace } from '@/services/canonicalPaceIntegrationService'
+import { canonicalPracticeRngService } from '@/services/canonicalPracticeRngService'
+import { resolveCanonicalTeamKeyFromContext } from '@/services/canonicalTeamIdentityService'
 import { formatLapTime, formatGap } from '@/lib/f1-race-sim-engine'
 import { getAICompetitors } from '@/lib/f1-data'
 import {
@@ -253,6 +252,7 @@ export class PracticeSessionRunner {
         driver,
         context,
         circuitBaseSec,
+        sessionRecord: nextState,
       })
 
       // Progresso da fase atual (out_lap: 75% da volta, flying_lap: 100%, in_lap: 75%)
@@ -538,119 +538,195 @@ export class PracticeSessionRunner {
   }
 
   /**
-   * Cálculo canônico do ritmo de volta livre de treino para o carro do jogador.
+   * TL-PACE-01B: Mapeia o tipo de sessão de treino para o namespace canônico ('TL1' | 'TL2' | 'TL3').
    */
-  private static calculatePracticeLapPace(params: {
+  public static mapSessionTypeToNamespace(sessionType?: string | null): 'TL1' | 'TL2' | 'TL3' {
+    if (!sessionType) return 'TL1'
+    const s = sessionType.trim().toUpperCase()
+    if (s === 'TP1' || s === 'TL1') return 'TL1'
+    if (s === 'TP2' || s === 'TL2') return 'TL2'
+    if (s === 'TP3' || s === 'TL3') return 'TL3'
+    return 'TL1'
+  }
+
+  /**
+   * TL-PACE-01B: Extrai a eficiência de setup numérica (0..100) do estado de setup do carro.
+   */
+  public static extractSetupEfficiency(setup: any): number {
+    if (!setup) return 80
+    if (typeof setup.efficiency === 'number') return setup.efficiency
+    if (typeof setup.setupEfficiency === 'number') return setup.setupEfficiency
+    return 80
+  }
+
+  /**
+   * Cálculo canônico do ritmo de volta livre de treino para o carro do jogador (TL-PACE-01B).
+   * Substitui calculateCombinedPace por computePracticePace + canonicalPracticeRngService.
+   */
+  public static calculatePracticeLapPace(params: {
     car: PracticeCarLiveState
     driver?: PracticeTickContext['drivers'][0]
     context: PracticeTickContext
     circuitBaseSec: number
+    sessionRecord?: PracticeSessionRecordState
   }): number {
-    const { car, driver, context, circuitBaseSec } = params
+    const { car, driver, context, sessionRecord } = params
 
-    const circuitProfile = resolveCircuitProfile({ round: context.round })
-    const playerPu = OFFICIAL_POWER_UNITS[context.teamEngineSupplier] || OFFICIAL_POWER_UNITS.Audi
-    const playerPuRating = Number(
-      (playerPu.powerRating * 0.6 + playerPu.reliabilityRating * 0.4).toFixed(1),
-    )
-    const playerCarPerfRating = Number(
-      (context.teamChassisRating * 0.7 + playerPuRating * 0.3).toFixed(1),
-    )
-
-    // Programa de treino influenciando modo de ataque
-    const tacticalMode =
-      car.program === 'qualifying_sim'
-        ? 'attack'
-        : car.program === 'race_pace'
-          ? 'preserve'
-          : undefined
-
-    const pace = calculateCombinedPace({
-      teamStrength: context.teamChassisRating,
-      carLevel: context.teamChassisRating,
-      driver: {
-        speed: driver?.speed || 80,
-        consistency: driver?.consistency || 80,
-        defense: driver?.defense || 75,
-        morale: driver?.morale || 85,
-        physicalCondition: driver?.physical_condition || 90,
+    // 1. Resolução da identidade canônica da equipe via resolver contextual do Bloco A
+    const rawCandidate =
+      (context as any).teamId || (context as any).teamKey || context.teamName || 'custom_team'
+    const resolvedCanonicalKey = resolveCanonicalTeamKeyFromContext({
+      teamId: (context as any).teamId,
+      rawTeamIdentity: rawCandidate,
+      team: {
+        id: (context as any).teamId,
+        name: context.teamName,
       },
-      weather: context.weather,
-      tireCompound: car.currentCompound,
-      lapsOnTire: car.lapsInStint,
-      wearPercent: car.tyreWear,
-      trackAbrasiveness: context.tireAbrasiveness,
-      circuit: circuitProfile,
-      chassisRating: context.teamChassisRating,
-      powerUnitRating: playerPuRating,
-      carPerformanceRating: playerCarPerfRating,
-      noise: (Math.random() - 0.5) * 0.2, // variação natural sutil
+    })
+    const playerTeamKey = resolvedCanonicalKey || rawCandidate
+
+    // 2. Setup canônico
+    const setupEfficiency = this.extractSetupEfficiency(car.setup)
+
+    // 3. Sessão canônica ('TL1' | 'TL2' | 'TL3')
+    const sessionNamespace = this.mapSessionTypeToNamespace(
+      sessionRecord?.sessionType || (context as any).sessionType || 'TL1',
+    )
+
+    // 4. Temporada, round e carreira
+    const careerId = sessionRecord?.careerId || (context as any).careerId || 'default_career'
+    const seasonYear =
+      (sessionRecord as any)?.seasonYear ||
+      (context as any)?.seasonYear ||
+      (sessionRecord?.seasonId
+        ? parseInt(sessionRecord.seasonId.replace(/[^0-9]/g, '')) || 2026
+        : 2026)
+    const round = context.round || sessionRecord?.round || 1
+
+    // 5. Attempt canônico: baseia-se no número real de voltas já dadas pelo carro + 1
+    const attempt = (car.totalLaps || 0) + 1
+
+    // 6. RNG determinístico canônico do Treino Livre (canonicalPracticeRngService)
+    const rngDraw = canonicalPracticeRngService.getDeterministicDraw({
+      careerId,
+      seasonYear,
+      round,
+      session: sessionNamespace,
+      driverId: car.driverId,
+      attempt,
+      program: car.program ?? 'default',
     })
 
-    let lapSec = pace.lapTimeSec || circuitBaseSec
+    // 7. Chamada canônica ao computePracticePace (sem double counting)
+    const result = computePracticePace({
+      teamKey: playerTeamKey,
+      driverId: car.driverId,
+      careerId,
+      seasonYear,
+      round,
+      session: sessionNamespace,
+      attempt,
+      rngModifier: rngDraw.rngModifier,
+      program: car.program,
+      driverAttributes: {
+        speed: driver?.speed ?? 80,
+        consistency: driver?.consistency ?? 80,
+        morale: driver?.morale ?? 85,
+        technical_feedback: driver?.technical_feedback ?? 80,
+      },
+      tyreCompound: car.currentCompound,
+      tyreWearPct: car.tyreWear ?? 0,
+      fuelKg: car.fuelKg,
+      setupEfficiency,
+      weather: context.weather,
+      isRookie: !!driver?.isRookie,
+    })
 
-    // Penalidade/bônus de combustível: ~0.035s por kg a mais
-    const fuelDeltaSec = (car.fuelKg - 25) * 0.035
-    lapSec += fuelDeltaSec
-
-    // Programa de classificação é mais agressivo (-0.6s)
-    if (car.program === 'qualifying_sim') {
-      lapSec -= 0.6
-    }
-
-    return Number(Math.max(55, lapSec).toFixed(3))
+    return Number(Math.max(54, result.lapTimeSec).toFixed(3))
   }
 
   /**
-   * Simulação leve de participação dos pilotos IA durante o treino livre.
-   * Periodicamente, pilotos IA completam voltas e atualizam a tabela de tempos.
+   * Simulação da participação dos pilotos IA durante o treino livre (TL-PACE-01B).
+   * Player e IA usam o MESMO computePracticePace e canonicalPracticeRngService.
    */
-  private static advanceAIPracticePace(
+  public static advanceAIPracticePace(
     state: PracticeSessionRecordState,
     deltaSimSec: number,
     context: PracticeTickContext,
     circuitBaseSec: number,
   ): void {
-    // A cada ~100s de sessão simulada, alguns pilotos IA completam voltas de treino
     const aiEntries = state.leaderboard.filter((e) => !e.isPlayer)
     if (aiEntries.length === 0) return
 
-    const circuitProfile = resolveCircuitProfile({ round: context.round })
     const aiList = getAICompetitors()
+    const sessionNamespace = this.mapSessionTypeToNamespace(state.sessionType)
+    const careerId = state.careerId || 'default_career'
+    const seasonYear =
+      (state as any)?.seasonYear ||
+      (state.seasonId ? parseInt(state.seasonId.replace(/[^0-9]/g, '')) || 2026 : 2026)
+    const round = context.round || state.round || 1
 
-    // Amostragem probabilística proporcional ao delta de tempo (garantindo acumulação consistente de voltas reais)
+    // Amostragem probabilística de avanço no tempo (controle de tick)
     const chance = Math.min(0.95, Math.max(0.2, (deltaSimSec / 60) * 0.65))
 
     aiEntries.forEach((aiEntry) => {
-      // Pilotos da IA (incluindo novatos com isRookie) dão entre 12 e 28 voltas ao longo de toda a sessão de 60 min
+      // Pilotos da IA dão voltas ao longo da sessão de 60 min (máx 28 voltas)
       if (Math.random() < chance && aiEntry.laps < 28) {
         const aiTeam = aiList.find((t) => t.name === aiEntry.teamName)
-        const strength = aiTeam?.strengthRating || aiTeam?.strength || 75
-        // Se for novato, ritmo calibrado ligeiramente conservador (76-78)
+
+        // Resolução da identidade canônica da equipe IA (mesmo resolver contextual do Bloco A)
+        const teamRawCandidate =
+          (aiTeam as any)?.key || (aiTeam as any)?.id?.replace(/^ai_/, '') || aiEntry.teamName
+        const resolvedTeamKey = resolveCanonicalTeamKeyFromContext({
+          rawTeamIdentity: teamRawCandidate,
+          team: {
+            name: aiEntry.teamName,
+          },
+        })
+        const aiTeamKey = resolvedTeamKey || teamRawCandidate
+
         const defaultSkill = aiEntry.driverId.endsWith('d1')
           ? aiTeam?.driver1.speed || 82
           : aiTeam?.driver2.speed || 80
         const driverSkill = aiEntry.isRookie ? 77 : defaultSkill
 
-        const pace = calculateCombinedPace({
-          teamStrength: strength,
-          carLevel: strength,
-          driver: {
-            speed: driverSkill,
-            consistency: aiEntry.isRookie ? 75 : 80,
-            defense: 75,
-          },
-          weather: context.weather,
-          tireCompound: aiEntry.compound || 'medio',
-          trackAbrasiveness: context.tireAbrasiveness,
-          circuit: circuitProfile,
-          chassisRating: strength,
-          powerUnitRating: 85,
-          carPerformanceRating: strength,
-          noise: (Math.random() - 0.5) * 0.4,
+        const attempt = (aiEntry.laps || 0) + 1
+
+        const aiRngDraw = canonicalPracticeRngService.getDeterministicDraw({
+          careerId,
+          seasonYear,
+          round,
+          session: sessionNamespace,
+          driverId: aiEntry.driverId,
+          attempt,
+          program: 'car_setup',
         })
 
-        const lapSec = Number((pace.lapTimeSec || circuitBaseSec).toFixed(3))
+        const paceResult = computePracticePace({
+          teamKey: aiTeamKey,
+          driverId: aiEntry.driverId,
+          careerId,
+          seasonYear,
+          round,
+          session: sessionNamespace,
+          attempt,
+          rngModifier: aiRngDraw.rngModifier,
+          program: 'car_setup', // programa neutro representativo para IA
+          driverAttributes: {
+            speed: driverSkill,
+            consistency: aiEntry.isRookie ? 75 : 80,
+            morale: 85,
+            technical_feedback: 80,
+          },
+          tyreCompound: aiEntry.compound || 'medio',
+          tyreWearPct: 5,
+          fuelKg: 20,
+          setupEfficiency: 80,
+          weather: context.weather,
+          isRookie: !!aiEntry.isRookie,
+        })
+
+        const lapSec = Number(Math.max(54, paceResult.lapTimeSec).toFixed(3))
         aiEntry.laps += 1
         aiEntry.lastLapSec = lapSec
         aiEntry.lastLapTime = formatLapTime(lapSec)
