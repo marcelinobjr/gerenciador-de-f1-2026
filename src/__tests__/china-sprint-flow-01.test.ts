@@ -572,6 +572,7 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     expect(sprintDef.isPlayableInV2).toBe(true)
     expect(sprintDef.blockedMessage).toBe('Disponível após conclusão da Qualificação Sprint (SQ1).')
   })
+})
 
   // CFT14: sprint_race concluída desbloqueia q1 pelo pipeline canônico; validações estritas de gate
   it('CFT14: sprint_race concluída desbloqueia q1 pelo pipeline canônico; sem bypass e sem reexecução prematura', async () => {
