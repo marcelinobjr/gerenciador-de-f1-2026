@@ -639,11 +639,7 @@ export default function WeekendV2Page() {
       // SQ1, SQ2 ou SQ3: inicializa ou carrega a sessão de qualificação sprint canônica
       setSelectedSessionId(sess)
       setSessionState(null)
-      try {
-        await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
-      } catch (e) {
-        console.warn('[WeekendV2Page] Falha ao inicializar SQ:', e)
-      }
+      await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
     } else {
       // CORRIDA: se Q3 concluído, exibe o grid final P1-P24 ou placeholder
       setSelectedSessionId(sess)
