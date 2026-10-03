@@ -331,17 +331,28 @@ export default function WeekendV2Page() {
           initialSessionId === 'sq3'
         ) {
           initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
-        } else if (initialSessionId === 'race') {
-          const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-            season.id,
-            currentRound,
-          )
+        } else if (initialSessionId === 'race' || initialSessionId === 'sprint_race') {
+          const isSprintTarget = initialSessionId === 'sprint_race'
+          const fullGrid = isSprintTarget
+            ? canonicalQualifyingPersistenceService.readSprintQualifyingResult(
+                season.id,
+                currentRound,
+              ) ||
+              canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+                season.id,
+                currentRound,
+              )
+            : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+                season.id,
+                currentRound,
+              )
           setCompleteQualifyingResult(fullGrid)
           const canonicalCareerId = resolveCanonicalCareerId(season, team)
           const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
             canonicalCareerId,
             season.year || 2026,
             currentRound,
+            isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
           )
           setCanonicalRaceState(savedRace)
         }
@@ -641,7 +652,8 @@ export default function WeekendV2Page() {
       setSessionState(null)
       await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
     } else {
-      // CORRIDA: se Q3 concluído, exibe o grid final P1-P24 ou placeholder
+      // CORRIDA (Principal ou Sprint): se qualificação concluída, exibe o grid final P1-P24 ou placeholder
+      const isSprintTarget = sess === 'sprint_race'
       setSelectedSessionId(sess)
       setSessionState(null)
       setQualifyingState(null)
@@ -661,15 +673,25 @@ export default function WeekendV2Page() {
           }
         }
 
-        const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-          season.id,
-          currentRound,
-        )
+        const fullGrid = isSprintTarget
+          ? canonicalQualifyingPersistenceService.readSprintQualifyingResult(
+              season.id,
+              currentRound,
+            ) ||
+            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              season.id,
+              currentRound,
+            )
+          : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              season.id,
+              currentRound,
+            )
         setCompleteQualifyingResult(fullGrid)
         const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
           canonicalCareerId,
           season.year || 2026,
           currentRound,
+          isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
         )
         setCanonicalRaceState(savedRace)
 
@@ -678,6 +700,7 @@ export default function WeekendV2Page() {
           canonicalCareerId,
           season.year || 2026,
           currentRound,
+          isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
         )
         if (official) {
           setOfficialRaceResult(official)
@@ -2268,7 +2291,9 @@ export default function WeekendV2Page() {
 
   const isQualifyingSession = isQualifyingStage(selectedSessionDef.id)
 
-  const isRaceSession = selectedSessionDef.id === 'race'
+  const isSprintRaceSession = selectedSessionDef.id === 'sprint_race'
+
+  const isRaceSession = selectedSessionDef.id === 'race' || isSprintRaceSession
 
   return (
     <div className="space-y-6 pb-12">
@@ -2937,7 +2962,33 @@ export default function WeekendV2Page() {
                 navigate('/standings')
               }}
               onContinue={async () => {
-                // BUG-01 PARTE C: Esteira canônica obrigatória de avanço de rodada
+                // Se for Corrida Sprint, continuar não avança a rodada do GP, mas avança para Q1 na esteira
+                if (isSprintRaceSession) {
+                  const stored = refreshCompletedSessions()
+                  if (!stored.includes('sprint_race')) {
+                    const updated = [...stored, 'sprint_race']
+                    if (season?.id) {
+                      writeStoredCompletedSessions(season.id, currentRound, updated)
+                    }
+                    setCompletedSessions(updated)
+                  }
+                  setOfficialRaceResult(null)
+                  setCanonicalRaceState(null)
+                  // Selecionar Q1 na esteira
+                  const q1Def = pipeline.find((s) => s.id === 'q1')
+                  if (q1Def) {
+                    handleSelectSessionFromSchedule(q1Def)
+                  } else {
+                    setSelectedSessionId('q1')
+                  }
+                  toast({
+                    title: 'Corrida Sprint Concluída!',
+                    description: 'A Classificação Principal (Q1) está liberada.',
+                  })
+                  return
+                }
+
+                // BUG-01 PARTE C: Esteira canônica obrigatória de avanço de rodada na Corrida Principal
                 if (isAdvancingRound) return
                 if (!season?.id) {
                   navigate('/calendario')
@@ -2999,6 +3050,17 @@ export default function WeekendV2Page() {
                   description:
                     'O resultado oficial imutável foi homologado. Registrando na carreira...',
                 })
+
+                // Se for Corrida Sprint, marcar sprint_race como completed nas sessões
+                if (isSprintRaceSession && season?.id) {
+                  const currentStored = readStoredCompletedSessions(season.id, currentRound)
+                  if (!currentStored.includes('sprint_race')) {
+                    const updated = [...currentStored, 'sprint_race']
+                    writeStoredCompletedSessions(season.id, currentRound, updated)
+                    setCompletedSessions(updated)
+                  }
+                }
+
                 // Persistência automática pós-oficialização canônica e idempotente
                 try {
                   setIsPersistingCareer(true)
@@ -3281,6 +3343,7 @@ export default function WeekendV2Page() {
                     canonicalCareerId,
                     season.year || 2026,
                     currentRound,
+                    isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
                   )
                 ) {
                   toast({
@@ -3297,6 +3360,7 @@ export default function WeekendV2Page() {
                   canonicalCareerId,
                   season.year || 2026,
                   currentRound,
+                  { raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE' },
                 )
                 if (!clearRes.success) {
                   toast({
@@ -3306,14 +3370,23 @@ export default function WeekendV2Page() {
                   })
                   return
                 }
+                const totalLaps = isSprintRaceSession
+                  ? canonicalRaceInitializationService.calculateSprintLaps(
+                      gpInfo.circuitLengthKm || 5.8,
+                      100,
+                      gpInfo.laps || 57,
+                    )
+                  : gpInfo.laps || 57
+
                 const freshRace =
                   canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+                    raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
                     careerId: canonicalCareerId,
                     season: season.year || 2026,
                     round: currentRound,
                     circuitName: gpInfo.circuit,
                     circuitCountry: gpInfo.country,
-                    totalLaps: gpInfo.laps || 57,
+                    totalLaps,
                     playerTeamId: team.id,
                     canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
                   })
@@ -3367,14 +3440,23 @@ export default function WeekendV2Page() {
                 })
 
                 // Inicializar Race Engine com exatamente as escolhas feitas pelo jogador
+                const totalLaps = isSprintRaceSession
+                  ? canonicalRaceInitializationService.calculateSprintLaps(
+                      gpInfo.circuitLengthKm || 5.8,
+                      100,
+                      gpInfo.laps || 57,
+                    )
+                  : gpInfo.laps || 57
+
                 const initialRace =
                   canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+                    raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
                     careerId: canonicalCareerId,
                     season: season.year || 2026,
                     round: currentRound,
                     circuitName: gpInfo.circuit,
                     circuitCountry: gpInfo.country,
-                    totalLaps: gpInfo.laps || 57,
+                    totalLaps,
                     playerTeamId: team.id,
                     canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
                     carPreparations,

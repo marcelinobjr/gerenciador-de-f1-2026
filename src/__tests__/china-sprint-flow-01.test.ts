@@ -550,6 +550,55 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     expect(savedResult?.eliminatedDriverIds).toHaveLength(6) // 6 eliminados no SQ1
   })
 
+  // CFT13: com sq1 concluída, resolveSessionVisualState('sprint_race') ≠ 'locked' e a UI expõe ação de início
+  it('CFT13: com sq1 concluída, resolveSessionVisualState("sprint_race") != "locked" e definição canônica é jogável', async () => {
+    const { resolveSessionVisualState, isSessionUnlocked, CANONICAL_SESSION_DEFINITIONS } =
+      await import('@/services/weekendScheduleConfig')
+
+    const completed = ['tp1', 'sq1']
+    const visualState = resolveSessionVisualState({
+      sessionId: 'sprint_race',
+      activeSessionId: 'sprint_race',
+      completedSessions: completed,
+    })
+
+    // Deve estar disponível/ativo, não bloqueado
+    expect(visualState).not.toBe('locked')
+    expect(['available', 'active']).toContain(visualState)
+    expect(isSessionUnlocked('sprint_race', completed)).toBe(true)
+
+    // A definição canônica de sprint_race deve ser jogável no V2 e blockedMessage atualizada
+    const sprintDef = CANONICAL_SESSION_DEFINITIONS['sprint_race']
+    expect(sprintDef.isPlayableInV2).toBe(true)
+    expect(sprintDef.blockedMessage).toBe('Disponível após conclusão da Qualificação Sprint (SQ1).')
+  })
+
+  // CFT14: sprint_race concluída desbloqueia q1
+  it('CFT14: sprint_race concluída desbloqueia q1', async () => {
+    const { resolveSessionVisualState, isSessionUnlocked } =
+      await import('@/services/weekendScheduleConfig')
+
+    const beforeSprint = ['tp1', 'sq1']
+    expect(isSessionUnlocked('q1', beforeSprint)).toBe(false)
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'q1',
+        activeSessionId: 'q1',
+        completedSessions: beforeSprint,
+      }),
+    ).toBe('locked')
+
+    const afterSprint = ['tp1', 'sq1', 'sprint_race']
+    expect(isSessionUnlocked('q1', afterSprint)).toBe(true)
+    const visualAfter = resolveSessionVisualState({
+      sessionId: 'q1',
+      activeSessionId: 'q1',
+      completedSessions: afterSprint,
+    })
+    expect(visualAfter).not.toBe('locked')
+    expect(['available', 'active']).toContain(visualAfter)
+  })
+
   // CFT12: SQ2 e SQ3 leem e consomem stages anteriores
   it('CFT12: SQ2 consome resultado de SQ1 (18 pilotos) e SQ3 consome de SQ2 (10 pilotos)', async () => {
     const { CanonicalQualifyingRunner } = await import('@/services/canonicalQualifyingRunner')

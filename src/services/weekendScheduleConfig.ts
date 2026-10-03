@@ -122,8 +122,8 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       fullName: 'Corrida Sprint',
       category: 'race',
       order: 3,
-      isPlayableInV2: false,
-      blockedMessage: 'Disponível após conclusão da Qualificação Sprint (SQ1/SQ3).',
+      isPlayableInV2: true,
+      blockedMessage: 'Disponível após conclusão da Qualificação Sprint (SQ1).',
     },
     q1: {
       id: 'q1',
