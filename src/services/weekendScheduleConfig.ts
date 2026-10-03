@@ -196,7 +196,7 @@ export const NORMAL_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.fr
  * Macro slots ordenados para fim de semana SPRINT:
  * PRACTICE_1 -> PRACTICE_2 -> SPRINT_QUALIFYING -> SPRINT_RACE -> MAIN_QUALIFYING -> MAIN_RACE
  * (TL3 rigorosamente ausente; TL2 presente; SQ próprio antes de Sprint; Main Quali antes de GP Race).
- */export const SPRINT_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.freeze([
+ */ export const SPRINT_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.freeze([
   'PRACTICE_1',
   'SPRINT_QUALIFYING',
   'SPRINT_RACE',
