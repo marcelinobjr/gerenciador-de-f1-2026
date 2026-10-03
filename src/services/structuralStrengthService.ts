@@ -331,8 +331,8 @@ export class StructuralStrengthService {
     const baselineEntry = baseline.teams[cleanKey]
 
     if (baselineEntry) {
-      const isAnchorActive = seasonYear === 2026 && cleanKey in BASELINE_2026_V1_TEAMS
-      const anchor = isAnchorActive ? BASELINE_2026_V1_TEAMS[cleanKey] : null
+      const isAnchorActive = seasonYear === 2026 && baselineKey in BASELINE_2026_V1_TEAMS
+      const anchor = isAnchorActive ? BASELINE_2026_V1_TEAMS[baselineKey] : null
 
       let components = baselineEntry.chassisComponents
       let effectivePu = baselineEntry.effectivePuRating
@@ -402,11 +402,12 @@ export class StructuralStrengthService {
     }
 
     // Fallback gracioso para custom_team ou equipe não listada
+    const fallbackKey = canonical || teamKey
     const defComponents = generateDefaultComponentsFromMacro(70)
-    const facilities = getInitialTeamFacilities(cleanKey)
+    const facilities = getInitialTeamFacilities(fallbackKey)
     return this.calculateStructuralStrength({
-      teamKey: cleanKey,
-      teamName: cleanKey === 'custom_team' ? 'Equipe Personalizada' : cleanKey,
+      teamKey: fallbackKey,
+      teamName: fallbackKey === 'custom_team' ? 'Equipe Personalizada' : fallbackKey,
       components: defComponents,
       effectivePuRating: 75,
       reliability: 80,
@@ -438,7 +439,7 @@ export class StructuralStrengthService {
       ],
       facilities: facilities as any,
       teamMorale: 75,
-      dataQuality: cleanKey === 'custom_team' ? 'DEFAULTED' : 'MISSING',
+      dataQuality: fallbackKey === 'custom_team' ? 'DEFAULTED' : 'MISSING',
       dataQualityNotes: 'Gerado a partir de valores padrão (fallback).',
     })
   }
