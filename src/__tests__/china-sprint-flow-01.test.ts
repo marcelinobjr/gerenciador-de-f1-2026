@@ -352,7 +352,7 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
   })
 
   // CFT09: os 6 circuitos Sprint de 2026 (China R2, Miami, Canadá, Silverstone + os demais do calendário) resolvem pipeline de 7 slots sem undefined.
-  it('CFT09: os 6 circuitos Sprint de 2026 resolvem pipeline de 7 slots sem undefined', async () => {
+  it('CFT09: os 6 circuitos Sprint de 2026 (China R2, Miami, Canadá, Silverstone + os demais do calendário) resolvem pipeline de 7 slots sem undefined', async () => {
     const { getRaceWeekendPipeline } = await import('@/services/weekendScheduleConfig')
     const sprintCircuits = CIRCUIT_PERFORMANCE_PROFILES.filter((c) => c.hasSprint)
     expect(sprintCircuits.length).toBe(6)
