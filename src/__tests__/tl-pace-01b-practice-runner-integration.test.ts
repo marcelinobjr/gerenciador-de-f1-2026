@@ -9,11 +9,110 @@ import {
 import { canonicalPracticeRngService } from '@/services/canonicalPracticeRngService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { getAICompetitors } from '@/lib/f1-data'
+import { createInitialSetupKnowledge } from '@/services/canonicalPracticeFeedbackService'
+import { createInitialWeekendTyreKnowledge } from '@/services/canonicalPracticeTyreService'
 import type { PracticeSessionRecordState, PracticeCarLiveState } from '@/types/practice-session'
 
 function createSampleSession(
   overrides?: Partial<PracticeSessionRecordState>,
 ): PracticeSessionRecordState {
+  const base: any = {
+    careerId: 'career_tlpb_test',
+    seasonId: 'season_2026',
+    round: 1,
+    sessionType: 'tp1',
+    status: 'running',
+    elapsedTimeSec: 0,
+    timeRemainingSec: 3600,
+    sessionDurationSec: 3600,
+    simSpeed: 1,
+    cars: {
+      car1: {
+        carId: 'car1',
+        driverId: 'd1_williams',
+        driverName: 'Carlos Sainz',
+        status: 'flying_lap',
+        setup: {
+          frontWing: 6,
+          rearWing: 6,
+          suspension: 6,
+          differential: 50,
+          efficiency: 80,
+        },
+        currentTyreSetId: 'ts1',
+        currentCompound: 'macio',
+        tyreWear: 5,
+        fuelKg: 12,
+        currentStintId: 'stint_1',
+        totalLaps: 0,
+        lapsInStint: 0,
+        currentLapProgressPct: 0,
+        pitRequested: false,
+        program: 'car_setup',
+      },
+      car2: {
+        carId: 'car2',
+        driverId: 'd2_williams',
+        driverName: 'Alex Albon',
+        status: 'flying_lap',
+        setup: {
+          frontWing: 6,
+          rearWing: 6,
+          suspension: 6,
+          differential: 50,
+          efficiency: 80,
+        },
+        currentTyreSetId: 'ts2',
+        currentCompound: 'macio',
+        tyreWear: 5,
+        fuelKg: 12,
+        currentStintId: 'stint_2',
+        totalLaps: 0,
+        lapsInStint: 0,
+        currentLapProgressPct: 0,
+        pitRequested: false,
+        program: 'car_setup',
+      },
+    },
+    leaderboard: [
+      {
+        position: 1,
+        driverId: 'd1_williams',
+        driverName: 'Carlos Sainz',
+        teamName: 'Williams Racing',
+        teamColor: '#005AFF',
+        compound: 'macio',
+        laps: 0,
+        bestLapSec: 0,
+        bestLapTime: '--:--.---',
+        gap: '-',
+        isPlayer: true,
+        carId: 'car1',
+      },
+      {
+        position: 2,
+        driverId: 'd2_williams',
+        driverName: 'Alex Albon',
+        teamName: 'Williams Racing',
+        teamColor: '#005AFF',
+        compound: 'macio',
+        laps: 0,
+        bestLapSec: 0,
+        bestLapTime: '--:--.---',
+        gap: '-',
+        isPlayer: true,
+        carId: 'car2',
+      },
+    ],
+    stints: [],
+    lapHistory: {},
+    radioFeed: [],
+    ...overrides,
+  }
+  return base as PracticeSessionRecordState
+}
+
+function _legacyCreateSampleSessionUnused() {
   return {
     careerId: 'career_tlpb_test',
     seasonId: 'season_2026',
@@ -105,9 +204,13 @@ function createSampleSession(
     stints: [],
     lapHistory: {},
     radioFeed: [],
+    feedbacks: [],
+    knowledge: createInitialSetupKnowledge(),
+    tyreObservations: [],
+    tyreKnowledge: createInitialWeekendTyreKnowledge(),
     ...overrides,
   }
-}
+}}
 
 function createSampleContext(overrides?: Partial<PracticeTickContext>): PracticeTickContext {
   return {
@@ -181,6 +284,7 @@ describe('TL-PACE-01B: Practice Runner Migration to Canonical Core (TLPB-01..48)
     expect(runnerCode).not.toMatch(/import\s*\{[^}]*calculateCombinedPace[^}]*\}\s*from/)
     expect(runnerCode).not.toMatch(/calculateCombinedPace\s*\(/)
     // 2. Comentários explicativos podem citar a substituição, mas nenhuma chamada executável
+    // TL-PACE-01B homologation assertion
     const callMatches = runnerCode.match(/calculateCombinedPace\(/g)
     expect(callMatches).toBeNull()
   })
