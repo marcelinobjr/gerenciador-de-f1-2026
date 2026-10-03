@@ -207,7 +207,6 @@ export const NORMAL_SLOT_TYPES: readonly WeekendSlotType[] = Object.freeze([
  */
 export const SPRINT_SLOT_TYPES: readonly WeekendSlotType[] = Object.freeze([
   'TL1',
-  'TL2',
   'QUALI_SPRINT',
   'SPRINT',
   'Q1',
@@ -233,8 +232,7 @@ export function getWeekendSlotSequence(format: WeekendFormat): WeekendSlotDefini
   const dict =
     format === 'SPRINT' ? CANONICAL_SPRINT_SLOT_DEFINITIONS : CANONICAL_NORMAL_SLOT_DEFINITIONS
 
-  const slots =
-    format === 'SPRINT' ? ([1, 2, 3, 4, 5, 6, 7, 8] as const) : ([1, 2, 3, 4, 5, 6, 7] as const)
+  const slots = [1, 2, 3, 4, 5, 6, 7] as const
 
   return slots.map((slotNum) => dict[slotNum])
 }
