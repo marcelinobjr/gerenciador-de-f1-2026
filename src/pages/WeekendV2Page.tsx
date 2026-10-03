@@ -367,15 +367,79 @@ export default function WeekendV2Page() {
     isSprint: boolean,
   ): CompleteQualifyingWeekendResult | null => {
     if (isSprint) {
-      // SPRINT_RACE: usa o resultado canônico da SQ1 (readStageResult) para formar o grid de largada da Sprint
-      const sq1Result = canonicalQualifyingPersistenceService.readStageResult(
-        seasonId,
-        round,
-        'sq1',
-      )
-      if (sq1Result && sq1Result.entries && sq1Result.entries.length > 0) {
-        // Ordena deterministicamente por melhor tempo (ou tempo de volta registrado em desempate)
-        const sortedEntries = [...sq1Result.entries].sort((a, b) => {
+      // SPRINT_RACE: usa o resultado canônico da SQ3 (ou SQ1/SQ2 como fallback defensivo) para formar o grid de largada da Sprint
+      const sq3Result =
+        canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3') ||
+        canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2') ||
+        canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+
+      if (sq3Result && sq3Result.entries && sq3Result.entries.length > 0) {
+        // Se houver SQ1, SQ2 e SQ3 completos, constrói grid combinado oficial
+        const sq1Result = canonicalQualifyingPersistenceService.readStageResult(
+          seasonId,
+          round,
+          'sq1',
+        )
+        const sq2Result = canonicalQualifyingPersistenceService.readStageResult(
+          seasonId,
+          round,
+          'sq2',
+        )
+
+        // Se tivermos as fases completas, montar grid por corte (P1..P10 do SQ3, P11..P16 do SQ2, P17..P24 do SQ1)
+        if (sq1Result && sq2Result && sq3Result && sq3Result.stageId === 'sq3') {
+          const sq3Sorted = [...sq3Result.entries].sort((a, b) => a.bestLapSec - b.bestLapSec)
+          const sq2Eliminated = [...sq2Result.entries]
+            .filter((e) => !sq3Result.entries.some((s) => s.driverId === e.driverId))
+            .sort((a, b) => a.bestLapSec - b.bestLapSec)
+          const sq1Eliminated = [...sq1Result.entries]
+            .filter(
+              (e) =>
+                !sq3Result.entries.some((s) => s.driverId === e.driverId) &&
+                !sq2Result.entries.some((s) => s.driverId === e.driverId),
+            )
+            .sort((a, b) => a.bestLapSec - b.bestLapSec)
+
+          const combined = [...sq3Sorted, ...sq2Eliminated, ...sq1Eliminated]
+          const finalGrid: FinalQualifyingGridEntry[] = combined.map((e, idx) => ({
+            gridPosition: idx + 1,
+            driverId: e.driverId,
+            driverName: e.driverName,
+            teamId: e.teamId,
+            teamName: e.teamName,
+            teamColor: e.teamColor,
+            isPlayer: e.isPlayer,
+            carId: e.carId,
+            eliminationStage:
+              idx < sq3Sorted.length
+                ? 'Q3'
+                : idx < sq3Sorted.length + sq2Eliminated.length
+                  ? 'Q2'
+                  : 'Q1',
+            bestLapSec: e.bestLapSec,
+            bestLapTime: e.bestLapTime,
+            bestLapCompound: e.compound,
+            tyreSetId: e.tyreSetId,
+            q1LapTime: e.bestLapTime,
+          }))
+
+          const pole = finalGrid[0]
+          return {
+            seasonId,
+            round,
+            completedAt: sq3Result.completedAt || new Date().toISOString(),
+            poleDriverId: pole?.driverId || '',
+            poleDriverName: pole?.driverName || '',
+            poleLapTime: pole?.bestLapTime || '--:--.---',
+            q1Result: sq1Result,
+            q2Result: sq2Result,
+            q3Result: sq3Result,
+            finalGrid,
+          }
+        }
+
+        // Caso isolado / fallback
+        const sortedEntries = [...sq3Result.entries].sort((a, b) => {
           if (a.bestLapSec > 0 && b.bestLapSec > 0) {
             if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
             return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
@@ -394,7 +458,7 @@ export default function WeekendV2Page() {
           teamColor: e.teamColor,
           isPlayer: e.isPlayer,
           carId: e.carId,
-          eliminationStage: 'Q1',
+          eliminationStage: 'Q3',
           bestLapSec: e.bestLapSec,
           bestLapTime: e.bestLapTime,
           bestLapCompound: e.compound,
@@ -406,11 +470,11 @@ export default function WeekendV2Page() {
         return {
           seasonId,
           round,
-          completedAt: sq1Result.completedAt || new Date().toISOString(),
+          completedAt: sq3Result.completedAt || new Date().toISOString(),
           poleDriverId: pole?.driverId || '',
           poleDriverName: pole?.driverName || '',
           poleLapTime: pole?.bestLapTime || '--:--.---',
-          q1Result: sq1Result,
+          q1Result: sq3Result,
           q2Result: undefined as any,
           q3Result: undefined as any,
           finalGrid,
@@ -611,7 +675,6 @@ export default function WeekendV2Page() {
 
     if (
       sess === 'sprint_race' &&
-      !normalizedStored.includes('sq1') &&
       !normalizedStored.includes('sq3') &&
       !normalizedStored.includes('sprint_qualifying')
     ) {
@@ -619,7 +682,7 @@ export default function WeekendV2Page() {
         variant: 'destructive',
         title: 'Sessão Bloqueada',
         description:
-          'Você precisa concluir a Qualificação Sprint antes de iniciar a Corrida Sprint.',
+          'Você precisa concluir a Qualificação Sprint (SQ3) antes de iniciar a Corrida Sprint.',
       })
       return
     }

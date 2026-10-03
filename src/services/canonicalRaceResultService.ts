@@ -39,6 +39,7 @@ import type {
 import { OFFICIAL_RACE_RESULT_SCHEMA_VERSION } from '@/types/canonical-race-v2'
 import {
   getFiaPointsForPosition,
+  getFiaSprintPointsForPosition,
   calculateFiaPoints,
   calculateRacePoints,
 } from '@/lib/f1-standings-calculator'
@@ -468,6 +469,7 @@ export class CanonicalRaceResultService {
           classificationStatus,
           raceStatus: car.raceStatus || car.status,
           status: car.status || car.raceStatus,
+          raceVariant: state.raceVariant,
         })
       }
 

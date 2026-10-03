@@ -12,6 +12,23 @@ import { carTechnicalService } from '@/services/carTechnicalService'
 export const FIA_POINTS_TABLE: readonly number[] = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1] as const
 
 /**
+ * Tabela oficial de pontuação FIA para Corrida Sprint F1 2026 (Top 8):
+ * P1 = 8 pts, P2 = 7 pts, P3 = 6 pts, P4 = 5 pts, P5 = 4 pts, P6 = 3 pts, P7 = 2 pts, P8 = 1 pt.
+ * Sem ponto de volta mais rápida. Demais posições 0 pontos.
+ */
+export const FIA_SPRINT_POINTS_TABLE: readonly number[] = [8, 7, 6, 5, 4, 3, 2, 1] as const
+
+/**
+ * Retorna os pontos FIA de Sprint para uma determinada posição de chegada (1-indexed).
+ */
+export function getFiaSprintPointsForPosition(position: number): number {
+  if (position >= 1 && position <= FIA_SPRINT_POINTS_TABLE.length) {
+    return FIA_SPRINT_POINTS_TABLE[position - 1]
+  }
+  return 0
+}
+
+/**
  * Retorna os pontos FIA padrão para uma determinada posição de chegada (1-indexed).
  */
 export function getFiaPointsForPosition(position: number): number {
@@ -42,6 +59,7 @@ export interface CalculateRacePointsParams {
   classificationStatus?: 'CLASSIFIED' | 'NOT_CLASSIFIED' | 'NC' | string
   raceStatus?: string
   status?: string
+  raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string
 }
 
 /**
@@ -61,10 +79,29 @@ export function calculateRacePoints(params: CalculateRacePointsParams): number {
     hasMinimumPointEligibility,
     isClassified,
     classificationStatus,
+    raceVariant,
   } = params
 
   if (position < 1 || scheduledLaps <= 0 || leaderLaps <= 0) {
     return 0
+  }
+
+  // Tabela especial de Corrida Sprint F1 2026: P1..P8 recebem 8..1 pontos
+  // Sem bonificação de volta rápida e sem pontuação para P9+
+  if (raceVariant === 'SPRINT_RACE') {
+    if (classificationStatus === 'NC' || classificationStatus === 'NOT_CLASSIFIED') {
+      return 0
+    }
+    if (isClassified === false) {
+      return 0
+    }
+    if (hasMinimumPointEligibility === false) {
+      return 0
+    }
+    if (hasMinimumPointEligibility === undefined && leaderLaps < 2) {
+      return 0
+    }
+    return getFiaSprintPointsForPosition(position)
   }
 
   // REGRA 2: Se classificationStatus = NC ou NOT_CLASSIFIED -> 0 pontos

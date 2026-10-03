@@ -253,34 +253,70 @@ export class CanonicalChampionshipService {
     const maxR = throughRound !== undefined && throughRound > 0 ? throughRound : 24
 
     for (let r = 1; r <= maxR; r++) {
-      const journal = canonicalCareerPersistenceService.getApplicationJournal(careerId, season, r)
-      if (!journal || journal.status !== 'COMPLETE') {
-        continue
-      }
-
-      const persisted = canonicalCareerPersistenceService.getPersistedRaceResult(
+      // 1. Tentar resultado da Sprint Race se existir e estiver COMPLETE
+      const sprintJournal = canonicalCareerPersistenceService.getApplicationJournal(
         careerId,
         season,
         r,
+        'SPRINT_RACE',
       )
-      if (!persisted || !persisted.snapshot) {
-        continue
-      }
-
-      // Validação estrita de checksum do fato esportivo
-      const isIntegrityOk = canonicalRaceResultService.verifyResultIntegrity(persisted.snapshot)
-      if (!isIntegrityOk) {
-        console.warn(
-          `[CanonicalChampionshipService] Corrida ignorada por checksum inválido: Carreira=${careerId}, Season=${season}, Round=${r}`,
+      if (sprintJournal && sprintJournal.status === 'COMPLETE') {
+        const sprintPersisted = canonicalCareerPersistenceService.getPersistedRaceResult(
+          careerId,
+          season,
+          r,
+          'SPRINT_RACE',
         )
-        continue
+        if (sprintPersisted && sprintPersisted.snapshot) {
+          const isIntegrityOk = canonicalRaceResultService.verifyResultIntegrity(
+            sprintPersisted.snapshot,
+          )
+          if (isIntegrityOk) {
+            results.push(sprintPersisted)
+          } else {
+            console.warn(
+              `[CanonicalChampionshipService] Sprint ignorada por checksum inválido: Carreira=${careerId}, Season=${season}, Round=${r}`,
+            )
+          }
+        }
       }
 
-      results.push(persisted)
+      // 2. Tentar resultado da Corrida Principal (MAIN_RACE ou legado)
+      const mainJournal = canonicalCareerPersistenceService.getApplicationJournal(
+        careerId,
+        season,
+        r,
+        'MAIN_RACE',
+      )
+      if (mainJournal && mainJournal.status === 'COMPLETE') {
+        const mainPersisted = canonicalCareerPersistenceService.getPersistedRaceResult(
+          careerId,
+          season,
+          r,
+          'MAIN_RACE',
+        )
+        if (mainPersisted && mainPersisted.snapshot) {
+          const isIntegrityOk = canonicalRaceResultService.verifyResultIntegrity(
+            mainPersisted.snapshot,
+          )
+          if (isIntegrityOk) {
+            results.push(mainPersisted)
+          } else {
+            console.warn(
+              `[CanonicalChampionshipService] Corrida Principal ignorada por checksum inválido: Carreira=${careerId}, Season=${season}, Round=${r}`,
+            )
+          }
+        }
+      }
     }
 
-    // Ordenação canônica por rodada
-    results.sort((a, b) => a.round - b.round)
+    // Ordenação canônica por rodada, com Sprint antes da Main se ambas existirem na mesma rodada
+    results.sort((a, b) => {
+      if (a.round !== b.round) return a.round - b.round
+      const aIsSprint = a.snapshot?.raceVariant === 'SPRINT_RACE' ? 0 : 1
+      const bIsSprint = b.snapshot?.raceVariant === 'SPRINT_RACE' ? 0 : 1
+      return aIsSprint - bIsSprint
+    })
     return results
   }
 
@@ -483,14 +519,15 @@ export class CanonicalChampionshipService {
     for (const race of validRaces) {
       const entries = race.entries || []
       const roundNumber = race.round
+      const isSprint = race.snapshot?.raceVariant === 'SPRINT_RACE'
 
-      // Conjunto para detectar e evitar anomalia de driver duplicado no mesmo GP
+      // Conjunto para detectar e evitar anomalia de driver duplicado dentro do MESMO fato esportivo (desta prova)
       const seenDriverInRace = new Set<string>()
 
       for (const entry of entries) {
         if (seenDriverInRace.has(entry.driverId)) {
           console.warn(
-            `[CanonicalChampionshipService] Anomalia detectada: piloto duplicado ${entry.driverId} na prova ${roundNumber}`,
+            `[CanonicalChampionshipService] Anomalia detectada: piloto duplicado ${entry.driverId} na prova ${roundNumber} (${race.id})`,
           )
           continue
         }
@@ -549,19 +586,25 @@ export class CanonicalChampionshipService {
         dAcc.points += pts
         dAcc.racesCounted += 1
 
+        // raceStarts: uma rodada Sprint conta 1 largada por prova disputada (se correu Sprint e Main, são 2)
         const isDns = (entry.status as any) === 'dns'
         if (!isDns) {
           dAcc.raceStarts += 1
         }
 
+        // finishCounts e estatísticas regulamentares principais (vitórias e pódios de GP)
+        // No regulamento FIA, estatísticas de GP (vitórias/pódios) contam para Corrida Principal,
+        // mas para countback e posições ambas são fatos esportivos registrados.
         const pos = entry.finalPosition
         if (pos && pos > 0) {
           dAcc.finishCounts[pos] = (dAcc.finishCounts[pos] || 0) + 1
-          if (pos === 1) dAcc.wins += 1
-          if (pos === 2) dAcc.secondPlaces += 1
-          if (pos === 3) dAcc.thirdPlaces += 1
-          if (pos === 4) dAcc.fourthPlaces += 1
-          if (pos >= 1 && pos <= 3) dAcc.podiums += 1
+          if (!isSprint) {
+            if (pos === 1) dAcc.wins += 1
+            if (pos === 2) dAcc.secondPlaces += 1
+            if (pos === 3) dAcc.thirdPlaces += 1
+            if (pos === 4) dAcc.fourthPlaces += 1
+            if (pos >= 1 && pos <= 3) dAcc.podiums += 1
+          }
         }
 
         // 2. Construtores: somar estritamente pelo teamId registrado NAQUELA corrida
@@ -599,8 +642,10 @@ export class CanonicalChampionshipService {
         cAcc.points += pts
         if (pos && pos > 0) {
           cAcc.finishCounts[pos] = (cAcc.finishCounts[pos] || 0) + 1
-          if (pos === 1) cAcc.wins += 1
-          if (pos >= 1 && pos <= 3) cAcc.podiums += 1
+          if (!isSprint) {
+            if (pos === 1) cAcc.wins += 1
+            if (pos >= 1 && pos <= 3) cAcc.podiums += 1
+          }
         }
       }
     }

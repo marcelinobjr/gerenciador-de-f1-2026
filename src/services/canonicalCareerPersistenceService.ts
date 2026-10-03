@@ -91,31 +91,51 @@ export class CanonicalCareerPersistenceService {
    * Constrói a chave lógica única canônica para o race_result da carreira:
    * race_result_{careerId}_{seasonId}_{round}
    */
-  public buildRaceResultKey(careerId: string, season: number | string, round: number): string {
+  public buildRaceResultKey(
+    careerId: string,
+    season: number | string,
+    round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): string {
     const sId = typeof season === 'number' ? `s${season}` : season
-    return `${CANONICAL_CAREER_RACE_RESULT_PREFIX}_${careerId}_${sId}_${round}`
+    const variantTag = raceVariant === 'SPRINT_RACE' ? '_sprint' : ''
+    return `${CANONICAL_CAREER_RACE_RESULT_PREFIX}_${careerId}_${sId}_${round}${variantTag}`
   }
 
   /**
    * Constrói a chave canônica do Journal de Aplicação:
-   * career_apply_result_{careerId}_{seasonId}_{round}
+   * career_apply_result_{careerId}_{seasonId}_{round}[_sprint]
    */
-  public buildApplyJournalKey(careerId: string, season: number | string, round: number): string {
+  public buildApplyJournalKey(
+    careerId: string,
+    season: number | string,
+    round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): string {
     const sId = typeof season === 'number' ? `s${season}` : season
-    return `${CANONICAL_CAREER_APPLY_JOURNAL_PREFIX}_${careerId}_${sId}_${round}`
+    const variantTag = raceVariant === 'SPRINT_RACE' ? '_sprint' : ''
+    return `${CANONICAL_CAREER_APPLY_JOURNAL_PREFIX}_${careerId}_${sId}_${round}${variantTag}`
   }
 
   /**
-   * Obtém o Journal de Aplicação para uma carreira, temporada e rodada.
+   * Obtém o Journal de Aplicação para uma carreira, temporada, rodada e variante opcional.
+   * Suporta fallback para a chave legada única para não quebrar saves antigos.
    */
   public getApplicationJournal(
     careerId: string,
     season: number | string,
     round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): CareerApplicationJournal | null {
     if (typeof window === 'undefined' || !window.localStorage) return null
-    const key = this.buildApplyJournalKey(careerId, season, round)
-    const raw = window.localStorage.getItem(key)
+    // 1. Tenta a chave específica da variante
+    const key = this.buildApplyJournalKey(careerId, season, round, raceVariant)
+    let raw = window.localStorage.getItem(key)
+    // 2. Se não encontrar e raceVariant não for especificada ou for MAIN_RACE, tenta chave legada
+    if (!raw && raceVariant === 'MAIN_RACE') {
+      const legacyKey = this.buildApplyJournalKey(careerId, season, round)
+      raw = window.localStorage.getItem(legacyKey)
+    }
     if (!raw) return null
     try {
       return JSON.parse(raw) as CareerApplicationJournal
@@ -127,23 +147,37 @@ export class CanonicalCareerPersistenceService {
   /**
    * Salva o Journal de Aplicação.
    */
-  public saveApplicationJournal(journal: CareerApplicationJournal): void {
+  public saveApplicationJournal(
+    journal: CareerApplicationJournal,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): void {
     if (typeof window === 'undefined' || !window.localStorage) return
-    const key = this.buildApplyJournalKey(journal.careerId, journal.season, journal.round)
+    const key = this.buildApplyJournalKey(
+      journal.careerId,
+      journal.season,
+      journal.round,
+      raceVariant,
+    )
     window.localStorage.setItem(key, JSON.stringify(journal))
   }
 
   /**
    * Lê o race_result persistido na carreira.
+   * Suporta compatibilidade legada: se MAIN_RACE e chave específica não existir, lê chave única legada.
    */
   public getPersistedRaceResult(
     careerId: string,
     season: number | string,
     round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): CanonicalPersistedRaceResult | null {
     if (typeof window === 'undefined' || !window.localStorage) return null
-    const key = this.buildRaceResultKey(careerId, season, round)
-    const raw = window.localStorage.getItem(key)
+    const key = this.buildRaceResultKey(careerId, season, round, raceVariant)
+    let raw = window.localStorage.getItem(key)
+    if (!raw && (raceVariant === 'MAIN_RACE' || raceVariant === undefined)) {
+      const legacyKey = this.buildRaceResultKey(careerId, season, round)
+      raw = window.localStorage.getItem(legacyKey)
+    }
     if (!raw) return null
     try {
       return JSON.parse(raw) as CanonicalPersistedRaceResult
@@ -155,19 +189,28 @@ export class CanonicalCareerPersistenceService {
   /**
    * Salva o race_result canônico.
    */
-  public savePersistedRaceResult(record: CanonicalPersistedRaceResult): void {
+  public savePersistedRaceResult(
+    record: CanonicalPersistedRaceResult,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): void {
     if (typeof window === 'undefined' || !window.localStorage) return
-    const key = this.buildRaceResultKey(record.careerId, record.season, record.round)
+    const variant = raceVariant || record.snapshot?.raceVariant
+    const key = this.buildRaceResultKey(record.careerId, record.season, record.round, variant)
     window.localStorage.setItem(key, JSON.stringify(record))
   }
 
   /**
    * Verifica se o resultado já está completamente persistido e registrado na carreira.
    */
-  public isResultRegistered(careerId: string, season: number | string, round: number): boolean {
-    const journal = this.getApplicationJournal(careerId, season, round)
+  public isResultRegistered(
+    careerId: string,
+    season: number | string,
+    round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): boolean {
+    const journal = this.getApplicationJournal(careerId, season, round, raceVariant)
     if (!journal || journal.status !== 'COMPLETE') return false
-    const res = this.getPersistedRaceResult(careerId, season, round)
+    const res = this.getPersistedRaceResult(careerId, season, round, raceVariant)
     return res !== null
   }
 
@@ -195,16 +238,16 @@ export class CanonicalCareerPersistenceService {
       throw new Error('[CareerPersistence] OfficialRaceResult nulo ou indefinido.')
     }
 
-    const { careerId, season, round } = officialResult
-    const resultKey = this.buildRaceResultKey(careerId, season, round)
-    const journalKey = this.buildApplyJournalKey(careerId, season, round)
+    const { careerId, season, round, raceVariant } = officialResult
+    const resultKey = this.buildRaceResultKey(careerId, season, round, raceVariant)
+    const journalKey = this.buildApplyJournalKey(careerId, season, round, raceVariant)
 
     // 1. CHECKSUM OBRIGATÓRIO (Requisito 7)
     // Se o snapshot foi alterado depois da oficialização, bloquear a aplicação.
     const isIntegrityValid = canonicalRaceResultService.verifyResultIntegrity(officialResult)
     if (!isIntegrityValid) {
       const errMsg = 'Resultado oficial inválido ou alterado após oficialização.'
-      let failJournal = this.getApplicationJournal(careerId, season, round)
+      let failJournal = this.getApplicationJournal(careerId, season, round, raceVariant)
       if (!failJournal) {
         failJournal = {
           key: journalKey,
@@ -223,7 +266,7 @@ export class CanonicalCareerPersistenceService {
         failJournal.status = 'FAILED'
         failJournal.lastError = errMsg
       }
-      this.saveApplicationJournal(failJournal)
+      this.saveApplicationJournal(failJournal, raceVariant)
       return {
         success: false,
         alreadyRegistered: false,
@@ -235,8 +278,8 @@ export class CanonicalCareerPersistenceService {
 
     // 2. IDEMPOTÊNCIA COMPLETA (Requisito 5)
     // Se race_result já existe e journal está COMPLETE: sucesso idempotente sem duplicar.
-    const existingJournal = this.getApplicationJournal(careerId, season, round)
-    const existingResult = this.getPersistedRaceResult(careerId, season, round)
+    const existingJournal = this.getApplicationJournal(careerId, season, round, raceVariant)
+    const existingResult = this.getPersistedRaceResult(careerId, season, round, raceVariant)
 
     if (existingJournal && existingJournal.status === 'COMPLETE' && existingResult) {
       return {
@@ -262,7 +305,7 @@ export class CanonicalCareerPersistenceService {
     }
 
     journal.status = 'APPLYING'
-    this.saveApplicationJournal(journal)
+    this.saveApplicationJournal(journal, raceVariant)
 
     // 4. PERSISTIR REGISTRO CANÔNICO race_results (Requisito 2)
     // Se ainda não existir ou for retry, assegura registro fiel do snapshot oficial
@@ -274,7 +317,7 @@ export class CanonicalCareerPersistenceService {
         seasonId: `s${season}`,
         season,
         round,
-        eventId: `event_${careerId}_s${season}_r${round}`,
+        eventId: `event_${careerId}_s${season}_r${round}${raceVariant === 'SPRINT_RACE' ? '_sprint' : ''}`,
         circuitId: officialResult.circuitId,
         officialRaceResultId: officialResult.officialResultId,
         checksum: officialResult.resultHash,
@@ -287,7 +330,7 @@ export class CanonicalCareerPersistenceService {
         playerEntries: officialResult.playerEntries,
         snapshot: officialResult,
       }
-      this.savePersistedRaceResult(persistedRecord)
+      this.savePersistedRaceResult(persistedRecord, raceVariant)
     }
 
     // 5. ATUALIZAR ACUMULADOS DOS PILOTOS (Requisito 4 e 6)
@@ -426,14 +469,14 @@ export class CanonicalCareerPersistenceService {
         // Registrar no journal e persistir checkpoint progressivo
         appliedSet.add(driverId)
         journal.appliedDriverIds = Array.from(appliedSet)
-        this.saveApplicationJournal(journal)
+        this.saveApplicationJournal(journal, raceVariant)
       }
 
       // Conclusão com sucesso de todos os pilotos
       journal.status = 'COMPLETE'
       journal.completedAt = new Date().toISOString()
       journal.lastError = undefined
-      this.saveApplicationJournal(journal)
+      this.saveApplicationJournal(journal, raceVariant)
 
       // FW2.1E-H: Gerar snapshot do campeonato após rodada oficial registrada
       try {
@@ -465,7 +508,7 @@ export class CanonicalCareerPersistenceService {
     } catch (err: any) {
       journal.status = 'FAILED'
       journal.lastError = err?.message || 'Erro durante a persistência dos pilotos.'
-      this.saveApplicationJournal(journal)
+      this.saveApplicationJournal(journal, raceVariant)
 
       return {
         success: false,
@@ -485,15 +528,16 @@ export class CanonicalCareerPersistenceService {
     season: number | string
     round: number
     expectedEntries?: number
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string
   }): CareerPersistenceAuditReport {
-    const { careerId, season, round } = params
+    const { careerId, season, round, raceVariant } = params
     const sNum =
       typeof season === 'number' ? season : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
     const errors: string[] = []
-    const raceResultKey = this.buildRaceResultKey(careerId, season, round)
+    const raceResultKey = this.buildRaceResultKey(careerId, season, round, raceVariant)
 
-    const journal = this.getApplicationJournal(careerId, season, round)
-    const persisted = this.getPersistedRaceResult(careerId, season, round)
+    const journal = this.getApplicationJournal(careerId, season, round, raceVariant)
+    const persisted = this.getPersistedRaceResult(careerId, season, round, raceVariant)
 
     if (!journal) {
       errors.push('Journal de aplicação inexistente')
@@ -646,12 +690,22 @@ export class CanonicalCareerPersistenceService {
     careerId: string,
     season: number | string,
     round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): void {
     if (typeof window === 'undefined' || !window.localStorage) return
-    const resKey = this.buildRaceResultKey(careerId, season, round)
-    const jKey = this.buildApplyJournalKey(careerId, season, round)
+    const resKey = this.buildRaceResultKey(careerId, season, round, raceVariant)
+    const jKey = this.buildApplyJournalKey(careerId, season, round, raceVariant)
     window.localStorage.removeItem(resKey)
     window.localStorage.removeItem(jKey)
+    // Se for não especificada ou MAIN_RACE, limpa também variante sprint e legada para testes limpos
+    if (!raceVariant) {
+      window.localStorage.removeItem(
+        this.buildRaceResultKey(careerId, season, round, 'SPRINT_RACE'),
+      )
+      window.localStorage.removeItem(
+        this.buildApplyJournalKey(careerId, season, round, 'SPRINT_RACE'),
+      )
+    }
   }
 }
 
