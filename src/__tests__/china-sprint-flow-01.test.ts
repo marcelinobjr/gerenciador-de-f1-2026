@@ -550,12 +550,12 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     expect(savedResult?.eliminatedDriverIds).toHaveLength(6) // 6 eliminados no SQ1
   })
 
-  // CFT13: com sq1 concluída, resolveSessionVisualState('sprint_race') ≠ 'locked' e a UI expõe ação de início
-  it('CFT13: com sq1 concluída, resolveSessionVisualState("sprint_race") != "locked" e definição canônica é jogável', async () => {
+  // CFT13: com sq3 concluída, resolveSessionVisualState('sprint_race') ≠ 'locked' e a UI expõe ação de início
+  it('CFT13: com sq3 concluída, resolveSessionVisualState("sprint_race") != "locked" e definição canônica é jogável', async () => {
     const { resolveSessionVisualState, isSessionUnlocked, CANONICAL_SESSION_DEFINITIONS } =
       await import('@/services/weekendScheduleConfig')
 
-    const completed = ['tp1', 'sq1']
+    const completed = ['tp1', 'sq1', 'sq2', 'sq3']
     const visualState = resolveSessionVisualState({
       sessionId: 'sprint_race',
       activeSessionId: 'sprint_race',
@@ -570,25 +570,27 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     // A definição canônica de sprint_race deve ser jogável no V2 e blockedMessage atualizada
     const sprintDef = CANONICAL_SESSION_DEFINITIONS['sprint_race']
     expect(sprintDef.isPlayableInV2).toBe(true)
-    expect(sprintDef.blockedMessage).toBe('Disponível após conclusão da Qualificação Sprint (SQ1).')
+    expect(sprintDef.blockedMessage).toBe('Disponível após conclusão da Qualificação Sprint (SQ3).')
   })
 
   it('CFT14_INNER', async () => {
     const { resolveSessionVisualState, isSessionUnlocked } =
       await import('@/services/weekendScheduleConfig')
 
-    // 1. Sprint não abre antes da condição correta (apenas TL1 não libera Sprint)
+    // 1. Sprint não abre antes da condição correta (apenas TL1, SQ1 ou SQ2 não liberam Sprint)
     expect(isSessionUnlocked('sprint_race', ['tp1'])).toBe(false)
+    expect(isSessionUnlocked('sprint_race', ['tp1', 'sq1'])).toBe(false)
+    expect(isSessionUnlocked('sprint_race', ['tp1', 'sq1', 'sq2'])).toBe(false)
     expect(
       resolveSessionVisualState({
         sessionId: 'sprint_race',
         activeSessionId: 'sprint_race',
-        completedSessions: ['tp1'],
+        completedSessions: ['tp1', 'sq1', 'sq2'],
       }),
     ).toBe('locked')
 
     // 2. Q1 não abre antes da conclusão da Sprint no fim de semana Sprint
-    const beforeSprint = ['tp1', 'sq1']
+    const beforeSprint = ['tp1', 'sq1', 'sq2', 'sq3']
     expect(isSessionUnlocked('q1', beforeSprint)).toBe(false)
     expect(
       resolveSessionVisualState({
@@ -599,7 +601,7 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     ).toBe('locked')
 
     // 3. Ao concluir a Sprint, Q1 é liberada pelo pipeline canônico
-    const afterSprint = ['tp1', 'sq1', 'sprint_race']
+    const afterSprint = ['tp1', 'sq1', 'sq2', 'sq3', 'sprint_race']
     expect(isSessionUnlocked('q1', afterSprint)).toBe(true)
     const visualAfter = resolveSessionVisualState({
       sessionId: 'q1',
@@ -775,20 +777,19 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
   // BUG-SPRINT-ENTRY-R2: RESOLUÇÃO DE GRID SPRINT VIA SQ1 NO ENTRY E SELEÇÃO
   // =========================================================================
 
-  // CFT13: com TL1 e SQ1 concluídos e quali principal inexistente, selecionar sprint_race
-  // lê o stage SQ1, produz o grid canônico, não exige completeQualifyingResult da quali principal
-  // e não cai no placeholder bloqueado.
-  it('CFT13: com TL1 e SQ1 concluídos e quali principal inexistente, sprint_race deriva grid da SQ1 e não exige quali principal', async () => {
+  // CFT13: com TL1, SQ1, SQ2 e SQ3 concluídos e quali principal inexistente, selecionar sprint_race
+  // usa o stage SQ3, monta o grid correto, abre o fluxo Sprint e não cai no placeholder bloqueado.
+  it('CFT13: com SQ3 concluída e main qualifying inexistente, sprint_race usa stage SQ3, monta grid correto e não exige quali principal', async () => {
     const { canonicalQualifyingPersistenceService } =
       await import('@/services/canonicalQualifyingPersistenceService')
     const { isSessionUnlocked, resolveSessionVisualState } =
       await import('@/services/weekendScheduleConfig')
     const { CanonicalQualifyingRunner } = await import('@/services/canonicalQualifyingRunner')
 
-    const seasonId = 'season_cft13_entry_test'
+    const seasonId = 'season_cft13_entry_test_sq3'
     const round = 2 // China Sprint
 
-    // 1. Simula conclusão de TL1 e SQ1 (mas NENHUMA qualificação principal Q1-Q3 realizada)
+    // 1. Simula conclusão de TL1, SQ1, SQ2 e SQ3 (mas NENHUMA qualificação principal Q1-Q3 realizada)
     expect(
       canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round),
     ).toBeNull()
@@ -805,6 +806,26 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
       carNumber: idx + 1,
     }))
 
+    const tickContext = {
+      seasonId,
+      round,
+      gpName: 'Grande Prêmio da China',
+      circuitName: 'Circuito Internacional de Xangai',
+      lengthKm: 5.451,
+      tireAbrasiveness: 3,
+      weather: 'seco' as const,
+      teamChassisRating: 80,
+      teamEngineSupplier: 'Audi',
+      teamName: 'Apex Racing',
+      teamColor: '#E10600',
+      drivers: [
+        { id: 'drv_1', name: 'Piloto 1', speed: 85, consistency: 85, defense: 80 },
+        { id: 'drv_2', name: 'Piloto 2', speed: 82, consistency: 82, defense: 78 },
+      ],
+      rivalDrivers: all24Drivers.slice(2),
+    }
+
+    // Executa SQ1
     const sq1State = CanonicalQualifyingRunner.initializeStage({
       stageId: 'sq1',
       seasonId,
@@ -830,42 +851,85 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
       eligibleParticipants: all24Drivers,
       persistState: true,
     })
-
-    const tickContext = {
-      seasonId,
-      round,
-      gpName: 'Grande Prêmio da China',
-      circuitName: 'Circuito Internacional de Xangai',
-      lengthKm: 5.451,
-      tireAbrasiveness: 3,
-      weather: 'seco' as const,
-      teamChassisRating: 80,
-      teamEngineSupplier: 'Audi',
-      teamName: 'Apex Racing',
-      teamColor: '#E10600',
-      drivers: [
-        { id: 'drv_1', name: 'Piloto 1', speed: 85, consistency: 85, defense: 80 },
-        { id: 'drv_2', name: 'Piloto 2', speed: 82, consistency: 82, defense: 78 },
-      ],
-      rivalDrivers: all24Drivers.slice(2),
-    }
-
     CanonicalQualifyingRunner.simulateRemainingSession(sq1State, tickContext, {
       persistState: true,
     })
-
-    // Garante que SQ1 foi salva com 24 entradas
     const sq1Saved = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
     expect(sq1Saved).not.toBeNull()
-    expect(sq1Saved!.entries.length).toBe(24)
+
+    // Executa SQ2
+    const sq2Participants = all24Drivers.filter((p) => sq1Saved!.advancingDriverIds.includes(p.id))
+    const sq2State = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq2',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 10,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 10,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants: sq2Participants,
+      persistState: true,
+    })
+    CanonicalQualifyingRunner.simulateRemainingSession(sq2State, tickContext, {
+      persistState: true,
+    })
+    const sq2Saved = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
+    expect(sq2Saved).not.toBeNull()
+
+    // Executa SQ3
+    const sq3Participants = all24Drivers.filter((p) => sq2Saved!.advancingDriverIds.includes(p.id))
+    const sq3State = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq3',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 20,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 20,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants: sq3Participants,
+      persistState: true,
+    })
+    CanonicalQualifyingRunner.simulateRemainingSession(sq3State, tickContext, {
+      persistState: true,
+    })
+    const sq3Saved = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3')
+    expect(sq3Saved).not.toBeNull()
 
     // Qualificação principal CONTINUA null (não existe ainda no fim de semana)
     expect(
       canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round),
     ).toBeNull()
 
-    // Status da sessão na esteira deve ser desbloqueado
-    const completedSessions = ['tp1', 'sq1']
+    // Status da sessão na esteira deve ser desbloqueado após SQ3
+    const completedSessions = ['tp1', 'sq1', 'sq2', 'sq3']
     expect(isSessionUnlocked('sprint_race', completedSessions)).toBe(true)
     expect(
       resolveSessionVisualState({
@@ -875,24 +939,27 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
       }),
     ).toBe('active')
 
-    // Helper unificado (testando lógica idêntica do WeekendV2Page)
-    // Para sprint_race: deriva grid da SQ1 sem depender de quali principal
-    const isSprintTarget = true
-    const sq1Stage = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
-    expect(sq1Stage).not.toBeNull()
+    // Helper unificado (testando lógica idêntica do WeekendV2Page resolveRaceOrSprintGrid)
+    // Para sprint_race: lê SQ3 (e combina com SQ2/SQ1 eliminados) para formar o grid de 24 pilotos
+    const sq3Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3')
+    const sq2Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
+    const sq1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+    expect(sq3Result).not.toBeNull()
 
-    // Constrói grid canônico derivado da SQ1
-    const sortedEntries = [...sq1Stage!.entries].sort((a, b) => {
-      if (a.bestLapSec > 0 && b.bestLapSec > 0) {
-        if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
-        return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
-      }
-      if (a.bestLapSec > 0) return -1
-      if (b.bestLapSec > 0) return 1
-      return 0
-    })
+    const sq3Sorted = [...sq3Result!.entries].sort((a, b) => a.bestLapSec - b.bestLapSec)
+    const sq2Eliminated = [...sq2Result!.entries]
+      .filter((e) => !sq3Result!.entries.some((s) => s.driverId === e.driverId))
+      .sort((a, b) => a.bestLapSec - b.bestLapSec)
+    const sq1Eliminated = [...sq1Result!.entries]
+      .filter(
+        (e) =>
+          !sq3Result!.entries.some((s) => s.driverId === e.driverId) &&
+          !sq2Result!.entries.some((s) => s.driverId === e.driverId),
+      )
+      .sort((a, b) => a.bestLapSec - b.bestLapSec)
 
-    const finalGrid = sortedEntries.map((e, idx) => ({
+    const combined = [...sq3Sorted, ...sq2Eliminated, ...sq1Eliminated]
+    const finalGrid = combined.map((e, idx) => ({
       gridPosition: idx + 1,
       driverId: e.driverId,
       driverName: e.driverName,
@@ -901,7 +968,12 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
       teamColor: e.teamColor,
       isPlayer: e.isPlayer,
       carId: e.carId,
-      eliminationStage: 'Q1' as const,
+      eliminationStage:
+        idx < sq3Sorted.length
+          ? ('Q3' as const)
+          : idx < sq3Sorted.length + sq2Eliminated.length
+            ? ('Q2' as const)
+            : ('Q1' as const),
       bestLapSec: e.bestLapSec,
       bestLapTime: e.bestLapTime,
       bestLapCompound: e.compound,
@@ -912,13 +984,13 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     const sprintDerivedResult = {
       seasonId,
       round,
-      completedAt: sq1Stage!.completedAt || new Date().toISOString(),
+      completedAt: sq3Result!.completedAt || new Date().toISOString(),
       poleDriverId: finalGrid[0]?.driverId || '',
       poleDriverName: finalGrid[0]?.driverName || '',
       poleLapTime: finalGrid[0]?.bestLapTime || '--:--.---',
-      q1Result: sq1Stage!,
-      q2Result: undefined as any,
-      q3Result: undefined as any,
+      q1Result: sq1Result!,
+      q2Result: sq2Result!,
+      q3Result: sq3Result!,
       finalGrid,
     }
 
@@ -967,38 +1039,40 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     expect(initialRace.totalLaps).toBe(totalLaps)
   })
 
-  // CFT14: Sprint concluída -> Q1 liberada; Q1 não abre antes da Sprint; Sprint não abre antes da SQ1; Sprint não executa duas vezes.
-  it('CFT14: Gates e idempotência da Sprint: SQ1 -> Sprint -> Q1 liberada, e Sprint não executa duplicada', async () => {
+  // CFT14: Sprint concluída -> Q1 liberada; Q1 não abre antes da Sprint; Sprint não abre antes da SQ3; Sprint não executa duas vezes.
+  it('CFT14: Gates e idempotência da Sprint: SQ3 -> Sprint -> Q1 liberada, e Sprint não executa duplicada', async () => {
     const { isSessionUnlocked, resolveSessionVisualState } =
       await import('@/services/weekendScheduleConfig')
     const { canonicalRaceInitializationService } =
       await import('@/services/canonicalRaceInitializationService')
 
-    // 1. Sprint não abre antes da SQ1
+    // 1. Sprint não abre antes da SQ3
     expect(isSessionUnlocked('sprint_race', [])).toBe(false)
     expect(isSessionUnlocked('sprint_race', ['tp1'])).toBe(false)
+    expect(isSessionUnlocked('sprint_race', ['tp1', 'sq1'])).toBe(false)
+    expect(isSessionUnlocked('sprint_race', ['tp1', 'sq1', 'sq2'])).toBe(false)
     expect(
       resolveSessionVisualState({
         sessionId: 'sprint_race',
         activeSessionId: 'sprint_race',
-        completedSessions: ['tp1'],
+        completedSessions: ['tp1', 'sq1', 'sq2'],
       }),
     ).toBe('locked')
 
-    // 2. Com SQ1 concluída, Sprint abre e Q1 NÃO abre antes da Sprint
-    const afterSq1 = ['tp1', 'sq1']
-    expect(isSessionUnlocked('sprint_race', afterSq1)).toBe(true)
-    expect(isSessionUnlocked('q1', afterSq1)).toBe(false)
+    // 2. Com SQ3 concluída, Sprint abre e Q1 NÃO abre antes da Sprint
+    const afterSq3 = ['tp1', 'sq1', 'sq2', 'sq3']
+    expect(isSessionUnlocked('sprint_race', afterSq3)).toBe(true)
+    expect(isSessionUnlocked('q1', afterSq3)).toBe(false)
     expect(
       resolveSessionVisualState({
         sessionId: 'q1',
         activeSessionId: 'q1',
-        completedSessions: afterSq1,
+        completedSessions: afterSq3,
       }),
     ).toBe('locked')
 
     // 3. Sprint concluída -> Q1 liberada
-    const afterSprint = ['tp1', 'sq1', 'sprint_race']
+    const afterSprint = ['tp1', 'sq1', 'sq2', 'sq3', 'sprint_race']
     expect(isSessionUnlocked('q1', afterSprint)).toBe(true)
     expect(
       resolveSessionVisualState({

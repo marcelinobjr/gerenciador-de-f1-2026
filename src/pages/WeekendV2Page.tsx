@@ -1670,11 +1670,11 @@ export default function WeekendV2Page() {
         title: 'Classificação Concluída — Grid Formado!',
         description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
       })
-    } else if (stageId === 'sq3' || stageId === 'sq1') {
-      // Desbloqueia sprint_race ao concluir qualificação sprint
+    } else if (stageId === 'sq3') {
+      // Desbloqueia sprint_race ao concluir SQ3 (Qualificação Sprint final)
       toast({
-        title: `Fase ${stageId.toUpperCase()} Concluída`,
-        description: `Qualificação Sprint finalizada. A Corrida Sprint está disponível!`,
+        title: 'Fase SQ3 Concluída',
+        description: 'Qualificação Sprint finalizada. A Corrida Sprint está disponível!',
       })
     } else {
       toast({
