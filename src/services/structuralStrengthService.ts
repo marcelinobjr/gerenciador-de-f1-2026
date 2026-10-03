@@ -312,7 +312,18 @@ export class StructuralStrengthService {
     teamKey: string,
     options?: { seasonYear?: number },
   ): StructuralStrengthBreakdown {
-    const cleanKey = resolveCanonicalTeamKey(teamKey)
+    const resolvedKey = resolveCanonicalTeamKey(teamKey)
+
+    // BASELINE_V0_DATA e BASELINE_2026_V1 usam chaves compactas (sem underscore):
+    // 'red_bull' -> 'redbull', 'racing_bulls' -> 'racingbulls', 'aston_martin' -> 'astonmartin'
+    const toBaselineKey = (key: string): string => {
+      if (key === 'red_bull') return 'redbull'
+      if (key === 'racing_bulls') return 'racingbulls'
+      if (key === 'aston_martin') return 'astonmartin'
+      return key
+    }
+
+    const cleanKey = resolvedKey ? toBaselineKey(resolvedKey) : teamKey
 
     const seasonYear = options?.seasonYear ?? 2026
 

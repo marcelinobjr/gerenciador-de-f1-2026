@@ -145,8 +145,7 @@ export class CanonicalPaceIntegrationService {
    * basePaceStrength = StructuralStrengthScore
    */
   public resolveBaseStructuralStrength(teamKey: string): number {
-    const canonicalKey = resolveCanonicalTeamKey(teamKey)
-    const structural = structuralStrengthService.getTeamStructuralStrength(canonicalKey)
+    const structural = structuralStrengthService.getTeamStructuralStrength(teamKey)
     return structural.structuralStrengthScore
   }
 
