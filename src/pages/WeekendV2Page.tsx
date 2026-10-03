@@ -628,6 +628,7 @@ export default function WeekendV2Page() {
     const hasTl2 =
       normalizedStored.includes('tp2') || stored.includes('tl2') || stored.includes('fp2')
     const hasSq1 = normalizedStored.includes('sq1') || stored.includes('sprint_q1')
+    const hasSq2 = normalizedStored.includes('sq2') || stored.includes('sprint_q2')
 
     if (sess === 'tp2' && !hasTl1) {
       toast({
@@ -665,7 +666,7 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'sq3' && !normalizedStored.includes('sq2')) {
+    if (sess === 'sq3' && !hasSq2) {
       toast({
         variant: 'destructive',
         title: 'Sessão Bloqueada',

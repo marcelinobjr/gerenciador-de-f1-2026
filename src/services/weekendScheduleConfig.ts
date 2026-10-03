@@ -272,9 +272,16 @@ export function resolveSessionVisualState(params: {
   completedSessions: string[]
   isSessionRunning?: boolean
   isSessionPaused?: boolean
+  isSprintRound?: boolean
 }): SessionVisualState {
-  const { sessionId, activeSessionId, completedSessions, isSessionRunning, isSessionPaused } =
-    params
+  const {
+    sessionId,
+    activeSessionId,
+    completedSessions,
+    isSessionRunning,
+    isSessionPaused,
+    isSprintRound,
+  } = params
 
   const normalized = normalizeCompletedSessions(completedSessions)
   const isCompleted = normalized.includes(sessionId)
@@ -288,7 +295,17 @@ export function resolveSessionVisualState(params: {
   const isCurrentActive = sessionId === activeSessionId || normalizedActiveList.includes(sessionId)
 
   // Verifica se a sessão está desbloqueada antes de marcá-la como active
-  const isUnlocked = isSessionUnlocked(sessionId, normalized)
+  const isSprint =
+    isSprintRound ??
+    (normalized.includes('sq1') ||
+      normalized.includes('sq2') ||
+      normalized.includes('sq3') ||
+      normalized.includes('sprint_race') ||
+      sessionId === 'sq1' ||
+      sessionId === 'sq2' ||
+      sessionId === 'sq3' ||
+      sessionId === 'sprint_race')
+  const isUnlocked = isSessionUnlocked(sessionId, normalized, isSprint)
 
   if (isCurrentActive && isUnlocked) {
     if (isSessionRunning) return 'active'
@@ -320,6 +337,7 @@ export function isQualifyingStage(sessionId: string): boolean {
 export function isSessionUnlocked(
   sessionId: RaceWeekendSessionId,
   normalizedCompleted: string[],
+  isSprintRound?: boolean,
 ): boolean {
   if (sessionId === 'tp1') {
     return true
@@ -353,6 +371,9 @@ export function isSessionUnlocked(
 
   // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído. No Sprint, requer sprint_race concluída.
   if (sessionId === 'q1') {
+    if (isSprintRound) {
+      return normalizedCompleted.includes('sprint_race') || normalizedCompleted.includes('sprint')
+    }
     const normalOk = normalizedCompleted.includes('tp3')
     const sprintOk =
       normalizedCompleted.includes('sprint_race') || normalizedCompleted.includes('sprint')

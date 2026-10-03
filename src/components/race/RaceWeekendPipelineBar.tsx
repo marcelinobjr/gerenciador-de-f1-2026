@@ -14,6 +14,7 @@ export interface RaceWeekendPipelineBarProps {
   completedSessions: string[]
   isSessionRunning?: boolean
   isSessionPaused?: boolean
+  isSprintRound?: boolean
   onSelectSession: (session: WeekendSessionDefinition) => void
 }
 
@@ -23,8 +24,11 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
   completedSessions,
   isSessionRunning = false,
   isSessionPaused = false,
+  isSprintRound,
   onSelectSession,
 }) => {
+  const isSprint = isSprintRound ?? sessions.some((s) => s.id === 'sq1' || s.id === 'sprint_race')
+
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F1F5F9] pb-3">
@@ -67,6 +71,7 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
               completedSessions,
               isSessionRunning: sess.id === selectedSessionId && isSessionRunning,
               isSessionPaused: sess.id === selectedSessionId && isSessionPaused,
+              isSprintRound: isSprint,
             })
 
             const isLocked = visualState === 'locked'
