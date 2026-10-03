@@ -7,29 +7,24 @@ import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegra
 import { structuralStrengthService } from '@/services/structuralStrengthService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { BASELINE_2026_V1_TEAMS } from '@/data/baseline-2026-v1'
+import { OFFICIAL_GRID_TEAMS } from '@/lib/f1-data'
 
 describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator', () => {
-  // QUALI-UNIFY-01B1 CHECKPOINT
   const dummyCareer = 'car_test_quali_01b'
   const dummySeason = 'season_2026'
   const dummyRound = 1
-  // CHECKPOINT_16
   const defaultCircuitProfile = resolveCircuitProfile({ round: dummyRound })
 
   beforeEach(() => {
-    // CHECKPOINT_21
     localStorage.clear()
     raceQualifyingOrchestratorService.clearMemoryCache()
     vi.restoreAllMocks()
-    // CHECKPOINT_25
   })
 
   // Helper para criar participante neutro padronizado
-  // CHECKPOINT_29
   function createNeutralDriver(
     id: string,
     teamId: string,
-    // CHECKPOINT_34
     teamName: string,
     overrides?: Partial<QualifyingDriverInput>,
   ): QualifyingDriverInput {
@@ -49,8 +44,12 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     }
   }
 
-  // B1-01: orchestrator chama o canonical pace core
-  it('B1-01: orchestrator chama o canonical pace core', async () => {
+  // =========================================================================
+  // CASOS B-01 .. B-36 EXATOS CONFORME ESPECIFICAÇÃO
+  // =========================================================================
+
+  // B-01: orchestrator usa computeQualifyingPace no caminho oficial de pace
+  it('B-01: orchestrator usa computeQualifyingPace no caminho oficial de pace', async () => {
     const spy = vi.spyOn(canonicalPaceIntegrationService, 'computeQualifyingPace')
     const participants = [
       createNeutralDriver('drv_merc', 'mercedes', 'Mercedes'),
@@ -71,8 +70,34 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     spy.mockRestore()
   })
 
-  // B1-02: Audi usa Structural 86
-  it('B1-02: Audi usa Structural 86', async () => {
+  // B-02: Mercedes usa Structural = 100
+  it('B-02: Mercedes usa Structural = 100', async () => {
+    const participants = [createNeutralDriver('drv_merc', 'mercedes', 'Mercedes-AMG Petronas')]
+    const state = await raceQualifyingOrchestratorService.executePhase({
+      phase: 'Q1',
+      careerId: dummyCareer,
+      seasonId: dummySeason,
+      round: dummyRound,
+      participants,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+    const res = state.results.find((r) => r.driverId === 'drv_merc')!
+    const canonPace = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'mercedes',
+      driverId: 'drv_merc',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 80,
+      driverAttributes: { speed: 80, rain: 80, morale: 80 },
+      noise: 0,
+    })
+    expect(canonPace.breakdown.structuralStrength).toBe(100)
+    expect(res.trackRating).toBe(canonPace.effectivePaceScore)
+    expect(res.trackRating).toBe(100)
+  })
+
+  // B-03: Audi usa Structural = 86
+  it('B-03: Audi usa Structural = 86', async () => {
     const participants = [createNeutralDriver('drv_audi', 'audi', 'Audi Revolut F1 Team')]
     const state = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
@@ -94,10 +119,11 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     })
     expect(canonPace.breakdown.structuralStrength).toBe(86)
     expect(res.trackRating).toBe(canonPace.effectivePaceScore)
+    expect(res.trackRating).toBe(86)
   })
 
-  // B1-03: Williams usa Structural 70
-  it('B1-03: Williams usa Structural 70', async () => {
+  // B-04: Williams usa Structural = 70
+  it('B-04: Williams usa Structural = 70', async () => {
     const participants = [createNeutralDriver('drv_wms', 'williams', 'Williams Racing')]
     const state = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
@@ -119,10 +145,11 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     })
     expect(canonPace.breakdown.structuralStrength).toBe(70)
     expect(res.trackRating).toBe(canonPace.effectivePaceScore)
+    expect(res.trackRating).toBe(70)
   })
 
-  // B1-04: Cadillac usa Structural 50
-  it('B1-04: Cadillac usa Structural 50', async () => {
+  // B-05: Cadillac usa Structural = 50
+  it('B-05: Cadillac usa Structural = 50', async () => {
     const participants = [createNeutralDriver('drv_cad', 'cadillac', 'Cadillac F1 Team')]
     const state = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
@@ -144,15 +171,69 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     })
     expect(canonPace.breakdown.structuralStrength).toBe(50)
     expect(res.trackRating).toBe(canonPace.effectivePaceScore)
+    expect(res.trackRating).toBe(50)
   })
 
-  // B1-05: teams.strength não controla o pace (fixture Audi strength=20 → ainda 86; Williams strength=99 → ainda 70)
-  it('B1-05: teams.strength não controla o pace (fixture Audi strength=20 → ainda 86; Williams strength=99 → ainda 70)', async () => {
+  // B-06: Andretti usa Structural = 45
+  it('B-06: Andretti usa Structural = 45', async () => {
+    const participants = [createNeutralDriver('drv_and', 'andretti', 'Andretti Global')]
+    const state = await raceQualifyingOrchestratorService.executePhase({
+      phase: 'Q1',
+      careerId: dummyCareer,
+      seasonId: dummySeason,
+      round: dummyRound,
+      participants,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+    const res = state.results.find((r) => r.driverId === 'drv_and')!
+    const canonPace = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'andretti',
+      driverId: 'drv_and',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 80,
+      driverAttributes: { speed: 80, rain: 80, morale: 80 },
+      noise: 0,
+    })
+    expect(canonPace.breakdown.structuralStrength).toBe(45)
+    expect(res.trackRating).toBe(canonPace.effectivePaceScore)
+    expect(res.trackRating).toBe(45)
+  })
+
+  // B-07: teams.strength não controla pace (fixture: Audi teams.strength = 20, Structural continua 86)
+  it('B-07: teams.strength não controla pace (fixture: Audi teams.strength = 20, Structural continua 86)', async () => {
     const participants = [
-      createNeutralDriver('drv_audi_stale', 'team_audi', 'Audi Revolut', {
+      createNeutralDriver('drv_audi_s20', 'team_audi', 'Audi Revolut', {
         carPerformance: 20, // Stale strength ignorado
       }),
-      createNeutralDriver('drv_wms_stale', 'team_williams', 'Williams Racing', {
+    ]
+    const state = await raceQualifyingOrchestratorService.executePhase({
+      phase: 'Q1',
+      careerId: dummyCareer,
+      seasonId: dummySeason,
+      round: dummyRound,
+      participants,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+    const res = state.results.find((r) => r.driverId === 'drv_audi_s20')!
+    const canonPace = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'audi',
+      driverId: 'drv_audi_s20',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 80,
+      driverAttributes: { speed: 80, rain: 80, morale: 80 },
+      noise: 0,
+    })
+    expect(canonPace.breakdown.structuralStrength).toBe(86)
+    expect(res.trackRating).toBe(86)
+    expect(res.trackRating).not.toBe(20)
+  })
+
+  // B-08: fixture Williams teams.strength = 99, Structural continua 70
+  it('B-08: fixture Williams teams.strength = 99, Structural continua 70', async () => {
+    const participants = [
+      createNeutralDriver('drv_wms_s99', 'team_williams', 'Williams Racing', {
         carPerformance: 99, // Stale strength ignorado
       }),
     ]
@@ -165,179 +246,84 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       forceBypassPracticeCheck: true,
       attemptsPerPhase: 1,
     })
-    const audiRes = state.results.find((r) => r.driverId === 'drv_audi_stale')!
-    const wmsRes = state.results.find((r) => r.driverId === 'drv_wms_stale')!
-
-    const canonAudi = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'audi',
-      driverId: 'drv_audi_stale',
-      circuitProfile: defaultCircuitProfile,
-      setupEfficiency: 80,
-      driverAttributes: { speed: 80, rain: 80, morale: 80 },
-      noise: 0,
-    })
-    const canonWms = canonicalPaceIntegrationService.computeQualifyingPace({
+    const res = state.results.find((r) => r.driverId === 'drv_wms_s99')!
+    const canonPace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'williams',
-      driverId: 'drv_wms_stale',
+      driverId: 'drv_wms_s99',
       circuitProfile: defaultCircuitProfile,
       setupEfficiency: 80,
       driverAttributes: { speed: 80, rain: 80, morale: 80 },
       noise: 0,
     })
-
-    expect(canonAudi.breakdown.structuralStrength).toBe(86)
-    expect(audiRes.trackRating).toBe(canonAudi.effectivePaceScore)
-    expect(canonWms.breakdown.structuralStrength).toBe(70)
-    expect(wmsRes.trackRating).toBe(canonWms.effectivePaceScore)
+    expect(canonPace.breakdown.structuralStrength).toBe(70)
+    expect(res.trackRating).toBe(70)
+    expect(res.trackRating).not.toBe(99)
   })
 
-  // B1-06: min-max 2500ms não controla o pace (grid completo vs subset: gap Audi-Williams permanece igual; Audi-Williams delta 16 pts ≈ 1,312 s; Audi-Cadillac 36 pts; Mercedes-Andretti 55 pts ≈ 4,51 s sem compressão para 2,5 s)
-  it('B1-06: min-max 2500ms não controla o pace (gaps absolutos invariantes a participantes)', async () => {
-    const fullGrid: QualifyingDriverInput[] = [
+  // B-09: modelo legado 0.65×carPerformance + 0.35×effective_driver não participa do caminho oficial
+  it('B-09: modelo legado 0.65×carPerformance + 0.35×effective_driver não participa do caminho oficial', async () => {
+    const carPerf = 90
+    const speed = 70
+    const participants = [
+      createNeutralDriver('drv_legacy_test', 'williams', 'Williams Racing', {
+        carPerformance: carPerf,
+        speed: speed,
+      }),
+    ]
+    const state = await raceQualifyingOrchestratorService.executePhase({
+      phase: 'Q1',
+      careerId: dummyCareer,
+      seasonId: dummySeason,
+      round: dummyRound,
+      participants,
+      forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
+    })
+    const res = state.results[0]
+    // Se o modelo legado 0.65 * 90 + 0.35 * 70 = 58.5 + 24.5 = 83 estivesse ativo:
+    const legacyLinearScore = 0.65 * carPerf + 0.35 * speed
+    expect(res.trackRating).not.toBeCloseTo(legacyLinearScore, 1)
+
+    // Caminho oficial: Williams Structural (70) + Driver Execution canônico
+    const canonPace = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'williams',
+      driverId: 'drv_legacy_test',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 80,
+      driverAttributes: { speed: 70, morale: 80 },
+      noise: 0,
+    })
+    expect(res.trackRating).toBe(canonPace.effectivePaceScore)
+  })
+
+  // B-10: min-max para 2500ms não participa do caminho oficial
+  it('B-10: min-max para 2500ms não participa do caminho oficial', async () => {
+    const participants = [
       createNeutralDriver('drv_merc', 'mercedes', 'Mercedes'),
-      createNeutralDriver('drv_audi', 'audi', 'Audi'),
-      createNeutralDriver('drv_wms', 'williams', 'Williams'),
-      createNeutralDriver('drv_cad', 'cadillac', 'Cadillac'),
       createNeutralDriver('drv_and', 'andretti', 'Andretti'),
     ]
-
-    const fullState = await raceQualifyingOrchestratorService.executePhase({
+    const state = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
-      careerId: 'career_b1_06_full',
+      careerId: 'career_b10',
       seasonId: dummySeason,
       round: dummyRound,
-      participants: fullGrid,
-      forceBypassPracticeCheck: true,
-      attemptsPerPhase: 1,
-    })
-
-    const fullAudi = fullState.results.find((r) => r.driverId === 'drv_audi')!
-    const fullWms = fullState.results.find((r) => r.driverId === 'drv_wms')!
-    const fullMerc = fullState.results.find((r) => r.driverId === 'drv_merc')!
-    const fullCad = fullState.results.find((r) => r.driverId === 'drv_cad')!
-    const fullAnd = fullState.results.find((r) => r.driverId === 'drv_and')!
-
-    const fullAudiWmsDelta = fullWms.basePaceMs - fullAudi.basePaceMs
-    const fullMercAndDelta = fullAnd.basePaceMs - fullMerc.basePaceMs
-    const fullAudiCadDelta = fullCad.basePaceMs - fullAudi.basePaceMs
-
-    // Subset com apenas Audi e Williams
-    const subsetState = await raceQualifyingOrchestratorService.executePhase({
-      phase: 'Q1',
-      careerId: 'career_b1_06_subset',
-      seasonId: dummySeason,
-      round: dummyRound,
-      participants: [
-        createNeutralDriver('drv_audi', 'audi', 'Audi'),
-        createNeutralDriver('drv_wms', 'williams', 'Williams'),
-      ],
-      forceBypassPracticeCheck: true,
-      attemptsPerPhase: 1,
-    })
-
-    const subAudi = subsetState.results.find((r) => r.driverId === 'drv_audi')!
-    const subWms = subsetState.results.find((r) => r.driverId === 'drv_wms')!
-    const subAudiWmsDelta = subWms.basePaceMs - subAudi.basePaceMs
-
-    // Gaps absolutos: Audi-Williams delta permanece IDÊNTICO (eliminar participantes não renormaliza o gap)
-    expect(fullAudiWmsDelta).toBe(subAudiWmsDelta)
-    expect(fullAudiWmsDelta).toBeCloseTo(16 * 82, -1) // 16 pts * 82ms/pt = 1312ms (~1.312s)
-    expect(fullAudiCadDelta).toBeCloseTo(36 * 82, -1) // 36 pts * 82ms/pt = 2952ms (~2.952s)
-    expect(fullMercAndDelta).toBeCloseTo(55 * 82, -1) // 55 pts * 82ms/pt = 4510ms (~4.51s sem compressão para 2500ms)
-    expect(fullMercAndDelta).not.toBe(2500)
-  })
-
-  // B1-07: carPerformance ?? 80 não controla Q2/Q3/SQ2/SQ3
-  it('B1-07: carPerformance ?? 80 não controla Q2/Q3/SQ2/SQ3', async () => {
-    const q1Participants: QualifyingDriverInput[] = []
-    for (let i = 1; i <= 24; i++) {
-      const teamKey = i <= 2 ? 'mercedes' : i <= 4 ? 'audi' : i <= 6 ? 'williams' : 'cadillac'
-      q1Participants.push(createNeutralDriver(`drv_h_${i}`, teamKey, teamKey))
-    }
-
-    await raceQualifyingOrchestratorService.executePhase({
-      phase: 'Q1',
-      careerId: 'career_b1_07_handoff',
-      seasonId: dummySeason,
-      round: dummyRound,
-      participants: q1Participants,
-      forceBypassPracticeCheck: true,
-      attemptsPerPhase: 1,
-    })
-
-    const q2State = await raceQualifyingOrchestratorService.executePhase({
-      phase: 'Q2',
-      careerId: 'career_b1_07_handoff',
-      seasonId: dummySeason,
-      round: dummyRound,
-      forceBypassPracticeCheck: true,
-      attemptsPerPhase: 1,
-    })
-
-    const audiQ2 = q2State.results.find((r) => r.teamId === 'audi')!
-    const wmsQ2 = q2State.results.find((r) => r.teamId === 'williams')!
-
-    const canonAudi = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'audi',
-      driverId: audiQ2.driverId,
-      circuitProfile: defaultCircuitProfile,
-      setupEfficiency: 80,
-      driverAttributes: { speed: 80 },
-      noise: 0,
-    })
-    const canonWms = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'williams',
-      driverId: wmsQ2.driverId,
-      circuitProfile: defaultCircuitProfile,
-      setupEfficiency: 80,
-      driverAttributes: { speed: 80 },
-      noise: 0,
-    })
-
-    expect(audiQ2.trackRating).toBe(canonAudi.effectivePaceScore)
-    expect(wmsQ2.trackRating).toBe(canonWms.effectivePaceScore)
-    expect(audiQ2.trackRating).not.toBe(wmsQ2.trackRating) // Não caem para fallback ?? 80 idêntico
-  })
-
-  // B1-08: RNG seeded atual permanece em uso (determinístico: mesmo seed → mesmos tempos)
-  it('B1-08: RNG seeded atual permanece em uso (determinístico: mesmo seed → mesmos tempos)', async () => {
-    const participants = [createNeutralDriver('drv_rng_test', 'mercedes', 'Mercedes')]
-
-    // Execução 1 com semente A
-    const stateA1 = await raceQualifyingOrchestratorService.executePhase({
-      phase: 'Q1',
-      careerId: 'career_rng_seed_test',
-      seasonId: 'season_rng_1',
-      round: 1,
       participants,
       forceBypassPracticeCheck: true,
       attemptsPerPhase: 1,
     })
+    const merc = state.results.find((r) => r.driverId === 'drv_merc')!
+    const and = state.results.find((r) => r.driverId === 'drv_and')!
+    const deltaMs = and.basePaceMs - merc.basePaceMs
 
-    // Limpa apenas o cache de memória para forçar novo recálculo determinístico sob mesma semente
-    raceQualifyingOrchestratorService.clearMemoryCache()
-    localStorage.clear()
-
-    const stateA2 = await raceQualifyingOrchestratorService.executePhase({
-      phase: 'Q1',
-      careerId: 'career_rng_seed_test',
-      seasonId: 'season_rng_1',
-      round: 1,
-      participants,
-      forceBypassPracticeCheck: true,
-      attemptsPerPhase: 1,
-    })
-
-    // Mesmo contexto/seed produz EXATAMENTE o mesmo tempo e sorteio Z
-    expect(stateA1.results[0].bestTimeMs).toBe(stateA2.results[0].bestTimeMs)
-    expect(stateA1.results[0].attempts[0].normalDrawZ).toBe(
-      stateA2.results[0].attempts[0].normalDrawZ,
-    )
-    expect(stateA1.results[0].attempts[0].timeMs).toBe(stateA2.results[0].attempts[0].timeMs)
+    // Mercedes 100 vs Andretti 45 = 55 pace points * 82ms/pt = 4510ms
+    // Se o min-max legados de 2500ms estivesse ativo, o gap estaria comprimido para 2500ms
+    expect(deltaMs).toBeCloseTo(4510, -1)
+    expect(deltaMs).not.toBe(2500)
+    expect(deltaMs).toBeGreaterThan(3500)
   })
 
-  // B-11: Audi 86 vs Williams 70 → neutral delta 16 pace pts
-  it('B-11: Audi 86 vs Williams 70 neutral delta 16 pace pts (~1.312 s)', () => {
+  // B-11: fixture neutra Audi 86 vs Williams 70, delta 16 pace points
+  it('B-11: fixture neutra Audi 86 vs Williams 70, delta 16 pace points (~1.312 s)', () => {
     const audiPace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'audi',
       driverId: 'drv1',
@@ -360,8 +346,8 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(timeDeltaSec).toBeCloseTo(16 * 0.082, 3) // 1.312 s
   })
 
-  // B-12: Audi 86 vs Cadillac 50 → 36 pts
-  it('B-12: Audi 86 vs Cadillac 50 neutral delta 36 pace pts (~2.952 s)', () => {
+  // B-12: fixture neutra Audi 86 vs Cadillac 50, delta 36
+  it('B-12: fixture neutra Audi 86 vs Cadillac 50, delta 36 pace points (~2.952 s)', () => {
     const audiPace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'audi',
       driverId: 'drv1',
@@ -384,8 +370,8 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(timeDeltaSec).toBeCloseTo(36 * 0.082, 3) // 2.952 s
   })
 
-  // B-13: Mercedes 100 vs Andretti 45 → 55 pts
-  it('B-13: Mercedes 100 vs Andretti 45 neutral delta 55 pace pts (~4.510 s)', () => {
+  // B-13: fixture neutra Mercedes 100 vs Andretti 45, delta 55
+  it('B-13: fixture neutra Mercedes 100 vs Andretti 45, delta 55 pace points (~4.510 s)', () => {
     const mercPace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'mercedes',
       driverId: 'drv1',
@@ -408,22 +394,26 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(timeDeltaSec).toBeCloseTo(55 * 0.082, 3) // 4.510 s
   })
 
-  // B-14/B-15: GRID COMPLETO vs SUBSET: base delta Audi-Williams permanece invariante
-  it('B-14/B-15: INVARIÂNCIA: base delta Audi vs Williams é idêntico em grid completo e em subset', async () => {
+  // B-14: full grid — medir gap neutro Audi-Williams
+  it('B-14: full grid — medir gap neutro Audi-Williams', async () => {
     const fullGrid: QualifyingDriverInput[] = [
       createNeutralDriver('drv_merc', 'mercedes', 'Mercedes'),
       createNeutralDriver('drv_fer', 'ferrari', 'Ferrari'),
       createNeutralDriver('drv_mcl', 'mclaren', 'McLaren'),
       createNeutralDriver('drv_rb', 'red_bull', 'Red Bull'),
+      createNeutralDriver('drv_rbulls', 'racing_bulls', 'Racing Bulls'),
+      createNeutralDriver('drv_alp', 'alpine', 'Alpine'),
       createNeutralDriver('drv_audi', 'audi', 'Audi'),
+      createNeutralDriver('drv_haas', 'haas', 'Haas'),
       createNeutralDriver('drv_wms', 'williams', 'Williams'),
+      createNeutralDriver('drv_am', 'aston_martin', 'Aston Martin'),
       createNeutralDriver('drv_cad', 'cadillac', 'Cadillac'),
       createNeutralDriver('drv_and', 'andretti', 'Andretti'),
     ]
 
     const fullState = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
-      careerId: 'career_full_grid',
+      careerId: 'career_b14_full',
       seasonId: dummySeason,
       round: dummyRound,
       participants: fullGrid,
@@ -431,11 +421,16 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       attemptsPerPhase: 1,
     })
 
-    const fullAudi = fullState.results.find((r) => r.driverId === 'drv_audi')!
-    const fullWms = fullState.results.find((r) => r.driverId === 'drv_wms')!
-    const fullBaseDelta = fullWms.basePaceMs - fullAudi.basePaceMs
+    const audi = fullState.results.find((r) => r.driverId === 'drv_audi')!
+    const wms = fullState.results.find((r) => r.driverId === 'drv_wms')!
+    const deltaMs = wms.basePaceMs - audi.basePaceMs
 
-    // Subset: apenas Audi e Williams (outros removidos)
+    // Audi 86 vs Williams 70: 16 pts * 82ms = 1312 ms
+    expect(deltaMs).toBe(1312)
+  })
+
+  // B-15: subset grid — mesmos Audi/Williams, mesmas condições, menos participantes; gap permanece idêntico, sem renormalização por população
+  it('B-15: subset grid — gap Audi-Williams permanece rigorosamente idêntico ao full grid', async () => {
     const subsetGrid: QualifyingDriverInput[] = [
       createNeutralDriver('drv_audi', 'audi', 'Audi'),
       createNeutralDriver('drv_wms', 'williams', 'Williams'),
@@ -443,7 +438,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
 
     const subState = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
-      careerId: 'career_subset_grid',
+      careerId: 'career_b15_subset',
       seasonId: dummySeason,
       round: dummyRound,
       participants: subsetGrid,
@@ -453,24 +448,29 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
 
     const subAudi = subState.results.find((r) => r.driverId === 'drv_audi')!
     const subWms = subState.results.find((r) => r.driverId === 'drv_wms')!
-    const subBaseDelta = subWms.basePaceMs - subAudi.basePaceMs
+    const subDeltaMs = subWms.basePaceMs - subAudi.basePaceMs
 
-    expect(fullBaseDelta).toBe(subBaseDelta)
-    expect(fullAudi.basePaceMs).toBe(subAudi.basePaceMs)
-    expect(fullWms.basePaceMs).toBe(subWms.basePaceMs)
+    // Compara com B-14 (1312ms): gap idêntico, sem renormalização
+    expect(subDeltaMs).toBe(1312)
+    expect(subAudi.basePaceMs).toBe(75148) // 74000 + (100 - 86) * 82 = 75148
+    expect(subWms.basePaceMs).toBe(76460) // 74000 + (100 - 70) * 82 = 76460
   })
 
-  // B-16..B-19: Q2, Q3, SQ2, SQ3 não usam carPerformance ?? 80
-  it('B-16: Q2 herda e resolve canonicalTeamKey sem carPerformance ?? 80', async () => {
+  // B-16: Q2 não usa carPerformance ?? 80 como fonte de performance
+  it('B-16: Q2 não usa carPerformance ?? 80 como fonte de performance', async () => {
     const q1Participants: QualifyingDriverInput[] = []
     for (let i = 1; i <= 24; i++) {
-      const teamKey = i <= 2 ? 'mercedes' : i <= 4 ? 'ferrari' : i <= 6 ? 'audi' : 'williams'
-      q1Participants.push(createNeutralDriver(`drv_${i}`, teamKey, teamKey))
+      const teamKey = i <= 2 ? 'mercedes' : i <= 4 ? 'audi' : i <= 6 ? 'williams' : 'cadillac'
+      q1Participants.push(
+        createNeutralDriver(`drv_q2_${i}`, teamKey, teamKey, {
+          carPerformance: undefined, // Sem carPerformance
+        }),
+      )
     }
 
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
-      careerId: 'career_handoff_q2',
+      careerId: 'career_b16_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       participants: q1Participants,
@@ -480,36 +480,33 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
 
     const q2State = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q2',
-      careerId: 'career_handoff_q2',
+      careerId: 'career_b16_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
       attemptsPerPhase: 1,
     })
 
-    expect(q2State.results.length).toBe(18)
-    const audiDriver = q2State.results.find((r) => r.teamId === 'audi')!
-    const canonAudi = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'audi',
-      driverId: audiDriver.driverId,
-      circuitProfile: defaultCircuitProfile,
-      setupEfficiency: 80,
-      driverAttributes: { speed: 80 },
-      noise: 0,
-    })
-    expect(audiDriver.trackRating).toBe(canonAudi.effectivePaceScore)
+    const audiQ2 = q2State.results.find((r) => r.teamId === 'audi')!
+    const wmsQ2 = q2State.results.find((r) => r.teamId === 'williams')!
+
+    expect(audiQ2.trackRating).toBe(86)
+    expect(wmsQ2.trackRating).toBe(70)
+    expect(audiQ2.trackRating).not.toBe(80)
+    expect(wmsQ2.trackRating).not.toBe(80)
   })
 
-  it('B-17: Q3 herda e resolve canonicalTeamKey sem carPerformance ?? 80', async () => {
+  // B-17: Q3 não usa carPerformance ?? 80
+  it('B-17: Q3 não usa carPerformance ?? 80', async () => {
     const q1Participants: QualifyingDriverInput[] = []
     for (let i = 1; i <= 24; i++) {
       const teamKey = i <= 2 ? 'mercedes' : i <= 4 ? 'ferrari' : i <= 6 ? 'mclaren' : 'williams'
-      q1Participants.push(createNeutralDriver(`drv_${i}`, teamKey, teamKey))
+      q1Participants.push(createNeutralDriver(`drv_q3_${i}`, teamKey, teamKey))
     }
 
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
-      careerId: 'career_handoff_q3',
+      careerId: 'career_b17_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       participants: q1Participants,
@@ -518,7 +515,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     })
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q2',
-      careerId: 'career_handoff_q3',
+      careerId: 'career_b17_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
@@ -526,36 +523,29 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     })
     const q3State = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q3',
-      careerId: 'career_handoff_q3',
+      careerId: 'career_b17_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
       attemptsPerPhase: 1,
     })
 
-    expect(q3State.results.length).toBe(10)
     const mercDriver = q3State.results.find((r) => r.teamId === 'mercedes')!
-    const canonMerc = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'mercedes',
-      driverId: mercDriver.driverId,
-      circuitProfile: defaultCircuitProfile,
-      setupEfficiency: 80,
-      driverAttributes: { speed: 80 },
-      noise: 0,
-    })
-    expect(mercDriver.trackRating).toBe(canonMerc.effectivePaceScore)
+    expect(mercDriver.trackRating).toBe(100)
+    expect(mercDriver.trackRating).not.toBe(80)
   })
 
-  it('B-18: SQ2 herda e resolve canonicalTeamKey sem carPerformance ?? 80', async () => {
+  // B-18: SQ2 não usa carPerformance ?? 80
+  it('B-18: SQ2 não usa carPerformance ?? 80', async () => {
     const sq1Participants: QualifyingDriverInput[] = []
     for (let i = 1; i <= 24; i++) {
       const teamKey = i <= 2 ? 'mercedes' : i <= 4 ? 'audi' : 'williams'
-      sq1Participants.push(createNeutralDriver(`drv_s_${i}`, teamKey, teamKey))
+      sq1Participants.push(createNeutralDriver(`drv_sq2_${i}`, teamKey, teamKey))
     }
 
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'SQ1',
-      careerId: 'career_handoff_sq2',
+      careerId: 'career_b18_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       participants: sq1Participants,
@@ -565,37 +555,38 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
 
     const sq2State = await raceQualifyingOrchestratorService.executePhase({
       phase: 'SQ2',
-      careerId: 'career_handoff_sq2',
+      careerId: 'career_b18_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
       attemptsPerPhase: 1,
     })
 
-    expect(sq2State.results.length).toBe(18)
-    const audiDriver = sq2State.results.find((r) => r.teamId === 'audi')!
+    const audiSQ2 = sq2State.results.find((r) => r.teamId === 'audi')!
     const canonAudi = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'audi',
-      driverId: audiDriver.driverId,
+      driverId: audiSQ2.driverId,
       circuitProfile: defaultCircuitProfile,
       setupEfficiency: 80,
       driverAttributes: { speed: 80 },
       tyreCompound: 'medio',
       noise: 0,
     })
-    expect(audiDriver.trackRating).toBe(canonAudi.effectivePaceScore)
+    expect(audiSQ2.trackRating).toBe(canonAudi.effectivePaceScore)
+    expect(audiSQ2.trackRating).not.toBe(80)
   })
 
-  it('B-19: SQ3 herda e resolve canonicalTeamKey sem carPerformance ?? 80', async () => {
+  // B-19: SQ3 não usa carPerformance ?? 80
+  it('B-19: SQ3 não usa carPerformance ?? 80', async () => {
     const sq1Participants: QualifyingDriverInput[] = []
     for (let i = 1; i <= 24; i++) {
       const teamKey = i <= 2 ? 'mercedes' : i <= 4 ? 'audi' : 'williams'
-      sq1Participants.push(createNeutralDriver(`drv_s3_${i}`, teamKey, teamKey))
+      sq1Participants.push(createNeutralDriver(`drv_sq3_${i}`, teamKey, teamKey))
     }
 
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'SQ1',
-      careerId: 'career_handoff_sq3',
+      careerId: 'career_b19_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       participants: sq1Participants,
@@ -604,7 +595,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     })
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'SQ2',
-      careerId: 'career_handoff_sq3',
+      careerId: 'career_b19_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
@@ -612,28 +603,19 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     })
     const sq3State = await raceQualifyingOrchestratorService.executePhase({
       phase: 'SQ3',
-      careerId: 'career_handoff_sq3',
+      careerId: 'career_b19_handoff',
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
       attemptsPerPhase: 1,
     })
 
-    expect(sq3State.results.length).toBe(10)
-    const mercDriver = sq3State.results.find((r) => r.teamId === 'mercedes')!
-    const canonMerc = canonicalPaceIntegrationService.computeQualifyingPace({
-      teamKey: 'mercedes',
-      driverId: mercDriver.driverId,
-      circuitProfile: defaultCircuitProfile,
-      setupEfficiency: 80,
-      driverAttributes: { speed: 80 },
-      tyreCompound: 'macio',
-      noise: 0,
-    })
-    expect(mercDriver.trackRating).toBe(canonMerc.effectivePaceScore)
+    const mercSQ3 = sq3State.results.find((r) => r.teamId === 'mercedes')!
+    expect(mercSQ3.trackRating).toBe(100)
+    expect(mercSQ3.trackRating).not.toBe(80)
   })
 
-  // B-20..B-25: Q1, Q2, Q3, SQ1, SQ2, SQ3 usam o canonical pace core
+  // B-20: Q1 usa canonical pace core
   it('B-20: Q1 usa canonical pace core', async () => {
     const spy = vi.spyOn(canonicalPaceIntegrationService, 'computeQualifyingPace')
     await raceQualifyingOrchestratorService.executePhase({
@@ -643,11 +625,13 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       round: dummyRound,
       participants: [createNeutralDriver('d1', 'mercedes', 'Mercedes')],
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 
+  // B-21: Q2 usa canonical pace core
   it('B-21: Q2 usa canonical pace core', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`d_${i}`, 'mercedes', 'Mercedes'),
@@ -659,6 +643,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       round: dummyRound,
       participants,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     const spy = vi.spyOn(canonicalPaceIntegrationService, 'computeQualifyingPace')
     await raceQualifyingOrchestratorService.executePhase({
@@ -667,11 +652,13 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 
+  // B-22: Q3 usa canonical pace core
   it('B-22: Q3 usa canonical pace core', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`d_${i}`, 'mercedes', 'Mercedes'),
@@ -683,6 +670,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       round: dummyRound,
       participants,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q2',
@@ -690,6 +678,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     const spy = vi.spyOn(canonicalPaceIntegrationService, 'computeQualifyingPace')
     await raceQualifyingOrchestratorService.executePhase({
@@ -698,11 +687,13 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 
+  // B-23: SQ1 usa canonical pace core
   it('B-23: SQ1 usa canonical pace core', async () => {
     const spy = vi.spyOn(canonicalPaceIntegrationService, 'computeQualifyingPace')
     await raceQualifyingOrchestratorService.executePhase({
@@ -712,11 +703,13 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       round: dummyRound,
       participants: [createNeutralDriver('d1', 'mercedes', 'Mercedes')],
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 
+  // B-24: SQ2 usa canonical pace core
   it('B-24: SQ2 usa canonical pace core', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`ds_${i}`, 'mercedes', 'Mercedes'),
@@ -728,6 +721,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       round: dummyRound,
       participants,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     const spy = vi.spyOn(canonicalPaceIntegrationService, 'computeQualifyingPace')
     await raceQualifyingOrchestratorService.executePhase({
@@ -736,11 +730,13 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 
+  // B-25: SQ3 usa canonical pace core
   it('B-25: SQ3 usa canonical pace core', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`ds_${i}`, 'mercedes', 'Mercedes'),
@@ -752,6 +748,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       round: dummyRound,
       participants,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     await raceQualifyingOrchestratorService.executePhase({
       phase: 'SQ2',
@@ -759,6 +756,7 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     const spy = vi.spyOn(canonicalPaceIntegrationService, 'computeQualifyingPace')
     await raceQualifyingOrchestratorService.executePhase({
@@ -767,24 +765,56 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       seasonId: dummySeason,
       round: dummyRound,
       forceBypassPracticeCheck: true,
+      attemptsPerPhase: 1,
     })
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
 
-  // B-26..B-28: setup / QExec / TrackFit não aplicados duas vezes
-  it('B-26: setup aplicado exatamente uma vez (sem qualifying_bonus_ms legado empilhado)', async () => {
-    const participants = [
-      createNeutralDriver('drv_setup', 'mercedes', 'Mercedes', {
-        setup: 90,
-      }),
-    ]
+  // B-26: setup aplicado exatamente UMA vez — fixture controlada: setupEfficiency 80 → modifier 0; acima/abaixo → exatamente o modifier canônico esperado; provar que qualifying_bonus_ms legado não duplica o efeito
+  it('B-26: setup aplicado exatamente UMA vez (setupEfficiency 80 -> 0; 90 -> +0.50; sem bônus duplicado)', async () => {
+    // 1. Prova do modificador canônico unitário no canonicalPaceIntegrationService
+    const neutralSetup = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'mercedes',
+      driverId: 'drv_setup_80',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 80,
+      driverAttributes: { speed: 80 },
+      noise: 0,
+    })
+    expect(neutralSetup.breakdown.setupModifier).toBe(0.0)
+
+    const highSetup = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'mercedes',
+      driverId: 'drv_setup_90',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 90,
+      driverAttributes: { speed: 80 },
+      noise: 0,
+    })
+    expect(highSetup.breakdown.setupModifier).toBeCloseTo(0.5, 3) // (90 - 80) * 0.05 = +0.5 pts
+
+    const lowSetup = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'mercedes',
+      driverId: 'drv_setup_70',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 70,
+      driverAttributes: { speed: 80 },
+      noise: 0,
+    })
+    expect(lowSetup.breakdown.setupModifier).toBeCloseTo(-0.5, 3) // (70 - 80) * 0.05 = -0.5 pts
+
+    // 2. Prova de que no orchestrator o qualifying_bonus_ms legado é 0 e não se duplica aos tempos
     const state = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
-      careerId: 'career_b26',
+      careerId: 'career_b26_single_setup',
       seasonId: dummySeason,
       round: dummyRound,
-      participants,
+      participants: [
+        createNeutralDriver('drv_setup_test', 'mercedes', 'Mercedes', {
+          setup: 90,
+        }),
+      ],
       forceBypassPracticeCheck: true,
       attemptsPerPhase: 1,
     })
@@ -793,7 +823,8 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(res.attempts[0].bonusMs).toBe(0)
   })
 
-  it('B-27: QExec aplicado uma única vez via canonical pace core', () => {
+  // B-27: QExec aplicado exatamente UMA vez — não pode coexistir QExec canônico + effective_driver legado
+  it('B-27: QExec aplicado exatamente UMA vez — sem coexistência com effective_driver legado', () => {
     const pace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'audi',
       driverId: 'drv_qexec',
@@ -802,10 +833,32 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       setupEfficiency: 80,
       noise: 0,
     })
-    expect(pace.breakdown.driverEventModifier).toBeDefined()
+    const b = pace.breakdown
+    expect(b.driverEventModifier).toBeDefined()
+
+    // Soma exata dos modificadores canônicos comprova single-application
+    const expectedPace = Number(
+      (
+        b.structuralStrength +
+        b.trackFitModifier +
+        b.setupModifier +
+        b.driverEventModifier +
+        b.tyreModifier +
+        b.fuelModifier +
+        b.wearModifier +
+        b.weatherModifier +
+        b.rngModifier
+      ).toFixed(2),
+    )
+    expect(pace.effectivePaceScore).toBe(expectedPace)
+    // Se estivesse duplicado:
+    expect(pace.effectivePaceScore).not.toBe(
+      Number((expectedPace + b.driverEventModifier).toFixed(2)),
+    )
   })
 
-  it('B-28: TrackFit normalizado aplicado uma única vez via canonical core', () => {
+  // B-28: TrackFit aplicado exatamente UMA vez — sem track bonus externo paralelo
+  it('B-28: TrackFit normalizado aplicado exatamente UMA vez — sem track bonus externo paralelo', () => {
     const pace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: 'audi',
       driverId: 'drv_tf',
@@ -814,11 +867,27 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       driverAttributes: { speed: 80 },
       noise: 0,
     })
-    expect(pace.breakdown.trackFitModifier).toBeDefined()
+    const b = pace.breakdown
+    expect(b.trackFitModifier).toBeDefined()
+    const expectedPace = Number(
+      (
+        b.structuralStrength +
+        b.trackFitModifier +
+        b.setupModifier +
+        b.driverEventModifier +
+        b.tyreModifier +
+        b.fuelModifier +
+        b.wearModifier +
+        b.weatherModifier +
+        b.rngModifier
+      ).toFixed(2),
+    )
+    expect(pace.effectivePaceScore).toBe(expectedPace)
+    expect(pace.effectivePaceScore).not.toBe(Number((expectedPace + b.trackFitModifier).toFixed(2)))
   })
 
-  // B-29: bestTimeMs deriva do lap time da tentativa
-  it('B-29: bestTimeMs deriva do lap time da tentativa (Math.round(lapTimeSec * 1000))', async () => {
+  // B-29: bestTimeMs persistido deriva do lap time produzido pela tentativa canônica
+  it('B-29: bestTimeMs persistido deriva do lap time produzido pela tentativa canônica', async () => {
     const participants = [createNeutralDriver('drv_time', 'mercedes', 'Mercedes')]
     const state = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
@@ -835,8 +904,8 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(res.bestTimeMs).toBeLessThan(120000)
   })
 
-  // B-30: sorting menor bestTimeMs → melhor posição
-  it('B-30: ordenação determinística: menor bestTimeMs obtém melhor posição', async () => {
+  // B-30: sorting: menor bestTimeMs → melhor posição
+  it('B-30: sorting: menor bestTimeMs → melhor posição (P1 vence P2)', async () => {
     const participants = [
       createNeutralDriver('drv_slow', 'williams', 'Williams'),
       createNeutralDriver('drv_fast', 'mercedes', 'Mercedes'),
@@ -854,10 +923,11 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(state.results[0].position).toBe(1)
     expect(state.results[1].driverId).toBe('drv_slow')
     expect(state.results[1].position).toBe(2)
+    expect(state.results[0].bestTimeMs).toBeLessThan(state.results[1].bestTimeMs)
   })
 
-  // B-31..B-34: Q1→Q2, Q2→Q3, SQ1→SQ2, SQ2→SQ3 mantêm classificados corretos
-  it('B-31: Q1→Q2 mantém classificados corretos (top 18 avançam)', async () => {
+  // B-31: Q1→Q2 classificados corretos avançam, identidade driverId + canonicalTeamKey preservada
+  it('B-31: Q1→Q2 classificados corretos avançam, identidade driverId + canonicalTeamKey preservada', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`d_${i + 1}`, i < 18 ? 'mercedes' : 'andretti', 'Team'),
     )
@@ -884,10 +954,12 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(q2.totalParticipants).toBe(18)
     for (const res of q2.results) {
       expect(q1.classifiedDriverIds).toContain(res.driverId)
+      expect(res.teamId).toBe('mercedes')
     }
   })
 
-  it('B-32: Q2→Q3 mantém classificados corretos (top 10 avançam)', async () => {
+  // B-32: Q2→Q3 idem
+  it('B-32: Q2→Q3 classificados corretos avançam, identidade driverId + canonicalTeamKey preservada', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`d_${i + 1}`, i < 10 ? 'mercedes' : 'andretti', 'Team'),
     )
@@ -921,10 +993,12 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(q3.totalParticipants).toBe(10)
     for (const res of q3.results) {
       expect(q2.classifiedDriverIds).toContain(res.driverId)
+      expect(res.teamId).toBe('mercedes')
     }
   })
 
-  it('B-33: SQ1→SQ2 mantém classificados corretos (top 18 avançam)', async () => {
+  // B-33: SQ1→SQ2 idem
+  it('B-33: SQ1→SQ2 classificados corretos avançam, identidade driverId + canonicalTeamKey preservada', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`ds_${i + 1}`, i < 18 ? 'mercedes' : 'andretti', 'Team'),
     )
@@ -950,10 +1024,12 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(sq2.totalParticipants).toBe(18)
     for (const res of sq2.results) {
       expect(sq1.classifiedDriverIds).toContain(res.driverId)
+      expect(res.teamId).toBe('mercedes')
     }
   })
 
-  it('B-34: SQ2→SQ3 mantém classificados corretos (top 10 avançam)', async () => {
+  // B-34: SQ2→SQ3 idem
+  it('B-34: SQ2→SQ3 classificados corretos avançam, identidade driverId + canonicalTeamKey preservada', async () => {
     const participants = Array.from({ length: 24 }, (_, i) =>
       createNeutralDriver(`ds_${i + 1}`, i < 10 ? 'mercedes' : 'andretti', 'Team'),
     )
@@ -987,11 +1063,12 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(sq3.totalParticipants).toBe(10)
     for (const res of sq3.results) {
       expect(sq2.classifiedDriverIds).toContain(res.driverId)
+      expect(res.teamId).toBe('mercedes')
     }
   })
 
-  // B-35/B-36: persistência main e sprint qualifying continuam idempotentes
-  it('B-35: reexecução de Q1 devolve exatamente o mesmo estado sem novo RNG', async () => {
+  // B-35: main qualifying persistence idempotente (reexecutar mesma fase/tentativa não duplica nem altera resultado indevidamente)
+  it('B-35: main qualifying persistence idempotente (reexecutar não duplica nem altera resultado)', async () => {
     const participants = [createNeutralDriver('d1', 'mercedes', 'Mercedes')]
     const state1 = await raceQualifyingOrchestratorService.executePhase({
       phase: 'Q1',
@@ -1015,9 +1092,12 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(state1.results[0].attempts[0].normalDrawZ).toBe(
       state2.results[0].attempts[0].normalDrawZ,
     )
+    expect(state1.results.length).toBe(1)
+    expect(state2.results.length).toBe(1)
   })
 
-  it('B-36: reexecução de SQ1 devolve exatamente o mesmo estado sem novo RNG', async () => {
+  // B-36: sprint qualifying persistence idempotente; SQ1/SQ2/SQ3 compatíveis com fluxo Sprint homologado
+  it('B-36: sprint qualifying persistence idempotente; SQ1/SQ2/SQ3 compatíveis com fluxo Sprint homologado', async () => {
     const participants = [createNeutralDriver('ds1', 'mercedes', 'Mercedes')]
     const state1 = await raceQualifyingOrchestratorService.executePhase({
       phase: 'SQ1',
@@ -1041,38 +1121,15 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     expect(state1.results[0].attempts[0].normalDrawZ).toBe(
       state2.results[0].attempts[0].normalDrawZ,
     )
+    expect(state1.variant).toBe('SPRINT_QUALIFYING')
+    expect(state2.variant).toBe('SPRINT_QUALIFYING')
   })
 
-  // REAL DRIVER CHECK — Prova dos pilotos reais
-  it('REAL DRIVER CHECK: 8 pilotos reais e suas métricas canônicas', () => {
-    const driversToCheck = [
-      { name: 'Sainz', id: 'carlos_sainz', team: 'williams' },
-      { name: 'Albon', id: 'alex_albon', team: 'williams' },
-      { name: 'Hülkenberg', id: 'nico_hulkenberg', team: 'audi' },
-      { name: 'Bortoleto', id: 'gabriel_bortoleto', team: 'audi' },
-      { name: 'Ocon', id: 'esteban_ocon', team: 'haas' },
-      { name: 'Bearman', id: 'oliver_bearman', team: 'haas' },
-      { name: 'Pérez', id: 'sergio_perez', team: 'cadillac' },
-      { name: 'Bottas', id: 'valtteri_bottas', team: 'cadillac' },
-    ]
-
-    for (const d of driversToCheck) {
-      const pace = canonicalPaceIntegrationService.computeQualifyingPace({
-        teamKey: d.team,
-        driverId: d.id,
-        circuitProfile: defaultCircuitProfile,
-        setupEfficiency: 80,
-        driverAttributes: { speed: 82, morale: 80 },
-        noise: 0,
-      })
-      expect(pace.breakdown.structuralStrength).toBeGreaterThan(0)
-      expect(pace.lapTimeSec).toBeGreaterThan(70)
-    }
-  })
-
-  // NEUTRAL FIXTURE — Prova das 12 âncoras exatas
-  it('NEUTRAL FIXTURE: as 12 equipes produzem as 12 âncoras estruturais sem interferência', () => {
-    const expectedScores = {
+  // =========================================================================
+  // FIXTURE NEUTRA OBRIGATÓRIA (TABELA E PROVA DAS 12 ÂNCORAS)
+  // =========================================================================
+  it('FIXTURE NEUTRA OBRIGATÓRIA: gera tabela TEAM / STRUCTURAL / FINAL NEUTRAL PACE / LAP TIME / DELTA TO MERCEDES / RANK', () => {
+    const expectedAnchors: Record<string, number> = {
       mercedes: 100,
       ferrari: 98,
       mclaren: 96,
@@ -1087,16 +1144,157 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
       andretti: 45,
     }
 
-    for (const [team, expectedScore] of Object.entries(expectedScores)) {
+    const neutralResults: Array<{
+      team: string
+      structural: number
+      finalNeutralPace: number
+      lapTime: number
+      deltaToMercedes: number
+      rank: number
+    }> = []
+
+    const mercPace = canonicalPaceIntegrationService.computeQualifyingPace({
+      teamKey: 'mercedes',
+      driverId: 'neutral_merc',
+      circuitProfile: defaultCircuitProfile,
+      setupEfficiency: 80,
+      driverAttributes: { speed: 80, rain: 80, morale: 80 },
+      noise: 0,
+    })
+
+    for (const [team, expectedScore] of Object.entries(expectedAnchors)) {
       const pace = canonicalPaceIntegrationService.computeQualifyingPace({
         teamKey: team,
-        driverId: `drv_${team}`,
+        driverId: `neutral_${team}`,
         circuitProfile: defaultCircuitProfile,
         setupEfficiency: 80,
         driverAttributes: { speed: 80, rain: 80, morale: 80 },
         noise: 0,
       })
+
       expect(pace.breakdown.structuralStrength).toBe(expectedScore)
+      expect(pace.breakdown.setupModifier).toBe(0)
+      expect(pace.breakdown.rngModifier).toBe(0)
+      expect(pace.effectivePaceScore).toBe(expectedScore)
+
+      const deltaSec = pace.lapTimeSec - mercPace.lapTimeSec
+
+      neutralResults.push({
+        team,
+        structural: pace.breakdown.structuralStrength,
+        finalNeutralPace: pace.effectivePaceScore,
+        lapTime: pace.lapTimeSec,
+        deltaToMercedes: Number(deltaSec.toFixed(3)),
+        rank: 0,
+      })
     }
+
+    // Ordenação estrita por menor lapTime (ou maior pace)
+    neutralResults.sort((a, b) => a.lapTime - b.lapTime)
+    neutralResults.forEach((r, idx) => {
+      r.rank = idx + 1
+    })
+
+    // Imprime tabela formatada para logs e relatórios
+    console.table(neutralResults)
+
+    // Validações da hierarquia emergente pura
+    expect(neutralResults[0].team).toBe('mercedes')
+    expect(neutralResults[0].rank).toBe(1)
+    expect(neutralResults[neutralResults.length - 1].team).toBe('andretti')
+    expect(neutralResults[neutralResults.length - 1].rank).toBe(12)
+
+    // Audi e Williams
+    const audiRow = neutralResults.find((r) => r.team === 'audi')!
+    const wmsRow = neutralResults.find((r) => r.team === 'williams')!
+    expect(audiRow.structural).toBe(86)
+    expect(wmsRow.structural).toBe(70)
+    expect(Number((wmsRow.lapTime - audiRow.lapTime).toFixed(3))).toBeCloseTo(1.312, 3)
+  })
+
+  // =========================================================================
+  // REAL DRIVER CHECK (8 PILOTOS REAIS)
+  // =========================================================================
+  it('REAL DRIVER CHECK: Carlos Sainz, Alex Albon, Nico Hülkenberg, Gabriel Bortoleto, Esteban Ocon, Oliver Bearman, Sergio Pérez, Valtteri Bottas', () => {
+    const realDrivers = [
+      { name: 'Carlos Sainz', id: 'driver_carlos_sainz', team: 'williams', speed: 86 },
+      { name: 'Alex Albon', id: 'driver_alexander_albon', team: 'williams', speed: 83 },
+      { name: 'Nico Hülkenberg', id: 'driver_nico_hulkenberg', team: 'audi', speed: 83 },
+      { name: 'Gabriel Bortoleto', id: 'driver_gabriel_bortoleto', team: 'audi', speed: 83 },
+      { name: 'Esteban Ocon', id: 'driver_esteban_ocon', team: 'haas', speed: 82 },
+      { name: 'Oliver Bearman', id: 'driver_oliver_bearman', team: 'haas', speed: 81 },
+      { name: 'Sergio Pérez', id: 'driver_sergio_perez', team: 'cadillac', speed: 79 },
+      { name: 'Valtteri Bottas', id: 'driver_valtteri_bottas', team: 'cadillac', speed: 79 },
+    ]
+
+    const realReport: Array<{
+      driver: string
+      team: string
+      structural: number
+      qExec: number
+      trackFit: number
+      setup: number
+      rng: number
+      finalPace: number
+      lap: number
+    }> = []
+
+    for (const d of realDrivers) {
+      const pace = canonicalPaceIntegrationService.computeQualifyingPace({
+        teamKey: d.team,
+        driverId: d.id,
+        circuitProfile: defaultCircuitProfile,
+        setupEfficiency: 80,
+        driverAttributes: { speed: d.speed, morale: 80 },
+        noise: 0,
+      })
+
+      const b = pace.breakdown
+      realReport.push({
+        driver: d.name,
+        team: d.team,
+        structural: b.structuralStrength,
+        qExec: b.driverEventModifier,
+        trackFit: b.trackFitModifier,
+        setup: b.setupModifier,
+        rng: b.rngModifier,
+        finalPace: pace.effectivePaceScore,
+        lap: pace.lapTimeSec,
+      })
+
+      // Validações estruturais obrigatórias
+      if (d.team === 'williams') {
+        expect(b.structuralStrength).toBe(70)
+      } else if (d.team === 'audi') {
+        expect(b.structuralStrength).toBe(86)
+      } else if (d.team === 'haas') {
+        expect(b.structuralStrength).toBe(75)
+      } else if (d.team === 'cadillac') {
+        expect(b.structuralStrength).toBe(50)
+      }
+    }
+
+    console.table(realReport)
+
+    // Sainz e Albon na Williams (70): provar que Sainz (speed 86) tem lapTime ligeiramente melhor que Albon (speed 83)
+    const sainz = realReport.find((r) => r.driver === 'Carlos Sainz')!
+    const albon = realReport.find((r) => r.driver === 'Alex Albon')!
+    expect(sainz.structural).toBe(70)
+    expect(albon.structural).toBe(70)
+    expect(sainz.finalPace).toBeGreaterThan(albon.finalPace)
+    expect(sainz.lap).toBeLessThan(albon.lap)
+
+    // Audi (86): Hülkenberg (exp 250) vs Bortoleto (exp 24, speed 83)
+    const hul = realReport.find((r) => r.driver === 'Nico Hülkenberg')!
+    const bor = realReport.find((r) => r.driver === 'Gabriel Bortoleto')!
+    expect(hul.structural).toBe(86)
+    expect(bor.structural).toBe(86)
+    expect(hul.qExec).toBeGreaterThan(bor.qExec) // maior experiência F1 produz qExec superior
+
+    // Cadillac (50): Pérez e Bottas
+    const perez = realReport.find((r) => r.driver === 'Sergio Pérez')!
+    const bottas = realReport.find((r) => r.driver === 'Valtteri Bottas')!
+    expect(perez.structural).toBe(50)
+    expect(bottas.structural).toBe(50)
   })
 })
