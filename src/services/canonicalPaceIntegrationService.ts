@@ -23,7 +23,6 @@ import {
   PaceIntegrationAuditResult,
 } from '@/types/pace-integration'
 import { structuralStrengthService } from '@/services/structuralStrengthService'
-import { resolveCanonicalTeamKey } from '@/services/canonicalTeamIdentityService'
 import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
 import { calculateTrackFit } from '@/lib/car-session-performance-engine'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
