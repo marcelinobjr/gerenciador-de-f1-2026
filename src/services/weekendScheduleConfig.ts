@@ -301,6 +301,20 @@ export function resolveSessionVisualState(params: {
  * Função auxiliar canônica que avalia se uma sessão está desbloqueada dadas as sessões concluídas normalizadas.
  * Exportada para testes e validação formal de gates.
  */
+/**
+ * Determina se um ID de sessão é uma fase de qualificação canônica (Q1-Q3 ou SQ1-SQ3).
+ */
+export function isQualifyingStage(sessionId: string): boolean {
+  return (
+    sessionId === 'q1' ||
+    sessionId === 'q2' ||
+    sessionId === 'q3' ||
+    sessionId === 'sq1' ||
+    sessionId === 'sq2' ||
+    sessionId === 'sq3'
+  )
+}
+
 export function isSessionUnlocked(
   sessionId: RaceWeekendSessionId,
   normalizedCompleted: string[],

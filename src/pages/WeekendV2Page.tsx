@@ -65,6 +65,7 @@ import {
   type RaceWeekendSessionId,
   type WeekendSessionDefinition,
   resolveSessionVisualState,
+  isQualifyingStage,
 } from '@/services/weekendScheduleConfig'
 import { normalizeCompletedSessions } from '@/services/weekendProgressionService'
 import {
@@ -324,7 +325,10 @@ export default function WeekendV2Page() {
         } else if (
           initialSessionId === 'q1' ||
           initialSessionId === 'q2' ||
-          initialSessionId === 'q3'
+          initialSessionId === 'q3' ||
+          initialSessionId === 'sq1' ||
+          initialSessionId === 'sq2' ||
+          initialSessionId === 'sq3'
         ) {
           initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
         } else if (initialSessionId === 'race') {
@@ -636,9 +640,9 @@ export default function WeekendV2Page() {
       setSelectedSessionId(sess)
       setSessionState(null)
       try {
-        await initializeQualifyingSession(sess as any, registration, invs)
-      } catch {
-        // Fallback tolerante se modelo de stage divergir
+        await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
+      } catch (e) {
+        console.warn('[WeekendV2Page] Falha ao inicializar SQ:', e)
       }
     } else {
       // CORRIDA: se Q3 concluído, exibe o grid final P1-P24 ou placeholder
@@ -1181,8 +1185,7 @@ export default function WeekendV2Page() {
 
   // 7. Controles de Play / Pause (Treino Livre ou Qualificação)
   const handleTogglePlay = () => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState) return
@@ -1244,8 +1247,7 @@ export default function WeekendV2Page() {
 
   // Loop contínuo de simulação (TL ou Qualificação)
   useEffect(() => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (!isAutoAdvancing) {
       if (autoAdvanceIntervalRef.current) {
@@ -1546,6 +1548,12 @@ export default function WeekendV2Page() {
         title: 'Classificação Concluída — Grid Formado!',
         description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
       })
+    } else if (stageId === 'sq3' || stageId === 'sq1') {
+      // Desbloqueia sprint_race ao concluir qualificação sprint
+      toast({
+        title: `Fase ${stageId.toUpperCase()} Concluída`,
+        description: `Qualificação Sprint finalizada. A Corrida Sprint está disponível!`,
+      })
     } else {
       toast({
         title: `Fase ${stageId.toUpperCase()} Concluída`,
@@ -1556,8 +1564,7 @@ export default function WeekendV2Page() {
 
   // Controles: +1 MIN / +5 MIN (Treino Livre ou Qualificação)
   const handleAdvanceStep = (minutes: 1 | 5) => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState || !qualifyingTickContext) return
@@ -1646,8 +1653,7 @@ export default function WeekendV2Page() {
 
   // Controle: SIMULAR RESTANTE (Treino Livre ou Qualificação)
   const handleSimulateRemaining = () => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState || !qualifyingTickContext) return
@@ -1852,8 +1858,7 @@ export default function WeekendV2Page() {
 
   // Ações de Carro: Sair para a pista (Treino ou Qualificação)
   const handleOrderExit = (carId: 'car1' | 'car2') => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState) return
@@ -1897,8 +1902,7 @@ export default function WeekendV2Page() {
 
   // Ações de Carro: Chamar aos boxes (Treino ou Qualificação)
   const handleRequestBox = (carId: 'car1' | 'car2') => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState) return
@@ -1935,8 +1939,7 @@ export default function WeekendV2Page() {
 
   // Reacerto de Carro na garagem (Treino ou Qualificação)
   const handleApplyCarSetup = (carId: 'car1' | 'car2', newSetup: PracticeCarLiveState['setup']) => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState) return
@@ -1991,8 +1994,7 @@ export default function WeekendV2Page() {
 
   // Reabastecimento na garagem durante treino livre ou qualificação
   const handleUpdateFuelInPractice = (carId: 'car1' | 'car2', kg: number) => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState) return
@@ -2020,8 +2022,7 @@ export default function WeekendV2Page() {
 
   // Troca de Pneus na Garagem (Treino ou Qualificação)
   const handleSelectTyreSet = (carId: 'car1' | 'car2', tyreSetId: string) => {
-    const isQuali =
-      selectedSessionId === 'q1' || selectedSessionId === 'q2' || selectedSessionId === 'q3'
+    const isQuali = isQualifyingStage(selectedSessionId)
 
     const targetCar = isQuali ? qualifyingState?.cars[carId] : sessionState?.cars[carId]
     if (!targetCar) return
@@ -2170,7 +2171,10 @@ export default function WeekendV2Page() {
       } else if (
         initialSessionId === 'q1' ||
         initialSessionId === 'q2' ||
-        initialSessionId === 'q3'
+        initialSessionId === 'q3' ||
+        initialSessionId === 'sq1' ||
+        initialSessionId === 'sq2' ||
+        initialSessionId === 'sq3'
       ) {
         initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
       }
@@ -2266,13 +2270,7 @@ export default function WeekendV2Page() {
     selectedSessionDef.id === 'tp2' ||
     selectedSessionDef.id === 'tp3'
 
-  const isQualifyingSession =
-    selectedSessionDef.id === 'q1' ||
-    selectedSessionDef.id === 'q2' ||
-    selectedSessionDef.id === 'q3' ||
-    selectedSessionDef.id === 'sq1' ||
-    selectedSessionDef.id === 'sq2' ||
-    selectedSessionDef.id === 'sq3'
+  const isQualifyingSession = isQualifyingStage(selectedSessionDef.id)
 
   const isRaceSession = selectedSessionDef.id === 'race'
 

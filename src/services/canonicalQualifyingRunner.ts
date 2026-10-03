@@ -132,12 +132,18 @@ export class CanonicalQualifyingRunner {
     const nowIso = new Date().toISOString()
 
     const isCar1Eligible =
-      stageId === 'q1' ? true : eligibleParticipants.some((p) => p.id === playerCar1.driverId)
+      stageId === 'q1' || stageId === 'sq1'
+        ? true
+        : eligibleParticipants.some((p) => p.id === playerCar1.driverId)
     const isCar2Eligible =
-      stageId === 'q1' ? true : eligibleParticipants.some((p) => p.id === playerCar2.driverId)
+      stageId === 'q1' || stageId === 'sq1'
+        ? true
+        : eligibleParticipants.some((p) => p.id === playerCar2.driverId)
 
-    const car1EliminationStage = !isCar1Eligible ? (stageId === 'q2' ? 'q1' : 'q2') : undefined
-    const car2EliminationStage = !isCar2Eligible ? (stageId === 'q2' ? 'q1' : 'q2') : undefined
+    const parentStage =
+      stageId === 'sq2' ? 'sq1' : stageId === 'sq3' ? 'sq2' : stageId === 'q2' ? 'q1' : 'q2'
+    const car1EliminationStage = !isCar1Eligible ? parentStage : undefined
+    const car2EliminationStage = !isCar2Eligible ? parentStage : undefined
 
     const car1State: QualifyingCarState = {
       carId: 'car1',
