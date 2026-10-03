@@ -963,9 +963,11 @@ export class RaceQualifyingOrchestratorService {
     )
 
     // 5. PROCESSAMENTO DE CADA PARTICIPANTE (CANÔNICO ABSOLUTO: computeQualifyingPace)
-    // QUALI-UNIFY-01B: orquestrador consome canonicalPaceIntegrationService como único motor de performance
+    // QUALI-UNIFY-01B1: orquestrador consome canonicalPaceIntegrationService como único motor de performance
+    // Sem teams.strength / Sem 0.65x0.35 / Sem min-max 2500ms / Sem carPerformance ?? 80
     const circuitProfile = resolveCircuitProfile({ round })
     const isWetCondition = Boolean(wet)
+    // INSPECT_CHECKPOINT_1
     const effectiveAttemptsPerPhase = attemptsPerPhase ?? 1
 
     const results: QualifyingParticipantResult[] = []
