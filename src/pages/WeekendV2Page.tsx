@@ -549,65 +549,6 @@ export default function WeekendV2Page() {
     setIsAutoAdvancing(false)
   }
 
-  // Helper para resolver o grid canônico de qualificação (Sprint deriva de SQ1; Corrida principal de readCompleteQualifyingResult)
-  const resolveRaceOrSprintGrid = (
-    seasonId: string,
-    round: number,
-    isSprint: boolean,
-  ): CompleteQualifyingWeekendResult | null => {
-    if (isSprint) {
-      const sq1Stage = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
-      if (sq1Stage && sq1Stage.entries && sq1Stage.entries.length > 0) {
-        // Constrói o grid canônico P1-P24 a partir da SQ1
-        const sortedEntries = [...sq1Stage.entries].sort((a, b) => {
-          if (a.bestLapSec > 0 && b.bestLapSec > 0) {
-            if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
-            return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
-          }
-          if (a.bestLapSec > 0) return -1
-          if (b.bestLapSec > 0) return 1
-          return 0
-        })
-
-        const finalGrid: FinalQualifyingGridEntry[] = sortedEntries.map((e, idx) => ({
-          gridPosition: idx + 1,
-          driverId: e.driverId,
-          driverName: e.driverName,
-          teamId: e.teamId,
-          teamName: e.teamName,
-          teamColor: e.teamColor,
-          isPlayer: e.isPlayer,
-          carId: e.carId,
-          eliminationStage: 'Q1',
-          bestLapSec: e.bestLapSec,
-          bestLapTime: e.bestLapTime,
-          bestLapCompound: e.compound,
-          tyreSetId: e.tyreSetId,
-          q1LapTime: e.bestLapTime,
-          q2LapTime: undefined,
-          q3LapTime: undefined,
-        }))
-
-        const pole = finalGrid[0]
-
-        return {
-          seasonId,
-          round,
-          completedAt: sq1Stage.completedAt || new Date().toISOString(),
-          poleDriverId: pole?.driverId || '',
-          poleDriverName: pole?.driverName || '',
-          poleLapTime: pole?.bestLapTime || '--:--.---',
-          q1Result: sq1Stage,
-          q2Result: undefined as any,
-          q3Result: undefined as any,
-          finalGrid,
-        }
-      }
-    }
-
-    return canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round)
-  }
-
   // 5. Selecionar Sessão na Esteira Canônica
   const handleSelectSessionFromSchedule = async (sessDef: WeekendSessionDefinition) => {
     if (!registration || !team || !season) return

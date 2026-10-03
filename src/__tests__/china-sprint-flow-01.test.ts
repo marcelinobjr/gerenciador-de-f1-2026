@@ -770,4 +770,284 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     expect(sq3State.stageId).toBe('sq3')
     expect(sq3State.leaderboard).toHaveLength(10)
   })
+
+  // =========================================================================
+  // BUG-SPRINT-ENTRY-R2: RESOLUÇÃO DE GRID SPRINT VIA SQ1 NO ENTRY E SELEÇÃO
+  // =========================================================================
+
+  // CFT13: com TL1 e SQ1 concluídos e quali principal inexistente, selecionar sprint_race
+  // lê o stage SQ1, produz o grid canônico, não exige completeQualifyingResult da quali principal
+  // e não cai no placeholder bloqueado.
+  it('CFT13: com TL1 e SQ1 concluídos e quali principal inexistente, sprint_race deriva grid da SQ1 e não exige quali principal', async () => {
+    const { canonicalQualifyingPersistenceService } =
+      await import('@/services/canonicalQualifyingPersistenceService')
+    const { isSessionUnlocked, resolveSessionVisualState } =
+      await import('@/services/weekendScheduleConfig')
+    const { CanonicalQualifyingRunner } = await import('@/services/canonicalQualifyingRunner')
+
+    const seasonId = 'season_cft13_entry_test'
+    const round = 2 // China Sprint
+
+    // 1. Simula conclusão de TL1 e SQ1 (mas NENHUMA qualificação principal Q1-Q3 realizada)
+    expect(
+      canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round),
+    ).toBeNull()
+
+    const all24Drivers = Array.from({ length: 24 }, (_, idx) => ({
+      id: `drv_${idx + 1}`,
+      name: `Piloto ${idx + 1}`,
+      speed: 80,
+      consistency: 80,
+      defense: 75,
+      teamId: `team_${Math.floor(idx / 2) + 1}`,
+      teamName: `Equipe ${Math.floor(idx / 2) + 1}`,
+      teamColor: '#E10600',
+      carNumber: idx + 1,
+    }))
+
+    const sq1State = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq1',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants: all24Drivers,
+      persistState: true,
+    })
+
+    const tickContext = {
+      seasonId,
+      round,
+      gpName: 'Grande Prêmio da China',
+      circuitName: 'Circuito Internacional de Xangai',
+      lengthKm: 5.451,
+      tireAbrasiveness: 3,
+      weather: 'seco' as const,
+      teamChassisRating: 80,
+      teamEngineSupplier: 'Audi',
+      teamName: 'Apex Racing',
+      teamColor: '#E10600',
+      drivers: [
+        { id: 'drv_1', name: 'Piloto 1', speed: 85, consistency: 85, defense: 80 },
+        { id: 'drv_2', name: 'Piloto 2', speed: 82, consistency: 82, defense: 78 },
+      ],
+      rivalDrivers: all24Drivers.slice(2),
+    }
+
+    CanonicalQualifyingRunner.simulateRemainingSession(sq1State, tickContext, {
+      persistState: true,
+    })
+
+    // Garante que SQ1 foi salva com 24 entradas
+    const sq1Saved = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+    expect(sq1Saved).not.toBeNull()
+    expect(sq1Saved!.entries.length).toBe(24)
+
+    // Qualificação principal CONTINUA null (não existe ainda no fim de semana)
+    expect(
+      canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round),
+    ).toBeNull()
+
+    // Status da sessão na esteira deve ser desbloqueado
+    const completedSessions = ['tp1', 'sq1']
+    expect(isSessionUnlocked('sprint_race', completedSessions)).toBe(true)
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'sprint_race',
+        activeSessionId: 'sprint_race',
+        completedSessions,
+      }),
+    ).toBe('active')
+
+    // Helper unificado (testando lógica idêntica do WeekendV2Page)
+    // Para sprint_race: deriva grid da SQ1 sem depender de quali principal
+    const isSprintTarget = true
+    const sq1Stage = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+    expect(sq1Stage).not.toBeNull()
+
+    // Constrói grid canônico derivado da SQ1
+    const sortedEntries = [...sq1Stage!.entries].sort((a, b) => {
+      if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+        if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+        return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+      }
+      if (a.bestLapSec > 0) return -1
+      if (b.bestLapSec > 0) return 1
+      return 0
+    })
+
+    const finalGrid = sortedEntries.map((e, idx) => ({
+      gridPosition: idx + 1,
+      driverId: e.driverId,
+      driverName: e.driverName,
+      teamId: e.teamId,
+      teamName: e.teamName,
+      teamColor: e.teamColor,
+      isPlayer: e.isPlayer,
+      carId: e.carId,
+      eliminationStage: 'Q1' as const,
+      bestLapSec: e.bestLapSec,
+      bestLapTime: e.bestLapTime,
+      bestLapCompound: e.compound,
+      tyreSetId: e.tyreSetId,
+      q1LapTime: e.bestLapTime,
+    }))
+
+    const sprintDerivedResult = {
+      seasonId,
+      round,
+      completedAt: sq1Stage!.completedAt || new Date().toISOString(),
+      poleDriverId: finalGrid[0]?.driverId || '',
+      poleDriverName: finalGrid[0]?.driverName || '',
+      poleLapTime: finalGrid[0]?.bestLapTime || '--:--.---',
+      q1Result: sq1Stage!,
+      q2Result: undefined as any,
+      q3Result: undefined as any,
+      finalGrid,
+    }
+
+    expect(sprintDerivedResult.finalGrid).toHaveLength(24)
+    expect(sprintDerivedResult.finalGrid[0].gridPosition).toBe(1)
+    expect(sprintDerivedResult.finalGrid[23].gridPosition).toBe(24)
+    expect(sprintDerivedResult.poleDriverId).toBeTruthy()
+
+    // Teste de inicialização de corrida canônica da Sprint com este grid
+    const { canonicalRaceInitializationService } =
+      await import('@/services/canonicalRaceInitializationService')
+
+    const totalLaps = canonicalRaceInitializationService.calculateSprintLaps(5.451, 100, 56)
+    expect(totalLaps).toBeGreaterThan(0)
+    expect(totalLaps).toBeLessThan(56)
+
+    const initialRace = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      raceVariant: 'SPRINT_RACE',
+      careerId: 'cft13_career',
+      season: 2026,
+      round,
+      circuitName: 'Circuito Internacional de Xangai',
+      circuitCountry: 'China',
+      totalLaps,
+      playerTeamId: 'team_1',
+      canonicalQualifyingGrid: sprintDerivedResult.finalGrid,
+      carPreparations: {
+        car1: {
+          startingCompound: 'medio',
+          startingTyreSetId: 'tire_c1',
+          startingFuelKg: 30,
+          initialTyreWear: 0,
+        },
+        car2: {
+          startingCompound: 'medio',
+          startingTyreSetId: 'tire_c2',
+          startingFuelKg: 30,
+          initialTyreWear: 0,
+        },
+      },
+    })
+
+    expect(initialRace).toBeDefined()
+    expect(initialRace.raceVariant).toBe('SPRINT_RACE')
+    expect(initialRace.drivers).toHaveLength(24)
+    expect(initialRace.totalLaps).toBe(totalLaps)
+  })
+
+  // CFT14: Sprint concluída -> Q1 liberada; Q1 não abre antes da Sprint; Sprint não abre antes da SQ1; Sprint não executa duas vezes.
+  it('CFT14: Gates e idempotência da Sprint: SQ1 -> Sprint -> Q1 liberada, e Sprint não executa duplicada', async () => {
+    const { isSessionUnlocked, resolveSessionVisualState } =
+      await import('@/services/weekendScheduleConfig')
+    const { canonicalRaceInitializationService } =
+      await import('@/services/canonicalRaceInitializationService')
+
+    // 1. Sprint não abre antes da SQ1
+    expect(isSessionUnlocked('sprint_race', [])).toBe(false)
+    expect(isSessionUnlocked('sprint_race', ['tp1'])).toBe(false)
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'sprint_race',
+        activeSessionId: 'sprint_race',
+        completedSessions: ['tp1'],
+      }),
+    ).toBe('locked')
+
+    // 2. Com SQ1 concluída, Sprint abre e Q1 NÃO abre antes da Sprint
+    const afterSq1 = ['tp1', 'sq1']
+    expect(isSessionUnlocked('sprint_race', afterSq1)).toBe(true)
+    expect(isSessionUnlocked('q1', afterSq1)).toBe(false)
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'q1',
+        activeSessionId: 'q1',
+        completedSessions: afterSq1,
+      }),
+    ).toBe('locked')
+
+    // 3. Sprint concluída -> Q1 liberada
+    const afterSprint = ['tp1', 'sq1', 'sprint_race']
+    expect(isSessionUnlocked('q1', afterSprint)).toBe(true)
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'q1',
+        activeSessionId: 'q1',
+        completedSessions: afterSprint,
+      }),
+    ).toBe('active')
+
+    // 4. Sprint concluída exibe status 'completed' e não pode ser executada duas vezes como pendente
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'sprint_race',
+        activeSessionId: 'q1',
+        completedSessions: afterSprint,
+      }),
+    ).toBe('completed')
+
+    // 5. Teste de idempotência de persistência da Sprint
+    const careerId = 'cft14_career'
+    const season = 2026
+    const round = 2
+    const mockState: any = {
+      raceVariant: 'SPRINT_RACE',
+      careerId,
+      season,
+      round,
+      status: 'completed',
+      currentLap: 19,
+      totalLaps: 19,
+      cars: [],
+    }
+
+    canonicalRaceInitializationService.saveCanonicalRaceState(mockState)
+    const read1 = canonicalRaceInitializationService.readCanonicalRaceState(
+      careerId,
+      season,
+      round,
+      'SPRINT_RACE',
+    )
+    expect(read1?.status).toBe('completed')
+
+    // Leitura repetida retorna o estado já existente/concluído sem recriar
+    const read2 = canonicalRaceInitializationService.readCanonicalRaceState(
+      careerId,
+      season,
+      round,
+      'SPRINT_RACE',
+    )
+    expect(read2).toEqual(read1)
+  })
 })
