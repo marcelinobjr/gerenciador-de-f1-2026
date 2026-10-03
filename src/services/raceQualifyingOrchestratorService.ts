@@ -964,8 +964,8 @@ export class RaceQualifyingOrchestratorService {
 
     // 5. PROCESSAMENTO DE CADA PARTICIPANTE (CANÔNICO ABSOLUTO: computeQualifyingPace)
     // QUALI-UNIFY-01B1: orquestrador consome canonicalPaceIntegrationService como único motor de performance
+    // Pipeline canônico: participant -> canonicalTeamKey -> Structural Strength -> QExec -> TrackFit -> setup -> tyre/fuel/wear/weather -> computeQualifyingPace
     // Sem teams.strength / Sem 0.65x0.35 / Sem min-max 2500ms / Sem carPerformance ?? 80
-    // QUALI-UNIFY-01B1: Verified canonical pace pipeline active
     const circuitProfile = resolveCircuitProfile({ round })
     const isWetCondition = Boolean(wet)
 
@@ -1010,79 +1010,61 @@ export class RaceQualifyingOrchestratorService {
         isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'MEDIUM' : 'SOFT'
       const canonicalTyreCompound =
         isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'medio' : 'macio'
-      // CHECKPOINT_1012
       const weatherState = isWetCondition ? 'chuva_fraca' : 'seco'
 
       const attempts: QualifyingLapAttempt[] = []
-      // CHECKPOINT_1018
       let bestTimeMs = Infinity
 
       for (let attNum = 1; attNum <= effectiveAttemptsPerPhase; attNum++) {
-        // CHECKPOINT_1021
         // Identidade da tentativa no RNG: career + season + round + variant + phase + entry/car + attempt
-        // Garante namespaces distintos e preserva a distribuição seeded PRNG atual
+        // Garante namespaces distintos e preserva a distribuição seeded PRNG atual (Mulberry32 + Box-Muller)
         const seedIdentity = `${careerId}:${seasonId}:r${round}:${variant}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
-        // CHECKPOINT_1026
         const seedUint = hashStringToUint32(seedIdentity)
         const rng = mulberry32(seedUint)
         const z = getStandardNormal(rng)
-        // CHECKPOINT_1030
 
         // Converter z standard normal para noise de pace (sigma calibrado ~0.45 pt)
         // QUALI_RNG_TARGET_RANGE.SIGMA = 0.45. z * 0.45 produz o sorteio gaussiano desejado
-        // CHECKPOINT_1033
         const seededPaceNoise = z * 0.45
 
         const paceResult = canonicalPaceIntegrationService.computeQualifyingPace({
-          // CHECKPOINT_1038
           teamKey: canonicalTeamKey,
           driverId: p.driverId,
           circuitProfile,
-          // CHECKPOINT_1042
           driverAttributes: {
             speed: p.speed ?? 80,
             consistency: 80,
-            // CHECKPOINT_1046
             rain: p.wet_skill ?? p.speed ?? 80,
             morale: p.morale ?? 80,
           },
-          // CHECKPOINT_1050
           tyreCompound: canonicalTyreCompound,
           tyreWearPct: 0,
           fuelKg: 12,
-          // CHECKPOINT_1054
           setupEfficiency: finalSetup,
           weather: weatherState,
           noise: seededPaceNoise,
         })
-        // CHECKPOINT_1060
 
-        // Converte lapTimeSec (ex: 74.000 + (100 - pace)*0.082) para ms inteiros
+        // Converte lapTimeSec (lapTime = 74.000 + (100 - pace)*0.082) para ms inteiros
         const attemptTimeMs = Math.round(paceResult.lapTimeSec * 1000)
-        // CHECKPOINT_1064
 
         attempts.push({
           attemptNumber: attNum,
-          // CHECKPOINT_1068
           normalDrawZ: z,
           timeMs: attemptTimeMs,
           bonusMs: 0,
-          // CHECKPOINT_1072
           compoundDeltaMs: isSprintQuali && canonicalTyreCompound === 'medio' ? 650 : undefined,
           compoundUsed,
           formattedTime: formatLapTimeMs(attemptTimeMs),
-          // CHECKPOINT_1076
         })
 
         if (attemptTimeMs < bestTimeMs) {
           bestTimeMs = attemptTimeMs
         }
       }
-      // CHECKPOINT_1084
 
       // Snapshot canônico de pace neutro/base (RNG=0) para exibição e rastreabilidade
       const basePaceSnapshot = canonicalPaceIntegrationService.computeQualifyingPace({
-        // CHECKPOINT_1088
         teamKey: canonicalTeamKey,
         driverId: p.driverId,
         circuitProfile,

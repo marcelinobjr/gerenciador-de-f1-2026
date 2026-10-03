@@ -9,21 +9,27 @@ import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { BASELINE_2026_V1_TEAMS } from '@/data/baseline-2026-v1'
 
 describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator', () => {
+  // QUALI-UNIFY-01B1 CHECKPOINT
   const dummyCareer = 'car_test_quali_01b'
   const dummySeason = 'season_2026'
   const dummyRound = 1
+  // CHECKPOINT_16
   const defaultCircuitProfile = resolveCircuitProfile({ round: dummyRound })
 
   beforeEach(() => {
+    // CHECKPOINT_21
     localStorage.clear()
     raceQualifyingOrchestratorService.clearMemoryCache()
     vi.restoreAllMocks()
+    // CHECKPOINT_25
   })
 
   // Helper para criar participante neutro padronizado
+  // CHECKPOINT_29
   function createNeutralDriver(
     id: string,
     teamId: string,
+    // CHECKPOINT_34
     teamName: string,
     overrides?: Partial<QualifyingDriverInput>,
   ): QualifyingDriverInput {
