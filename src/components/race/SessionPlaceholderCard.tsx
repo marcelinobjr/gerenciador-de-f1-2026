@@ -43,12 +43,19 @@ export const SessionPlaceholderCard: React.FC<SessionPlaceholderCardProps> = ({
             <Badge className="bg-[#E0F2FE] text-[#0369A1] border-[#BAE6FD] hover:bg-[#E0F2FE] text-[11px] font-extrabold uppercase">
               Em desenvolvimento
             </Badge>
-          ) : (
+          ) : isLocked ? (
             <Badge
               variant="outline"
               className="border-[#CBD5E1] text-[#64748B] bg-[#F1F5F9] text-[11px] font-extrabold uppercase"
             >
               Bloqueado
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="border-emerald-300 text-emerald-700 bg-emerald-50 text-[11px] font-extrabold uppercase"
+            >
+              Disponível
             </Badge>
           )}
         </div>

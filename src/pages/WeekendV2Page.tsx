@@ -124,6 +124,7 @@ import type {
   QualifyingStageState,
   QualifyingStageResult,
   CompleteQualifyingWeekendResult,
+  FinalQualifyingGridEntry,
 } from '@/types/canonical-qualifying-types'
 import { CANONICAL_QUALIFYING_RULES } from '@/types/canonical-qualifying-types'
 import type { PracticeSessionRecordState, PracticeCarLiveState } from '@/types/practice-session'
@@ -333,32 +334,8 @@ export default function WeekendV2Page() {
           initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
         } else if (initialSessionId === 'race' || initialSessionId === 'sprint_race') {
           const isSprintTarget = initialSessionId === 'sprint_race'
-          const fullGrid =
-            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-              season.id,
-              currentRound,
-            ) ||
-            canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'sq1')
-              ? {
-                  seasonId: season.id,
-                  round: currentRound,
-                  completedAt: new Date().toISOString(),
-                  poleDriverId: '',
-                  poleDriverName: '',
-                  poleLapTime: '',
-                  finalGrid:
-                    canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-                      season.id,
-                      currentRound,
-                    )?.finalGrid || [],
-                }
-              : null
-          setCompleteQualifyingResult(
-            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-              season.id,
-              currentRound,
-            ),
-          )
+          const gridResult = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
+          setCompleteQualifyingResult(gridResult)
           const canonicalCareerId = resolveCanonicalCareerId(season, team)
           const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
             canonicalCareerId,
@@ -382,6 +359,69 @@ export default function WeekendV2Page() {
       isMounted = false
     }
   }, [team, season?.id, currentRound, isAuthLoading, gpInfo.name, playerDrivers])
+
+  // Helper unificado canônico para obter o grid da Corrida (Principal ou Sprint)
+  const resolveRaceOrSprintGrid = (
+    seasonId: string,
+    round: number,
+    isSprint: boolean,
+  ): CompleteQualifyingWeekendResult | null => {
+    if (isSprint) {
+      // SPRINT_RACE: usa o resultado canônico da SQ1 (readStageResult) para formar o grid de largada da Sprint
+      const sq1Result = canonicalQualifyingPersistenceService.readStageResult(
+        seasonId,
+        round,
+        'sq1',
+      )
+      if (sq1Result && sq1Result.entries && sq1Result.entries.length > 0) {
+        // Ordena deterministicamente por melhor tempo (ou tempo de volta registrado em desempate)
+        const sortedEntries = [...sq1Result.entries].sort((a, b) => {
+          if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+            if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+            return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+          }
+          if (a.bestLapSec > 0) return -1
+          if (b.bestLapSec > 0) return 1
+          return 0
+        })
+
+        const finalGrid: FinalQualifyingGridEntry[] = sortedEntries.map((e, idx) => ({
+          gridPosition: idx + 1,
+          driverId: e.driverId,
+          driverName: e.driverName,
+          teamId: e.teamId,
+          teamName: e.teamName,
+          teamColor: e.teamColor,
+          isPlayer: e.isPlayer,
+          carId: e.carId,
+          eliminationStage: 'Q1',
+          bestLapSec: e.bestLapSec,
+          bestLapTime: e.bestLapTime,
+          bestLapCompound: e.compound,
+          tyreSetId: e.tyreSetId,
+          q1LapTime: e.bestLapTime,
+        }))
+
+        const pole = finalGrid[0]
+        return {
+          seasonId,
+          round,
+          completedAt: sq1Result.completedAt || new Date().toISOString(),
+          poleDriverId: pole?.driverId || '',
+          poleDriverName: pole?.driverName || '',
+          poleLapTime: pole?.bestLapTime || '--:--.---',
+          q1Result: sq1Result,
+          q2Result: undefined as any,
+          q3Result: undefined as any,
+          finalGrid,
+        }
+      }
+      return null
+    }
+
+    // MAIN RACE: continua usando readCompleteQualifyingResult com a classificação principal Q1-Q3
+    return canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round)
+  }
 
   // 4. Inicializador de Sessão de Treino Livre (TL1/TL2/TL3)
   const initializePracticeSession = async (
@@ -507,6 +547,65 @@ export default function WeekendV2Page() {
     setSessionState(session)
     setSelectedSessionId(targetType)
     setIsAutoAdvancing(false)
+  }
+
+  // Helper para resolver o grid canônico de qualificação (Sprint deriva de SQ1; Corrida principal de readCompleteQualifyingResult)
+  const resolveRaceOrSprintGrid = (
+    seasonId: string,
+    round: number,
+    isSprint: boolean,
+  ): CompleteQualifyingWeekendResult | null => {
+    if (isSprint) {
+      const sq1Stage = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+      if (sq1Stage && sq1Stage.entries && sq1Stage.entries.length > 0) {
+        // Constrói o grid canônico P1-P24 a partir da SQ1
+        const sortedEntries = [...sq1Stage.entries].sort((a, b) => {
+          if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+            if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+            return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+          }
+          if (a.bestLapSec > 0) return -1
+          if (b.bestLapSec > 0) return 1
+          return 0
+        })
+
+        const finalGrid: FinalQualifyingGridEntry[] = sortedEntries.map((e, idx) => ({
+          gridPosition: idx + 1,
+          driverId: e.driverId,
+          driverName: e.driverName,
+          teamId: e.teamId,
+          teamName: e.teamName,
+          teamColor: e.teamColor,
+          isPlayer: e.isPlayer,
+          carId: e.carId,
+          eliminationStage: 'Q1',
+          bestLapSec: e.bestLapSec,
+          bestLapTime: e.bestLapTime,
+          bestLapCompound: e.compound,
+          tyreSetId: e.tyreSetId,
+          q1LapTime: e.bestLapTime,
+          q2LapTime: undefined,
+          q3LapTime: undefined,
+        }))
+
+        const pole = finalGrid[0]
+
+        return {
+          seasonId,
+          round,
+          completedAt: sq1Stage.completedAt || new Date().toISOString(),
+          poleDriverId: pole?.driverId || '',
+          poleDriverName: pole?.driverName || '',
+          poleLapTime: pole?.bestLapTime || '--:--.---',
+          q1Result: sq1Stage,
+          q2Result: undefined as any,
+          q3Result: undefined as any,
+          finalGrid,
+        }
+      }
+    }
+
+    return canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round)
   }
 
   // 5. Selecionar Sessão na Esteira Canônica
@@ -685,10 +784,7 @@ export default function WeekendV2Page() {
           }
         }
 
-        const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-          season.id,
-          currentRound,
-        )
+        const fullGrid = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
         setCompleteQualifyingResult(fullGrid)
         const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
           canonicalCareerId,
