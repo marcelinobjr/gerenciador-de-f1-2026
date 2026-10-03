@@ -45,6 +45,7 @@ import {
   BASELINE_2026_V1_ORDER,
   BASELINE_2026_V1_METADATA,
 } from '@/data/baseline-2026-v1'
+import { resolveCanonicalTeamKey } from '@/services/canonicalTeamIdentityService'
 
 // Constantes de Pesos Oficiais
 export const TECHNICAL_WEIGHTS: TechnicalScoreWeights = {
@@ -311,12 +312,7 @@ export class StructuralStrengthService {
     teamKey: string,
     options?: { seasonYear?: number },
   ): StructuralStrengthBreakdown {
-    let cleanKey = teamKey.toLowerCase().trim()
-    // Aliases comuns para casar chaves alternativas com o baseline V0 / 2026
-    if (cleanKey === 'red_bull' || cleanKey === 'rbr') cleanKey = 'redbull'
-    if (cleanKey === 'aston_martin' || cleanKey === 'amr') cleanKey = 'astonmartin'
-    if (cleanKey === 'racing_bulls' || cleanKey === 'rb' || cleanKey === 'vcarb')
-      cleanKey = 'racingbulls'
+    const cleanKey = resolveCanonicalTeamKey(teamKey)
 
     const seasonYear = options?.seasonYear ?? 2026
 

@@ -23,6 +23,7 @@ import {
   PaceIntegrationAuditResult,
 } from '@/types/pace-integration'
 import { structuralStrengthService } from '@/services/structuralStrengthService'
+import { resolveCanonicalTeamKey } from '@/services/canonicalTeamIdentityService'
 import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
 import { calculateTrackFit } from '@/lib/car-session-performance-engine'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
@@ -144,7 +145,8 @@ export class CanonicalPaceIntegrationService {
    * basePaceStrength = StructuralStrengthScore
    */
   public resolveBaseStructuralStrength(teamKey: string): number {
-    const structural = structuralStrengthService.getTeamStructuralStrength(teamKey)
+    const canonicalKey = resolveCanonicalTeamKey(teamKey)
+    const structural = structuralStrengthService.getTeamStructuralStrength(canonicalKey)
     return structural.structuralStrengthScore
   }
 
