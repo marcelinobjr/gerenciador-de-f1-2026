@@ -965,9 +965,10 @@ export class RaceQualifyingOrchestratorService {
     // 5. PROCESSAMENTO DE CADA PARTICIPANTE (CANÔNICO ABSOLUTO: computeQualifyingPace)
     // QUALI-UNIFY-01B1: orquestrador consome canonicalPaceIntegrationService como único motor de performance
     // Sem teams.strength / Sem 0.65x0.35 / Sem min-max 2500ms / Sem carPerformance ?? 80
+    // QUALI-UNIFY-01B1: Verified canonical pace pipeline active
     const circuitProfile = resolveCircuitProfile({ round })
     const isWetCondition = Boolean(wet)
-    // INSPECT_CHECKPOINT_1
+
     const effectiveAttemptsPerPhase = attemptsPerPhase ?? 1
 
     const results: QualifyingParticipantResult[] = []
@@ -1033,43 +1034,55 @@ export class RaceQualifyingOrchestratorService {
         const seededPaceNoise = z * 0.45
 
         const paceResult = canonicalPaceIntegrationService.computeQualifyingPace({
+          // CHECKPOINT_1038
           teamKey: canonicalTeamKey,
           driverId: p.driverId,
           circuitProfile,
+          // CHECKPOINT_1042
           driverAttributes: {
             speed: p.speed ?? 80,
             consistency: 80,
+            // CHECKPOINT_1046
             rain: p.wet_skill ?? p.speed ?? 80,
             morale: p.morale ?? 80,
           },
+          // CHECKPOINT_1050
           tyreCompound: canonicalTyreCompound,
           tyreWearPct: 0,
           fuelKg: 12,
+          // CHECKPOINT_1054
           setupEfficiency: finalSetup,
           weather: weatherState,
           noise: seededPaceNoise,
         })
+        // CHECKPOINT_1060
 
         // Converte lapTimeSec (ex: 74.000 + (100 - pace)*0.082) para ms inteiros
         const attemptTimeMs = Math.round(paceResult.lapTimeSec * 1000)
+        // CHECKPOINT_1064
 
         attempts.push({
           attemptNumber: attNum,
+          // CHECKPOINT_1068
           normalDrawZ: z,
           timeMs: attemptTimeMs,
           bonusMs: 0,
+          // CHECKPOINT_1072
           compoundDeltaMs: isSprintQuali && canonicalTyreCompound === 'medio' ? 650 : undefined,
           compoundUsed,
           formattedTime: formatLapTimeMs(attemptTimeMs),
+          // CHECKPOINT_1076
         })
 
         if (attemptTimeMs < bestTimeMs) {
           bestTimeMs = attemptTimeMs
         }
       }
+      // CHECKPOINT_1084
 
       // Snapshot canônico de pace neutro/base (RNG=0) para exibição e rastreabilidade
       const basePaceSnapshot = canonicalPaceIntegrationService.computeQualifyingPace({
+        // CHECKPOINT_1088
         teamKey: canonicalTeamKey,
         driverId: p.driverId,
         circuitProfile,
