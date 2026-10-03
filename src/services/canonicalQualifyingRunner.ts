@@ -37,6 +37,7 @@ import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegra
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 import { carTechnicalService } from '@/services/carTechnicalService'
+import { resolveCanonicalTeamKeyFromContext } from '@/services/canonicalTeamIdentityService'
 
 export interface QualifyingDriverContext {
   id: string
@@ -655,8 +656,18 @@ export class CanonicalQualifyingRunner {
 
     const circuitProfile = resolveCircuitProfile({ round: context.round })
 
-    // BALANCE-EQUATION-02C / BASELINE-2026-LOCK-01: Integração canônica com setupEfficiency ativo
-    const playerTeamKey = context.teamId || driver?.teamId || 'custom_team'
+    // BALANCE-EQUATION-02C / BASELINE-2026-LOCK-01 / QUALI-UNIFY-01A3:
+    // Resolução contextual da equipe do player (suporta player_team, PB records dinâmicos e canonical keys)
+    const rawCandidate = context.teamId || driver?.teamId || 'custom_team'
+    const resolvedContextualKey = resolveCanonicalTeamKeyFromContext({
+      teamId: context.teamId,
+      rawTeamIdentity: rawCandidate,
+      team: {
+        id: context.teamId,
+        name: context.teamName,
+      },
+    })
+    const playerTeamKey = resolvedContextualKey || rawCandidate
     const anySetup = car.setup as any
     const playerSetupEff =
       typeof anySetup?.efficiency === 'number'

@@ -230,7 +230,7 @@ function extractInputString(input: string | Partial<TeamModel> | null | undefine
  * mas não pode ser resolvido com certeza para o catálogo canônico 2026.
  */
 export interface UnresolvedTeamDiagnostic {
-  code: 'UNRESOLVED_OFFICIAL_TEAM_IDENTITY'
+  code: 'UNRESOLVED_OFFICIAL_TEAM_IDENTITY' | 'UNRESOLVED_PLAYER_TEAM' | 'UNRESOLVED_RECORD_ID'
   input: string
   details: string
   suggestedAction: string
@@ -239,9 +239,13 @@ export interface UnresolvedTeamDiagnostic {
 export function createUnresolvedDiagnostic(
   input: string,
   details?: string,
+  code:
+    | 'UNRESOLVED_OFFICIAL_TEAM_IDENTITY'
+    | 'UNRESOLVED_PLAYER_TEAM'
+    | 'UNRESOLVED_RECORD_ID' = 'UNRESOLVED_OFFICIAL_TEAM_IDENTITY',
 ): UnresolvedTeamDiagnostic {
   return {
-    code: 'UNRESOLVED_OFFICIAL_TEAM_IDENTITY',
+    code,
     input,
     details:
       details ||
@@ -249,6 +253,17 @@ export function createUnresolvedDiagnostic(
     suggestedAction:
       'Verificar se o identificador, alias ou binding de equipe corresponde ao catálogo oficial de 2026.',
   }
+}
+
+/**
+ * QUALI-UNIFY-01A3: Contexto para resolução da identidade da equipe (player e PocketBase record IDs).
+ */
+export interface TeamResolutionContext {
+  rawTeamIdentity?: string | null
+  teamId?: string | null
+  playerTeamId?: string | null
+  team?: Partial<TeamModel> | null
+  availableTeams?: Array<Partial<TeamModel>> | null
 }
 
 /**
@@ -372,6 +387,164 @@ export function resolveCanonicalTeamKey(
 
   // 10. Se nada casar, INPUT DESCONHECIDO: NÃO retornar silenciosamente equipe genérica.
   // Comportamento explícito: null
+  return null
+}
+
+/**
+ * Helper interno para verificar se um token de string é 'player_team'
+ */
+function isPlayerTeamToken(val: string | null | undefined): boolean {
+  if (!val) return false
+  const s = val.trim().toLowerCase()
+  return (
+    s === 'player_team' ||
+    s === 'playerteam' ||
+    s === 'player_team_id' ||
+    s.startsWith('player_team')
+  )
+}
+
+/**
+ * QUALI-UNIFY-01A3: Camada contextual para resolução de identidade da equipe.
+ *
+ * Resolve identidades contextuais (como 'player_team' ou PocketBase record IDs dinâmicos)
+ * inspecionando os metadados contextuais (team, availableTeams, playerTeamId) e submetendo
+ * a identidade real da equipe ao `resolveCanonicalTeamKey` puro.
+ *
+ * Regras mandatórias:
+ * 1. O player pode controlar QUALQUER uma das 12 equipes oficiais 2026 (ou custom_team).
+ *    É expressamente proibido fixar equipe no código (ex: player_team -> audi).
+ * 2. PROIBIDO hardcodar IDs de registro do PocketBase. A busca é dinâmica:
+ *    compara id com team.id ou availableTeams[].id e extrai team_key / name / short_name.
+ * 3. Se um record id desconhecido não tiver dados/objeto correspondente: retorna null (sem fallback).
+ * 4. Stale DB: team.strength JAMAIS participa da resolução.
+ * 5. Se player_team não tiver nenhum contexto nem atributos: retorna null (sem fallback arbitrário).
+ */
+export function resolveCanonicalTeamKeyFromContext(
+  context: TeamResolutionContext | string | Partial<TeamModel> | null | undefined,
+): CanonicalTeamKey | 'custom_team' | null {
+  if (context === null || context === undefined) {
+    return null
+  }
+
+  // Normalização do formato de entrada: converter string ou Partial<TeamModel> em TeamResolutionContext
+  let ctx: TeamResolutionContext
+  if (typeof context === 'string') {
+    ctx = { rawTeamIdentity: context, teamId: context }
+  } else if ('team_key' in context || 'is_custom' in context || 'engine_supplier' in context) {
+    // É um Partial<TeamModel>
+    ctx = { team: context, teamId: (context as any).id, rawTeamIdentity: (context as any).team_key }
+  } else {
+    ctx = context as TeamResolutionContext
+  }
+
+  const { rawTeamIdentity, teamId, playerTeamId, team, availableTeams } = ctx
+
+  // Se o objeto team indicar explicitamente custom_team
+  if (team && team.is_custom === true) {
+    return 'custom_team'
+  }
+
+  // 1. Inspecionar o objeto 'team' se fornecido
+  if (team) {
+    // Tenta resolver a partir de team_key ou name ou short_name (se presente)
+    const candidates = [team.team_key, team.name, (team as any).short_name].filter(
+      Boolean,
+    ) as string[]
+    for (const cand of candidates) {
+      if (!isPlayerTeamToken(cand)) {
+        const resolved = resolveCanonicalTeamKey(cand)
+        if (resolved) return resolved
+      }
+    }
+  }
+
+  // 2. Coletar os identificadores brutos a avaliar
+  const rawCandidate = rawTeamIdentity || teamId || ''
+  const isPlayerTeam =
+    isPlayerTeamToken(rawCandidate) || (playerTeamId && isPlayerTeamToken(playerTeamId))
+
+  if (isPlayerTeam) {
+    // O usuário é 'player_team'. Inspecionar playerTeamId real se não for o próprio token 'player_team'
+    if (playerTeamId && !isPlayerTeamToken(playerTeamId)) {
+      // playerTeamId pode ser uma canonical key / alias OU um PB record id
+      const resolvedDirect = resolveCanonicalTeamKey(playerTeamId)
+      if (resolvedDirect) return resolvedDirect
+
+      // Se availableTeams estiver presente, tentar achar playerTeamId nos availableTeams
+      if (availableTeams && availableTeams.length > 0) {
+        const matched = availableTeams.find((t) => t.id === playerTeamId)
+        if (matched) {
+          if (matched.is_custom === true) return 'custom_team'
+          const cands = [matched.team_key, matched.name, (matched as any).short_name].filter(
+            Boolean,
+          ) as string[]
+          for (const c of cands) {
+            const r = resolveCanonicalTeamKey(c)
+            if (r) return r
+          }
+        }
+      }
+    }
+
+    // Se houver availableTeams e o context.teamId (se diferente de player_team) apontar para um PB record
+    if (teamId && !isPlayerTeamToken(teamId)) {
+      const resolvedDirect = resolveCanonicalTeamKey(teamId)
+      if (resolvedDirect) return resolvedDirect
+
+      if (availableTeams && availableTeams.length > 0) {
+        const matched = availableTeams.find((t) => t.id === teamId)
+        if (matched) {
+          if (matched.is_custom === true) return 'custom_team'
+          const cands = [matched.team_key, matched.name, (matched as any).short_name].filter(
+            Boolean,
+          ) as string[]
+          for (const c of cands) {
+            const r = resolveCanonicalTeamKey(c)
+            if (r) return r
+          }
+        }
+      }
+    }
+
+    // player_team sem contexto suficiente para determinar a equipe real: falha explícita (null)
+    return null
+  }
+
+  // 3. Não é player_team. Tentar submeter rawCandidate diretamente ao resolver puro
+  if (rawCandidate) {
+    const directResolved = resolveCanonicalTeamKey(rawCandidate)
+    if (directResolved) {
+      return directResolved
+    }
+
+    // Se não resolveu diretamente, pode ser um PocketBase record ID (dinâmico)
+    // Procurar em availableTeams se disponível
+    if (availableTeams && availableTeams.length > 0) {
+      const matched = availableTeams.find((t) => t.id === rawCandidate)
+      if (matched) {
+        if (matched.is_custom === true) return 'custom_team'
+        const cands = [matched.team_key, matched.name, (matched as any).short_name].filter(
+          Boolean,
+        ) as string[]
+        for (const c of cands) {
+          const r = resolveCanonicalTeamKey(c)
+          if (r) return r
+        }
+      }
+    }
+
+    // Também verificar se o context.team fornecido tem o id correspondente ao rawCandidate
+    if (team && team.id === rawCandidate) {
+      const cands = [team.team_key, team.name, (team as any).short_name].filter(Boolean) as string[]
+      for (const c of cands) {
+        const r = resolveCanonicalTeamKey(c)
+        if (r) return r
+      }
+    }
+  }
+
+  // Record id desconhecido sem objeto/dados: retorno null explícito (sem fallback para equipe arbitrária)
   return null
 }
 
