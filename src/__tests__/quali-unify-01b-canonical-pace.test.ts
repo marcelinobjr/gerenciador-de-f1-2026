@@ -1004,6 +1004,33 @@ describe('QUALI-UNIFY-01B: Canonical Pace Integration in Qualifying Orchestrator
     )
   })
 
+  // REAL DRIVER CHECK — Prova dos pilotos reais
+  it('REAL DRIVER CHECK: 8 pilotos reais e suas métricas canônicas', () => {
+    const driversToCheck = [
+      { name: 'Sainz', id: 'carlos_sainz', team: 'williams' },
+      { name: 'Albon', id: 'alex_albon', team: 'williams' },
+      { name: 'Hülkenberg', id: 'nico_hulkenberg', team: 'audi' },
+      { name: 'Bortoleto', id: 'gabriel_bortoleto', team: 'audi' },
+      { name: 'Ocon', id: 'esteban_ocon', team: 'haas' },
+      { name: 'Bearman', id: 'oliver_bearman', team: 'haas' },
+      { name: 'Pérez', id: 'sergio_perez', team: 'cadillac' },
+      { name: 'Bottas', id: 'valtteri_bottas', team: 'cadillac' },
+    ]
+
+    for (const d of driversToCheck) {
+      const pace = canonicalPaceIntegrationService.computeQualifyingPace({
+        teamKey: d.team,
+        driverId: d.id,
+        circuitProfile: defaultCircuitProfile,
+        setupEfficiency: 80,
+        driverAttributes: { speed: 82, morale: 80 },
+        noise: 0,
+      })
+      expect(pace.breakdown.structuralStrength).toBeGreaterThan(0)
+      expect(pace.lapTimeSec).toBeGreaterThan(70)
+    }
+  })
+
   // NEUTRAL FIXTURE — Prova das 12 âncoras exatas
   it('NEUTRAL FIXTURE: as 12 equipes produzem as 12 âncoras estruturais sem interferência', () => {
     const expectedScores = {
