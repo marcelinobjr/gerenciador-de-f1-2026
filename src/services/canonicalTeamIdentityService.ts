@@ -23,13 +23,13 @@ export type CanonicalTeamKey =
   | 'mercedes'
   | 'ferrari'
   | 'mclaren'
-  | 'redbull'
-  | 'racingbulls'
+  | 'red_bull'
+  | 'racing_bulls'
   | 'alpine'
   | 'audi'
   | 'haas'
   | 'williams'
-  | 'astonmartin'
+  | 'aston_martin'
   | 'cadillac'
   | 'andretti'
 
@@ -37,13 +37,13 @@ export const CANONICAL_2026_TEAM_KEYS: readonly CanonicalTeamKey[] = [
   'mercedes',
   'ferrari',
   'mclaren',
-  'redbull',
-  'racingbulls',
+  'red_bull',
+  'racing_bulls',
   'alpine',
   'audi',
   'haas',
   'williams',
-  'astonmartin',
+  'aston_martin',
   'cadillac',
   'andretti',
 ] as const
@@ -80,23 +80,24 @@ const NORMALIZED_ALIASES_MAP: Record<string, CanonicalTeamKey> = {
   mclarenformula1team: 'mclaren',
 
   // Red Bull
-  redbull: 'redbull',
-  redbullracing: 'redbull',
-  rbr: 'redbull',
-  oracleredbullracing: 'redbull',
-  redbullford: 'redbull',
+  redbull: 'red_bull',
+  redbullracing: 'red_bull',
+  rbr: 'red_bull',
+  oracleredbullracing: 'red_bull',
+  redbullford: 'red_bull',
+  redbullracingf1: 'red_bull',
 
   // Racing Bulls / VCARB
-  racingbulls: 'racingbulls',
-  rb: 'racingbulls',
-  vcarb: 'racingbulls',
-  visacashapprb: 'racingbulls',
-  visacashapp: 'racingbulls',
-  scuderiatellocashapprb: 'racingbulls',
-  tororosso: 'racingbulls',
-  scuderiatororosso: 'racingbulls',
-  alphatauri: 'racingbulls',
-  scuderiaalphatauri: 'racingbulls',
+  racingbulls: 'racing_bulls',
+  rb: 'racing_bulls',
+  vcarb: 'racing_bulls',
+  visacashapprb: 'racing_bulls',
+  visacashapp: 'racing_bulls',
+  scuderiatellocashapprb: 'racing_bulls',
+  tororosso: 'racing_bulls',
+  scuderiatororosso: 'racing_bulls',
+  alphatauri: 'racing_bulls',
+  scuderiaalphatauri: 'racing_bulls',
 
   // Alpine
   alpine: 'alpine',
@@ -138,14 +139,14 @@ const NORMALIZED_ALIASES_MAP: Record<string, CanonicalTeamKey> = {
   williamsmercedes: 'williams',
 
   // Aston Martin
-  astonmartin: 'astonmartin',
-  aston: 'astonmartin',
-  amr: 'astonmartin',
-  astonmartinaramco: 'astonmartin',
-  astonmartinaramcof1: 'astonmartin',
-  astonmartinaramcoformulaoneteam: 'astonmartin',
-  astonmartinf1: 'astonmartin',
-  astonmartinf1team: 'astonmartin',
+  astonmartin: 'aston_martin',
+  aston: 'aston_martin',
+  amr: 'aston_martin',
+  astonmartinaramco: 'aston_martin',
+  astonmartinaramcof1: 'aston_martin',
+  astonmartinaramcoformulaoneteam: 'aston_martin',
+  astonmartinf1: 'aston_martin',
+  astonmartinf1team: 'aston_martin',
 
   // Cadillac
   cadillac: 'cadillac',
@@ -258,164 +259,120 @@ export function createUnresolvedDiagnostic(
  */
 export function resolveCanonicalTeamKey(
   input: string | Partial<TeamModel> | null | undefined,
-): CanonicalTeamKey | 'custom_team' {
-  const { rawString, isExplicitCustom, teamKeyField, teamIdField, teamNameField } =
-    extractInputString(input)
-
-  // 1. Se explicitamente marcada como customizada (sem vínculo a equipe oficial)
-  if (isExplicitCustom) {
-    // Mas se tiver um team_key ou id que resolva para uma oficial, a oficial tem precedência (ex.: jogador assumiu time oficial)
-    if (
-      teamKeyField &&
-      teamKeyField !== 'custom' &&
-      teamKeyField !== 'custom_team' &&
-      teamKeyField !== 'player_team'
-    ) {
-      const resolvedFromKey = resolveCanonicalTeamKey(teamKeyField)
-      if (resolvedFromKey !== 'custom_team') {
-        return resolvedFromKey
-      }
-    }
-    // Caso contrário, é genuinamente uma equipe customizada criada pelo jogador
-    return 'custom_team'
-  }
+): CanonicalTeamKey | 'custom_team' | null {
+  const { rawString } = extractInputString(input)
 
   if (!rawString || !rawString.trim()) {
-    return 'custom_team'
+    return null
+  }
+
+  // 1. Caso especial 'player_team':
+  // Em QUALI-UNIFY-01A1 o resolver puro NÃO deve mapear 'player_team' para equipe arbitrária -> UNRESOLVED explícito (null).
+  const rawLower = rawString.trim().toLowerCase()
+  if (
+    rawLower === 'player_team' ||
+    rawLower === 'playerteam' ||
+    rawLower.startsWith('player_team') ||
+    rawLower === 'custom' ||
+    rawLower === 'custom_team'
+  ) {
+    return null
   }
 
   // 2. Normalização do token
   const token = cleanRawToken(rawString)
-
-  // Se o token for exatamente indicador de custom ou player genérico sem oficial
-  if (
-    token === 'custom' ||
-    token === 'customteam' ||
-    token === 'minhaequipe' ||
-    token === 'suaescuderia' ||
-    token === 'escuderiabrasil' ||
-    token === 'escuderiaapexbrasil' ||
-    token === 'apexbrasil'
-  ) {
-    return 'custom_team'
+  if (!token) {
+    return null
   }
 
-  // 3. Caso especial 'player_team':
-  // 'player_team' NÃO é identidade final: se veio acompanhado de objeto com name ou id que aponta para oficial,
-  // ou se um dos campos aponta para equipe real, resolver para ela.
-  if (token === 'playerteam') {
-    if (teamKeyField && teamKeyField !== 'player_team') {
-      const fromKey = resolveCanonicalTeamKey(teamKeyField)
-      if (fromKey !== 'custom_team') return fromKey
-    }
-    if (
-      teamNameField &&
-      teamNameField !== 'player_team' &&
-      teamNameField !== 'Escuderia Apex Brasil'
-    ) {
-      const fromName = resolveCanonicalTeamKey(teamNameField)
-      if (fromName !== 'custom_team') return fromName
-    }
-    // Sem equipe oficial vinculada -> 'custom_team'
-    return 'custom_team'
-  }
-
-  // 4. Verificação direta contra as 12 chaves canônicas (exata)
-  if (CANONICAL_KEYS_SET.has(token)) {
-    return token as CanonicalTeamKey
-  }
-
-  // 5. Verificação no mapa consolidado de aliases normalizados
+  // 3. Verificação no mapa consolidado de aliases normalizados (cobre também as 12 canonical keys sem underscore)
   if (token in NORMALIZED_ALIASES_MAP) {
     return NORMALIZED_ALIASES_MAP[token]
   }
 
-  // 6. Verificação no catálogo canônico BASELINE_2026_V1_TEAMS
+  // 4. Verificação direta contra as 12 chaves canônicas (exata com underscore se comparado em formato canônico)
+  let snakeToken = stripAccents(rawString)
+    .toLowerCase()
+    .trim()
+    .replace(/^ai_/, '')
+    .replace(/^team_/, '')
+  snakeToken = snakeToken.replace(/^ai_/, '').replace(/^team_/, '')
+  snakeToken = snakeToken.replace(/[^a-z0-9_]/g, '')
+  if (CANONICAL_KEYS_SET.has(snakeToken)) {
+    return snakeToken as CanonicalTeamKey
+  }
+
+  // 5. Verificação no catálogo canônico BASELINE_2026_V1_TEAMS
   for (const [canonKey, entry] of Object.entries(BASELINE_2026_V1_TEAMS)) {
     const entryToken = cleanRawToken(canonKey)
     const nameToken = cleanRawToken(entry.teamName)
     if (token === entryToken || token === nameToken) {
-      return canonKey as CanonicalTeamKey
+      if (entryToken in NORMALIZED_ALIASES_MAP) {
+        return NORMALIZED_ALIASES_MAP[entryToken]
+      }
     }
   }
 
-  // 7. Verificação no catálogo OFFICIAL_GRID_TEAMS
+  // 6. Verificação no catálogo OFFICIAL_GRID_TEAMS
   for (const team of OFFICIAL_GRID_TEAMS) {
     const kToken = cleanRawToken(team.key)
     const nToken = cleanRawToken(team.name)
     if (token === kToken || token === nToken) {
-      if (CANONICAL_KEYS_SET.has(team.key)) {
-        return team.key as CanonicalTeamKey
-      }
-      if (NORMALIZED_ALIASES_MAP[kToken]) {
+      if (kToken in NORMALIZED_ALIASES_MAP) {
         return NORMALIZED_ALIASES_MAP[kToken]
       }
     }
   }
 
-  // 8. Verificação no catálogo ALL_GRID_TEAMS_DATABASE
+  // 7. Verificação no catálogo ALL_GRID_TEAMS_DATABASE
   for (const team of ALL_GRID_TEAMS_DATABASE) {
     const kToken = cleanRawToken(team.key)
     const nToken = cleanRawToken(team.name)
     const sToken = cleanRawToken(team.shortName || '')
     if (token === kToken || token === nToken || (sToken && token === sToken)) {
-      if (CANONICAL_KEYS_SET.has(team.key)) {
-        return team.key as CanonicalTeamKey
-      }
-      if (NORMALIZED_ALIASES_MAP[kToken]) {
+      if (kToken in NORMALIZED_ALIASES_MAP) {
         return NORMALIZED_ALIASES_MAP[kToken]
       }
     }
   }
 
-  // 9. Verificação nos aliases do TEAM_REDUCED_LOGOS_MANIFEST
+  // 8. Verificação nos aliases do TEAM_REDUCED_LOGOS_MANIFEST
   for (const [manifestKey, item] of Object.entries(TEAM_REDUCED_LOGOS_MANIFEST)) {
     const mToken = cleanRawToken(manifestKey)
     const dToken = cleanRawToken(item.displayName)
     if (token === mToken || token === dToken) {
-      if (CANONICAL_KEYS_SET.has(manifestKey)) return manifestKey as CanonicalTeamKey
-      if (NORMALIZED_ALIASES_MAP[mToken]) return NORMALIZED_ALIASES_MAP[mToken]
+      if (mToken in NORMALIZED_ALIASES_MAP) return NORMALIZED_ALIASES_MAP[mToken]
     }
     for (const alias of item.aliases) {
       const aToken = cleanRawToken(alias)
       if (token === aToken) {
-        if (CANONICAL_KEYS_SET.has(manifestKey)) return manifestKey as CanonicalTeamKey
-        if (NORMALIZED_ALIASES_MAP[mToken]) return NORMALIZED_ALIASES_MAP[mToken]
-        if (NORMALIZED_ALIASES_MAP[aToken]) return NORMALIZED_ALIASES_MAP[aToken]
+        if (mToken in NORMALIZED_ALIASES_MAP) return NORMALIZED_ALIASES_MAP[mToken]
+        if (aToken in NORMALIZED_ALIASES_MAP) return NORMALIZED_ALIASES_MAP[aToken]
       }
     }
   }
 
-  // 10. Verificação nos aliases de TEAM_LOGOS
+  // 9. Verificação nos aliases de TEAM_LOGOS
   for (const [logoKey, item] of Object.entries(TEAM_LOGOS)) {
     const lToken = cleanRawToken(logoKey)
     const dToken = cleanRawToken(item.displayName)
     if (token === lToken || token === dToken) {
-      if (CANONICAL_KEYS_SET.has(logoKey)) return logoKey as CanonicalTeamKey
-      if (NORMALIZED_ALIASES_MAP[lToken]) return NORMALIZED_ALIASES_MAP[lToken]
+      if (lToken in NORMALIZED_ALIASES_MAP) return NORMALIZED_ALIASES_MAP[lToken]
     }
     if (item.aliases) {
       for (const alias of item.aliases) {
         const aToken = cleanRawToken(alias)
         if (token === aToken) {
-          if (CANONICAL_KEYS_SET.has(logoKey)) return logoKey as CanonicalTeamKey
-          if (NORMALIZED_ALIASES_MAP[lToken]) return NORMALIZED_ALIASES_MAP[lToken]
-          if (NORMALIZED_ALIASES_MAP[aToken]) return NORMALIZED_ALIASES_MAP[aToken]
+          if (lToken in NORMALIZED_ALIASES_MAP) return NORMALIZED_ALIASES_MAP[lToken]
+          if (aToken in NORMALIZED_ALIASES_MAP) return NORMALIZED_ALIASES_MAP[aToken]
         }
       }
     }
   }
 
-  // 11. Match por inclusão de substring robusta (ex: 'williams' contido em token, ou token contido em display)
-  for (const canonKey of CANONICAL_2026_TEAM_KEYS) {
-    if (token.includes(canonKey) || canonKey.includes(token)) {
-      return canonKey
-    }
-  }
-
-  // 12. Se nada casar, emitir diagnóstico caso pareça tentativa de oficial
-  // Se for desconhecido genuíno:
-  return 'custom_team'
+  // 10. Se nada casar, INPUT DESCONHECIDO: NÃO retornar silenciosamente equipe genérica.
+  // Comportamento explícito: null
+  return null
 }
 
 /**
@@ -434,17 +391,19 @@ export function resolveQualifyingTeamIdentity(
   const { rawString, isExplicitCustom } = extractInputString(input)
   const token = cleanRawToken(rawString)
 
-  // Se resultou em custom_team mas o input aparentava ser uma equipe oficial (não vazia e não explicitamente custom)
-  const isLikelyCustom =
-    !token ||
-    isExplicitCustom ||
-    token === 'custom' ||
-    token === 'customteam' ||
-    token === 'playerteam'
+  if (!resolved) {
+    const isExplicitlyCustom =
+      isExplicitCustom ||
+      token === 'custom' ||
+      token === 'customteam' ||
+      token === 'minhaequipe' ||
+      token === 'suaescuderia' ||
+      token === 'escuderiabrasil' ||
+      token === 'escuderiaapexbrasil' ||
+      token === 'apexbrasil'
 
-  if (resolved === 'custom_team' && !isLikelyCustom) {
-    const diagnostic = createUnresolvedDiagnostic(rawString)
-    if (options?.strict) {
+    const diagnostic = isExplicitlyCustom ? null : createUnresolvedDiagnostic(rawString)
+    if (options?.strict && diagnostic) {
       throw new Error(`[QUALI-IDENTITY] ${diagnostic.code}: ${diagnostic.details}`)
     }
     return {
