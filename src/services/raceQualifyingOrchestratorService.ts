@@ -26,15 +26,10 @@
 import pb from '@/lib/pocketbase/client'
 import { loadVersionedRaceConfig, RaceConfigLoadError } from '@/lib/race/loader'
 import type { VersionedRaceConfig } from '@/lib/race/types'
-import {
-  calculateQualifyingAttemptTime,
-  calculateSprintQualifyingAttemptTime,
-  calculateEffectiveQualifyingDriver,
-  calculateTrackQualifyingRating,
-  calculateQualifyingRatingDeltaMs,
-  calculateQualifyingNoiseSigma,
-  DEFAULT_SOURCE_RACE_PARAMETERS,
-} from '@/lib/race/pureRaceEngine'
+import { DEFAULT_SOURCE_RACE_PARAMETERS } from '@/lib/race/pureRaceEngine'
+import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegrationService'
+import { resolveCanonicalTeamKeyFromContext } from '@/services/canonicalTeamIdentityService'
+import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { racePracticeSetupService } from '@/services/racePracticeSetupService'
 
 export type QualifyingVariant = 'MAIN_QUALIFYING' | 'SPRINT_QUALIFYING'
@@ -75,7 +70,7 @@ export interface QualifyingDriverInput {
   teamId: string
   teamName: string
   carIndex?: 1 | 2
-  carPerformance: number // 0-100 base do carro
+  carPerformance?: number // Opcional / legado — qualifying usa canonicalTeamKey -> Structural Strength
   speed: number // 0-100
   qualifying: number // 0-100
   form?: number // default 50
@@ -840,7 +835,6 @@ export class RaceQualifyingOrchestratorService {
           teamId: r.teamId,
           teamName: r.teamName,
           carIndex: r.carIndex,
-          carPerformance: extra?.carPerformance ?? 80,
           speed: extra?.speed ?? 80,
           qualifying: extra?.qualifying ?? 80,
           form: extra?.form ?? 50,
@@ -872,7 +866,6 @@ export class RaceQualifyingOrchestratorService {
           teamId: r.teamId,
           teamName: r.teamName,
           carIndex: r.carIndex,
-          carPerformance: extra?.carPerformance ?? 80,
           speed: extra?.speed ?? 80,
           qualifying: extra?.qualifying ?? 80,
           form: extra?.form ?? 50,
@@ -904,7 +897,6 @@ export class RaceQualifyingOrchestratorService {
           teamId: r.teamId,
           teamName: r.teamName,
           carIndex: r.carIndex,
-          carPerformance: extra?.carPerformance ?? 80,
           speed: extra?.speed ?? 80,
           qualifying: extra?.qualifying ?? 80,
           form: extra?.form ?? 50,
@@ -936,7 +928,6 @@ export class RaceQualifyingOrchestratorService {
           teamId: r.teamId,
           teamName: r.teamName,
           carIndex: r.carIndex,
-          carPerformance: extra?.carPerformance ?? 80,
           speed: extra?.speed ?? 80,
           qualifying: extra?.qualifying ?? 80,
           form: extra?.form ?? 50,
@@ -971,15 +962,13 @@ export class RaceQualifyingOrchestratorService {
       phase,
     )
 
-    // 5. PROCESSAMENTO DE CADA PARTICIPANTE (CANÔNICO EXCEL: MIN-MAX SPREAD E 1 TENTATIVA POR FASE)
-    // Primeiro passo: pré-cálculo dos ratings ponderados de todos os participantes para obter maxRating e minRating
-    const precomputedParticipants: Array<{
-      input: QualifyingDriverInput
-      carIdx: 1 | 2
-      finalSetup: number
-      effective_driver: number
-      rating: number
-    }> = []
+    // 5. PROCESSAMENTO DE CADA PARTICIPANTE (CANÔNICO ABSOLUTO: computeQualifyingPace)
+    // QUALI-UNIFY-01B: orquestrador consome canonicalPaceIntegrationService como único motor de performance
+    const circuitProfile = resolveCircuitProfile({ round })
+    const isWetCondition = Boolean(wet)
+    const effectiveAttemptsPerPhase = attemptsPerPhase ?? 1
+
+    const results: QualifyingParticipantResult[] = []
 
     for (let pIdx = 0; pIdx < uniqueParticipants.length; pIdx++) {
       const p = uniqueParticipants[pIdx]
@@ -997,144 +986,71 @@ export class RaceQualifyingOrchestratorService {
           })
           finalSetup = carSetupState.accumulatedSetup
         } catch {
-          finalSetup = 0
+          finalSetup = 80 // neutro canônico se não disponível
         }
       }
 
-      const { effective_driver } = calculateEffectiveQualifyingDriver(
-        {
-          speed: p.speed,
-          qualifying: p.qualifying,
-          form: p.form ?? 50,
-          morale: p.morale ?? 50,
-          wet_skill: p.wet_skill ?? 50,
-          wet,
+      // Resolução contextual de equipe (Player vs AI)
+      const rawCandidate = p.teamId || p.teamName || 'custom_team'
+      const resolvedContextualKey = resolveCanonicalTeamKeyFromContext({
+        teamId: p.teamId,
+        rawTeamIdentity: rawCandidate,
+        team: {
+          id: p.teamId,
+          name: p.teamName,
+          team_key: (p as any).teamKey,
         },
-        raceParams,
-      )
-
-      const { rating } = calculateTrackQualifyingRating({
-        car: p.carPerformance,
-        effective_driver,
-        driver_weight: driverWeight,
       })
+      const canonicalTeamKey = resolvedContextualKey || rawCandidate
 
-      precomputedParticipants.push({
-        input: p,
-        carIdx,
-        finalSetup,
-        effective_driver,
-        rating,
-      })
-    }
-
-    const allRatings = precomputedParticipants.map((item) => item.rating)
-    const maxRating = allRatings.length > 0 ? Math.max(...allRatings) : 100
-    const minRating = allRatings.length > 0 ? Math.min(...allRatings) : 0
-
-    // Spread canônico vindo da configuração canônica versionada / raceParams
-    const canonicalSpreadMs = raceParams.grid_target_spread_ms ?? 2500
-
-    // Ruído gaussiano com multiplicador de chuva:
-    // Seco: sigma = qualifying_noise_sd_ms (150 ms)
-    // Molhado: sigma = qualifying_noise_sd_ms * wet_noise_multiplier (225 ms)
-    const isWetCondition = Boolean(wet)
-    const { sigma_ms: effectiveQualifyingSigmaMs } = calculateQualifyingNoiseSigma(
-      { wet: isWetCondition },
-      raceParams,
-    )
-
-    // Baseline canônica definida para QUALI-PROVENANCE-01-FIX-A: 1 tentativa por fase
-    // Preserva arquiteturalmente a possibilidade de override de configuração se explicitamente fornecido
-    const effectiveAttemptsPerPhase = attemptsPerPhase ?? 1
-
-    const results: QualifyingParticipantResult[] = []
-
-    for (const item of precomputedParticipants) {
-      const p = item.input
-      const carIdx = item.carIdx
-      const finalSetup = item.finalSetup
-      const effective_driver = item.effective_driver
-      const rating = item.rating
-
-      // Canal de rating relativo min-max canônico homologado na A1 (Classificação!L7)
-      // Substitui integralmente qualquer resquício ou fórmula antiga (100 - rating) * 35
-      const ratingDeltaMs = calculateQualifyingRatingDeltaMs({
-        rating,
-        minRating,
-        maxRating,
-        spreadMs: canonicalSpreadMs,
-      })
-
-      // Ritmo base individual canônico do Excel (Classificação!L7)
-      // Preserva base de pista e clima como estão nesta A2
-      const baseRecordMs = trackRecordMs ?? 80000
-      const qualifyingBaseOverRecordFactor = raceParams.qualifying_base_over_record_factor ?? 0
-      const baseQualiMs = baseRecordMs * (1 + qualifyingBaseOverRecordFactor)
-      const wetBaseFactor = isWetCondition ? 1 + (raceParams.light_rain_time_fraction ?? 0.08) : 1
-      const basePaceMs = baseQualiMs * wetBaseFactor + ratingDeltaMs
+      const compoundUsed: 'MEDIUM' | 'SOFT' =
+        isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'MEDIUM' : 'SOFT'
+      const canonicalTyreCompound =
+        isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'medio' : 'macio'
+      const weatherState = isWetCondition ? 'chuva_fraca' : 'seco'
 
       const attempts: QualifyingLapAttempt[] = []
       let bestTimeMs = Infinity
-      let appliedBonusMs = 0
-
-      let appliedCompoundDeltaMs = 0
-      const compoundUsed: 'MEDIUM' | 'SOFT' =
-        isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'MEDIUM' : 'SOFT'
 
       for (let attNum = 1; attNum <= effectiveAttemptsPerPhase; attNum++) {
         // Identidade da tentativa no RNG: career + season + round + variant + phase + entry/car + attempt
-        // Garante namespaces distintos entre SQ1, SQ2, SQ3 e também de Q1, Q2, Q3
+        // Garante namespaces distintos e preserva a distribuição seeded PRNG atual
         const seedIdentity = `${careerId}:${seasonId}:r${round}:${variant}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
         const seedUint = hashStringToUint32(seedIdentity)
         const rng = mulberry32(seedUint)
         const z = getStandardNormal(rng)
 
-        let attemptTimeMs: number
-        let attemptBonusMs: number
-        let compoundDeltaMs = 0
+        // Converter z standard normal para noise de pace (sigma calibrado ~0.45 pt)
+        // QUALI_RNG_TARGET_RANGE.SIGMA = 0.45. z * 0.45 produz o sorteio gaussiano desejado
+        const seededPaceNoise = z * 0.45
 
-        if (isSprintQuali) {
-          // Sprint Shootout (SQ1, SQ2 usam Médio no seco; SQ3 usa Macio)
-          const isSq3 = (phase as QualifyingPhase) === 'SQ3'
-          const sprintCalc = calculateSprintQualifyingAttemptTime(
-            {
-              dry: !wet,
-              is_sq3: isSq3,
-              base_pace_ms: basePaceMs,
-              setup: finalSetup,
-              normal_standard_draw_z: z,
-              sigma_ms: effectiveQualifyingSigmaMs,
-              medium_delta_ms: mediumDeltaMs,
-            },
-            raceParams,
-          )
-          attemptTimeMs = sprintCalc.time_ms
-          attemptBonusMs = sprintCalc.bonus_ms
-          compoundDeltaMs = sprintCalc.compound_delta_ms
-          appliedCompoundDeltaMs = compoundDeltaMs
-        } else {
-          // Qualificação Principal (Q1, Q2, Q3)
-          const mainCalc = calculateQualifyingAttemptTime(
-            {
-              base_pace_ms: basePaceMs,
-              setup: finalSetup,
-              normal_standard_draw_z: z,
-              sigma_ms: effectiveQualifyingSigmaMs,
-            },
-            raceParams,
-          )
-          attemptTimeMs = mainCalc.time_ms
-          attemptBonusMs = mainCalc.bonus_ms
-        }
+        const paceResult = canonicalPaceIntegrationService.computeQualifyingPace({
+          teamKey: canonicalTeamKey,
+          driverId: p.driverId,
+          circuitProfile,
+          driverAttributes: {
+            speed: p.speed ?? 80,
+            consistency: 80,
+            rain: p.wet_skill ?? p.speed ?? 80,
+            morale: p.morale ?? 80,
+          },
+          tyreCompound: canonicalTyreCompound,
+          tyreWearPct: 0,
+          fuelKg: 12,
+          setupEfficiency: finalSetup,
+          weather: weatherState,
+          noise: seededPaceNoise,
+        })
 
-        appliedBonusMs = attemptBonusMs
+        // Converte lapTimeSec (ex: 74.000 + (100 - pace)*0.082) para ms inteiros
+        const attemptTimeMs = Math.round(paceResult.lapTimeSec * 1000)
+
         attempts.push({
           attemptNumber: attNum,
           normalDrawZ: z,
           timeMs: attemptTimeMs,
-          bonusMs: attemptBonusMs,
-          compoundDeltaMs: isSprintQuali ? compoundDeltaMs : undefined,
+          bonusMs: 0,
+          compoundDeltaMs: isSprintQuali && canonicalTyreCompound === 'medio' ? 650 : undefined,
           compoundUsed,
           formattedTime: formatLapTimeMs(attemptTimeMs),
         })
@@ -1144,6 +1060,22 @@ export class RaceQualifyingOrchestratorService {
         }
       }
 
+      // Snapshot canônico de pace neutro/base (RNG=0) para exibição e rastreabilidade
+      const basePaceSnapshot = canonicalPaceIntegrationService.computeQualifyingPace({
+        teamKey: canonicalTeamKey,
+        driverId: p.driverId,
+        circuitProfile,
+        driverAttributes: {
+          speed: p.speed ?? 80,
+          rain: p.wet_skill ?? p.speed ?? 80,
+          morale: p.morale ?? 80,
+        },
+        tyreCompound: canonicalTyreCompound,
+        setupEfficiency: finalSetup,
+        weather: weatherState,
+        noise: 0,
+      })
+
       results.push({
         driverId: p.driverId,
         driverName: p.driverName,
@@ -1151,11 +1083,11 @@ export class RaceQualifyingOrchestratorService {
         teamName: p.teamName,
         carIndex: carIdx,
         setup: finalSetup,
-        effectiveDriver: effective_driver,
-        trackRating: rating,
-        basePaceMs,
-        bonusMs: appliedBonusMs,
-        compoundDeltaMs: isSprintQuali ? appliedCompoundDeltaMs : undefined,
+        effectiveDriver: basePaceSnapshot.breakdown.driverEventModifier,
+        trackRating: basePaceSnapshot.effectivePaceScore,
+        basePaceMs: Math.round(basePaceSnapshot.lapTimeSec * 1000),
+        bonusMs: 0,
+        compoundDeltaMs: isSprintQuali && canonicalTyreCompound === 'medio' ? 650 : undefined,
         compoundUsed: isSprintQuali ? compoundUsed : undefined,
         bestTimeMs,
         formattedBestTime: formatLapTimeMs(bestTimeMs),
