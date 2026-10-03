@@ -22,53 +22,10 @@ import {
   QualifyingPaceIntegrationParams,
   RacePaceIntegrationParams,
   PaceIntegrationAuditResult,
+  PracticePaceIntegrationParams,
+  PracticePaceBreakdown,
 } from '@/types/pace-integration'
-export interface PracticePaceIntegrationParams {
-  teamKey?: string
-  teamContext?: TeamResolutionContext
-  teamIdentity?: TeamModel
-  driverId: string
-  driverAttributes?: Record<string, number>
-  circuitProfile?: {
-    characteristics?: { highSpeedRatio?: number; streetCircuit?: boolean; specialized?: boolean }
-  }
-  carTechnicalAttributes?: Record<string, number>
-  setupEfficiency?: number
-  program?: string
-  programPaceModifier?: number
-  tyreCompound?: string
-  tyreWearPct?: number
-  fuelKg?: number
-  puWearPct?: number
-  carCondition?: number
-  weather?: string
-  seed?: string
-  rngModifier?: number
-  noise?: number
-  isRookie?: boolean
-  rookieModifier?: number
-  adaptationModifier?: number
-  hasSpecialization?: boolean
-  practiceExecutionOverride?: number
-}
-
-export interface PracticePaceBreakdown {
-  structuralStrength: number
-  driverExecutionModifier: number
-  trackFitModifier: number
-  setupModifier: number
-  programModifier: number
-  tyreModifier: number
-  fuelModifier: number
-  wearModifier: number
-  weatherModifier: number
-  rookieAdaptationModifier: number
-  rngModifier: number
-  finalPracticePace: number
-  sessionType: 'practice'
-  teamKey: string
-  driverId: string
-}
+export type { PracticePaceIntegrationParams, PracticePaceBreakdown }
 import { structuralStrengthService } from '@/services/structuralStrengthService'
 import { structuralMissingFactorsService } from '@/services/structuralMissingFactorsService'
 import { calculateTrackFit } from '@/lib/car-session-performance-engine'
@@ -652,13 +609,16 @@ export class CanonicalPaceIntegrationService {
     // 2. TrackFit Canônico (neutral 75, scale 0.08, clamp normal ±2.0, esp ±2.5)
     let trackFit = 0
     if (carTechnicalAttributes && circuitProfile) {
+      const circRecord = circuitProfile as Record<string, any>
       const isSpecialized =
         params.hasSpecialization === true ||
-        (circuitProfile as Record<string, unknown>).specialized === true ||
-        (circuitProfile.characteristics as Record<string, unknown> | undefined)?.specialized ===
-          true ||
-        (circuitProfile.auxiliary as Record<string, unknown> | undefined)?.isSpecialized === true
-      const { trackFitScore } = calculateTrackFit(carTechnicalAttributes, circuitProfile)
+        circRecord.specialized === true ||
+        circRecord.characteristics?.specialized === true ||
+        circRecord.auxiliary?.isSpecialized === true
+      const { trackFitScore } = calculateTrackFit(
+        carTechnicalAttributes as any,
+        circuitProfile as any,
+      )
       const norm = this.normalizeTrackFit({
         rawTrackFitScore: trackFitScore,
         isSpecializedTrack: Boolean(isSpecialized),
@@ -782,12 +742,7 @@ export class CanonicalPaceIntegrationService {
     } else if (seed !== undefined) {
       const numericSeed = hashStringToSeed(seed)
       const rngFunc = createMulberry32(numericSeed)
-      const sampled = sampleGaussianRng(
-        rngFunc,
-        PRACTICE_RNG_DEFAULT_SIGMA,
-        PRACTICE_RNG_TARGET_RANGE.MIN,
-        PRACTICE_RNG_TARGET_RANGE.MAX,
-      )
+      const sampled = sampleGaussianRng(rngFunc, PRACTICE_RNG_DEFAULT_SIGMA, -1.0, 1.0)
       rng = Number(sampled.toFixed(3))
     } else if (careerId && driverId) {
       const draw = getPracticeDeterministicDraw({
