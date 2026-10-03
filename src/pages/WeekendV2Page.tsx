@@ -333,20 +333,32 @@ export default function WeekendV2Page() {
           initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
         } else if (initialSessionId === 'race' || initialSessionId === 'sprint_race') {
           const isSprintTarget = initialSessionId === 'sprint_race'
-          const fullGrid = isSprintTarget
-            ? canonicalQualifyingPersistenceService.readSprintQualifyingResult(
-                season.id,
-                currentRound,
-              ) ||
-              canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-                season.id,
-                currentRound,
-              )
-            : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-                season.id,
-                currentRound,
-              )
-          setCompleteQualifyingResult(fullGrid)
+          const fullGrid =
+            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              season.id,
+              currentRound,
+            ) ||
+            canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'sq1')
+              ? {
+                  seasonId: season.id,
+                  round: currentRound,
+                  completedAt: new Date().toISOString(),
+                  poleDriverId: '',
+                  poleDriverName: '',
+                  poleLapTime: '',
+                  finalGrid:
+                    canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+                      season.id,
+                      currentRound,
+                    )?.finalGrid || [],
+                }
+              : null
+          setCompleteQualifyingResult(
+            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              season.id,
+              currentRound,
+            ),
+          )
           const canonicalCareerId = resolveCanonicalCareerId(season, team)
           const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
             canonicalCareerId,
@@ -673,19 +685,10 @@ export default function WeekendV2Page() {
           }
         }
 
-        const fullGrid = isSprintTarget
-          ? canonicalQualifyingPersistenceService.readSprintQualifyingResult(
-              season.id,
-              currentRound,
-            ) ||
-            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-              season.id,
-              currentRound,
-            )
-          : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-              season.id,
-              currentRound,
-            )
+        const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+          season.id,
+          currentRound,
+        )
         setCompleteQualifyingResult(fullGrid)
         const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
           canonicalCareerId,
@@ -700,7 +703,6 @@ export default function WeekendV2Page() {
           canonicalCareerId,
           season.year || 2026,
           currentRound,
-          isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
         )
         if (official) {
           setOfficialRaceResult(official)
@@ -3343,7 +3345,6 @@ export default function WeekendV2Page() {
                     canonicalCareerId,
                     season.year || 2026,
                     currentRound,
-                    isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
                   )
                 ) {
                   toast({

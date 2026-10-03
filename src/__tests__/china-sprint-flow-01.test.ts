@@ -573,11 +573,22 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     expect(sprintDef.blockedMessage).toBe('Disponível após conclusão da Qualificação Sprint (SQ1).')
   })
 
-  // CFT14: sprint_race concluída desbloqueia q1
-  it('CFT14: sprint_race concluída desbloqueia q1', async () => {
+  // CFT14: sprint_race concluída desbloqueia q1 pelo pipeline canônico; validações estritas de gate
+  it('CFT14: sprint_race concluída desbloqueia q1 pelo pipeline canônico; sem bypass e sem reexecução prematura', async () => {
     const { resolveSessionVisualState, isSessionUnlocked } =
       await import('@/services/weekendScheduleConfig')
 
+    // 1. Sprint não abre antes da condição correta (apenas TL1 não libera Sprint)
+    expect(isSessionUnlocked('sprint_race', ['tp1'])).toBe(false)
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'sprint_race',
+        activeSessionId: 'sprint_race',
+        completedSessions: ['tp1'],
+      }),
+    ).toBe('locked')
+
+    // 2. Q1 não abre antes da conclusão da Sprint no fim de semana Sprint
     const beforeSprint = ['tp1', 'sq1']
     expect(isSessionUnlocked('q1', beforeSprint)).toBe(false)
     expect(
@@ -588,6 +599,7 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
       }),
     ).toBe('locked')
 
+    // 3. Ao concluir a Sprint, Q1 é liberada pelo pipeline canônico
     const afterSprint = ['tp1', 'sq1', 'sprint_race']
     expect(isSessionUnlocked('q1', afterSprint)).toBe(true)
     const visualAfter = resolveSessionVisualState({
@@ -597,6 +609,15 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
     })
     expect(visualAfter).not.toBe('locked')
     expect(['available', 'active']).toContain(visualAfter)
+
+    // 4. Sessão concluída não volta ao estado locked e permanece concluída
+    expect(
+      resolveSessionVisualState({
+        sessionId: 'sprint_race',
+        activeSessionId: 'q1',
+        completedSessions: afterSprint,
+      }),
+    ).toBe('completed')
   })
 
   // CFT12: SQ2 e SQ3 leem e consomem stages anteriores
