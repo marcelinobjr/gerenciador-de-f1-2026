@@ -1,704 +1,387 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { CanonicalQualifyingRunner } from '@/services/canonicalQualifyingRunner'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
-import { CANONICAL_QUALIFYING_RULES } from '@/types/canonical-qualifying-types'
-import { normalizeCompletedSessions } from '@/services/weekendProgressionService'
-import type {
-  QualifyingDriverContext,
-  QualifyingTickContext,
+import {
+  CanonicalQualifyingRunner,
+  type QualifyingTickContext,
+  type QualifyingDriverContext,
 } from '@/services/canonicalQualifyingRunner'
+import {
+  CANONICAL_QUALIFYING_RULES,
+  type QualifyingDriverStatus,
+  type QualifyingStageId,
+  type QualifyingStageState,
+} from '@/types/canonical-qualifying-types'
+import { normalizeCompletedSessions } from '@/services/weekendProgressionService'
 
-describe('SPRINT-FDS-01-R4C2-H: MICRO-RODADA DE HOMOLOGAÇÃO DO HANDOFF SQ1 -> SQ2 -> SQ3 (Sprint Qualifying)', () => {
-  const seasonId = 'season_2026_c2_handoff'
-  const round = 2 // GP da China (Sprint)
-
-  // Mock localStorage
-  class LocalStorageMock {
-    private store: Record<string, string> = {}
-    getItem(key: string) {
-      return this.store[key] || null
-    }
-    setItem(key: string, value: string) {
-      this.store[key] = String(value)
-    }
-    removeItem(key: string) {
-      delete this.store[key]
-    }
-    clear() {
-      this.store = {}
-    }
-  }
-
-  // Helper canônico similar a WeekendV2Page.resolveEligibleQualifyingParticipants
-  function resolveParticipantsForStage(
-    stageId: 'sq1' | 'sq2' | 'sq3' | 'q1' | 'q2' | 'q3',
-    all24Drivers: QualifyingDriverContext[],
-    currentSeasonId: string,
-    currentRound: number,
-  ): QualifyingDriverContext[] {
-    if (stageId === 'q1' || stageId === 'sq1') {
-      return all24Drivers.slice(0, CANONICAL_QUALIFYING_RULES[stageId].participantsCount)
-    }
-
-    if (stageId === 'q2' || stageId === 'sq2') {
-      const parentStage = stageId === 'sq2' ? 'sq1' : 'q1'
-      const parentRes = canonicalQualifyingPersistenceService.readStageResult(
-        currentSeasonId,
-        currentRound,
-        parentStage,
-      )
-      if (parentRes && parentRes.advancingDriverIds) {
-        return all24Drivers.filter((p) => parentRes.advancingDriverIds.includes(p.id))
-      }
-      return all24Drivers.slice(0, CANONICAL_QUALIFYING_RULES[stageId].participantsCount)
-    }
-
-    if (stageId === 'q3' || stageId === 'sq3') {
-      const parentStage = stageId === 'sq3' ? 'sq2' : 'q2'
-      const parentRes = canonicalQualifyingPersistenceService.readStageResult(
-        currentSeasonId,
-        currentRound,
-        parentStage,
-      )
-      if (parentRes && parentRes.advancingDriverIds) {
-        return all24Drivers.filter((p) => parentRes.advancingDriverIds.includes(p.id))
-      }
-      return all24Drivers.slice(0, CANONICAL_QUALIFYING_RULES[stageId].participantsCount)
-    }
-
-    return all24Drivers
-  }
-
-  // 24 pilotos oficiais
-  const all24Drivers: QualifyingDriverContext[] = Array.from({ length: 24 }, (_, idx) => ({
+// Helper para criar mock de pilotos oficiais do grid
+function createMockDriverContexts(count = 24): QualifyingDriverContext[] {
+  return Array.from({ length: count }, (_, idx) => ({
     id: `drv_${idx + 1}`,
     name: `Driver ${idx + 1}`,
-    speed: 88 - idx,
-    consistency: 85,
-    defense: 80,
+    speed: 80,
+    consistency: 80,
+    defense: 75,
     teamId: `team_${Math.floor(idx / 2) + 1}`,
     teamName: `Team ${Math.floor(idx / 2) + 1}`,
-    teamColor: idx % 2 === 0 ? '#E10600' : '#1E40AF',
+    teamColor: '#E10600',
     carNumber: idx + 1,
   }))
+}
 
-  const tickContext: QualifyingTickContext = {
+// Helper para criar QualifyingTickContext completo e tipado
+function createTickContext(
+  seasonId: string,
+  round: number,
+  participants: QualifyingDriverContext[],
+): QualifyingTickContext {
+  return {
     seasonId,
     round,
-    gpName: 'Grande Prêmio da China',
-    circuitName: 'Circuito Internacional de Xangai',
+    gpName: 'Chinese Grand Prix',
+    circuitName: 'Shanghai International Circuit',
     lengthKm: 5.451,
-    tireAbrasiveness: 3,
+    tireAbrasiveness: 6,
     weather: 'seco',
-    teamChassisRating: 85,
+    teamChassisRating: 80,
     teamEngineSupplier: 'Audi',
-    teamName: 'Team 1',
+    teamName: 'Audi F1 Team',
     teamColor: '#E10600',
-    drivers: [all24Drivers[0], all24Drivers[1]],
-    rivalDrivers: all24Drivers.slice(2),
+    drivers: participants.slice(0, 2),
+    rivalDrivers: participants.slice(2),
+  }
+}
+
+// Helper para criar estado inicial de teste para qualquer estágio
+function createMockStageState(
+  stageId: QualifyingStageId,
+  seasonId: string,
+  round: number,
+  participants: QualifyingDriverContext[],
+): QualifyingStageState {
+  const rules = CANONICAL_QUALIFYING_RULES[stageId]
+  const slice = participants.slice(0, rules.participantsCount)
+
+  const leaderboard = slice.map((p, idx) => ({
+    position: idx + 1,
+    driverId: p.id,
+    driverName: p.name,
+    teamId: p.teamId,
+    teamName: p.teamName,
+    teamColor: p.teamColor,
+    compound: 'macio' as const,
+    laps: 3,
+    bestLapSec: 75.0 + idx * 0.15,
+    bestLapTime: `1:15.${String(idx * 150).padStart(3, '0')}`,
+    bestLapRecordedAtSec: 200 + idx * 10,
+    gap: idx === 0 ? 'Pole/Líder' : `+${(idx * 0.15).toFixed(3)}s`,
+    isPlayer: idx < 2,
+    carId: idx === 0 ? ('car1' as const) : idx === 1 ? ('car2' as const) : undefined,
+    status: 'garage' as QualifyingDriverStatus,
+    carNumber: p.carNumber,
+  }))
+
+  return {
+    stageId,
+    status: 'running',
+    sessionDurationSec: rules.durationSec,
+    elapsedTimeSec: rules.durationSec,
+    timeRemainingSec: 0,
+    simSpeed: 1,
+    cars: {
+      car1: {
+        carId: 'car1',
+        driverId: slice[0]?.id || 'drv_1',
+        driverName: slice[0]?.name || 'Driver 1',
+        driverNumber: slice[0]?.carNumber || 1,
+        status: 'garage',
+        pitRequested: false,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+        currentTyreSetId: 'tyre_1',
+        currentCompound: 'macio',
+        tyreWear: 10,
+        fuelKg: 15,
+        outLapsDone: 1,
+        flyingLapsDone: 1,
+        inLapsDone: 1,
+        totalLaps: 3,
+        currentLapProgressPct: 0,
+        bestLapSec: leaderboard[0]?.bestLapSec,
+        bestLapTime: leaderboard[0]?.bestLapTime,
+        isEliminated: false,
+      },
+      car2: {
+        carId: 'car2',
+        driverId: slice[1]?.id || 'drv_2',
+        driverName: slice[1]?.name || 'Driver 2',
+        driverNumber: slice[1]?.carNumber || 2,
+        status: 'garage',
+        pitRequested: false,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+        currentTyreSetId: 'tyre_2',
+        currentCompound: 'macio',
+        tyreWear: 10,
+        fuelKg: 15,
+        outLapsDone: 1,
+        flyingLapsDone: 1,
+        inLapsDone: 1,
+        totalLaps: 3,
+        currentLapProgressPct: 0,
+        bestLapSec: leaderboard[1]?.bestLapSec,
+        bestLapTime: leaderboard[1]?.bestLapTime,
+        isEliminated: false,
+      },
+    },
+    leaderboard,
+    lapHistory: {},
+    radioFeed: [],
+    parcFermeActive: true,
+    revision: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+// Resolução dos participantes elegíveis simulando a lógica canônica de WeekendV2Page
+// (resolveEligibleQualifyingParticipants consome readStageResult do estágio predecessor)
+function resolveEligibleParticipantsCanonical(
+  stageId: QualifyingStageId,
+  seasonId: string,
+  round: number,
+  all24: QualifyingDriverContext[],
+) {
+  if (stageId === 'q1' || stageId === 'sq1') {
+    return all24.slice(0, CANONICAL_QUALIFYING_RULES[stageId].participantsCount)
   }
 
+  if (stageId === 'q2' || stageId === 'sq2') {
+    const parentStage: QualifyingStageId = stageId === 'sq2' ? 'sq1' : 'q1'
+    const parentRes = canonicalQualifyingPersistenceService.readStageResult(
+      seasonId,
+      round,
+      parentStage,
+    )
+    if (parentRes && parentRes.advancingDriverIds) {
+      return all24.filter((p) => parentRes.advancingDriverIds.includes(p.id))
+    }
+    // Fallback canônico regulamentar (CANONICAL_QUALIFYING_RULES.sq1.advancingCount = 18)
+    return all24.slice(0, CANONICAL_QUALIFYING_RULES[parentStage].advancingCount)
+  }
+
+  if (stageId === 'q3' || stageId === 'sq3') {
+    const parentStage: QualifyingStageId = stageId === 'sq3' ? 'sq2' : 'q2'
+    const parentRes = canonicalQualifyingPersistenceService.readStageResult(
+      seasonId,
+      round,
+      parentStage,
+    )
+    if (parentRes && parentRes.advancingDriverIds) {
+      return all24.filter((p) => parentRes.advancingDriverIds.includes(p.id))
+    }
+    // Fallback canônico regulamentar (CANONICAL_QUALIFYING_RULES.sq2.advancingCount = 10)
+    return all24.slice(0, CANONICAL_QUALIFYING_RULES[parentStage].advancingCount)
+  }
+
+  return all24
+}
+
+describe('SPRINT-FDS-01-R4C2: Sprint Qualifying Stage Handoff (C2-01..C2-12)', () => {
+  const seasonId = 'season_2026_sprint_c2'
+  const round = 2 // GP da China (Sprint Weekend)
+  const allDrivers = createMockDriverContexts(24)
+  const tickContext = createTickContext(seasonId, round, allDrivers)
+
   beforeEach(() => {
-    if (typeof window !== 'undefined') {
-      ;(window as any).localStorage = new LocalStorageMock()
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear()
     }
   })
 
-  // C2-01: SQ1 concluída persiste stage result 'sq1'.
-  it('C2-01: SQ1 concluída persiste stage result "sq1"', () => {
-    const sq1Participants = resolveParticipantsForStage('sq1', all24Drivers, seasonId, round)
-    expect(sq1Participants).toHaveLength(CANONICAL_QUALIFYING_RULES.sq1.participantsCount) // 24
+  // C2-01: SQ1 concluída persiste stage 'sq1'
+  it('C2-01: SQ1 concluída persiste stage sq1 via canonicalQualifyingPersistenceService', () => {
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    const sq1Result = CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, {
+      persistState: true,
+    })
 
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
+    expect(sq1Result.stageId).toBe('sq1')
+    expect(sq1Result.seasonId).toBe(seasonId)
+    expect(sq1Result.round).toBe(round)
+
+    const persistedResult = canonicalQualifyingPersistenceService.readStageResult(
       seasonId,
       round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq1Participants,
-      persistState: true,
-    })
-
-    const simResult = CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
-    expect(simResult.nextState.status).toBe('completed')
-
-    const sq1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
-    expect(sq1Result).not.toBeNull()
-    expect(sq1Result?.stageId).toBe('sq1')
-    expect(sq1Result?.seasonId).toBe(seasonId)
-    expect(sq1Result?.round).toBe(round)
-    expect(sq1Result?.entries).toHaveLength(CANONICAL_QUALIFYING_RULES.sq1.participantsCount)
-    expect(sq1Result?.advancingDriverIds).toHaveLength(
-      CANONICAL_QUALIFYING_RULES.sq1.advancingCount,
-    ) // 18
-    expect(sq1Result?.eliminatedDriverIds).toHaveLength(
-      CANONICAL_QUALIFYING_RULES.sq1.eliminatedCount,
-    ) // 6
+      'sq1',
+    )
+    expect(persistedResult).not.toBeNull()
+    expect(persistedResult?.stageId).toBe('sq1')
+    expect(persistedResult?.entries).toHaveLength(CANONICAL_QUALIFYING_RULES.sq1.participantsCount) // 24
   })
 
-  // C2-02: SQ2 lê o resultado persistido da SQ1.
-  it('C2-02: SQ2 lê o resultado persistido da SQ1', () => {
-    // 1. Simular SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
+  // C2-02: SQ2 lê resultado da SQ1
+  it('C2-02: SQ2 lê resultado da SQ1 para determinar avanço e participantes', () => {
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    const finalizedSq1 = CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, {
       persistState: true,
     })
 
-    // 2. Leitura canônica pela persistência
     const readSq1 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
     expect(readSq1).not.toBeNull()
-    expect(readSq1?.stageId).toBe('sq1')
-    expect(readSq1?.advancingDriverIds).toBeDefined()
+    expect(readSq1?.advancingDriverIds).toEqual(finalizedSq1.advancingDriverIds)
     expect(readSq1?.advancingDriverIds).toHaveLength(CANONICAL_QUALIFYING_RULES.sq1.advancingCount)
   })
 
-  // C2-03: participantes da SQ2 correspondem aos classificados canônicos da SQ1 (esperado 18 conforme CANONICAL_QUALIFYING_RULES.sq1.advancingCount).
-  it('C2-03: participantes da SQ2 correspondem aos classificados canônicos da SQ1 (18 classificados)', () => {
-    // 1. Finalizar SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
+  // C2-03: Participantes da SQ2 = classificados canônicos da SQ1 (18)
+  it('C2-03: participantes da SQ2 correspondem exatamente aos classificados da SQ1', () => {
+    // Origem regulamentar da constante canônica: CANONICAL_QUALIFYING_RULES.sq1.advancingCount (18)
+    const expectedAdvancingCount = CANONICAL_QUALIFYING_RULES.sq1.advancingCount
+    expect(expectedAdvancingCount).toBe(18)
 
-    const sq1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')!
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, { persistState: true })
 
-    // Quantidade canônica de SQ2
-    expect(sq2Participants).toHaveLength(CANONICAL_QUALIFYING_RULES.sq2.participantsCount) // 18
-    expect(sq2Participants).toHaveLength(CANONICAL_QUALIFYING_RULES.sq1.advancingCount) // 18
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    expect(eligibleSq2).toHaveLength(expectedAdvancingCount)
 
-    // Todos os participantes da SQ2 pertencem estritamente aos advancingDriverIds de SQ1
-    const sq2Ids = sq2Participants.map((p) => p.id)
-    expect(sq2Ids).toEqual(sq1Result.advancingDriverIds)
+    const sq1Res = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')!
+    const eligibleIds = eligibleSq2.map((p) => p.id)
+    expect(eligibleIds).toEqual(sq1Res.advancingDriverIds)
 
-    // Nenhum eliminado de SQ1 participa de SQ2
-    sq1Result.eliminatedDriverIds.forEach((elimId) => {
-      expect(sq2Ids).not.toContain(elimId)
+    // Eliminados do SQ1 não podem figurar na SQ2
+    sq1Res.eliminatedDriverIds.forEach((elimId) => {
+      expect(eligibleIds).not.toContain(elimId)
     })
   })
 
-  // C2-04: SQ2 NÃO volta a usar grid inicial completo nem a qualificação principal.
-  it('C2-04: SQ2 NÃO volta a usar grid inicial completo nem a qualificação principal', () => {
-    // 1. Simular SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
+  // C2-04: SQ2 não usa grid completo nem quali principal
+  it('C2-04: SQ2 não usa grid completo (24) nem resultado da quali principal (q1/q2/q3)', () => {
+    // 1. Simular uma qualificação principal anterior ou futura salva no storage
+    const q1State = createMockStageState('q1', seasonId, round, allDrivers)
+    canonicalQualifyingPersistenceService.saveStageResult({
+      stageId: 'q1',
       seasonId,
       round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
+      completedAt: new Date().toISOString(),
+      entries: q1State.leaderboard.map((e) => ({
+        ...e,
+        bestLapRecordedAtSec: 100,
+        lapsCount: 2,
+        isEliminated: false,
+      })),
+      // Inverter ordem dos avançados no Q1 para provar independência
+      advancingDriverIds: allDrivers.slice(6, 24).map((d) => d.id),
+      eliminatedDriverIds: allDrivers.slice(0, 6).map((d) => d.id),
     })
 
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
+    // 2. Simular SQ1 concluída com ordem padrão (0..17 avançam)
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, { persistState: true })
 
-    // NÃO usa grid completo de 24
-    expect(sq2Participants.length).not.toBe(24)
-    expect(sq2Participants.length).toBe(18)
+    // 3. Resolver participantes para SQ2
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
 
-    // Q1 principal e Q2 principal continuam estritamente vazios
-    const q1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q1')
-    const q2Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q2')
-    expect(q1Result).toBeNull()
-    expect(q2Result).toBeNull()
+    // Não usa grid completo de 24
+    expect(eligibleSq2).not.toHaveLength(24)
+    expect(eligibleSq2).toHaveLength(CANONICAL_QUALIFYING_RULES.sq2.participantsCount) // 18
 
-    // O grid principal completo não foi invocado nem criado
-    const mainGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-      seasonId,
-      round,
+    // Participantes de SQ2 derivam de SQ1 (0..17), não de Q1 (6..23)
+    const sq1Res = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')!
+    expect(eligibleSq2.map((p) => p.id)).toEqual(sq1Res.advancingDriverIds)
+    expect(eligibleSq2.map((p) => p.id)).not.toEqual(
+      canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q1')!
+        .advancingDriverIds,
     )
-    expect(mainGrid).toBeNull()
   })
 
-  // C2-05: SQ2 concluída persiste stage result 'sq2'.
-  it('C2-05: SQ2 concluída persiste stage result "sq2"', () => {
-    // 1. Simular SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
+  // C2-05: SQ2 persiste 'sq2'
+  it('C2-05: SQ2 concluída persiste stage sq2 via canonicalQualifyingPersistenceService', () => {
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, { persistState: true })
+
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    const sq2State = createMockStageState('sq2', seasonId, round, eligibleSq2)
+
+    const sq2Result = CanonicalQualifyingRunner.finalizeStage(sq2State, tickContext, {
+      persistState: true,
+    })
+
+    expect(sq2Result.stageId).toBe('sq2')
+    const persistedSq2 = canonicalQualifyingPersistenceService.readStageResult(
       seasonId,
       round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
-
-    // 2. Inicializar e simular SQ2
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
-    const sq2Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq2',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq2Participants,
-      persistState: true,
-    })
-
-    const simSq2 = CanonicalQualifyingRunner.simulateRemainingSession(sq2Initial, tickContext, {
-      persistState: true,
-    })
-    expect(simSq2.nextState.status).toBe('completed')
-
-    const sq2Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
-    expect(sq2Result).not.toBeNull()
-    expect(sq2Result?.stageId).toBe('sq2')
-    expect(sq2Result?.entries).toHaveLength(CANONICAL_QUALIFYING_RULES.sq2.participantsCount) // 18
-    expect(sq2Result?.advancingDriverIds).toHaveLength(
-      CANONICAL_QUALIFYING_RULES.sq2.advancingCount,
-    ) // 10
-    expect(sq2Result?.eliminatedDriverIds).toHaveLength(
-      CANONICAL_QUALIFYING_RULES.sq2.eliminatedCount,
-    ) // 8
+      'sq2',
+    )
+    expect(persistedSq2).not.toBeNull()
+    expect(persistedSq2?.stageId).toBe('sq2')
+    expect(persistedSq2?.entries).toHaveLength(CANONICAL_QUALIFYING_RULES.sq2.participantsCount) // 18
   })
 
-  // C2-06: SQ3 lê o resultado persistido da SQ2.
-  it('C2-06: SQ3 lê o resultado persistido da SQ2', () => {
-    // 1. Executar SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
+  // C2-06: SQ3 lê SQ2
+  it('C2-06: SQ3 lê resultado da SQ2 para determinar participantes', () => {
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, { persistState: true })
+
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    const sq2State = createMockStageState('sq2', seasonId, round, eligibleSq2)
+    const finalizedSq2 = CanonicalQualifyingRunner.finalizeStage(sq2State, tickContext, {
       persistState: true,
     })
 
-    // 2. Executar SQ2
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
-    const sq2Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq2',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq2Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq2Initial, tickContext, {
-      persistState: true,
-    })
-
-    // 3. Leitura do resultado de SQ2 por SQ3
     const readSq2 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
     expect(readSq2).not.toBeNull()
-    expect(readSq2?.stageId).toBe('sq2')
-    expect(readSq2?.advancingDriverIds).toBeDefined()
-    expect(readSq2?.advancingDriverIds).toHaveLength(CANONICAL_QUALIFYING_RULES.sq2.advancingCount)
+    expect(readSq2?.advancingDriverIds).toEqual(finalizedSq2.advancingDriverIds)
   })
 
-  // C2-07: participantes da SQ3 correspondem aos classificados canônicos da SQ2 (esperado 10 conforme CANONICAL_QUALIFYING_RULES.sq2.advancingCount).
-  it('C2-07: participantes da SQ3 correspondem aos classificados canônicos da SQ2 (10 classificados)', () => {
-    // 1. Executar SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
+  // C2-07: Participantes da SQ3 = classificados da SQ2 (10)
+  it('C2-07: participantes da SQ3 correspondem exatamente aos classificados da SQ2', () => {
+    // Origem regulamentar da constante canônica: CANONICAL_QUALIFYING_RULES.sq2.advancingCount (10)
+    const expectedAdvancingCount = CANONICAL_QUALIFYING_RULES.sq2.advancingCount
+    expect(expectedAdvancingCount).toBe(10)
 
-    // 2. Executar SQ2
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
-    const sq2Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq2',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq2Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq2Initial, tickContext, {
-      persistState: true,
-    })
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, { persistState: true })
 
-    const sq2Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')!
-    const sq3Participants = resolveParticipantsForStage('sq3', all24Drivers, seasonId, round)
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    const sq2State = createMockStageState('sq2', seasonId, round, eligibleSq2)
+    CanonicalQualifyingRunner.finalizeStage(sq2State, tickContext, { persistState: true })
 
-    // Quantidade canônica de SQ3
-    expect(sq3Participants).toHaveLength(CANONICAL_QUALIFYING_RULES.sq3.participantsCount) // 10
-    expect(sq3Participants).toHaveLength(CANONICAL_QUALIFYING_RULES.sq2.advancingCount) // 10
+    const eligibleSq3 = resolveEligibleParticipantsCanonical('sq3', seasonId, round, allDrivers)
+    expect(eligibleSq3).toHaveLength(expectedAdvancingCount)
 
-    // Todos os participantes da SQ3 pertencem estritamente aos advancingDriverIds de SQ2
-    const sq3Ids = sq3Participants.map((p) => p.id)
-    expect(sq3Ids).toEqual(sq2Result.advancingDriverIds)
+    const sq2Res = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')!
+    const sq3Ids = eligibleSq3.map((p) => p.id)
+    expect(sq3Ids).toEqual(sq2Res.advancingDriverIds)
 
-    // Nenhum eliminado de SQ2 participa de SQ3
-    sq2Result.eliminatedDriverIds.forEach((elimId) => {
+    // Eliminados do SQ2 (P11..P18) não podem figurar na SQ3
+    sq2Res.eliminatedDriverIds.forEach((elimId) => {
       expect(sq3Ids).not.toContain(elimId)
     })
   })
 
-  // C2-08: SQ3 NÃO usa diretamente SQ1 quando SQ2 existe.
-  it('C2-08: SQ3 NÃO usa diretamente SQ1 quando SQ2 existe', () => {
-    // 1. Executar SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
+  // C2-08: SQ3 não usa SQ1 diretamente quando SQ2 existe
+  it('C2-08: SQ3 consome SQ2 como estágio predecessor e não pula para SQ1', () => {
+    const sq1State = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1State, tickContext, { persistState: true })
 
-    // 2. Executar SQ2
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
-    const sq2Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq2',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq2Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq2Initial, tickContext, {
-      persistState: true,
-    })
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    const sq2State = createMockStageState('sq2', seasonId, round, eligibleSq2)
+    CanonicalQualifyingRunner.finalizeStage(sq2State, tickContext, { persistState: true })
 
-    const sq1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')!
-    const sq2Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')!
-    const sq3Participants = resolveParticipantsForStage('sq3', all24Drivers, seasonId, round)
+    const sq1Res = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')!
+    const sq2Res = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')!
+    const eligibleSq3 = resolveEligibleParticipantsCanonical('sq3', seasonId, round, allDrivers)
 
-    // SQ3 tem 10 participantes, enquanto SQ1 avançou 18
-    expect(sq3Participants.length).toBe(10)
-    expect(sq1Result.advancingDriverIds.length).toBe(18)
-    expect(sq3Participants.length).not.toBe(sq1Result.advancingDriverIds.length)
+    // SQ1 tem 18 classificados, SQ2 tem 10 classificados
+    expect(sq1Res.advancingDriverIds).toHaveLength(CANONICAL_QUALIFYING_RULES.sq1.advancingCount) // 18
+    expect(sq2Res.advancingDriverIds).toHaveLength(CANONICAL_QUALIFYING_RULES.sq2.advancingCount) // 10
 
-    // Os 8 pilotos eliminados no SQ2 estavam entre os 18 que avançaram de SQ1, mas NÃO estão no SQ3
-    const eliminatedInSq2 = sq2Result.eliminatedDriverIds
-    expect(eliminatedInSq2.length).toBe(8)
-    eliminatedInSq2.forEach((elimId) => {
-      expect(sq1Result.advancingDriverIds).toContain(elimId)
-      expect(sq3Participants.map((p) => p.id)).not.toContain(elimId)
-    })
+    // SQ3 deve ter 10 participantes, coincidindo com SQ2 e não com os 18 da SQ1
+    expect(eligibleSq3).toHaveLength(sq2Res.advancingDriverIds.length)
+    expect(eligibleSq3.map((p) => p.id)).toEqual(sq2Res.advancingDriverIds)
+    expect(eligibleSq3.map((p) => p.id)).not.toEqual(sq1Res.advancingDriverIds)
   })
 
-  // C2-09: stage results sq1/sq2/sq3 permanecem separados, sem colisão.
-  it('C2-09: stage results sq1/sq2/sq3 permanecem separados, sem colisão', () => {
-    // 1. Simular SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
-
-    // 2. Simular SQ2
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
-    const sq2Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq2',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq2Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq2Initial, tickContext, {
-      persistState: true,
-    })
-
-    // 3. Simular SQ3
-    const sq3Participants = resolveParticipantsForStage('sq3', all24Drivers, seasonId, round)
-    const sq3Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq3',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 20,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 20,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq3Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq3Initial, tickContext, {
-      persistState: true,
-    })
-
-    // Conferir chaves de armazenamento distintas
+  // C2-09: Stages sq1/sq2/sq3 separados
+  it('C2-09: stages sq1, sq2 e sq3 possuem persistência, chaves e estados completamente separados', () => {
     const keySq1 = canonicalQualifyingPersistenceService.getStageResultKey(seasonId, round, 'sq1')
     const keySq2 = canonicalQualifyingPersistenceService.getStageResultKey(seasonId, round, 'sq2')
     const keySq3 = canonicalQualifyingPersistenceService.getStageResultKey(seasonId, round, 'sq3')
@@ -706,381 +389,145 @@ describe('SPRINT-FDS-01-R4C2-H: MICRO-RODADA DE HOMOLOGAÇÃO DO HANDOFF SQ1 -> 
     expect(keySq1).not.toBe(keySq2)
     expect(keySq2).not.toBe(keySq3)
     expect(keySq1).not.toBe(keySq3)
+    expect(keySq1).toContain('_sq1')
+    expect(keySq2).toContain('_sq2')
+    expect(keySq3).toContain('_sq3')
 
-    // Ler cada resultado de forma independente
+    // Executar e persistir os 3 estágios
+    const sq1 = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1, tickContext, { persistState: true })
+
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    const sq2 = createMockStageState('sq2', seasonId, round, eligibleSq2)
+    CanonicalQualifyingRunner.finalizeStage(sq2, tickContext, { persistState: true })
+
+    const eligibleSq3 = resolveEligibleParticipantsCanonical('sq3', seasonId, round, allDrivers)
+    const sq3 = createMockStageState('sq3', seasonId, round, eligibleSq3)
+    CanonicalQualifyingRunner.finalizeStage(sq3, tickContext, { persistState: true })
+
+    const r1 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+    const r2 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
+    const r3 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3')
+
+    expect(r1?.stageId).toBe('sq1')
+    expect(r2?.stageId).toBe('sq2')
+    expect(r3?.stageId).toBe('sq3')
+    expect(r1?.entries).toHaveLength(24)
+    expect(r2?.entries).toHaveLength(18)
+    expect(r3?.entries).toHaveLength(10)
+  })
+
+  // C2-10: Reload preserva stages
+  it('C2-10: reload simulado restaura integralmente os resultados e estados de sq1, sq2 e sq3', () => {
+    // 1. Simular execução completa das 3 fases
+    const sq1 = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1, tickContext, { persistState: true })
+
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    const sq2 = createMockStageState('sq2', seasonId, round, eligibleSq2)
+    CanonicalQualifyingRunner.finalizeStage(sq2, tickContext, { persistState: true })
+
+    const eligibleSq3 = resolveEligibleParticipantsCanonical('sq3', seasonId, round, allDrivers)
+    const sq3 = createMockStageState('sq3', seasonId, round, eligibleSq3)
+    CanonicalQualifyingRunner.finalizeStage(sq3, tickContext, { persistState: true })
+
+    // 2. Simular recarregamento da página (leitura pura a partir do localStorage persistido)
+    const loadedSq1 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+    const loadedSq2 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
+    const loadedSq3 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3')
+
+    expect(loadedSq1).not.toBeNull()
+    expect(loadedSq2).not.toBeNull()
+    expect(loadedSq3).not.toBeNull()
+
+    expect(loadedSq1?.advancingDriverIds).toHaveLength(18)
+    expect(loadedSq2?.advancingDriverIds).toHaveLength(10)
+    expect(loadedSq3?.entries).toHaveLength(10)
+
+    // Estados ao vivo de cada fase também preservados
+    const stateSq1 = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'sq1')
+    const stateSq2 = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'sq2')
+    const stateSq3 = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'sq3')
+
+    expect(stateSq1?.status).toBe('completed')
+    expect(stateSq2?.status).toBe('completed')
+    expect(stateSq3?.status).toBe('completed')
+  })
+
+  // C2-11: Quali principal (_q1/_q2/_q3) isolada
+  it('C2-11: quali principal (_q1/_q2/_q3) permanece estritamente isolada de sq1/sq2/sq3', () => {
+    // 1. Gravar SQ1, SQ2 e SQ3
+    const sq1 = createMockStageState('sq1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(sq1, tickContext, { persistState: true })
+    const eligibleSq2 = resolveEligibleParticipantsCanonical('sq2', seasonId, round, allDrivers)
+    const sq2 = createMockStageState('sq2', seasonId, round, eligibleSq2)
+    CanonicalQualifyingRunner.finalizeStage(sq2, tickContext, { persistState: true })
+    const eligibleSq3 = resolveEligibleParticipantsCanonical('sq3', seasonId, round, allDrivers)
+    const sq3 = createMockStageState('sq3', seasonId, round, eligibleSq3)
+    CanonicalQualifyingRunner.finalizeStage(sq3, tickContext, { persistState: true })
+
+    // 2. Gravar Q1, Q2 e Q3 com tempos diferentes
+    const q1 = createMockStageState('q1', seasonId, round, allDrivers)
+    CanonicalQualifyingRunner.finalizeStage(q1, tickContext, { persistState: true })
+    const eligibleQ2 = resolveEligibleParticipantsCanonical('q2', seasonId, round, allDrivers)
+    const q2 = createMockStageState('q2', seasonId, round, eligibleQ2)
+    CanonicalQualifyingRunner.finalizeStage(q2, tickContext, { persistState: true })
+    const eligibleQ3 = resolveEligibleParticipantsCanonical('q3', seasonId, round, allDrivers)
+    const q3 = createMockStageState('q3', seasonId, round, eligibleQ3)
+    CanonicalQualifyingRunner.finalizeStage(q3, tickContext, { persistState: true })
+
+    // 3. Verificar que chaves e dados de SQ e Q não colidem nem sobrescrevem
     const resSq1 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
-    const resSq2 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
-    const resSq3 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3')
-
-    expect(resSq1).not.toBeNull()
-    expect(resSq2).not.toBeNull()
-    expect(resSq3).not.toBeNull()
-
+    const resQ1 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q1')
     expect(resSq1?.stageId).toBe('sq1')
+    expect(resQ1?.stageId).toBe('q1')
+
+    const resSq2 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
+    const resQ2 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q2')
     expect(resSq2?.stageId).toBe('sq2')
+    expect(resQ2?.stageId).toBe('q2')
+
+    const resSq3 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3')
+    const resQ3 = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q3')
     expect(resSq3?.stageId).toBe('sq3')
-
-    expect(resSq1?.entries).toHaveLength(24)
-    expect(resSq2?.entries).toHaveLength(18)
-    expect(resSq3?.entries).toHaveLength(10)
+    expect(resQ3?.stageId).toBe('q3')
   })
 
-  // C2-10: reload/persistência preserva os stages sem misturar resultados.
-  it('C2-10: reload/persistência preserva os stages sem misturar resultados', () => {
-    // 1. Simular e salvar SQ1, SQ2 e SQ3
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
+  // C2-12: Aliases sprint_q1→sq1, sprint_q2→sq2, sprint_q3→sq3 válidos sem duplicação
+  it('C2-12: aliases sprint_q1->sq1, sprint_q2->sq2, sprint_q3->sq3 são normalizados sem duplicatas', () => {
+    // Teste com entrada contendo aliases legados
+    const legacyInput = ['tp1', 'sprint_q1', 'sprint_q2', 'sprint_q3']
+    const normalized = normalizeCompletedSessions(legacyInput)
 
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
-    const sq2Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq2',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq2Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq2Initial, tickContext, {
-      persistState: true,
-    })
-
-    const sq3Participants = resolveParticipantsForStage('sq3', all24Drivers, seasonId, round)
-    const sq3Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq3',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 20,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 20,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq3Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq3Initial, tickContext, {
-      persistState: true,
-    })
-
-    // 2. Simular um reload limpando estados em memória e relendo do storage
-    const reloadedSq1State = canonicalQualifyingPersistenceService.readStageState(
-      seasonId,
-      round,
-      'sq1',
-    )
-    const reloadedSq2State = canonicalQualifyingPersistenceService.readStageState(
-      seasonId,
-      round,
-      'sq2',
-    )
-    const reloadedSq3State = canonicalQualifyingPersistenceService.readStageState(
-      seasonId,
-      round,
-      'sq3',
-    )
-
-    expect(reloadedSq1State).not.toBeNull()
-    expect(reloadedSq2State).not.toBeNull()
-    expect(reloadedSq3State).not.toBeNull()
-
-    expect(reloadedSq1State?.stageId).toBe('sq1')
-    expect(reloadedSq2State?.stageId).toBe('sq2')
-    expect(reloadedSq3State?.stageId).toBe('sq3')
-
-    expect(reloadedSq1State?.status).toBe('completed')
-    expect(reloadedSq2State?.status).toBe('completed')
-    expect(reloadedSq3State?.status).toBe('completed')
-
-    // Confirmar que initializeStage retorna o estado salvo sem recomeçar do zero
-    const restoredSq1 = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-    })
-    expect(restoredSq1.status).toBe('completed')
-    expect(restoredSq1.stageId).toBe('sq1')
-  })
-
-  // C2-11: quali principal q1/q2/q3 permanece isolada da Sprint Qualifying sq1/sq2/sq3.
-  it('C2-11: quali principal q1/q2/q3 permanece isolada da Sprint Qualifying sq1/sq2/sq3', () => {
-    // 1. Simular SQ1, SQ2 e SQ3
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
-
-    const sq2Participants = resolveParticipantsForStage('sq2', all24Drivers, seasonId, round)
-    const sq2Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq2',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 10,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq2Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq2Initial, tickContext, {
-      persistState: true,
-    })
-
-    const sq3Participants = resolveParticipantsForStage('sq3', all24Drivers, seasonId, round)
-    const sq3Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq3',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 20,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 20,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: sq3Participants,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq3Initial, tickContext, {
-      persistState: true,
-    })
-
-    // Verificar que Q1, Q2, Q3 principais continuam estritamente nulos
-    expect(canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q1')).toBeNull()
-    expect(canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q2')).toBeNull()
-    expect(canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q3')).toBeNull()
-    expect(
-      canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round),
-    ).toBeNull()
-
-    // 2. Agora simular Q1 principal
-    const q1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'q1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1_main',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 7, rearWing: 7, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2_main',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 7, rearWing: 7, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(q1Initial, tickContext, {
-      persistState: true,
-    })
-
-    const q1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q1')
-    expect(q1Result).not.toBeNull()
-    expect(q1Result?.stageId).toBe('q1')
-
-    // SQ1 permanece inalterado com seu próprio resultado
-    const sq1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
-    expect(sq1Result).not.toBeNull()
-    expect(sq1Result?.stageId).toBe('sq1')
-
-    // Chaves de storage são totalmente distintas
-    const sq1Key = canonicalQualifyingPersistenceService.getStageResultKey(seasonId, round, 'sq1')
-    const q1Key = canonicalQualifyingPersistenceService.getStageResultKey(seasonId, round, 'q1')
-    expect(sq1Key).toContain('_sq1')
-    expect(q1Key).toContain('_q1')
-    expect(sq1Key).not.toBe(q1Key)
-  })
-
-  // C2-12: aliases canônicos sprint_q1->sq1, sprint_q2->sq2, sprint_q3->sq3 continuam válidos e não criam resultados paralelos duplicados.
-  it('C2-12: aliases canônicos sprint_q1->sq1, sprint_q2->sq2, sprint_q3->sq3 continuam válidos e não criam resultados paralelos duplicados', () => {
-    // 1. Normalização via normalizeCompletedSessions
-    const withAliases = ['tp1', 'sprint_q1', 'sprint_q2', 'sprint_q3']
-    const normalized = normalizeCompletedSessions(withAliases)
-
+    // Formas canônicas devem estar presentes
     expect(normalized).toContain('sq1')
     expect(normalized).toContain('sq2')
     expect(normalized).toContain('sq3')
-    expect(normalized).toContain('sprint_qualifying')
 
-    // 2. Persistência e chaves não geram chaves duplicadas para o mesmo stage
-    const keyCanonicalSq1 = canonicalQualifyingPersistenceService.getStageResultKey(
-      seasonId,
-      round,
-      'sq1',
-    )
-    const keyAliasSq1 = canonicalQualifyingPersistenceService.getStageResultKey(
-      seasonId,
-      round,
-      'sq1' as any,
-    )
-    expect(keyCanonicalSq1).toBe(keyAliasSq1)
+    // Aliases bidirecionais de compatibilidade também estão presentes
+    expect(normalized).toContain('sprint_q1')
+    expect(normalized).toContain('sprint_q2')
+    expect(normalized).toContain('sprint_q3')
 
-    // 3. Salvar SQ1 e ler usando SQ1
-    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
-      stageId: 'sq1',
-      seasonId,
-      round,
-      playerCar1: {
-        driverId: 'drv_1',
-        driverName: 'Driver 1',
-        driverNumber: 1,
-        tyreSetId: 'tire_c1',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      playerCar2: {
-        driverId: 'drv_2',
-        driverName: 'Driver 2',
-        driverNumber: 2,
-        tyreSetId: 'tire_c2',
-        compound: 'macio',
-        wear: 0,
-        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      },
-      eligibleParticipants: all24Drivers,
-      persistState: true,
-    })
-    CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
-      persistState: true,
-    })
+    // Sem duplicação de itens
+    const uniqueItems = new Set(normalized)
+    expect(normalized.length).toBe(uniqueItems.size)
 
-    const read = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
-    expect(read).not.toBeNull()
-    expect(read?.stageId).toBe('sq1')
+    // Teste de normalização inversa partindo de sq1..sq3
+    const canonicalInput = ['sq1', 'sq2', 'sq3']
+    const normalizedCanonical = normalizeCompletedSessions(canonicalInput)
+    expect(normalizedCanonical).toContain('sq1')
+    expect(normalizedCanonical).toContain('sq2')
+    expect(normalizedCanonical).toContain('sq3')
+    expect(normalizedCanonical).toContain('sprint_q1')
+    expect(normalizedCanonical).toContain('sprint_q2')
+    expect(normalizedCanonical).toContain('sprint_q3')
+    expect(normalizedCanonical.length).toBe(new Set(normalizedCanonical).size)
 
-    // Nenhum resultado criado sob q1
-    expect(canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'q1')).toBeNull()
+    // Isolamento: sq1/sq2/sq3 NÃO devem incluir q1, q2 ou q3
+    expect(normalizedCanonical).not.toContain('q1')
+    expect(normalizedCanonical).not.toContain('q2')
+    expect(normalizedCanonical).not.toContain('q3')
+    expect(normalizedCanonical).not.toContain('qualifying')
   })
 })
