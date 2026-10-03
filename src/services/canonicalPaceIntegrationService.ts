@@ -98,9 +98,9 @@ export function createMulberry32(seed: number): () => number {
  */
 export function sampleGaussianRng(
   rng: () => number,
-  sigma = QUALI_RNG_DEFAULT_SIGMA,
-  clampMin = QUALI_RNG_TARGET_RANGE.MIN,
-  clampMax = QUALI_RNG_TARGET_RANGE.MAX,
+  sigma: number = QUALI_RNG_DEFAULT_SIGMA,
+  clampMin: number = QUALI_RNG_TARGET_RANGE.MIN,
+  clampMax: number = QUALI_RNG_TARGET_RANGE.MAX,
 ): number {
   let u1 = rng()
   let u2 = rng()
@@ -569,7 +569,7 @@ export class CanonicalPaceIntegrationService {
    * 6. TYRE / FUEL / WEAR / WEATHER: Fontes canônicas idênticas às usadas por computeQualifyingPace.
    * 7. ROOKIE / ADAPTATION: Modificador de sessão, nunca altera Structural.
    * 8. RNG: Amostragem determinística via canonicalPracticeRngService (Mulberry32 + Box-Muller).
-   *    Sigma calibrado em 0.8, clamped em [-2.0, +2.0]. ZERO Math.random(). Entra exatamente UMA vez.
+   *    Sigma calibrado em 0.75, clamped em [-1.75, +1.75]. ZERO Math.random(). Entra exatamente UMA vez.
    * 9. PACE É ABSOLUTO: Sem min-max por participantes. Remover equipes não renormaliza gaps.
    */
   public computePracticePace(params: PracticePaceIntegrationParams): {
@@ -742,7 +742,12 @@ export class CanonicalPaceIntegrationService {
     } else if (seed !== undefined) {
       const numericSeed = hashStringToSeed(seed)
       const rngFunc = createMulberry32(numericSeed)
-      const sampled = sampleGaussianRng(rngFunc, PRACTICE_RNG_DEFAULT_SIGMA, -1.0, 1.0)
+      const sampled = sampleGaussianRng(
+        rngFunc,
+        PRACTICE_RNG_DEFAULT_SIGMA,
+        PRACTICE_RNG_TARGET_RANGE.MIN,
+        PRACTICE_RNG_TARGET_RANGE.MAX,
+      )
       rng = Number(sampled.toFixed(3))
     } else if (careerId && driverId) {
       const draw = getPracticeDeterministicDraw({

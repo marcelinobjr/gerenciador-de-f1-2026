@@ -9,19 +9,19 @@
  *
  * Propriedades canônicas:
  * - Namespaces distintos para sessões: 'TL1' | 'TL2' | 'TL3' (ou 'FP1' | 'FP2' | 'FP3')
- * - Sigma de practice calibrado: 0.8 (maior que o 0.45 da quali, mas controlado frente ao structural)
- * - Clamp protetivo calibrado: [-2.0, +2.0] pontos de pace
+ * - Sigma de practice calibrado: 0.75 (maior que o 0.45 da quali, mas controlado frente ao structural)
+ * - Clamp protetivo calibrado: [-1.75, +1.75] pontos de pace
  * - ZERO Math.random() no core canônico
  * - Aplicação estritamente única no cálculo de pace
  */
 
 import { createMulberry32, hashStringToSeed } from './canonicalPaceIntegrationService'
 
-export const PRACTICE_RNG_DEFAULT_SIGMA = 0.8
+export const PRACTICE_RNG_DEFAULT_SIGMA = 0.75
 export const PRACTICE_RNG_TARGET_RANGE = {
-  MIN: -2.0,
-  MAX: 2.0,
-  SIGMA: 0.8,
+  MIN: -1.75,
+  MAX: 1.75,
+  SIGMA: 0.75,
 } as const
 
 export interface PracticeSeedIdentityParams {
