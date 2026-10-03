@@ -31,6 +31,10 @@ import { canonicalPaceIntegrationService } from '@/services/canonicalPaceIntegra
 import { resolveCanonicalTeamKeyFromContext } from '@/services/canonicalTeamIdentityService'
 import { resolveCircuitProfile } from '@/data/circuit-performance-profiles'
 import { racePracticeSetupService } from '@/services/racePracticeSetupService'
+import {
+  getQualifyingDeterministicDraw,
+  buildQualifyingSeedIdentity,
+} from '@/services/canonicalQualifyingRngService'
 
 export type QualifyingVariant = 'MAIN_QUALIFYING' | 'SPRINT_QUALIFYING'
 
@@ -318,42 +322,8 @@ export interface ExecuteQualifyingPhaseParams {
   attemptsPerPhase?: number
 }
 
-/**
- * PRNG Determinístico Mulberry32
- */
-function mulberry32(seed: number): () => number {
-  let s = seed | 0
-  return function () {
-    s = (s + 0x6d2b79f5) | 0
-    let t = Math.imul(s ^ (s >>> 15), 1 | s)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-/**
- * Hash determinístico de string para uint32 (FNV-1a)
- */
-function hashStringToUint32(str: string): number {
-  let h = 0x811c9dc5
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
-  }
-  return h >>> 0
-}
-
-/**
- * Box-Muller determinístico usando o PRNG
- */
-function getStandardNormal(rng: () => number): number {
-  let u1 = rng()
-  let u2 = rng()
-  while (u1 <= 1e-15) {
-    u1 = rng()
-  }
-  return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2)
-}
+// PRNG Mulberry32, hashStringToUint32 e getStandardNormal agora residem centralizados
+// no serviço canônico: @/services/canonicalQualifyingRngService e @/services/canonicalPaceIntegrationService
 
 /**
  * Converte milissegundos para string mm:ss.sss
@@ -1018,11 +988,18 @@ export class RaceQualifyingOrchestratorService {
       for (let attNum = 1; attNum <= effectiveAttemptsPerPhase; attNum++) {
         // Identidade da tentativa no RNG: career + season + round + variant + phase + entry/car + attempt
         // Garante namespaces distintos e preserva a distribuição seeded PRNG atual (Mulberry32 + Box-Muller)
-        const seedIdentity = `${careerId}:${seasonId}:r${round}:${variant}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
-        const seedUint = hashStringToUint32(seedIdentity)
-        const rng = mulberry32(seedUint)
-        const z = getStandardNormal(rng)
-
+        const rngResult = getQualifyingDeterministicDraw({
+          careerId,
+          seasonId,
+          round,
+          variant,
+          phase,
+          teamId: p.teamId,
+          carIdx,
+          driverId: p.driverId,
+          attempt: attNum,
+        })
+        const z = rngResult.normalDrawZ
         // Converter z standard normal para noise de pace (sigma calibrado ~0.45 pt)
         // QUALI_RNG_TARGET_RANGE.SIGMA = 0.45. z * 0.45 produz o sorteio gaussiano desejado
         const seededPaceNoise = z * 0.45

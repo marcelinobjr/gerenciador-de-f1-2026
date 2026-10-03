@@ -38,6 +38,7 @@ import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyre
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 import { carTechnicalService } from '@/services/carTechnicalService'
 import { resolveCanonicalTeamKeyFromContext } from '@/services/canonicalTeamIdentityService'
+import { getQualifyingDeterministicDraw } from '@/services/canonicalQualifyingRngService'
 
 export interface QualifyingDriverContext {
   id: string
@@ -457,10 +458,12 @@ export class CanonicalQualifyingRunner {
       const lapTimeSec = this.calculateQualifyingLapPace({
         car,
         driver,
-        context,
+        context: {
+          ...context,
+          stageId: nextState.stageId,
+        } as any,
         circuitBaseSec,
       })
-
       // Progresso: out_lap = 70% do tempo de volta, flying_lap = 100%, in_lap = 70%
       const phaseDurationSec = car.status === 'flying_lap' ? lapTimeSec : lapTimeSec * 0.7
       const progressIncrementPct = (appliedDelta / phaseDurationSec) * 100
@@ -646,7 +649,7 @@ export class CanonicalQualifyingRunner {
   /**
    * Cálculo de ritmo de volta para qualificação usando o modelo canônico.
    */
-  private static calculateQualifyingLapPace(params: {
+  public static calculateQualifyingLapPace(params: {
     car: QualifyingCarState
     driver?: QualifyingDriverContext
     context: QualifyingTickContext
@@ -676,6 +679,31 @@ export class CanonicalQualifyingRunner {
           ? anySetup.setupEfficiency
           : 80
 
+    // QUALI-UNIFY-01C: RNG determinístico canônico unificado com o orchestrator.
+    // O runner e o orquestrador compartilham a MESMA identidade, PRNG e distribuição normal calibrada.
+    const stageUpper =
+      (context as any).stageId?.toUpperCase?.() || (car as any).stageId?.toUpperCase?.() || 'Q1'
+    const isSprint = stageUpper.startsWith('SQ')
+    const phaseCode = stageUpper.startsWith('Q') || stageUpper.startsWith('SQ') ? stageUpper : 'Q1'
+    const variantCode = isSprint ? 'SPRINT_QUALIFYING' : 'MAIN_QUALIFYING'
+    const attemptNum = (car.flyingLapsDone || 0) + 1
+    const carIdx = car.carId === 'car2' ? 2 : 1
+    const careerId = (context as any).careerId || 'default_career'
+    const seedTeamId = (context as any).teamId || playerTeamKey
+
+    const rngDraw = getQualifyingDeterministicDraw({
+      careerId,
+      seasonId: context.seasonId,
+      round: context.round,
+      variant: variantCode,
+      phase: phaseCode,
+      teamId: seedTeamId,
+      carIdx,
+      driverId: car.driverId,
+      attempt: attemptNum,
+    })
+    const seededPaceNoise = rngDraw.normalDrawZ * 0.45
+
     const integratedPace = canonicalPaceIntegrationService.computeQualifyingPace({
       teamKey: playerTeamKey,
       driverId: car.driverId,
@@ -693,7 +721,7 @@ export class CanonicalQualifyingRunner {
       fuelKg: car.fuelKg,
       setupEfficiency: playerSetupEff,
       weather: context.weather,
-      noise: (Math.random() - 0.5) * 0.15,
+      noise: seededPaceNoise,
     })
 
     let lapSec = integratedPace.lapTimeSec || circuitBaseSec
@@ -728,7 +756,31 @@ export class CanonicalQualifyingRunner {
         const rivalObj = context.rivalDrivers.find((r) => r.id === aiEntry.driverId)
         const rivalTeamKey = aiEntry.teamId || 'haas'
 
-        // BALANCE-EQUATION-02C / BASELINE-2026-LOCK-01: IA rival consome setupEfficiency e ruído calibrado
+        // BALANCE-EQUATION-02C / BASELINE-2026-LOCK-01 / QUALI-UNIFY-01C:
+        // IA rival consome setupEfficiency e ruído determinístico calibrado unificado com o orchestrator
+        const stageUpper = state.stageId?.toUpperCase?.() || 'Q1'
+        const isSprint = stageUpper.startsWith('SQ')
+        const phaseCode =
+          stageUpper.startsWith('Q') || stageUpper.startsWith('SQ') ? stageUpper : 'Q1'
+        const variantCode = isSprint ? 'SPRINT_QUALIFYING' : 'MAIN_QUALIFYING'
+        const attemptNum = aiEntry.laps + 1
+        const carIdx = aiEntry.carNumber && aiEntry.carNumber % 2 === 0 ? 2 : 1
+        const careerId = (context as any).careerId || 'default_career'
+
+        const seedAiTeamId = aiEntry.teamId || rivalTeamKey
+        const aiRngDraw = getQualifyingDeterministicDraw({
+          careerId,
+          seasonId: context.seasonId,
+          round: context.round,
+          variant: variantCode,
+          phase: phaseCode,
+          teamId: seedAiTeamId,
+          carIdx,
+          driverId: aiEntry.driverId,
+          attempt: attemptNum,
+        })
+        const seededAiPaceNoise = aiRngDraw.normalDrawZ * 0.45
+
         const integratedAiPace = canonicalPaceIntegrationService.computeQualifyingPace({
           teamKey: rivalTeamKey,
           driverId: aiEntry.driverId,
@@ -744,7 +796,7 @@ export class CanonicalQualifyingRunner {
           fuelKg: 12,
           setupEfficiency: 80,
           weather: context.weather,
-          noise: (Math.random() - 0.5) * 0.16,
+          noise: seededAiPaceNoise,
         })
 
         const lapSec = Number((integratedAiPace.lapTimeSec || circuitBaseSec).toFixed(3))
