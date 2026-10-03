@@ -28,11 +28,11 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
     expect(NORMAL_WEEKEND_SCHEDULE).toEqual(['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race'])
   })
 
-  // SPRINT-A-02: weekend Sprint: TL1→SQ1→Sprint→Q1→Q2→Q3→Race (7 slots canônicos)
-  it('SPRINT-A-02: weekend Sprint: TL1→SQ1→Sprint→Q1→Q2→Q3→Race (7 slots canônicos)', () => {
+  // SPRINT-A-02: weekend Sprint: TL1→SQ1→SQ2→SQ3→Sprint→Q1→Q2→Q3→Race (9 slots canônicos)
+  it('SPRINT-A-02: weekend Sprint: TL1→SQ1→SQ2→SQ3→Sprint→Q1→Q2→Q3→Race (9 slots canônicos)', () => {
     const sprintPipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = sprintPipeline.map((s) => s.id)
-    expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    expect(ids).toEqual(['tp1', 'sq1', 'sq2', 'sq3', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
 
     // Provar asserts individuais canônicos
     // TL1 existe
@@ -40,8 +40,10 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
     // TL2 e TL3 não existem no formato Sprint canônico
     expect(ids).not.toContain('tp2')
     expect(ids).not.toContain('tp3')
-    // SQ1 existe
+    // SQ1, SQ2, SQ3 existem
     expect(ids).toContain('sq1')
+    expect(ids).toContain('sq2')
+    expect(ids).toContain('sq3')
     // Sprint Race existe
     expect(ids).toContain('sprint_race')
     // Q1/Q2/Q3 do GP existem DEPOIS da Sprint
@@ -245,10 +247,20 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
   })
 
   // SPRINT-A-20: Silverstone executa sequência completa
-  it('SPRINT-A-20: Silverstone executa sequência completa canônica TL1→SQ1→SPRINT→Q1→Q2→Q3→RACE', () => {
+  it('SPRINT-A-20: Silverstone executa sequência completa canônica TL1→SQ1→SQ2→SQ3→SPRINT→Q1→Q2→Q3→RACE', () => {
     // Simulando uma rodada com sprint ativado
     const sprintSchedule = SPRINT_WEEKEND_SCHEDULE
-    expect(sprintSchedule).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    expect(sprintSchedule).toEqual([
+      'tp1',
+      'sq1',
+      'sq2',
+      'sq3',
+      'sprint_race',
+      'q1',
+      'q2',
+      'q3',
+      'race',
+    ])
 
     // Progressão passo a passo
     let completed: string[] = []
@@ -260,6 +272,6 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
       expect(next).toBe(session)
       completed.push(session)
     }
-    expect(completed.length).toBe(7)
+    expect(completed.length).toBe(9)
   })
 })

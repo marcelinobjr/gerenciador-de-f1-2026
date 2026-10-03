@@ -22,11 +22,11 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
     expect(ids).toEqual(['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race'])
   })
 
-  // SPRINT-02-02: Formato Sprint canônico tem 7 slots: TL1 -> SQ1 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race
-  it('SPRINT-02-02: Formato Sprint canônico tem 7 slots: TL1 -> SQ1 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race', () => {
+  // SPRINT-02-02: Formato Sprint canônico tem 9 slots: TL1 -> SQ1 -> SQ2 -> SQ3 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race
+  it('SPRINT-02-02: Formato Sprint canônico tem 9 slots: TL1 -> SQ1 -> SQ2 -> SQ3 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race', () => {
     const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = pipeline.map((s) => s.id)
-    expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    expect(ids).toEqual(['tp1', 'sq1', 'sq2', 'sq3', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
   })
 
   // SPRINT-02-03: TL3 NÃO existe em fim de semana Sprint
@@ -36,8 +36,8 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
     expect(ids).not.toContain('tp3')
   })
 
-  // SPRINT-02-04: TL2 NÃO existe em fim de semana Sprint (canônico 7 slots)
-  it('SPRINT-02-04: TL2 NÃO existe em fim de semana Sprint (canônico 7 slots)', () => {
+  // SPRINT-02-04: TL2 NÃO existe em fim de semana Sprint (canônico 9 slots)
+  it('SPRINT-02-04: TL2 NÃO existe em fim de semana Sprint (canônico 9 slots)', () => {
     const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = pipeline.map((s) => s.id)
     expect(ids).not.toContain('tp2')
@@ -125,6 +125,6 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
     expect(isSprint).toBe(true)
 
     const schedule = getCanonicalWeekendSchedule(11)
-    expect(schedule).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    expect(schedule).toEqual(['tp1', 'sq1', 'sq2', 'sq3', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
   })
 })
