@@ -1,11 +1,8 @@
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 
 describe('probe fs', () => {
   it('reads src directory', () => {
-    const files = fs.readdirSync('src');
-    expect(files.length).toBeGreaterThan(0);
-    // Find all files matching sprint or progression or weekend
     const findFiles = (dir: string): string[] => {
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       let results: string[] = [];
@@ -20,7 +17,7 @@ describe('probe fs', () => {
       return results;
     };
     const all = findFiles('src');
-    const matched = all.filter(f => f.includes('sprint') || f.includes('weekend') || f.includes('progression') || f.includes('stepper') || f.includes('Weekend'));
-    console.log('MATCHED_FILES:', JSON.stringify(matched));
+    const matched = all.filter(f => !f.includes('__tests__') && (f.toLowerCase().includes('sprint') || f.toLowerCase().includes('weekend') || f.toLowerCase().includes('stepper') || f.toLowerCase().includes('session')));
+    expect(matched.length).toBe(-1); // will fail and show matched in error message
   });
 });
