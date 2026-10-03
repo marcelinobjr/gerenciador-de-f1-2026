@@ -74,11 +74,42 @@ export class CanonicalRaceResultService {
   public hasOfficialRaceResult(
     careerId: string,
     season: number | string,
-    raceId: string | number,
+    raceIdOrRound: string | number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): boolean {
-    const key = this.getStorageKey(careerId, Number(season), raceId)
     if (typeof localStorage === 'undefined') return false
-    return localStorage.getItem(key) !== null
+    // 1. Verificar chave direta getStorageKey
+    const key = this.getStorageKey(careerId, Number(season), raceIdOrRound)
+    if (localStorage.getItem(key) !== null) return true
+    // 2. Se for round numérico ou com raceVariant, verificar também na persistência canônica da carreira
+    const roundNum =
+      typeof raceIdOrRound === 'number'
+        ? raceIdOrRound
+        : parseInt(String(raceIdOrRound).replace(/\D/g, ''), 10)
+    if (!isNaN(roundNum) && roundNum > 0) {
+      const sId = typeof season === 'number' ? `s${season}` : season
+      if (raceVariant === 'SPRINT_RACE') {
+        const sprintKey = `race_result_${careerId}_${sId}_${roundNum}_sprint`
+        const sprintJournal = `career_apply_result_${careerId}_${sId}_${roundNum}_sprint`
+        return (
+          localStorage.getItem(sprintKey) !== null && localStorage.getItem(sprintJournal) !== null
+        )
+      } else if (raceVariant === 'MAIN_RACE') {
+        const mainKey = `race_result_${careerId}_${sId}_${roundNum}_main`
+        const legacyKey = `race_result_${careerId}_${sId}_${roundNum}`
+        return localStorage.getItem(mainKey) !== null || localStorage.getItem(legacyKey) !== null
+      } else {
+        const sprintKey = `race_result_${careerId}_${sId}_${roundNum}_sprint`
+        const mainKey = `race_result_${careerId}_${sId}_${roundNum}_main`
+        const legacyKey = `race_result_${careerId}_${sId}_${roundNum}`
+        return (
+          localStorage.getItem(mainKey) !== null ||
+          localStorage.getItem(legacyKey) !== null ||
+          localStorage.getItem(sprintKey) !== null
+        )
+      }
+    }
+    return false
   }
 
   public getOfficialRaceResult(

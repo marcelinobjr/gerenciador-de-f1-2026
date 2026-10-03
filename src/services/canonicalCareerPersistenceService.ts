@@ -98,13 +98,14 @@ export class CanonicalCareerPersistenceService {
     raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): string {
     const sId = typeof season === 'number' ? `s${season}` : season
-    const variantTag = raceVariant === 'SPRINT_RACE' ? '_sprint' : ''
+    const variantTag =
+      raceVariant === 'SPRINT_RACE' ? '_sprint' : raceVariant === 'MAIN_RACE' ? '_main' : ''
     return `${CANONICAL_CAREER_RACE_RESULT_PREFIX}_${careerId}_${sId}_${round}${variantTag}`
   }
 
   /**
    * Constrói a chave canônica do Journal de Aplicação:
-   * career_apply_result_{careerId}_{seasonId}_{round}[_sprint]
+   * career_apply_result_{careerId}_{seasonId}_{round}[_sprint|_main]
    */
   public buildApplyJournalKey(
     careerId: string,
@@ -113,7 +114,8 @@ export class CanonicalCareerPersistenceService {
     raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): string {
     const sId = typeof season === 'number' ? `s${season}` : season
-    const variantTag = raceVariant === 'SPRINT_RACE' ? '_sprint' : ''
+    const variantTag =
+      raceVariant === 'SPRINT_RACE' ? '_sprint' : raceVariant === 'MAIN_RACE' ? '_main' : ''
     return `${CANONICAL_CAREER_APPLY_JOURNAL_PREFIX}_${careerId}_${sId}_${round}${variantTag}`
   }
 
@@ -697,13 +699,24 @@ export class CanonicalCareerPersistenceService {
     const jKey = this.buildApplyJournalKey(careerId, season, round, raceVariant)
     window.localStorage.removeItem(resKey)
     window.localStorage.removeItem(jKey)
-    // Se for não especificada ou MAIN_RACE, limpa também variante sprint e legada para testes limpos
+    // Se for não especificada, limpa todas as variantes e chaves legadas
     if (!raceVariant) {
       window.localStorage.removeItem(
         this.buildRaceResultKey(careerId, season, round, 'SPRINT_RACE'),
       )
       window.localStorage.removeItem(
         this.buildApplyJournalKey(careerId, season, round, 'SPRINT_RACE'),
+      )
+      window.localStorage.removeItem(this.buildRaceResultKey(careerId, season, round, 'MAIN_RACE'))
+      window.localStorage.removeItem(
+        this.buildApplyJournalKey(careerId, season, round, 'MAIN_RACE'),
+      )
+      const sId = typeof season === 'number' ? `s${season}` : season
+      window.localStorage.removeItem(
+        `${CANONICAL_CAREER_RACE_RESULT_PREFIX}_${careerId}_${sId}_${round}`,
+      )
+      window.localStorage.removeItem(
+        `${CANONICAL_CAREER_APPLY_JOURNAL_PREFIX}_${careerId}_${sId}_${round}`,
       )
     }
   }

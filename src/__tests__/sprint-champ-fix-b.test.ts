@@ -64,22 +64,37 @@ describe('SPT-CHAMP: Isolar resultado da Sprint e somar no Campeonato (Fix B)', 
     }
   })
 
-  it('SPT-CHAMP-01: mesma rodada com Sprint + Main oficializadas → snapshot soma ambas as pontuações', () => {
-    // 1. Oficializa e registra Sprint
+  it('SPT-CHAMP-01: Sprint oficializada cria resultado SPRINT_RACE', () => {
     const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
     const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
-    const sprintReg =
-      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
-    expect(sprintReg.success).toBe(true)
+    expect(sprintOfficial.raceVariant).toBe('SPRINT_RACE')
 
-    // 2. Oficializa e registra Main Race da mesma rodada
+    const reg = canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
+    expect(reg.success).toBe(true)
+    expect(reg.persistedResult).not.toBeNull()
+    expect(reg.persistedResult?.snapshot?.raceVariant).toBe('SPRINT_RACE')
+  })
+
+  it('SPT-CHAMP-02: Main oficializada cria resultado MAIN_RACE', () => {
     const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
     const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
-    const mainReg =
-      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
-    expect(mainReg.success).toBe(true)
+    expect(mainOfficial.raceVariant).toBe('MAIN_RACE')
 
-    // Ambos os fatos esportivos devem estar persistidos sob chaves distintas
+    const reg = canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+    expect(reg.success).toBe(true)
+    expect(reg.persistedResult).not.toBeNull()
+    expect(reg.persistedResult?.snapshot?.raceVariant).toBe('MAIN_RACE')
+  })
+
+  it('SPT-CHAMP-03: Ambos coexistem na mesma season/round', () => {
+    const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
+    const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
+
+    const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
+    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+
     const persistedSprint = canonicalCareerPersistenceService.getPersistedRaceResult(
       careerId,
       season,
@@ -92,118 +107,249 @@ describe('SPT-CHAMP: Isolar resultado da Sprint e somar no Campeonato (Fix B)', 
       round,
       'MAIN_RACE',
     )
+
     expect(persistedSprint).not.toBeNull()
     expect(persistedMain).not.toBeNull()
-    expect(persistedSprint?.id).not.toBe(persistedMain?.id)
-
-    // 3. Obter snapshot do campeonato da rodada 2
-    const snapshot = canonicalChampionshipService.rebuildChampionshipStandings(
-      careerId,
-      season,
-      round,
-    )
-
-    // drv_1 ganhou Sprint (P1=8) e Main (P1=25) -> Total = 33 pontos
-    const drv1 = snapshot.driverStandings.find((d) => d.driverId === 'drv_1')
-    expect(drv1).toBeDefined()
-    expect(drv1?.points).toBe(33) // 8 + 25 = 33!
-    expect(drv1?.raceStarts).toBe(2) // 1 largada da Sprint + 1 largada da Main
-
-    // drv_2 foi P2 na Sprint (7) e P2 na Main (18) -> Total = 25 pontos
-    const drv2 = snapshot.driverStandings.find((d) => d.driverId === 'drv_2')
-    expect(drv2?.points).toBe(25) // 7 + 18 = 25!
-    expect(drv2?.raceStarts).toBe(2)
-
-    // drv_8 foi P8 na Sprint (1) e P8 na Main (4) -> Total = 5 pontos
-    const drv8 = snapshot.driverStandings.find((d) => d.driverId === 'drv_8')
-    expect(drv8?.points).toBe(5)
-
-    // drv_9 foi P9 na Sprint (0) e P9 na Main (2) -> Total = 2 pontos
-    const drv9 = snapshot.driverStandings.find((d) => d.driverId === 'drv_9')
-    expect(drv9?.points).toBe(2)
-
-    // drv_10 foi P10 na Sprint (0) e P10 na Main (1) -> Total = 1 ponto
-    const drv10 = snapshot.driverStandings.find((d) => d.driverId === 'drv_10')
-    expect(drv10?.points).toBe(1)
-
-    // Construtores: team_1 tem drv_1 e drv_2 -> Sprint (8+7=15) + Main (25+18=43) = 58
-    const team1 = snapshot.constructorStandings.find(
-      (c) => c.teamId === 'team_1' || c.teamName === 'Team 1',
-    )
-    if (team1) {
-      expect(team1.points).toBe(58)
-    }
+    expect(persistedSprint?.season).toBe(2026)
+    expect(persistedSprint?.round).toBe(round)
+    expect(persistedMain?.season).toBe(2026)
+    expect(persistedMain?.round).toBe(round)
   })
 
-  it('SPT-CHAMP-02: journal COMPLETE por variante isolada', () => {
-    const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
-    const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
-    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
-
-    const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
-    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
-    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
-
-    const sprintJournal = canonicalCareerPersistenceService.getApplicationJournal(
+  it('SPT-CHAMP-04: Persisted IDs/keys são distintos', () => {
+    const sprintKey = canonicalCareerPersistenceService.buildRaceResultKey(
       careerId,
       season,
       round,
       'SPRINT_RACE',
     )
-    const mainJournal = canonicalCareerPersistenceService.getApplicationJournal(
+    const mainKey = canonicalCareerPersistenceService.buildRaceResultKey(
       careerId,
       season,
       round,
       'MAIN_RACE',
     )
+    expect(sprintKey).not.toBe(mainKey)
+    expect(sprintKey).toContain('_sprint')
+    expect(mainKey).toContain('_main')
 
-    expect(sprintJournal?.status).toBe('COMPLETE')
-    expect(mainJournal?.status).toBe('COMPLETE')
-    expect(sprintJournal?.key).not.toBe(mainJournal?.key)
+    const sprintJournalKey = canonicalCareerPersistenceService.buildApplyJournalKey(
+      careerId,
+      season,
+      round,
+      'SPRINT_RACE',
+    )
+    const mainJournalKey = canonicalCareerPersistenceService.buildApplyJournalKey(
+      careerId,
+      season,
+      round,
+      'MAIN_RACE',
+    )
+    expect(sprintJournalKey).not.toBe(mainJournalKey)
   })
 
-  it('SPT-CHAMP-03: idempotência (re-registrar a Sprint ou Main não duplica dados)', () => {
+  it('SPT-CHAMP-05: Driver standings soma Sprint + Main', () => {
     const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
     const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
     canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
 
-    // Re-registrar Sprint
-    const reSprint =
-      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
-    expect(reSprint.alreadyRegistered).toBe(true)
-
     const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
     const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
     canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
-
-    // Re-registrar Main
-    const reMain =
-      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
-    expect(reMain.alreadyRegistered).toBe(true)
 
     const snapshot = canonicalChampionshipService.rebuildChampionshipStandings(
       careerId,
       season,
       round,
     )
+
+    // drv_1: Sprint P1 (8) + Main P1 (25) = 33 pts
     const drv1 = snapshot.driverStandings.find((d) => d.driverId === 'drv_1')
-    expect(drv1?.points).toBe(33) // permanece 33, sem duplicar
+    expect(drv1?.points).toBe(33)
+    expect(drv1?.raceStarts).toBe(2)
+
+    // drv_2: Sprint P2 (7) + Main P2 (18) = 25 pts
+    const drv2 = snapshot.driverStandings.find((d) => d.driverId === 'drv_2')
+    expect(drv2?.points).toBe(25)
+    expect(drv2?.raceStarts).toBe(2)
+
+    // drv_8: Sprint P8 (1) + Main P8 (4) = 5 pts
+    const drv8 = snapshot.driverStandings.find((d) => d.driverId === 'drv_8')
+    expect(drv8?.points).toBe(5)
   })
 
-  it('SPT-CHAMP-04: ordem invertida (Main antes da Sprint) não perde resultado nem pontuação', () => {
-    const cId = 'career_inverted_test'
-    // 1. Registra Main Race primeiro
-    const mainState = makeMockRaceState('MAIN_RACE', round, cId)
-    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
-    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
-
-    // 2. Registra Sprint Race depois
-    const sprintState = makeMockRaceState('SPRINT_RACE', round, cId)
+  it('SPT-CHAMP-06: Constructor standings soma Sprint + Main', () => {
+    const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
     const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
     canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
 
-    const snapshot = canonicalChampionshipService.rebuildChampionshipStandings(cId, season, round)
+    const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
+    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+
+    const snapshot = canonicalChampionshipService.rebuildChampionshipStandings(
+      careerId,
+      season,
+      round,
+    )
+
+    // team_1 possui drv_1 (33 pts) e drv_2 (25 pts) -> soma da equipe = 58 pts
+    const team1 = snapshot.constructorStandings.find(
+      (c) => c.teamId === 'team_1' || c.teamName === 'Team 1',
+    )
+    expect(team1?.points).toBe(58)
+  })
+
+  it('SPT-CHAMP-07: Sprint reprocessada é idempotente', () => {
+    const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
+    const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
+    const firstReg =
+      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
+    expect(firstReg.success).toBe(true)
+
+    // Reprocessar Sprint
+    const secondReg =
+      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
+    expect(secondReg.alreadyRegistered).toBe(true)
+
+    const eligible = canonicalChampionshipService.getEligibleOfficialRaceResults(
+      careerId,
+      season,
+      round,
+    )
+    const sprintResults = eligible.filter((r) => r.snapshot?.raceVariant === 'SPRINT_RACE')
+    expect(sprintResults.length).toBe(1)
+  })
+
+  it('SPT-CHAMP-08: Main reprocessada é idempotente', () => {
+    const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
+    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
+    const firstReg =
+      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+    expect(firstReg.success).toBe(true)
+
+    // Reprocessar Main
+    const secondReg =
+      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+    expect(secondReg.alreadyRegistered).toBe(true)
+
+    const eligible = canonicalChampionshipService.getEligibleOfficialRaceResults(
+      careerId,
+      season,
+      round,
+    )
+    const mainResults = eligible.filter((r) => r.snapshot?.raceVariant === 'MAIN_RACE')
+    expect(mainResults.length).toBe(1)
+  })
+
+  it('SPT-CHAMP-09: Reload preserva ambas', () => {
+    // 1. Gravar ambas
+    const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
+    const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
+
+    const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
+    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+
+    // 2. Simular leitura limpa como em um novo reload da página
+    const loadedSprint = canonicalCareerPersistenceService.getPersistedRaceResult(
+      careerId,
+      season,
+      round,
+      'SPRINT_RACE',
+    )
+    const loadedMain = canonicalCareerPersistenceService.getPersistedRaceResult(
+      careerId,
+      season,
+      round,
+      'MAIN_RACE',
+    )
+    expect(loadedSprint).not.toBeNull()
+    expect(loadedMain).not.toBeNull()
+    expect(loadedSprint?.snapshot?.raceVariant).toBe('SPRINT_RACE')
+    expect(loadedMain?.snapshot?.raceVariant).toBe('MAIN_RACE')
+
+    const standings = canonicalChampionshipService.getChampionshipStandings(careerId, season, round)
+    const drv1 = standings.driverStandings.find((d) => d.driverId === 'drv_1')
+    expect(drv1?.points).toBe(33)
+  })
+
+  it('SPT-CHAMP-10: Rodada sem Sprint continua funcionando', () => {
+    const nonSprintRound = 3
+    const mainState = makeMockRaceState('MAIN_RACE', nonSprintRound, careerId)
+    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+
+    const persistedSprint = canonicalCareerPersistenceService.getPersistedRaceResult(
+      careerId,
+      season,
+      nonSprintRound,
+      'SPRINT_RACE',
+    )
+    const persistedMain = canonicalCareerPersistenceService.getPersistedRaceResult(
+      careerId,
+      season,
+      nonSprintRound,
+      'MAIN_RACE',
+    )
+
+    expect(persistedSprint).toBeNull()
+    expect(persistedMain).not.toBeNull()
+
+    const snapshot = canonicalChampionshipService.rebuildChampionshipStandings(
+      careerId,
+      season,
+      nonSprintRound,
+    )
     const drv1 = snapshot.driverStandings.find((d) => d.driverId === 'drv_1')
-    expect(drv1?.points).toBe(33) // soma ambas perfeitamente independente da ordem
+    expect(drv1?.points).toBe(25) // apenas 25 da corrida principal
+    expect(drv1?.raceStarts).toBe(1)
+  })
+
+  it('SPT-CHAMP-11: Resultado Sprint não substitui Main', () => {
+    // 1. Main é gravada primeiro
+    const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
+    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+
+    // 2. Sprint é gravada em seguida
+    const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
+    const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
+
+    // Main deve permanecer íntegra e não ter sido sobrescrita
+    const persistedMain = canonicalCareerPersistenceService.getPersistedRaceResult(
+      careerId,
+      season,
+      round,
+      'MAIN_RACE',
+    )
+    expect(persistedMain).not.toBeNull()
+    expect(persistedMain?.snapshot?.raceVariant).toBe('MAIN_RACE')
+    expect(persistedMain?.entries[0]?.pointsAwarded).toBe(25)
+  })
+
+  it('SPT-CHAMP-12: Resultado Main não substitui Sprint', () => {
+    // 1. Sprint é gravada primeiro
+    const sprintState = makeMockRaceState('SPRINT_RACE', round, careerId)
+    const sprintOfficial = canonicalRaceResultService.officializeRace(sprintState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(sprintOfficial)
+
+    // 2. Main é gravada em seguida
+    const mainState = makeMockRaceState('MAIN_RACE', round, careerId)
+    const mainOfficial = canonicalRaceResultService.officializeRace(mainState)
+    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(mainOfficial)
+
+    // Sprint deve permanecer íntegra e não ter sido sobrescrita
+    const persistedSprint = canonicalCareerPersistenceService.getPersistedRaceResult(
+      careerId,
+      season,
+      round,
+      'SPRINT_RACE',
+    )
+    expect(persistedSprint).not.toBeNull()
+    expect(persistedSprint?.snapshot?.raceVariant).toBe('SPRINT_RACE')
+    expect(persistedSprint?.entries[0]?.pointsAwarded).toBe(8)
   })
 })

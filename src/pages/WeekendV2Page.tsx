@@ -3445,6 +3445,7 @@ export default function WeekendV2Page() {
                     canonicalCareerId,
                     season.year || 2026,
                     currentRound,
+                    isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
                   )
                 ) {
                   toast({
