@@ -367,6 +367,348 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
   })
 
   // =========================================================================
+  // BUG-SQ1-NO-OP: TICK, SIMULATE REMAINING E HANDLERS DE QUALIFICAÇÃO SPRINT (SQ1-SQ3)
+  // =========================================================================
+
+  // CFT10: tick avança SQ1 (tempo diminui e voltas computadas)
+  it('CFT10: tick avança SQ1 com delta temporal e computa voltas na qualificação Sprint', async () => {
+    const { CanonicalQualifyingRunner } = await import('@/services/canonicalQualifyingRunner')
+    const { CANONICAL_QUALIFYING_RULES } = await import('@/types/canonical-qualifying-types')
+
+    const seasonId = 'season_cft10_test'
+    const round = 2 // GP da China
+
+    // Participantes simulados para SQ1
+    const eligibleParticipants = Array.from({ length: 24 }, (_, idx) => ({
+      id: `drv_${idx + 1}`,
+      name: `Piloto ${idx + 1}`,
+      speed: 80,
+      consistency: 80,
+      defense: 75,
+      teamId: `team_${Math.floor(idx / 2) + 1}`,
+      teamName: `Equipe ${Math.floor(idx / 2) + 1}`,
+      teamColor: '#E10600',
+      carNumber: idx + 1,
+    }))
+
+    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq1',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants,
+      persistState: false,
+    })
+
+    expect(sq1Initial.stageId).toBe('sq1')
+    expect(sq1Initial.timeRemainingSec).toBe(CANONICAL_QUALIFYING_RULES.sq1.durationSec)
+    expect(sq1Initial.sessionDurationSec).toBe(12 * 60) // 720s
+
+    // Coloca sessão em execução e libera carro 1 para a pista
+    sq1Initial.status = 'running'
+    const exitRes = CanonicalQualifyingRunner.orderCarExitToTrack(sq1Initial, 'car1')
+    expect(exitRes.success).toBe(true)
+    expect(sq1Initial.cars.car1.status).toBe('out_lap')
+
+    const tickContext = {
+      seasonId,
+      round,
+      gpName: 'Grande Prêmio da China',
+      circuitName: 'Circuito Internacional de Xangai',
+      lengthKm: 5.451,
+      tireAbrasiveness: 3,
+      weather: 'seco' as const,
+      teamChassisRating: 80,
+      teamEngineSupplier: 'Audi',
+      teamName: 'Apex Racing',
+      teamColor: '#E10600',
+      drivers: [
+        { id: 'drv_1', name: 'Piloto 1', speed: 85, consistency: 85, defense: 80 },
+        { id: 'drv_2', name: 'Piloto 2', speed: 82, consistency: 82, defense: 78 },
+      ],
+      rivalDrivers: eligibleParticipants.slice(2),
+    }
+
+    // Avança vários ticks de delta 10s
+    let state = sq1Initial
+    for (let i = 0; i < 20; i++) {
+      const tickRes = CanonicalQualifyingRunner.tick(state, 10, tickContext)
+      state = tickRes.nextState
+    }
+
+    // O tempo restante deve ter diminuído
+    expect(state.timeRemainingSec).toBeLessThan(CANONICAL_QUALIFYING_RULES.sq1.durationSec)
+    expect(state.elapsedTimeSec).toBe(200)
+
+    // O carro 1 progrediu de out_lap para flying_lap ou completou volta
+    expect(['flying_lap', 'in_lap', 'garage']).toContain(state.cars.car1.status)
+  })
+
+  // CFT11: simulateRemaining completa SQ1 e registra stage
+  it('CFT11: simulateRemainingSession completa SQ1, gera resultado oficial e salva stage', async () => {
+    const { CanonicalQualifyingRunner } = await import('@/services/canonicalQualifyingRunner')
+    const { canonicalQualifyingPersistenceService } = await import(
+      '@/services/canonicalQualifyingPersistenceService'
+    )
+
+    const seasonId = 'season_cft11_test'
+    const round = 2
+
+    const eligibleParticipants = Array.from({ length: 24 }, (_, idx) => ({
+      id: `drv_${idx + 1}`,
+      name: `Piloto ${idx + 1}`,
+      speed: 80,
+      consistency: 80,
+      defense: 75,
+      teamId: `team_${Math.floor(idx / 2) + 1}`,
+      teamName: `Equipe ${Math.floor(idx / 2) + 1}`,
+      teamColor: '#E10600',
+      carNumber: idx + 1,
+    }))
+
+    const sq1Initial = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq1',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants,
+      persistState: true,
+    })
+
+    const tickContext = {
+      seasonId,
+      round,
+      gpName: 'Grande Prêmio da China',
+      circuitName: 'Circuito Internacional de Xangai',
+      lengthKm: 5.451,
+      tireAbrasiveness: 3,
+      weather: 'seco' as const,
+      teamChassisRating: 80,
+      teamEngineSupplier: 'Audi',
+      teamName: 'Apex Racing',
+      teamColor: '#E10600',
+      drivers: [
+        { id: 'drv_1', name: 'Piloto 1', speed: 85, consistency: 85, defense: 80 },
+        { id: 'drv_2', name: 'Piloto 2', speed: 82, consistency: 82, defense: 78 },
+      ],
+      rivalDrivers: eligibleParticipants.slice(2),
+    }
+
+    const res = CanonicalQualifyingRunner.simulateRemainingSession(sq1Initial, tickContext, {
+      persistState: true,
+    })
+
+    expect(res.nextState.status).toBe('completed')
+    expect(res.nextState.timeRemainingSec).toBe(0)
+
+    // Verifica persistência de estado e resultado
+    const savedState = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'sq1')
+    expect(savedState).not.toBeNull()
+    expect(savedState?.status).toBe('completed')
+
+    const savedResult = canonicalQualifyingPersistenceService.readStageResult(
+      seasonId,
+      round,
+      'sq1',
+    )
+    expect(savedResult).not.toBeNull()
+    expect(savedResult?.stageId).toBe('sq1')
+    expect(savedResult?.advancingDriverIds).toHaveLength(18) // 18 avançam no SQ1
+    expect(savedResult?.eliminatedDriverIds).toHaveLength(6) // 6 eliminados no SQ1
+  })
+
+  // CFT12: SQ2 e SQ3 leem e consomem stages anteriores
+  it('CFT12: SQ2 consome resultado de SQ1 (18 pilotos) e SQ3 consome de SQ2 (10 pilotos)', async () => {
+    const { CanonicalQualifyingRunner } = await import('@/services/canonicalQualifyingRunner')
+    const { canonicalQualifyingPersistenceService } = await import(
+      '@/services/canonicalQualifyingPersistenceService'
+    )
+
+    const seasonId = 'season_cft12_test'
+    const round = 2
+
+    const all24Drivers = Array.from({ length: 24 }, (_, idx) => ({
+      id: `drv_${idx + 1}`,
+      name: `Piloto ${idx + 1}`,
+      speed: 80,
+      consistency: 80,
+      defense: 75,
+      teamId: `team_${Math.floor(idx / 2) + 1}`,
+      teamName: `Equipe ${Math.floor(idx / 2) + 1}`,
+      teamColor: '#E10600',
+      carNumber: idx + 1,
+    }))
+
+    const tickContext = {
+      seasonId,
+      round,
+      gpName: 'Grande Prêmio da China',
+      circuitName: 'Circuito Internacional de Xangai',
+      lengthKm: 5.451,
+      tireAbrasiveness: 3,
+      weather: 'seco' as const,
+      teamChassisRating: 80,
+      teamEngineSupplier: 'Audi',
+      teamName: 'Apex Racing',
+      teamColor: '#E10600',
+      drivers: [
+        { id: 'drv_1', name: 'Piloto 1', speed: 85, consistency: 85, defense: 80 },
+        { id: 'drv_2', name: 'Piloto 2', speed: 82, consistency: 82, defense: 78 },
+      ],
+      rivalDrivers: all24Drivers.slice(2),
+    }
+
+    // 1. Executa e finaliza SQ1
+    const sq1State = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq1',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 0,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants: all24Drivers,
+      persistState: true,
+    })
+
+    CanonicalQualifyingRunner.simulateRemainingSession(sq1State, tickContext, {
+      persistState: true,
+    })
+
+    const sq1Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+    expect(sq1Result).not.toBeNull()
+    expect(sq1Result?.advancingDriverIds).toHaveLength(18)
+
+    // Filtra participantes de SQ2 a partir dos aprovados em SQ1
+    const sq2Participants = all24Drivers.filter((p) => sq1Result!.advancingDriverIds.includes(p.id))
+    expect(sq2Participants).toHaveLength(18)
+
+    // 2. Inicializa e finaliza SQ2
+    const sq2State = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq2',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 10,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 10,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants: sq2Participants,
+      persistState: true,
+    })
+
+    expect(sq2State.stageId).toBe('sq2')
+    expect(sq2State.leaderboard).toHaveLength(18)
+
+    CanonicalQualifyingRunner.simulateRemainingSession(sq2State, tickContext, {
+      persistState: true,
+    })
+
+    const sq2Result = canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2')
+    expect(sq2Result).not.toBeNull()
+    expect(sq2Result?.advancingDriverIds).toHaveLength(10) // 10 avançam no SQ2 para o SQ3
+
+    // Filtra participantes de SQ3 a partir dos aprovados em SQ2
+    const sq3Participants = all24Drivers.filter((p) => sq2Result!.advancingDriverIds.includes(p.id))
+    expect(sq3Participants).toHaveLength(10)
+
+    // 3. Inicializa SQ3
+    const sq3State = CanonicalQualifyingRunner.initializeStage({
+      stageId: 'sq3',
+      seasonId,
+      round,
+      playerCar1: {
+        driverId: 'drv_1',
+        driverName: 'Piloto 1',
+        driverNumber: 1,
+        tyreSetId: 'tire_c1',
+        compound: 'macio',
+        wear: 20,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      playerCar2: {
+        driverId: 'drv_2',
+        driverName: 'Piloto 2',
+        driverNumber: 2,
+        tyreSetId: 'tire_c2',
+        compound: 'macio',
+        wear: 20,
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      },
+      eligibleParticipants: sq3Participants,
+      persistState: true,
+    })
+
+    expect(sq3State.stageId).toBe('sq3')
+    expect(sq3State.leaderboard).toHaveLength(10)
+  })
+})
+      expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    }
+  })
+
+  // =========================================================================
   // BUG-SQ1-NO-OP: GESTÃO E CONTROLES ATIVOS DE SQ1, SQ2 E SQ3
   // =========================================================================
 
