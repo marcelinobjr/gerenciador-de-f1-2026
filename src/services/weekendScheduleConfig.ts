@@ -3,11 +3,10 @@
  *
  * Configuração e definição canônica de sessões do fim de semana para a aba CORRIDA.
  *
- * Arquitetura extensível por formato de evento (Padrão, Sprint, etc.):
- * - Weekend Normal: TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> RACE.
- * - Weekend Sprint: TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> SPRINT -> Q1 -> Q2 -> Q3 -> RACE.
- *   (TL3 ausente explicitamente; TL2 presente; bloco próprio de SPRINT_QUALIFYING com SQ1, SQ2, SQ3;
- *    Sprint Race entre SQ3 e MAIN_QUALIFYING; MAIN_QUALIFYING com Q1, Q2, Q3; Main Race por último).
+ * Arquitetura unificada por formato de evento (Padrão, Sprint, etc.):
+ * - Weekend Normal (7 slots): TL1 -> TL2 -> TL3 -> Q1 -> Q2 -> Q3 -> RACE.
+ * - Weekend Sprint (7 slots canônicos): TL1 -> SQ1 (Quali Sprint) -> SPRINT -> Q1 -> Q2 -> Q3 -> RACE.
+ *   (TL2 e TL3 ausentes no Sprint; SQ1 liberada após TL1; Q1 liberada após Sprint).
  */
 
 export type RaceWeekendSessionId =
@@ -93,11 +92,11 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
     sq1: {
       id: 'sq1',
       shortLabel: 'SQ1',
-      fullName: 'Qualificação Sprint — Fase 1',
+      fullName: 'Qualificação Sprint',
       category: 'qualifying',
-      order: 3.1,
+      order: 2,
       isPlayableInV2: true,
-      blockedMessage: 'Disponível após conclusão do TL2.',
+      blockedMessage: 'Disponível após conclusão do TL1.',
     },
     sq2: {
       id: 'sq2',
@@ -122,9 +121,9 @@ export const CANONICAL_SESSION_DEFINITIONS: Record<RaceWeekendSessionId, Weekend
       shortLabel: 'SPRINT',
       fullName: 'Corrida Sprint',
       category: 'race',
-      order: 3.4,
+      order: 3,
       isPlayableInV2: false,
-      blockedMessage: 'Disponível após conclusão da Qualificação Sprint (SQ3).',
+      blockedMessage: 'Disponível após conclusão da Qualificação Sprint (SQ1/SQ3).',
     },
     q1: {
       id: 'q1',
@@ -199,7 +198,6 @@ export const NORMAL_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.fr
  */
 export const SPRINT_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.freeze([
   'PRACTICE_1',
-  'PRACTICE_2',
   'SPRINT_QUALIFYING',
   'SPRINT_RACE',
   'MAIN_QUALIFYING',
@@ -208,12 +206,13 @@ export const SPRINT_WEEKEND_MACRO_SLOTS: readonly WeekendMacroSlot[] = Object.fr
 
 /**
  * Configuração canônica da sequência Sprint exportada explicitamente para consumidores da esteira.
+ * Canônico de 7 slots: TL1 -> SQ1 -> SPRINT -> Q1 -> Q2 -> Q3 -> CORRIDA
  */
 export const SPRINT_WEEKEND_SCHEDULE_CONFIG = {
   macroSlots: SPRINT_WEEKEND_MACRO_SLOTS,
-  sessionIds: ['tp1', 'tp2', 'sq1', 'sq2', 'sq3', 'sprint_race', 'q1', 'q2', 'q3', 'race'] as const,
+  sessionIds: ['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'] as const,
   hasPractice3: false,
-  hasPractice2: true,
+  hasPractice2: false,
   hasSprintQualifying: true,
   hasSprintRace: true,
   hasMainQualifying: true,
@@ -239,9 +238,17 @@ export function getRaceWeekendPipeline(
 ): WeekendSessionDefinition[] {
   const isSprint = options?.format === 'sprint'
   if (isSprint) {
-    // SPRINT: TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> SPRINT RACE -> Q1 -> Q2 -> Q3 -> CORRIDA PRINCIPAL
-    // TL3 rigorosamente excluído do weekend Sprint
-    const sprintSequence = expandMacroSlotsToSessions(SPRINT_WEEKEND_MACRO_SLOTS)
+    // SPRINT canônico de 7 slots: TL1 -> SQ1 -> SPRINT -> Q1 -> Q2 -> Q3 -> CORRIDA PRINCIPAL
+    // TL2 e TL3 ausentes no formato Sprint
+    const sprintSequence: RaceWeekendSessionId[] = [
+      'tp1',
+      'sq1',
+      'sprint_race',
+      'q1',
+      'q2',
+      'q3',
+      'race',
+    ]
     return sprintSequence.map((id) => CANONICAL_SESSION_DEFINITIONS[id])
   }
 
@@ -292,8 +299,9 @@ export function resolveSessionVisualState(params: {
 
 /**
  * Função auxiliar canônica que avalia se uma sessão está desbloqueada dadas as sessões concluídas normalizadas.
+ * Exportada para testes e validação formal de gates.
  */
-function isSessionUnlocked(
+export function isSessionUnlocked(
   sessionId: RaceWeekendSessionId,
   normalizedCompleted: string[],
 ): boolean {
@@ -309,11 +317,10 @@ function isSessionUnlocked(
     return normalizedCompleted.includes('tp2')
   }
 
-  // Desbloqueio de sessões Sprint: Requer estritamente TL1 e TL2 concluídos
+  // Desbloqueio de sessões Sprint: SQ1 liberada com TL1 concluído (não exige TL2).
+  // Também aceita TL2 se porventura estiver completado.
   if (sessionId === 'sq1') {
-    const tl1Done = normalizedCompleted.includes('tp1')
-    const tl2Done = normalizedCompleted.includes('tp2')
-    return tl1Done && tl2Done
+    return normalizedCompleted.includes('tp1')
   }
 
   if (sessionId === 'sq2') {
@@ -325,7 +332,12 @@ function isSessionUnlocked(
   }
 
   if (sessionId === 'sprint_race') {
-    return normalizedCompleted.includes('sq3') || normalizedCompleted.includes('sprint_qualifying')
+    return (
+      normalizedCompleted.includes('sq1') ||
+      normalizedCompleted.includes('sq2') ||
+      normalizedCompleted.includes('sq3') ||
+      normalizedCompleted.includes('sprint_qualifying')
+    )
   }
 
   // Q1 requer conclusão dos treinos: no formato NORMAL requer TL3 concluído. No Sprint, requer sprint_race concluída.

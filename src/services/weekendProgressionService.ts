@@ -52,8 +52,7 @@ export const SPRINT_WEEKEND_SCHEDULE: CanonicalWeekendSession[] = [
 
 export const SPRINT_WEEKEND_MACRO_SCHEDULE: CanonicalWeekendSession[] = [
   'tp1',
-  'tp2',
-  'sprint_qualifying',
+  'sq1',
   'sprint_race',
   'qualifying',
   'race',

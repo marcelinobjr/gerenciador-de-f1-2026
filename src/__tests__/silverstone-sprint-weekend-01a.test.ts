@@ -28,34 +28,20 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
     expect(NORMAL_WEEKEND_SCHEDULE).toEqual(['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race'])
   })
 
-  // SPRINT-A-02: weekend Sprint: TL1→TL2→SQ1→SQ2→SQ3→Sprint→Q1→Q2→Q3→Race
-  it('SPRINT-A-02: weekend Sprint: TL1→TL2→SQ1→SQ2→SQ3→Sprint→Q1→Q2→Q3→Race', () => {
+  // SPRINT-A-02: weekend Sprint: TL1→SQ1→Sprint→Q1→Q2→Q3→Race (7 slots canônicos)
+  it('SPRINT-A-02: weekend Sprint: TL1→SQ1→Sprint→Q1→Q2→Q3→Race (7 slots canônicos)', () => {
     const sprintPipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = sprintPipeline.map((s) => s.id)
-    expect(ids).toEqual([
-      'tp1',
-      'tp2',
-      'sq1',
-      'sq2',
-      'sq3',
-      'sprint_race',
-      'q1',
-      'q2',
-      'q3',
-      'race',
-    ])
+    expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
 
     // Provar asserts individuais canônicos
     // TL1 existe
     expect(ids).toContain('tp1')
-    // TL2 existe
-    expect(ids).toContain('tp2')
-    // TL3 não existe
+    // TL2 e TL3 não existem no formato Sprint canônico
+    expect(ids).not.toContain('tp2')
     expect(ids).not.toContain('tp3')
-    // SQ1/SQ2/SQ3 existem
+    // SQ1 existe
     expect(ids).toContain('sq1')
-    expect(ids).toContain('sq2')
-    expect(ids).toContain('sq3')
     // Sprint Race existe
     expect(ids).toContain('sprint_race')
     // Q1/Q2/Q3 do GP existem DEPOIS da Sprint
@@ -78,30 +64,30 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
     expect(ids).not.toContain('tp3')
   })
 
-  // SPRINT-A-04: TL2 presente em Sprint
-  it('SPRINT-A-04: TL2 presente em Sprint', () => {
+  // SPRINT-A-04: TL2 ausente em Sprint
+  it('SPRINT-A-04: TL2 ausente em Sprint', () => {
     const sprintPipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = sprintPipeline.map((s) => s.id)
-    expect(ids).toContain('tp2')
+    expect(ids).not.toContain('tp2')
   })
 
-  // SPRINT-A-05: TL2 completa e libera SQ1
-  it('SPRINT-A-05: TL2 completa e libera SQ1', () => {
-    // Before TL2 complete: locked
+  // SPRINT-A-05: TL1 completa e libera SQ1
+  it('SPRINT-A-05: TL1 completa e libera SQ1', () => {
+    // Before TL1 complete: locked
     expect(
       resolveSessionVisualState({
         sessionId: 'sq1',
-        activeSessionId: 'tp2',
-        completedSessions: ['tp1'],
+        activeSessionId: 'tp1',
+        completedSessions: [],
       }),
     ).toBe('locked')
 
-    // After TL2 complete: available
+    // After TL1 complete: available
     expect(
       resolveSessionVisualState({
         sessionId: 'sq1',
         activeSessionId: 'sq1',
-        completedSessions: ['tp1', 'tp2'],
+        completedSessions: ['tp1'],
       }),
     ).toBe('available')
   })
@@ -144,13 +130,13 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
     ).toBe('available')
   })
 
-  // SPRINT-A-08: SQ3 libera Sprint
-  it('SPRINT-A-08: SQ3 libera Sprint', () => {
+  // SPRINT-A-08: SQ1/SQ3 libera Sprint
+  it('SPRINT-A-08: SQ1/SQ3 libera Sprint', () => {
     expect(
       resolveSessionVisualState({
         sessionId: 'sprint_race',
-        activeSessionId: 'sq3',
-        completedSessions: ['tp1', 'tp2', 'sq1', 'sq2'],
+        activeSessionId: 'sq1',
+        completedSessions: ['tp1'],
       }),
     ).toBe('locked')
 
@@ -158,7 +144,7 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
       resolveSessionVisualState({
         sessionId: 'sprint_race',
         activeSessionId: 'sprint_race',
-        completedSessions: ['tp1', 'tp2', 'sq1', 'sq2', 'sq3'],
+        completedSessions: ['tp1', 'sq1'],
       }),
     ).toBe('available')
   })
@@ -170,7 +156,7 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
       resolveSessionVisualState({
         sessionId: 'q1',
         activeSessionId: 'sprint_race',
-        completedSessions: ['tp1', 'tp2', 'sq1', 'sq2', 'sq3'],
+        completedSessions: ['tp1', 'sq1'],
       }),
     ).toBe('locked')
 
@@ -179,7 +165,7 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
       resolveSessionVisualState({
         sessionId: 'q1',
         activeSessionId: 'q1',
-        completedSessions: ['tp1', 'tp2', 'sq1', 'sq2', 'sq3', 'sprint_race'],
+        completedSessions: ['tp1', 'sq1', 'sprint_race'],
       }),
     ).toBe('available')
   })
@@ -259,24 +245,12 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
   })
 
   // SPRINT-A-20: Silverstone executa sequência completa
-  it('SPRINT-A-20: Silverstone executa sequência completa TL1→TL2→SQ1→SQ2→SQ3→SPRINT→Q1→Q2→Q3→RACE', () => {
+  it('SPRINT-A-20: Silverstone executa sequência completa canônica TL1→SQ1→SPRINT→Q1→Q2→Q3→RACE', () => {
     // Simulando uma rodada com sprint ativado
     const sprintSchedule = SPRINT_WEEKEND_SCHEDULE
-    expect(sprintSchedule).toEqual([
-      'tp1',
-      'tp2',
-      'sq1',
-      'sq2',
-      'sq3',
-      'sprint_race',
-      'q1',
-      'q2',
-      'q3',
-      'race',
-    ])
+    expect(sprintSchedule).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
 
     // Progressão passo a passo
-    const step0 = getNextRequiredWeekendSession(1, []) // se round 1 for normal ou com mock
     let completed: string[] = []
 
     // Teste com lista progressiva no formato sprint
@@ -286,6 +260,6 @@ describe('SILVERSTONE-RACE-REVIEW-01A: SPRINT-A-01..A-20', () => {
       expect(next).toBe(session)
       completed.push(session)
     }
-    expect(completed.length).toBe(10)
+    expect(completed.length).toBe(7)
   })
 })

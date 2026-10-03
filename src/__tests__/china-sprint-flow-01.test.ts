@@ -235,4 +235,113 @@ describe('BUG-SPRINT-CHINA: Sequência canônica de 7 slots para fim de semana S
       expect(types).toEqual(['TL1', 'QUALI_SPRINT', 'SPRINT', 'Q1', 'Q2', 'Q3', 'CORRIDA'])
     }
   })
+
+  // =========================================================================
+  // BUG-SPRINT-CHINA-02: UNIFICAÇÃO DA ESTEIRA SPRINT (GATES DE UNLOCK)
+  // =========================================================================
+
+  // CFT06: no formato SPRINT, isSessionUnlocked('sq1') / resolveSessionVisualState('sq1') = available/active com apenas TL1 concluído (sem TL2 no pipeline).
+  it('CFT06: no formato SPRINT, SQ1 está liberada com apenas TL1 concluído (sem TL2 no pipeline)', async () => {
+    const { resolveSessionVisualState, isSessionUnlocked } =
+      await import('@/services/weekendScheduleConfig')
+
+    // Com apenas 'tp1' completado:
+    const visualState = resolveSessionVisualState({
+      sessionId: 'sq1',
+      activeSessionId: 'sq1',
+      completedSessions: ['tp1'],
+    })
+    expect(visualState).toBe('active')
+
+    // isSessionUnlocked('sq1') com ['tp1'] deve ser true
+    expect(isSessionUnlocked('sq1', ['tp1'])).toBe(true)
+  })
+
+  // CFT07: progressão completa TL1 -> SQ -> Sprint -> Q1 -> Q2 -> Q3 -> Corrida sem slot travado/inexistente.
+  it('CFT07: progressão completa TL1 -> SQ -> Sprint -> Q1 -> Q2 -> Q3 -> Corrida sem slot travado/inexistente', async () => {
+    const { getRaceWeekendPipeline, isSessionUnlocked } =
+      await import('@/services/weekendScheduleConfig')
+
+    const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
+    const ids = pipeline.map((s) => s.id)
+
+    // Pipeline Sprint canônico de 7 slots
+    expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+
+    // Início: apenas tp1 liberado
+    expect(isSessionUnlocked('tp1', [])).toBe(true)
+    expect(isSessionUnlocked('sq1', [])).toBe(false)
+
+    // Após tp1 concluído: sq1 liberada (sem TL2)
+    const afterTp1 = ['tp1']
+    expect(isSessionUnlocked('sq1', afterTp1)).toBe(true)
+    expect(isSessionUnlocked('sprint_race', afterTp1)).toBe(false)
+
+    // Após sq1 concluído (ou sq3/sprint_qualifying): sprint_race liberada
+    const afterSq = ['tp1', 'sq1']
+    expect(isSessionUnlocked('sprint_race', afterSq)).toBe(true)
+    expect(isSessionUnlocked('q1', afterSq)).toBe(false)
+
+    // Após sprint_race concluída: Q1 liberada
+    const afterSprint = ['tp1', 'sq1', 'sprint_race']
+    expect(isSessionUnlocked('q1', afterSprint)).toBe(true)
+    expect(isSessionUnlocked('q2', afterSprint)).toBe(false)
+
+    // Após Q1 concluída: Q2 liberada
+    const afterQ1 = ['tp1', 'sq1', 'sprint_race', 'q1']
+    expect(isSessionUnlocked('q2', afterQ1)).toBe(true)
+    expect(isSessionUnlocked('q3', afterQ1)).toBe(false)
+
+    // Após Q2 concluída: Q3 liberada
+    const afterQ2 = ['tp1', 'sq1', 'sprint_race', 'q1', 'q2']
+    expect(isSessionUnlocked('q3', afterQ2)).toBe(true)
+    expect(isSessionUnlocked('race', afterQ2)).toBe(false)
+
+    // Após Q3 concluída: race liberada
+    const afterQ3 = ['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3']
+    expect(isSessionUnlocked('race', afterQ3)).toBe(true)
+  })
+
+  // CFT08: formato MAIN preserva gates atuais (TL2 exigido onde já era exigido — não regredir).
+  it('CFT08: formato MAIN preserva gates atuais (TL2 exige TL1, TL3 exige TL2, Q1 exige TL3)', async () => {
+    const { getRaceWeekendPipeline, isSessionUnlocked } =
+      await import('@/services/weekendScheduleConfig')
+
+    const pipeline = getRaceWeekendPipeline({ format: 'standard' })
+    const ids = pipeline.map((s) => s.id)
+    expect(ids).toEqual(['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race'])
+
+    // No formato MAIN:
+    // tp2 requer tp1
+    expect(isSessionUnlocked('tp2', [])).toBe(false)
+    expect(isSessionUnlocked('tp2', ['tp1'])).toBe(true)
+
+    // tp3 requer tp2
+    expect(isSessionUnlocked('tp3', ['tp1'])).toBe(false)
+    expect(isSessionUnlocked('tp3', ['tp1', 'tp2'])).toBe(true)
+
+    // Q1 no MAIN requer tp3
+    expect(isSessionUnlocked('q1', ['tp1', 'tp2'])).toBe(false)
+    expect(isSessionUnlocked('q1', ['tp1', 'tp2', 'tp3'])).toBe(true)
+
+    // Q2 requer Q1, Q3 requer Q2, Race requer Q3
+    expect(isSessionUnlocked('q2', ['tp1', 'tp2', 'tp3', 'q1'])).toBe(true)
+    expect(isSessionUnlocked('q3', ['tp1', 'tp2', 'tp3', 'q1', 'q2'])).toBe(true)
+    expect(isSessionUnlocked('race', ['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3'])).toBe(true)
+  })
+
+  // CFT09: os 6 circuitos Sprint de 2026 (China R2, Miami, Canadá, Silverstone + os demais do calendário) resolvem pipeline de 7 slots sem undefined.
+  it('CFT09: os 6 circuitos Sprint de 2026 resolvem pipeline de 7 slots sem undefined', async () => {
+    const { getRaceWeekendPipeline } = await import('@/services/weekendScheduleConfig')
+    const sprintCircuits = CIRCUIT_PERFORMANCE_PROFILES.filter((c) => c.hasSprint)
+    expect(sprintCircuits.length).toBe(6)
+
+    for (const circuit of sprintCircuits) {
+      const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
+      expect(pipeline).toHaveLength(7)
+      expect(pipeline.every((sess) => sess !== undefined && sess !== null)).toBe(true)
+      const ids = pipeline.map((s) => s.id)
+      expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
+    }
+  })
 })

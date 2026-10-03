@@ -22,22 +22,11 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
     expect(ids).toEqual(['tp1', 'tp2', 'tp3', 'q1', 'q2', 'q3', 'race'])
   })
 
-  // SPRINT-02-02: Formato Sprint tem TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race
-  it('SPRINT-02-02: Formato Sprint tem TL1 -> TL2 -> SQ1 -> SQ2 -> SQ3 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race', () => {
+  // SPRINT-02-02: Formato Sprint canônico tem 7 slots: TL1 -> SQ1 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race
+  it('SPRINT-02-02: Formato Sprint canônico tem 7 slots: TL1 -> SQ1 -> Sprint Race -> Q1 -> Q2 -> Q3 -> Race', () => {
     const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = pipeline.map((s) => s.id)
-    expect(ids).toEqual([
-      'tp1',
-      'tp2',
-      'sq1',
-      'sq2',
-      'sq3',
-      'sprint_race',
-      'q1',
-      'q2',
-      'q3',
-      'race',
-    ])
+    expect(ids).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
   })
 
   // SPRINT-02-03: TL3 NÃO existe em fim de semana Sprint
@@ -47,12 +36,11 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
     expect(ids).not.toContain('tp3')
   })
 
-  // SPRINT-02-04: TL2 EXISTE em fim de semana Sprint
-  it('SPRINT-02-04: TL2 EXISTE em fim de semana Sprint', () => {
+  // SPRINT-02-04: TL2 NÃO existe em fim de semana Sprint (canônico 7 slots)
+  it('SPRINT-02-04: TL2 NÃO existe em fim de semana Sprint (canônico 7 slots)', () => {
     const pipeline = getRaceWeekendPipeline({ format: 'sprint' })
     const ids = pipeline.map((s) => s.id)
-    expect(ids).toContain('tp2')
-    expect(SPRINT_WEEKEND_SCHEDULE).toContain('tp2')
+    expect(ids).not.toContain('tp2')
   })
 
   // SPRINT-02-05: Sprint Qualifying usa grid próprio / slot sequence correto
@@ -108,27 +96,27 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
 
   // SPRINT-02-10: Desbloqueio e gating visual de sessões Sprint
   it('SPRINT-02-10: Desbloqueio de sessões Sprint segue a sequência canônica', () => {
-    // sq1 desbloqueia com tp2 concluído
+    // sq1 desbloqueia com apenas tp1 concluído (sem exigir tp2)
     const sq1State = resolveSessionVisualState({
       sessionId: 'sq1',
       activeSessionId: 'sq1',
-      completedSessions: ['tp1', 'tp2'],
+      completedSessions: ['tp1'],
     })
     expect(sq1State).toBe('active')
 
-    const sq2Locked = resolveSessionVisualState({
-      sessionId: 'sq2',
+    const sprintLocked = resolveSessionVisualState({
+      sessionId: 'sprint_race',
       activeSessionId: 'sq1',
-      completedSessions: ['tp1', 'tp2'],
+      completedSessions: ['tp1'],
     })
-    expect(sq2Locked).toBe('locked')
+    expect(sprintLocked).toBe('locked')
 
-    const sq2Available = resolveSessionVisualState({
-      sessionId: 'sq2',
-      activeSessionId: 'sq2',
-      completedSessions: ['tp1', 'tp2', 'sq1'],
+    const sprintAvailable = resolveSessionVisualState({
+      sessionId: 'sprint_race',
+      activeSessionId: 'sprint_race',
+      completedSessions: ['tp1', 'sq1'],
     })
-    expect(sq2Available).toBe('active')
+    expect(sprintAvailable).toBe('active')
   })
 
   // SPRINT-02-11: Silverstone round 11 tem hasSprint = true e reproduz sequência
@@ -137,13 +125,6 @@ describe('SILVERSTONE-RACE-REVIEW-01 — Bloco A: Sprint Flow 02', () => {
     expect(isSprint).toBe(true)
 
     const schedule = getCanonicalWeekendSchedule(11)
-    expect(schedule).toEqual([
-      'tp1',
-      'tp2',
-      'sprint_qualifying',
-      'sprint_race',
-      'qualifying',
-      'race',
-    ])
+    expect(schedule).toEqual(['tp1', 'sq1', 'sprint_race', 'q1', 'q2', 'q3', 'race'])
   })
 })
