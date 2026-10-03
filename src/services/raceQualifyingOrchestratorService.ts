@@ -1009,21 +1009,27 @@ export class RaceQualifyingOrchestratorService {
         isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'MEDIUM' : 'SOFT'
       const canonicalTyreCompound =
         isSprintQuali && (phase === 'SQ1' || phase === 'SQ2') ? 'medio' : 'macio'
+      // CHECKPOINT_1012
       const weatherState = isWetCondition ? 'chuva_fraca' : 'seco'
 
       const attempts: QualifyingLapAttempt[] = []
+      // CHECKPOINT_1018
       let bestTimeMs = Infinity
 
       for (let attNum = 1; attNum <= effectiveAttemptsPerPhase; attNum++) {
+        // CHECKPOINT_1021
         // Identidade da tentativa no RNG: career + season + round + variant + phase + entry/car + attempt
         // Garante namespaces distintos e preserva a distribuição seeded PRNG atual
         const seedIdentity = `${careerId}:${seasonId}:r${round}:${variant}:${phase}:${p.teamId}_c${carIdx}_${p.driverId}:att${attNum}`
+        // CHECKPOINT_1026
         const seedUint = hashStringToUint32(seedIdentity)
         const rng = mulberry32(seedUint)
         const z = getStandardNormal(rng)
+        // CHECKPOINT_1030
 
         // Converter z standard normal para noise de pace (sigma calibrado ~0.45 pt)
         // QUALI_RNG_TARGET_RANGE.SIGMA = 0.45. z * 0.45 produz o sorteio gaussiano desejado
+        // CHECKPOINT_1033
         const seededPaceNoise = z * 0.45
 
         const paceResult = canonicalPaceIntegrationService.computeQualifyingPace({
