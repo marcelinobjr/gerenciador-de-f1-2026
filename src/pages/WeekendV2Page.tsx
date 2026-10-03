@@ -367,11 +367,12 @@ export default function WeekendV2Page() {
     isSprint: boolean,
   ): CompleteQualifyingWeekendResult | null => {
     if (isSprint) {
-      // SPRINT_RACE: usa o resultado canônico da SQ3 (ou SQ1/SQ2 como fallback defensivo) para formar o grid de largada da Sprint
-      const sq3Result =
-        canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq3') ||
-        canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq2') ||
-        canonicalQualifyingPersistenceService.readStageResult(seasonId, round, 'sq1')
+      // SPRINT_RACE: usa estritamente o resultado canônico da SQ3 para formar o grid de largada da Sprint
+      const sq3Result = canonicalQualifyingPersistenceService.readStageResult(
+        seasonId,
+        round,
+        'sq3',
+      )
 
       if (sq3Result && sq3Result.entries && sq3Result.entries.length > 0) {
         // Se houver SQ1, SQ2 e SQ3 completos, constrói grid combinado oficial
