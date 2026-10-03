@@ -830,7 +830,7 @@ describe('SPRINT-FDS-01-R4C2: Sprint Qualifying Stage Results & Handoff (C2-01..
         tyreSetId: `tire_${d.id}`,
         lapsCount: 3,
         isPlayer: idx < 2,
-        carId: idx === 0 ? 'car1' : idx === 1 ? 'car2' : undefined,
+        carId: (idx === 0 ? 'car1' : idx === 1 ? 'car2' : undefined) as 'car1' | 'car2' | undefined,
         isEliminated: false,
       })),
       advancingDriverIds: all24Drivers
