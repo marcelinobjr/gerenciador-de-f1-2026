@@ -197,7 +197,7 @@ export const canonicalRaceInitializationService = {
     // 4. Montar as 24 entidades canônicas
     const raceId = this.buildRaceId(careerId, season, round, raceVariant)
 
-    // PU-05A2-P2: Resolver a alocação persistida canônica do jogador (se disponível)
+    // PU-05A2-P2a: Resolver a alocação persistida canônica do jogador (se disponível)
     let playerAllocation:
       | import('@/services/canonicalPowerUnitAllocationService').PowerUnitCarAllocation
       | null = null
@@ -216,27 +216,52 @@ export const canonicalRaceInitializationService = {
       )
       if (!val.valid) {
         throw new Error(
-          `[PU-05A2-P2] Alocação de Unidade de Potência inválida para a nova corrida: ${val.error}`,
+          `[PU-05A2-P2a] Alocação de Unidade de Potência inválida para a nova corrida: ${val.error}`,
+        )
+      }
+      if (playerAllocation.teamId && playerAllocation.teamId !== playerTeamId) {
+        throw new Error(
+          `[PU-05A2-P2a] Alocação pertence a outra equipe (${playerAllocation.teamId}) e não à equipe do jogador (${playerTeamId}).`,
+        )
+      }
+      if (playerAllocation.careerId && playerAllocation.careerId !== careerId) {
+        throw new Error(
+          `[PU-05A2-P2a] Alocação pertence a outro save/carreira (${playerAllocation.careerId}) e não ao save ativo (${careerId}).`,
         )
       }
     }
 
-    // Assinalar carId de forma robusta e independente para os dois pilotos do jogador
-    let playerCarCounter = 0
+    // PU-05A2-P2a: Mapear pilotos do jogador de forma consistente e estável
+    // Se o grid contiver identificador de carro explícito (entry.carId), preservá-lo.
+    // Caso contrário, associar pelo ID do piloto do jogador ou mapeamento determinístico.
     const driverLookup: Record<string, CanonicalRaceDriverState> = {}
     const driverStrategies: Record<string, DriverStrategyState> = {}
 
     const isWetWeather = initialWeather === 'chuva_fraca' || initialWeather === 'chuva_forte'
 
+    // Identificar previamente os pilotos do jogador presentes no grid para assinalar car1/car2
+    // de forma determinística e independente da ordem de classificação no grid
+    const playerDriversInGrid = sortedGrid.filter((e) => e.teamId === playerTeamId || e.isPlayer)
+    // Se ambos tiverem entry.carId já definido, respeitar. Se não, se o primeiro piloto já tiver carId, manter.
+    // Se nenhum tiver carId explícito, indexar pela ordem em playerDriversInGrid ou identificador estável.
+    const playerAssignedCarMap = new Map<string, 'car1' | 'car2'>()
+    playerDriversInGrid.forEach((entry, idx) => {
+      if (entry.carId === 'car1' || entry.carId === 'car2') {
+        playerAssignedCarMap.set(entry.driverId, entry.carId)
+      } else {
+        playerAssignedCarMap.set(entry.driverId, idx === 0 ? 'car1' : 'car2')
+      }
+    })
+
     const drivers: CanonicalRaceDriverState[] = sortedGrid.map((entry) => {
       const isPlayer = entry.teamId === playerTeamId || entry.isPlayer
       let carId = entry.carId
       if (isPlayer) {
-        playerCarCounter++
-        carId = carId || (playerCarCounter === 1 ? 'car1' : 'car2')
+        carId = carId || playerAssignedCarMap.get(entry.driverId) || 'car1'
       }
 
       // PU-05A2-P2: Vincular unidade física ao participante pela identidade canônica de carro/equipe
+      // PU-05A2-P2a: Vincular a unidade ao participante na inicialização
       let powerUnitId: number | undefined
       let powerUnitInitialCondition: number | undefined
 
