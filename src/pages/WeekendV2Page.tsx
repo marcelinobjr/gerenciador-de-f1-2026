@@ -3036,10 +3036,9 @@ export default function WeekendV2Page() {
                 size="sm"
                 className="h-8 px-3 bg-cyan-600 hover:bg-cyan-500 text-white font-mono font-bold text-xs gap-1.5 shadow-md"
               >
-                <Link to="/corrida/live">
-                  Abrir Race Control Dedicado →
-                </Link>
-              </Button>            </div>
+                <Link to="/corrida/live">Abrir Race Control Dedicado →</Link>
+              </Button>{' '}
+            </div>
             <CanonicalRaceInitializationPanel
               raceState={canonicalRaceState}
               hasOfficialResult={!!officialRaceResult}
@@ -3235,7 +3234,7 @@ export default function WeekendV2Page() {
                   })
                 }
               }}
-              onChangeSuspensionTyre={(driverId, compound) => {
+              onChangeSuspensionTyre={(driverId: string, compound: any) => {
                 try {
                   const res = canonicalRaceEngineService.changeTyresDuringSuspension({
                     raceState: canonicalRaceState,
@@ -3448,7 +3447,7 @@ export default function WeekendV2Page() {
                       startingFuelKg: car.startingFuelKg,
                       initialTyreWear: car.initialTyreWear,
                       initialTyreLapsUsed: car.initialTyreLapsUsed,
-                      strategyPlan: car.strategyPlan,
+                      startingPaceMode: (car as any).startingPaceMode,
                     }
                     carPreparations[car.carId] = carPreparations[car.driverId]
                   })
@@ -3461,7 +3460,6 @@ export default function WeekendV2Page() {
                         gpInfo.laps || 57,
                       )
                     : gpInfo.laps || 57
-
                   const initialRace =
                     canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
                       raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',

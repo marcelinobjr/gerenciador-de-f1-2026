@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { RACE_PLAYBACK_CONFIG } from '@/constants/racePlaybackConfig'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
-import type { CanonicalQualifyingGridPosition as CanonicalGridPosition } from '@/types/canonical-race-v2'
+type CanonicalGridPosition = any
 
 function buildMockGrid(count = 20): CanonicalGridPosition[] {
   const teams = [
@@ -187,6 +187,36 @@ describe('RACE-CONTROL-COMPACT-01 — QA Suites', () => {
 
   // PROVA F: Navegação Race Control ↔ Página Principal (Mesma Sessão Canônica)
   describe('F) Navegação Race Control ↔ Página Principal preserva o estado canônico', () => {
+    it('provar que não há chamadas a Math.random() ou PRNG paralelo no fluxo de avanço canônico', () => {
+      let randomCalled = false
+      const origRandom = Math.random
+      Math.random = () => {
+        randomCalled = true
+        return origRandom()
+      }
+
+      try {
+        const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+          careerId: 'test_career_no_math_random',
+          season: 2026,
+          round: 1,
+          circuitName: 'Bahrain',
+          circuitCountry: 'Bahrain',
+          totalLaps: 20,
+          playerTeamId: 'ferrari',
+          canonicalQualifyingGrid: mockGrid,
+        })
+        expect(race.currentLap).toBe(0)
+        // Step lap canônico
+        const nextState = canonicalRaceEngineService.advanceOneLap(race)
+        expect(nextState.currentLap).toBe(1)
+        // Determinismo mantido: zero invocação de Math.random descontrolado
+        expect(randomCalled).toBe(false)
+      } finally {
+        Math.random = origRandom
+      }
+    })
+
     it('salvar o estado e recarregá-lo não reinicia, re-sorteia nem modifica a corrida', () => {
       const careerId = 'test_career_nav_flow'
       const season = 2026

@@ -21,6 +21,7 @@ import { PlayerCarCards } from './PlayerCarCards'
 import { CompactPlayerDriverStrips } from './CompactPlayerDriverStrips'
 import { BottomControlBar } from './BottomControlBar'
 import { DriverStrategyModal } from './DriverStrategyModal'
+import { CircuitMiniMap } from './CircuitMiniMap'
 import { RACE_PLAYBACK_CONFIG, type RacePlaybackSpeed } from '@/constants/racePlaybackConfig'
 
 export interface CanonicalRaceInitializationPanelProps {
@@ -311,12 +312,13 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
       )}
 
       {/* 2. LAYOUT PRINCIPAL: TIMING TOWER À ESQUERDA + ÁREA CENTRAL COM CARDS E PAINÉIS LATERAIS */}
-      <div className={`flex flex-col lg:flex-row items-start ${compactMode ? 'gap-2.5' : 'gap-4'}`}>
+      <div className={`flex flex-col lg:flex-row items-start ${compactMode ? 'gap-2' : 'gap-4'}`}>
         {/* TIMING TOWER OFICIAL À ESQUERDA (P1..P24 COM LOGOS E GAPS) */}
         <TimingTower
           drivers={raceState.drivers}
           totalLaps={raceState.totalLaps}
           playerDriverIds={playerDrivers.map((d) => d.driverId)}
+          compact={compactMode}
         />
 
         {/* ÁREA CENTRAL / DIREITA: CARDS DOS CARROS DO JOGADOR + RACE CONTROL + EVENTOS RECENTES */}
@@ -376,8 +378,19 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
               />
             ))}
 
-          {/* PAINÉIS LATERAIS DE CONTROLE E FEED DE EVENTOS RECENTES */}
-          <div className={`grid grid-cols-1 md:grid-cols-2 ${compactMode ? 'gap-2.5' : 'gap-4'}`}>
+          {/* PAINÉIS LATERAIS: CIRCUITO (PRIORIDADE 1) + ESTADO DA CORRIDA + EVENTOS RECENTES */}
+          <div
+            className={`grid grid-cols-1 ${compactMode ? 'md:grid-cols-3 gap-2.5' : 'md:grid-cols-2 gap-4'}`}
+          >
+            {compactMode && (
+              <CircuitMiniMap
+                circuitName={raceState.circuitName}
+                circuitCountry={raceState.circuitCountry}
+                round={raceState.round}
+                compact={true}
+              />
+            )}
+
             <RaceControlPanel
               currentFlag={currentFlag}
               safetyCarActive={raceState.safetyCarActive}
@@ -390,9 +403,14 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
                   ? raceState.weather
                   : (raceState.weather as any)?.condition
               }
+              compact={compactMode}
             />
 
-            <RecentEventsFeed events={raceState.events} maxItems={compactMode ? 4 : 6} />
+            <RecentEventsFeed
+              events={raceState.events}
+              maxItems={compactMode ? 4 : 6}
+              compact={compactMode}
+            />
           </div>
 
           {/* PAINEL DE CONTROLES AVANÇADOS DE QA E FORÇAR BANDEIRAS */}
