@@ -308,7 +308,6 @@ export class ProceduralDriverGenerator {
       juniorCategory: category,
       careerStatus: 'prospect',
       truePotential,
-      generatedPortraitProfileId: assignedPortrait.profileId,
       growthRate: this.randomInt(0, 3, seedState) === 0 ? 'precoce' : 'normal',
       peakAge: this.randomInt(25, 29, seedState),
       drivingStyle,
@@ -384,7 +383,10 @@ export class ProceduralDriverGenerator {
         perceived_potential: perceivedPotential,
         evaluation_confidence: evaluationConfidence,
         career_status: 'prospect',
-        procedural_data: metadata,
+        procedural_data: {
+          ...metadata,
+          generatedPortraitProfileId: assignedPortrait.profileId,
+        },
       } as any),
     }
 

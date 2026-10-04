@@ -30,18 +30,18 @@ describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos
 
   // (1) 10 renders/telas -> mesma URL e assetId
   it('FE01-01: 10 chamadas/renders em telas distintas retornam a mesma URL e assetId', () => {
-    const driver = proceduralDriverGenerator.generateDriver({
+    const generated: any = proceduralDriverGenerator.generateDriver({
       seed: 424242,
       femaleRatio: 1.0, // Força feminino
     })
 
-    const initialProcData = driver.metadata
+    const initialProcData = generated.driver.procedural_data
     expect(initialProcData.generatedPortraitProfileId).toBeDefined()
     expect(initialProcData.visualIdentity?.portraitAssetId).toBeDefined()
 
     const firstResolution = resolveDriverPhoto({
-      driverId: driver.driver.id,
-      name: driver.driver.name,
+      driverId: generated.driver.id,
+      name: generated.driver.name,
       generatedPortraitProfileId: initialProcData.generatedPortraitProfileId,
       visualIdentity: initialProcData.visualIdentity,
     })
@@ -52,8 +52,8 @@ describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos
     // Simula 10 renderizações / telas distintas
     for (let render = 1; render <= 10; render++) {
       const repeated = resolveDriverPhoto({
-        driverId: driver.driver.id,
-        name: driver.driver.name,
+        driverId: generated.driver.id,
+        name: generated.driver.name,
         generatedPortraitProfileId: initialProcData.generatedPortraitProfileId,
         visualIdentity: initialProcData.visualIdentity,
       })
@@ -66,11 +66,11 @@ describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos
 
   // (2) Ciclo serialize/save/reload -> retrato idêntico
   it('FE01-02: Ciclo completo serialize -> save -> reload mantém retrato rigorosamente idêntico', () => {
-    const original = proceduralDriverGenerator.generateDriver({
+    const generated: any = proceduralDriverGenerator.generateDriver({
       seed: 888123,
     })
 
-    const originalProcData = original.driver.procedural_data as any
+    const originalProcData = generated.driver.procedural_data
     const profileIdBefore = originalProcData.generatedPortraitProfileId
     const portraitAssetIdBefore = originalProcData.visualIdentity?.portraitAssetId
 
@@ -96,15 +96,15 @@ describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos
 
     // 4. Resolve a foto no estado recarregado
     const reloadedResolution = resolveDriverPhoto({
-      driverId: original.driver.id,
-      name: original.driver.name,
+      driverId: generated.driver.id,
+      name: generated.driver.name,
       generatedPortraitProfileId: savedProceduralData.generatedPortraitProfileId,
       visualIdentity: savedProceduralData.visualIdentity,
     })
 
     const initialResolution = resolveDriverPhoto({
-      driverId: original.driver.id,
-      name: original.driver.name,
+      driverId: generated.driver.id,
+      name: generated.driver.name,
       generatedPortraitProfileId: profileIdBefore,
       visualIdentity: originalProcData.visualIdentity,
     })
@@ -116,7 +116,7 @@ describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos
   // (3) Backfill idempotente (1x = 10x) e congelamento de pilotos existentes (Camila Carvalho, Sakura Ito)
   it('FE01-03: Backfill idempotente (1x = 10x) congela pilotos existentes sem alterar em execuções repetidas', () => {
     // Simula pilotos existentes do usuário no banco sem generatedPortraitProfileId gravado
-    const camilaCarvalhoMock = {
+    const camilaCarvalhoMock: any = {
       id: 'pys0cvfjzvio4w6',
       name: 'Camila Carvalho',
       origin_type: 'procedural',
@@ -131,7 +131,7 @@ describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos
       },
     }
 
-    const sakuraItoMock = {
+    const sakuraItoMock: any = {
       id: '6r5sqq2xhh3gtqh',
       name: 'Sakura Ito',
       origin_type: 'procedural',
@@ -174,7 +174,7 @@ describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos
       driverId: frozenCamila1.id,
       name: frozenCamila1.name,
       generatedPortraitProfileId: camilaProfile1,
-      visualIdentity: frozenCamila1.procedural_data.visualIdentity,
+      visualIdentity: frozenCamila1.procedural_data.visualIdentity as any,
     })
     expect(FEMALE_PORTRAITS_POOL).toContain(resolvedCamila.url!)
     expect(MALE_PORTRAITS_POOL).not.toContain(resolvedCamila.url!)
