@@ -161,39 +161,6 @@ export default function StandingsPage() {
     return Math.max(1, effectiveConstructorStandings[0]?.points || 1)
   }, [effectiveConstructorStandings])
 
-  // Mapa de pilotos por equipe para listar os titulares compactos na aba Construtores ("Bortoleto · Ricciardo")
-  const teamLineupMap = useMemo(() => {
-    const map: Record<string, string[]> = {}
-
-    // 1. Pilotos do jogador
-    if (playerDrivers && playerDrivers.length > 0) {
-      const pKey = team?.id || 'player'
-      const pTeamName = team?.name || 'Escuderia Brasil'
-      const starters = playerDrivers.filter(
-        (d) => !d.role || d.role.toLowerCase().includes('titular'),
-      )
-      const list = starters.length > 0 ? starters : playerDrivers.slice(0, 2)
-      const surnames = list.map((d) => normalizeDriverSurname(d.name))
-      map[pKey] = surnames
-      map[pTeamName] = surnames
-    }
-
-    // 2. Pilotos agrupados a partir do effectiveDriverStandings
-    if (effectiveDriverStandings && effectiveDriverStandings.length > 0) {
-      effectiveDriverStandings.forEach((d) => {
-        if (!map[d.teamName]) {
-          map[d.teamName] = []
-        }
-        const surname = normalizeDriverSurname(d.name)
-        if (!map[d.teamName].includes(surname)) {
-          map[d.teamName].push(surname)
-        }
-      })
-    }
-
-    return map
-  }, [playerDrivers, team, effectiveDriverStandings])
-
   // Handler para abrir perfil de piloto existente
   const handleDriverClick = (driver: DriverStanding) => {
     // Tenta casar com dados completos de playerDrivers se for do jogador
@@ -634,7 +601,6 @@ export default function StandingsPage() {
                 <tr className="border-b border-[#E2E8F0] bg-[#FAFAFA] text-[11px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
                   <th className="py-3 px-4 text-center w-16">POS</th>
                   <th className="py-3 px-4">EQUIPE</th>
-                  <th className="py-3 px-4">PILOTOS</th>
                   <th className="py-3 px-4 text-center w-24">VITÓRIAS</th>
                   <th className="py-3 px-4 text-center w-24">PÓDIOS</th>
                   <th className="py-3 px-4 text-right w-64">PONTOS</th>
@@ -652,11 +618,6 @@ export default function StandingsPage() {
                           Math.min(100, Math.round((cTeam.points / maxConstructorPoints) * 100)),
                         )
                       : 0
-
-                  // Lineup dos dois titulares de forma compacta (ex: "Bortoleto · Ricciardo")
-                  const pilotsList = teamLineupMap[cTeam.id] || teamLineupMap[cTeam.name] || []
-                  const pilotsDisplay =
-                    pilotsList.length > 0 ? pilotsList.slice(0, 2).join(' · ') : '—'
 
                   return (
                     <tr
@@ -729,11 +690,6 @@ export default function StandingsPage() {
                             )}
                           </div>
                         </div>
-                      </td>
-
-                      {/* PILOTOS: Sobrenomes dos dois titulares de forma compacta */}
-                      <td className="py-2.5 px-4">
-                        <span className="font-medium text-[#475569] text-xs">{pilotsDisplay}</span>
                       </td>
 
                       {/* VITÓRIAS */}

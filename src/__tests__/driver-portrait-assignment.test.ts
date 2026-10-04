@@ -33,7 +33,9 @@ describe('driverPortraitAssignmentService (MUDANÇA 1)', () => {
     ])
     expect(MALE_PORTRAITS_POOL.length).toBe(24)
     // Total de 66 arquivos físicos (Piloto_01..Piloto_67 exceto Piloto_52 inexistente / usando Piloto52.jpg)
-    expect(MALE_PORTRAITS_POOL.length + FEMALE_PORTRAITS_POOL.length).toBe(TOTAL_ASSIGNABLE_PORTRAITS)
+    expect(MALE_PORTRAITS_POOL.length + FEMALE_PORTRAITS_POOL.length).toBe(
+      TOTAL_ASSIGNABLE_PORTRAITS,
+    )
     expect(TOTAL_ASSIGNABLE_PORTRAITS).toBe(66)
     expect(FEMALE_PORTRAITS_POOL.length).toBe(42)
 

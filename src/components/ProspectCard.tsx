@@ -44,6 +44,7 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
       driverId: prospect.driverId,
       name: prospect.name,
       visualIdentity: prospect.visualIdentity,
+      gender: prospect.gender || prospect.visualIdentity?.gender,
       generatedPortraitProfileId:
         prospect.generatedPortraitProfileId ||
         prospect.visualIdentity?.generatedPortraitProfileId ||
@@ -54,6 +55,7 @@ export const ProspectCard: React.FC<ProspectCardProps> = ({
   }, [
     prospect.driverId,
     prospect.name,
+    prospect.gender,
     prospect.visualIdentity,
     prospect.generatedPortraitProfileId,
   ])

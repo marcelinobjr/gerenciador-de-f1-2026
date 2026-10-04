@@ -75,7 +75,7 @@ export function hashDriverIdentifier(identifier: string): number {
     hash ^= identifier.charCodeAt(i)
     hash = Math.imul(hash, 16777619)
   }
-  return (hash >>> 0) // Garante uint32 não-negativo
+  return hash >>> 0 // Garante uint32 não-negativo
 }
 
 export type DriverGender = 'male' | 'female'
@@ -93,7 +93,9 @@ export interface DriverGenderExtractionContext {
  * 3. prospect.gender
  * 4. Fallback masculino documentado quando ausente ou desconhecido.
  */
-export function resolveDriverIdentityGender(context?: DriverGenderExtractionContext | null): DriverGender {
+export function resolveDriverIdentityGender(
+  context?: DriverGenderExtractionContext | null,
+): DriverGender {
   if (!context) return 'male'
 
   const direct = context.gender

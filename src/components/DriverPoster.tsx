@@ -12,6 +12,7 @@ export interface DriverPosterProps {
   driverId?: string
   visualIdentity?: DriverVisualAssetIdentity | null
   portraitAssetId?: string
+  gender?: string | null
 }
 
 export const DriverPoster: React.FC<DriverPosterProps> = ({
@@ -22,6 +23,7 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
   driverId,
   visualIdentity,
   portraitAssetId,
+  gender,
 }) => {
   const effectiveVisualIdentity = useMemo<DriverVisualAssetIdentity | null>(() => {
     if (visualIdentity) return visualIdentity
@@ -35,8 +37,9 @@ export const DriverPoster: React.FC<DriverPosterProps> = ({
       driverId,
       visualIdentity: effectiveVisualIdentity,
       portraitAssetId: effectiveVisualIdentity?.portraitAssetId || portraitAssetId,
+      gender: gender || effectiveVisualIdentity?.gender,
     })
-  }, [name, driverId, effectiveVisualIdentity, portraitAssetId])
+  }, [name, driverId, effectiveVisualIdentity, portraitAssetId, gender])
 
   const candidateUrls = useMemo(() => resolvedPhoto.candidateUrls, [resolvedPhoto])
   const [candidateIndex, setCandidateIndex] = useState(0)

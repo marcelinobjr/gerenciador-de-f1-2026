@@ -15,6 +15,7 @@ export interface DriverPhotoAvatarProps {
   visualIdentity?: DriverVisualAssetIdentity | null
   portraitAssetId?: string
   generatedPortraitProfileId?: string
+  gender?: string | null
 }
 
 export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
@@ -28,6 +29,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
   visualIdentity,
   portraitAssetId,
   generatedPortraitProfileId,
+  gender,
 }) => {
   // Constrói objeto de identidade unificado se fornecido via prop
   const effectiveVisualIdentity = React.useMemo<DriverVisualAssetIdentity | null>(() => {
@@ -47,6 +49,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
       visualIdentity: effectiveVisualIdentity,
       portraitAssetId,
       generatedPortraitProfileId,
+      gender: gender || effectiveVisualIdentity?.gender,
     })
   }, [
     driverId,
@@ -55,6 +58,7 @@ export const DriverPhotoAvatar: React.FC<DriverPhotoAvatarProps> = ({
     effectiveVisualIdentity,
     portraitAssetId,
     generatedPortraitProfileId,
+    gender,
   ])
 
   // Candidatos ordenados: resolvedor canônico unificado primeiro, seguido dos fallbacks
