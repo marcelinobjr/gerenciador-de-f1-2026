@@ -207,7 +207,7 @@ describe('PU-05A2-P2a: Vínculo da unidade montada ao participante na inicializa
     expect(driverCar1!.powerUnitId).not.toBe(driverCar2!.powerUnitId)
   })
 
-  it('não vincula nada silenciosamente quando a unidade alocada não existir ou for inválida', () => {
+  it('rejeita com exceção quando a unidade alocada não existir no inventário da equipe (PU-99)', () => {
     const careerId = 'career_p2a_invalid_test'
     // Alocação com unidade 99 inexistente no inventário
     const teamWithInvalidPU = createMockTeamWithEngines('team_apex_p2a_invalid', {
@@ -223,23 +223,19 @@ describe('PU-05A2-P2a: Vínculo da unidade montada ao participante na inicializa
 
     const grid = createMockGrid(teamWithInvalidPU.id, [1, 2])
 
-    const raceState = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
-      careerId,
-      season: 2026,
-      round: 1,
-      circuitName: 'Bahrain International Circuit',
-      circuitCountry: 'Bahrain',
-      totalLaps: 57,
-      playerTeamId: teamWithInvalidPU.id,
-      playerTeam: teamWithInvalidPU,
-      canonicalQualifyingGrid: grid,
-      persistState: false,
-    })
-
-    const driverCar1 = raceState.drivers.find((d) => d.driverId === 'player_driver_c1')
-    expect(driverCar1).toBeDefined()
-    // Como a PU 99 não existe no histórico, não deve vincular silenciosamente nenhuma unidade (nem pegar a primeira)
-    expect(driverCar1!.powerUnitId).toBeUndefined()
-    expect(driverCar1!.powerUnitInitialCondition).toBeUndefined()
+    expect(() => {
+      canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+        careerId,
+        season: 2026,
+        round: 1,
+        circuitName: 'Bahrain International Circuit',
+        circuitCountry: 'Bahrain',
+        totalLaps: 57,
+        playerTeamId: teamWithInvalidPU.id,
+        playerTeam: teamWithInvalidPU,
+        canonicalQualifyingGrid: grid,
+        persistState: false,
+      })
+    }).toThrow(/PU-99/)
   })
 })
