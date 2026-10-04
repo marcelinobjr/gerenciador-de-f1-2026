@@ -160,14 +160,17 @@ export const driverHiringService = {
         const existingProfileId =
           initialProcData.generatedPortraitProfileId ||
           initialProcData.visualIdentity?.generatedPortraitProfileId ||
-          (initialProcData.visualIdentity?.portraitAssetId?.startsWith('Piloto')
+          (initialProcData.visualIdentity?.portraitAssetId &&
+          !initialProcData.visualIdentity.portraitAssetId.startsWith('DRV_') &&
+          (initialProcData.visualIdentity.portraitAssetId.startsWith('Piloto') ||
+            initialProcData.visualIdentity.portraitAssetId.startsWith('GEN_'))
             ? initialProcData.visualIdentity.portraitAssetId
             : null)
         if (!existingProfileId) {
-          const assigned = assignGeneratedPortraitProfile(
-            initialProcData.visualIdentity?.gender || driver.gender,
-            driver.id || driver.name || Date.now(),
-          )
+          const gender =
+            initialProcData.visualIdentity?.gender || (driver as any).gender || 'female'
+          const seed = initialProcData.driverId || driver.id || driver.name || Date.now()
+          const assigned = assignGeneratedPortraitProfile(gender, seed)
           initialProcData = {
             ...initialProcData,
             generatedPortraitProfileId: assigned.profileId,
@@ -176,6 +179,17 @@ export const driverHiringService = {
               portraitAssetId: assigned.portraitAssetId,
               generatedPortraitProfileId: assigned.profileId,
               gender: assigned.gender,
+            },
+          }
+        } else {
+          // Garante que visualIdentity.generatedPortraitProfileId esteja preenchido
+          initialProcData = {
+            ...initialProcData,
+            generatedPortraitProfileId: existingProfileId,
+            visualIdentity: {
+              ...(initialProcData.visualIdentity || {}),
+              portraitAssetId: initialProcData.visualIdentity?.portraitAssetId || existingProfileId,
+              generatedPortraitProfileId: existingProfileId,
             },
           }
         }

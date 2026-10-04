@@ -178,11 +178,32 @@ class DriverPortraitBackfillService {
     const existing =
       rawProc.generatedPortraitProfileId ||
       rawProc.visualIdentity?.generatedPortraitProfileId ||
-      (rawProc.visualIdentity?.portraitAssetId?.startsWith('Piloto')
+      (rawProc.visualIdentity?.portraitAssetId &&
+      !rawProc.visualIdentity.portraitAssetId.startsWith('DRV_') &&
+      (rawProc.visualIdentity.portraitAssetId.startsWith('Piloto') ||
+        rawProc.visualIdentity.portraitAssetId.startsWith('GEN_'))
         ? rawProc.visualIdentity.portraitAssetId
         : null)
 
     if (existing) {
+      // Idempotente: se já existe, apenas assegura que ambos os campos estão harmonizados
+      if (
+        !rawProc.generatedPortraitProfileId ||
+        !rawProc.visualIdentity?.generatedPortraitProfileId
+      ) {
+        return {
+          ...driver,
+          procedural_data: {
+            ...rawProc,
+            generatedPortraitProfileId: existing,
+            visualIdentity: {
+              ...(rawProc.visualIdentity || {}),
+              portraitAssetId: rawProc.visualIdentity?.portraitAssetId || existing,
+              generatedPortraitProfileId: existing,
+            },
+          },
+        }
+      }
       return driver
     }
 

@@ -129,32 +129,28 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
     }
   }
 
-  // Detecta se é piloto explicitamente procedural (por id, tipo de origem ou visualIdentity)
+  // Detecta se é piloto explicitamente procedural (por id, tipo de origem, visualIdentity ou perfil gerado)
   const isProcedural = Boolean(
-    (driverId && driverId.startsWith('drv_proc_')) ||
-    (visualIdentity && !portraitAssetId?.startsWith('DRV_') && !driverId?.startsWith('mbj-')),
+    (driverId && (driverId.startsWith('drv_proc_') || driverId.startsWith('proc_'))) ||
+    Boolean(generatedPortraitProfileId) ||
+    Boolean(visualIdentity?.generatedPortraitProfileId) ||
+    Boolean(
+      visualIdentity &&
+      !portraitAssetId?.startsWith('DRV_') &&
+      !driverId?.startsWith('mbj-') &&
+      !driverId?.startsWith('drv_') &&
+      (visualIdentity.visualSeed !== undefined ||
+        visualIdentity.portraitAssetId?.startsWith('Piloto') ||
+        visualIdentity.portraitAssetId?.startsWith('GEN_') ||
+        visualIdentity.gender !== undefined),
+    ),
   )
 
   // 3. Piloto Real Canônico (DRV_0001..DRV_0188 / Catálogo Master Canônico)
   // REGRA B: Pilotos procedurais IGNORAM colisões nominais com pilotos reais!
   // Apenas pilotos não-procedurais fazem busca ampla por nome no catálogo canônico real.
   if (!isProcedural) {
-    // 3.1 Resolução Canônica Direta BUG-PILOTOS-01
-    const directCanonicalPath = resolveCanonicalDriverImagePath(driverId, name)
-    if (directCanonicalPath && !directCanonicalPath.includes('pilotos-gerados')) {
-      candidateUrls.push(directCanonicalPath)
-      return {
-        url: directCanonicalPath,
-        candidateUrls,
-        fallbackInitials,
-        teamColor: teamColor || '#E10600',
-        sourceType: 'canonical_real',
-        assetId: directCanonicalPath.split('/').pop()?.replace('.jpg', ''),
-        driverId: driverId || undefined,
-      }
-    }
-
-    // 3.2 Se o próprio portraitAssetId fornecido for um DRV_XXXX
+    // 3.1 Se o próprio portraitAssetId fornecido for um DRV_XXXX
     if (portraitAssetId && portraitAssetId.startsWith('DRV_')) {
       const canonicalPath = `/pilotos/${portraitAssetId}.jpg`
       candidateUrls.push(canonicalPath)
@@ -165,6 +161,21 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
         teamColor: teamColor || '#E10600',
         sourceType: 'canonical_real',
         assetId: portraitAssetId,
+        driverId: driverId || undefined,
+      }
+    }
+
+    // 3.2 Resolução Canônica Direta (driverId ou nome para pilotos reais)
+    const directCanonicalPath = resolveCanonicalDriverImagePath(driverId, name)
+    if (directCanonicalPath && !directCanonicalPath.includes('pilotos-gerados')) {
+      candidateUrls.push(directCanonicalPath)
+      return {
+        url: directCanonicalPath,
+        candidateUrls,
+        fallbackInitials,
+        teamColor: teamColor || '#E10600',
+        sourceType: 'canonical_real',
+        assetId: directCanonicalPath.split('/').pop()?.replace('.jpg', ''),
         driverId: driverId || undefined,
       }
     }

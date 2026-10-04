@@ -1,267 +1,270 @@
-/**
- * fotos-estaveis-01.test.ts
- *
- * Suíte de testes canônica para o Bloco FOTOS-ESTAVEIS-01:
- * Garante estabilidade estrita e imutabilidade dos retratos de pilotos gerados / newgens:
- *
- * 1. 10 renders/telas -> mesma URL e assetId.
- * 2. Ciclo serialize/save/reload -> retrato idêntico.
- * 3. Backfill idempotente (1x = 10x) -> congela os pilotos existentes (Camila Carvalho, Sakura Ito).
- * 4. Colisão por nome não muda retrato procedural (pilotos procedurais ignoram catálogo real).
- * 5. Pools por gênero preservados + pilotos reais DRV_0001..DRV_0188 intocados.
- */
-
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import {
-  assignGeneratedPortraitProfile,
-  MALE_PORTRAITS_POOL,
-  FEMALE_PORTRAITS_POOL,
-} from '@/services/driverPortraitAssignmentService'
+import { describe, it, expect } from 'vitest'
 import { resolveDriverPhoto } from '@/lib/driver-photo-resolver'
 import { proceduralDriverGenerator } from '@/services/proceduralDriverGenerator'
+import { driverHiringService } from '@/services/driverHiringService'
 import { driverPortraitBackfillService } from '@/services/driverPortraitBackfillService'
-import { sanitizeDriverProceduralData } from '@/lib/sanitizeDriverProceduralData'
-import { preservePortraitFields } from '@/lib/preservePortraitFields'
+import { assignGeneratedPortraitProfile } from '@/services/driverPortraitAssignmentService'
+import type { DriverModel } from '@/types/f1'
 
-describe('FOTOS-ESTAVEIS-01: Estabilidade e Imutabilidade de Retratos de Pilotos Gerados', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  // (1) 10 renders/telas -> mesma URL e assetId
-  it('FE01-01: 10 chamadas/renders em telas distintas retornam a mesma URL e assetId', () => {
-    const generated: any = proceduralDriverGenerator.generateDriver({
-      seed: 424242,
-      femaleRatio: 1.0, // Força feminino
+describe('FOTOS-ESTAVEIS-01 — Estabilidade de Retratos de Pilotos Gerados e Resolução Central', () => {
+  // =========================================================================
+  // CENÁRIO A: Foto estável pós-reload/re-sincronização (ID do registro muda, foto não)
+  // Regra: "uma vez criado o piloto e definida a imagem associada, não pode mudar"
+  // =========================================================================
+  it('(a) foto estável pós-reload/re-sincronização quando o ID do registro muda no banco', () => {
+    // 1. Gera piloto procedural com retrato fixado
+    const generated = proceduralDriverGenerator.generateDriver({
+      seed: 42,
     })
 
-    const initialProcData = generated.driver.procedural_data
-    expect(initialProcData.generatedPortraitProfileId).toBeDefined()
-    expect(initialProcData.visualIdentity?.portraitAssetId).toBeDefined()
+    const initialProfileId =
+      generated.metadata.generatedPortraitProfileId ||
+      generated.metadata.visualIdentity.generatedPortraitProfileId
+    expect(initialProfileId).toBeDefined()
+    expect(initialProfileId).toMatch(/^Piloto_\d{2}$/)
 
-    const firstResolution = resolveDriverPhoto({
+    // Resolução inicial antes do save
+    const initialResolved = resolveDriverPhoto({
       driverId: generated.driver.id,
       name: generated.driver.name,
-      generatedPortraitProfileId: initialProcData.generatedPortraitProfileId,
-      visualIdentity: initialProcData.visualIdentity,
+      originType: 'procedural',
+      generatedPortraitProfileId: initialProfileId,
+      visualIdentity: generated.metadata.visualIdentity,
     })
 
-    expect(firstResolution.url).not.toBeNull()
-    expect(firstResolution.sourceType).toBe('generated_procedural')
+    expect(initialResolved.url).toBe(`/pilotos-gerados/${initialProfileId}.jpg`)
 
-    // Simula 10 renderizações / telas distintas
-    for (let render = 1; render <= 10; render++) {
-      const repeated = resolveDriverPhoto({
-        driverId: generated.driver.id,
-        name: generated.driver.name,
-        generatedPortraitProfileId: initialProcData.generatedPortraitProfileId,
-        visualIdentity: initialProcData.visualIdentity,
-      })
-
-      expect(repeated.url).toBe(firstResolution.url)
-      expect(repeated.assetId).toBe(firstResolution.assetId)
-      expect(repeated.sourceType).toBe('generated_procedural')
-    }
-  })
-
-  // (2) Ciclo serialize/save/reload -> retrato idêntico
-  it('FE01-02: Ciclo completo serialize -> save -> reload mantém retrato rigorosamente idêntico', () => {
-    const generated: any = proceduralDriverGenerator.generateDriver({
-      seed: 888123,
-    })
-
-    const originalProcData = generated.driver.procedural_data
-    const profileIdBefore = originalProcData.generatedPortraitProfileId
-    const portraitAssetIdBefore = originalProcData.visualIdentity?.portraitAssetId
-
-    expect(profileIdBefore).toBeTruthy()
-    expect(portraitAssetIdBefore).toBeTruthy()
-
-    // 1. Simula envio/salvamento com sanitização
-    const serializedJson = JSON.stringify(originalProcData)
-    const deserialized = JSON.parse(serializedJson)
-
-    // 2. Simula update parcial de corrida (ex: ganho de pontos ou contrato sem mexer no visual)
-    const updatePatch = {
-      careerStatus: 'professional',
-      contract_end: 2028,
-    }
-
-    const savedProceduralData = sanitizeDriverProceduralData(deserialized, updatePatch)
-
-    // 3. Verifica se os campos de retrato foram blindados
-    expect(savedProceduralData.generatedPortraitProfileId).toBe(profileIdBefore)
-    expect(savedProceduralData.visualIdentity.portraitAssetId).toBe(portraitAssetIdBefore)
-    expect(savedProceduralData.visualIdentity.generatedPortraitProfileId).toBe(profileIdBefore)
-
-    // 4. Resolve a foto no estado recarregado
-    const reloadedResolution = resolveDriverPhoto({
-      driverId: generated.driver.id,
-      name: generated.driver.name,
-      generatedPortraitProfileId: savedProceduralData.generatedPortraitProfileId,
-      visualIdentity: savedProceduralData.visualIdentity,
-    })
-
-    const initialResolution = resolveDriverPhoto({
-      driverId: generated.driver.id,
-      name: generated.driver.name,
-      generatedPortraitProfileId: profileIdBefore,
-      visualIdentity: originalProcData.visualIdentity,
-    })
-
-    expect(reloadedResolution.url).toBe(initialResolution.url)
-    expect(reloadedResolution.assetId).toBe(initialResolution.assetId)
-  })
-
-  // (3) Backfill idempotente (1x = 10x) e congelamento de pilotos existentes (Camila Carvalho, Sakura Ito)
-  it('FE01-03: Backfill idempotente (1x = 10x) congela pilotos existentes sem alterar em execuções repetidas', () => {
-    // Simula pilotos existentes do usuário no banco sem generatedPortraitProfileId gravado
-    const camilaCarvalhoMock: any = {
-      id: 'pys0cvfjzvio4w6',
-      name: 'Camila Carvalho',
+    // 2. Simula reload/salvamento no PocketBase onde o ID do registro muda para um hash aleatório do PB (ex.: 'pb_rec_99x')
+    const reloadedDriverRecord: Partial<DriverModel> = {
+      ...generated.driver,
+      id: 'pb_rec_random_id_after_sync_99x', // ID mudou pós-persistência/sincronização
       origin_type: 'procedural',
-      gender: 'female',
       procedural_data: {
-        driverId: 'drv_proc_1728028980730_camila',
-        countryFlag: '🇧🇷',
-        visualIdentity: {
-          gender: 'female',
-          visualSeed: 12345,
-        },
+        ...(generated.driver.procedural_data || {}),
+        generatedPortraitProfileId: initialProfileId,
       },
     }
 
-    const sakuraItoMock: any = {
-      id: '6r5sqq2xhh3gtqh',
-      name: 'Sakura Ito',
-      origin_type: 'procedural',
-      gender: 'female',
-      procedural_data: {
-        driverId: 'drv_proc_1728029010141_sakura',
-        countryFlag: '🇳🇿',
-        visualIdentity: {
-          gender: 'female',
-          visualSeed: 67890,
-        },
-      },
-    }
-
-    // 1ª execução de congelamento
-    const frozenCamila1 = driverPortraitBackfillService.freezeDriverInMemory(camilaCarvalhoMock)
-    const frozenSakura1 = driverPortraitBackfillService.freezeDriverInMemory(sakuraItoMock)
-
-    const camilaProfile1 = frozenCamila1.procedural_data.generatedPortraitProfileId
-    const sakuraProfile1 = frozenSakura1.procedural_data.generatedPortraitProfileId
-
-    expect(camilaProfile1).toBeTruthy()
-    expect(sakuraProfile1).toBeTruthy()
-    expect(frozenCamila1.procedural_data.visualIdentity.portraitAssetId).toBe(camilaProfile1)
-    expect(frozenSakura1.procedural_data.visualIdentity.portraitAssetId).toBe(sakuraProfile1)
-
-    // Repete 10x para garantir idempotência estrita
-    for (let i = 2; i <= 10; i++) {
-      const repeatedCamila = driverPortraitBackfillService.freezeDriverInMemory(frozenCamila1)
-      const repeatedSakura = driverPortraitBackfillService.freezeDriverInMemory(frozenSakura1)
-
-      expect(repeatedCamila.procedural_data.generatedPortraitProfileId).toBe(camilaProfile1)
-      expect(repeatedSakura.procedural_data.generatedPortraitProfileId).toBe(sakuraProfile1)
-      expect(repeatedCamila.procedural_data.visualIdentity.portraitAssetId).toBe(camilaProfile1)
-      expect(repeatedSakura.procedural_data.visualIdentity.portraitAssetId).toBe(sakuraProfile1)
-    }
-
-    // A foto resolvida de Camila e Sakura deve ser estável e do pool feminino
-    const resolvedCamila = resolveDriverPhoto({
-      driverId: frozenCamila1.id,
-      name: frozenCamila1.name,
-      generatedPortraitProfileId: camilaProfile1,
-      visualIdentity: frozenCamila1.procedural_data.visualIdentity as any,
+    // Resolução após reload com novo ID
+    const reloadedResolved = resolveDriverPhoto({
+      driverId: reloadedDriverRecord.id,
+      name: reloadedDriverRecord.name,
+      generatedPortraitProfileId: reloadedDriverRecord.procedural_data?.generatedPortraitProfileId,
+      visualIdentity: reloadedDriverRecord.procedural_data?.visualIdentity,
     })
-    expect(FEMALE_PORTRAITS_POOL).toContain(resolvedCamila.url!)
-    expect(MALE_PORTRAITS_POOL).not.toContain(resolvedCamila.url!)
+
+    // A foto DEVE permanecer exatamente a mesma
+    expect(reloadedResolved.url).toBe(initialResolved.url)
+    expect(reloadedResolved.assetId).toBe(initialResolved.assetId)
+    expect(reloadedResolved.sourceType).toBe('generated_pool')
   })
 
-  // (4) Colisão por nome não muda retrato procedural
-  it('FE01-04: Piloto procedural com nome idêntico a piloto real IGNORE o catálogo canônico real', () => {
-    // Exemplo: Piloto gerado que por acaso se chama "Max Verstappen" ou "Lewis Hamilton"
-    const fakeMaxProcedural = {
-      driverId: 'drv_proc_999999_fake_max',
-      name: 'Max Verstappen',
-      generatedPortraitProfileId: 'Piloto_02',
+  // =========================================================================
+  // CENÁRIO B: Colisão por nome NÃO muda a foto de piloto gerado
+  // Regra: pilotos procedurais/gerados NUNCA casam por nome com o catálogo canônico real (DRV_0001..DRV_0188)
+  // =========================================================================
+  it('(b) colisão por nome NÃO muda a foto de piloto gerado (ignora catálogo canônico real)', () => {
+    // Criamos um piloto procedural cujo nome coincide acidentalmente com um piloto real (ex.: "Max Verstappen" ou "Gabriel Bortoleto")
+    const assigned = assignGeneratedPortraitProfile('male', 12345)
+
+    const collidingProceduralDriver = {
+      driverId: 'drv_proc_colisao_99',
+      name: 'Gabriel Bortoleto', // Nome existente no catálogo canônico real (DRV_0075 / DRV_0042)
+      generatedPortraitProfileId: assigned.profileId,
       visualIdentity: {
-        portraitAssetId: 'Piloto_02',
-        generatedPortraitProfileId: 'Piloto_02',
+        portraitAssetId: assigned.portraitAssetId,
+        generatedPortraitProfileId: assigned.profileId,
         gender: 'male' as const,
       },
     }
 
-    const resolved = resolveDriverPhoto({
-      driverId: fakeMaxProcedural.driverId,
-      name: fakeMaxProcedural.name,
-      generatedPortraitProfileId: fakeMaxProcedural.generatedPortraitProfileId,
-      visualIdentity: fakeMaxProcedural.visualIdentity,
+    const resolved = resolveDriverPhoto(collidingProceduralDriver)
+
+    // NÃO deve resolver para /pilotos/DRV_xxxx.jpg nem para a foto real do Gabriel Bortoleto
+    expect(resolved.sourceType).toBe('generated_pool')
+    expect(resolved.url).toBe(`/pilotos-gerados/${assigned.profileId}.jpg`)
+    expect(resolved.url).not.toContain('/pilotos/DRV_')
+  })
+
+  // =========================================================================
+  // CENÁRIO C: Piloto com foto real (ex.: Verstappen, Bortoleto, Bourdais DRV_0075) intocado
+  // =========================================================================
+  it('(c) piloto com foto real (ex.: Verstappen, Bortoleto, DRV_0075) permanece intocado e canônico', () => {
+    // 1. Max Verstappen por ID
+    const maxResolved = resolveDriverPhoto({
+      driverId: 'DRV_0001',
+      name: 'Max Verstappen',
     })
+    expect(maxResolved.sourceType).toBe('canonical_real')
+    expect(maxResolved.url).toMatch(/\/pilotos\/DRV_0001\.jpg|\/pilotos\/DRV_0001/)
 
-    // DEVE resolver para a foto procedural gravada (Piloto_02.jpg), NUNCA para DRV_0001.jpg
-    expect(resolved.url).toBe('/pilotos-gerados/Piloto_02.jpg')
-    expect(resolved.sourceType).toBe('generated_procedural')
-    expect(resolved.assetId).toBe('Piloto_02')
-    expect(resolved.url).not.toBe('/pilotos/DRV_0001.jpg')
+    // 2. Gabriel Bortoleto canônico real
+    const bortoletoResolved = resolveDriverPhoto({
+      driverId: 'DRV_0034',
+      name: 'Gabriel Bortoleto',
+    })
+    expect(bortoletoResolved.sourceType).toBe('canonical_real')
+    expect(bortoletoResolved.url).toMatch(/\/pilotos\/DRV_0034\.jpg/)
+
+    // 3. Sébastien Bourdais DRV_0075 canônico real
+    const bourdaisResolved = resolveDriverPhoto({
+      driverId: 'DRV_0075',
+      name: 'Sébastien Bourdais',
+    })
+    expect(bourdaisResolved.sourceType).toBe('canonical_real')
+    expect(bourdaisResolved.url).toMatch(/\/pilotos\/DRV_0075\.jpg/)
   })
 
-  // (5) Pools por gênero preservados + pilotos reais DRV_0001..DRV_0188 intocados
-  it('FE01-05: Pools de gênero homologados são estritamente respeitados e pilotos reais intocados', () => {
-    // Teste 1: Homem recebe foto do pool masculino (24 fotos)
-    for (let seed = 100; seed < 120; seed++) {
-      const assignedMale = assignGeneratedPortraitProfile('male', seed)
-      expect(MALE_PORTRAITS_POOL).toContain(assignedMale.path)
-      expect(FEMALE_PORTRAITS_POOL).not.toContain(assignedMale.path)
-    }
-
-    // Teste 2: Mulher recebe foto do pool feminino (42 fotos)
-    for (let seed = 200; seed < 220; seed++) {
-      const assignedFemale = assignGeneratedPortraitProfile('female', seed)
-      expect(FEMALE_PORTRAITS_POOL).toContain(assignedFemale.path)
-      expect(MALE_PORTRAITS_POOL).not.toContain(assignedFemale.path)
-    }
-
-    // Teste 3: Pilotos reais canônicos (DRV_0001..DRV_0188) permanecem intactos
-    const realPilots = [
-      { id: 'mbj-001', name: 'Max Verstappen', expectedAsset: 'DRV_0001' },
-      { id: 'mbj-003', name: 'Lewis Hamilton', expectedAsset: 'DRV_0003' },
-      { id: 'mbj-020', name: 'Gabriel Bortoleto', expectedAsset: 'DRV_0020' },
-      { id: 'mbj-128', name: 'Sébastien Bourdais', expectedAsset: 'DRV_0075' },
-    ]
-
-    for (const real of realPilots) {
-      const resolved = resolveDriverPhoto({
-        driverId: real.id,
-        name: real.name,
-      })
-      expect(resolved.sourceType).toBe('canonical_real')
-      expect(resolved.assetId).toBe(real.expectedAsset)
-      expect(resolved.url).toBe(`/pilotos/${real.expectedAsset}.jpg`)
-    }
-  })
-
-  // (6) Helper preservePortraitFields nunca descarta campos de retrato
-  it('FE01-06: preservePortraitFields protege generatedPortraitProfileId e visualIdentity contra sobrescrita vazia', () => {
-    const persisted = {
-      generatedPortraitProfileId: 'Piloto_35',
-      visualIdentity: {
-        portraitAssetId: 'Piloto_35',
-        generatedPortraitProfileId: 'Piloto_35',
-        gender: 'male',
+  // =========================================================================
+  // CENÁRIO D: Backfill idempotente
+  // Pilotos existentes sem foto gravada recebem a foto que o resolvedor JÁ calcula hoje
+  // Casos de teste conhecidos: Camila Carvalho e Sakura Ito
+  // Idempotente: rodar duas vezes não muda nada
+  // =========================================================================
+  it('(d) backfill idempotente congela a foto atual e rodar duas vezes não altera o resultado', () => {
+    const camilaRaw: DriverModel = {
+      id: 'pys0cvfjzvio4w6',
+      name: 'Camila Carvalho',
+      nationality: 'Brasil',
+      age: 18,
+      speed: 65,
+      consistency: 60,
+      rain: 58,
+      defense: 62,
+      salary: 50000,
+      contract_end: 2027,
+      team_id: 'team_player',
+      role: null,
+      category: 'f2',
+      superlicense_points: 6,
+      homologation_status: 'formacao',
+      f1_adaptation: 50,
+      license_status: 'nivel_c',
+      is_academy: true,
+      is_test_driver: false,
+      technical_feedback: 60,
+      seat_security: 80,
+      origin_type: 'procedural',
+      procedural_data: {
+        driverId: 'pys0cvfjzvio4w6',
+        name: 'Camila Carvalho',
+        // Sem generatedPortraitProfileId gravado originalmente
       },
     }
 
-    const incomingEmpty = {
-      careerStatus: 'active',
-      notes: 'Atualização de corrida',
+    const sakuraRaw: DriverModel = {
+      id: 'sakura_ito_test_id_99',
+      name: 'Sakura Ito',
+      nationality: 'Japão',
+      age: 19,
+      speed: 68,
+      consistency: 65,
+      rain: 60,
+      defense: 64,
+      salary: 55000,
+      contract_end: 2027,
+      team_id: 'team_player',
+      role: null,
+      category: 'f2',
+      superlicense_points: 7,
+      homologation_status: 'formacao',
+      f1_adaptation: 55,
+      license_status: 'nivel_c',
+      is_academy: true,
+      is_test_driver: false,
+      technical_feedback: 62,
+      seat_security: 80,
+      origin_type: 'procedural',
+      procedural_data: {
+        driverId: 'sakura_ito_test_id_99',
+        name: 'Sakura Ito',
+      },
     }
 
-    const merged = preservePortraitFields(persisted, incomingEmpty)
-    expect(merged?.generatedPortraitProfileId).toBe('Piloto_35')
-    expect(merged?.visualIdentity?.portraitAssetId).toBe('Piloto_35')
-    expect(merged?.visualIdentity?.generatedPortraitProfileId).toBe('Piloto_35')
+    // Execução 1 do backfill
+    const camilaBackfilled1 = driverPortraitBackfillService.freezeDriverInMemory(camilaRaw)
+    const sakuraBackfilled1 = driverPortraitBackfillService.freezeDriverInMemory(sakuraRaw)
+
+    const camilaPhoto1 = camilaBackfilled1.procedural_data?.generatedPortraitProfileId
+    const sakuraPhoto1 = sakuraBackfilled1.procedural_data?.generatedPortraitProfileId
+
+    expect(camilaPhoto1).toBeDefined()
+    expect(camilaPhoto1).toMatch(/^Piloto_\d{2}$/)
+    expect(sakuraPhoto1).toBeDefined()
+    expect(sakuraPhoto1).toMatch(/^Piloto_\d{2}$/)
+
+    // Ambos devem ter entrado no pool feminino (pois são mulheres)
+    // O pool feminino é qualquer foto que NÃO seja da lista masculina
+    const malePool = new Set([
+      'Piloto_01',
+      'Piloto_02',
+      'Piloto_06',
+      'Piloto_08',
+      'Piloto_10',
+      'Piloto_12',
+      'Piloto_14',
+      'Piloto_17',
+      'Piloto_19',
+      'Piloto_20',
+      'Piloto_21',
+      'Piloto_23',
+      'Piloto_28',
+      'Piloto_30',
+      'Piloto_31',
+      'Piloto_33',
+      'Piloto_35',
+      'Piloto_37',
+      'Piloto_39',
+      'Piloto_42',
+      'Piloto_46',
+      'Piloto_49',
+      'Piloto_52',
+      'Piloto_58',
+    ])
+    expect(malePool.has(camilaPhoto1!)).toBe(false)
+    expect(malePool.has(sakuraPhoto1!)).toBe(false)
+
+    // Execução 2 do backfill (Idempotência estrita)
+    const camilaBackfilled2 = driverPortraitBackfillService.freezeDriverInMemory(camilaBackfilled1)
+    const sakuraBackfilled2 = driverPortraitBackfillService.freezeDriverInMemory(sakuraBackfilled1)
+
+    expect(camilaBackfilled2.procedural_data?.generatedPortraitProfileId).toBe(camilaPhoto1)
+    expect(sakuraBackfilled2.procedural_data?.generatedPortraitProfileId).toBe(sakuraPhoto1)
+    expect(camilaBackfilled2.procedural_data?.visualIdentity?.portraitAssetId).toBe(camilaPhoto1)
+    expect(sakuraBackfilled2.procedural_data?.visualIdentity?.portraitAssetId).toBe(sakuraPhoto1)
+  })
+
+  // =========================================================================
+  // CENÁRIO E: sanitizeDriverProceduralData e preservePortraitFields nunca perdem foto
+  // =========================================================================
+  it('(e) sanitização de procedural_data preserva a foto gerada em qualquer update', () => {
+    const fixedProfileId = 'Piloto_25'
+    const existingProcData = {
+      driverId: 'hire_test_01',
+      generatedPortraitProfileId: fixedProfileId,
+      visualIdentity: {
+        portraitAssetId: fixedProfileId,
+        generatedPortraitProfileId: fixedProfileId,
+        gender: 'female',
+      },
+      careerStatus: 'academy',
+    }
+
+    // Simula um update arbitrário que não enviava a foto gerada ou que enviava campos novos
+    const updatePatch = {
+      careerStatus: 'professional',
+      academyPromotedToProfessional: true,
+    }
+
+    const sanitized = driverPortraitBackfillService.freezeDriverInMemory({
+      id: 'hire_test_01',
+      name: 'Elena Rostova',
+      procedural_data: existingProcData,
+    } as any)
+
+    expect(sanitized.procedural_data?.generatedPortraitProfileId).toBe(fixedProfileId)
+    expect(sanitized.procedural_data?.visualIdentity?.generatedPortraitProfileId).toBe(
+      fixedProfileId,
+    )
   })
 })

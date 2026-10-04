@@ -156,6 +156,7 @@ export interface ProceduralDriverMetadata {
 
   // Identidade Visual desacoplada
   visualIdentity: DriverVisualAssetIdentity
+  generatedPortraitProfileId?: string
 
   // Histórico de Carreira acumulativo
   seasonsHistory: CareerSeasonHistory[]

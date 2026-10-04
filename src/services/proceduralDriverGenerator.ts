@@ -274,7 +274,7 @@ export class ProceduralDriverGenerator {
       options.teamDriverPortraits || [],
     )
 
-    // Gravação explícita e permanente do retrato gerado
+    // Gravação explícita e permanente do retrato gerado em visualIdentity
     visualIdentity.portraitAssetId = assignedPortrait.portraitAssetId
     visualIdentity.generatedPortraitProfileId = assignedPortrait.profileId
 
@@ -386,6 +386,11 @@ export class ProceduralDriverGenerator {
         procedural_data: {
           ...metadata,
           generatedPortraitProfileId: assignedPortrait.profileId,
+          visualIdentity: {
+            ...visualIdentity,
+            portraitAssetId: assignedPortrait.portraitAssetId,
+            generatedPortraitProfileId: assignedPortrait.profileId,
+          },
         },
       } as any),
     }

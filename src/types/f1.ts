@@ -204,6 +204,8 @@ export interface DriverModel {
     championships: number
     points: number
   } | null
+  origin_type?: 'canonical' | 'procedural' | string
+  procedural_data?: Record<string, any>
   created?: string
   updated?: string
 }

@@ -427,7 +427,30 @@ export default function TeamPage() {
     try {
       const existingIds = allGridDrivers.map((d) => d.id)
       const newBatch = driverScoutingService.generateScoutingBatch(team, existingIds, 4)
-      const newDrivers = newBatch.map((b) => b.driver)
+      const newDrivers = newBatch.map((b) => {
+        // Garantir gravação e congelamento dos campos de retrato na criação do lote de scouting
+        const rawProc = (b.driver as any).procedural_data || {}
+        const assignedProfileId =
+          rawProc.generatedPortraitProfileId ||
+          rawProc.visualIdentity?.generatedPortraitProfileId ||
+          b.metadata.visualIdentity?.generatedPortraitProfileId ||
+          b.metadata.visualIdentity?.portraitAssetId
+
+        const safeProc = {
+          ...rawProc,
+          generatedPortraitProfileId: assignedProfileId,
+          visualIdentity: {
+            ...(rawProc.visualIdentity || {}),
+            portraitAssetId: assignedProfileId,
+            generatedPortraitProfileId: assignedProfileId,
+          },
+        }
+
+        return {
+          ...b.driver,
+          procedural_data: safeProc,
+        }
+      })
       setScoutingCandidates((prev) => [...newDrivers, ...prev])
       toast({
         title: 'Nova Janela de Scouting Concluída',
@@ -454,12 +477,15 @@ export default function TeamPage() {
         (d) => d.id === prospectDriverId,
       )
       if (!driverInDb && candidate) {
-        // Garantir atribuição de retrato persistente antes da criação no banco
+        // Garantir atribuição de retrato persistente antes da criação no banco (BLOCO FOTOS-ESTAVEIS-01)
         const rawCandidateProc = (candidate as any).procedural_data || {}
         let assignedProfileId =
           rawCandidateProc.generatedPortraitProfileId ||
           rawCandidateProc.visualIdentity?.generatedPortraitProfileId ||
-          (rawCandidateProc.visualIdentity?.portraitAssetId?.startsWith('Piloto')
+          (rawCandidateProc.visualIdentity?.portraitAssetId &&
+          !rawCandidateProc.visualIdentity.portraitAssetId.startsWith('DRV_') &&
+          (rawCandidateProc.visualIdentity.portraitAssetId.startsWith('Piloto') ||
+            rawCandidateProc.visualIdentity.portraitAssetId.startsWith('GEN_'))
             ? rawCandidateProc.visualIdentity.portraitAssetId
             : null)
 
@@ -467,10 +493,10 @@ export default function TeamPage() {
           rawCandidateProc.visualIdentity?.portraitAssetId || assignedProfileId
 
         if (!assignedProfileId) {
-          const assigned = assignGeneratedPortraitProfile(
-            rawCandidateProc.visualIdentity?.gender || (candidate as any).gender,
-            candidate.id || candidate.name || Date.now(),
-          )
+          const gender =
+            rawCandidateProc.visualIdentity?.gender || (candidate as any).gender || 'female'
+          const seed = rawCandidateProc.driverId || candidate.id || candidate.name || Date.now()
+          const assigned = assignGeneratedPortraitProfile(gender, seed)
           assignedProfileId = assigned.profileId
           assignedPortraitAssetId = assigned.portraitAssetId
         }
@@ -485,7 +511,7 @@ export default function TeamPage() {
           },
         })
 
-        // Persiste a entidade permanentemente no banco
+        // Persiste a entidade permanentemente no banco com visualIdentity.generatedPortraitProfileId
         driverInDb = await pb.collection('drivers').create({
           name: candidate.name,
           nationality: candidate.nationality,
