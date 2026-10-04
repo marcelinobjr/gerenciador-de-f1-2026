@@ -39,11 +39,15 @@ function build24Grid(playerTeamId: string = 'team_audi'): FinalQualifyingGridEnt
         driverName: `Driver ${t} ${c}`,
         teamId: t,
         teamName: t.replace('team_', '').toUpperCase(),
+        teamColor: '#ffffff',
+        eliminationStage: 'Q3',
+        bestLapSec: 80.0,
+        bestLapTime: '1:20.000',
         gridPosition: pos,
         bestLapCompound: 'medio',
         tyreSetId: `set_${t}_${c}`,
         isPlayer: t === playerTeamId,
-      })
+      } as FinalQualifyingGridEntry)
       pos++
     }
   }
@@ -117,7 +121,8 @@ describe('FUEL-AUTONOMY-08A: Autonomia, Carga Canônica e Consequências de Comb
       circuitLengthKm: gp.circuitLengthKm,
       carPreparations,
     }
-    let raceState: any = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initParams)
+    let raceState: any =
+      canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initParams)
     const carsList1: any[] = raceState.cars || raceState.leaderboard || []
 
     // Confirma que os carros do jogador receberam a carga derivada
@@ -131,7 +136,8 @@ describe('FUEL-AUTONOMY-08A: Autonomia, Carga Canônica e Consequências de Comb
       raceState = canonicalRaceEngineService.advanceOneLap(raceState)
     }
 
-    const isDone = raceState.status === 'completed' || raceState.isCompleted || raceState.completedAt
+    const isDone =
+      raceState.status === 'completed' || raceState.isCompleted || raceState.completedAt
     expect(Boolean(isDone)).toBe(true)
 
     // Nenhum carro deve ter abandonado por pane seca
@@ -185,7 +191,8 @@ describe('FUEL-AUTONOMY-08A: Autonomia, Carga Canônica e Consequências de Comb
       circuitLengthKm: madridGp.circuitLengthKm,
       carPreparations: madridPreparations,
     }
-    let madridRace: any = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initMadridParams)
+    let madridRace: any =
+      canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initMadridParams)
 
     // Carros do jogador iniciam com > 100 kg (109.3852)
     const madridCars: any[] = madridRace.cars || madridRace.leaderboard || []
@@ -197,7 +204,8 @@ describe('FUEL-AUTONOMY-08A: Autonomia, Carga Canônica e Consequências de Comb
       madridRace = canonicalRaceEngineService.advanceOneLap(madridRace)
     }
 
-    const madridDone = madridRace.status === 'completed' || madridRace.isCompleted || madridRace.completedAt
+    const madridDone =
+      madridRace.status === 'completed' || madridRace.isCompleted || madridRace.completedAt
     expect(Boolean(madridDone)).toBe(true)
     const madridFinalCars: any[] = madridRace.cars || madridRace.leaderboard || []
     for (const c of madridFinalCars) {
@@ -243,13 +251,15 @@ describe('FUEL-AUTONOMY-08A: Autonomia, Carga Canônica e Consequências de Comb
       circuitLengthKm: monacoGp.circuitLengthKm,
       carPreparations: monacoPreparations,
     }
-    let monacoRace: any = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initMonacoParams)
+    let monacoRace: any =
+      canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initMonacoParams)
 
     for (let l = 1; l <= monacoLaps; l++) {
       monacoRace = canonicalRaceEngineService.advanceOneLap(monacoRace)
     }
 
-    const monacoDone = monacoRace.status === 'completed' || monacoRace.isCompleted || monacoRace.completedAt
+    const monacoDone =
+      monacoRace.status === 'completed' || monacoRace.isCompleted || monacoRace.completedAt
     expect(Boolean(monacoDone)).toBe(true)
     const monacoFinalCars: any[] = monacoRace.cars || monacoRace.leaderboard || []
     for (const c of monacoFinalCars) {
@@ -289,7 +299,8 @@ describe('FUEL-AUTONOMY-08A: Autonomia, Carga Canônica e Consequências de Comb
       circuitLengthKm: gp.circuitLengthKm,
       carPreparations,
     }
-    const raceState: any = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initParams)
+    const raceState: any =
+      canonicalRaceInitializationService.initializeRaceFromCanonicalGrid(initParams)
 
     const carsList: any[] = raceState.cars || raceState.leaderboard || []
     const pCar1 = carsList.find((c) => c.driverId === prepSnapshot.cars[0].driverId)!
