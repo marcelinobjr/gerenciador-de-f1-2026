@@ -136,28 +136,13 @@ export const BottomControlBar: React.FC<BottomControlBarProps> = ({
               variant="outline"
               disabled={isBlocked || isSimulating}
               onClick={onStepOneLap}
-              className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-[#0d1527] border-slate-700 hover:bg-slate-800 text-cyan-300 font-black gap-1 shadow-sm transition-all hover:border-cyan-500/50`}
+              className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-[#0d1527] border-slate-700 hover:bg-slate-800 text-cyan-300 font-black gap-1 shadow-sm transition-all hover:border-cyan-500/50 ${
+                isBlocked || isSimulating ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
               title="Avança exatamente UMA volta canônica e permanece pausado"
             >
               <StepForward className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
               +1 VOLTA
-            </Button>
-          )}
-
-          {/* STOP / RESET (SE FORNECIDO) */}
-          {onStopOrReset && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isProcessingBatch}
-              onClick={onStopOrReset}
-              className={`${compact ? 'w-7 h-7' : 'w-9 h-9'} rounded-lg bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300 p-0 flex items-center justify-center shadow-sm`}
-              title="Reiniciar Corrida"
-            >
-              <Square
-                className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} fill-current text-slate-400`}
-              />
             </Button>
           )}
 
@@ -171,7 +156,7 @@ export const BottomControlBar: React.FC<BottomControlBarProps> = ({
                 onClick={() => onChangeSpeed(spd)}
                 className={`${compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-1 text-[11px]'} font-black rounded transition-all ${
                   currentSimSpeed === spd
-                    ? 'bg-slate-800 text-cyan-300 shadow-xs font-mono border border-slate-700/80'
+                    ? 'bg-slate-800 text-cyan-300 shadow-xs font-mono border border-slate-700/80 ring-1 ring-cyan-500/50'
                     : 'text-slate-400 hover:text-white'
                 } ${isProcessingBatch ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title={`Velocidade ${spd}x (${spd === 1 ? 'Base' : spd === 2 ? '2x' : '4x'})`}
@@ -188,7 +173,9 @@ export const BottomControlBar: React.FC<BottomControlBarProps> = ({
             variant="outline"
             disabled={isBlocked || isSimulating}
             onClick={() => onAdvanceLaps(5)}
-            className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-[#0d1527] border-slate-800 hover:bg-slate-800 text-slate-200 font-bold gap-1 shadow-sm`}
+            className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-[#0d1527] border-slate-800 hover:bg-slate-800 text-slate-200 font-bold gap-1 shadow-sm ${
+              isBlocked || isSimulating ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             title="Avança 5 voltas canônicas sequenciais"
           >
             <FastForward className={`${compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-cyan-400`} />
@@ -202,7 +189,9 @@ export const BottomControlBar: React.FC<BottomControlBarProps> = ({
             variant="outline"
             disabled={isBlocked || isSimulating}
             onClick={() => onAdvanceLaps(10)}
-            className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-[#0d1527] border-slate-800 hover:bg-slate-800 text-slate-200 font-bold gap-1 shadow-sm`}
+            className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-[#0d1527] border-slate-800 hover:bg-slate-800 text-slate-200 font-bold gap-1 shadow-sm ${
+              isBlocked || isSimulating ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             title="Avança 10 voltas canônicas sequenciais"
           >
             <FastForward className={`${compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-amber-400`} />
@@ -215,7 +204,9 @@ export const BottomControlBar: React.FC<BottomControlBarProps> = ({
             size="sm"
             disabled={isBlocked || isSimulating}
             onClick={onSimulateRest}
-            className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white font-black gap-1 shadow-sm uppercase`}
+            className={`${compact ? 'h-7 px-2 text-[9px]' : 'h-9 px-3 text-[11px]'} rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white font-black gap-1 shadow-sm uppercase ${
+              isBlocked || isSimulating ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             title="Simula todas as voltas restantes usando o motor canônico"
           >
             <Flame
@@ -223,6 +214,23 @@ export const BottomControlBar: React.FC<BottomControlBarProps> = ({
             />
             SIMULAR ATÉ O FIM
           </Button>
+
+          {/* STOP / RESET (SE FORNECIDO) */}
+          {onStopOrReset && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isProcessingBatch}
+              onClick={onStopOrReset}
+              className={`${compact ? 'w-7 h-7' : 'w-9 h-9'} rounded-lg bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300 p-0 flex items-center justify-center shadow-sm ml-auto sm:ml-0`}
+              title="Reiniciar Corrida"
+            >
+              <Square
+                className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} fill-current text-slate-400`}
+              />
+            </Button>
+          )}
         </div>
 
         {/* BLOCO DA DIREITA: VOLTA ATUAL, TEMPO, VOLTA MAIS RÁPIDA, CONDIÇÕES */}

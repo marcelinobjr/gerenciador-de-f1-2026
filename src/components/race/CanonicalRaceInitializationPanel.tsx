@@ -160,13 +160,17 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
     }
   }, [isFinished, isAwaitingWeatherDecision, isSuspended, isRestartPending])
 
+  // Ref para bloqueio síncrono imediato de concorrência contra reentrâncias e duplo clique
+  const isExecutingAdvanceRef = useRef(false)
+
   const handleTogglePlayPause = () => {
     if (
       isFinished ||
       isAwaitingWeatherDecision ||
       isSuspended ||
       isRestartPending ||
-      isProcessingBatch
+      isProcessingBatch ||
+      isExecutingAdvanceRef.current
     ) {
       return
     }
@@ -176,16 +180,24 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
     } else {
       // Se não estiver simulando, executa imediatamente 1 volta e liga autoplay
       if (onAdvanceOneLap) {
-        onAdvanceOneLap()
+        isExecutingAdvanceRef.current = true
+        setIsProcessingBatch(true)
+        try {
+          onAdvanceOneLap()
+          setIsSimulating(true)
+        } finally {
+          setIsProcessingBatch(false)
+          isExecutingAdvanceRef.current = false
+        }
       }
-      setIsSimulating(true)
     }
   }
 
   /**
-   * RACE-CONTROL-COMPACT-01: STEP LAP (+1 VOLTA)
-   * Garante pausa imediata, executa exatamente UMA volta canônica com o mesmo fluxo normal
-   * e permanece pausado. Bloqueia comandos incompatíveis durante a execução.
+   * RACE-CONTROL-COMPACT-01B: STEP LAP (+1 VOLTA)
+   * Garante pausa imediata, executa exatamente UMA volta canônica (advanceOneLap)
+   * e PERMANECE OBRIGATORIAMENTE PAUSADO.
+   * Bloqueio rigoroso de concorrência contra duplo clique ou execução paralela.
    */
   const handleStepOneLap = () => {
     if (
@@ -194,22 +206,27 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
       isAwaitingWeatherDecision ||
       isSuspended ||
       isRestartPending ||
-      isProcessingBatch
+      isProcessingBatch ||
+      isSimulating ||
+      isExecutingAdvanceRef.current
     ) {
       return
     }
+    isExecutingAdvanceRef.current = true
     setIsSimulating(false)
     setIsProcessingBatch(true)
     try {
       onAdvanceOneLap()
     } finally {
       setIsProcessingBatch(false)
+      setIsSimulating(false) // PAUSADO é OBRIGATÓRIO após +1
+      isExecutingAdvanceRef.current = false
     }
   }
 
   /**
    * Avanço de múltiplas voltas (+5 / +10):
-   * Pausa, ativa bloqueio de concorrência, invoca avanço sequencial e restaura estado.
+   * Pausa, ativa bloqueio de concorrência, invoca avanço sequencial e restaura estado pausado.
    */
   const handleAdvanceLapsBatch = (count: number) => {
     if (
@@ -218,21 +235,35 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
       isAwaitingWeatherDecision ||
       isSuspended ||
       isRestartPending ||
-      isProcessingBatch
+      isProcessingBatch ||
+      isSimulating ||
+      isExecutingAdvanceRef.current
     ) {
       return
     }
+    isExecutingAdvanceRef.current = true
     setIsSimulating(false)
     setIsProcessingBatch(true)
     try {
       onAdvanceMultipleLaps(count)
     } finally {
       setIsProcessingBatch(false)
+      setIsSimulating(false) // Mantém PAUSADO após lote
+      isExecutingAdvanceRef.current = false
     }
   }
 
   const handleSimulateRest = () => {
-    if (!onAdvanceMultipleLaps || isFinished || isProcessingBatch) return
+    if (
+      !onAdvanceMultipleLaps ||
+      isFinished ||
+      isProcessingBatch ||
+      isSimulating ||
+      isExecutingAdvanceRef.current
+    ) {
+      return
+    }
+    isExecutingAdvanceRef.current = true
     setIsSimulating(false)
     setIsProcessingBatch(true)
     try {
@@ -240,6 +271,8 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
       onAdvanceMultipleLaps(remainingLaps)
     } finally {
       setIsProcessingBatch(false)
+      setIsSimulating(false)
+      isExecutingAdvanceRef.current = false
     }
   }
 
