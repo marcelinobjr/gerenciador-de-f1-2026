@@ -1,29 +1,36 @@
-import React, { useState } from 'react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import React, { useState, useEffect, useRef } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Trophy,
-  Flag,
-  ShieldCheck,
   Play,
   FastForward,
-  RotateCcw,
-  Sparkles,
   Flame,
-  CheckCircle2,
   AlertTriangle,
+  ShieldCheck,
+  Trophy,
+  RotateCcw,
 } from 'lucide-react'
-import type { CanonicalRaceState, DriverPaceMode } from '@/types/canonical-race-v2'
+import type {
+  CanonicalRaceState,
+  DriverPaceMode,
+  CanonicalRaceDriverState,
+} from '@/types/canonical-race-v2'
 import type { TireCompound } from '@/types/f1'
-import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
-import { DriverStrategyCockpitPanel } from './DriverStrategyCockpitPanel'
-import { RaceSimulator, convertToRaceCars } from './RaceSimulator'
 import { resolveTrackFromCircuitName } from './tracks'
 import { CanonicalWeatherDecisionModal } from './CanonicalWeatherDecisionModal'
 import type { WeatherDecisionAction } from '@/types/canonical-race-v2'
 
-interface CanonicalRaceInitializationPanelProps {
+// Novos subcomponentes modulares de apresentação do Race Control
+import { RaceTopBar } from './RaceTopBar'
+import { TimingTower } from './TimingTower'
+import { RaceControlPanel } from './RaceControlPanel'
+import { RecentEventsFeed } from './RecentEventsFeed'
+import { PlayerCarCards } from './PlayerCarCards'
+import { BottomControlBar } from './BottomControlBar'
+import { DriverStrategyModal } from './DriverStrategyModal'
+
+export interface CanonicalRaceInitializationPanelProps {
   raceState: CanonicalRaceState
   onResetGrid?: () => void
   onAdvanceOneLap?: (options?: {
@@ -73,6 +80,11 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   onChangeSuspensionTyre,
 }) => {
   const [isSimulating, setIsSimulating] = useState(false)
+  const [simSpeed, setSimSpeed] = useState<1 | 2 | 4>(1)
+  const [strategyModalDriver, setStrategyModalDriver] = useState<CanonicalRaceDriverState | null>(
+    null,
+  )
+
   const isAwaitingWeatherDecision = raceState.status === 'awaiting_player_weather_decision'
   const leaderDriver =
     raceState.drivers[0] || raceState.drivers.find((d) => d.currentPosition === 1)
@@ -83,10 +95,11 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   const isRestartPending = raceState.status === 'restart_pending'
   const rc = raceState.raceControl
 
-  // Circuito resolvido a partir do fim de semana / raceState com fallback Interlagos
+  // Circuito resolvido a partir do fim de semana / raceState
   const resolvedTrack = resolveTrackFromCircuitName(
     raceState.circuitName || raceState.circuitCountry,
   )
+
   const currentFlag =
     rc?.currentFlag ||
     (raceState.safetyCarActive
@@ -101,764 +114,363 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
             ? 'FINISHED'
             : 'GREEN')
 
+  // Loop automático quando "Simulando" com velocidade 1x/2x/4x
+  const simulationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (
+      !isSimulating ||
+      isFinished ||
+      isAwaitingWeatherDecision ||
+      isSuspended ||
+      isRestartPending ||
+      !onAdvanceOneLap
+    ) {
+      if (simulationIntervalRef.current) {
+        clearInterval(simulationIntervalRef.current)
+        simulationIntervalRef.current = null
+      }
+      return
+    }
+
+    const intervalMs = Math.round(1000 / simSpeed)
+    simulationIntervalRef.current = setInterval(() => {
+      onAdvanceOneLap()
+    }, intervalMs)
+
+    return () => {
+      if (simulationIntervalRef.current) {
+        clearInterval(simulationIntervalRef.current)
+        simulationIntervalRef.current = null
+      }
+    }
+  }, [
+    isSimulating,
+    simSpeed,
+    isFinished,
+    isAwaitingWeatherDecision,
+    isSuspended,
+    isRestartPending,
+    onAdvanceOneLap,
+  ])
+
+  // Desativa simulação se a corrida for pausada ou finalizada
+  useEffect(() => {
+    if (isFinished || isAwaitingWeatherDecision || isSuspended || isRestartPending) {
+      setIsSimulating(false)
+    }
+  }, [isFinished, isAwaitingWeatherDecision, isSuspended, isRestartPending])
+
+  const handleTogglePlayPause = () => {
+    if (isFinished || isAwaitingWeatherDecision || isSuspended || isRestartPending) return
+
+    if (isSimulating) {
+      setIsSimulating(false)
+    } else {
+      // Se não estiver simulando, executa imediatamente 1 volta e liga autoplay
+      if (onAdvanceOneLap) {
+        onAdvanceOneLap()
+      }
+      setIsSimulating(true)
+    }
+  }
+
   const handleSimulateRest = () => {
     if (!onAdvanceMultipleLaps || isFinished) return
-    setIsSimulating(true)
-    const remainingLaps = Math.max(1, raceState.totalLaps - raceState.drivers[0].lap)
-    setTimeout(() => {
-      onAdvanceMultipleLaps(remainingLaps)
-      setIsSimulating(false)
-    }, 100)
+    setIsSimulating(false)
+    const remainingLaps = Math.max(1, raceState.totalLaps - (leaderDriver?.lap ?? 0))
+    onAdvanceMultipleLaps(remainingLaps)
+  }
+
+  // Formatação do tempo acumulado de corrida em HH:MM:SS ou MM:SS
+  const formatRaceTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '0:00:00'
+    const hrs = Math.floor(seconds / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
   }
 
   return (
-    <div className="space-y-6">
-      {/* Box Flutuante Pit Wall & Simulador Integrado da Corrida */}
-      <RaceSimulator
-        initialDrivers={raceState.drivers}
-        playerTeamId={raceState.playerTeamId}
-        playerTeamName={playerDrivers[0]?.teamName || 'Sua Equipe'}
-        playerTeamColor={playerDrivers[0]?.teamColor || '#E10600'}
-        defaultTrackId={resolvedTrack.id}
-        totalLaps={raceState.totalLaps || 10}
-        embedded={true}
-        onFinish={(result) => {
-          // Quando terminar a simulação, dispara a oficialização se ainda não oficializado
-          if (onOfficializeRace && !hasOfficialResult) {
-            onOfficializeRace()
-          }
-        }}
+    <div className="space-y-4 font-sans text-white">
+      {/* 1. TOP BAR OFICIAL DO GP / CIRCUITO / BANDEIRA / CLIMA */}
+      <RaceTopBar
+        circuitName={raceState.circuitName}
+        circuitCountry={raceState.circuitCountry}
+        round={raceState.round}
+        currentLap={leaderDriver?.lap ?? raceState.currentLap ?? 0}
+        totalLaps={raceState.totalLaps}
+        currentFlag={currentFlag}
+        weather={raceState.weather}
+        weatherTransitions={raceState.weatherTransitions}
+        activeSector={rc?.activeSector}
+        isSuspended={isSuspended}
+        isRestartPending={isRestartPending}
       />
 
-      {/* Barra de Controles de QA e Simulação da Corrida (FW2.1E-B) */}
-      <Card className="bg-[#0B111E] border border-slate-800 shadow-md rounded-2xl overflow-hidden text-white">
-        <CardContent className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
+      {/* BANNER DE RELARGADA / SUSPENSÃO (QUANDO HOUVER RED FLAG OU SUSPENSÃO) */}
+      {(isSuspended || isRestartPending) && (
+        <Card className="bg-gradient-to-r from-red-950/80 via-slate-900 to-amber-950/80 border border-red-500/50 p-4 rounded-2xl shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <Badge className="bg-red-600 text-white font-black text-[10px] uppercase tracking-wider">
+                {isSuspended ? 'CORRIDA SUSPENSA • BANDEIRA VERMELHA' : 'RESTART PENDENTE'}
+              </Badge>
+              <p className="text-xs text-slate-300">
+                {isSuspended
+                  ? 'Os carros estão parados no pit lane. Trocas de pneus são autorizadas sem custo competitivo de parada.'
+                  : 'O pelotão está ordenado para relargada em bandeira verde. Autorize a largada para retomar a prova.'}
+              </p>
+            </div>
             <div className="flex items-center gap-2">
-              <Badge className="bg-[#E10600] text-white text-[10px] font-black uppercase">
-                FW2.1E-C • RACE CONTROL INTEGRADO
-              </Badge>
-              {/* Badge Dinâmico da Bandeira Atual */}
-              <Badge
-                className={`text-[10px] uppercase font-black px-2.5 py-0.5 border ${
-                  currentFlag === 'GREEN'
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                    : currentFlag === 'YELLOW_LOCAL'
-                      ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50'
-                      : currentFlag === 'YELLOW'
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                        : currentFlag === 'VSC'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 animate-pulse'
-                          : currentFlag === 'SAFETY_CAR'
-                            ? 'bg-orange-600 text-white border-orange-400 animate-pulse'
-                            : currentFlag === 'RESTART'
-                              ? 'bg-emerald-600 text-white border-emerald-300 animate-pulse'
-                              : currentFlag === 'RED_FLAG'
-                                ? 'bg-red-600 text-white border-red-400 animate-pulse font-extrabold'
-                                : 'bg-slate-800 text-white border-slate-600'
-                }`}
-              >
-                {currentFlag === 'GREEN' && '🟢 BANDEIRA VERDE'}
-                {currentFlag === 'YELLOW_LOCAL' &&
-                  `🟡 AMARELA LOCAL (SETOR ${rc?.activeSector || 2})`}
-                {currentFlag === 'YELLOW' && '🟡 BANDEIRA AMARELA GERAL'}
-                {currentFlag === 'VSC' && '🟡 VIRTUAL SAFETY CAR'}
-                {currentFlag === 'SAFETY_CAR' && '🚨 SAFETY CAR ATIVO'}
-                {currentFlag === 'RESTART' &&
-                  (isRestartPending ? '🟢 RESTART PENDENTE' : '🟢 RELARGADA EM ANDAMENTO')}
-                {currentFlag === 'RED_FLAG' &&
-                  (isSuspended ? '🔴 CORRIDA SUSPENSA (BOXES)' : '🔴 BANDEIRA VERMELHA')}
-                {currentFlag === 'FINISHED' && '🏁 BANDEIRA QUADRICULADA'}
-              </Badge>
-            </div>
-            <p className="text-xs text-slate-400">
-              {isSuspended
-                ? '🔴 SESSÃO SUSPENSA: Carros no pit lane. Troca de pneus permitida sem perda competitiva de pit stop.'
-                : isRestartPending
-                  ? '🟢 RESTART PENDENTE: Pelotão alinhado na ordem congelada da bandeira vermelha. Pronto para relargar.'
-                  : 'Race Control canônico: cada bandeira altera ritmo, gaps, consumo e ultrapassagens.'}
-              {rc?.lastIncidentReason && (
-                <span className="block text-slate-300 font-mono text-[11px] mt-0.5">
-                  Motivo: {rc.lastIncidentReason}
-                </span>
+              {isSuspended && onPrepareRestart && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={onPrepareRestart}
+                  className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black gap-1.5 h-9 px-3.5 shadow-md"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Preparar Relargada
+                </Button>
               )}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Botões do Ciclo de Red Flag / Suspensão / Restart */}
-            {isSuspended && onPrepareRestart && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={onPrepareRestart}
-                className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black gap-1.5 h-9 px-3 shadow-md animate-pulse"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                Preparar Relargada (Grid)
-              </Button>
-            )}
-
-            {isRestartPending && onResumeRace && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={onResumeRace}
-                className="bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black gap-1.5 h-9 px-3.5 shadow-md animate-bounce"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                Autorizar Relargada (Bandeira Verde)
-              </Button>
-            )}
-
-            {onAdvanceOneLap && (
-              <Button
-                type="button"
-                size="sm"
-                disabled={
-                  isFinished ||
-                  isSimulating ||
-                  isAwaitingWeatherDecision ||
-                  isSuspended ||
-                  isRestartPending
-                }
-                onClick={() => onAdvanceOneLap()}
-                title={
-                  isAwaitingWeatherDecision
-                    ? 'Decisão climática pendente. Resolva a estratégia dos pilotos para continuar.'
-                    : isSuspended
-                      ? 'Corrida suspensa por bandeira vermelha. Prepare a relargada.'
-                      : 'Avançar 1 volta'
-                }
-                className={`text-xs font-bold gap-1.5 h-9 px-3 ${
-                  isAwaitingWeatherDecision || isSuspended || isRestartPending
-                    ? 'bg-amber-600/60 text-amber-200 border border-amber-500/50 cursor-not-allowed opacity-75'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                }`}
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                {isAwaitingWeatherDecision
-                  ? 'Aguardando Decisão'
-                  : isSuspended
-                    ? 'Corrida Suspensa'
-                    : isRestartPending
-                      ? 'Restart Pendente'
-                      : 'Avançar 1 Volta'}
-              </Button>
-            )}
-
-            {onAdvanceMultipleLaps && (
-              <>
+              {isRestartPending && onResumeRace && (
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  disabled={
-                    isFinished ||
-                    isSimulating ||
-                    currentFlag === 'RED_FLAG' ||
-                    isSuspended ||
-                    isRestartPending ||
-                    isAwaitingWeatherDecision
-                  }
-                  onClick={() => onAdvanceMultipleLaps(5)}
-                  className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
+                  onClick={onResumeRace}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black gap-1.5 h-9 px-3.5 shadow-md"
                 >
-                  <FastForward className="w-3.5 h-3.5 text-cyan-400" />
-                  +5 Voltas
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Autorizar Relargada
                 </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={
-                    isFinished ||
-                    isSimulating ||
-                    currentFlag === 'RED_FLAG' ||
-                    isSuspended ||
-                    isRestartPending ||
-                    isAwaitingWeatherDecision
-                  }
-                  onClick={() => onAdvanceMultipleLaps(10)}
-                  className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
-                >
-                  <FastForward className="w-3.5 h-3.5 text-amber-400" />
-                  +10 Voltas
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={
-                    isFinished ||
-                    isSimulating ||
-                    currentFlag === 'RED_FLAG' ||
-                    isSuspended ||
-                    isRestartPending ||
-                    isAwaitingWeatherDecision
-                  }
-                  onClick={handleSimulateRest}
-                  className="bg-red-600 hover:bg-red-500 text-white text-xs font-black gap-1.5 h-9 px-3"
-                >
-                  <Flame className="w-3.5 h-3.5 fill-current text-amber-300" />
-                  {isSimulating ? 'Simulando...' : 'Simular até o Fim'}
-                </Button>
-              </>
-            )}
-
-            {onManualSave && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={onManualSave}
-                className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold gap-1.5 h-9 px-3"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                Salvar Sessão
-              </Button>
-            )}
-
-            {isFinished && onOfficializeRace && !hasOfficialResult && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={onOfficializeRace}
-                className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black gap-1.5 h-9 px-3.5 shadow-md"
-              >
-                <Trophy className="w-3.5 h-3.5 fill-current" />
-                Oficializar Resultado
-              </Button>
-            )}
-
-            {onResetRace && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={onResetRace}
-                disabled={hasOfficialResult}
-                title={
-                  hasOfficialResult
-                    ? 'A corrida já foi oficializada. Reiniciar está bloqueado.'
-                    : 'Reiniciar a prova a partir do grid oficial'
-                }
-                className="text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-medium gap-1 h-9 px-2 disabled:opacity-40"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Reiniciar
-              </Button>
-            )}
-          </div>
-
-          {/* Painel de Controles de QA para Forçar Bandeiras / Race Control (Requisito 18) */}
-          <div className="w-full pt-3 mt-1 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              Controles de QA (Forçar Race Control):
-            </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision}
-                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'GREEN' })}
-                className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-emerald-300 border-emerald-700/50 hover:bg-emerald-900/60"
-              >
-                🟢 Green
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision}
-                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW_LOCAL' })}
-                className="h-7 px-2 text-[10px] font-bold bg-yellow-950/40 text-yellow-300 border-yellow-700/50 hover:bg-yellow-900/60"
-              >
-                🟡 Yellow Local
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision}
-                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW' })}
-                className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-700/50 hover:bg-amber-900/60"
-              >
-                🟡 Yellow Geral
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision}
-                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'VSC' })}
-                className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-600/50 hover:bg-amber-900/60"
-              >
-                🟡 VSC
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision}
-                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'SAFETY_CAR' })}
-                className="h-7 px-2 text-[10px] font-bold bg-orange-950/40 text-orange-300 border-orange-600/50 hover:bg-orange-900/60"
-              >
-                🚨 Safety Car
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision}
-                onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'RESTART' })}
-                className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-cyan-300 border-cyan-600/50 hover:bg-cyan-900/60"
-              >
-                🟢 SC Restart
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isFinished || isAwaitingWeatherDecision || isSuspended}
-                onClick={() => {
-                  if (onTriggerRedFlag) {
-                    onTriggerRedFlag()
-                  } else {
-                    onAdvanceOneLap?.({ forceRaceControlStatus: 'RED_FLAG' })
-                  }
-                }}
-                className="h-7 px-2 text-[10px] font-bold bg-red-950/50 text-red-300 border-red-600/60 hover:bg-red-900/70"
-              >
-                🔴 Red Flag
-              </Button>
+              )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+      )}
 
-      {/* RACE-PROVENANCE-AUDIT-02B-E1B: Modal Canônico de Decisão Humana em Mudança de Clima */}
+      {/* 2. LAYOUT PRINCIPAL: TIMING TOWER À ESQUERDA + ÁREA CENTRAL COM CARDS E PAINÉIS LATERAIS */}
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        {/* TIMING TOWER OFICIAL À ESQUERDA (P1..P24 COM LOGOS E GAPS) */}
+        <TimingTower
+          drivers={raceState.drivers}
+          totalLaps={raceState.totalLaps}
+          playerDriverIds={playerDrivers.map((d) => d.driverId)}
+        />
+
+        {/* ÁREA CENTRAL / DIREITA: CARDS DOS CARROS DO JOGADOR + RACE CONTROL + EVENTOS RECENTES */}
+        <div className="flex-1 w-full space-y-4">
+          {/* CARDS DOS PILOTOS DO JOGADOR (CARRO 1 E CARRO 2) */}
+          {playerDrivers.length > 0 && (
+            <PlayerCarCards
+              playerDrivers={playerDrivers}
+              currentLap={leaderDriver?.lap ?? raceState.currentLap ?? 0}
+              onRequestPit={(driverId, compound) => {
+                if (isSuspended && onChangeSuspensionTyre && compound) {
+                  onChangeSuspensionTyre(driverId, compound)
+                } else {
+                  onRequestPit?.(driverId, compound)
+                }
+              }}
+              onCancelPit={(driverId) => onCancelPit?.(driverId)}
+              onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
+              onSetTargetCompound={(driverId, comp) => {
+                if (isSuspended && onChangeSuspensionTyre) {
+                  onChangeSuspensionTyre(driverId, comp)
+                } else {
+                  onSetTargetCompound?.(driverId, comp)
+                }
+              }}
+              onOpenStrategyModal={(driver) => setStrategyModalDriver(driver)}
+              isRaceFinished={isFinished}
+              isRedFlagActive={currentFlag === 'RED_FLAG' || isSuspended}
+              onChangeSuspensionTyre={onChangeSuspensionTyre}
+            />
+          )}
+
+          {/* PAINÉIS LATERAIS DE CONTROLE E FEED DE EVENTOS RECENTES */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <RaceControlPanel
+              currentFlag={currentFlag}
+              safetyCarActive={raceState.safetyCarActive}
+              vscActive={raceState.vscActive}
+              redFlagActive={raceState.redFlagActive}
+              isSuspended={isSuspended}
+              currentLap={leaderDriver?.lap ?? raceState.currentLap ?? 0}
+              weatherCondition={
+                typeof raceState.weather === 'string'
+                  ? raceState.weather
+                  : (raceState.weather as any)?.condition
+              }
+            />
+
+            <RecentEventsFeed events={raceState.events} maxItems={6} />
+          </div>
+
+          {/* PAINEL DE CONTROLES AVANÇADOS DE QA E FORÇAR BANDEIRAS */}
+          <Card className="bg-[#090d18] border border-slate-800/80 rounded-2xl shadow-sm p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 font-mono">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                Controles de QA (Forçar Race Control):
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isFinished || isAwaitingWeatherDecision}
+                  onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'GREEN' })}
+                  className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-emerald-300 border-emerald-700/50 hover:bg-emerald-900/60 font-mono"
+                >
+                  🟢 Green
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isFinished || isAwaitingWeatherDecision}
+                  onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW_LOCAL' })}
+                  className="h-7 px-2 text-[10px] font-bold bg-yellow-950/40 text-yellow-300 border-yellow-700/50 hover:bg-yellow-900/60 font-mono"
+                >
+                  🟡 Yellow Local
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isFinished || isAwaitingWeatherDecision}
+                  onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'YELLOW' })}
+                  className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-700/50 hover:bg-amber-900/60 font-mono"
+                >
+                  🟡 Yellow Geral
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isFinished || isAwaitingWeatherDecision}
+                  onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'VSC' })}
+                  className="h-7 px-2 text-[10px] font-bold bg-amber-950/40 text-amber-300 border-amber-600/50 hover:bg-amber-900/60 font-mono"
+                >
+                  🟡 VSC
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isFinished || isAwaitingWeatherDecision}
+                  onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'SAFETY_CAR' })}
+                  className="h-7 px-2 text-[10px] font-bold bg-orange-950/40 text-orange-300 border-orange-600/50 hover:bg-orange-900/60 font-mono"
+                >
+                  🚨 Safety Car
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isFinished || isAwaitingWeatherDecision}
+                  onClick={() => onAdvanceOneLap?.({ forceRaceControlStatus: 'RESTART' })}
+                  className="h-7 px-2 text-[10px] font-bold bg-emerald-950/40 text-cyan-300 border-cyan-600/50 hover:bg-cyan-900/60 font-mono"
+                >
+                  🟢 SC Restart
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isFinished || isAwaitingWeatherDecision || isSuspended}
+                  onClick={() => {
+                    if (onTriggerRedFlag) {
+                      onTriggerRedFlag()
+                    } else {
+                      onAdvanceOneLap?.({ forceRaceControlStatus: 'RED_FLAG' })
+                    }
+                  }}
+                  className="h-7 px-2 text-[10px] font-bold bg-red-950/50 text-red-300 border-red-600/60 hover:bg-red-900/70 font-mono"
+                >
+                  🔴 Red Flag
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* 3. BARRA DE CONTROLE INFERIOR FIXA (PLAY/PAUSE, 1x/2x/4x, +5/+10V, SIMULAR TUDO, TEMPO, VOLTA MAIS RÁPIDA) */}
+      <BottomControlBar
+        isSimulating={isSimulating}
+        isFinished={isFinished}
+        isSuspended={isSuspended}
+        isRestartPending={isRestartPending}
+        isAwaitingWeatherDecision={isAwaitingWeatherDecision}
+        currentSimSpeed={simSpeed}
+        raceTimeFormatted={formatRaceTime(leaderDriver?.raceTime ?? 0)}
+        fastestLap={raceState.fastestLap}
+        weatherCondition={
+          typeof raceState.weather === 'string'
+            ? raceState.weather
+            : (raceState.weather as any)?.condition
+        }
+        trackWetness={
+          typeof raceState.weather === 'object'
+            ? (raceState.weather as any)?.trackWetness
+            : undefined
+        }
+        onTogglePlayPause={handleTogglePlayPause}
+        onStopOrReset={onResetRace}
+        onChangeSpeed={(spd) => setSimSpeed(spd)}
+        onAdvanceLaps={(cnt) => onAdvanceMultipleLaps?.(cnt)}
+        onSimulateRest={handleSimulateRest}
+      />
+
+      {/* MODAL CANÔNICO DE DECISÃO CLIMÁTICA DO JOGADOR (E1A/E1B) */}
       <CanonicalWeatherDecisionModal
         raceState={raceState}
         onSubmitDecision={onSubmitWeatherDecision}
       />
 
-      {/* DOIS PAINÉIS INDEPENDENTES DE ESTRATÉGIA — CARRO 1 E CARRO 2 (FW2.1E-D) */}
-      {playerDrivers.length >= 2 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#E10600] inline-block animate-ping" />
-              Gestão Estratégica Independente da Equipe (
-              {raceState.drivers.find((d) => d.isPlayer)?.teamName || 'Sua Equipe'})
-            </h3>
-            <span className="text-[11px] font-mono text-slate-400">
-              Dois carros 100% autônomos • Ordens individuais
-            </span>
-          </div>
+      {/* MODAL DE ESTRATÉGIA DO PILOTO (ACIONADO PELO BOTÃO ESTRATÉGIA NO CARD DO CARRO) */}
+      <DriverStrategyModal
+        driver={strategyModalDriver}
+        open={!!strategyModalDriver}
+        onClose={() => setStrategyModalDriver(null)}
+        onRequestPit={(driverId, comp) => {
+          if (isSuspended && onChangeSuspensionTyre && comp) {
+            onChangeSuspensionTyre(driverId, comp)
+          } else {
+            onRequestPit?.(driverId, comp)
+          }
+        }}
+        onCancelPit={(driverId) => onCancelPit?.(driverId)}
+        onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
+        onSetTargetCompound={(driverId, comp) => {
+          if (isSuspended && onChangeSuspensionTyre) {
+            onChangeSuspensionTyre(driverId, comp)
+          } else {
+            onSetTargetCompound?.(driverId, comp)
+          }
+        }}
+        isRaceFinished={isFinished}
+        isRedFlagActive={currentFlag === 'RED_FLAG' || isSuspended}
+        onChangeSuspensionTyre={onChangeSuspensionTyre}
+      />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DriverStrategyCockpitPanel
-              driver={playerDrivers[0]}
-              carSlotName="Carro 1"
-              onRequestPit={(driverId, compound) => {
-                if (isSuspended && onChangeSuspensionTyre && compound) {
-                  onChangeSuspensionTyre(driverId, compound)
-                } else {
-                  onRequestPit?.(driverId, compound)
-                }
-              }}
-              onCancelPit={(driverId) => onCancelPit?.(driverId)}
-              onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
-              onSetTargetCompound={(driverId, comp) => {
-                if (isSuspended && onChangeSuspensionTyre) {
-                  onChangeSuspensionTyre(driverId, comp)
-                } else {
-                  onSetTargetCompound?.(driverId, comp)
-                }
-              }}
-              isRaceFinished={isFinished}
-              isRedFlagActive={currentFlag === 'RED_FLAG' || isSuspended}
-              onChangeSuspensionTyre={onChangeSuspensionTyre}
-            />
-
-            <DriverStrategyCockpitPanel
-              driver={playerDrivers[1]}
-              carSlotName="Carro 2"
-              onRequestPit={(driverId, compound) => {
-                if (isSuspended && onChangeSuspensionTyre && compound) {
-                  onChangeSuspensionTyre(driverId, compound)
-                } else {
-                  onRequestPit?.(driverId, compound)
-                }
-              }}
-              onCancelPit={(driverId) => onCancelPit?.(driverId)}
-              onSetPaceMode={(driverId, mode) => onSetPaceMode?.(driverId, mode)}
-              onSetTargetCompound={(driverId, comp) => {
-                if (isSuspended && onChangeSuspensionTyre) {
-                  onChangeSuspensionTyre(driverId, comp)
-                } else {
-                  onSetTargetCompound?.(driverId, comp)
-                }
-              }}
-              isRaceFinished={isFinished}
-              isRedFlagActive={currentFlag === 'RED_FLAG' || isSuspended}
-              onChangeSuspensionTyre={onChangeSuspensionTyre}
-            />
-          </div>
+      {/* BOTÃO PARA OFICIALIZAR RESULTADO AO FINAL DA PROVA */}
+      {isFinished && onOfficializeRace && !hasOfficialResult && (
+        <div className="flex justify-end pt-2">
+          <Button
+            type="button"
+            size="lg"
+            onClick={onOfficializeRace}
+            className="bg-amber-500 hover:bg-amber-400 text-black text-sm font-black gap-2 px-6 shadow-xl"
+          >
+            <Trophy className="w-5 h-5 fill-current" />
+            Oficializar Resultado da Corrida
+          </Button>
         </div>
       )}
-
-      {/* Banner Informativo da Corrida V2 */}
-      <Card className="bg-[#0F172A] text-white border-none shadow-md overflow-hidden rounded-2xl relative">
-        <div className="absolute top-0 right-0 w-96 h-full bg-gradient-to-l from-[#E10600]/30 to-transparent pointer-events-none" />
-        <CardContent className="p-6 relative z-10 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-[#E10600] text-white text-[10px] font-black uppercase">
-                {raceState.circuitCountry} • {raceState.season}
-              </Badge>
-              <Badge
-                variant="outline"
-                className="text-emerald-400 border-emerald-500/40 text-[10px]"
-              >
-                24 PILOTOS HOMOLOGADOS
-              </Badge>
-              <Badge
-                variant="outline"
-                className="bg-emerald-950/30 text-emerald-300 border-emerald-600/40 text-[10px] flex items-center gap-1"
-              >
-                <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                AUTOSAVE ATIVO ({raceState.saveSchemaVersion || 'race-save-v1'})
-              </Badge>
-            </div>
-            {onResetGrid && (
-              <button
-                type="button"
-                onClick={onResetGrid}
-                className="text-xs text-slate-400 hover:text-white underline underline-offset-2"
-              >
-                Revisar Grid Oficial
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-              <Flag className="w-6 h-6 text-emerald-400" />
-              {raceState.circuitName} —{' '}
-              {isFinished ? 'Resultado Provisório Final' : 'Corrida em Tempo Real'}
-            </h2>
-            <p className="text-xs text-slate-300 max-w-3xl">
-              {isFinished
-                ? 'A bandeira quadriculada foi agitada! O líder completou todas as voltas regulamentares e a classificação foi congelada.'
-                : 'Posições e gaps calculados diretamente pelo tempo acumulado real (raceTime). Desgaste de pneus e consumo de combustível progridem volta a volta.'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800 text-xs">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                {isFinished ? 'Vencedor do GP' : 'Líder da Prova'}
-              </span>
-              <span className="font-extrabold text-amber-400 text-sm">
-                {leaderDriver?.driverName} ({leaderDriver?.teamName})
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                Progresso
-              </span>
-              <span className="font-extrabold text-white text-sm">
-                Volta {leaderDriver?.lap ?? 0} de {raceState.totalLaps}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                Volta Mais Rápida
-              </span>
-              <span className="font-extrabold text-cyan-400 text-sm">
-                {raceState.fastestLap
-                  ? `${raceState.fastestLap.driverName} (${raceState.fastestLap.lapTimeFormatted})`
-                  : 'Nenhuma registrada'}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                Sua Equipe
-              </span>
-              <span className="font-extrabold text-white text-sm">
-                {playerDrivers.map((d) => `P${d.currentPosition} ${d.driverName}`).join(' • ')}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Feed de Eventos Relevantes (Ultrapassagens, DNFs, Largada) */}
-      {raceState.events && raceState.events.length > 0 && (
-        <Card className="bg-[#090D16] border border-slate-800/80 rounded-2xl shadow-xs overflow-hidden">
-          <CardHeader className="py-2.5 px-4 bg-[#0F172A] border-b border-slate-800 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-bold text-slate-300 flex items-center gap-2 uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              Feed Dinâmico de Pista
-            </CardTitle>
-            <span className="text-[10px] text-slate-500 font-mono">
-              {raceState.events.length} evento(s) registrado(s)
-            </span>
-          </CardHeader>
-          <CardContent className="p-3 max-h-36 overflow-y-auto space-y-1 text-xs font-mono">
-            {raceState.events
-              .slice(-6)
-              .reverse()
-              .map((ev) => (
-                <div
-                  key={ev.id}
-                  className={`p-1.5 rounded-lg flex items-center justify-between text-[11px] ${
-                    ev.type === 'dnf'
-                      ? 'bg-red-950/40 text-red-300 border border-red-800/40'
-                      : ev.type === 'overtake'
-                        ? 'bg-emerald-950/30 text-emerald-300 border border-emerald-800/30'
-                        : 'bg-slate-900/50 text-slate-300'
-                  }`}
-                >
-                  <span>{ev.message}</span>
-                  <span className="text-[9px] text-slate-500 ml-2 shrink-0">{ev.timestamp}</span>
-                </div>
-              ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tabela de Classificação Dinâmica (P1 a P24) */}
-      <Card className="bg-white border border-[#E2E8F0] shadow-xs rounded-2xl overflow-hidden">
-        <CardHeader className="py-3.5 px-4 bg-[#F8FAFC] border-b border-[#F1F5F9] flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-xs font-black uppercase tracking-wider text-[#0F172A] flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              Classificação Dinâmica em Pista (P1–P24)
-            </CardTitle>
-            <p className="text-[11px] text-[#64748B] mt-0.5">
-              Ordenação estrita por voltas completadas e menor raceTime real acumulado.
-            </p>
-          </div>
-          <Badge className="bg-[#059669] text-white text-[10px] font-bold">
-            {isFinished ? 'RESULTADO FINAL' : 'AO VIVO'}
-          </Badge>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead>
-                <tr className="border-b border-[#F1F5F9] text-[#64748B] uppercase tracking-wider bg-[#F8FAFC]/50 text-[10px]">
-                  <th className="py-2.5 px-3 w-12 text-center">Pos</th>
-                  <th className="py-2.5 px-3 text-center w-12">Grid</th>
-                  <th className="py-2.5 px-3">Piloto</th>
-                  <th className="py-2.5 px-3">Equipe</th>
-                  <th className="py-2.5 px-3 text-center">Volta</th>
-                  <th className="py-2.5 px-3 text-center">Última Volta</th>
-                  <th className="py-2.5 px-3 text-center">Gap Líder</th>
-                  <th className="py-2.5 px-3 text-center">Gap Carro Frente</th>
-                  <th className="py-2.5 px-3 text-center">Pneu (Idade)</th>
-                  <th className="py-2.5 px-3 text-center">Combustível</th>
-                  <th className="py-2.5 px-3 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F1F5F9]">
-                {raceState.drivers.map((driver) => {
-                  const logoUrl = getTeamReducedLogoUrl(driver.teamName || driver.teamId)
-                  const isDnf = driver.raceStatus === 'dnf' || driver.isDnf
-                  const posDelta = driver.gridPosition - driver.currentPosition
-
-                  return (
-                    <tr
-                      key={`canonical_race_${driver.driverId}`}
-                      className={`transition-colors ${
-                        isDnf
-                          ? 'bg-slate-50/80 text-slate-400 opacity-60'
-                          : driver.isPlayer
-                            ? 'bg-red-50/70 hover:bg-red-50 font-bold border-l-4 border-l-[#E10600]'
-                            : 'hover:bg-slate-50 text-[#0F172A]'
-                      }`}
-                    >
-                      {/* Posição Atual */}
-                      <td className="py-2 px-3 text-center">
-                        <span
-                          className={`inline-flex items-center justify-center w-6 h-6 rounded-md font-bold text-[11px] ${
-                            isDnf
-                              ? 'bg-slate-200 text-slate-500'
-                              : driver.currentPosition === 1
-                                ? 'bg-amber-400 text-black shadow-xs font-black'
-                                : driver.currentPosition <= 3
-                                  ? 'bg-slate-200 text-[#0F172A]'
-                                  : driver.currentPosition <= 10
-                                    ? 'bg-slate-100 text-[#334155]'
-                                    : 'bg-slate-50 text-[#64748B]'
-                          }`}
-                        >
-                          P{driver.currentPosition}
-                        </span>
-                      </td>
-
-                      {/* Grid Position Original (Imutável) com Delta */}
-                      <td className="py-2 px-3 text-center text-[10px] text-slate-500">
-                        <div className="flex items-center justify-center gap-1">
-                          <span>P{driver.gridPosition}</span>
-                          {!isDnf && posDelta !== 0 && (
-                            <span
-                              className={`text-[9px] font-bold ${
-                                posDelta > 0 ? 'text-emerald-600' : 'text-red-500'
-                              }`}
-                            >
-                              {posDelta > 0 ? `+${posDelta}` : posDelta}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Piloto */}
-                      <td className="py-2 px-3 font-sans">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={
-                              driver.isPlayer
-                                ? 'text-[#0F172A] font-extrabold'
-                                : 'text-[#1E293B] font-medium'
-                            }
-                          >
-                            {driver.driverName}
-                          </span>
-                          {driver.isPlayer && (
-                            <Badge className="bg-[#E10600] text-white text-[9px] px-1 py-0 h-4 uppercase font-black">
-                              Sua Equipe
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Equipe */}
-                      <td className="py-2 px-3 font-sans">
-                        <div className="flex items-center gap-2">
-                          {logoUrl ? (
-                            <img
-                              src={logoUrl}
-                              alt={driver.teamName}
-                              className="w-5 h-5 rounded-sm object-contain bg-white border border-[#E2E8F0] p-0.5 shrink-0"
-                            />
-                          ) : (
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: driver.teamColor || '#94A3B8' }}
-                            />
-                          )}
-                          <span
-                            className="truncate max-w-[120px] text-xs font-semibold"
-                            style={{ color: driver.teamColor }}
-                          >
-                            {driver.teamName}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Voltas */}
-                      <td className="py-2 px-3 text-center font-bold">{driver.lap}</td>
-
-                      {/* Última Volta */}
-                      <td className="py-2 px-3 text-center">
-                        {isDnf ? (
-                          <span className="text-slate-400 text-[10px]">—</span>
-                        ) : driver.lastLapTimeFormatted ? (
-                          <span className="text-slate-700 font-mono text-[11px]">
-                            {driver.lastLapTimeFormatted}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 text-[10px]">—</span>
-                        )}
-                      </td>
-
-                      {/* Gap ao Líder */}
-                      <td className="py-2 px-3 text-center font-bold">
-                        {isDnf ? (
-                          <Badge variant="destructive" className="text-[9px] uppercase">
-                            DNF
-                          </Badge>
-                        ) : (
-                          <span
-                            className={
-                              driver.currentPosition === 1
-                                ? 'text-amber-600 font-black'
-                                : 'text-slate-600'
-                            }
-                          >
-                            {driver.gap}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Gap ao Carro da Frente */}
-                      <td className="py-2 px-3 text-center text-slate-500 text-[11px]">
-                        {isDnf
-                          ? '—'
-                          : driver.currentPosition === 1
-                            ? '—'
-                            : typeof driver.gapToFrontSec === 'number'
-                              ? `+${driver.gapToFrontSec.toFixed(3)}s`
-                              : '—'}
-                      </td>
-
-                      {/* Pneu e Idade */}
-                      <td className="py-2 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-bold uppercase border-slate-300"
-                          >
-                            {driver.tyreCompound}
-                          </Badge>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            ({driver.tyreAge}v)
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Combustível */}
-                      <td className="py-2 px-3 text-center text-slate-700 font-bold">
-                        {driver.fuel.toFixed(1)} kg
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-2 px-3 text-center">
-                        {isDnf ? (
-                          <Badge
-                            variant="destructive"
-                            className="text-[9px] uppercase font-bold"
-                            title={driver.dnfReason}
-                          >
-                            DNF ({driver.dnfReason?.slice(0, 15) || 'Falha'}...)
-                          </Badge>
-                        ) : driver.raceStatus === 'finished' ? (
-                          <Badge className="bg-slate-700 text-white text-[9px] uppercase font-bold">
-                            Concluído
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-emerald-600 text-white text-[9px] uppercase font-bold">
-                            Na Pista
-                          </Badge>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
