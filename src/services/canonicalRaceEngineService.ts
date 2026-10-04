@@ -158,22 +158,11 @@ export class CanonicalRaceEngineService {
       relationshipType: puState.relationshipType,
     })
 
-    // PU-05A2-P2: Utilizar a condição da unidade vinculada onde antes usava o estado agregado/fixo
-    // Se a sessão possuir powerUnitInitialCondition vinculada ao participante, utilizamos essa condição
+    // PU-05A2-P2b: Utilizar a condição da unidade vinculada do estado da sessão
+    // Se houver powerUnitCondition (evolução durante a sessão) ou powerUnitInitialCondition,
+    // preservamos a condição da unidade vinculada sem consultar a garagem em tempo de corrida.
     // Caso contrário (sessões legadas anteriores ao P2), mantemos estrita compatibilidade
     // sem aplicar desgaste em duplicidade ou recalibrar equipes.
-    let puCondition = 100
-    if (typeof driver.powerUnitInitialCondition === 'number') {
-      puCondition = Math.max(0, Math.min(100, driver.powerUnitInitialCondition))
-    }
-
-    const carPerf = Number((chassis * 0.7 + effectivePU.effectivePuRating * 0.3).toFixed(1))
-    const reliability = tech.attributes?.reliability ?? 80
-
-    // PU-05A2-P2: Resolução da condição da unidade de potência individual vinculada
-    // Se a unidade vinculada tiver condição inicial/atual persistida (0 a 100%),
-    // expõe essa condição para consumidores esportivos.
-    // Preserva fornecedor, integração e conhecimento da equipe.
     const rawLinkedCondition =
       typeof driver.powerUnitCondition === 'number'
         ? driver.powerUnitCondition
@@ -183,6 +172,9 @@ export class CanonicalRaceEngineService {
 
     const linkedPuCondition =
       rawLinkedCondition !== null ? Math.max(0, Math.min(100, rawLinkedCondition)) : null
+
+    const carPerf = Number((chassis * 0.7 + effectivePU.effectivePuRating * 0.3).toFixed(1))
+    const reliability = tech.attributes?.reliability ?? 80
 
     return {
       chassisRating: chassis,
