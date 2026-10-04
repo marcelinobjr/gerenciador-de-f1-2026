@@ -43,11 +43,11 @@ describe('RACE-CONTROL-COMPACT-01 — QA Suites', () => {
 
   // PROVA A: Centralização de Playback 50% mais lento e desacoplamento esportivo
   describe('A) Playback 50% mais lento (Orquestração Temporal UI vs Física/Esportivo)', () => {
-    it('deve ter baseline configurado como 2.000ms (50% da velocidade anterior de 1.000ms)', () => {
-      expect(RACE_PLAYBACK_CONFIG.BASE_INTERVAL_MS).toBe(2000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(1)).toBe(2000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(2)).toBe(1000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(4)).toBe(500)
+    it('deve ter baseline configurado como 4.000ms (50% da velocidade anterior de 2.000ms)', () => {
+      expect(RACE_PLAYBACK_CONFIG.BASE_INTERVAL_MS).toBe(4000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(1)).toBe(4000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(2)).toBe(2000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(4)).toBe(1000)
     })
 
     it('provar que simular em 1x, 2x ou 4x não altera lap times, pace ou cálculos matemáticos da corrida', () => {

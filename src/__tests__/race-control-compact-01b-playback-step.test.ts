@@ -69,14 +69,14 @@ function initializeStandardRace(careerId: string, totalLaps = 20): CanonicalRace
 describe('RACE-CONTROL-COMPACT-01B — Playback & Step Lap Equivalence Suite', () => {
   // 1) PLAYBACK 50% MAIS LENTO & FONTE ÚNICA
   describe('(1) Playback Cadence: RACE_PLAYBACK_CONFIG como fonte única', () => {
-    it('deve ter baseline configurado rigorosamente em 2.000 ms (50% da velocidade anterior de 1.000 ms)', () => {
-      expect(RACE_PLAYBACK_CONFIG.BASE_INTERVAL_MS).toBe(2000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(1)).toBe(2000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(2)).toBe(1000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(4)).toBe(500)
+    it('deve ter baseline configurado rigorosamente em 4.000 ms (50% da velocidade anterior de 2.000 ms)', () => {
+      expect(RACE_PLAYBACK_CONFIG.BASE_INTERVAL_MS).toBe(4000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(1)).toBe(4000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(2)).toBe(2000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(4)).toBe(1000)
     })
 
-    it('CANONICAL_RACE_PLAYBACK_CONFIG espelha e respeita o mesmo baseline de 2.000 ms', () => {
+    it('CANONICAL_RACE_PLAYBACK_CONFIG espelha e respeita o mesmo baseline de 2.000 ms (legado isolado)', () => {
       expect(CANONICAL_RACE_PLAYBACK_CONFIG.BASE_INTERVAL_MS).toBe(2000)
       expect(CANONICAL_RACE_PLAYBACK_CONFIG.getIntervalMs(1)).toBe(2000)
       expect(CANONICAL_RACE_PLAYBACK_CONFIG.getIntervalMs(2)).toBe(1000)

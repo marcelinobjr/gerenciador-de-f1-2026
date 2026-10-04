@@ -58,11 +58,11 @@ describe('RACE-CONTROL-COMPACT-01B — Playback + Step Lap Audit & Equivalences'
 
   // 1) PLAYBACK 50% MAIS LENTO
   describe('1) Configuração de Playback 50% mais lento', () => {
-    it('baseline anterior era 1.000ms/500ms/250ms; novo baseline é 2.000ms/1.000ms/500ms', () => {
-      expect(RACE_PLAYBACK_CONFIG.BASE_INTERVAL_MS).toBe(2000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(1)).toBe(2000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(2)).toBe(1000)
-      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(4)).toBe(500)
+    it('baseline anterior era 2.000ms/1.000ms/500ms; novo baseline é 4.000ms/2.000ms/1.000ms', () => {
+      expect(RACE_PLAYBACK_CONFIG.BASE_INTERVAL_MS).toBe(4000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(1)).toBe(4000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(2)).toBe(2000)
+      expect(RACE_PLAYBACK_CONFIG.resolveIntervalMs(4)).toBe(1000)
     })
 
     it('RACE_PLAYBACK_CONFIG é a fonte única de cadência de reprodução da UI', () => {

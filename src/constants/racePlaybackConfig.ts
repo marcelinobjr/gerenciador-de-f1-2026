@@ -20,9 +20,9 @@
 export const RACE_PLAYBACK_CONFIG = {
   /**
    * Intervalo base para velocidade 1x em milissegundos.
-   * Cadência 50% mais lenta = 2.000 ms por volta.
+   * Cadência 50% mais lenta = 4.000 ms por volta (RACE-CONTROL-COMPACT-01B1).
    */
-  BASE_INTERVAL_MS: 2000,
+  BASE_INTERVAL_MS: 4000,
 
   /**
    * Fatores multiplicadores suportados.
