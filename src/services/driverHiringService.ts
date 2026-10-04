@@ -15,6 +15,8 @@
 import pb from '@/lib/pocketbase/client'
 import { DriverModel, TeamModel } from '@/types/f1'
 import { financialLedgerService } from '@/services/financialLedgerService'
+import { assignGeneratedPortraitProfile } from '@/services/driverPortraitAssignmentService'
+import { sanitizeDriverProceduralData } from '@/lib/sanitizeDriverProceduralData'
 
 export interface CanonicalContractData {
   contractId: string
@@ -150,6 +152,32 @@ export const driverHiringService = {
 
     // Se verdadeiramente não existe registro persistido no banco para este piloto, cria uma única vez
     if (!finalDriverId) {
+      let initialProcData = driver.procedural_data || {}
+      if (driver.origin_type === 'procedural' || (!driver.id?.startsWith('DRV_') && !driver.id?.startsWith('mbj-'))) {
+        const existingProfileId =
+          initialProcData.generatedPortraitProfileId ||
+          initialProcData.visualIdentity?.generatedPortraitProfileId ||
+          (initialProcData.visualIdentity?.portraitAssetId?.startsWith('Piloto')
+            ? initialProcData.visualIdentity.portraitAssetId
+            : null)
+        if (!existingProfileId) {
+          const assigned = assignGeneratedPortraitProfile(
+            initialProcData.visualIdentity?.gender || driver.gender,
+            driver.id || driver.name || Date.now(),
+          )
+          initialProcData = {
+            ...initialProcData,
+            generatedPortraitProfileId: assigned.profileId,
+            visualIdentity: {
+              ...(initialProcData.visualIdentity || {}),
+              portraitAssetId: assigned.portraitAssetId,
+              generatedPortraitProfileId: assigned.profileId,
+              gender: assigned.gender,
+            },
+          }
+        }
+      }
+
       const created = await pb.collection('drivers').create({
         name: driver.name,
         nationality: driver.nationality,
@@ -167,7 +195,7 @@ export const driverHiringService = {
         true_potential: driver.true_potential,
         perceived_potential: driver.perceived_potential,
         evaluation_confidence: driver.evaluation_confidence,
-        procedural_data: driver.procedural_data,
+        procedural_data: sanitizeDriverProceduralData(initialProcData, initialProcData),
       })
       finalDriverId = created.id
       existingDriverRecord = created
@@ -188,7 +216,7 @@ export const driverHiringService = {
       existingProcData?.academyOriginTeamId ||
       (wasInAcademy ? team.id : null)
 
-    const updatedProceduralData = {
+    const updatedProceduralData = sanitizeDriverProceduralData(existingProcData, {
       ...existingProcData,
       academyOriginTeamId: academyOrigin,
       academyPromotedToProfessional: wasInAcademy
@@ -198,7 +226,7 @@ export const driverHiringService = {
         ? existingProcData?.academyPromotionDate || new Date().toISOString()
         : existingProcData?.academyPromotionDate,
       careerStatus: 'professional',
-    }
+    })
 
     const canonicalContractObj: CanonicalContractData = {
       contractId: `contract_${finalDriverId}_${seasonYear}_${Date.now()}`,

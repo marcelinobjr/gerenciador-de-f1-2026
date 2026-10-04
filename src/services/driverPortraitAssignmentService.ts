@@ -149,3 +149,45 @@ export function assignGeneratedPortrait(options: DriverPortraitAssignmentOptions
 
   return pool[indexInPool]
 }
+
+export interface AssignedPortraitProfile {
+  profileId: string // ex: "Piloto_01" ou "Piloto52"
+  portraitAssetId: string // ex: "Piloto_01"
+  fileName: string // ex: "Piloto_01.jpg" ou "Piloto52.jpg"
+  path: string // ex: "/pilotos-gerados/Piloto_01.jpg"
+  gender: DriverGender
+}
+
+/**
+ * Atribui UMA VEZ a foto para um piloto procedural com base em gênero e seed/id,
+ * retornando os identificadores canônicos para gravação permanente.
+ * Homens: Piloto_01,02,06,08,10,12,14,17,19,20,21,23,28,30,31,33,35,37,39,42,46,49,52,58 (24)
+ * Mulheres: todos os demais índices em /public/pilotos-gerados/ (42)
+ */
+export function assignGeneratedPortraitProfile(
+  gender: string | null | undefined,
+  seedOrId: string | number,
+): AssignedPortraitProfile {
+  const resolvedGender = resolveDriverIdentityGender({ gender })
+  const pool = resolvedGender === 'female' ? FEMALE_PORTRAITS_POOL : MALE_PORTRAITS_POOL
+
+  const identifier =
+    typeof seedOrId === 'number'
+      ? `seed_${seedOrId}`
+      : (seedOrId && seedOrId.trim()) || 'seed_0'
+
+  const hash = hashDriverIdentifier(identifier)
+  const indexInPool = hash % pool.length
+  const chosenPath = pool[indexInPool] // ex: "/pilotos-gerados/Piloto_01.jpg"
+
+  const fileName = chosenPath.split('/').pop() || 'Piloto_01.jpg'
+  const profileId = fileName.replace(/\.jpg$/i, '')
+
+  return {
+    profileId,
+    portraitAssetId: profileId,
+    fileName,
+    path: chosenPath,
+    gender: resolvedGender,
+  }
+}

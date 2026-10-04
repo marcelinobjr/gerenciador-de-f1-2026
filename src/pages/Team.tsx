@@ -60,6 +60,7 @@ import { driverScoutingService } from '@/services/driverScoutingService'
 import { proceduralDriverProgressService } from '@/services/proceduralDriverProgressService'
 import { preservePortraitFields } from '@/lib/preservePortraitFields'
 import { sanitizeDriverProceduralData } from '@/lib/sanitizeDriverProceduralData'
+import { assignGeneratedPortraitProfile } from '@/services/driverPortraitAssignmentService'
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import driverDevelopmentService from '@/services/driverDevelopmentService'
 import { teamRosterService } from '@/services/teamRosterService'
@@ -446,6 +447,36 @@ export default function TeamPage() {
         (d) => d.id === prospectDriverId,
       )
       if (!driverInDb && candidate) {
+        // Garantir atribuição de retrato persistente antes da criação no banco
+        const rawCandidateProc = (candidate as any).procedural_data || {}
+        let assignedProfileId =
+          rawCandidateProc.generatedPortraitProfileId ||
+          rawCandidateProc.visualIdentity?.generatedPortraitProfileId ||
+          (rawCandidateProc.visualIdentity?.portraitAssetId?.startsWith('Piloto')
+            ? rawCandidateProc.visualIdentity.portraitAssetId
+            : null)
+
+        let assignedPortraitAssetId = rawCandidateProc.visualIdentity?.portraitAssetId || assignedProfileId
+
+        if (!assignedProfileId) {
+          const assigned = assignGeneratedPortraitProfile(
+            rawCandidateProc.visualIdentity?.gender || (candidate as any).gender,
+            candidate.id || candidate.name || Date.now(),
+          )
+          assignedProfileId = assigned.profileId
+          assignedPortraitAssetId = assigned.portraitAssetId
+        }
+
+        const enrichedProcData = sanitizeDriverProceduralData(rawCandidateProc, {
+          ...rawCandidateProc,
+          generatedPortraitProfileId: assignedProfileId,
+          visualIdentity: {
+            ...(rawCandidateProc.visualIdentity || {}),
+            portraitAssetId: assignedPortraitAssetId,
+            generatedPortraitProfileId: assignedProfileId,
+          },
+        })
+
         // Persiste a entidade permanentemente no banco
         driverInDb = await pb.collection('drivers').create({
           name: candidate.name,
@@ -474,10 +505,7 @@ export default function TeamPage() {
           evaluation_confidence: (candidate as any).evaluation_confidence,
           academy_origin_team_id: team.id,
           career_status: 'academy',
-          procedural_data: sanitizeDriverProceduralData(
-            (candidate as any).procedural_data,
-            (candidate as any).procedural_data,
-          ),
+          procedural_data: enrichedProcData,
         })
       }
 

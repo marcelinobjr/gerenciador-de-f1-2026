@@ -26,6 +26,7 @@ import {
 import { DriverModel } from '@/types/f1'
 import { CULTURAL_NAME_POOLS } from '@/lib/procedural-names'
 import { driverVisualAssetService } from '@/services/driverVisualAssetService'
+import { assignGeneratedPortraitProfile } from '@/services/driverPortraitAssignmentService'
 
 export interface GenerationOptions {
   scoutingReach?: number // 10-100 (da InfrastructureCapabilityService)
@@ -258,14 +259,24 @@ export class ProceduralDriverGenerator {
     // Identificador único universal permanente
     const driverId = `drv_proc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
 
-    // Criação dos Assets Visuais desacoplados
+    // Atribuição ÚNICA e permanente da foto procedural (BLOCO FOTOS-ESTAVEIS-01)
     const visualSeed = this.randomInt(1, 999999, seedState)
+    const assignedPortrait = assignGeneratedPortraitProfile(
+      isFemale ? 'female' : 'male',
+      options.seed !== undefined ? options.seed : visualSeed,
+    )
+
+    // Criação dos Assets Visuais desacoplados
     const visualIdentity = driverVisualAssetService.createVisualIdentity(
       driverId,
       visualSeed,
       isFemale ? 'female' : 'male',
       options.teamDriverPortraits || [],
     )
+
+    // Gravação explícita e permanente do retrato gerado
+    visualIdentity.portraitAssetId = assignedPortrait.portraitAssetId
+    visualIdentity.generatedPortraitProfileId = assignedPortrait.profileId
 
     // Histórico de temporada inicial simulado resumido
     const seasonsHistory = [
@@ -297,6 +308,7 @@ export class ProceduralDriverGenerator {
       juniorCategory: category,
       careerStatus: 'prospect',
       truePotential,
+      generatedPortraitProfileId: assignedPortrait.profileId,
       growthRate: this.randomInt(0, 3, seedState) === 0 ? 'precoce' : 'normal',
       peakAge: this.randomInt(25, 29, seedState),
       drivingStyle,
