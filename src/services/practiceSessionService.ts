@@ -476,36 +476,31 @@ export class PracticeSessionService {
     state.revision = (state.revision || 0) + 1
     state.updatedAt = new Date().toISOString()
 
-    // 1. Persistir no PocketBase dentro de session_setups.driver_strategies
+    // 1. Persistir no PocketBase dentro de session_setups.driver_strategies com upsert canônico resiliente
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${state.careerId}" && season_id = "${state.seasonId}" && round = ${state.round} && session = "${state.sessionType}"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const currentStrategies = (existing.driver_strategies as any) || {}
-        const mergedStrategies = {
-          ...currentStrategies,
-          practiceSessionState: state,
-        }
-
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: mergedStrategies,
-        })
-      } else {
-        const newRecordPayload = {
-          team_id: state.careerId,
-          season_id: state.seasonId,
-          round: state.round,
-          session: state.sessionType,
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: state.careerId,
+        seasonId: state.seasonId,
+        round: state.round,
+        session: state.sessionType,
+        payload: {
           driver_strategies: { practiceSessionState: state },
-        }
-        await pb.collection('session_setups').create(newRecordPayload)
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const currentStrategies = (existing?.driver_strategies as any) || {}
+          return {
+            driver_strategies: {
+              ...currentStrategies,
+              practiceSessionState: state,
+            },
+          }
+        },
+      })
     } catch (err) {
       console.warn(
-        '[practiceSessionService] Erro ao gravar estado no PocketBase, usando cache local:',
+        '[practiceSessionService] Erro não-bloqueante ao gravar estado no PocketBase, usando cache local:',
         err,
       )
     }

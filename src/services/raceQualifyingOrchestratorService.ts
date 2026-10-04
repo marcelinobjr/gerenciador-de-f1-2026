@@ -1323,33 +1323,29 @@ export class RaceQualifyingOrchestratorService {
       phase === 'SQ1' ? 'q1' : phase === 'SQ2' ? 'q2' : phase === 'SQ3' ? 'q3' : sessionName
 
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${pbSession}"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const strategies = (existing.driver_strategies as any) || {}
-        strategies[stateProp] = stateToPersist
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: strategies,
-          notes: JSON.stringify({ variant: effectiveVariant, phase: status, completed: true }),
-        })
-      } else {
-        await pb.collection('session_setups').create({
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: pbSession,
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: pbSession,
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
             [stateProp]: stateToPersist,
           },
-          notes: JSON.stringify({ variant: effectiveVariant, phase: status, completed: true }),
-        })
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const strategies = (existing?.driver_strategies as any) || {}
+          strategies[stateProp] = stateToPersist
+          return {
+            driver_strategies: strategies,
+          }
+        },
+      })
     } catch (err) {
       console.warn(
         `[RaceQualifyingOrchestratorService] Erro ao persistir ${phase} (${effectiveVariant}) no PocketBase:`,
@@ -1701,33 +1697,27 @@ export class RaceQualifyingOrchestratorService {
     const storageKey = buildGlobalSprintQualifyingStorageKey(careerId, seasonId, round)
 
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const strategies = (existing.driver_strategies as any) || {}
-        strategies.sprintQualifyingResult = state
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: strategies,
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      } else {
-        await pb.collection('session_setups').create({
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: 'sq3',
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: 'sq3',
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
             sprintQualifyingResult: state,
           },
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const strategies = (existing?.driver_strategies as any) || {}
+          strategies.sprintQualifyingResult = state
+          return { driver_strategies: strategies }
+        },
+      })
     } catch (err) {
       console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir resultado Sprint:`, err)
     }
@@ -1889,33 +1879,27 @@ export class RaceQualifyingOrchestratorService {
     const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
 
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const strategies = (existing.driver_strategies as any) || {}
-        strategies.sprintStartingGridState = state
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: strategies,
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      } else {
-        await pb.collection('session_setups').create({
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: 'sq3',
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: 'sq3',
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
             sprintStartingGridState: state,
           },
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const strategies = (existing?.driver_strategies as any) || {}
+          strategies.sprintStartingGridState = state
+          return { driver_strategies: strategies }
+        },
+      })
     } catch (err) {
       console.warn(
         `[RaceQualifyingOrchestratorService] Erro ao persistir starting grid Sprint:`,
@@ -2238,35 +2222,29 @@ export class RaceQualifyingOrchestratorService {
     const { careerId, seasonId, round, status } = state
     const storageKey = buildGlobalQualifyingStorageKey(careerId, seasonId, round)
 
-    // 1. Gravação no PocketBase session_setups (session = 'q3')
+    // 1. Gravação no PocketBase session_setups (session = 'q3') via upsert canônico
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q3"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const strategies = (existing.driver_strategies as any) || {}
-        strategies.globalQualifyingResult = state
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: strategies,
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      } else {
-        await pb.collection('session_setups').create({
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: 'q3',
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: 'q3',
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
             globalQualifyingResult: state,
           },
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const strategies = (existing?.driver_strategies as any) || {}
+          strategies.globalQualifyingResult = state
+          return { driver_strategies: strategies }
+        },
+      })
     } catch (err) {
       console.warn(
         `[RaceQualifyingOrchestratorService] Erro ao persistir resultado global no PocketBase:`,
@@ -2545,35 +2523,29 @@ export class RaceQualifyingOrchestratorService {
     const { careerId, seasonId, round, status } = state
     const storageKey = buildStartingGridStorageKey(careerId, seasonId, round)
 
-    // 1. Gravação no PocketBase session_setups (session = 'q3')
+    // 1. Gravação no PocketBase session_setups (session = 'q3') via upsert canônico
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "q3"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const strategies = (existing.driver_strategies as any) || {}
-        strategies.startingGridState = state
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: strategies,
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      } else {
-        await pb.collection('session_setups').create({
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: 'q3',
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: 'q3',
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
             startingGridState: state,
           },
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const strategies = (existing?.driver_strategies as any) || {}
+          strategies.startingGridState = state
+          return { driver_strategies: strategies }
+        },
+      })
     } catch (err) {
       console.warn(`[RaceQualifyingOrchestratorService] Erro ao persistir starting grid:`, err)
     }
@@ -2896,33 +2868,27 @@ export class RaceQualifyingOrchestratorService {
 
     // 1. PocketBase session_setups (session = 'sq3')
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const strategies = (existing.driver_strategies as any) || {}
-        strategies.sprintQualifyingResult = state
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: strategies,
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      } else {
-        await pb.collection('session_setups').create({
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: 'sq3',
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: 'sq3',
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
             sprintQualifyingResult: state,
           },
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const strategies = (existing?.driver_strategies as any) || {}
+          strategies.sprintQualifyingResult = state
+          return { driver_strategies: strategies }
+        },
+      })
     } catch (err) {
       console.warn(
         `[RaceQualifyingOrchestratorService] Erro ao persistir resultado Sprint no PocketBase:`,
@@ -3093,35 +3059,29 @@ export class RaceQualifyingOrchestratorService {
     const { careerId, seasonId, round, status } = state
     const storageKey = buildSprintStartingGridStorageKey(careerId, seasonId, round)
 
-    // 1. PocketBase session_setups (session = 'sq3')
+    // 1. PocketBase session_setups (session = 'sq3') via upsert canônico
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "sq3"`,
-      })
-
-      if (records.items.length > 0) {
-        const existing = records.items[0]
-        const strategies = (existing.driver_strategies as any) || {}
-        strategies.sprintStartingGridState = state
-        await pb.collection('session_setups').update(existing.id, {
-          driver_strategies: strategies,
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      } else {
-        await pb.collection('session_setups').create({
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: 'sq3',
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: 'sq3',
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
           driver_strategies: {
             sprintStartingGridState: state,
           },
-          notes: JSON.stringify({ phase: status, completed: true }),
-        })
-      }
+        },
+        mergeWithExisting: (existing) => {
+          const strategies = (existing?.driver_strategies as any) || {}
+          strategies.sprintStartingGridState = state
+          return { driver_strategies: strategies }
+        },
+      })
     } catch (err) {
       console.warn(
         `[RaceQualifyingOrchestratorService] Erro ao persistir sprint starting grid:`,

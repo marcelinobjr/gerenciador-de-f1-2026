@@ -656,7 +656,14 @@ export class CanonicalCareerPersistenceService {
       }
 
       if (existingRecordId) {
-        await pb.collection('race_results').update(existingRecordId, pbPayload)
+        try {
+          await pb.collection('race_results').update(existingRecordId, pbPayload)
+        } catch (updateErr) {
+          console.warn(
+            '[CareerPersistence] Erro tolerado ao atualizar race_results no PB:',
+            updateErr,
+          )
+        }
       } else {
         // Tentar buscar se temos season_id no PB
         let seasonIdPB: string | undefined
@@ -671,13 +678,37 @@ export class CanonicalCareerPersistenceService {
 
         if (seasonIdPB) {
           const winnerEntry = record.entries.find((e) => e.finalPosition === 1) || record.entries[0]
-          await pb.collection('race_results').create({
-            ...pbPayload,
-            season_id: seasonIdPB,
-            position: 1,
-            points: winnerEntry?.pointsAwarded || 25,
-            fastest_lap: winnerEntry?.fastestLap || false,
-          })
+          try {
+            await pb.collection('race_results').create({
+              ...pbPayload,
+              season_id: seasonIdPB,
+              position: 1,
+              points: winnerEntry?.pointsAwarded || 25,
+              fastest_lap: winnerEntry?.fastestLap || false,
+            })
+          } catch (createErr: any) {
+            // Conflito de unicidade ou erro concorrente
+            if (
+              createErr?.status === 400 ||
+              createErr?.message?.includes('validation_not_unique')
+            ) {
+              try {
+                const raceConflict = await pb
+                  .collection('race_results')
+                  .getFirstListItem(`result_key = "${resultKey}"`)
+                if (raceConflict?.id) {
+                  await pb.collection('race_results').update(raceConflict.id, pbPayload)
+                }
+              } catch {
+                // ignorado
+              }
+            } else {
+              console.warn(
+                '[CareerPersistence] Falha não-bloqueante ao criar race_results no PB:',
+                createErr,
+              )
+            }
+          }
         }
       }
     } catch (err) {

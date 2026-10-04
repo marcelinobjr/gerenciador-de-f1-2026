@@ -266,29 +266,33 @@ class PracticePreparationService {
     const tireCompound: TireCompound = (car1?.tyreSelection?.compound as TireCompound) || 'medio'
 
     try {
-      // Localiza registro existente para o quadrante (team_id, season_id, round, session)
-      const existing = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${teamId}" && season_id = "${seasonId}" && round = ${round} && session = "${sessionName}"`,
-      })
-
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
       const recordBody: Record<string, any> = {
-        team_id: teamId,
-        season_id: seasonId,
-        round: round,
-        session: sessionName,
         wing_level: wingLevel,
         suspension_stiffness: suspensionStiffness,
         pu_electric_ratio: puElectricRatio,
         tire_compound: tireCompound,
-        notes: payloadJson, // Armazena cópia íntegra em string serializada
-        driver_strategies: payload, // Campo json nativo suportado na migration 0011
+        driver_strategies: payload,
       }
 
-      if (existing.items.length > 0) {
-        await pb.collection('session_setups').update(existing.items[0].id, recordBody)
-      } else {
-        await pb.collection('session_setups').create(recordBody)
-      }
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId,
+        seasonId,
+        round,
+        session: sessionName,
+        payload: recordBody,
+        mergeWithExisting: (existing) => {
+          const currentStrategies = (existing?.driver_strategies as any) || {}
+          return {
+            ...recordBody,
+            driver_strategies: {
+              ...currentStrategies,
+              ...payload,
+            },
+          }
+        },
+      })
 
       // Também espelha em localStorage para resiliência instantânea contra perda de rede/reload
       this.cacheLocally(prep)

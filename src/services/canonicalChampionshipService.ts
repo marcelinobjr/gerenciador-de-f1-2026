@@ -170,6 +170,17 @@ export function compareCountback(
 
 export class CanonicalChampionshipService {
   /**
+   * In-flight lock: chamadas concorrentes para a mesma snapshot_key reutilizam a mesma promise.
+   */
+  private inFlightSyncs = new Map<string, Promise<void>>()
+
+  /**
+   * Cache de ID do registro PocketBase após primeira leitura/escrita bem-sucedida,
+   * permitindo ir direto a update(cachedId, payload).
+   */
+  private pbRecordIdCache = new Map<string, string>()
+
+  /**
    * Constrói a chave lógica do snapshot de campeonato:
    * championship_{careerId}_{season}_r{round}
    */
@@ -962,10 +973,28 @@ export class CanonicalChampionshipService {
 
   /**
    * Sincronização opcional não-bloqueante com PocketBase (Upsert idempotente)
+   * Blindado com in-flight lock, cache de ID e fallback validation_not_unique.
    */
   public async syncSnapshotWithPocketBaseIfAvailable(
     snapshot: ChampionshipSnapshot,
   ): Promise<void> {
+    const key = snapshot.id
+
+    // In-flight lock: reutiliza promise se já houver sincronização ativa para esta snapshot_key
+    const existingSync = this.inFlightSyncs.get(key)
+    if (existingSync) {
+      return existingSync
+    }
+
+    const syncPromise = this.executeSyncSnapshotWithPocketBase(snapshot).finally(() => {
+      this.inFlightSyncs.delete(key)
+    })
+
+    this.inFlightSyncs.set(key, syncPromise)
+    return syncPromise
+  }
+
+  private async executeSyncSnapshotWithPocketBase(snapshot: ChampionshipSnapshot): Promise<void> {
     try {
       if (!pb?.collection) return
       const collection = pb.collection('championship_snapshots')
@@ -981,34 +1010,43 @@ export class CanonicalChampionshipService {
         constructor_standings: snapshot.constructorStandings,
       }
 
-      // 1. Consulta prévia por snapshot_key para atualizar se já existir
-      let existingId: string | null = null
-      try {
-        const safeKey = snapshot.id.replace(/"/g, '\\"')
-        const existingRecord = await collection.getFirstListItem(`snapshot_key = "${safeKey}"`)
-        if (existingRecord?.id) {
-          existingId = existingRecord.id
+      // 1. Tentar ID do cache em memória para ir direto a update
+      let existingId: string | null = this.pbRecordIdCache.get(snapshot.id) || null
+
+      if (!existingId) {
+        // Consulta prévia por snapshot_key para atualizar se já existir
+        try {
+          const safeKey = snapshot.id.replace(/"/g, '\\"')
+          const existingRecord = await collection.getFirstListItem(`snapshot_key = "${safeKey}"`)
+          if (existingRecord?.id) {
+            existingId = existingRecord.id
+            this.pbRecordIdCache.set(snapshot.id, existingId)
+          }
+        } catch {
+          // Registro não encontrado ou erro de consulta — segue para tentativa de criação
         }
-      } catch {
-        // Registro não encontrado ou erro de consulta — segue para tentativa de criação
       }
 
       if (existingId) {
         try {
           await collection.update(existingId, payload)
           return
-        } catch (updateErr) {
+        } catch (updateErr: any) {
+          // Se o ID cacheado falhou (ex.: foi deletado externamente), limpa e tenta create
+          this.pbRecordIdCache.delete(snapshot.id)
           console.warn(
-            '[CanonicalChampionshipService] Erro ao atualizar snapshot existente no PB:',
-            updateErr,
+            '[CanonicalChampionshipService] Erro ao atualizar snapshot existente no PB, tentando re-criar:',
+            updateErr?.message || updateErr,
           )
-          return
         }
       }
 
       // 2. Se não encontrou previamente, tenta criar
       try {
-        await collection.create(payload)
+        const created = await collection.create(payload)
+        if (created?.id) {
+          this.pbRecordIdCache.set(snapshot.id, created.id)
+        }
       } catch (createErr: any) {
         // 3. Tratamento de condição de corrida (create falha por unicidade / validation_not_unique)
         const isUniqueError =
@@ -1023,6 +1061,7 @@ export class CanonicalChampionshipService {
             const safeKey = snapshot.id.replace(/"/g, '\\"')
             const raceRecord = await collection.getFirstListItem(`snapshot_key = "${safeKey}"`)
             if (raceRecord?.id) {
+              this.pbRecordIdCache.set(snapshot.id, raceRecord.id)
               await collection.update(raceRecord.id, payload)
             }
           } catch (retryErr) {
@@ -1032,7 +1071,7 @@ export class CanonicalChampionshipService {
             )
           }
         }
-        // Se a coleção não existir no PB ou outro erro, ignora sem quebrar o fluxo esportivo
+        // Se a coleção não existir no PB ou outro erro, absorvido silenciosamente
       }
     } catch (e) {
       console.warn('[CanonicalChampionshipService] Erro ao sincronizar snapshot no PB:', e)
@@ -1040,12 +1079,16 @@ export class CanonicalChampionshipService {
   }
 
   /**
-   * Limpa snapshots para testes
+   * Limpa snapshots para testes (localStorage, locks e caches)
    */
-  public clearSnapshotsForTesting(careerId: string, season: number, round: number): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
-    const key = this.buildSnapshotKey(careerId, season, round)
-    window.localStorage.removeItem(key)
+  public clearSnapshotsForTesting(careerId?: string, season?: number, round?: number): void {
+    this.inFlightSyncs.clear()
+    this.pbRecordIdCache.clear()
+    if (careerId !== undefined && season !== undefined && round !== undefined) {
+      if (typeof window === 'undefined' || !window.localStorage) return
+      const key = this.buildSnapshotKey(careerId, season, round)
+      window.localStorage.removeItem(key)
+    }
   }
 }
 

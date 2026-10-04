@@ -664,36 +664,14 @@ export class RacePracticeSetupService {
     const internalSession = sessionInternalMap[session] || 'tp1'
 
     try {
-      // Procura registro correspondente da sessão ou do fim de semana
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
-      })
-
-      if (records.items.length > 0) {
-        const existingItem = records.items[0]
-        const currentStrategies = (existingItem.driver_strategies as any) || {}
-        const currentApps = currentStrategies.practiceSetupApplications || {}
-
-        const mergedApps = {
-          ...currentApps,
-          [applicationKey]: record,
-        }
-
-        const mergedStrategies = {
-          ...currentStrategies,
-          practiceSetupApplications: mergedApps,
-        }
-
-        await pb.collection('session_setups').update(existingItem.id, {
-          driver_strategies: mergedStrategies,
-          notes: JSON.stringify(mergedStrategies),
-        })
-      } else {
-        const newRecordPayload = {
-          team_id: careerId,
-          season_id: seasonId,
-          round,
-          session: internalSession,
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: careerId,
+        seasonId,
+        round,
+        session: internalSession,
+        payload: {
           wing_level: 6,
           suspension_stiffness: 6,
           pu_electric_ratio: 50,
@@ -702,15 +680,23 @@ export class RacePracticeSetupService {
               [applicationKey]: record,
             },
           },
-          notes: JSON.stringify({
-            practiceSetupApplications: {
-              [applicationKey]: record,
-            },
-          }),
-        }
-
-        await pb.collection('session_setups').create(newRecordPayload)
-      }
+        },
+        mergeWithExisting: (existingItem) => {
+          const currentStrategies = (existingItem?.driver_strategies as any) || {}
+          const currentApps = currentStrategies.practiceSetupApplications || {}
+          const mergedApps = {
+            ...currentApps,
+            [applicationKey]: record,
+          }
+          const mergedStrategies = {
+            ...currentStrategies,
+            practiceSetupApplications: mergedApps,
+          }
+          return {
+            driver_strategies: mergedStrategies,
+          }
+        },
+      })
     } catch (err) {
       console.warn(
         `[RacePracticeSetupService] Erro ao persistir no PocketBase (session_setups), espelhando no cache local:`,

@@ -133,22 +133,26 @@ export class CanonicalWeekendSlotPersistenceService {
 
     // Opcional: espelhar no PocketBase de forma assíncrona tolerante a falhas
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${state.careerId}" && season_id = "${state.seasonId}" && round = ${state.round} && session = "weekend_slot_state"`,
-      })
-      const payload = {
-        team_id: state.careerId,
-        season_id: state.seasonId,
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: state.careerId,
+        seasonId: state.seasonId,
         round: state.round,
         session: 'weekend_slot_state',
-        notes: JSON.stringify(state),
-        driver_strategies: { weekendSlotState: state },
-      }
-      if (records.items.length > 0) {
-        await pb.collection('session_setups').update(records.items[0].id, payload)
-      } else {
-        await pb.collection('session_setups').create(payload)
-      }
+        payload: {
+          driver_strategies: { weekendSlotState: state },
+        },
+        mergeWithExisting: (existing) => {
+          const currentStrategies = (existing?.driver_strategies as any) || {}
+          return {
+            driver_strategies: {
+              ...currentStrategies,
+              weekendSlotState: state,
+            },
+          }
+        },
+      })
     } catch {
       // Falha silenciosa no PocketBase: o localStorage e memória garantem a persistência local
     }

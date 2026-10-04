@@ -1901,19 +1901,22 @@ export const f1Service = {
 
   async saveSessionSetup(data: SessionSetupModel): Promise<SessionSetupModel> {
     try {
-      // Find if already exists
-      const existing = await pb.collection('session_setups').getList<SessionSetupModel>(1, 1, {
-        filter: `team_id = "${data.team_id}" && season_id = "${data.season_id}" && round = ${data.round} && session = "${data.session}"`,
+      const { canonicalSessionSetupPersistenceService } =
+        await import('@/services/canonicalSessionSetupPersistenceService')
+      const res = await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: data.team_id,
+        seasonId: data.season_id,
+        round: data.round,
+        session: data.session,
+        payload: data,
+        mergeWithExisting: () => data,
       })
-      if (existing.items.length > 0) {
-        return await pb
-          .collection('session_setups')
-          .update<SessionSetupModel>(existing.items[0].id!, data)
-      } else {
-        return await pb.collection('session_setups').create<SessionSetupModel>(data)
+      if (res.id) {
+        return { ...data, id: res.id }
       }
+      return data
     } catch (e) {
-      console.error('Erro ao salvar setup de sessão:', e)
+      console.warn('Erro ao salvar setup de sessão no PocketBase:', e)
       return data
     }
   },
