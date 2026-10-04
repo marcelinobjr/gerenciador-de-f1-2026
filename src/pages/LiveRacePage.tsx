@@ -181,6 +181,8 @@ export default function LiveRacePage() {
   const heartbeatTimerRef = useRef<any>(null)
   const isSavingRef = useRef(false)
   const pendingSaveRef = useRef<boolean>(false)
+  const [isSteppingLap, setIsSteppingLap] = useState(false)
+  const isSteppingLapRef = useRef(false)
 
   // 1. GATE DE INICIALIZAÇÃO E RETOMADA DA SESSÃO CANÔNICA
   useEffect(() => {
@@ -641,54 +643,29 @@ export default function LiveRacePage() {
     ],
   )
 
-  // 4. LOOP DE EXECUÇÃO DA CORRIDA COM PLAY/PAUSE/1x/2x/4x
-  useEffect(() => {
-    // P1: Guarda de finalização atômica
-    if (isRaceFinished || sessionRecord?.status === 'completed') {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-      return
-    }
-
-    // REGRA 9 & 4: Se houver pendingDecision != null ou isRacePaused, não avança
-    if (isRacePaused || !isExecuting || pendingDecisions.length > 0) {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-      return
-    }
-
-    const intervalMs = Math.round(5000 / simSpeed)
-
-    timerRef.current = setInterval(() => {
-      // P1: Guarda dentro do tick do timer
+  // 3.5 EXECUÇÃO UNIFICADA DO PASSO CANÔNICO DE CORRIDA (+1 VOLTA / PLAYBACK TICK)
+  // Função única reutilizada pelo timer do Play e pelo botão +1 VOLTA (Equivalência por construção)
+  const executeCanonicalLapStep = useCallback(
+    async (options?: { isManualStep?: boolean }) => {
+      // P1: Guarda de finalização atômica
       if (isRaceFinished || sessionRecord?.status === 'completed') {
-        if (timerRef.current) {
-          clearInterval(timerRef.current)
-          timerRef.current = null
-        }
-        return
+        return { completed: true, paused: true }
       }
 
       if (currentLap >= totalLaps) {
-        if (timerRef.current) clearInterval(timerRef.current)
         setIsRaceFinished(true)
         setIsRacePaused(true)
         handleFinishRace()
-        return
+        return { completed: true, paused: true }
       }
 
       // ALL-DNF-RACE-01A: Se todos os carros abandonaram antes do tick (activeCars === 0), parar imediatamente
       const activeCarsInState = grid.filter((c) => !c.dnf).length
       if (grid.length > 0 && activeCarsInState === 0 && currentLap >= 1) {
-        if (timerRef.current) clearInterval(timerRef.current)
         setIsRaceFinished(true)
         setIsRacePaused(true)
         handleFinishRace(grid)
-        return
+        return { completed: true, paused: true }
       }
 
       // Executa avanço da volta pelo runner canônico com proteção anti-loop e conhecimento 4D.2
@@ -728,11 +705,6 @@ export default function LiveRacePage() {
       // REGRA 4: Se o runner detectou eventos que exigem decisão:
       // 1) salva pendingDecision; 2) muda status para 'awaiting_decision'; 3) pausa; 4) interrompe avanço
       if (res.requiresPause && res.detectedDecisions.length > 0) {
-        if (timerRef.current) {
-          clearInterval(timerRef.current)
-          timerRef.current = null
-        }
-
         const newPendingList = [...pendingDecisions, ...res.detectedDecisions]
         setPendingDecisions(newPendingList)
         setIsRacePaused(true)
@@ -751,29 +723,105 @@ export default function LiveRacePage() {
           description: `Decisão de pit stop/estratégia necessária na volta ${res.nextLap}.`,
         })
 
-        return
+        return { completed: false, paused: true, requiresDecision: true }
       }
 
-      // Persiste checkpoint a cada volta concluída
-      triggerSaveCheckpoint(`Volta ${res.nextLap} concluída`, undefined, {
+      // Persiste checkpoint da volta concluída
+      // Se for passo manual (+1 VOLTA), o status persistido é OBRIGATORIAMENTE 'paused'
+      const statusToPersist = options?.isManualStep ? 'paused' : undefined
+      const reasonLabel = options?.isManualStep
+        ? `+1 Volta manual concluída (Volta ${res.nextLap})`
+        : `Volta ${res.nextLap} concluída`
+
+      triggerSaveCheckpoint(reasonLabel, statusToPersist, {
         grid: res.nextGrid,
         currentLap: res.nextLap,
         liveEvents: combinedEvents,
       })
 
       if (res.isCompleted) {
-        if (timerRef.current) clearInterval(timerRef.current)
         setIsRaceFinished(true)
         setIsRacePaused(true)
         handleFinishRace(res.nextGrid)
+        return { completed: true, paused: true }
       } else {
         // ALL-DNF-RACE-01A: Se após a volta não restar nenhum carro ativo, parar imediatamente
         const activeAfter = res.nextGrid.filter((c) => !c.dnf).length
         if (res.nextGrid.length > 0 && activeAfter === 0) {
-          if (timerRef.current) clearInterval(timerRef.current)
           setIsRaceFinished(true)
           setIsRacePaused(true)
           handleFinishRace(res.nextGrid)
+          return { completed: true, paused: true }
+        }
+      }
+
+      // Se for passo manual (+1 Volta), OBRIGATORIAMENTE terminar pausado
+      if (options?.isManualStep) {
+        setIsRacePaused(true)
+        setPauseReason('Pausado após avanço de 1 volta')
+      }
+
+      return { completed: false, paused: options?.isManualStep ? true : isRacePaused }
+    },
+    [
+      isRaceFinished,
+      sessionRecord?.status,
+      sessionRecord?.id,
+      currentLap,
+      totalLaps,
+      grid,
+      weather,
+      currentRound,
+      gpInfo,
+      team,
+      playerCarTactics,
+      playerPaceOrders,
+      mechanicalIssues,
+      redFlagState,
+      lapHistory,
+      pendingDecisions,
+      resolvedDecisions,
+      inheritedTyreKnowledge,
+      driverTireInventories,
+      liveEvents,
+      isRacePaused,
+      triggerSaveCheckpoint,
+    ],
+  )
+
+  // 4. LOOP DE EXECUÇÃO DA CORRIDA COM PLAY/PAUSE/1x/2x/4x
+  useEffect(() => {
+    // P1: Guarda de finalização atômica
+    if (isRaceFinished || sessionRecord?.status === 'completed') {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      return
+    }
+
+    // REGRA 9 & 4: Se houver pendingDecision != null ou isRacePaused ou estiver em step manual, não avança
+    if (isRacePaused || !isExecuting || pendingDecisions.length > 0 || isSteppingLap) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      return
+    }
+
+    const intervalMs = Math.round(5000 / simSpeed)
+
+    timerRef.current = setInterval(async () => {
+      // Bloqueio se um step manual ou outro processamento estiver em andamento
+      if (isSteppingLapRef.current || isSavingRef.current) {
+        return
+      }
+
+      const outcome = await executeCanonicalLapStep({ isManualStep: false })
+      if (outcome.completed || outcome.paused) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
         }
       }
     }, intervalMs)
@@ -788,23 +836,67 @@ export default function LiveRacePage() {
     isRacePaused,
     isExecuting,
     isRaceFinished,
+    sessionRecord?.status,
+    pendingDecisions.length,
+    isSteppingLap,
     simSpeed,
-    currentLap,
-    totalLaps,
-    grid,
-    weather,
-    currentRound,
-    gpInfo,
-    team,
-    playerCarTactics,
-    playerPaceOrders,
-    mechanicalIssues,
-    redFlagState,
-    lapHistory,
-    inheritedTyreKnowledge,
-    driverTireInventories,
-    triggerSaveCheckpoint,
+    executeCanonicalLapStep,
   ])
+
+  // 4.1 HANDLER DO BOTÃO +1 VOLTA (STEP LAP CANÔNICO)
+  // Regras estritas:
+  // - Pausa imediatamente se play estiver ativo;
+  // - Trava concorrência contra duplo-clique e timer;
+  // - Requer/adquire lock de executor se necessário;
+  // - Executa exatamente UMA volta pelo mesmo executeCanonicalLapStep;
+  // - OBRIGATORIAMENTE termina em PAUSADO.
+  const handleStepOneLap = async () => {
+    if (isRaceFinished || sessionRecord?.status === 'completed') return
+    if (isSteppingLapRef.current || isSteppingLap) return
+    if (pendingDecisions.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Avanço Bloqueado',
+        description: 'Resolva a decisão pendente antes de avançar a volta.',
+      })
+      return
+    }
+
+    // Trava de concorrência ativa imediatamente
+    isSteppingLapRef.current = true
+    setIsSteppingLap(true)
+
+    // Se a reprodução automática estiver ligada, limpa o timer e pausa imediatamente
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    setIsRacePaused(true)
+
+    try {
+      // Garantir concessão de executor se ainda não tiver
+      if (!isExecuting) {
+        const acquired = await handleTryAcquireLock()
+        if (!acquired) {
+          return
+        }
+      }
+
+      await executeCanonicalLapStep({ isManualStep: true })
+    } catch (err: any) {
+      console.error('[LiveRacePage] Erro ao avançar 1 volta:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao avançar volta',
+        description: err?.message || 'Falha ao processar volta canônica.',
+      })
+    } finally {
+      // Garantir término estritamente PAUSADO e liberação de trava
+      setIsRacePaused(true)
+      setIsSteppingLap(false)
+      isSteppingLapRef.current = false
+    }
+  }
 
   // REGRA 9: Controles de Play/Pause com bloqueio se houver pendingDecision
   const handleTogglePlayPause = async () => {
@@ -1418,6 +1510,8 @@ export default function LiveRacePage() {
         }}
         isRacePaused={isRacePaused}
         onTogglePause={handleTogglePlayPause}
+        onStepOneLap={handleStepOneLap}
+        isSteppingLap={isSteppingLap}
         handleOpenForcePitModal={(driverId) => {
           if (driverId) setForcePitSelectedDriverId(driverId)
           setForcePitModalOpen(true)
