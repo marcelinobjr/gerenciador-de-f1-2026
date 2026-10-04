@@ -961,27 +961,78 @@ export class CanonicalChampionshipService {
   }
 
   /**
-   * Sincronização opcional não-bloqueante com PocketBase
+   * Sincronização opcional não-bloqueante com PocketBase (Upsert idempotente)
    */
   public async syncSnapshotWithPocketBaseIfAvailable(
     snapshot: ChampionshipSnapshot,
   ): Promise<void> {
     try {
       if (!pb?.collection) return
-      // Tenta gravar na coleção championship_snapshots se ela existir no backend
+      const collection = pb.collection('championship_snapshots')
+
+      const payload = {
+        snapshot_key: snapshot.id,
+        career_id: snapshot.careerId,
+        season: snapshot.season,
+        through_round: snapshot.throughRound,
+        source_race_ids: snapshot.sourceRaceResultIds,
+        source_checksums: snapshot.sourceChecksums,
+        driver_standings: snapshot.driverStandings,
+        constructor_standings: snapshot.constructorStandings,
+      }
+
+      // 1. Consulta prévia por snapshot_key para atualizar se já existir
+      let existingId: string | null = null
       try {
-        await pb.collection('championship_snapshots').create({
-          snapshot_key: snapshot.id,
-          career_id: snapshot.careerId,
-          season: snapshot.season,
-          through_round: snapshot.throughRound,
-          source_race_ids: snapshot.sourceRaceResultIds,
-          source_checksums: snapshot.sourceChecksums,
-          driver_standings: snapshot.driverStandings,
-          constructor_standings: snapshot.constructorStandings,
-        })
+        const safeKey = snapshot.id.replace(/"/g, '\\"')
+        const existingRecord = await collection.getFirstListItem(`snapshot_key = "${safeKey}"`)
+        if (existingRecord?.id) {
+          existingId = existingRecord.id
+        }
       } catch {
-        // Se a coleção não existir no PB, ignora silenciosamente sem falhar o fluxo esportivo
+        // Registro não encontrado ou erro de consulta — segue para tentativa de criação
+      }
+
+      if (existingId) {
+        try {
+          await collection.update(existingId, payload)
+          return
+        } catch (updateErr) {
+          console.warn(
+            '[CanonicalChampionshipService] Erro ao atualizar snapshot existente no PB:',
+            updateErr,
+          )
+          return
+        }
+      }
+
+      // 2. Se não encontrou previamente, tenta criar
+      try {
+        await collection.create(payload)
+      } catch (createErr: any) {
+        // 3. Tratamento de condição de corrida (create falha por unicidade / validation_not_unique)
+        const isUniqueError =
+          createErr?.status === 400 &&
+          (createErr?.response?.data?.snapshot_key?.code === 'validation_not_unique' ||
+            createErr?.data?.snapshot_key?.code === 'validation_not_unique' ||
+            createErr?.message?.includes('validation_not_unique') ||
+            createErr?.message?.includes('Value must be unique'))
+
+        if (isUniqueError) {
+          try {
+            const safeKey = snapshot.id.replace(/"/g, '\\"')
+            const raceRecord = await collection.getFirstListItem(`snapshot_key = "${safeKey}"`)
+            if (raceRecord?.id) {
+              await collection.update(raceRecord.id, payload)
+            }
+          } catch (retryErr) {
+            console.warn(
+              '[CanonicalChampionshipService] Falha no fallback de update pós-conflito no PB:',
+              retryErr,
+            )
+          }
+        }
+        // Se a coleção não existir no PB ou outro erro, ignora sem quebrar o fluxo esportivo
       }
     } catch (e) {
       console.warn('[CanonicalChampionshipService] Erro ao sincronizar snapshot no PB:', e)
