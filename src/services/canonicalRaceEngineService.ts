@@ -170,13 +170,28 @@ export class CanonicalRaceEngineService {
     const carPerf = Number((chassis * 0.7 + effectivePU.effectivePuRating * 0.3).toFixed(1))
     const reliability = tech.attributes?.reliability ?? 80
 
+    // PU-05A2-P2: Resolução da condição da unidade de potência individual vinculada
+    // Se a unidade vinculada tiver condição inicial/atual persistida (0 a 100%),
+    // expõe essa condição para consumidores esportivos.
+    // Preserva fornecedor, integração e conhecimento da equipe.
+    const rawLinkedCondition =
+      typeof driver.powerUnitCondition === 'number'
+        ? driver.powerUnitCondition
+        : typeof driver.powerUnitInitialCondition === 'number'
+          ? driver.powerUnitInitialCondition
+          : null
+
+    const linkedPuCondition =
+      rawLinkedCondition !== null ? Math.max(0, Math.min(100, rawLinkedCondition)) : null
+
     return {
       chassisRating: chassis,
       puRating: effectivePU.effectivePuRating,
       carPerf,
       reliability,
       technicalAttributes: tech.attributes,
-      puCondition,
+      linkedPuCondition,
+      powerUnitId: driver.powerUnitId,
     }
   }
 
@@ -379,20 +394,22 @@ export class CanonicalRaceEngineService {
     const fuelEffectSec = (driver.fuel / 100.0) * 1.5
 
     // 5. Condição do Carro e Desgaste da PU (BALANCE-EQUATION-02B Regras 7, 9, 10, 29)
-    // PU-05A2-P2: O desgaste da PU utiliza a condição real da unidade física vinculada ao participante
-    // Preserva o desgaste acumulado da prova sem aplicar desgaste agregado e individual em duplicidade.
-    let basePUWear = 0
-    if (typeof driver.powerUnitInitialCondition === 'number') {
-      basePUWear = Math.max(0, 100 - driver.powerUnitInitialCondition)
+    // PU-05A2-P2: O desgaste da PU utiliza a condição real da unidade física vinculada ao participante.
+    // Onde antes usava o estado agregado ((100 - driver.carCondition) * 0.85),
+    // usa a condição da unidade vinculada (100 - linkedPuCondition) se disponível.
+    // Preserva fornecedor/integração/conhecimento da equipe, fórmulas e coeficientes,
+    // sem aplicar desgaste agregado e individual em duplicidade.
+    let puWearPercent = 0
+    if (car.linkedPuCondition !== null) {
+      puWearPercent = Math.max(0, 100 - car.linkedPuCondition)
+    } else {
+      puWearPercent = (100 - driver.carCondition) * 0.85
     }
-    const lapPUWearIncrement = (100 - driver.carCondition) * 0.85
-    const totalEffectivePUWear = Math.min(100, basePUWear + lapPUWearIncrement)
 
-    const puPenalty = structuralMissingFactorsService.calculatePUWearPenalty(totalEffectivePUWear)
+    const puPenalty = structuralMissingFactorsService.calculatePUWearPenalty(puWearPercent)
     const engineWearPenaltySec = puPenalty.engineWearPenalty
 
     const damagePenaltySec = (100 - driver.carCondition) * 0.04 + engineWearPenaltySec
-
     // 6. Efeito da Largada (Volta 1)
     // Na primeira volta, o grid parte parado: tempo de reação + aceleração inicial
     // Carros no fundo do grid perdem tempo natural por estarem atrás na fila
@@ -474,7 +491,12 @@ export class CanonicalRaceEngineService {
       basePUWear = Math.max(0, 100 - driver.powerUnitInitialCondition)
     }
     const lapPUWearIncrement = (100 - driver.carCondition) * 0.85
-    const puWearPercent = Math.min(100, basePUWear + lapPUWearIncrement)
+    // PU-05A2-P2: Se a unidade vinculada tiver condição inicial/atual conhecida,
+    // usamos seu desgaste real sem aplicar desgaste agregado e individual em duplicidade.
+    const puWearPercent =
+      car.linkedPuCondition !== null
+        ? Math.max(0, 100 - car.linkedPuCondition)
+        : Math.min(100, basePUWear + lapPUWearIncrement)
 
     const riskResult = structuralMissingFactorsService.calculateMechanicalFailureRisk({
       carReliability,
