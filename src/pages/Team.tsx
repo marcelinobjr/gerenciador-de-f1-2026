@@ -3049,9 +3049,9 @@ export default function TeamPage() {
               <Sliders className="w-5 h-5 text-[#E10600]" />
               Renegociar Contrato — {renegotiateDriver?.name}
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#64748B]">
+            <div className="text-xs text-[#64748B]">
               Ajuste a oferta salarial (variação de ±20%) e a duração de extensão do vínculo.
-            </DialogDescription>
+            </div>
           </DialogHeader>
 
           {renegotiateDriver && (
@@ -3133,10 +3133,10 @@ export default function TeamPage() {
               <Briefcase className="w-5 h-5 text-[#E10600]" />
               Contratar Piloto — Fluxo Canônico
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#64748B]">
+            <div className="text-xs text-[#64748B]">
               Selecione o piloto elegível e formalize o vínculo preservando integralmente
               identidade, histórico e potencial.
-            </DialogDescription>
+            </div>
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-xs font-mono">
@@ -3311,9 +3311,9 @@ export default function TeamPage() {
               <AlertTriangle className="w-5 h-5 text-red-600" />
               Rescisão Unilateral de Contrato
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#64748B]">
+            <div className="text-xs text-[#64748B]">
               Aviso de multa rescisória obrigatória conforme regulamento FIA 2026.
-            </DialogDescription>
+            </div>
           </DialogHeader>
 
           {fireDriver && (
