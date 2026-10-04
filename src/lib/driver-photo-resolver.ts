@@ -96,80 +96,104 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
     }
   }
 
-  // 2. Piloto Procedural / Newgen com perfil gerado (Piloto_01..Piloto_13)
+  // 2. Piloto Procedural / Newgen com perfil gerado gravado (ORDEM ESTRITA - REGRA A: PERSISTIDO PRIMEIRO)
+  // Resolve direto /pilotos-gerados/{id}.jpg sem busca por nome
   const effectiveGenProfileId =
     generatedPortraitProfileId ||
-    (portraitAssetId && portraitAssetId.startsWith('GEN_') ? portraitAssetId : null) ||
-    (portraitAssetId && portraitAssetId.toLowerCase().startsWith('piloto_')
+    visualIdentity?.generatedPortraitProfileId ||
+    (portraitAssetId &&
+    (portraitAssetId.startsWith('GEN_') || portraitAssetId.toLowerCase().startsWith('piloto'))
       ? portraitAssetId
       : null) ||
-    (visualIdentity?.portraitAssetId && visualIdentity.portraitAssetId.startsWith('GEN_')
-      ? visualIdentity.portraitAssetId
-      : null) ||
     (visualIdentity?.portraitAssetId &&
-    visualIdentity.portraitAssetId.toLowerCase().startsWith('piloto_')
+    (visualIdentity.portraitAssetId.startsWith('GEN_') ||
+      visualIdentity.portraitAssetId.toLowerCase().startsWith('piloto'))
       ? visualIdentity.portraitAssetId
       : null)
 
   if (effectiveGenProfileId) {
-    const genProfile = getGeneratedDriverPortraitProfile(effectiveGenProfileId)
-    if (genProfile) {
-      candidateUrls.push(genProfile.path)
-      return {
-        url: genProfile.path,
-        candidateUrls,
-        fallbackInitials,
-        teamColor: teamColor || '#E10600',
-        sourceType: 'generated_procedural',
-        assetId: genProfile.profileId,
-        driverId: driverId || undefined,
-      }
-    }
-  }
+    const cleanProfileId = effectiveGenProfileId.replace(/\.jpg$/i, '')
+    // Tenta obter do catálogo de perfis gerados ou resolve direto o path
+    const genProfile = getGeneratedDriverPortraitProfile(cleanProfileId)
+    const directPath = genProfile?.path || `/pilotos-gerados/${cleanProfileId}.jpg`
 
-  // 2.5 Resolução Canônica Direta BUG-PILOTOS-01
-  const directCanonicalPath = resolveCanonicalDriverImagePath(driverId, name)
-  if (directCanonicalPath) {
-    candidateUrls.push(directCanonicalPath)
+    candidateUrls.push(directPath)
     return {
-      url: directCanonicalPath,
+      url: directPath,
       candidateUrls,
       fallbackInitials,
       teamColor: teamColor || '#E10600',
-      sourceType: directCanonicalPath.includes('pilotos-gerados')
-        ? 'generated_procedural'
-        : 'canonical_real',
-      assetId: directCanonicalPath.split('/').pop()?.replace('.jpg', ''),
+      sourceType: 'generated_procedural',
+      assetId: genProfile?.profileId || cleanProfileId,
       driverId: driverId || undefined,
     }
   }
 
-  // 3. Piloto Real Canônico (driverId -> assetId DRV_XXXX -> /pilotos/DRV_XXXX.jpg)
-  // Com resiliência para IDs de runtime do PocketBase (ex: '0mow8vmzk0y4z9s' ou '9uazqw522oc9p4z')
-  // resolvendo pelo master canônico via driverId ou normalização por nome.
-  const resolvedMaster =
-    (driverId ? getCanonicalDriverMaster(driverId) : null) ||
-    findCanonicalDriverMaster(driverId, name)
+  // Detecta se é piloto explicitamente procedural (por id, tipo de origem ou visualIdentity)
+  const isProcedural = Boolean(
+    (driverId && driverId.startsWith('drv_proc_')) ||
+    (visualIdentity && !portraitAssetId?.startsWith('DRV_') && !driverId?.startsWith('mbj-')),
+  )
 
-  const directAssetId = driverId ? getCanonicalAssetId(driverId) : null
-  const effectiveAssetId = resolvedMaster?.assetId || directAssetId
+  // 3. Piloto Real Canônico (DRV_0001..DRV_0188 / Catálogo Master Canônico)
+  // REGRA B: Pilotos procedurais IGNORAM colisões nominais com pilotos reais!
+  // Apenas pilotos não-procedurais fazem busca ampla por nome no catálogo canônico real.
+  if (!isProcedural) {
+    // 3.1 Resolução Canônica Direta BUG-PILOTOS-01
+    const directCanonicalPath = resolveCanonicalDriverImagePath(driverId, name)
+    if (directCanonicalPath && !directCanonicalPath.includes('pilotos-gerados')) {
+      candidateUrls.push(directCanonicalPath)
+      return {
+        url: directCanonicalPath,
+        candidateUrls,
+        fallbackInitials,
+        teamColor: teamColor || '#E10600',
+        sourceType: 'canonical_real',
+        assetId: directCanonicalPath.split('/').pop()?.replace('.jpg', ''),
+        driverId: driverId || undefined,
+      }
+    }
 
-  if (effectiveAssetId && effectiveAssetId.startsWith('DRV_')) {
-    const canonicalPath = `/pilotos/${effectiveAssetId}.jpg`
-    candidateUrls.push(canonicalPath)
+    // 3.2 Se o próprio portraitAssetId fornecido for um DRV_XXXX
+    if (portraitAssetId && portraitAssetId.startsWith('DRV_')) {
+      const canonicalPath = `/pilotos/${portraitAssetId}.jpg`
+      candidateUrls.push(canonicalPath)
+      return {
+        url: canonicalPath,
+        candidateUrls,
+        fallbackInitials,
+        teamColor: teamColor || '#E10600',
+        sourceType: 'canonical_real',
+        assetId: portraitAssetId,
+        driverId: driverId || undefined,
+      }
+    }
 
-    return {
-      url: canonicalPath,
-      candidateUrls,
-      fallbackInitials,
-      teamColor: teamColor || '#E10600',
-      sourceType: 'canonical_real',
-      assetId: effectiveAssetId,
-      driverId: resolvedMaster?.driverId || driverId || undefined,
+    // 3.3 Piloto Real Canônico (driverId -> assetId DRV_XXXX -> /pilotos/DRV_XXXX.jpg)
+    const resolvedMaster =
+      (driverId ? getCanonicalDriverMaster(driverId) : null) ||
+      findCanonicalDriverMaster(driverId, name)
+
+    const directAssetId = driverId ? getCanonicalAssetId(driverId) : null
+    const effectiveAssetId = resolvedMaster?.assetId || directAssetId
+
+    if (effectiveAssetId && effectiveAssetId.startsWith('DRV_')) {
+      const canonicalPath = `/pilotos/${effectiveAssetId}.jpg`
+      candidateUrls.push(canonicalPath)
+
+      return {
+        url: canonicalPath,
+        candidateUrls,
+        fallbackInitials,
+        teamColor: teamColor || '#E10600',
+        sourceType: 'canonical_real',
+        assetId: effectiveAssetId,
+        driverId: resolvedMaster?.driverId || driverId || undefined,
+      }
     }
   }
 
-  // 4. Se o próprio portraitAssetId fornecido for um DRV_XXXX
+  // 4. Se o próprio portraitAssetId fornecido for um DRV_XXXX (caso especial para procedurais com asset DRV)
   if (portraitAssetId && portraitAssetId.startsWith('DRV_')) {
     const canonicalPath = `/pilotos/${portraitAssetId}.jpg`
     candidateUrls.push(canonicalPath)
@@ -184,12 +208,17 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
     }
   }
 
-  // 5. MUDANÇA 1 — Atribuição automática de foto quando o piloto não tiver foto,
-  // respeitando o gênero de identidade e determinismo por hash FNV-1a.
-  // Válido sempre que houver driverId ou name identificado.
-  if (driverId || (name && name.trim())) {
+  // 5. REGRA C: Hash determinístico SÓ como último fallback, usando semente imutável
+  // (prioriza visualSeed ou driverId original se presente, evitando id volátil do banco)
+  if (driverId || (name && name.trim()) || visualIdentity?.visualSeed) {
+    const immutableSeed =
+      (visualIdentity?.visualSeed !== undefined ? `seed_${visualIdentity.visualSeed}` : null) ||
+      (driverId && driverId.startsWith('drv_proc_') ? driverId : null) ||
+      (driverId && driverId.trim()) ||
+      (name && name.trim().toLowerCase())
+
     const autoAssignedPath = assignGeneratedPortrait({
-      driverId,
+      driverId: immutableSeed,
       name,
       gender: options.gender,
       visualIdentity,

@@ -191,6 +191,13 @@ export default function TeamPage() {
       return
     }
     try {
+      const { driverPortraitBackfillService } =
+        await import('@/services/driverPortraitBackfillService')
+      driverPortraitBackfillService.runBackfill().catch(() => {})
+    } catch {
+      // Ignora erro no import dinâmico de backfill
+    }
+    try {
       const [tDrivers, allD, seasonResults, testsRes] = await Promise.all([
         f1Service.getTeamDrivers(team.id).catch(() => []),
         f1Service.getAllDrivers().catch(() => []),
@@ -456,7 +463,8 @@ export default function TeamPage() {
             ? rawCandidateProc.visualIdentity.portraitAssetId
             : null)
 
-        let assignedPortraitAssetId = rawCandidateProc.visualIdentity?.portraitAssetId || assignedProfileId
+        let assignedPortraitAssetId =
+          rawCandidateProc.visualIdentity?.portraitAssetId || assignedProfileId
 
         if (!assignedProfileId) {
           const assigned = assignGeneratedPortraitProfile(

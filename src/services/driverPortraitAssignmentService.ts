@@ -172,9 +172,7 @@ export function assignGeneratedPortraitProfile(
   const pool = resolvedGender === 'female' ? FEMALE_PORTRAITS_POOL : MALE_PORTRAITS_POOL
 
   const identifier =
-    typeof seedOrId === 'number'
-      ? `seed_${seedOrId}`
-      : (seedOrId && seedOrId.trim()) || 'seed_0'
+    typeof seedOrId === 'number' ? `seed_${seedOrId}` : (seedOrId && seedOrId.trim()) || 'seed_0'
 
   const hash = hashDriverIdentifier(identifier)
   const indexInPool = hash % pool.length

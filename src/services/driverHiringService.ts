@@ -153,7 +153,10 @@ export const driverHiringService = {
     // Se verdadeiramente não existe registro persistido no banco para este piloto, cria uma única vez
     if (!finalDriverId) {
       let initialProcData = driver.procedural_data || {}
-      if (driver.origin_type === 'procedural' || (!driver.id?.startsWith('DRV_') && !driver.id?.startsWith('mbj-'))) {
+      if (
+        driver.origin_type === 'procedural' ||
+        (!driver.id?.startsWith('DRV_') && !driver.id?.startsWith('mbj-'))
+      ) {
         const existingProfileId =
           initialProcData.generatedPortraitProfileId ||
           initialProcData.visualIdentity?.generatedPortraitProfileId ||

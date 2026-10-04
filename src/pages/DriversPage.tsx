@@ -290,6 +290,13 @@ export default function DriversPage() {
   const loadDatabaseData = useCallback(async () => {
     try {
       setIsLoading(true)
+      try {
+        const { driverPortraitBackfillService } =
+          await import('@/services/driverPortraitBackfillService')
+        driverPortraitBackfillService.runBackfill().catch(() => {})
+      } catch {
+        /* intentionally ignored */
+      }
       const [driversRes, teamsRes, testsRes] = await Promise.all([
         pb.collection('drivers').getFullList<DriverModel>({
           sort: '-speed',
