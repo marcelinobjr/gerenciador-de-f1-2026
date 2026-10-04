@@ -18,6 +18,10 @@ import { getGeneratedDriverPortraitProfile } from '@/lib/generated-driver-profil
 import { resolveCanonicalDriverImagePath } from '@/lib/driver-canonical-service'
 
 import { DriverVisualAssetIdentity } from '@/types/procedural-driver'
+import {
+  assignGeneratedPortrait,
+  resolveDriverIdentityGender,
+} from '@/services/driverPortraitAssignmentService'
 
 export interface ResolvedDriverPhoto {
   url: string | null
@@ -37,6 +41,7 @@ export interface DriverPhotoResolveOptions {
   portraitAssetId?: string | null
   generatedPortraitProfileId?: string | null
   customImageUrl?: string | null
+  gender?: string | null
 }
 
 /**
@@ -179,7 +184,33 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
     }
   }
 
-  // 5. Fallback para inicial
+  // 5. MUDANÇA 1 — Atribuição automática de foto quando o piloto não tiver foto,
+  // respeitando o gênero de identidade e determinismo por hash FNV-1a.
+  // Válido sempre que houver driverId ou name identificado.
+  if (driverId || (name && name.trim())) {
+    const autoAssignedPath = assignGeneratedPortrait({
+      driverId,
+      name,
+      gender: options.gender,
+      visualIdentity,
+    })
+
+    if (autoAssignedPath) {
+      candidateUrls.push(autoAssignedPath)
+      const cleanAssetId = autoAssignedPath.split('/').pop()?.replace('.jpg', '')
+      return {
+        url: autoAssignedPath,
+        candidateUrls,
+        fallbackInitials,
+        teamColor: teamColor || '#E10600',
+        sourceType: 'generated_procedural',
+        assetId: cleanAssetId,
+        driverId: driverId || undefined,
+      }
+    }
+  }
+
+  // 6. Fallback final para inicial (quando nem id nem nome existirem)
   return {
     url: null,
     candidateUrls,
