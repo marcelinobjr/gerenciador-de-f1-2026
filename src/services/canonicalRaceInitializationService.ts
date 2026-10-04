@@ -261,7 +261,7 @@ export const canonicalRaceInitializationService = {
       }
 
       // PU-05A2-P2a: Vincular a unidade física ao participante na inicialização pela identidade real de equipe/carro.
-      // Se a associação for inválida ou a unidade não existir, deixar campos indefinidos (comportamento legado).
+      // Uma unidade selecionada para a nova corrida deve existir no inventário; sua ausência interrompe a inicialização.
       let powerUnitId: number | undefined
       let powerUnitInitialCondition: number | undefined
 
@@ -272,15 +272,20 @@ export const canonicalRaceInitializationService = {
           const unitInHistory = playerTeamEngineHistory.find(
             (eng: any) => Number(eng.id) === allocatedUnitNumber,
           )
-          if (unitInHistory) {
-            powerUnitId = allocatedUnitNumber
-            powerUnitInitialCondition =
-              typeof unitInHistory.condition === 'number'
-                ? unitInHistory.condition
-                : typeof unitInHistory.wear === 'number'
-                  ? Math.max(0, 100 - unitInHistory.wear)
-                  : 100
+
+          if (!unitInHistory) {
+            throw new Error(
+              `[PU-05A2-P2a] Alocação de Unidade de Potência inválida para a nova corrida: A unidade PU-${allocatedUnitNumber} não existe no inventário da equipe.`,
+            )
           }
+
+          powerUnitId = allocatedUnitNumber
+          powerUnitInitialCondition =
+            typeof unitInHistory.condition === 'number'
+              ? unitInHistory.condition
+              : typeof unitInHistory.wear === 'number'
+                ? Math.max(0, 100 - unitInHistory.wear)
+                : 100
         }
       } // BUG-02 COMMIT C: Se houver preparação confirmada por carro, respeitá-la estritamente!
       const explicitPrep =
