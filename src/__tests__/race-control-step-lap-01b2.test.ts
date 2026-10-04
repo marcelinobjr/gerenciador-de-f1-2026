@@ -59,6 +59,9 @@ function createStandardMockGrid(count = 24): SimDriverEntry[] {
       gapToFront: i === 1 ? '+0.000s' : '+1.500s',
       isPlayer: i <= 2,
       dnf: false,
+      points: 0,
+      fastestLap: false,
+      usedOvertake: false,
     })
   }
   return grid

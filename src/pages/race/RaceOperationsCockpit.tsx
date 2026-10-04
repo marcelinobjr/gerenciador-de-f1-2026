@@ -19,6 +19,8 @@ export type LiveTacticalMode = 'attack' | 'normal' | 'save_fuel'
 
 export interface RaceOperationsCockpitProps {
   isRaceSession: boolean
+  onStepOneLap?: () => void
+  isSteppingLap?: boolean
   liveRaceState: {
     inProgress: boolean
     currentLap: number
