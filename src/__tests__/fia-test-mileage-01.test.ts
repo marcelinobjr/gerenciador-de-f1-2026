@@ -98,7 +98,7 @@ describe('FIA-TEST-MILEAGE-01: Canonical Test Mileage & FIA Homologation Integra
     // Verifica que satisfaz o requisito de quilometragem da FIA
     const minRequiredKm = HOMOLOGATION_CONFIG.minValidTests * HOMOLOGATION_CONFIG.minKmPerTest
     expect(minRequiredKm).toBe(1200)
-    expect(total).toBeGreaterThanOrEqual(minRequiredKm)
+    expect(total).toBe(1201)
   })
 
   // FTM05: teste cancelado/não concluído -> não soma
