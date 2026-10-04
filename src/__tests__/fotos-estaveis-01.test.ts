@@ -56,7 +56,7 @@ describe('FOTOS-ESTAVEIS-01 — Estabilidade de Retratos de Pilotos Gerados e Re
     // A foto DEVE permanecer exatamente a mesma
     expect(reloadedResolved.url).toBe(initialResolved.url)
     expect(reloadedResolved.assetId).toBe(initialResolved.assetId)
-    expect(reloadedResolved.sourceType).toBe('generated_pool')
+    expect(reloadedResolved.sourceType).toBe('generated_procedural')
   })
 
   // =========================================================================
@@ -81,7 +81,7 @@ describe('FOTOS-ESTAVEIS-01 — Estabilidade de Retratos de Pilotos Gerados e Re
     const resolved = resolveDriverPhoto(collidingProceduralDriver)
 
     // NÃO deve resolver para /pilotos/DRV_xxxx.jpg nem para a foto real do Gabriel Bortoleto
-    expect(resolved.sourceType).toBe('generated_pool')
+    expect(resolved.sourceType).toBe('generated_procedural')
     expect(resolved.url).toBe(`/pilotos-gerados/${assigned.profileId}.jpg`)
     expect(resolved.url).not.toContain('/pilotos/DRV_')
   })
@@ -266,5 +266,51 @@ describe('FOTOS-ESTAVEIS-01 — Estabilidade de Retratos de Pilotos Gerados e Re
     expect(sanitized.procedural_data?.visualIdentity?.generatedPortraitProfileId).toBe(
       fixedProfileId,
     )
+  })
+
+  // =========================================================================
+  // CENÁRIO F: Pools homologados de Fotos Geradas FOTOS-GERADAS-01
+  // Homens: Piloto_01, 02, 06, 08, 10, 12, 14, 17, 19, 20, 21, 23, 28, 30, 31, 33, 35, 37, 39, 42, 46, 49, 52, 58 (24 fotos)
+  // Mulheres: todas as 42 demais fotos
+  // =========================================================================
+  it('(f) sorteios respeitam estritamente a partição homologada de 24 homens e 42 mulheres', () => {
+    const maleSet = new Set([
+      'Piloto_01',
+      'Piloto_02',
+      'Piloto_06',
+      'Piloto_08',
+      'Piloto_10',
+      'Piloto_12',
+      'Piloto_14',
+      'Piloto_17',
+      'Piloto_19',
+      'Piloto_20',
+      'Piloto_21',
+      'Piloto_23',
+      'Piloto_28',
+      'Piloto_30',
+      'Piloto_31',
+      'Piloto_33',
+      'Piloto_35',
+      'Piloto_37',
+      'Piloto_39',
+      'Piloto_42',
+      'Piloto_46',
+      'Piloto_49',
+      'Piloto_52',
+      'Piloto_58',
+    ])
+
+    // Testa amostragem determinística masculina
+    for (let i = 0; i < 50; i++) {
+      const assignedMale = assignGeneratedPortraitProfile('male', `male_test_seed_${i}`)
+      expect(maleSet.has(assignedMale.profileId)).toBe(true)
+    }
+
+    // Testa amostragem determinística feminina
+    for (let i = 0; i < 50; i++) {
+      const assignedFemale = assignGeneratedPortraitProfile('female', `female_test_seed_${i}`)
+      expect(maleSet.has(assignedFemale.profileId)).toBe(false)
+    }
   })
 })

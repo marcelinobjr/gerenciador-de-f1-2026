@@ -42,6 +42,7 @@ export interface DriverPhotoResolveOptions {
   generatedPortraitProfileId?: string | null
   customImageUrl?: string | null
   gender?: string | null
+  originType?: string | null
 }
 
 /**
@@ -129,8 +130,9 @@ export function resolveDriverPhoto(options: DriverPhotoResolveOptions): Resolved
     }
   }
 
-  // Detecta se é piloto explicitamente procedural (por id, tipo de origem, visualIdentity ou perfil gerado)
+  // Detecta se é piloto explicitamente procedural (por originType, id, visualIdentity ou perfil gerado)
   const isProcedural = Boolean(
+    options.originType === 'procedural' ||
     (driverId && (driverId.startsWith('drv_proc_') || driverId.startsWith('proc_'))) ||
     Boolean(generatedPortraitProfileId) ||
     Boolean(visualIdentity?.generatedPortraitProfileId) ||
