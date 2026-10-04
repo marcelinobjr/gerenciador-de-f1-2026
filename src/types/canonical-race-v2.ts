@@ -215,6 +215,7 @@ export interface CanonicalRaceDriverState {
   carIndex?: 1 | 2
   powerUnitId?: number
   powerUnitInitialCondition?: number
+  powerUnitCondition?: number
   tyreSetId?: string
   initialTyreWear?: number
   initialTyreLapsUsed?: number
