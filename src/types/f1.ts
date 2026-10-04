@@ -72,6 +72,15 @@ export interface TeamModel {
   }>
   rd_penalty_rounds_left?: number // Rodadas com eficácia de P&D/Oficina reduzida pela FIA
   constructors_points_deduction?: number // Dedução de pontos nos construtores
+  car_specifications?: {
+    power_unit_allocations?: {
+      car1Unit: number
+      car2Unit: number
+      updatedAt?: string
+      careerId?: string
+    }
+    [key: string]: any
+  }
   engine_history?: Array<{
     id: number
     wear: number
@@ -81,6 +90,7 @@ export interface TeamModel {
     exceedsQuota?: boolean
     condition?: number
     mileage_km?: number
+    assignedCar?: 1 | 2
   }>
   grid_penalties?: Array<{
     id: string

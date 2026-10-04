@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
 import { f1Service, FREE_ENGINE_QUOTA } from '@/services/f1Service'
+import { canonicalPowerUnitAllocationService } from '@/services/canonicalPowerUnitAllocationService'
 import { infrastructureCapabilityService } from '@/services/infrastructureCapabilityService'
 import { formatCurrency } from '@/lib/formatters'
 import { ENGINE_SUPPLIERS, F1_2026_CALENDAR } from '@/lib/f1-data'
@@ -76,24 +77,23 @@ export default function InfrastructurePage() {
     }
   }, [searchParams])
 
-  // Estado da Alocação de Motores (Carro #1 e Carro #2) com persistência local e save
-  const [car1PuUnit, setCar1PuUnit] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('apex_gp_car1_engine_unit')
-      return saved ? parseInt(saved, 10) : 1
-    } catch {
-      return 1
-    }
-  })
+  // Estado da Alocação de Motores (Carro #1 e Carro #2) com persistência canônica e save
+  const initialAlloc = useMemo(() => {
+    return canonicalPowerUnitAllocationService.resolveAllocation({
+      team,
+      season,
+    })
+  }, [team, season])
 
-  const [car2PuUnit, setCar2PuUnit] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('apex_gp_car2_engine_unit')
-      return saved ? parseInt(saved, 10) : 2
-    } catch {
-      return 2
-    }
-  })
+  const [car1PuUnit, setCar1PuUnit] = useState<number>(initialAlloc.car1Unit)
+  const [car2PuUnit, setCar2PuUnit] = useState<number>(initialAlloc.car2Unit)
+
+  // Sincroniza alocação quando team ou season atualizarem
+  useEffect(() => {
+    const alloc = canonicalPowerUnitAllocationService.resolveAllocation({ team, season })
+    setCar1PuUnit(alloc.car1Unit)
+    setCar2PuUnit(alloc.car2Unit)
+  }, [team?.id, (team as any)?.car_specifications, team?.engine_history, season?.id])
 
   // Contrato Futuro de Motor salvo
   const [futurePuContract, setFuturePuContract] = useState<{
@@ -341,16 +341,44 @@ export default function InfrastructurePage() {
   }
 
   // Handlers de Alocação de PU
-  const handleConfirmAllocation = (newC1: number, newC2: number) => {
-    setCar1PuUnit(newC1)
-    setCar2PuUnit(newC2)
-    localStorage.setItem('apex_gp_car1_engine_unit', newC1.toString())
-    localStorage.setItem('apex_gp_car2_engine_unit', newC2.toString())
+  const handleConfirmAllocation = async (newC1: number, newC2: number) => {
+    if (!team) return
 
-    toast({
-      title: 'Alocação de Power Unit Atualizada!',
-      description: `Carro #1 montado com PU${newC1} • Carro #2 montado com PU${newC2}. Telemetria sincronizada.`,
-    })
+    // Validação preventiva
+    const validation = canonicalPowerUnitAllocationService.validateAllocation(newC1, newC2, team)
+    if (!validation.valid) {
+      toast({
+        variant: 'destructive',
+        title: 'Alocação Inválida',
+        description: validation.error || 'Configuração de montagem de PU rejeitada.',
+      })
+      return
+    }
+
+    try {
+      const updatedAlloc = await canonicalPowerUnitAllocationService.setAllocation({
+        team,
+        car1Unit: newC1,
+        car2Unit: newC2,
+        season,
+      })
+
+      setCar1PuUnit(updatedAlloc.car1Unit)
+      setCar2PuUnit(updatedAlloc.car2Unit)
+
+      await refreshTeamAndSeason()
+
+      toast({
+        title: 'Alocação de Power Unit Atualizada!',
+        description: `Carro #1 montado com PU${newC1} • Carro #2 montado com PU${newC2}. Associação persistida no save da carreira.`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao Persistir Montagem',
+        description: err.message || 'Falha ao salvar a alocação no backend.',
+      })
+    }
   }
 
   // Handlers de Negociação de Fornecedor

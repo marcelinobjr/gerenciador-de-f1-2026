@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service, FREE_ENGINE_QUOTA } from '@/services/f1Service'
+import { canonicalPowerUnitAllocationService } from '@/services/canonicalPowerUnitAllocationService'
 import { teamRosterService } from '@/services/teamRosterService'
 import { useRealtime } from '@/hooks/use-realtime'
 import { PartModel, DriverModel } from '@/types/f1'
@@ -84,22 +85,22 @@ export default function CarPage() {
   const [quickSwapSelectorOpen, setQuickSwapSelectorOpen] = useState(false)
 
   // Configuração e Estado Canônico Individual por Carro (#1 e #2)
-  const [engineUnitCar1, setEngineUnitCar1] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('apex_gp_car1_engine_unit')
-      return saved ? parseInt(saved, 10) : 2
-    } catch {
-      return 2
-    }
-  })
-  const [engineUnitCar2, setEngineUnitCar2] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('apex_gp_car2_engine_unit')
-      return saved ? parseInt(saved, 10) : 1
-    } catch {
-      return 1
-    }
-  })
+  const initialAlloc = useMemo(() => {
+    return canonicalPowerUnitAllocationService.resolveAllocation({
+      team,
+      season,
+    })
+  }, [team, season])
+
+  const [engineUnitCar1, setEngineUnitCar1] = useState<number>(initialAlloc.car1Unit)
+  const [engineUnitCar2, setEngineUnitCar2] = useState<number>(initialAlloc.car2Unit)
+
+  // Sincroniza estado local com resolução canônica quando team ou season atualizarem
+  useEffect(() => {
+    const alloc = canonicalPowerUnitAllocationService.resolveAllocation({ team, season })
+    setEngineUnitCar1(alloc.car1Unit)
+    setEngineUnitCar2(alloc.car2Unit)
+  }, [team?.id, (team as any)?.car_specifications, team?.engine_history, season?.id])
 
   // Specs e desgaste específicos por carro
   const [car1Specs, setCar1Specs] = useState<Record<string, string>>(() => {
@@ -254,26 +255,15 @@ export default function CarPage() {
   const [activeSwapPartType, setActiveSwapPartType] = useState<string>('frontWing')
   const [technicalSelectedCarPU, setTechnicalSelectedCarPU] = useState<1 | 2>(1)
 
-  // Salva no localStorage quando alterado para sobrevivência ao reload e navegação
+  // Salva specs e seriais no cache do navegador quando alterados
   useEffect(() => {
-    localStorage.setItem('apex_gp_car1_engine_unit', engineUnitCar1.toString())
-    localStorage.setItem('apex_gp_car2_engine_unit', engineUnitCar2.toString())
     localStorage.setItem('apex_gp_car1_specs', JSON.stringify(car1Specs))
     localStorage.setItem('apex_gp_car2_specs', JSON.stringify(car2Specs))
     localStorage.setItem('apex_gp_car1_conditions', JSON.stringify(car1Conditions))
     localStorage.setItem('apex_gp_car2_conditions', JSON.stringify(car2Conditions))
     localStorage.setItem('apex_gp_car1_part_serials', JSON.stringify(car1PartSerials))
     localStorage.setItem('apex_gp_car2_part_serials', JSON.stringify(car2PartSerials))
-  }, [
-    engineUnitCar1,
-    engineUnitCar2,
-    car1Specs,
-    car2Specs,
-    car1Conditions,
-    car2Conditions,
-    car1PartSerials,
-    car2PartSerials,
-  ])
+  }, [car1Specs, car2Specs, car1Conditions, car2Conditions, car1PartSerials, car2PartSerials])
 
   // Handlers para troca de motor individual por carro
   const handleOpenEngineSwapModal = (targetCar: 1 | 2) => {
@@ -281,42 +271,64 @@ export default function CarPage() {
     setEngineSwapModalOpen(true)
   }
 
-  const handleConfirmEngineSwap = (targetCar: 1 | 2, unitNumber: number) => {
-    if (targetCar === 1) {
-      if (unitNumber === engineUnitCar2) {
-        toast({
-          variant: 'destructive',
-          title: 'Unidade Ocupada',
-          description: `A PU-${unitNumber} já está instalada no Carro #2! Não é permitido compartilhar o mesmo motor.`,
-        })
-        return
-      }
-      setEngineUnitCar1(unitNumber)
-      setCar1Specs((prev) => ({
-        ...prev,
-        engine: `PU-${unitNumber} (${team?.engine_supplier || 'Audi Sport'})`,
-      }))
+  const handleConfirmEngineSwap = async (targetCar: 1 | 2, unitNumber: number) => {
+    if (!team) return
+
+    // Validação preventiva no UI e no serviço canônico
+    const validation = canonicalPowerUnitAllocationService.validateAllocation(
+      targetCar === 1 ? unitNumber : engineUnitCar1,
+      targetCar === 2 ? unitNumber : engineUnitCar2,
+      team,
+    )
+
+    if (!validation.valid) {
       toast({
-        title: `Motor do Carro #1 Atualizado!`,
-        description: `Unidade física PU-${unitNumber} montada com sucesso no carro de ${roster.starter1?.name || 'Piloto 1'}.`,
+        variant: 'destructive',
+        title: 'Unidade Ocupada ou Inválida',
+        description:
+          validation.error ||
+          `A PU-${unitNumber} já está instalada no outro carro! Não é permitido compartilhar o mesmo motor.`,
       })
-    } else {
-      if (unitNumber === engineUnitCar1) {
+      return
+    }
+
+    try {
+      const updatedAlloc = await canonicalPowerUnitAllocationService.setSingleCarAllocation({
+        team,
+        targetCar,
+        unitNumber,
+        season,
+      })
+
+      setEngineUnitCar1(updatedAlloc.car1Unit)
+      setEngineUnitCar2(updatedAlloc.car2Unit)
+
+      if (targetCar === 1) {
+        setCar1Specs((prev) => ({
+          ...prev,
+          engine: `PU-${unitNumber} (${team?.engine_supplier || 'Audi Sport'})`,
+        }))
         toast({
-          variant: 'destructive',
-          title: 'Unidade Ocupada',
-          description: `A PU-${unitNumber} já está instalada no Carro #1! Não é permitido compartilhar o mesmo motor.`,
+          title: `Motor do Carro #1 Atualizado!`,
+          description: `Unidade física PU-${unitNumber} montada e persistida no save no carro de ${roster.starter1?.name || 'Piloto 1'}.`,
         })
-        return
+      } else {
+        setCar2Specs((prev) => ({
+          ...prev,
+          engine: `PU-${unitNumber} (${team?.engine_supplier || 'Audi Sport'})`,
+        }))
+        toast({
+          title: `Motor do Carro #2 Atualizado!`,
+          description: `Unidade física PU-${unitNumber} montada e persistida no save no carro de ${roster.starter2?.name || 'Piloto 2'}.`,
+        })
       }
-      setEngineUnitCar2(unitNumber)
-      setCar2Specs((prev) => ({
-        ...prev,
-        engine: `PU-${unitNumber} (${team?.engine_supplier || 'Audi Sport'})`,
-      }))
+
+      await refreshTeamAndSeason()
+    } catch (err: any) {
       toast({
-        title: `Motor do Carro #2 Atualizado!`,
-        description: `Unidade física PU-${unitNumber} montada com sucesso no carro de ${roster.starter2?.name || 'Piloto 2'}.`,
+        variant: 'destructive',
+        title: 'Erro ao Persistir Montagem',
+        description: err.message || 'Falha ao salvar a alocação da Power Unit.',
       })
     }
   }
