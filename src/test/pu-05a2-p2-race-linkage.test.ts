@@ -18,7 +18,7 @@ import { canonicalRaceSaveService } from '@/services/canonicalRaceSaveService'
 import type { TeamModel } from '@/types/f1'
 import type { FinalQualifyingGridEntry } from '@/types/canonical-qualifying-types'
 import type { CanonicalRaceState } from '@/types/canonical-race-v2'
-
+    
 describe('PU-05A2-P2: Vínculo Canônico Unidade -> Participante na Sessão de Corrida', () => {
   const createMockTeam = (id: string, overrides: Partial<TeamModel> = {}): TeamModel => ({
     id,
