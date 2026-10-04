@@ -1,14 +1,6 @@
 import React, { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import {
-  ChevronDown,
-  ChevronUp,
-  ArrowUp,
-  CloudRain,
-  Wrench,
-  Radio,
-  Flame,
-} from 'lucide-react'
+import { ChevronDown, ChevronUp, ArrowUp, CloudRain, Wrench, Radio, Flame } from 'lucide-react'
 
 export interface RaceEventItem {
   id: string
@@ -101,7 +93,11 @@ export const RecentEventsFeed: React.FC<RecentEventsFeedProps> = ({
           className="text-slate-400 hover:text-white p-0.5 rounded transition-colors"
           title={collapsed ? 'Expandir' : 'Recolher'}
         >
-          {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          {collapsed ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronUp className="w-3.5 h-3.5" />
+          )}
         </button>
       </CardHeader>
 

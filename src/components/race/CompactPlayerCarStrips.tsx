@@ -1,13 +1,7 @@
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  Wrench,
-  SlidersHorizontal,
-  ArrowUp,
-  ArrowDown,
-  AlertTriangle,
-} from 'lucide-react'
+import { Wrench, SlidersHorizontal, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react'
 import type { CanonicalRaceDriverState, DriverPaceMode } from '@/types/canonical-race-v2'
 import type { TireCompound } from '@/types/f1'
 import { getCanonicalDriverMaster } from '@/lib/canonical-driver-database'
@@ -171,9 +165,7 @@ export const CompactPlayerCarStrips: React.FC<CompactPlayerCarStripsProps> = ({
 
                 {/* Posição P# com delta */}
                 <div className="flex items-center gap-1 ml-auto sm:ml-1 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
-                  <span className="font-black text-xs text-white">
-                    P{driver.currentPosition}
-                  </span>
+                  <span className="font-black text-xs text-white">P{driver.currentPosition}</span>
                   {posDelta !== 0 && !isDnf && (
                     <span
                       className={`text-[10px] font-black flex items-center ${
@@ -222,7 +214,9 @@ export const CompactPlayerCarStrips: React.FC<CompactPlayerCarStripsProps> = ({
               {/* SEÇÃO 3: GAPS (À FRENTE, ATRÁS) */}
               <div className="hidden sm:flex items-center gap-2 text-[10px] px-2 py-1 rounded bg-[#0d1527] border border-slate-800/80 shrink-0">
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-sans">À FRENTE</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-sans">
+                    À FRENTE
+                  </span>
                   <span className="text-slate-200 font-bold">{gapAheadDisplay}</span>
                 </div>
                 <span className="text-slate-700">|</span>
@@ -235,14 +229,18 @@ export const CompactPlayerCarStrips: React.FC<CompactPlayerCarStripsProps> = ({
               {/* SEÇÃO 4: TELEMETRIA (ÚLTIMA VOLTA, MELHOR VOLTA) */}
               <div className="hidden md:flex items-center gap-2 text-[10px] px-2 py-1 rounded bg-[#0d1527] border border-slate-800/80 shrink-0">
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-sans">ÚLT. VOLTA</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-sans">
+                    ÚLT. VOLTA
+                  </span>
                   <span className="text-slate-200 font-bold">
                     {driver.lastLapTimeFormatted || '—'}
                   </span>
                 </div>
                 <span className="text-slate-700">|</span>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-sans">MELHOR</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-sans">
+                    MELHOR
+                  </span>
                   <span className="text-purple-300 font-bold">
                     {driver.bestLapFormatted || '—'}
                   </span>
@@ -257,12 +255,16 @@ export const CompactPlayerCarStrips: React.FC<CompactPlayerCarStripsProps> = ({
                 </div>
                 <span className="text-slate-700">|</span>
                 <div className="hidden sm:block">
-                  <span className="text-slate-500 block text-[9px] uppercase font-sans">JANELA</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-sans">
+                    JANELA
+                  </span>
                   <span className="text-cyan-400 font-bold">{pitWindowDisplay}</span>
                 </div>
                 <span className="hidden sm:inline text-slate-700">|</span>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-sans">ESTRAT.</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-sans">
+                    ESTRAT.
+                  </span>
                   <span className="text-amber-300 font-bold">
                     {currentCompoundLetter}→{targetCompoundLetter}
                   </span>

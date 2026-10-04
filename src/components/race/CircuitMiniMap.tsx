@@ -33,7 +33,9 @@ export const CircuitMiniMap: React.FC<CircuitMiniMapProps> = ({
         </span>
       </CardHeader>
 
-      <CardContent className={`${compact ? 'p-2' : 'p-3'} flex items-center justify-center bg-[#070b14]`}>
+      <CardContent
+        className={`${compact ? 'p-2' : 'p-3'} flex items-center justify-center bg-[#070b14]`}
+      >
         <div className="relative w-full max-h-[120px] flex items-center justify-center">
           <svg
             viewBox={track.viewBox}
@@ -77,12 +79,7 @@ export const CircuitMiniMap: React.FC<CircuitMiniMapProps> = ({
                   fill="#E10600"
                   className="animate-pulse"
                 />
-                <circle
-                  cx={track.startFinish.x}
-                  cy={track.startFinish.y}
-                  r="2"
-                  fill="#FFFFFF"
-                />
+                <circle cx={track.startFinish.x} cy={track.startFinish.y} r="2" fill="#FFFFFF" />
               </g>
             )}
           </svg>

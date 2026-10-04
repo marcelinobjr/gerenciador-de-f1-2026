@@ -117,9 +117,7 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
                 <span
                   className={`truncate uppercase tracking-tight ${
                     compact ? 'text-[10px]' : 'text-[11px]'
-                  } ${
-                    isPlayer ? 'text-emerald-300 font-black' : 'text-slate-100 font-semibold'
-                  }`}
+                  } ${isPlayer ? 'text-emerald-300 font-black' : 'text-slate-100 font-semibold'}`}
                   title={driver.driverName}
                 >
                   {lastName}
@@ -160,9 +158,7 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
               {/* GAP */}
               <div className="col-span-2 text-right pr-1">
                 <span
-                  className={`${
-                    compact ? 'text-[9px]' : 'text-[10px]'
-                  } font-mono tracking-tight ${
+                  className={`${compact ? 'text-[9px]' : 'text-[10px]'} font-mono tracking-tight ${
                     isDnf
                       ? 'text-red-400 font-bold'
                       : driver.currentPosition === 1

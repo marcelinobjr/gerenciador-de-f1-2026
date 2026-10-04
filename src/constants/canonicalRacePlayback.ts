@@ -1,10 +1,10 @@
 /**
  * CANONICAL RACE PLAYBACK CONFIGURATION
- * 
+ *
  * Centraliza estritamente os intervalos temporais da cadência de UI da corrida (Race Control).
  * REGRA ABSOLUTA: Velocidade de reprodução de UI, NÃO velocidade esportiva dos carros.
  * Zero alteração em lap time, pace, degradação, consumo, gaps ou PRNG.
- * 
+ *
  * Nova relação (RACE-CONTROL-COMPACT-01):
  * - Baseline anterior: 1000ms no 1x.
  * - Novo 1x: 50% da velocidade atual (progressão que demorava T agora demora ~2T no 1x) => 2000ms.
@@ -30,4 +30,4 @@ export const CANONICAL_RACE_PLAYBACK_CONFIG = {
   },
 } as const
 
-export type CanonicalRaceSpeed = typeof CANONICAL_RACE_PLAYBACK_CONFIG.SPEED_FACTORS[number]
+export type CanonicalRaceSpeed = (typeof CANONICAL_RACE_PLAYBACK_CONFIG.SPEED_FACTORS)[number]

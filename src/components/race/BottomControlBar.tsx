@@ -68,11 +68,7 @@ export const BottomControlBar: React.FC<BottomControlBarProps> = ({
     (typeof trackWetness === 'number' && trackWetness > 20)
 
   const isBlocked =
-    isFinished ||
-    isAwaitingWeatherDecision ||
-    isSuspended ||
-    isRestartPending ||
-    isProcessingBatch
+    isFinished || isAwaitingWeatherDecision || isSuspended || isRestartPending || isProcessingBatch
 
   return (
     <Card className="bg-[#080d1a] border border-slate-800/90 rounded-xl shadow-xl overflow-hidden text-white font-mono">

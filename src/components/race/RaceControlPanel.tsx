@@ -80,7 +80,11 @@ export const RaceControlPanel: React.FC<RaceControlPanelProps> = ({
           className="text-slate-400 hover:text-white p-0.5 rounded transition-colors"
           title={collapsed ? 'Expandir' : 'Recolher'}
         >
-          {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          {collapsed ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronUp className="w-3.5 h-3.5" />
+          )}
         </button>
       </CardHeader>
 
@@ -92,7 +96,12 @@ export const RaceControlPanel: React.FC<RaceControlPanelProps> = ({
               BANDEIRA
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: flagInfo.color.split(' ')[1]?.replace('bg-', '') || '#10b981' }} />
+              <span
+                className="w-2.5 h-2.5 rounded-xs"
+                style={{
+                  backgroundColor: flagInfo.color.split(' ')[1]?.replace('bg-', '') || '#10b981',
+                }}
+              />
               <span className={`font-black text-xs tracking-wider ${flagInfo.color.split(' ')[0]}`}>
                 {flagInfo.label}
               </span>

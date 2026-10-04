@@ -3023,453 +3023,481 @@ export default function WeekendV2Page() {
             />
           </div>
         ) : canonicalRaceState ? (
-          <CanonicalRaceInitializationPanel
-            raceState={canonicalRaceState}
-            hasOfficialResult={!!officialRaceResult}
-            onResetGrid={() => setCanonicalRaceState(null)}
-            onOfficializeRace={() => {
-              try {
-                const canonicalCareerId = resolveCanonicalCareerId(season, team)
-                const stateWithCanonicalId = {
-                  ...canonicalRaceState,
-                  careerId: canonicalCareerId,
-                }
-                const official = canonicalRaceResultService.officializeRace(stateWithCanonicalId)
-                setOfficialRaceResult(official)
-                toast({
-                  title: 'Corrida Oficializada com Sucesso',
-                  description:
-                    'O resultado oficial imutável foi homologado. Registrando na carreira...',
-                })
-
-                // Se for Corrida Sprint, marcar sprint_race como completed nas sessões
-                if (isSprintRaceSession && season?.id) {
-                  const currentStored = readStoredCompletedSessions(season.id, currentRound)
-                  if (!currentStored.includes('sprint_race')) {
-                    const updated = [...currentStored, 'sprint_race']
-                    writeStoredCompletedSessions(season.id, currentRound, updated)
-                    setCompletedSessions(updated)
-                  }
-                }
-
-                // Persistência automática pós-oficialização canônica e idempotente
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-[#0d1627] to-[#080d1a] border border-cyan-500/30 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-cyan-200 font-bold font-mono">
+                  Visualização dedicada disponível: modo compacto de alta densidade sem scroll
+                </span>
+              </div>
+              <Button
+                asChild
+                size="sm"
+                className="h-8 px-3 bg-cyan-600 hover:bg-cyan-500 text-white font-mono font-bold text-xs gap-1.5 shadow-md"
+              >
+                <Link to="/corrida/live">
+                  Abrir Race Control Dedicado →
+                </Link>
+              </Button>            </div>
+            <CanonicalRaceInitializationPanel
+              raceState={canonicalRaceState}
+              hasOfficialResult={!!officialRaceResult}
+              onResetGrid={() => setCanonicalRaceState(null)}
+              onOfficializeRace={() => {
                 try {
-                  setIsPersistingCareer(true)
-                  setCareerPersistenceStatus('APPLYING')
-                  const res =
-                    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
-                  setCareerPersistenceStatus(res.journal.status)
-                  setIsPersistingCareer(false)
+                  const canonicalCareerId = resolveCanonicalCareerId(season, team)
+                  const stateWithCanonicalId = {
+                    ...canonicalRaceState,
+                    careerId: canonicalCareerId,
+                  }
+                  const official = canonicalRaceResultService.officializeRace(stateWithCanonicalId)
+                  setOfficialRaceResult(official)
+                  toast({
+                    title: 'Corrida Oficializada com Sucesso',
+                    description:
+                      'O resultado oficial imutável foi homologado. Registrando na carreira...',
+                  })
+
+                  // Se for Corrida Sprint, marcar sprint_race como completed nas sessões
+                  if (isSprintRaceSession && season?.id) {
+                    const currentStored = readStoredCompletedSessions(season.id, currentRound)
+                    if (!currentStored.includes('sprint_race')) {
+                      const updated = [...currentStored, 'sprint_race']
+                      writeStoredCompletedSessions(season.id, currentRound, updated)
+                      setCompletedSessions(updated)
+                    }
+                  }
+
+                  // Persistência automática pós-oficialização canônica e idempotente
+                  try {
+                    setIsPersistingCareer(true)
+                    setCareerPersistenceStatus('APPLYING')
+                    const res =
+                      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
+                    setCareerPersistenceStatus(res.journal.status)
+                    setIsPersistingCareer(false)
+                    if (res.success) {
+                      // Processar e persistir imediatamente o campeonato canônico desta rodada
+                      canonicalChampionshipService.processAndPersistRoundChampionship(
+                        canonicalCareerId,
+                        season?.year || 2026,
+                        currentRound,
+                      )
+                      toast({
+                        title: 'Registrado na Carreira',
+                        description: 'Estatísticas acumuladas com sucesso.',
+                      })
+                    } else {
+                      setCareerPersistenceError(res.error)
+                    }
+                  } catch (applyErr: any) {
+                    setIsPersistingCareer(false)
+                    setCareerPersistenceStatus('FAILED')
+                    setCareerPersistenceError(applyErr?.message)
+                  }
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao oficializar corrida',
+                    description: e?.message || 'A prova ainda não pode ser oficializada.',
+                  })
+                }
+              }}
+              onRequestPit={(driverId, compound) => {
+                try {
+                  const nextState = raceStrategyService.requestPitStop(
+                    canonicalRaceState,
+                    driverId,
+                    compound,
+                  )
+                  canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                  setCanonicalRaceState(nextState)
+                  toast({
+                    title: 'Pit Stop Solicitado',
+                    description: `Box chamado para o piloto nesta volta com composto ${compound || 'alvo'}.`,
+                  })
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao solicitar pit stop',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onCancelPit={(driverId) => {
+                try {
+                  const nextState = raceStrategyService.cancelPitRequest(
+                    canonicalRaceState,
+                    driverId,
+                  )
+                  canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                  setCanonicalRaceState(nextState)
+                  toast({
+                    title: 'Pit Stop Cancelado',
+                    description:
+                      'A chamada para os boxes foi cancelada. O piloto permanece na pista.',
+                  })
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao cancelar pit stop',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onSetPaceMode={(driverId, mode) => {
+                try {
+                  const nextState = raceStrategyService.setDriverPaceMode(
+                    canonicalRaceState,
+                    driverId,
+                    mode,
+                  )
+                  canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                  setCanonicalRaceState(nextState)
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao alterar ritmo',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onSetTargetCompound={(driverId, comp) => {
+                try {
+                  const nextState = raceStrategyService.setDriverTargetCompound(
+                    canonicalRaceState,
+                    driverId,
+                    comp,
+                  )
+                  canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
+                  setCanonicalRaceState(nextState)
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao alterar composto',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onTriggerRedFlag={() => {
+                try {
+                  const nextState = canonicalRaceEngineService.triggerRedFlag(canonicalRaceState, {
+                    reason: 'Bandeira Vermelha — Corrida Suspensa pela Direção de Prova',
+                  })
+                  setCanonicalRaceState(nextState)
+                  toast({
+                    variant: 'destructive',
+                    title: '🔴 Bandeira Vermelha Acionada',
+                    description:
+                      'A corrida foi suspensa. Os carros retornaram aos boxes e a classificação foi congelada.',
+                  })
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao acionar Bandeira Vermelha',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onPrepareRestart={() => {
+                try {
+                  const nextState =
+                    canonicalRaceEngineService.prepareRedFlagRestart(canonicalRaceState)
+                  setCanonicalRaceState(nextState)
+                  toast({
+                    title: '🟢 Procedimento de Relargada Ativado',
+                    description:
+                      'Grid alinhado na ordem congelada da bandeira vermelha. Pronto para relargar.',
+                  })
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao preparar relargada',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onResumeRace={() => {
+                try {
+                  const nextState =
+                    canonicalRaceEngineService.resumeRaceAfterRedFlag(canonicalRaceState)
+                  setCanonicalRaceState(nextState)
+                  toast({
+                    title: '🟢 Corrida Reiniciada!',
+                    description: 'Bandeira verde! A prova recomeçou com o grid congelado mantido.',
+                  })
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Falha ao reiniciar corrida',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onChangeSuspensionTyre={(driverId, compound) => {
+                try {
+                  const res = canonicalRaceEngineService.changeTyresDuringSuspension({
+                    raceState: canonicalRaceState,
+                    driverId,
+                    newCompound: compound,
+                  })
                   if (res.success) {
-                    // Processar e persistir imediatamente o campeonato canônico desta rodada
-                    canonicalChampionshipService.processAndPersistRoundChampionship(
-                      canonicalCareerId,
-                      season?.year || 2026,
-                      currentRound,
-                    )
+                    setCanonicalRaceState(res.updatedState)
                     toast({
-                      title: 'Registrado na Carreira',
-                      description: 'Estatísticas acumuladas com sucesso.',
+                      title: 'Pneu Trocado na Suspensão',
+                      description: `Composto ${compound.toUpperCase()} instalado no carro sem custo competitivo de pit stop.`,
                     })
                   } else {
-                    setCareerPersistenceError(res.error)
+                    toast({
+                      variant: 'destructive',
+                      title: 'Falha na Troca de Pneus',
+                      description: res.error,
+                    })
                   }
-                } catch (applyErr: any) {
-                  setIsPersistingCareer(false)
-                  setCareerPersistenceStatus('FAILED')
-                  setCareerPersistenceError(applyErr?.message)
-                }
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao oficializar corrida',
-                  description: e?.message || 'A prova ainda não pode ser oficializada.',
-                })
-              }
-            }}
-            onRequestPit={(driverId, compound) => {
-              try {
-                const nextState = raceStrategyService.requestPitStop(
-                  canonicalRaceState,
-                  driverId,
-                  compound,
-                )
-                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
-                setCanonicalRaceState(nextState)
-                toast({
-                  title: 'Pit Stop Solicitado',
-                  description: `Box chamado para o piloto nesta volta com composto ${compound || 'alvo'}.`,
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao solicitar pit stop',
-                  description: e?.message,
-                })
-              }
-            }}
-            onCancelPit={(driverId) => {
-              try {
-                const nextState = raceStrategyService.cancelPitRequest(canonicalRaceState, driverId)
-                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
-                setCanonicalRaceState(nextState)
-                toast({
-                  title: 'Pit Stop Cancelado',
-                  description:
-                    'A chamada para os boxes foi cancelada. O piloto permanece na pista.',
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao cancelar pit stop',
-                  description: e?.message,
-                })
-              }
-            }}
-            onSetPaceMode={(driverId, mode) => {
-              try {
-                const nextState = raceStrategyService.setDriverPaceMode(
-                  canonicalRaceState,
-                  driverId,
-                  mode,
-                )
-                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
-                setCanonicalRaceState(nextState)
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao alterar ritmo',
-                  description: e?.message,
-                })
-              }
-            }}
-            onSetTargetCompound={(driverId, comp) => {
-              try {
-                const nextState = raceStrategyService.setDriverTargetCompound(
-                  canonicalRaceState,
-                  driverId,
-                  comp,
-                )
-                canonicalRaceInitializationService.saveCanonicalRaceState(nextState)
-                setCanonicalRaceState(nextState)
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao alterar composto',
-                  description: e?.message,
-                })
-              }
-            }}
-            onTriggerRedFlag={() => {
-              try {
-                const nextState = canonicalRaceEngineService.triggerRedFlag(canonicalRaceState, {
-                  reason: 'Bandeira Vermelha — Corrida Suspensa pela Direção de Prova',
-                })
-                setCanonicalRaceState(nextState)
-                toast({
-                  variant: 'destructive',
-                  title: '🔴 Bandeira Vermelha Acionada',
-                  description:
-                    'A corrida foi suspensa. Os carros retornaram aos boxes e a classificação foi congelada.',
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao acionar Bandeira Vermelha',
-                  description: e?.message,
-                })
-              }
-            }}
-            onPrepareRestart={() => {
-              try {
-                const nextState =
-                  canonicalRaceEngineService.prepareRedFlagRestart(canonicalRaceState)
-                setCanonicalRaceState(nextState)
-                toast({
-                  title: '🟢 Procedimento de Relargada Ativado',
-                  description:
-                    'Grid alinhado na ordem congelada da bandeira vermelha. Pronto para relargar.',
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao preparar relargada',
-                  description: e?.message,
-                })
-              }
-            }}
-            onResumeRace={() => {
-              try {
-                const nextState =
-                  canonicalRaceEngineService.resumeRaceAfterRedFlag(canonicalRaceState)
-                setCanonicalRaceState(nextState)
-                toast({
-                  title: '🟢 Corrida Reiniciada!',
-                  description: 'Bandeira verde! A prova recomeçou com o grid congelado mantido.',
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha ao reiniciar corrida',
-                  description: e?.message,
-                })
-              }
-            }}
-            onChangeSuspensionTyre={(driverId, compound) => {
-              try {
-                const res = canonicalRaceEngineService.changeTyresDuringSuspension({
-                  raceState: canonicalRaceState,
-                  driverId,
-                  newCompound: compound,
-                })
-                if (res.success) {
-                  setCanonicalRaceState(res.updatedState)
-                  toast({
-                    title: 'Pneu Trocado na Suspensão',
-                    description: `Composto ${compound.toUpperCase()} instalado no carro sem custo competitivo de pit stop.`,
-                  })
-                } else {
+                } catch (e: any) {
                   toast({
                     variant: 'destructive',
-                    title: 'Falha na Troca de Pneus',
-                    description: res.error,
+                    title: 'Erro ao trocar pneus',
+                    description: e?.message,
                   })
                 }
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Erro ao trocar pneus',
-                  description: e?.message,
-                })
-              }
-            }}
-            onAdvanceOneLap={(opts) => {
-              try {
-                const nextState = canonicalRaceEngineService.advanceOneLap(canonicalRaceState, opts)
-                setCanonicalRaceState(nextState)
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Erro ao avançar volta',
-                  description: e?.message || 'Falha na execução do Race Engine.',
-                })
-              }
-            }}
-            onSubmitWeatherDecision={(driverId, action, selectedCompound) => {
-              try {
-                const res = raceStrategyService.submitWeatherDecision({
-                  raceState: canonicalRaceState,
-                  driverId,
-                  action,
-                  selectedCompound,
-                })
-                if (res.success) {
-                  canonicalRaceInitializationService.saveCanonicalRaceState(res.updatedState)
-                  setCanonicalRaceState(res.updatedState)
-                  const drvName =
-                    res.updatedState.drivers.find((d) => d.driverId === driverId)?.driverName ||
-                    driverId
-                  toast({
-                    title: 'Decisão Climática Confirmada',
-                    description:
-                      action === 'PIT_NOW'
-                        ? `${drvName}: Box chamado com pneus ${selectedCompound?.toUpperCase()}.`
-                        : `${drvName}: Permanecerá na pista (Stay Out).`,
-                  })
-                  return { success: true }
-                } else {
+              }}
+              onAdvanceOneLap={(opts) => {
+                try {
+                  const nextState = canonicalRaceEngineService.advanceOneLap(
+                    canonicalRaceState,
+                    opts,
+                  )
+                  setCanonicalRaceState(nextState)
+                } catch (e: any) {
                   toast({
                     variant: 'destructive',
-                    title: 'Falha ao aplicar decisão',
-                    description: res.error || 'Erro na validação da decisão.',
+                    title: 'Erro ao avançar volta',
+                    description: e?.message || 'Falha na execução do Race Engine.',
                   })
-                  return { success: false, error: res.error }
                 }
-              } catch (err: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Erro ao registrar decisão',
-                  description: err?.message || 'Falha inesperada.',
-                })
-                return { success: false, error: err?.message }
-              }
-            }}
-            onAdvanceMultipleLaps={(count) => {
-              try {
-                const nextState = canonicalRaceEngineService.advanceMultipleLaps(
-                  canonicalRaceState,
-                  count,
-                )
-                setCanonicalRaceState(nextState)
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Erro ao simular voltas',
-                  description: e?.message || 'Falha na execução do Race Engine.',
-                })
-              }
-            }}
-            onManualSave={() => {
-              try {
-                canonicalRaceInitializationService.saveCanonicalRaceState(canonicalRaceState)
-                toast({
-                  title: 'Corrida Salva',
-                  description: `Snapshot canônico v1 salvo com sucesso (Volta ${canonicalRaceState.currentLap}).`,
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Erro ao salvar corrida',
-                  description: e?.message,
-                })
-              }
-            }}
-            onResetRace={() => {
-              try {
-                if (!completeQualifyingResult || !team?.id || !season?.id) return
-                // FW2.1E-F Requisito 18: Se já foi oficializada, bloquear reinício
-                const canonicalCareerId = resolveCanonicalCareerId(season, team)
-                if (
-                  canonicalRaceResultService.hasOfficialRaceResult(
+              }}
+              onSubmitWeatherDecision={(driverId, action, selectedCompound) => {
+                try {
+                  const res = raceStrategyService.submitWeatherDecision({
+                    raceState: canonicalRaceState,
+                    driverId,
+                    action,
+                    selectedCompound,
+                  })
+                  if (res.success) {
+                    canonicalRaceInitializationService.saveCanonicalRaceState(res.updatedState)
+                    setCanonicalRaceState(res.updatedState)
+                    const drvName =
+                      res.updatedState.drivers.find((d) => d.driverId === driverId)?.driverName ||
+                      driverId
+                    toast({
+                      title: 'Decisão Climática Confirmada',
+                      description:
+                        action === 'PIT_NOW'
+                          ? `${drvName}: Box chamado com pneus ${selectedCompound?.toUpperCase()}.`
+                          : `${drvName}: Permanecerá na pista (Stay Out).`,
+                    })
+                    return { success: true }
+                  } else {
+                    toast({
+                      variant: 'destructive',
+                      title: 'Falha ao aplicar decisão',
+                      description: res.error || 'Erro na validação da decisão.',
+                    })
+                    return { success: false, error: res.error }
+                  }
+                } catch (err: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erro ao registrar decisão',
+                    description: err?.message || 'Falha inesperada.',
+                  })
+                  return { success: false, error: err?.message }
+                }
+              }}
+              onAdvanceMultipleLaps={(count) => {
+                try {
+                  const nextState = canonicalRaceEngineService.advanceMultipleLaps(
+                    canonicalRaceState,
+                    count,
+                  )
+                  setCanonicalRaceState(nextState)
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erro ao simular voltas',
+                    description: e?.message || 'Falha na execução do Race Engine.',
+                  })
+                }
+              }}
+              onManualSave={() => {
+                try {
+                  canonicalRaceInitializationService.saveCanonicalRaceState(canonicalRaceState)
+                  toast({
+                    title: 'Corrida Salva',
+                    description: `Snapshot canônico v1 salvo com sucesso (Volta ${canonicalRaceState.currentLap}).`,
+                  })
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erro ao salvar corrida',
+                    description: e?.message,
+                  })
+                }
+              }}
+              onResetRace={() => {
+                try {
+                  if (!completeQualifyingResult || !team?.id || !season?.id) return
+                  // FW2.1E-F Requisito 18: Se já foi oficializada, bloquear reinício
+                  const canonicalCareerId = resolveCanonicalCareerId(season, team)
+                  if (
+                    canonicalRaceResultService.hasOfficialRaceResult(
+                      canonicalCareerId,
+                      season.year || 2026,
+                      currentRound,
+                      isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
+                    )
+                  ) {
+                    toast({
+                      variant: 'destructive',
+                      title: 'Ação Bloqueada',
+                      description:
+                        'Esta corrida já foi oficializada e homologada. O histórico da temporada é imutável.',
+                    })
+                    return
+                  }
+
+                  // Descartar save da corrida atual (Requisito 13)
+                  const clearRes = canonicalRaceInitializationService.clearCanonicalRaceState(
                     canonicalCareerId,
                     season.year || 2026,
                     currentRound,
-                    isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
+                    { raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE' },
                   )
-                ) {
-                  toast({
-                    variant: 'destructive',
-                    title: 'Ação Bloqueada',
-                    description:
-                      'Esta corrida já foi oficializada e homologada. O histórico da temporada é imutável.',
-                  })
-                  return
-                }
-
-                // Descartar save da corrida atual (Requisito 13)
-                const clearRes = canonicalRaceInitializationService.clearCanonicalRaceState(
-                  canonicalCareerId,
-                  season.year || 2026,
-                  currentRound,
-                  { raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE' },
-                )
-                if (!clearRes.success) {
-                  toast({
-                    variant: 'destructive',
-                    title: 'Não é possível reiniciar',
-                    description: clearRes.blockedReason,
-                  })
-                  return
-                }
-                const totalLaps = isSprintRaceSession
-                  ? canonicalRaceInitializationService.calculateSprintLaps(
-                      gpInfo.circuitLengthKm || 5.8,
-                      100,
-                      gpInfo.laps || 57,
-                    )
-                  : gpInfo.laps || 57
-
-                const freshRace =
-                  canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
-                    raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
-                    careerId: canonicalCareerId,
-                    season: season.year || 2026,
-                    round: currentRound,
-                    circuitName: gpInfo.circuit,
-                    circuitCountry: gpInfo.country,
-                    totalLaps,
-                    playerTeamId: team.id,
-                    canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
-                  })
-                setCanonicalRaceState(freshRace)
-                toast({
-                  title: 'Corrida Reiniciada',
-                  description:
-                    'O save anterior foi descartado e a corrida re-inicializada a partir do grid oficial.',
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Erro ao reiniciar corrida',
-                  description: e?.message || 'Falha ao redefinir estado inicial.',
-                })
-              }
-            }}
-          />
-        ) : showPreRacePreparation ? (
-          /* BUG-02 COMMIT C: ETAPA OBRIGATÓRIA "ESTRATÉGIA DE CORRIDA" PRÉ-LARGADA */
-          <PreRaceStrategyPreparationPanel
-            careerId={resolveCanonicalCareerId(season, team)}
-            seasonYear={season?.year || 2026}
-            round={currentRound}
-            teamId={team?.id || 'default_team'}
-            teamColor={team?.color || '#E10600'}
-            totalLaps={gpInfo.laps || 57}
-            canonicalGrid={completeQualifyingResult.finalGrid}
-            inventories={tyreInventories}
-            onCancelToGrid={() => setShowPreRacePreparation(false)}
-            onConfirmAndStartRace={(prepSnapshot: RacePreparationSnapshot) => {
-              try {
-                if (!team?.id || !season?.id) return
-                const canonicalCareerId = resolveCanonicalCareerId(season, team)
-
-                // Persistir snapshot race-prep-v1
-                canonicalRacePreparationService.saveSnapshot(prepSnapshot)
-
-                // Mapear preparações por piloto/carro para o canonicalRaceInitializationService
-                const carPreparations: Record<string, any> = {}
-                prepSnapshot.cars.forEach((car) => {
-                  carPreparations[car.driverId] = {
-                    startingTyreSetId: car.startingTyreSetId,
-                    startingCompound: car.startingCompound,
-                    startingFuelKg: car.startingFuelKg,
-                    initialTyreWear: car.initialTyreWear,
-                    initialTyreLapsUsed: car.initialTyreLapsUsed,
-                    strategyPlan: car.strategyPlan,
+                  if (!clearRes.success) {
+                    toast({
+                      variant: 'destructive',
+                      title: 'Não é possível reiniciar',
+                      description: clearRes.blockedReason,
+                    })
+                    return
                   }
-                  carPreparations[car.carId] = carPreparations[car.driverId]
-                })
+                  const totalLaps = isSprintRaceSession
+                    ? canonicalRaceInitializationService.calculateSprintLaps(
+                        gpInfo.circuitLengthKm || 5.8,
+                        100,
+                        gpInfo.laps || 57,
+                      )
+                    : gpInfo.laps || 57
 
-                // Inicializar Race Engine com exatamente as escolhas feitas pelo jogador
-                const totalLaps = isSprintRaceSession
-                  ? canonicalRaceInitializationService.calculateSprintLaps(
-                      gpInfo.circuitLengthKm || 5.8,
-                      100,
-                      gpInfo.laps || 57,
-                    )
-                  : gpInfo.laps || 57
+                  const freshRace =
+                    canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+                      raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
+                      careerId: canonicalCareerId,
+                      season: season.year || 2026,
+                      round: currentRound,
+                      circuitName: gpInfo.circuit,
+                      circuitCountry: gpInfo.country,
+                      totalLaps,
+                      playerTeamId: team.id,
+                      canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
+                    })
+                  setCanonicalRaceState(freshRace)
+                  toast({
+                    title: 'Corrida Reiniciada',
+                    description:
+                      'O save anterior foi descartado e a corrida re-inicializada a partir do grid oficial.',
+                  })
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erro ao reiniciar corrida',
+                    description: e?.message || 'Falha ao redefinir estado inicial.',
+                  })
+                }
+              }}
+            />
+            ) : showPreRacePreparation ? ( /* BUG-02 COMMIT C: ETAPA OBRIGATÓRIA "ESTRATÉGIA DE
+            CORRIDA" PRÉ-LARGADA */
+            <PreRaceStrategyPreparationPanel
+              careerId={resolveCanonicalCareerId(season, team)}
+              seasonYear={season?.year || 2026}
+              round={currentRound}
+              teamId={team?.id || 'default_team'}
+              teamColor={team?.color || '#E10600'}
+              totalLaps={gpInfo.laps || 57}
+              canonicalGrid={completeQualifyingResult.finalGrid}
+              inventories={tyreInventories}
+              onCancelToGrid={() => setShowPreRacePreparation(false)}
+              onConfirmAndStartRace={(prepSnapshot: RacePreparationSnapshot) => {
+                try {
+                  if (!team?.id || !season?.id) return
+                  const canonicalCareerId = resolveCanonicalCareerId(season, team)
 
-                const initialRace =
-                  canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
-                    raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
-                    careerId: canonicalCareerId,
-                    season: season.year || 2026,
-                    round: currentRound,
-                    circuitName: gpInfo.circuit,
-                    circuitCountry: gpInfo.country,
-                    totalLaps,
-                    playerTeamId: team.id,
-                    canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
-                    carPreparations,
+                  // Persistir snapshot race-prep-v1
+                  canonicalRacePreparationService.saveSnapshot(prepSnapshot)
+
+                  // Mapear preparações por piloto/carro para o canonicalRaceInitializationService
+                  const carPreparations: Record<string, any> = {}
+                  prepSnapshot.cars.forEach((car) => {
+                    carPreparations[car.driverId] = {
+                      startingTyreSetId: car.startingTyreSetId,
+                      startingCompound: car.startingCompound,
+                      startingFuelKg: car.startingFuelKg,
+                      initialTyreWear: car.initialTyreWear,
+                      initialTyreLapsUsed: car.initialTyreLapsUsed,
+                      strategyPlan: car.strategyPlan,
+                    }
+                    carPreparations[car.carId] = carPreparations[car.driverId]
                   })
 
-                setCanonicalRaceState(initialRace)
-                setShowPreRacePreparation(false)
+                  // Inicializar Race Engine com exatamente as escolhas feitas pelo jogador
+                  const totalLaps = isSprintRaceSession
+                    ? canonicalRaceInitializationService.calculateSprintLaps(
+                        gpInfo.circuitLengthKm || 5.8,
+                        100,
+                        gpInfo.laps || 57,
+                      )
+                    : gpInfo.laps || 57
 
-                toast({
-                  title: 'Corrida V2 Inicializada com Sucesso',
-                  description:
-                    'Estratégia pré-largada e preparações dos carros 1 e 2 aplicadas ao Race Engine.',
-                })
-              } catch (e: any) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Falha na Inicialização da Corrida',
-                  description: e?.message || 'Erro ao inicializar estado canônico da corrida.',
-                })
-              }
-            }}
-          />
+                  const initialRace =
+                    canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+                      raceVariant: isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE',
+                      careerId: canonicalCareerId,
+                      season: season.year || 2026,
+                      round: currentRound,
+                      circuitName: gpInfo.circuit,
+                      circuitCountry: gpInfo.country,
+                      totalLaps,
+                      playerTeamId: team.id,
+                      canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
+                      carPreparations,
+                    })
+
+                  const res = canonicalRaceEngineService.changeTyresDuringSuspension({
+                    raceState: canonicalRaceState,
+                    driverId,
+                    newCompound: compound,
+                  })
+                  if (res.success) {
+                    setCanonicalRaceState(res.updatedState)
+                    toast({
+                      title: 'Pneu Trocado na Suspensão',
+                      description: `Composto ${compound.toUpperCase()} instalado no carro.`,
+                    })
+                  }
+                } catch (e: any) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Erro ao trocar pneus',
+                    description: e?.message,
+                  })
+                }
+              }}
+            />
+          </div>
         ) : (
           <CompleteQualifyingGridSummary
             result={completeQualifyingResult}

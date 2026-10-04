@@ -17,6 +17,7 @@ import CarPage from './pages/Car'
 import SponsorsPage from './pages/Sponsors'
 import LiveRacePage from './pages/LiveRacePage'
 import WeekendV2Page from './pages/WeekendV2Page'
+import RaceControlLivePage from './pages/RaceControlLivePage'
 import SeasonEndPage from './pages/SeasonEndPage'
 import StandingsPage from './pages/Standings'
 import CalendarPage from './pages/CalendarPage'
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/sponsors" element={<SponsorsPage />} />
               <Route path="/race" element={<Navigate to="/corrida" replace />} />
               <Route path="/corrida" element={<WeekendV2Page />} />
+              <Route path="/corrida/live" element={<RaceControlLivePage />} />
               <Route path="/weekend-v2" element={<WeekendV2Page />} />
               <Route path="/corrida-ao-vivo" element={<LiveRacePage />} />
               <Route path="/season-end" element={<SeasonEndPage />} />
