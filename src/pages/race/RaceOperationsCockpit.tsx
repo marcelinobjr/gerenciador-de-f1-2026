@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Play, Pause, Wrench, Radio, Activity, RefreshCw } from 'lucide-react'
+import { Play, Pause, StepForward, Wrench, Radio, Activity, RefreshCw } from 'lucide-react'
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { LiveRaceEvent } from '@/types/race-events'
 import type { TeamModel, DriverModel } from '@/types/f1'
@@ -73,6 +73,8 @@ export interface RaceOperationsCockpitProps {
 
 export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
   isRaceSession,
+  onStepOneLap,
+  isSteppingLap = false,
   liveRaceState,
   gpInfo,
   puPoolStatus,
@@ -175,6 +177,38 @@ export const RaceOperationsCockpit: React.FC<RaceOperationsCockpitProps> = ({
                     </>
                   )}
                 </Button>
+
+                {/* Botão +1 VOLTA (Passo Unitário Canônico) */}
+                {onStepOneLap && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={onStepOneLap}
+                    disabled={
+                      !liveRaceState?.inProgress ||
+                      !isRacePaused ||
+                      isDone ||
+                      isSteppingLap ||
+                      pendingDecisions.length > 0
+                    }
+                    className="font-black text-xs px-3 h-9 shadow-sm flex items-center gap-1 border-slate-300 bg-white hover:bg-slate-50 text-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      !isRacePaused
+                        ? 'Pause a corrida para avançar 1 volta manualmente'
+                        : isSteppingLap
+                          ? 'Processando volta...'
+                          : pendingDecisions.length > 0
+                            ? 'Resolva as decisões pendentes antes de avançar'
+                            : isDone
+                              ? 'Corrida encerrada'
+                              : 'Avançar exatamente 1 volta pelo motor canônico'
+                    }
+                  >
+                    <StepForward className="w-3.5 h-3.5 text-[#E10600]" />
+                    <span>+1 VOLTA</span>
+                  </Button>
+                )}
 
                 {/* Seletores de Velocidade (1x, 2x, 4x) */}
                 <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200">

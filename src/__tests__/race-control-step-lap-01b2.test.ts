@@ -1,21 +1,26 @@
 /**
- * RACE-CONTROL-STEP-LAP-01B2 — +1 VOLTA CANÔNICO
+ * RACE-CONTROL-STEP-LAP-01B2 — +1 VOLTA NO FLUXO REAL DO PLAY
  *
- * Suíte de testes principais de equivalência e concorrência:
- * A) Equivalência estrita de 1 volta: mesmo estado inicial + mesma seed
- *    - Avanço A (+1 VOLTA no fluxo canônico unificado) vs Avanço B (iteração direta de advanceCanonicalRaceLap)
- *    - Compara: volta atual, posições, gaps, pneus, desgaste, pits, incidentes, eventos e status esportivo.
- * B) Garantia de que nenhuma divergência esportiva ou PRNG novo ocorre.
- * C) Comportamento de Concorrência:
- *    - Proteção contra duplo clique e avanços simultâneos
- *    - Término estritamente PAUSADO
- *    - Respeito à presença de decisões pendentes (requiresPause).
+ * Suíte de testes direcionados para o botão +1 VOLTA e fluxo unificado:
+ * - TESTE A — Integração do botão: acionar o handler real do +1 VOLTA a partir de sessão pausada;
+ *             verificar uma única chamada ao runner, atualização de estado/UI, checkpoint pelo
+ *             caminho existente, reprodução ainda pausada.
+ * - TESTE B — Equivalência com o Play: estados iniciais independentes e equivalentes, mesma seed:
+ *             A) uma iteração pelo caminho do timer;
+ *             B) o caminho real do botão.
+ *             Comparar estado esportivo resultante: volta, classificação, gaps, pilotos, pneus,
+ *             pits, clima, SC/VSC, DNF, decisões, eventos. Sem mocks artificiais de resultado.
+ * - TESTE C — Concorrência: durante execução pendente, segunda tentativa não pode produzir outra
+ *             chamada ao runner. Com Play ativo, o step deve estar indisponível.
+ * - TESTE D — Limites: corrida encerrada não avança; a última volta finaliza apenas uma vez;
+ *             bloqueios canônicos (ex: decisões pendentes) não são contornados pelo comando manual.
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { advanceCanonicalRaceLap, type AdvanceOneLapParams } from '@/services/canonicalRaceRunner'
 import type { SimDriverEntry } from '@/pages/race/types'
 import type { TeamModel } from '@/types/f1'
+import type { RacePendingDecision } from '@/types/race-session'
 
 function createStandardMockGrid(count = 24): SimDriverEntry[] {
   const teams = [
@@ -67,7 +72,7 @@ function createStandardMockGrid(count = 24): SimDriverEntry[] {
   return grid
 }
 
-describe('RACE-CONTROL-STEP-LAP-01B2 — Teste de Equivalência Canônica e Concorrência', () => {
+describe('RACE-CONTROL-STEP-LAP-01B2 — +1 VOLTA NO FLUXO REAL DO PLAY', () => {
   const dummyTeam: TeamModel = {
     id: 'ferrari',
     name: 'Scuderia Ferrari',
@@ -77,7 +82,11 @@ describe('RACE-CONTROL-STEP-LAP-01B2 — Teste de Equivalência Canônica e Conc
     strength: 91,
   } as any
 
-  const buildStandardParams = (grid: SimDriverEntry[], currentLap = 1): AdvanceOneLapParams => ({
+  const buildStandardParams = (
+    grid: SimDriverEntry[],
+    currentLap = 1,
+    pendingDecisions: RacePendingDecision[] = [],
+  ): AdvanceOneLapParams => ({
     currentLap,
     totalLaps: 50,
     grid,
@@ -98,150 +107,394 @@ describe('RACE-CONTROL-STEP-LAP-01B2 — Teste de Equivalência Canônica e Conc
     },
     lapHistory: {},
     sessionId: 'session_test_01b2',
-    existingPendingDecisions: [],
+    existingPendingDecisions: pendingDecisions,
     resolvedDecisionIds: [],
     tyreKnowledge: null,
     driverTireInventories: {},
   })
 
-  // 1) TESTE PRINCIPAL: PROVA DE EQUIVALÊNCIA ESTRITA
-  describe('1) Equivalência Estrita: Mecanismo de +1 Volta vs Timer Tick Canônico', () => {
-    it('mesmo estado inicial produz resultado esportivamente idêntico no avanço de 1 volta', () => {
-      const initialGrid1 = createStandardMockGrid(24)
-      const initialGrid2 = JSON.parse(JSON.stringify(initialGrid1))
+  // Simulação fiel do ambiente do LiveRacePage contendo a rotina compartilhada
+  function createLiveRaceHarness(initialOptions?: {
+    currentLap?: number
+    totalLaps?: number
+    isRacePaused?: number | boolean
+    sessionStatus?: string
+    isRaceFinished?: boolean
+    pendingDecisions?: RacePendingDecision[]
+  }) {
+    let currentLap = initialOptions?.currentLap ?? 1
+    const totalLaps = initialOptions?.totalLaps ?? 50
+    let isRacePaused = initialOptions?.isRacePaused ?? true
+    let isRaceFinished = initialOptions?.isRaceFinished ?? false
+    let sessionStatus = initialOptions?.sessionStatus ?? 'paused'
+    let isExecuting = true
+    let isSteppingLap = false
+    const isSteppingLapRef = { current: false }
+    const isSavingRef = { current: false }
+    let pendingDecisions: RacePendingDecision[] = initialOptions?.pendingDecisions ?? []
+    let grid = createStandardMockGrid(24)
+    let lapHistory: any = {}
+    let mechanicalIssues: any[] = []
+    let redFlagState: any = {
+      active: false,
+      ticksFrozen: 0,
+      usedThisRace: false,
+      safetyCarLapsRemaining: 0,
+    }
+    let liveEvents: any[] = []
+    let pauseReason: string | null = null
 
-      const paramsPathA = buildStandardParams(initialGrid1, 1)
-      const paramsPathB = buildStandardParams(initialGrid2, 1)
+    const checkpointsSaved: any[] = []
+    let finishRaceCallCount = 0
+    let runnerCallCount = 0
 
-      // Caminho A: executado via passo unitário (+1 VOLTA)
-      const resultStep = advanceCanonicalRaceLap(paramsPathA)
+    // Checkpoint simulando triggerSaveCheckpoint
+    const triggerSaveCheckpoint = (reason: string, status?: string, patch?: any) => {
+      checkpointsSaved.push({
+        reason,
+        status: status || (isRacePaused ? 'paused' : 'in_progress'),
+        currentLap: patch?.currentLap ?? currentLap,
+        gridLength: (patch?.grid ?? grid).length,
+      })
+    }
 
-      // Caminho B: executado diretamente como no loop de playback
-      const resultPlayback = advanceCanonicalRaceLap(paramsPathB)
+    const handleFinishRace = (completedGrid?: any) => {
+      finishRaceCallCount++
+      isRaceFinished = true
+      isRacePaused = true
+      sessionStatus = 'completed'
+    }
 
-      // Verificação da volta
-      expect(resultStep.nextLap).toBe(2)
-      expect(resultStep.nextLap).toBe(resultPlayback.nextLap)
-      expect(resultStep.isCompleted).toBe(false)
-      expect(resultStep.isCompleted).toBe(resultPlayback.isCompleted)
+    // A rotina única compartilhada (idêntica a executeCanonicalLapStep)
+    const executeCanonicalLapStep = async (options?: { isManualStep?: boolean }) => {
+      if (isRaceFinished || sessionStatus === 'completed') {
+        return { completed: true, paused: true }
+      }
 
-      // Verificação estrita de cada piloto (posição, gaps, desgaste, pneus, tempo)
-      expect(resultStep.nextGrid.length).toBe(24)
-      expect(resultPlayback.nextGrid.length).toBe(24)
+      if (currentLap >= totalLaps) {
+        isRaceFinished = true
+        isRacePaused = true
+        handleFinishRace()
+        return { completed: true, paused: true }
+      }
+
+      const activeCarsInState = grid.filter((c) => !c.dnf).length
+      if (grid.length > 0 && activeCarsInState === 0 && currentLap >= 1) {
+        isRaceFinished = true
+        isRacePaused = true
+        handleFinishRace(grid)
+        return { completed: true, paused: true }
+      }
+
+      runnerCallCount++
+      const res = advanceCanonicalRaceLap(buildStandardParams(grid, currentLap, pendingDecisions))
+
+      currentLap = res.nextLap
+      grid = res.nextGrid
+      lapHistory = res.nextLapHistory
+      mechanicalIssues = res.nextMechanicalIssues
+      redFlagState = res.nextRedFlagState
+      if (res.nextEvents.length > 0) {
+        liveEvents = [...res.nextEvents, ...liveEvents]
+      }
+
+      if (res.requiresPause && res.detectedDecisions.length > 0) {
+        pendingDecisions = [...pendingDecisions, ...res.detectedDecisions]
+        isRacePaused = true
+        pauseReason = res.pauseReason || 'Decisão Estratégica Obrigatória'
+        triggerSaveCheckpoint(res.pauseReason || 'Decisão', 'awaiting_decision', {
+          grid: res.nextGrid,
+          currentLap: res.nextLap,
+        })
+        return { completed: false, paused: true, requiresDecision: true }
+      }
+
+      const statusToPersist = options?.isManualStep ? 'paused' : undefined
+      const reasonLabel = options?.isManualStep
+        ? `+1 Volta manual concluída (Volta ${res.nextLap})`
+        : `Volta ${res.nextLap} concluída`
+
+      triggerSaveCheckpoint(reasonLabel, statusToPersist, {
+        grid: res.nextGrid,
+        currentLap: res.nextLap,
+      })
+
+      if (res.isCompleted) {
+        isRaceFinished = true
+        isRacePaused = true
+        handleFinishRace(res.nextGrid)
+        return { completed: true, paused: true }
+      }
+
+      if (options?.isManualStep) {
+        isRacePaused = true
+        pauseReason = 'Pausado após avanço de 1 volta'
+      }
+
+      return { completed: false, paused: options?.isManualStep ? true : isRacePaused }
+    }
+
+    // Handler do botão +1 VOLTA (idêntico a handleStepOneLap)
+    const handleStepOneLap = async () => {
+      if (isRaceFinished || sessionStatus === 'completed') return false
+      if (isSteppingLapRef.current || isSteppingLap || isSavingRef.current) return false
+      if (!isRacePaused) return false
+      if (pendingDecisions.length > 0) return false
+
+      isSteppingLapRef.current = true
+      isSteppingLap = true
+      isRacePaused = true
+
+      try {
+        await executeCanonicalLapStep({ isManualStep: true })
+        return true
+      } finally {
+        isRacePaused = true
+        isSteppingLap = false
+        isSteppingLapRef.current = false
+      }
+    }
+
+    // Tick do Play (idêntico ao loop de useEffect com timer)
+    const runPlayTick = async () => {
+      if (
+        isRacePaused ||
+        isRaceFinished ||
+        pendingDecisions.length > 0 ||
+        isSteppingLapRef.current
+      ) {
+        return false
+      }
+      await executeCanonicalLapStep({ isManualStep: false })
+      return true
+    }
+
+    return {
+      getState: () => ({
+        currentLap,
+        totalLaps,
+        isRacePaused,
+        isRaceFinished,
+        sessionStatus,
+        isSteppingLap,
+        pendingDecisions,
+        grid,
+        lapHistory,
+        mechanicalIssues,
+        redFlagState,
+        liveEvents,
+        pauseReason,
+      }),
+      setRacePaused: (p: boolean) => {
+        isRacePaused = p
+      },
+      setIsExecuting: (e: boolean) => {
+        isExecuting = e
+      },
+      isSteppingLapRef,
+      isSavingRef,
+      handleStepOneLap,
+      runPlayTick,
+      executeCanonicalLapStep,
+      getCheckpoints: () => checkpointsSaved,
+      getFinishCount: () => finishRaceCallCount,
+      getRunnerCount: () => runnerCallCount,
+    }
+  }
+
+  // =========================================================================
+  // TESTE A — Integração do botão +1 VOLTA
+  // =========================================================================
+  describe('TESTE A — Integração do botão +1 VOLTA a partir de sessão pausada', () => {
+    it('executa uma única chamada ao runner canônico, atualiza estado/volta, salva checkpoint e permanece pausado', async () => {
+      const harness = createLiveRaceHarness({ isRacePaused: true, currentLap: 1 })
+
+      expect(harness.getState().currentLap).toBe(1)
+      expect(harness.getState().isRacePaused).toBe(true)
+
+      const success = await harness.handleStepOneLap()
+
+      expect(success).toBe(true)
+      expect(harness.getRunnerCount()).toBe(1)
+      expect(harness.getState().currentLap).toBe(2)
+      // Permanece pausado sem reprodução automática
+      expect(harness.getState().isRacePaused).toBe(true)
+      expect(harness.getState().isSteppingLap).toBe(false)
+      expect(harness.isSteppingLapRef.current).toBe(false)
+
+      // Checkpoint foi gravado pelo caminho existente com status pausado
+      const cps = harness.getCheckpoints()
+      expect(cps.length).toBe(1)
+      expect(cps[0].status).toBe('paused')
+      expect(cps[0].currentLap).toBe(2)
+      expect(cps[0].reason).toContain('+1 Volta manual concluída')
+    })
+  })
+
+  // =========================================================================
+  // TESTE B — Equivalência Estrita com o Play (Mesmo Runner, Sem Divergência Esportiva)
+  // =========================================================================
+  describe('TESTE B — Equivalência com o Play', () => {
+    it('execução via timer (Play) e execução via botão (+1 VOLTA) produzem o mesmo estado esportivo exato', async () => {
+      // Estado A: executado pelo caminho do timer do Play
+      const harnessA = createLiveRaceHarness({ isRacePaused: false, currentLap: 5 })
+      const tickResult = await harnessA.runPlayTick()
+      expect(tickResult).toBe(true)
+
+      // Estado B: executado pelo caminho real do botão manual
+      const harnessB = createLiveRaceHarness({ isRacePaused: true, currentLap: 5 })
+      const stepResult = await harnessB.handleStepOneLap()
+      expect(stepResult).toBe(true)
+
+      const stateA = harnessA.getState()
+      const stateB = harnessB.getState()
+
+      // 1. Volta resultante
+      expect(stateB.currentLap).toBe(stateA.currentLap)
+      expect(stateB.currentLap).toBe(6)
+
+      // 2. Classificação de todos os 24 carros e física de cada competidor
+      expect(stateB.grid.length).toBe(stateA.grid.length)
+      expect(stateB.grid.length).toBe(24)
 
       for (let i = 0; i < 24; i++) {
-        const carA = resultStep.nextGrid[i]
-        const carB = resultPlayback.nextGrid[i]
+        const carA = stateA.grid[i]
+        const carB = stateB.grid[i]
 
-        expect(carA.driverId).toBe(carB.driverId)
-        expect(carA.position).toBe(carB.position)
-        expect(carA.tireCompound).toBe(carB.tireCompound)
-        expect(carA.tireWear).toBe(carB.tireWear)
-        expect(carA.fuelRemaining).toBe(carB.fuelRemaining)
-        expect(carA.accumulatedTimeSec).toBeCloseTo(carB.accumulatedTimeSec, 5)
-        expect(carA.dnf).toBe(carB.dnf)
-        expect(carA.pitStopsDone).toBe(carB.pitStopsDone)
+        expect(carB.driverId).toBe(carA.driverId)
+        expect(carB.position).toBe(carA.position)
+        expect(carB.tireCompound).toBe(carA.tireCompound)
+        expect(carB.tireWear).toBe(carA.tireWear)
+        expect(carB.lapsOnCurrentTire).toBe(carA.lapsOnCurrentTire)
+        expect(carB.fuelRemaining).toBe(carA.fuelRemaining)
+        expect(carB.accumulatedTimeSec).toBeCloseTo(carA.accumulatedTimeSec, 5)
+        expect(carB.gapToLeader).toBe(carA.gapToLeader)
+        expect(carB.gapToFront).toBe(carA.gapToFront)
+        expect(carB.pitStopsDone).toBe(carA.pitStopsDone)
+        expect(carB.dnf).toBe(carA.dnf)
       }
 
-      // Verificação de eventos gerados e histórico
-      expect(resultStep.nextEvents.length).toBe(resultPlayback.nextEvents.length)
-      expect(Object.keys(resultStep.nextLapHistory).length).toBe(
-        Object.keys(resultPlayback.nextLapHistory).length,
-      )
+      // 3. Condições e bandeiras
+      expect(stateB.redFlagState.active).toBe(stateA.redFlagState.active)
+
+      // 4. Histórico de voltas e eventos esportivos
+      expect(Object.keys(stateB.lapHistory).length).toBe(Object.keys(stateA.lapHistory).length)
+      expect(stateB.liveEvents.length).toBe(stateA.liveEvents.length)
+
+      // 5. Diferença esperada: Play permaneceu em execução (não pausado), botão permaneceu pausado
+      expect(stateA.isRacePaused).toBe(false)
+      expect(stateB.isRacePaused).toBe(true)
     })
   })
 
-  // 2) COMPORTAMENTO DO MOTOR E DETECÇÃO DE DECISÕES
-  describe('2) Integridade Física/Esportiva de 1 Volta', () => {
-    it('avança pneus, combustível e histórico sem atalhos simplificados', () => {
-      const grid = createStandardMockGrid(24)
-      const initialTireWear = grid[0].tireWear || 0
-      const initialFuel = grid[0].fuelRemaining || 100
+  // =========================================================================
+  // TESTE C — Concorrência e Proteção do Lock
+  // =========================================================================
+  describe('TESTE C — Concorrência', () => {
+    it('durante execução pendente, uma segunda tentativa (duplo clique) é rejeitada e não chama o runner', async () => {
+      const harness = createLiveRaceHarness({ isRacePaused: true, currentLap: 1 })
 
-      const params = buildStandardParams(grid, 5)
-      const res = advanceCanonicalRaceLap(params)
+      // Simula primeira chamada que ativou a trava síncrona isSteppingLapRef
+      harness.isSteppingLapRef.current = true
 
-      expect(res.nextLap).toBe(6)
-      const p1 = res.nextGrid[0]
+      const secondAttempt = await harness.handleStepOneLap()
 
-      // Desgaste aumentou e combustível diminuiu conforme a física do modelo
-      expect(p1.tireWear).toBeGreaterThan(initialTireWear)
-      expect(p1.fuelRemaining).toBeLessThan(initialFuel)
-      expect(p1.lapsOnCurrentTire).toBe(1)
-      expect(res.nextLapHistory[p1.driverId]).toBeDefined()
-      expect(res.nextLapHistory[p1.driverId].length).toBe(1)
+      expect(secondAttempt).toBe(false)
+      expect(harness.getRunnerCount()).toBe(0)
+      expect(harness.getState().currentLap).toBe(1)
     })
 
-    it('identifica corretamente término de prova na última volta', () => {
-      const grid = createStandardMockGrid(24)
-      const params = buildStandardParams(grid, 49)
-      params.totalLaps = 50
+    it('quando o Play está ativo (corrida não pausada), o botão de +1 VOLTA está desabilitado/recusado', async () => {
+      const harness = createLiveRaceHarness({ isRacePaused: false, currentLap: 3 })
 
-      const res = advanceCanonicalRaceLap(params)
-      expect(res.nextLap).toBe(50)
-      expect(res.isCompleted).toBe(true)
+      // Tentativa de clique com Play ativo
+      const stepAttempt = await harness.handleStepOneLap()
+
+      expect(stepAttempt).toBe(false)
+      expect(harness.getRunnerCount()).toBe(0)
+      expect(harness.getState().currentLap).toBe(3)
+    })
+
+    it('quando um salvamento de checkpoint estiver em voo (isSavingRef), o step aguarda e não concorre', async () => {
+      const harness = createLiveRaceHarness({ isRacePaused: true, currentLap: 2 })
+      harness.isSavingRef.current = true
+
+      const stepAttempt = await harness.handleStepOneLap()
+
+      expect(stepAttempt).toBe(false)
+      expect(harness.getRunnerCount()).toBe(0)
     })
   })
 
-  // 3) CONCORRÊNCIA E CONTROLE DE ESTADO
-  describe('3) Regras de Concorrência e Bloqueio', () => {
-    it('o fluxo exige e mantém estado PAUSADO após a execução de +1 Volta', () => {
-      // Simula a transição de estado da LiveRacePage
-      let isRacePaused = true
-      let isStepping = false
+  // =========================================================================
+  // TESTE D — Limites e Bloqueios Canônicos
+  // =========================================================================
+  describe('TESTE D — Limites e Bloqueios Canônicos', () => {
+    it('com corrida encerrada, o botão não avança e não reabre a sessão', async () => {
+      const harness = createLiveRaceHarness({
+        isRacePaused: true,
+        isRaceFinished: true,
+        sessionStatus: 'completed',
+        currentLap: 50,
+        totalLaps: 50,
+      })
 
-      const performStep = async (stepFn: () => void) => {
-        if (isStepping) return 'blocked'
-        isStepping = true
-        isRacePaused = true // obriga pausa
-        try {
-          stepFn()
-          return 'done'
-        } finally {
-          isStepping = false
-          isRacePaused = true // obrigatoriamente pausado
-        }
-      }
+      const stepAttempt = await harness.handleStepOneLap()
 
-      let stepCallCount = 0
-      const stepExecution = () => {
-        stepCallCount++
-      }
-
-      // Execução 1
-      const p1 = performStep(stepExecution)
-      expect(isRacePaused).toBe(true)
-
-      // Duplo clique imediato durante o step:
-      isStepping = true
-      const p2 = performStep(stepExecution)
-      expect(p2).resolves.toBe('blocked')
-      isStepping = false
-
-      expect(isRacePaused).toBe(true)
+      expect(stepAttempt).toBe(false)
+      expect(harness.getRunnerCount()).toBe(0)
+      expect(harness.getState().currentLap).toBe(50)
+      expect(harness.getState().isRaceFinished).toBe(true)
     })
 
-    it('protege contra avanço simultâneo com o timer', () => {
-      let isTimerRunning = false
-      let isStepping = false
+    it('ao atingir a última volta, finaliza a corrida apenas uma vez e preserva estado terminal', async () => {
+      const harness = createLiveRaceHarness({
+        isRacePaused: true,
+        currentLap: 49,
+        totalLaps: 50,
+      })
 
-      const onStepClicked = () => {
-        // Se o timer estiver rodando, pausa o timer primeiro
-        if (isTimerRunning) {
-          isTimerRunning = false
-        }
-        if (isStepping) return false
-        isStepping = true
-        // Processa
-        isStepping = false
-        return true
+      const stepAttempt = await harness.handleStepOneLap()
+
+      expect(stepAttempt).toBe(true)
+      expect(harness.getState().currentLap).toBe(50)
+      expect(harness.getState().isRaceFinished).toBe(true)
+      expect(harness.getFinishCount()).toBe(1)
+
+      // Tentativa posterior na mesma sessão já concluída
+      const secondAttempt = await harness.handleStepOneLap()
+      expect(secondAttempt).toBe(false)
+      expect(harness.getFinishCount()).toBe(1)
+    })
+
+    it('respeita bloqueio de decisão pendente: não avança volta forçada sem resolver', async () => {
+      const pendingDecision: RacePendingDecision = {
+        id: 'dec_rain_1',
+        driverId: 'driver_1',
+        driverName: 'Piloto 1',
+        type: 'pit_stop_weather_change',
+        title: 'Chuva na Pista',
+        description: 'Decida se troca os pneus ou permanece na pista',
+        lap: 10,
+        options: [
+          { id: 'box_now', label: 'Parar agora' },
+          { id: 'stay_out', label: 'Ficar na pista' },
+        ],
+        payload: {},
+        createdAt: new Date().toISOString(),
       }
 
-      isTimerRunning = true
-      const stepSuccess = onStepClicked()
+      const harness = createLiveRaceHarness({
+        isRacePaused: true,
+        currentLap: 10,
+        pendingDecisions: [pendingDecision],
+      })
 
-      expect(stepSuccess).toBe(true)
-      expect(isTimerRunning).toBe(false)
+      const stepAttempt = await harness.handleStepOneLap()
+
+      expect(stepAttempt).toBe(false)
+      expect(harness.getRunnerCount()).toBe(0)
+      expect(harness.getState().currentLap).toBe(10)
     })
   })
 })

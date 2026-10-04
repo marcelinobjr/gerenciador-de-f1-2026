@@ -845,14 +845,18 @@ export default function LiveRacePage() {
 
   // 4.1 HANDLER DO BOTÃO +1 VOLTA (STEP LAP CANÔNICO)
   // Regras estritas:
-  // - Pausa imediatamente se play estiver ativo;
-  // - Trava concorrência contra duplo-clique e timer;
+  // - Válido apenas com sessão ativa e pausada (com Play ativo ou execução em andamento: desabilitado);
+  // - Sem sessão ou com corrida encerrada: desabilitado;
+  // - Trava concorrência contra duplo-clique e timer (reutilizando lock existente);
   // - Requer/adquire lock de executor se necessário;
-  // - Executa exatamente UMA volta pelo mesmo executeCanonicalLapStep;
-  // - OBRIGATORIAMENTE termina em PAUSADO.
+  // - Executa exatamente UMA volta pelo mesmo executeCanonicalLapStep compartilhado;
+  // - OBRIGATORIAMENTE termina em PAUSADO, sem autoplay;
+  // - Se encerrar corrida, preserva estado terminal e finalização única.
   const handleStepOneLap = async () => {
     if (isRaceFinished || sessionRecord?.status === 'completed') return
-    if (isSteppingLapRef.current || isSteppingLap) return
+    if (!sessionRecord) return
+    if (isSteppingLapRef.current || isSteppingLap || isSavingRef.current) return
+    if (!isRacePaused) return
     if (pendingDecisions.length > 0) {
       toast({
         variant: 'destructive',
@@ -862,11 +866,11 @@ export default function LiveRacePage() {
       return
     }
 
-    // Trava de concorrência ativa imediatamente
+    // Trava de concorrência síncrona imediata contra duplo clique e reentrância
     isSteppingLapRef.current = true
     setIsSteppingLap(true)
 
-    // Se a reprodução automática estiver ligada, limpa o timer e pausa imediatamente
+    // Se houver qualquer timer em resquício, limpa imediatamente e garante pausa
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
@@ -874,7 +878,7 @@ export default function LiveRacePage() {
     setIsRacePaused(true)
 
     try {
-      // Garantir concessão de executor se ainda não tiver
+      // 1) Adquirir/validar autorização de execução pelo mecanismo existente
       if (!isExecuting) {
         const acquired = await handleTryAcquireLock()
         if (!acquired) {
@@ -882,6 +886,7 @@ export default function LiveRacePage() {
         }
       }
 
+      // 2 & 3) Executar o fluxo canônico compartilhado e salvar pelo caminho existente
       await executeCanonicalLapStep({ isManualStep: true })
     } catch (err: any) {
       console.error('[LiveRacePage] Erro ao avançar 1 volta:', err)
@@ -891,7 +896,7 @@ export default function LiveRacePage() {
         description: err?.message || 'Falha ao processar volta canônica.',
       })
     } finally {
-      // Garantir término estritamente PAUSADO e liberação de trava
+      // 4 & 5) Garantir término estritamente PAUSADO e liberação de trava
       setIsRacePaused(true)
       setIsSteppingLap(false)
       isSteppingLapRef.current = false
