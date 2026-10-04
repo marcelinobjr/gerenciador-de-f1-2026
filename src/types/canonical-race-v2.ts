@@ -212,6 +212,9 @@ export interface CanonicalRaceDriverState {
   teamColor: string
   isPlayer: boolean
   carId?: 'car1' | 'car2'
+  carIndex?: 1 | 2
+  powerUnitId?: number
+  powerUnitInitialCondition?: number
   tyreSetId?: string
   initialTyreWear?: number
   initialTyreLapsUsed?: number
@@ -323,6 +326,8 @@ export interface RedFlagDriverSnapshot {
   tyreAge: number
   fuel: number
   carCondition: number
+  powerUnitId?: number
+  powerUnitInitialCondition?: number
   raceStatus: CanonicalDriverRaceStatus
   isDnf?: boolean
   dnfReason?: string
@@ -404,6 +409,7 @@ export interface InitializeCanonicalRaceParams {
   circuitLengthKm?: number
   totalLaps: number
   playerTeamId: string
+  playerTeam?: import('@/types/f1').TeamModel | null
   canonicalQualifyingGrid: FinalQualifyingGridEntry[]
   weather?: TrackWeatherState
   weatherEvent?: import('@/types/climate').RaceWeekendWeather

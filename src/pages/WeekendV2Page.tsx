@@ -3401,6 +3401,7 @@ export default function WeekendV2Page() {
                       circuitCountry: gpInfo.country,
                       totalLaps,
                       playerTeamId: team.id,
+                      playerTeam: team,
                       canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
                     })
                   setCanonicalRaceState(freshRace)
@@ -3470,6 +3471,7 @@ export default function WeekendV2Page() {
                       circuitCountry: gpInfo.country,
                       totalLaps,
                       playerTeamId: team.id,
+                      playerTeam: team,
                       canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
                       carPreparations,
                     })

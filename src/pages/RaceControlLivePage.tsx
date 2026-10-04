@@ -427,6 +427,7 @@ export default function RaceControlLivePage() {
                 circuitCountry: gpInfo.country,
                 totalLaps,
                 playerTeamId: team.id,
+                playerTeam: team,
                 canonicalQualifyingGrid: completeQualifyingResult.finalGrid,
               })
               setCanonicalRaceState(freshRace)

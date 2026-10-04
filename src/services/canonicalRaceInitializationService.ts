@@ -38,6 +38,7 @@ import { canonicalRaceSaveService } from '@/services/canonicalRaceSaveService'
 import { weatherGenerator } from '@/services/weatherGenerator'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
 import { calculateRequiredStartingFuelKg } from '@/services/canonicalFuelModel'
+import { canonicalPowerUnitAllocationService } from '@/services/canonicalPowerUnitAllocationService'
 
 const RACE_V2_STORAGE_KEY_PREFIX = 'apex_race_v2_canonical_state'
 
@@ -196,6 +197,30 @@ export const canonicalRaceInitializationService = {
     // 4. Montar as 24 entidades canônicas
     const raceId = this.buildRaceId(careerId, season, round, raceVariant)
 
+    // PU-05A2-P2: Resolver a alocação persistida canônica do jogador (se disponível)
+    let playerAllocation:
+      | import('@/services/canonicalPowerUnitAllocationService').PowerUnitCarAllocation
+      | null = null
+    let playerTeamEngineHistory: any[] = []
+    if (params.playerTeam) {
+      playerAllocation = canonicalPowerUnitAllocationService.resolveAllocation({
+        team: params.playerTeam,
+        careerId,
+      })
+      playerTeamEngineHistory = params.playerTeam.engine_history || []
+      // Validação estrita da alocação da nova sessão:
+      const val = canonicalPowerUnitAllocationService.validateAllocation(
+        playerAllocation.car1Unit,
+        playerAllocation.car2Unit,
+        params.playerTeam,
+      )
+      if (!val.valid) {
+        throw new Error(
+          `[PU-05A2-P2] Alocação de Unidade de Potência inválida para a nova corrida: ${val.error}`,
+        )
+      }
+    }
+
     // Assinalar carId de forma robusta e independente para os dois pilotos do jogador
     let playerCarCounter = 0
     const driverLookup: Record<string, CanonicalRaceDriverState> = {}
@@ -209,6 +234,36 @@ export const canonicalRaceInitializationService = {
       if (isPlayer) {
         playerCarCounter++
         carId = carId || (playerCarCounter === 1 ? 'car1' : 'car2')
+      }
+
+      // PU-05A2-P2: Vincular unidade física ao participante pela identidade canônica de carro/equipe
+      let powerUnitId: number | undefined
+      let powerUnitInitialCondition: number | undefined
+
+      if (isPlayer && playerAllocation) {
+        const allocatedUnitNumber =
+          carId === 'car1' ? playerAllocation.car1Unit : playerAllocation.car2Unit
+        powerUnitId = allocatedUnitNumber
+        // Obter condição da unidade física a partir de engine_history (se presente)
+        const unitInHistory = playerTeamEngineHistory.find(
+          (eng: any) => Number(eng.id) === allocatedUnitNumber,
+        )
+        if (unitInHistory) {
+          powerUnitInitialCondition =
+            typeof unitInHistory.condition === 'number'
+              ? unitInHistory.condition
+              : typeof unitInHistory.wear === 'number'
+                ? Math.max(0, 100 - unitInHistory.wear)
+                : 100
+        } else {
+          powerUnitInitialCondition = 100
+        }
+      } else {
+        // Participantes da IA / Equipes não-jogadoras:
+        // Carro 1 recebe PU 1, Carro 2 recebe PU 2 com integridade 100% nominal
+        const aiCarSlot = carId || (entry.gridPosition % 2 === 1 ? 'car1' : 'car2')
+        powerUnitId = aiCarSlot === 'car1' ? 1 : 2
+        powerUnitInitialCondition = 100
       }
 
       // BUG-02 COMMIT C: Se houver preparação confirmada por carro, respeitá-la estritamente!
@@ -313,6 +368,8 @@ export const canonicalRaceInitializationService = {
         teamColor: entry.teamColor,
         isPlayer,
         carId,
+        powerUnitId,
+        powerUnitInitialCondition,
         tyreSetId: startingTyreSetId,
         initialTyreWear,
         initialTyreLapsUsed,

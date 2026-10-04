@@ -158,6 +158,15 @@ export class CanonicalRaceEngineService {
       relationshipType: puState.relationshipType,
     })
 
+    // PU-05A2-P2: Utilizar a condição da unidade vinculada onde antes usava o estado agregado/fixo
+    // Se a sessão possuir powerUnitInitialCondition vinculada ao participante, utilizamos essa condição
+    // Caso contrário (sessões legadas anteriores ao P2), mantemos estrita compatibilidade
+    // sem aplicar desgaste em duplicidade ou recalibrar equipes.
+    let puCondition = 100
+    if (typeof driver.powerUnitInitialCondition === 'number') {
+      puCondition = Math.max(0, Math.min(100, driver.powerUnitInitialCondition))
+    }
+
     const carPerf = Number((chassis * 0.7 + effectivePU.effectivePuRating * 0.3).toFixed(1))
     const reliability = tech.attributes?.reliability ?? 80
 
@@ -167,6 +176,7 @@ export class CanonicalRaceEngineService {
       carPerf,
       reliability,
       technicalAttributes: tech.attributes,
+      puCondition,
     }
   }
 
@@ -369,9 +379,16 @@ export class CanonicalRaceEngineService {
     const fuelEffectSec = (driver.fuel / 100.0) * 1.5
 
     // 5. Condição do Carro e Desgaste da PU (BALANCE-EQUATION-02B Regras 7, 9, 10, 29)
-    // O desgaste da PU reduz performance progressivamente via engineWearPenalty
-    const puWearPercent = (100 - driver.carCondition) * 0.85 // Derivação controlada da integridade da PU
-    const puPenalty = structuralMissingFactorsService.calculatePUWearPenalty(puWearPercent)
+    // PU-05A2-P2: O desgaste da PU utiliza a condição real da unidade física vinculada ao participante
+    // Preserva o desgaste acumulado da prova sem aplicar desgaste agregado e individual em duplicidade.
+    let basePUWear = 0
+    if (typeof driver.powerUnitInitialCondition === 'number') {
+      basePUWear = Math.max(0, 100 - driver.powerUnitInitialCondition)
+    }
+    const lapPUWearIncrement = (100 - driver.carCondition) * 0.85
+    const totalEffectivePUWear = Math.min(100, basePUWear + lapPUWearIncrement)
+
+    const puPenalty = structuralMissingFactorsService.calculatePUWearPenalty(totalEffectivePUWear)
     const engineWearPenaltySec = puPenalty.engineWearPenalty
 
     const damagePenaltySec = (100 - driver.carCondition) * 0.04 + engineWearPenaltySec
@@ -452,7 +469,12 @@ export class CanonicalRaceEngineService {
     const puReliability = puSep.nominalReliability
 
     const paceMode = driver.strategy?.paceMode || 'NORMAL'
-    const puWearPercent = (100 - driver.carCondition) * 0.85
+    let basePUWear = 0
+    if (typeof driver.powerUnitInitialCondition === 'number') {
+      basePUWear = Math.max(0, 100 - driver.powerUnitInitialCondition)
+    }
+    const lapPUWearIncrement = (100 - driver.carCondition) * 0.85
+    const puWearPercent = Math.min(100, basePUWear + lapPUWearIncrement)
 
     const riskResult = structuralMissingFactorsService.calculateMechanicalFailureRisk({
       carReliability,
@@ -1584,6 +1606,8 @@ export class CanonicalRaceEngineService {
         tyreAge: d.tyreAge,
         fuel: d.fuel,
         carCondition: d.carCondition,
+        powerUnitId: d.powerUnitId,
+        powerUnitInitialCondition: d.powerUnitInitialCondition,
         raceStatus: d.raceStatus,
         isDnf: d.isDnf,
         dnfReason: d.dnfReason,
