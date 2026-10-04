@@ -197,12 +197,12 @@ export const canonicalRaceInitializationService = {
     // 4. Montar as 24 entidades canônicas
     const raceId = this.buildRaceId(careerId, season, round, raceVariant)
 
-    // PU-05A2-P2a: Resolver a alocação persistida canônica do jogador (se disponível)
+    // PU-05A2-P2a: Resolver a alocação montada via canonicalPowerUnitAllocationService (fonte autoritativa do P1)
     let playerAllocation:
       | import('@/services/canonicalPowerUnitAllocationService').PowerUnitCarAllocation
       | null = null
     let playerTeamEngineHistory: any[] = []
-    if (params.playerTeam) {
+    if (params.playerTeam && (!params.playerTeam.id || params.playerTeam.id === playerTeamId)) {
       playerAllocation = canonicalPowerUnitAllocationService.resolveAllocation({
         team: params.playerTeam,
         careerId,
@@ -260,38 +260,29 @@ export const canonicalRaceInitializationService = {
         carId = carId || playerAssignedCarMap.get(entry.driverId) || 'car1'
       }
 
-      // PU-05A2-P2: Vincular unidade física ao participante pela identidade canônica de carro/equipe
-      // PU-05A2-P2a: Vincular a unidade ao participante na inicialização
+      // PU-05A2-P2a: Vincular a unidade física ao participante na inicialização pela identidade real de equipe/carro.
+      // Se a associação for inválida ou a unidade não existir, deixar campos indefinidos (comportamento legado).
       let powerUnitId: number | undefined
       let powerUnitInitialCondition: number | undefined
 
-      if (isPlayer && playerAllocation) {
+      if (isPlayer && playerAllocation && (carId === 'car1' || carId === 'car2')) {
         const allocatedUnitNumber =
           carId === 'car1' ? playerAllocation.car1Unit : playerAllocation.car2Unit
-        powerUnitId = allocatedUnitNumber
-        // Obter condição da unidade física a partir de engine_history (se presente)
-        const unitInHistory = playerTeamEngineHistory.find(
-          (eng: any) => Number(eng.id) === allocatedUnitNumber,
-        )
-        if (unitInHistory) {
-          powerUnitInitialCondition =
-            typeof unitInHistory.condition === 'number'
-              ? unitInHistory.condition
-              : typeof unitInHistory.wear === 'number'
-                ? Math.max(0, 100 - unitInHistory.wear)
-                : 100
-        } else {
-          powerUnitInitialCondition = 100
+        if (typeof allocatedUnitNumber === 'number' && allocatedUnitNumber > 0) {
+          const unitInHistory = playerTeamEngineHistory.find(
+            (eng: any) => Number(eng.id) === allocatedUnitNumber,
+          )
+          if (unitInHistory) {
+            powerUnitId = allocatedUnitNumber
+            powerUnitInitialCondition =
+              typeof unitInHistory.condition === 'number'
+                ? unitInHistory.condition
+                : typeof unitInHistory.wear === 'number'
+                  ? Math.max(0, 100 - unitInHistory.wear)
+                  : 100
+          }
         }
-      } else {
-        // Participantes da IA / Equipes não-jogadoras:
-        // Carro 1 recebe PU 1, Carro 2 recebe PU 2 com integridade 100% nominal
-        const aiCarSlot = carId || (entry.gridPosition % 2 === 1 ? 'car1' : 'car2')
-        powerUnitId = aiCarSlot === 'car1' ? 1 : 2
-        powerUnitInitialCondition = 100
-      }
-
-      // BUG-02 COMMIT C: Se houver preparação confirmada por carro, respeitá-la estritamente!
+      } // BUG-02 COMMIT C: Se houver preparação confirmada por carro, respeitá-la estritamente!
       const explicitPrep =
         params.carPreparations?.[entry.driverId] ||
         (carId ? params.carPreparations?.[carId] : undefined)
