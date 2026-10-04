@@ -60,7 +60,9 @@ export interface PowerUnitConditionSelectionResult {
  * Rejeita NaN, valores infinitos e números fora da escala regulamentar.
  */
 function isValidConditionValue(val: unknown): val is number {
-  return typeof val === 'number' && !Number.isNaN(val) && Number.isFinite(val) && val >= 0 && val <= 100
+  return (
+    typeof val === 'number' && !Number.isNaN(val) && Number.isFinite(val) && val >= 0 && val <= 100
+  )
 }
 
 /**
@@ -85,8 +87,10 @@ export function selectParticipantPowerUnitCondition(
   }
 
   const hasPuId = driver.powerUnitId !== undefined && driver.powerUnitId !== null
-  const hasInitialCond = driver.powerUnitInitialCondition !== undefined && driver.powerUnitInitialCondition !== null
-  const hasCurrentCond = driver.powerUnitCondition !== undefined && driver.powerUnitCondition !== null
+  const hasInitialCond =
+    driver.powerUnitInitialCondition !== undefined && driver.powerUnitInitialCondition !== null
+  const hasCurrentCond =
+    driver.powerUnitCondition !== undefined && driver.powerUnitCondition !== null
 
   // CASO 1: Sessão com vínculo individual (powerUnitId presente ou campos de unidade presentes)
   if (hasPuId || hasInitialCond || hasCurrentCond) {
@@ -136,7 +140,10 @@ export function selectParticipantPowerUnitCondition(
   let fallback: number | null = null
   if (options && options.legacyFallbackCondition !== undefined) {
     fallback = options.legacyFallbackCondition
-  } else if (typeof driver.carCondition === 'number' && isValidConditionValue(driver.carCondition)) {
+  } else if (
+    typeof driver.carCondition === 'number' &&
+    isValidConditionValue(driver.carCondition)
+  ) {
     fallback = driver.carCondition
   }
 
