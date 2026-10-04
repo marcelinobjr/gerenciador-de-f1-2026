@@ -68,11 +68,15 @@ export const RaceControlPanel: React.FC<RaceControlPanelProps> = ({
       <CardHeader
         onClick={() => setCollapsed(!collapsed)}
         className={`${
-          compact ? 'py-1.5 px-3' : 'py-2.5 px-3.5'
+          compact ? 'py-1 px-2.5' : 'py-2.5 px-3.5'
         } bg-[#0e1628] border-b border-slate-800 flex flex-row items-center justify-between cursor-pointer select-none`}
       >
-        <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-          <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+        <CardTitle
+          className={`${compact ? 'text-[11px]' : 'text-xs'} font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5`}
+        >
+          <Radio
+            className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-emerald-400 animate-pulse`}
+          />
           ESTADO DA CORRIDA
         </CardTitle>
         <button
@@ -81,28 +85,34 @@ export const RaceControlPanel: React.FC<RaceControlPanelProps> = ({
           title={collapsed ? 'Expandir' : 'Recolher'}
         >
           {collapsed ? (
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
           ) : (
-            <ChevronUp className="w-3.5 h-3.5" />
+            <ChevronUp className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
           )}
         </button>
       </CardHeader>
 
       {!collapsed && (
-        <CardContent className={`${compact ? 'p-2 space-y-1' : 'p-3 space-y-2'} text-xs`}>
+        <CardContent
+          className={`${compact ? 'p-1.5 space-y-0.5 text-[11px]' : 'p-3 space-y-2 text-xs'}`}
+        >
           {/* BANDEIRA */}
           <div className="flex items-center justify-between py-0.5 border-b border-slate-800/40">
-            <span className="text-slate-400 text-[10px] font-sans font-bold uppercase">
+            <span
+              className={`text-slate-400 ${compact ? 'text-[9px]' : 'text-[10px]'} font-sans font-bold uppercase`}
+            >
               BANDEIRA
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <span
-                className="w-2.5 h-2.5 rounded-xs"
+                className={`${compact ? 'w-2 h-2' : 'w-2.5 h-2.5'} rounded-xs`}
                 style={{
                   backgroundColor: flagInfo.color.split(' ')[1]?.replace('bg-', '') || '#10b981',
                 }}
               />
-              <span className={`font-black text-xs tracking-wider ${flagInfo.color.split(' ')[0]}`}>
+              <span
+                className={`font-black ${compact ? 'text-[10px]' : 'text-xs'} tracking-wider ${flagInfo.color.split(' ')[0]}`}
+              >
                 {flagInfo.label}
               </span>
             </div>
@@ -110,11 +120,13 @@ export const RaceControlPanel: React.FC<RaceControlPanelProps> = ({
 
           {/* SAFETY CAR */}
           <div className="flex items-center justify-between py-0.5 border-b border-slate-800/40">
-            <span className="text-slate-400 text-[10px] font-sans font-bold uppercase">
+            <span
+              className={`text-slate-400 ${compact ? 'text-[9px]' : 'text-[10px]'} font-sans font-bold uppercase`}
+            >
               SAFETY CAR
             </span>
             <span
-              className={`font-black text-xs ${
+              className={`font-black ${compact ? 'text-[10px]' : 'text-xs'} ${
                 safetyCarActive ? 'text-orange-400 animate-pulse' : 'text-slate-500'
               }`}
             >
@@ -124,9 +136,13 @@ export const RaceControlPanel: React.FC<RaceControlPanelProps> = ({
 
           {/* VSC */}
           <div className="flex items-center justify-between py-0.5 border-b border-slate-800/40">
-            <span className="text-slate-400 text-[10px] font-sans font-bold uppercase">VSC</span>
             <span
-              className={`font-black text-xs ${
+              className={`text-slate-400 ${compact ? 'text-[9px]' : 'text-[10px]'} font-sans font-bold uppercase`}
+            >
+              VSC
+            </span>
+            <span
+              className={`font-black ${compact ? 'text-[10px]' : 'text-xs'} ${
                 vscActive ? 'text-amber-400 animate-pulse' : 'text-slate-500'
               }`}
             >
@@ -136,9 +152,13 @@ export const RaceControlPanel: React.FC<RaceControlPanelProps> = ({
 
           {/* DRS */}
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-slate-400 text-[10px] font-sans font-bold uppercase">DRS</span>
             <span
-              className={`font-black text-xs tracking-wider ${
+              className={`text-slate-400 ${compact ? 'text-[9px]' : 'text-[10px]'} font-sans font-bold uppercase`}
+            >
+              DRS
+            </span>
+            <span
+              className={`font-black ${compact ? 'text-[10px]' : 'text-xs'} tracking-wider ${
                 isDrsEligible ? 'text-emerald-400' : 'text-slate-500'
               }`}
             >

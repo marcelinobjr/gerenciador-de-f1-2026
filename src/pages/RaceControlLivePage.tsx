@@ -146,35 +146,35 @@ export default function RaceControlLivePage() {
   }
 
   return (
-    <div className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 space-y-2 font-mono">
+    <div className="max-w-[1920px] mx-auto px-2 sm:px-3 py-1.5 space-y-1.5 font-mono">
       {/* BARRA SUPERIOR DE NAVEGAÇÃO DEDICADA */}
-      <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl bg-[#080d1a] border border-slate-800 text-xs">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg bg-[#080d1a] border border-slate-800 text-[11px]">
+        <div className="flex items-center gap-2.5">
           <Button
             asChild
             variant="ghost"
             size="sm"
-            className="h-8 px-2.5 text-xs font-black text-slate-200 hover:text-white hover:bg-slate-800 gap-1.5 font-mono"
+            className="h-7 px-2 text-[11px] font-black text-slate-200 hover:text-white hover:bg-slate-800 gap-1.5 font-mono"
           >
             <Link to="/corrida">
-              <ArrowLeft className="w-4 h-4 text-cyan-400" />← Voltar para Corrida
+              <ArrowLeft className="w-3.5 h-3.5 text-cyan-400" />← Voltar para Corrida
             </Link>
           </Button>
 
-          <span className="text-slate-600">|</span>
+          <span className="text-slate-700">|</span>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-200 flex items-center gap-1">
+              <Radio className="w-3 h-3 text-emerald-400" />
               RACE CONTROL AO VIVO — TELA DEDICADA
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] text-slate-400">
+        <div className="flex items-center gap-2 text-[10px] text-slate-400">
           <span>{gpInfo.name}</span>
-          <span className="text-slate-600">•</span>
+          <span className="text-slate-700">•</span>
           <span className="text-slate-200 font-bold">Rodada {currentRound}/24</span>
         </div>
       </div>

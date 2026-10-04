@@ -39,13 +39,13 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
   return (
     <aside
       className={`w-full ${
-        compact ? 'lg:w-64 xl:w-72' : 'lg:w-72 xl:w-80'
+        compact ? 'lg:w-60 xl:w-64 max-h-[calc(100vh-140px)]' : 'lg:w-72 xl:w-80'
       } shrink-0 bg-[#090d18] border border-slate-800/80 rounded-xl shadow-xl overflow-hidden flex flex-col`}
     >
       {/* Header da Torre */}
       <div
         className={`grid grid-cols-12 items-center ${
-          compact ? 'px-2 py-1 text-[9px]' : 'px-2.5 py-2 text-[10px]'
+          compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2.5 py-2 text-[10px]'
         } bg-[#0e1628] border-b border-slate-800 font-mono font-bold tracking-wider text-slate-400 uppercase select-none`}
       >
         <span className="col-span-2 text-center">POS</span>
@@ -80,7 +80,7 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
             <div
               key={`tower_${driver.driverId}`}
               className={`grid grid-cols-12 items-center ${
-                compact ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-1.5 text-xs'
+                compact ? 'px-1 py-[1.5px] text-[10px] leading-tight' : 'px-2 py-1.5 text-xs'
               } font-mono transition-colors ${
                 isDnf
                   ? 'bg-slate-950/60 opacity-40 text-slate-500'
@@ -93,7 +93,7 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
               <div className="col-span-2 flex items-center justify-center">
                 <span
                   className={`${
-                    compact ? 'w-4 h-4 text-[10px]' : 'w-5 h-5 text-[11px]'
+                    compact ? 'w-3.5 h-3.5 text-[9px]' : 'w-5 h-5 text-[11px]'
                   } rounded flex items-center justify-center font-black ${
                     driver.currentPosition === 1
                       ? 'bg-amber-400 text-black font-black'
@@ -111,12 +111,12 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
               {/* BARRA DE COR DA EQUIPE + SOBRENOME */}
               <div className="col-span-5 flex items-center gap-1 pl-1 truncate">
                 <span
-                  className={`${compact ? 'w-1 h-3' : 'w-1 h-3.5'} rounded-full shrink-0`}
+                  className={`${compact ? 'w-0.5 h-2.5' : 'w-1 h-3.5'} rounded-full shrink-0`}
                   style={{ backgroundColor: driver.teamColor || '#64748b' }}
                 />
                 <span
                   className={`truncate uppercase tracking-tight ${
-                    compact ? 'text-[10px]' : 'text-[11px]'
+                    compact ? 'text-[9px]' : 'text-[11px]'
                   } ${isPlayer ? 'text-emerald-300 font-black' : 'text-slate-100 font-semibold'}`}
                   title={driver.driverName}
                 >
@@ -131,12 +131,12 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
                     src={logoUrl}
                     alt={driver.teamName}
                     className={`${
-                      compact ? 'w-3.5 h-3.5' : 'w-4 h-4'
+                      compact ? 'w-3 h-3' : 'w-4 h-4'
                     } rounded-xs object-contain bg-slate-900 border border-slate-700/60 p-0.5 shrink-0`}
                   />
                 ) : (
                   <span
-                    className={`${compact ? 'w-2 h-2' : 'w-2.5 h-2.5'} rounded-full`}
+                    className={`${compact ? 'w-1.5 h-1.5' : 'w-2.5 h-2.5'} rounded-full`}
                     style={{ backgroundColor: driver.teamColor || '#64748b' }}
                     title={driver.teamName}
                   />
@@ -147,7 +147,7 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
               <div className="col-span-1 flex items-center justify-center">
                 <span
                   className={`${
-                    compact ? 'w-3.5 h-3.5 text-[8px]' : 'w-4 h-4 text-[9px]'
+                    compact ? 'w-3 h-3 text-[7px]' : 'w-4 h-4 text-[9px]'
                   } rounded-full border flex items-center justify-center font-black ${tyre.color}`}
                   title={`${driver.tyreCompound} (${driver.tyreAge} voltas)`}
                 >
@@ -158,7 +158,7 @@ export const TimingTower: React.FC<TimingTowerProps> = ({ drivers, compact = fal
               {/* GAP */}
               <div className="col-span-2 text-right pr-1">
                 <span
-                  className={`${compact ? 'text-[9px]' : 'text-[10px]'} font-mono tracking-tight ${
+                  className={`${compact ? 'text-[8px]' : 'text-[10px]'} font-mono tracking-tight ${
                     isDnf
                       ? 'text-red-400 font-bold'
                       : driver.currentPosition === 1

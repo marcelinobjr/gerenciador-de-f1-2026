@@ -150,11 +150,11 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
             key={`compact_strip_${driver.driverId}`}
             className="bg-[#090d18] border border-slate-800/80 rounded-xl shadow-md overflow-hidden text-white"
           >
-            <CardContent className="p-2 sm:p-2.5">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+            <CardContent className="p-1.5 sm:p-2">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1.5">
                 {/* PILOTO: FOTO + NOME + POSIÇÃO + DELTA */}
-                <div className="flex items-center gap-2.5 min-w-[210px] shrink-0">
-                  <div className="w-10 h-10 rounded-lg bg-[#0f172a] border border-slate-700/60 overflow-hidden relative shadow-xs flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-2 min-w-[190px] shrink-0">
+                  <div className="w-8 h-8 rounded-md bg-[#0f172a] border border-slate-700/60 overflow-hidden relative shadow-xs flex items-center justify-center shrink-0">
                     {resolvedPhoto.url ? (
                       <img
                         src={resolvedPhoto.url}
@@ -165,32 +165,32 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                         }}
                       />
                     ) : (
-                      <span className="text-xs font-black text-slate-400 font-mono">
+                      <span className="text-[10px] font-black text-slate-400 font-mono">
                         {resolvedPhoto.fallbackInitials}
                       </span>
                     )}
                   </div>
 
-                  <div className="space-y-0.5 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-1.5 py-0.2 rounded border border-emerald-500/40 bg-emerald-950/60 text-emerald-400 font-mono font-black text-[10px]">
+                  <div className="space-y-0.2 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="px-1 py-0 rounded border border-emerald-500/40 bg-emerald-950/60 text-emerald-400 font-mono font-black text-[9px]">
                         #{carNumber}
                       </span>
-                      <CountryFlag code={nationality} className="text-xs shrink-0" />
+                      <CountryFlag code={nationality} className="text-[10px] shrink-0" />
                       <h4
-                        className="text-xs font-black uppercase text-white truncate max-w-[120px]"
+                        className="text-[11px] font-black uppercase text-white truncate max-w-[110px]"
                         title={driver.driverName}
                       >
                         {driver.driverName}
                       </h4>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                    <div className="flex items-center gap-1 text-[9px] text-slate-400">
                       {logoUrl && (
                         <img
                           src={logoUrl}
                           alt={driver.teamName}
-                          className="w-3 h-3 object-contain shrink-0"
+                          className="w-2.5 h-2.5 object-contain shrink-0"
                         />
                       )}
                       <span className="truncate font-semibold text-slate-300">
@@ -200,25 +200,25 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                   </div>
 
                   {/* POSIÇÃO E GANHO/PERDA */}
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#0e1628] border border-slate-800 shrink-0">
-                    <span className="text-sm font-black font-mono text-white leading-none">
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#0e1628] border border-slate-800 shrink-0">
+                    <span className="text-xs font-black font-mono text-white leading-none">
                       P{driver.currentPosition}
                     </span>
                     {posDelta !== 0 && !isDnf && (
                       <span
-                        className={`text-[10px] font-mono font-black flex items-center ${
+                        className={`text-[9px] font-mono font-black flex items-center ${
                           posDelta > 0 ? 'text-emerald-400' : 'text-red-400'
                         }`}
                         title={`Largou em P${driver.gridPosition}`}
                       >
                         {posDelta > 0 ? (
                           <>
-                            <ArrowUp className="w-2.5 h-2.5" />
+                            <ArrowUp className="w-2 h-2" />
                             {posDelta}
                           </>
                         ) : (
                           <>
-                            <ArrowDown className="w-2.5 h-2.5" />
+                            <ArrowDown className="w-2 h-2" />
                             {Math.abs(posDelta)}
                           </>
                         )}
@@ -228,30 +228,30 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                 </div>
 
                 {/* MÉTRICAS CENTRAIS: PNEU, GAPS, VOLTAS, PITS, JANELA, ESTADO */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 text-[11px] font-mono flex-1">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-1 text-[10px] font-mono flex-1">
                   {/* PNEU + DESGASTE + IDADE */}
-                  <div className="bg-[#0e1628] px-2 py-1 rounded-md border border-slate-800/60">
-                    <span className="text-[9px] uppercase font-sans text-slate-400 block leading-tight">
+                  <div className="bg-[#0e1628] px-1.5 py-0.5 rounded border border-slate-800/60">
+                    <span className="text-[8px] uppercase font-sans text-slate-400 block leading-tight">
                       PNEU
                     </span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center gap-1 mt-0.5">
                       <span
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center font-bold text-[9px] ${tyreStyles.circle}`}
+                        className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center font-bold text-[8px] ${tyreStyles.circle}`}
                       >
                         {currentCompoundLetter}
                       </span>
-                      <span className="text-[10px] font-bold text-slate-200">
+                      <span className="text-[9px] font-bold text-slate-200">
                         {tyreLifePct}% ({driver.tyreAge}v)
                       </span>
                     </div>
                   </div>
 
                   {/* GAPS (FRENTE / ATRÁS) */}
-                  <div className="bg-[#0e1628] px-2 py-1 rounded-md border border-slate-800/60">
-                    <span className="text-[9px] uppercase font-sans text-slate-400 block leading-tight">
+                  <div className="bg-[#0e1628] px-1.5 py-0.5 rounded border border-slate-800/60">
+                    <span className="text-[8px] uppercase font-sans text-slate-400 block leading-tight">
                       GAPS
                     </span>
-                    <div className="text-[10px] font-bold text-slate-200 mt-0.5 flex items-center gap-1">
+                    <div className="text-[9px] font-bold text-slate-200 mt-0.5 flex items-center gap-0.5">
                       <span className="text-slate-400 font-normal">▲</span>
                       <span>{gapAheadDisplay}</span>
                       <span className="text-slate-500 font-normal">/</span>
@@ -261,14 +261,14 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                   </div>
 
                   {/* ÚLTIMA VOLTA / MELHOR VOLTA */}
-                  <div className="bg-[#0e1628] px-2 py-1 rounded-md border border-slate-800/60">
-                    <span className="text-[9px] uppercase font-sans text-slate-400 block leading-tight">
+                  <div className="bg-[#0e1628] px-1.5 py-0.5 rounded border border-slate-800/60">
+                    <span className="text-[8px] uppercase font-sans text-slate-400 block leading-tight">
                       TEMPOS
                     </span>
-                    <div className="text-[10px] font-bold mt-0.5 truncate">
+                    <div className="text-[9px] font-bold mt-0.5 truncate">
                       <span className="text-slate-300">{driver.lastLapTimeFormatted || '—'}</span>
                       {driver.bestLapFormatted && (
-                        <span className="text-purple-300 ml-1 text-[9px]">
+                        <span className="text-purple-300 ml-0.5 text-[8px]">
                           ★{driver.bestLapFormatted}
                         </span>
                       )}
@@ -276,38 +276,38 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                   </div>
 
                   {/* PITS E JANELA */}
-                  <div className="bg-[#0e1628] px-2 py-1 rounded-md border border-slate-800/60">
-                    <span className="text-[9px] uppercase font-sans text-slate-400 block leading-tight">
+                  <div className="bg-[#0e1628] px-1.5 py-0.5 rounded border border-slate-800/60">
+                    <span className="text-[8px] uppercase font-sans text-slate-400 block leading-tight">
                       BOX / JANELA
                     </span>
-                    <div className="text-[10px] font-bold text-cyan-300 mt-0.5 truncate">
-                      {driver.pitStops} pit{driver.pitStops !== 1 ? 's' : ''} • {pitWindowDisplay}
+                    <div className="text-[9px] font-bold text-cyan-300 mt-0.5 truncate">
+                      {driver.pitStops}p • {pitWindowDisplay}
                     </div>
                   </div>
 
                   {/* ESTRATÉGIA RESUMIDA */}
-                  <div className="bg-[#0e1628] px-2 py-1 rounded-md border border-slate-800/60">
-                    <span className="text-[9px] uppercase font-sans text-slate-400 block leading-tight">
+                  <div className="bg-[#0e1628] px-1.5 py-0.5 rounded border border-slate-800/60">
+                    <span className="text-[8px] uppercase font-sans text-slate-400 block leading-tight">
                       ESTRATÉGIA
                     </span>
-                    <div className="text-[10px] font-bold text-amber-300 mt-0.5 flex items-center gap-1">
+                    <div className="text-[9px] font-bold text-amber-300 mt-0.5 flex items-center gap-0.5">
                       <span>{currentCompoundLetter}</span>
                       <span className="text-slate-400">→</span>
                       <span>{targetCompoundLetter}</span>
-                      <span className="text-slate-400 text-[9px]">
+                      <span className="text-slate-400 text-[8px]">
                         ({getCompoundLabel(targetCompound)})
                       </span>
                     </div>
                   </div>
 
                   {/* ESTADO DO CARRO */}
-                  <div className="bg-[#0e1628] px-2 py-1 rounded-md border border-slate-800/60">
-                    <span className="text-[9px] uppercase font-sans text-slate-400 block leading-tight">
+                  <div className="bg-[#0e1628] px-1.5 py-0.5 rounded border border-slate-800/60">
+                    <span className="text-[8px] uppercase font-sans text-slate-400 block leading-tight">
                       CARRO
                     </span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center gap-1 mt-0.5">
                       <span
-                        className={`w-2 h-2 rounded-full ${
+                        className={`w-1.5 h-1.5 rounded-full ${
                           driver.carCondition >= 80
                             ? 'bg-emerald-400'
                             : driver.carCondition >= 50
@@ -315,7 +315,7 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                               : 'bg-red-400'
                         }`}
                       />
-                      <span className="text-[10px] font-bold text-slate-200 uppercase">
+                      <span className="text-[9px] font-bold text-slate-200 uppercase">
                         {driver.carCondition >= 80 ? 'OK' : 'AVARIADO'}
                       </span>
                     </div>
@@ -323,7 +323,7 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                 </div>
 
                 {/* BOTÕES DE AÇÃO COMPACTOS: BOX + ESTRATÉGIA */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1 shrink-0">
                   {isRedFlagActive ? (
                     <Button
                       type="button"
@@ -336,10 +336,10 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                           onRequestPit(driver.driverId, targetCompound)
                         }
                       }}
-                      className="h-8 px-2.5 text-[11px] font-black bg-purple-600 hover:bg-purple-500 text-white gap-1 shadow-sm uppercase"
+                      className="h-7 px-2 text-[10px] font-black bg-purple-600 hover:bg-purple-500 text-white gap-1 shadow-xs uppercase rounded-md"
                     >
-                      <Wrench className="w-3 h-3" />
-                      TROCAR (SUSP.)
+                      <Wrench className="w-2.5 h-2.5" />
+                      TROCAR
                     </Button>
                   ) : isPitRequested ? (
                     <Button
@@ -347,10 +347,10 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                       size="sm"
                       disabled={isDnf || isRaceFinished || isActionBlocked}
                       onClick={() => onCancelPit(driver.driverId)}
-                      className="h-8 px-2.5 text-[11px] font-black bg-amber-600 hover:bg-amber-500 text-white animate-pulse gap-1 shadow-sm uppercase"
+                      className="h-7 px-2 text-[10px] font-black bg-amber-600 hover:bg-amber-500 text-white animate-pulse gap-1 shadow-xs uppercase rounded-md"
                     >
-                      <AlertTriangle className="w-3 h-3" />
-                      CANCELAR BOX
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      CANCELAR
                     </Button>
                   ) : (
                     <Button
@@ -358,9 +358,9 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                       size="sm"
                       disabled={isDnf || isRaceFinished || isActionBlocked}
                       onClick={() => onRequestPit(driver.driverId, targetCompound)}
-                      className="h-8 px-2.5 text-[11px] font-black bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-200 hover:text-white gap-1 shadow-sm uppercase tracking-tight"
+                      className="h-7 px-2 text-[10px] font-black bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-200 hover:text-white gap-1 shadow-xs uppercase tracking-tight rounded-md"
                     >
-                      <Wrench className="w-3 h-3 text-amber-400" />
+                      <Wrench className="w-2.5 h-2.5 text-amber-400" />
                       BOX
                     </Button>
                   )}
@@ -371,9 +371,9 @@ export const CompactPlayerDriverStrips: React.FC<CompactPlayerDriverStripsProps>
                     variant="outline"
                     disabled={isDnf || isRaceFinished || isActionBlocked}
                     onClick={() => onOpenStrategyModal?.(driver)}
-                    className="h-8 px-2.5 text-[11px] font-black bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-200 hover:text-white gap-1 shadow-sm uppercase tracking-tight"
+                    className="h-7 px-2 text-[10px] font-black bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-200 hover:text-white gap-1 shadow-xs uppercase tracking-tight rounded-md"
                   >
-                    <SlidersHorizontal className="w-3 h-3 text-cyan-400" />
+                    <SlidersHorizontal className="w-2.5 h-2.5 text-cyan-400" />
                     ESTRATÉGIA
                   </Button>
                 </div>

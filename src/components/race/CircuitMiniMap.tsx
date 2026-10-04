@@ -21,25 +21,29 @@ export const CircuitMiniMap: React.FC<CircuitMiniMapProps> = ({
     <Card className="bg-[#090d18] border border-slate-800/80 rounded-xl shadow-md overflow-hidden text-white font-mono">
       <CardHeader
         className={`${
-          compact ? 'py-1.5 px-3' : 'py-2.5 px-3.5'
+          compact ? 'py-1 px-2.5' : 'py-2.5 px-3.5'
         } bg-[#0e1628] border-b border-slate-800 flex flex-row items-center justify-between select-none`}
       >
-        <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-          <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+        <CardTitle
+          className={`${compact ? 'text-[11px]' : 'text-xs'} font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5`}
+        >
+          <MapPin className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-cyan-400`} />
           CIRCUITO // {track.name}
         </CardTitle>
-        <span className="text-[10px] text-cyan-300 font-bold">
+        <span className={`${compact ? 'text-[9px]' : 'text-[10px]'} text-cyan-300 font-bold`}>
           {track.lapLengthKm} km • {track.country}
         </span>
       </CardHeader>
 
       <CardContent
-        className={`${compact ? 'p-2' : 'p-3'} flex items-center justify-center bg-[#070b14]`}
+        className={`${compact ? 'p-1.5' : 'p-3'} flex items-center justify-center bg-[#070b14]`}
       >
-        <div className="relative w-full max-h-[120px] flex items-center justify-center">
+        <div
+          className={`relative w-full ${compact ? 'max-h-[90px]' : 'max-h-[120px]'} flex items-center justify-center`}
+        >
           <svg
             viewBox={track.viewBox}
-            className="w-full h-auto max-h-[110px] drop-shadow-[0_0_12px_rgba(0,166,251,0.25)]"
+            className={`w-full h-auto ${compact ? 'max-h-[85px]' : 'max-h-[110px]'} drop-shadow-[0_0_12px_rgba(0,166,251,0.25)]`}
           >
             <defs>
               <linearGradient id="circuitMiniGrad" x1="0%" y1="0%" x2="100%" y2="100%">

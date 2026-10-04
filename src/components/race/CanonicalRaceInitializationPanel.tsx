@@ -253,7 +253,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
   }
 
   return (
-    <div className={`font-sans text-white ${compactMode ? 'space-y-2 text-xs' : 'space-y-4'}`}>
+    <div className={`font-sans text-white ${compactMode ? 'space-y-1.5 text-xs' : 'space-y-4'}`}>
       {/* 1. TOP BAR OFICIAL DO GP / CIRCUITO / BANDEIRA / CLIMA */}
       <RaceTopBar
         circuitName={raceState.circuitName}
@@ -267,6 +267,7 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
         activeSector={rc?.activeSector}
         isSuspended={isSuspended}
         isRestartPending={isRestartPending}
+        compact={compactMode}
       />
 
       {/* BANNER DE RELARGADA / SUSPENSÃO (QUANDO HOUVER RED FLAG OU SUSPENSÃO) */}
@@ -380,16 +381,14 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
 
           {/* PAINÉIS LATERAIS: CIRCUITO (PRIORIDADE 1) + ESTADO DA CORRIDA + EVENTOS RECENTES */}
           <div
-            className={`grid grid-cols-1 ${compactMode ? 'md:grid-cols-3 gap-2.5' : 'md:grid-cols-2 gap-4'}`}
+            className={`grid grid-cols-1 ${compactMode ? 'md:grid-cols-3 gap-2' : 'md:grid-cols-2 gap-4'}`}
           >
-            {compactMode && (
-              <CircuitMiniMap
-                circuitName={raceState.circuitName}
-                circuitCountry={raceState.circuitCountry}
-                round={raceState.round}
-                compact={true}
-              />
-            )}
+            <CircuitMiniMap
+              circuitName={raceState.circuitName}
+              circuitCountry={raceState.circuitCountry}
+              round={raceState.round}
+              compact={compactMode}
+            />
 
             <RaceControlPanel
               currentFlag={currentFlag}
@@ -408,13 +407,15 @@ export const CanonicalRaceInitializationPanel: React.FC<CanonicalRaceInitializat
 
             <RecentEventsFeed
               events={raceState.events}
-              maxItems={compactMode ? 4 : 6}
+              maxItems={compactMode ? 3 : 6}
               compact={compactMode}
             />
           </div>
 
           {/* PAINEL DE CONTROLES AVANÇADOS DE QA E FORÇAR BANDEIRAS */}
-          <Card className="bg-[#090d18] border border-slate-800/80 rounded-xl shadow-xs p-2.5">
+          <Card
+            className={`bg-[#090d18] border border-slate-800/80 rounded-xl shadow-xs ${compactMode ? 'p-1.5' : 'p-2.5'}`}
+          >
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 font-mono">
                 <AlertTriangle className="w-3 h-3 text-amber-400" />

@@ -130,16 +130,16 @@ export const RaceTopBar: React.FC<RaceTopBarProps> = ({
   return (
     <header
       className={`bg-[#080d1a] border-b border-slate-800/80 ${
-        compact ? 'px-3 py-2 rounded-xl' : 'px-4 py-3 rounded-2xl'
-      } shadow-xl flex flex-wrap items-center justify-between gap-2.5 text-white`}
+        compact ? 'px-2.5 py-1 rounded-lg' : 'px-4 py-3 rounded-2xl'
+      } shadow-xl flex flex-wrap items-center justify-between gap-2 text-white`}
     >
       {/* 1. Botão de voltar (se informado) / Logo F1 / GP / Circuito */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         {onBackToRace && (
           <button
             type="button"
             onClick={onBackToRace}
-            className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1 shadow-sm font-sans"
+            className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-[11px] font-bold text-slate-200 hover:text-white transition-colors flex items-center gap-1 shadow-sm font-sans"
           >
             ← Voltar para Corrida
           </button>
@@ -147,26 +147,26 @@ export const RaceTopBar: React.FC<RaceTopBarProps> = ({
 
         <div
           className={`${
-            compact ? 'w-8 h-6 text-[10px]' : 'w-10 h-7 text-xs'
-          } rounded-sm bg-[#e10600] text-white flex items-center justify-center font-black italic tracking-tighter shadow-md select-none`}
+            compact ? 'w-6 h-5 text-[9px]' : 'w-10 h-7 text-xs'
+          } rounded-xs bg-[#e10600] text-white flex items-center justify-center font-black italic tracking-tighter shadow-md select-none`}
         >
           F1
         </div>
         <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span
               className={`${
-                compact ? 'text-xs' : 'text-sm'
-              } font-black tracking-wider uppercase text-white`}
+                compact ? 'text-[11px]' : 'text-sm'
+              } font-black tracking-wider uppercase text-white leading-tight`}
             >
               GP DO {circuitCountry ? circuitCountry.toUpperCase() : 'CAMPEONATO'}
             </span>
-            <CountryFlag code={circuitCountry} className={compact ? 'text-xs' : 'text-sm'} />
+            <CountryFlag code={circuitCountry} className={compact ? 'text-[11px]' : 'text-sm'} />
           </div>
           <span
             className={`${
-              compact ? 'text-[10px]' : 'text-[11px]'
-            } font-mono text-slate-400 uppercase tracking-widest`}
+              compact ? 'text-[9px]' : 'text-[11px]'
+            } font-mono text-slate-400 uppercase tracking-widest leading-none`}
           >
             {circuitName || 'Circuito Internacional'}
           </span>
@@ -174,34 +174,34 @@ export const RaceTopBar: React.FC<RaceTopBarProps> = ({
       </div>
 
       {/* 2. Centro: Contagem de Voltas e Chip de Bandeira */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {/* VOLTA X / Y */}
         <div
           className={`flex items-baseline gap-1 ${
-            compact ? 'px-2 py-0.5 rounded-lg' : 'px-3 py-1 rounded-xl'
+            compact ? 'px-1.5 py-0.5 rounded-md' : 'px-3 py-1 rounded-xl'
           } bg-slate-900/80 border border-slate-800`}
         >
-          <span className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">
+          <span className="text-[8px] font-bold tracking-widest text-slate-400 uppercase">
             VOLTA
           </span>
           <span
             className={`${
-              compact ? 'text-base' : 'text-xl'
+              compact ? 'text-sm' : 'text-xl'
             } font-black text-white font-mono leading-none`}
           >
             {currentLap}
           </span>
-          <span className="text-[11px] font-mono text-slate-500">/{totalLaps}</span>
+          <span className="text-[10px] font-mono text-slate-500">/{totalLaps}</span>
         </div>
 
         {/* Chip da Bandeira */}
         <div
-          className={`flex items-center gap-1.5 ${
-            compact ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs'
+          className={`flex items-center gap-1 ${
+            compact ? 'px-2 py-0.5 text-[9px]' : 'px-3 py-1.5 text-xs'
           } rounded-full border font-black tracking-wide uppercase transition-all ${flagVisual.className}`}
         >
           <span
-            className={`${compact ? 'w-2 h-2' : 'w-2.5 h-2.5'} rounded-full ${flagVisual.dot}`}
+            className={`${compact ? 'w-1.5 h-1.5' : 'w-2.5 h-2.5'} rounded-full ${flagVisual.dot}`}
           />
           <span>{flagVisual.label}</span>
         </div>
@@ -211,34 +211,42 @@ export const RaceTopBar: React.FC<RaceTopBarProps> = ({
           <button
             type="button"
             onClick={onOpenLiveControl}
-            className="px-2.5 py-1 rounded-lg bg-red-950/60 border border-red-700/60 hover:bg-red-900/80 text-[11px] font-bold text-red-200 hover:text-white transition-colors flex items-center gap-1 shadow-sm font-sans"
+            className="px-2 py-0.5 rounded-lg bg-red-950/60 border border-red-700/60 hover:bg-red-900/80 text-[10px] font-bold text-red-200 hover:text-white transition-colors flex items-center gap-1 shadow-sm font-sans"
             title="Abrir tela dedicada de Race Control"
           >
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping inline-block" />
             Race Control Live ↗
           </button>
         )}
       </div>
 
       {/* 3. Direita: Meteorologia (Ar, Pista, % Chuva, Previsão) */}
-      <div className="flex items-center gap-3 text-xs font-mono">
+      <div
+        className={`flex items-center ${compact ? 'gap-2 text-[10px]' : 'gap-3 text-xs'} font-mono`}
+      >
         {/* Temperatura do Ar */}
         <div className="flex items-center gap-1" title="Temperatura do Ar">
-          <Sun className="w-3.5 h-3.5 text-amber-400" />
+          <Sun className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-amber-400`} />
           <div className="flex flex-col">
-            <span className="text-[11px] font-bold text-slate-200">{airTemp}°C</span>
-            <span className="text-[8px] uppercase font-sans text-slate-400 leading-none">AR</span>
+            <span className={`${compact ? 'text-[10px]' : 'text-[11px]'} font-bold text-slate-200`}>
+              {airTemp}°C
+            </span>
+            <span className="text-[7px] uppercase font-sans text-slate-400 leading-none">AR</span>
           </div>
         </div>
 
         {/* Temperatura da Pista */}
         <div className="flex items-center gap-1" title="Temperatura da Pista">
-          <div className="w-3.5 h-3.5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[9px] text-amber-300">
+          <div
+            className={`${compact ? 'w-3 h-3 text-[8px]' : 'w-3.5 h-3.5 text-[9px]'} rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-300`}
+          >
             ♨
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] font-bold text-slate-200">{trackTemp}°C</span>
-            <span className="text-[8px] uppercase font-sans text-slate-400 leading-none">
+            <span className={`${compact ? 'text-[10px]' : 'text-[11px]'} font-bold text-slate-200`}>
+              {trackTemp}°C
+            </span>
+            <span className="text-[7px] uppercase font-sans text-slate-400 leading-none">
               PISTA
             </span>
           </div>
@@ -247,15 +255,15 @@ export const RaceTopBar: React.FC<RaceTopBarProps> = ({
         {/* Umidade / % Chuva */}
         <div className="flex items-center gap-1" title="Condição de Chuva na Pista">
           <Droplets
-            className={`w-3.5 h-3.5 ${wetnessPct > 0 ? 'text-cyan-400 animate-pulse' : 'text-slate-400'}`}
+            className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} ${wetnessPct > 0 ? 'text-cyan-400 animate-pulse' : 'text-slate-400'}`}
           />
           <div className="flex flex-col">
             <span
-              className={`text-[11px] font-bold ${wetnessPct > 0 ? 'text-cyan-400' : 'text-slate-200'}`}
+              className={`${compact ? 'text-[10px]' : 'text-[11px]'} font-bold ${wetnessPct > 0 ? 'text-cyan-400' : 'text-slate-200'}`}
             >
               {wetnessPct}%
             </span>
-            <span className="text-[8px] uppercase font-sans text-slate-400 leading-none">
+            <span className="text-[7px] uppercase font-sans text-slate-400 leading-none">
               CHUVA
             </span>
           </div>
@@ -264,14 +272,16 @@ export const RaceTopBar: React.FC<RaceTopBarProps> = ({
         {/* Previsão / Transição Climática */}
         {nextRainTransition ? (
           <div
-            className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-cyan-950/60 border border-cyan-800/40 text-cyan-300 animate-pulse"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-cyan-950/60 border border-cyan-800/40 text-cyan-300 animate-pulse"
             title={`Chuva prevista para a volta ${nextRainTransition.lap}`}
           >
-            <CloudRain className="w-3 h-3 text-cyan-300" />
-            <span className="text-[10px] font-bold">Chuva V{nextRainTransition.lap}</span>
+            <CloudRain className={`${compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-cyan-300`} />
+            <span className={`${compact ? 'text-[9px]' : 'text-[10px]'} font-bold`}>
+              Chuva V{nextRainTransition.lap}
+            </span>
           </div>
         ) : (
-          <div className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400">
+          <div className="hidden sm:flex items-center gap-1 text-[9px] text-slate-400">
             <span>Estável</span>
           </div>
         )}

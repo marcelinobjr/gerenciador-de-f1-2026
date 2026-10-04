@@ -3474,22 +3474,16 @@ export default function WeekendV2Page() {
                       carPreparations,
                     })
 
-                  const res = canonicalRaceEngineService.changeTyresDuringSuspension({
-                    raceState: canonicalRaceState,
-                    driverId,
-                    newCompound: compound,
+                  setCanonicalRaceState(initialRace)
+                  setShowPreRacePreparation(false)
+                  toast({
+                    title: 'Corrida Iniciada',
+                    description: 'Estratégia aplicada com sucesso. Boa sorte!',
                   })
-                  if (res.success) {
-                    setCanonicalRaceState(res.updatedState)
-                    toast({
-                      title: 'Pneu Trocado na Suspensão',
-                      description: `Composto ${compound.toUpperCase()} instalado no carro.`,
-                    })
-                  }
                 } catch (e: any) {
                   toast({
                     variant: 'destructive',
-                    title: 'Erro ao trocar pneus',
+                    title: 'Erro ao iniciar corrida',
                     description: e?.message,
                   })
                 }
