@@ -1913,7 +1913,6 @@ export default function TeamPage() {
                       data-testid={`contract-driver-${d.id}`}
                       className="p-4 rounded-xl bg-white border border-neutral-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
                     >
-                      {' '}
                       <div>
                         <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">
                           <span className="font-bold text-neutral-900 uppercase">

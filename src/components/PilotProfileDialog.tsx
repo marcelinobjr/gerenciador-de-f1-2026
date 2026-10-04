@@ -496,22 +496,24 @@ export const PilotProfileDialog: React.FC<PilotProfileDialogProps> = ({
                   {pilot.name}
                 </DialogTitle>
 
-                <DialogDescription className="text-[#64748B] text-xs mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
-                  <span>{pilot.age} anos</span>
-                  <span>•</span>
-                  <span className="text-[#334155] font-semibold">{currentTeamDisplay}</span>
-                  {pilot.role && (
-                    <Badge
-                      variant="secondary"
-                      className={`text-[10px] uppercase py-0 px-2 ${
-                        String(pilot.role).toLowerCase().includes('titular')
-                          ? 'bg-red-50 text-red-700 border border-red-200'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}
-                    >
-                      {pilot.role}
-                    </Badge>
-                  )}
+                <DialogDescription asChild className="text-[#64748B] text-xs mt-1">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                    <span>{pilot.age} anos</span>
+                    <span>•</span>
+                    <span className="text-[#334155] font-semibold">{currentTeamDisplay}</span>
+                    {pilot.role && (
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] uppercase py-0 px-2 ${
+                          String(pilot.role).toLowerCase().includes('titular')
+                            ? 'bg-red-50 text-red-700 border border-red-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
+                      >
+                        {pilot.role}
+                      </Badge>
+                    )}
+                  </div>
                 </DialogDescription>
 
                 {/* Destaque OVR / Reputação e Salário de Referência V (Regra R03 sem OVR na F1 Academy) */}
