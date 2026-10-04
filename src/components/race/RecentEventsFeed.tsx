@@ -4,11 +4,10 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowUp,
-  AlertTriangle,
-  Flame,
   CloudRain,
   Wrench,
   Radio,
+  Flame,
 } from 'lucide-react'
 
 export interface RaceEventItem {
@@ -25,6 +24,7 @@ export interface RaceEventItem {
 export interface RecentEventsFeedProps {
   events?: RaceEventItem[]
   maxItems?: number
+  compact?: boolean
 }
 
 // Retorna ícone temático conforme tipo de evento
@@ -33,7 +33,7 @@ function getEventVisual(type: string, message: string) {
 
   if (type === 'dnf' || msgLower.includes('abandonou') || msgLower.includes('dnf')) {
     return {
-      icon: <span className="w-2.5 h-2.5 rounded-xs bg-red-500 shrink-0" />,
+      icon: <span className="w-2 h-2 rounded-xs bg-red-500 shrink-0" />,
       color: 'text-red-300',
     }
   }
@@ -51,7 +51,7 @@ function getEventVisual(type: string, message: string) {
   }
   if (msgLower.includes('amarela') || msgLower.includes('yellow') || type === 'incident') {
     return {
-      icon: <span className="w-2.5 h-2.5 rounded-xs bg-yellow-400 shrink-0" />,
+      icon: <span className="w-2 h-2 rounded-xs bg-yellow-400 shrink-0" />,
       color: 'text-yellow-200',
     }
   }
@@ -76,7 +76,8 @@ function getEventVisual(type: string, message: string) {
 
 export const RecentEventsFeed: React.FC<RecentEventsFeedProps> = ({
   events = [],
-  maxItems = 7,
+  maxItems = 6,
+  compact = false,
 }) => {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -84,12 +85,14 @@ export const RecentEventsFeed: React.FC<RecentEventsFeedProps> = ({
   const displayedEvents = [...events].slice(-maxItems).reverse()
 
   return (
-    <Card className="bg-[#090d18] border border-slate-800/80 rounded-2xl shadow-lg overflow-hidden text-white font-mono">
+    <Card className="bg-[#090d18] border border-slate-800/80 rounded-xl shadow-md overflow-hidden text-white font-mono">
       <CardHeader
         onClick={() => setCollapsed(!collapsed)}
-        className="py-2.5 px-3.5 bg-[#0e1628] border-b border-slate-800 flex flex-row items-center justify-between cursor-pointer select-none"
+        className={`${
+          compact ? 'py-1.5 px-3' : 'py-2.5 px-3.5'
+        } bg-[#0e1628] border-b border-slate-800 flex flex-row items-center justify-between cursor-pointer select-none`}
       >
-        <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+        <CardTitle className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-ping" />
           EVENTOS RECENTES
         </CardTitle>
@@ -98,14 +101,16 @@ export const RecentEventsFeed: React.FC<RecentEventsFeedProps> = ({
           className="text-slate-400 hover:text-white p-0.5 rounded transition-colors"
           title={collapsed ? 'Expandir' : 'Recolher'}
         >
-          {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
         </button>
       </CardHeader>
 
       {!collapsed && (
-        <CardContent className="p-2 space-y-1 text-xs max-h-56 overflow-y-auto">
+        <CardContent
+          className={`${compact ? 'p-1.5 space-y-1 max-h-36' : 'p-2 space-y-1 max-h-56'} text-xs overflow-y-auto`}
+        >
           {displayedEvents.length === 0 ? (
-            <div className="py-4 text-center text-slate-500 text-[11px] font-sans">
+            <div className="py-2 text-center text-slate-500 text-[10px] font-sans">
               Nenhum evento registrado ainda.
             </div>
           ) : (
@@ -115,10 +120,12 @@ export const RecentEventsFeed: React.FC<RecentEventsFeedProps> = ({
               return (
                 <div
                   key={ev.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800/60 hover:bg-slate-800/70 transition-colors"
+                  className={`flex items-center gap-1.5 ${
+                    compact ? 'px-1.5 py-1' : 'px-2 py-1.5'
+                  } rounded bg-slate-900/60 border border-slate-800/60 hover:bg-slate-800/70 transition-colors`}
                 >
                   {/* VOLTA */}
-                  <span className="text-[10px] font-black text-slate-400 w-8 shrink-0">
+                  <span className="text-[10px] font-black text-slate-400 w-7 shrink-0">
                     V{ev.lap}
                   </span>
 
@@ -127,7 +134,8 @@ export const RecentEventsFeed: React.FC<RecentEventsFeedProps> = ({
 
                   {/* MENSAGEM */}
                   <span
-                    className={`text-[11px] leading-tight truncate font-sans flex-1 ${visual.color}`}
+                    className={`text-[10px] sm:text-[11px] leading-tight truncate font-sans flex-1 ${visual.color}`}
+                    title={ev.message}
                   >
                     {ev.message}
                   </span>
