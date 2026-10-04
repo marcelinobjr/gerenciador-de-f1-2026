@@ -25,7 +25,8 @@ import {
   type CompoundLifespanEstimate,
   type RecommendedPitWindowResult,
 } from '@/lib/canonical-tire-strategy'
-import { TANK_CAPACITY_KG } from '@/services/canonicalFuelModel'
+import { TANK_CAPACITY_KG, calculateRequiredStartingFuelKg } from '@/services/canonicalFuelModel'
+import { F1_2026_CALENDAR } from '@/lib/f1-data'
 
 export const RACE_PREP_STORAGE_KEY_PREFIX = 'apex_race_prep_v1'
 
@@ -325,6 +326,17 @@ export const canonicalRacePreparationService = {
     const set1 = selectDefaultSet(inv1, (entry1.bestLapCompound as TireCompound) || 'medio')
     const set2 = selectDefaultSet(inv2, (entry2.bestLapCompound as TireCompound) || 'medio')
 
+    // FUEL-AUTONOMY-08A: Dimensionar combustível padrão compatível com a demanda da prova
+    // Usar cálculo canônico calculateRequiredStartingFuelKg se round/circuitLengthKm disponíveis no calendário ativo
+    let defaultPrepFuelKg = 100
+    const calGp = F1_2026_CALENDAR.find((g) => g.round === round)
+    if (calGp?.circuitLengthKm && totalLaps > 0) {
+      defaultPrepFuelKg = Math.min(
+        TANK_CAPACITY_KG,
+        calculateRequiredStartingFuelKg(totalLaps, calGp.circuitLengthKm, 1.0),
+      )
+    }
+
     const car1State: PreparedCarState = {
       carId: 'car1',
       carNumber: 1,
@@ -336,7 +348,7 @@ export const canonicalRacePreparationService = {
       startingCompound: set1.compound,
       initialTyreWear: set1.wear || 0,
       initialTyreLapsUsed: set1.lapsUsed || 0,
-      startingFuelKg: 100, // Default padrão de tanque cheio
+      startingFuelKg: defaultPrepFuelKg,
       strategyPlan: this.createDefaultStrategyPlan('car1', set1.compound, totalLaps),
       confirmed: false,
     }
@@ -352,7 +364,7 @@ export const canonicalRacePreparationService = {
       startingCompound: set2.compound,
       initialTyreWear: set2.wear || 0,
       initialTyreLapsUsed: set2.lapsUsed || 0,
-      startingFuelKg: 100,
+      startingFuelKg: defaultPrepFuelKg,
       strategyPlan: this.createDefaultStrategyPlan('car2', set2.compound, totalLaps),
       confirmed: false,
     }
