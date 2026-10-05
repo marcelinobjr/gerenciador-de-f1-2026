@@ -81,7 +81,27 @@ export const canonicalQualifyingPersistenceService = {
     try {
       const raw = window.localStorage.getItem(this.getStageStateKey(seasonId, round, stageId))
       if (!raw) return null
-      return JSON.parse(raw) as QualifyingStageState
+      const parsed = JSON.parse(raw) as QualifyingStageState
+
+      // BUG-SQ3-TRANSITION-R3: Reconciliação canônica de running órfão pós-reload/reidratação.
+      // Se a sessão estiver persistida como 'running' mas sem executor ativo (ao ler do storage),
+      // semanticamente ela é uma sessão interrompida/retomável ('paused').
+      // Preserva integralmente: stageId, timeRemainingSec, sessionDurationSec, cars, leaderboard,
+      // laps, weather, setup, RNG/seed e demais propriedades sem reiniciar do zero nem marcar como concluída.
+      if (parsed && parsed.status === 'running') {
+        parsed.status = 'paused'
+        // Persistir de volta como paused para manter coerência canônica
+        try {
+          window.localStorage.setItem(
+            this.getStageStateKey(seasonId, round, stageId),
+            JSON.stringify(parsed),
+          )
+        } catch {
+          // Ignore write error
+        }
+      }
+
+      return parsed
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao ler estado de fase:', e)
       return null

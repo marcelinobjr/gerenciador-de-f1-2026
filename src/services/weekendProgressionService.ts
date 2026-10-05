@@ -291,8 +291,8 @@ export function readStoredCompletedSessions(seasonId: string, round: number): st
     const parsed = raw ? JSON.parse(raw) : []
     const list: string[] = Array.isArray(parsed) ? parsed : []
 
-    // BUG-SQ3-TRANSITION-R2: Reconciliação canônica com canonicalQualifyingPersistenceService
-    // O estado canônico é a fonte da verdade decisória. Uma sessão status === 'paused'
+    // BUG-SQ3-TRANSITION-R2 / BUG-SQ3-TRANSITION-R3: Reconciliação canônica com canonicalQualifyingPersistenceService
+    // O estado canônico é a fonte da verdade decisória. Uma sessão status === 'paused' ou 'running' (órfão)
     // NÃO PODE constar como concluída no completedSessions.
     // Ao reidratar:
     // - se a sessão de qualificação canônica estiver 'paused' ou 'running', expurgar de completedSessions.
@@ -303,8 +303,11 @@ export function readStoredCompletedSessions(seasonId: string, round: number): st
       const validated = new Set(list)
 
       for (const stg of qualiStages) {
-        const stateKey = `apex_f1_quali_${seasonId}_r${round}_${stg}`
-        const rawState = window.localStorage.getItem(stateKey)
+        // Verificar ambas as chaves: legado apex_f1_quali_ e canônica apex_qualifying_stage_state_v2
+        const legacyKey = `apex_f1_quali_${seasonId}_r${round}_${stg}`
+        const canonicalKey = `apex_qualifying_stage_state_v2_${seasonId}_r${round}_${stg}`
+        const rawState =
+          window.localStorage.getItem(canonicalKey) || window.localStorage.getItem(legacyKey)
         if (rawState) {
           const parsedState = JSON.parse(rawState)
           if (parsedState && parsedState.status) {

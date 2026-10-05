@@ -602,4 +602,31 @@ describe('BUG-SQ3-TRANSITION-R2 — Suíte de Homologação Final (F1 a F6)', ()
     const reloadedCompleted = readStoredCompletedSessions(TEST_SEASON_ID, TEST_ROUND)
     expect(reloadedCompleted).toContain('sq2')
   })
+
+  // -------------------------------------------------------------------------------------------------
+  // F7 — BUG-SQ3-TRANSITION-R3: running órfão reconcilia para retomável
+  // Se o estado canônico estiver persistido como 'running' mas sem executor ativo no reload/reidratação,
+  // reconciliação remove da lista de completedSessions, preservando a sessão como não concluída e retomável.
+  // -------------------------------------------------------------------------------------------------
+  it('F7 — BUG-SQ3-TRANSITION-R3: SQ2 persistida como running expurga de completedSessions e preserva estado para retomada', () => {
+    const sq2RunningState = {
+      stageId: 'sq2',
+      status: 'running',
+      timeRemainingSec: 250,
+      sessionDurationSec: 600,
+      leaderboard: [],
+    }
+    localStorage.setItem(
+      `apex_qualifying_stage_state_v2_${TEST_SEASON_ID}_r${TEST_ROUND}_sq2`,
+      JSON.stringify(sq2RunningState),
+    )
+
+    // Supondo que completedSessions estivesse contaminado com sq2
+    writeStoredCompletedSessions(TEST_SEASON_ID, TEST_ROUND, ['tp1', 'sq1', 'sq2'])
+
+    const reconciledList = readStoredCompletedSessions(TEST_SEASON_ID, TEST_ROUND)
+    expect(reconciledList).toContain('tp1')
+    expect(reconciledList).toContain('sq1')
+    expect(reconciledList).not.toContain('sq2')
+  })
 })
