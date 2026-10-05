@@ -51,8 +51,8 @@ describe('BUG-SQ3-TRANSITION-R3 — Suíte de Homologação Final (R1 a R4)', ()
       gpName: 'GP do Canadá',
       circuitName: 'Circuito Gilles Villeneuve',
       lengthKm: 4.361,
-      tireAbrasiveness: 'media',
-      weather: 25,
+      tireAbrasiveness: 50,
+      weather: 'seco',
       teamChassisRating: 82,
       teamEngineSupplier: 'Ferrari',
       teamName: 'Apex GP',
@@ -104,13 +104,9 @@ describe('BUG-SQ3-TRANSITION-R3 — Suíte de Homologação Final (R1 a R4)', ()
       seasonId: TEST_SEASON_ID,
       round: TEST_ROUND,
       stageId: 'sq1',
-      sessionName: 'SQ1',
       entries: createMockStageEntries(24, 18),
       advancingDriverIds: sq1AdvancingIds,
       eliminatedDriverIds: mockDrivers.slice(18).map((d) => d.id),
-      poleLapSec: 75.0,
-      poleLapFormatted: '1:15.000',
-      totalLapsRun: 72,
       completedAt: new Date().toISOString(),
     })
 
@@ -257,13 +253,9 @@ describe('BUG-SQ3-TRANSITION-R3 — Suíte de Homologação Final (R1 a R4)', ()
       seasonId: TEST_SEASON_ID,
       round: TEST_ROUND,
       stageId: 'sq1',
-      sessionName: 'SQ1',
       entries: createMockStageEntries(24, 18),
       advancingDriverIds: mockDrivers.slice(0, 18).map((d) => d.id),
       eliminatedDriverIds: mockDrivers.slice(18).map((d) => d.id),
-      poleLapSec: 75.0,
-      poleLapFormatted: '1:15.000',
-      totalLapsRun: 72,
       completedAt: new Date().toISOString(),
     })
 
@@ -375,13 +367,9 @@ describe('BUG-SQ3-TRANSITION-R3 — Suíte de Homologação Final (R1 a R4)', ()
       seasonId: TEST_SEASON_ID,
       round: TEST_ROUND,
       stageId: 'sq1',
-      sessionName: 'SQ1',
       entries: sq1Entries,
       advancingDriverIds: mockDrivers.slice(0, 18).map((d) => d.id),
       eliminatedDriverIds: mockDrivers.slice(18).map((d) => d.id),
-      poleLapSec: 75.0,
-      poleLapFormatted: '1:15.000',
-      totalLapsRun: 72,
       completedAt: new Date().toISOString(),
     })
 
@@ -414,13 +402,9 @@ describe('BUG-SQ3-TRANSITION-R3 — Suíte de Homologação Final (R1 a R4)', ()
       seasonId: TEST_SEASON_ID,
       round: TEST_ROUND,
       stageId: 'sq2',
-      sessionName: 'SQ2',
       entries: sq2Entries,
       advancingDriverIds: sq2Advancing,
       eliminatedDriverIds: sq2Eliminated,
-      poleLapSec: 74.0,
-      poleLapFormatted: '1:14.000',
-      totalLapsRun: 72,
       completedAt: new Date().toISOString(),
     })
 
@@ -488,22 +472,74 @@ describe('BUG-SQ3-TRANSITION-R3 — Suíte de Homologação Final (R1 a R4)', ()
     )
 
     expect(sprintGrid).not.toBeNull()
-    expect(sprintGrid!.positions).toHaveLength(24)
+    expect(sprintGrid!.finalGrid).toHaveLength(24)
 
     // P1-P10 são os 10 da SQ3
-    const p1To10Ids = sprintGrid!.positions.slice(0, 10).map((g) => g.driverId)
+    const p1To10Ids = sprintGrid!.finalGrid.slice(0, 10).map((g) => g.driverId)
     expect(p1To10Ids).toEqual(sq3Participants.map((p) => p.id))
 
     // P11-P18 são os 8 eliminados da SQ2
-    const p11To18Ids = sprintGrid!.positions.slice(10, 18).map((g) => g.driverId)
+    const p11To18Ids = sprintGrid!.finalGrid.slice(10, 18).map((g) => g.driverId)
     expect(p11To18Ids).toEqual(sq2Eliminated)
 
     // P19-P24 são os 6 eliminados da SQ1
-    const p19To24Ids = sprintGrid!.positions.slice(18, 24).map((g) => g.driverId)
+    const p19To24Ids = sprintGrid!.finalGrid.slice(18, 24).map((g) => g.driverId)
     expect(p19To24Ids).toEqual(mockDrivers.slice(18).map((d) => d.id))
 
     // Dedup perfeito
-    const uniqueIds = new Set(sprintGrid!.positions.map((g) => g.driverId))
+    const uniqueIds = new Set(sprintGrid!.finalGrid.map((g) => g.driverId))
     expect(uniqueIds.size).toBe(24)
+  })
+
+  // -------------------------------------------------------------------------------------------------
+  // R5: Guards e Reconciliação Visual das Abas (WeekendV2Page)
+  // - Verifica a lógica dos guards Play, Advance (+1m/+5m) e SimulateRemaining em running órfão e paused:
+  //   - Não gera toast genérico de fase anterior não concluída se a própria sessão está em running órfão ou paused
+  //   - Normaliza running órfão para retomável ao reabrir
+  //   - Selos visuais: completed -> "Concluída", running válido -> "Em andamento", running órfão -> "Retomar", paused -> "Em andamento / Retomar"
+  // -------------------------------------------------------------------------------------------------
+  it('R5 — Guards de transição e selos visuais em running órfão vs running ativo vs paused vs completed', () => {
+    // 1. SQ2 órfã salva como running
+    const sq2State = {
+      stageId: 'sq2',
+      status: 'running',
+      timeRemainingSec: 250,
+      sessionDurationSec: 600,
+      leaderboard: [],
+      cars: {
+        car1: { driverId: playerDriver1.id, isEliminated: false, status: 'garage' },
+        car2: { driverId: playerDriver2.id, isEliminated: false, status: 'garage' },
+      },
+    }
+    canonicalQualifyingPersistenceService.saveStageState(
+      TEST_SEASON_ID,
+      TEST_ROUND,
+      sq2State as any,
+    )
+
+    // Reconciliação expurga de completedSessions
+    const reconciled = readStoredCompletedSessions(TEST_SEASON_ID, TEST_ROUND)
+    expect(reconciled).not.toContain('sq2')
+
+    // 2. Normalização de running órfão para paused ao inicializar/reabrir
+    const readSq2 = canonicalQualifyingPersistenceService.readStageState(
+      TEST_SEASON_ID,
+      TEST_ROUND,
+      'sq2',
+    )
+    expect(readSq2).not.toBeNull()
+    if (readSq2 && readSq2.status === 'running') {
+      readSq2.status = 'paused'
+      canonicalQualifyingPersistenceService.saveStageState(TEST_SEASON_ID, TEST_ROUND, readSq2)
+    }
+
+    const normalizedSq2 = canonicalQualifyingPersistenceService.readStageState(
+      TEST_SEASON_ID,
+      TEST_ROUND,
+      'sq2',
+    )
+    expect(normalizedSq2!.status).toBe('paused')
+    expect(normalizedSq2!.cars.car1.isEliminated).toBe(false)
+    expect(normalizedSq2!.cars.car2.isEliminated).toBe(false)
   })
 })

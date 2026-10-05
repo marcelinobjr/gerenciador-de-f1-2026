@@ -4,7 +4,6 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
-
 import { useToast } from '@/hooks/use-toast'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { useAuth } from '@/contexts/AuthContext'
@@ -894,6 +893,19 @@ export default function WeekendV2Page() {
         setIsAutoAdvancing(false)
         return
       }
+    }
+
+    // Se estiver reidratando uma sessão que estava salva como 'running' (órfão) ou 'paused',
+    // normalizar para 'paused' ao reabrir sem ticker ativo, garantindo que o usuário precise dar PLAY
+    // e que a sessão seja retomável sem ser considerada running fantasma.
+    const savedState = canonicalQualifyingPersistenceService.readStageState(
+      season.id,
+      currentRound,
+      stageId,
+    )
+    if (savedState && savedState.status === 'running' && !isAutoAdvancing) {
+      savedState.status = 'paused'
+      canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, savedState)
     }
 
     // Buscar pneus disponíveis no mesmo inventário compartilhado de 20 jogos
@@ -2819,6 +2831,17 @@ export default function WeekendV2Page() {
               sessionStatuses[stg] = 'completed'
             } else if (stgState) {
               sessionStatuses[stg] = stgState.status
+            }
+          }
+
+          // Se a sessão selecionada estiver em memória, ela é a fonte mais viva
+          if (isQualifyingSession && qualifyingState) {
+            if (qualifyingState.status === 'completed') {
+              sessionStatuses[qualifyingState.stageId] = 'completed'
+            } else if (qualifyingState.status === 'running') {
+              sessionStatuses[qualifyingState.stageId] = 'running'
+            } else if (qualifyingState.status === 'paused') {
+              sessionStatuses[qualifyingState.stageId] = 'paused'
             }
           }
         }
