@@ -15,6 +15,7 @@ export interface RaceWeekendPipelineBarProps {
   isSessionRunning?: boolean
   isSessionPaused?: boolean
   isSprintRound?: boolean
+  sessionStatuses?: Record<string, 'not_started' | 'running' | 'paused' | 'completed'>
   onSelectSession: (session: WeekendSessionDefinition) => void
 }
 
@@ -25,6 +26,7 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
   isSessionRunning = false,
   isSessionPaused = false,
   isSprintRound,
+  sessionStatuses = {},
   onSelectSession,
 }) => {
   const isSprint = isSprintRound ?? sessions.some((s) => s.id === 'sq1' || s.id === 'sprint_race')
@@ -63,26 +65,42 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
         <div className="flex items-center gap-2 min-w-max md:min-w-0 md:grid md:grid-cols-7">
           {sessions.map((sess, idx) => {
             const isSelected = sess.id === selectedSessionId
-            const isCompleted = completedSessions.includes(sess.id)
+            const canonicalStatus = sessionStatuses[sess.id]
+            const isCompleted =
+              canonicalStatus === 'completed' ||
+              (completedSessions.includes(sess.id) &&
+                canonicalStatus !== 'paused' &&
+                canonicalStatus !== 'running')
+
+            const isItemRunningValid =
+              (isSelected && isSessionRunning) ||
+              (canonicalStatus === 'running' && isSelected && isSessionRunning)
+
+            const isItemPaused = canonicalStatus === 'paused' || (isSelected && isSessionPaused)
+
+            const isItemOrphanRunning =
+              canonicalStatus === 'running' && (!isSelected || !isSessionRunning)
 
             const visualState = resolveSessionVisualState({
               sessionId: sess.id,
               activeSessionId: selectedSessionId,
-              completedSessions,
-              isSessionRunning: sess.id === selectedSessionId && isSessionRunning,
-              isSessionPaused: sess.id === selectedSessionId && isSessionPaused,
+              completedSessions: isCompleted
+                ? [sess.id, ...completedSessions]
+                : completedSessions.filter((s) => s !== sess.id),
+              isSessionRunning: isItemRunningValid,
+              isSessionPaused: isItemPaused || isItemOrphanRunning,
               isSprintRound: isSprint,
             })
 
-            const isLocked = visualState === 'locked'
-            const isAvailable = visualState === 'available'
+            const isLocked =
+              visualState === 'locked' && !isCompleted && !isItemPaused && !isItemOrphanRunning
 
-            // Classes visuais segundo a identidade APEX
-            // BLOQUEADO (cinza)
-            // DISPONÍVEL (azul/ciano)
-            // ATIVA (vermelho APEX)
-            // PAUSADA (amarelo)
-            // CONCLUÍDA (verde)
+            // Requisitos da apresentação de selo/status visual:
+            // - completed → "Concluída"
+            // - paused → "Em andamento / Retomar"
+            // - running válido → "Em andamento"
+            // - running órfão reconciliado → "Retomar"
+            // - não iniciada / pendente → "Pendente" (ou "Bloqueado" se locked)
             let containerClasses =
               'bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8] opacity-70 cursor-not-allowed'
             let statusBadge = (
@@ -91,58 +109,57 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
               </span>
             )
 
-            if (isSelected) {
-              if (isSessionRunning) {
-                containerClasses =
-                  'bg-white border-[#E10600] ring-2 ring-[#E10600]/30 text-[#0F172A] shadow-sm cursor-pointer'
-                statusBadge = (
-                  <span className="text-[10px] font-extrabold text-[#E10600] flex items-center gap-1 justify-center">
-                    <span className="w-2 h-2 rounded-full bg-[#E10600] animate-pulse" />
-                    EM PISTA
-                  </span>
-                )
-              } else if (isSessionPaused) {
-                containerClasses =
-                  'bg-white border-amber-400 ring-2 ring-amber-400/30 text-[#0F172A] shadow-sm cursor-pointer'
-                statusBadge = (
-                  <span className="text-[10px] font-extrabold text-amber-600 flex items-center gap-1 justify-center">
-                    <Pause className="w-3 h-3 fill-current" />
-                    PAUSADA
-                  </span>
-                )
-              } else if (isCompleted) {
-                containerClasses =
-                  'bg-white border-[#059669] ring-2 ring-[#059669]/30 text-[#0F172A] shadow-sm cursor-pointer'
-                statusBadge = (
-                  <span className="text-[10px] font-extrabold text-[#059669] flex items-center gap-1 justify-center">
-                    <CheckCircle2 className="w-3 h-3" />
-                    CONCLUÍDA
-                  </span>
-                )
-              } else {
-                containerClasses =
-                  'bg-white border-[#E10600] ring-2 ring-[#E10600]/30 text-[#0F172A] shadow-sm cursor-pointer'
-                statusBadge = (
-                  <span className="text-[10px] font-extrabold text-[#E10600] flex items-center gap-1 justify-center">
-                    SELECIONADA
-                  </span>
-                )
-              }
-            } else if (isCompleted) {
-              containerClasses =
-                'bg-[#F0FDF4] border-[#BBF7D0] text-[#166534] hover:bg-[#DCFCE7] hover:border-[#86EFAC] cursor-pointer'
+            if (isCompleted) {
+              containerClasses = isSelected
+                ? 'bg-white border-[#059669] ring-2 ring-[#059669]/30 text-[#0F172A] shadow-sm cursor-pointer'
+                : 'bg-[#F0FDF4] border-[#BBF7D0] text-[#166534] hover:bg-[#DCFCE7] hover:border-[#86EFAC] cursor-pointer'
               statusBadge = (
-                <span className="text-[10px] font-bold text-[#166534] flex items-center gap-1 justify-center">
+                <span className="text-[10px] font-extrabold text-[#059669] flex items-center gap-1 justify-center">
                   <CheckCircle2 className="w-3 h-3 text-[#16a34a]" />
                   Concluída
                 </span>
               )
-            } else if (isAvailable) {
+            } else if (isItemRunningValid) {
+              containerClasses =
+                'bg-white border-[#E10600] ring-2 ring-[#E10600]/30 text-[#0F172A] shadow-sm cursor-pointer'
+              statusBadge = (
+                <span className="text-[10px] font-extrabold text-[#E10600] flex items-center gap-1 justify-center">
+                  <span className="w-2 h-2 rounded-full bg-[#E10600] animate-pulse" />
+                  Em andamento
+                </span>
+              )
+            } else if (isItemOrphanRunning) {
+              containerClasses =
+                'bg-white border-amber-500 ring-2 ring-amber-500/30 text-[#0F172A] shadow-sm cursor-pointer'
+              statusBadge = (
+                <span className="text-[10px] font-extrabold text-amber-700 flex items-center gap-1 justify-center">
+                  <Play className="w-3 h-3 fill-current" />
+                  Retomar
+                </span>
+              )
+            } else if (isItemPaused) {
+              containerClasses =
+                'bg-white border-amber-400 ring-2 ring-amber-400/30 text-[#0F172A] shadow-sm cursor-pointer'
+              statusBadge = (
+                <span className="text-[10px] font-extrabold text-amber-600 flex items-center gap-1 justify-center">
+                  <Pause className="w-3 h-3 fill-current" />
+                  Em andamento / Retomar
+                </span>
+              )
+            } else if (isSelected) {
+              containerClasses =
+                'bg-white border-[#E10600] ring-2 ring-[#E10600]/30 text-[#0F172A] shadow-sm cursor-pointer'
+              statusBadge = (
+                <span className="text-[10px] font-extrabold text-[#E10600] flex items-center gap-1 justify-center">
+                  Pendente
+                </span>
+              )
+            } else if (!isLocked) {
               containerClasses =
                 'bg-[#F0F9FF] border-[#BAE6FD] text-[#0369A1] hover:bg-[#E0F2FE] hover:border-[#7DD3FC] cursor-pointer'
               statusBadge = (
                 <span className="text-[10px] font-bold text-[#0284C7] flex items-center gap-1 justify-center">
-                  Disponível
+                  Pendente
                 </span>
               )
             }

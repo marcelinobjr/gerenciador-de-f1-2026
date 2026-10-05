@@ -123,16 +123,16 @@ export const SessionPlaceholderCard: React.FC<SessionPlaceholderCardProps> = ({
           ) : effectiveStatus === 'active' || effectiveStatus === 'paused' ? (
             <Badge
               variant="outline"
-              className="border-amber-300 text-amber-700 bg-amber-50 text-[11px] font-extrabold uppercase"
+              className="border-amber-300 text-amber-700 bg-amber-50 text-[11px] font-extrabold uppercase flex items-center gap-1"
             >
-              Em andamento
+              {effectiveStatus === 'paused' ? 'Em andamento / Retomar' : 'Em andamento'}
             </Badge>
           ) : (
             <Badge
               variant="outline"
               className="border-emerald-300 text-emerald-700 bg-emerald-50 text-[11px] font-extrabold uppercase"
             >
-              Disponível
+              Pendente
             </Badge>
           )}
         </div>

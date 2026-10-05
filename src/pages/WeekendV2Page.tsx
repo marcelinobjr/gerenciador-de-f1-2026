@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+
+
 import { useToast } from '@/hooks/use-toast'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import { useAuth } from '@/contexts/AuthContext'
@@ -311,9 +313,25 @@ export default function WeekendV2Page() {
           })
 
         // 3.4. Determinar sessão canônica inicial
+        // BUG-SQ3-TRANSITION-R3: Se uma sessão estiver em running ou paused, ela tem prioridade de retomada
+        let resumableSessionId: RaceWeekendSessionId | null = null
+        const qualiStagesToCheck = ['sq3', 'sq2', 'sq1', 'q3', 'q2', 'q1'] as const
+        for (const stg of qualiStagesToCheck) {
+          const stgState = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            stg,
+          )
+          if (stgState && (stgState.status === 'paused' || stgState.status === 'running')) {
+            resumableSessionId = stg
+            break
+          }
+        }
+
         const initialSessionId = resolveInitialRaceSession({
           pipeline,
           completedSessions: stored,
+          lastActiveSessionId: resumableSessionId,
         })
         setSelectedSessionId(initialSessionId)
 
@@ -507,6 +525,26 @@ export default function WeekendV2Page() {
     if (!registration || !team || !season) return
 
     const sess = sessDef.id
+
+    // BUG-SQ3-TRANSITION-R3: Se o usuário está clicando para selecionar/retomar a própria sessão atual,
+    // não bloquear com guards de transição para a próxima sessão.
+    if (sess === selectedSessionId) {
+      if (sess === 'tp1' || sess === 'tp2' || sess === 'tp3') {
+        if (!sessionState) {
+          await initializePracticeSession(sess, registration, tyreInventories)
+        }
+      } else if (isQualifyingStage(sess)) {
+        if (!qualifyingState) {
+          await initializeQualifyingSession(
+            sess as QualifyingStageId,
+            registration,
+            tyreInventories,
+          )
+        }
+      }
+      return
+    }
+
     const stored = refreshCompletedSessions()
 
     // Normalização canônica via normalizeCompletedSessions para tratar todos os aliases de forma única e centralizada
@@ -546,18 +584,32 @@ export default function WeekendV2Page() {
     }
 
     if (sess === 'sq2' && !hasSq1) {
-      toast({
-        variant: 'destructive',
-        title: 'Sessão Bloqueada',
-        description: 'Você precisa concluir o SQ1 antes de iniciar o SQ2.',
-      })
-      return
+      // Reconciliação com estado canônico de SQ1
+      const sq1State = season?.id
+        ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'sq1')
+        : null
+      const sq1Result = season?.id
+        ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'sq1')
+        : null
+      const isSq1Completed =
+        Boolean(
+          sq1Result && sq1Result.advancingDriverIds && sq1Result.advancingDriverIds.length > 0,
+        ) || Boolean(sq1State && sq1State.status === 'completed')
+
+      if (!isSq1Completed) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Bloqueada',
+          description: 'Você precisa concluir o SQ1 antes de iniciar o SQ2.',
+        })
+        return
+      }
     }
 
     if (sess === 'sq3') {
-      // BUG-SQ3-TRANSITION-R2: Distinguir explicitamente:
+      // BUG-SQ3-TRANSITION-R2 / BUG-SQ3-TRANSITION-R3: Distinguir explicitamente:
       // - SQ2 nunca iniciada: não permitir SQ3.
-      // - SQ2 paused: não considerar concluída, não abrir SQ3, oferecer retomada da SQ2.
+      // - SQ2 paused ou running órfão: não considerar concluída, não abrir SQ3, redirecionar/retomar a SQ2.
       // - SQ2 completed: permitir SQ3 (tanto com piloto participante quanto como espectador).
       const sq2State = season?.id
         ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'sq2')
@@ -570,12 +622,15 @@ export default function WeekendV2Page() {
         (sq2Result && sq2Result.advancingDriverIds && sq2Result.advancingDriverIds.length > 0) ||
         (sq2State && sq2State.status === 'completed')
 
-      if (sq2State && sq2State.status === 'paused') {
+      const isSq2Resumable =
+        sq2State && (sq2State.status === 'paused' || sq2State.status === 'running')
+
+      if (isSq2Resumable && !isSq2CanonicalCompleted) {
         toast({
           variant: 'destructive',
-          title: 'SQ2 em Andamento (Pausada)',
+          title: 'SQ2 em Andamento (Retomável)',
           description:
-            'A Qualificação Sprint (SQ2) está pausada e não foi concluída. Retome a SQ2 para finalizá-la.',
+            'A Qualificação Sprint (SQ2) está em andamento e não foi concluída. Retome a SQ2 para finalizá-la antes do SQ3.',
         })
         setSelectedSessionId('sq2')
         setSessionState(null)
@@ -624,21 +679,62 @@ export default function WeekendV2Page() {
     }
 
     if (sess === 'q2' && !normalizedStored.includes('q1')) {
-      toast({
-        variant: 'destructive',
-        title: 'Sessão Bloqueada',
-        description: 'Você precisa concluir o Q1 antes de iniciar o Q2.',
-      })
-      return
+      const q1State = season?.id
+        ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'q1')
+        : null
+      const q1Result = season?.id
+        ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'q1')
+        : null
+      const isQ1Completed =
+        Boolean(
+          q1Result && q1Result.advancingDriverIds && q1Result.advancingDriverIds.length > 0,
+        ) || Boolean(q1State && q1State.status === 'completed')
+
+      if (!isQ1Completed) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Bloqueada',
+          description: 'Você precisa concluir o Q1 antes de iniciar o Q2.',
+        })
+        return
+      }
     }
 
-    if (sess === 'q3' && !normalizedStored.includes('q2')) {
-      toast({
-        variant: 'destructive',
-        title: 'Sessão Bloqueada',
-        description: 'Você precisa concluir o Q2 antes de iniciar o Q3.',
-      })
-      return
+    if (sess === 'q3') {
+      const q2State = season?.id
+        ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'q2')
+        : null
+      const q2Result = season?.id
+        ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'q2')
+        : null
+      const isQ2Completed =
+        Boolean(
+          q2Result && q2Result.advancingDriverIds && q2Result.advancingDriverIds.length > 0,
+        ) || Boolean(q2State && q2State.status === 'completed')
+
+      const isQ2Resumable = q2State && (q2State.status === 'paused' || q2State.status === 'running')
+
+      if (isQ2Resumable && !isQ2Completed) {
+        toast({
+          variant: 'destructive',
+          title: 'Q2 em Andamento (Retomável)',
+          description:
+            'A Qualificação (Q2) está em andamento e não foi concluída. Retome a Q2 para finalizá-la antes do Q3.',
+        })
+        setSelectedSessionId('q2')
+        setSessionState(null)
+        await initializeQualifyingSession('q2', registration)
+        return
+      }
+
+      if (!normalizedStored.includes('q2') && !isQ2Completed) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Bloqueada',
+          description: 'Você precisa concluir o Q2 antes de iniciar o Q3.',
+        })
+        return
+      }
     }
 
     if (
@@ -1202,18 +1298,39 @@ export default function WeekendV2Page() {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
-      if (!qualifyingState) return
+      // Se não há qualifyingState em memória, tenta reidratar do storage canônico
+      let currentQuali = qualifyingState
+      if (!currentQuali && season?.id) {
+        const storedState = canonicalQualifyingPersistenceService.readStageState(
+          season.id,
+          currentRound,
+          selectedSessionId as QualifyingStageId,
+        )
+        if (storedState) {
+          currentQuali = storedState
+          setQualifyingState(storedState)
+        } else {
+          return
+        }
+      }
+      if (!currentQuali) return
 
-      let activeState = qualifyingState
+      let activeState = currentQuali
 
-      // Se a sessão estiver em running órfão (sem simulação ativa), normaliza para paused
-      if (activeState.status === 'running' && !isAutoAdvancing) {
+      // Se a simulação já está rodando (running ativo), o clique pausa a sessão
+      if (isAutoAdvancing) {
+        setIsAutoAdvancing(false)
         activeState.status = 'paused'
         if (season?.id) {
           canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
         }
         setQualifyingState({ ...activeState })
+        return
       }
+
+      // Se não está rodando (isAutoAdvancing === false), estamos INICIANDO ou RETOMANDO:
+      // Pode ser status === 'paused', 'not_started', ou 'running' órfão vindo de reload.
+      // Em todos esses casos, running órfão/paused é retomável.
       if (activeState.leaderboard.length === 0) {
         const stageId = activeState.stageId
         const parentStage =
@@ -1300,21 +1417,13 @@ export default function WeekendV2Page() {
         return
       }
 
-      if (isAutoAdvancing) {
-        setIsAutoAdvancing(false)
-        activeState.status = 'paused'
-        if (season?.id) {
-          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
-        }
-        setQualifyingState({ ...activeState })
-      } else {
-        setIsAutoAdvancing(true)
-        activeState.status = 'running'
-        if (season?.id) {
-          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
-        }
-        setQualifyingState({ ...activeState })
+      // Retomar ou iniciar execução da sessão
+      setIsAutoAdvancing(true)
+      activeState.status = 'running'
+      if (season?.id) {
+        canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
       }
+      setQualifyingState({ ...activeState })
       return
     }
 
@@ -1650,6 +1759,17 @@ export default function WeekendV2Page() {
   // Conclusão oficial de fase de qualificação
   const handleQualifyingStageCompleted = (stageId: QualifyingStageId) => {
     if (!season?.id) return
+    // Assegurar que o stageState persistido canônico tenha status 'completed'
+    const stgState = canonicalQualifyingPersistenceService.readStageState(
+      season.id,
+      currentRound,
+      stageId,
+    )
+    if (stgState && stgState.status !== 'completed') {
+      stgState.status = 'completed'
+      canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, stgState)
+    }
+
     const currentStored = readStoredCompletedSessions(season.id, currentRound)
     let updated = currentStored
     if (!currentStored.includes(stageId)) {
@@ -1717,17 +1837,27 @@ export default function WeekendV2Page() {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
-      if (!qualifyingState || !qualifyingTickContext) return
-
-      let activeState = qualifyingState
-
-      // Se a sessão estiver em running órfão (sem simulação ativa), normaliza para paused
-      if (activeState.status === 'running' && !isAutoAdvancing) {
-        activeState.status = 'paused'
-        if (season?.id) {
-          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
+      let currentQuali = qualifyingState
+      if (!currentQuali && season?.id) {
+        const storedState = canonicalQualifyingPersistenceService.readStageState(
+          season.id,
+          currentRound,
+          selectedSessionId as QualifyingStageId,
+        )
+        if (storedState) {
+          currentQuali = storedState
+          setQualifyingState(storedState)
+        } else {
+          return
         }
-        setQualifyingState({ ...activeState })
+      }
+      if (!currentQuali || !qualifyingTickContext) return
+
+      let activeState = currentQuali
+
+      // Se estivesse em auto-avanço contínuo, para o loop contínuo ao dar passo manual
+      if (isAutoAdvancing) {
+        setIsAutoAdvancing(false)
       }
       if (activeState.leaderboard.length === 0) {
         const stageId = activeState.stageId
@@ -1893,17 +2023,27 @@ export default function WeekendV2Page() {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
-      if (!qualifyingState || !qualifyingTickContext) return
-
-      let activeState = qualifyingState
-
-      // Se a sessão estiver em running órfão (sem simulação ativa), normaliza para paused
-      if (activeState.status === 'running' && !isAutoAdvancing) {
-        activeState.status = 'paused'
-        if (season?.id) {
-          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
+      let currentQuali = qualifyingState
+      if (!currentQuali && season?.id) {
+        const storedState = canonicalQualifyingPersistenceService.readStageState(
+          season.id,
+          currentRound,
+          selectedSessionId as QualifyingStageId,
+        )
+        if (storedState) {
+          currentQuali = storedState
+          setQualifyingState(storedState)
+        } else {
+          return
         }
-        setQualifyingState({ ...activeState })
+      }
+      if (!currentQuali || !qualifyingTickContext) return
+
+      let activeState = currentQuali
+
+      // Se estivesse em auto-avanço contínuo, para o loop contínuo para simular o restante
+      if (isAutoAdvancing) {
+        setIsAutoAdvancing(false)
       }
       if (activeState.leaderboard.length === 0) {
         const stageId = activeState.stageId
@@ -2658,18 +2798,47 @@ export default function WeekendV2Page() {
       )}
 
       {/* 4. ESTEIRA PRINCIPAL DO FIM DE SEMANA */}
-      <RaceWeekendPipelineBar
-        sessions={pipeline}
-        selectedSessionId={selectedSessionId}
-        completedSessions={completedSessions}
-        isSessionRunning={isAutoAdvancing}
-        isSessionPaused={
-          isQualifyingSession
-            ? qualifyingState?.status === 'paused'
-            : sessionState?.status === 'paused'
+      {(() => {
+        // Coleta os status canônicos das sessões para alimentar a esteira visual
+        const sessionStatuses: Record<string, 'not_started' | 'running' | 'paused' | 'completed'> =
+          {}
+        if (season?.id) {
+          const qualiStages = ['sq1', 'sq2', 'sq3', 'q1', 'q2', 'q3'] as const
+          for (const stg of qualiStages) {
+            const stgRes = canonicalQualifyingPersistenceService.readStageResult(
+              season.id,
+              currentRound,
+              stg,
+            )
+            const stgState = canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              stg,
+            )
+            if (stgRes && stgRes.advancingDriverIds && stgRes.advancingDriverIds.length > 0) {
+              sessionStatuses[stg] = 'completed'
+            } else if (stgState) {
+              sessionStatuses[stg] = stgState.status
+            }
+          }
         }
-        onSelectSession={handleSelectSessionFromSchedule}
-      />
+
+        return (
+          <RaceWeekendPipelineBar
+            sessions={pipeline}
+            selectedSessionId={selectedSessionId}
+            completedSessions={completedSessions}
+            sessionStatuses={sessionStatuses}
+            isSessionRunning={isAutoAdvancing}
+            isSessionPaused={
+              isQualifyingSession
+                ? qualifyingState?.status === 'paused'
+                : sessionState?.status === 'paused'
+            }
+            onSelectSession={handleSelectSessionFromSchedule}
+          />
+        )
+      })()}
 
       {/* 5. ÁREA DE CONTEÚDO ÚNICA: RENDERIZA SOMENTE A SESSÃO SELECIONADA */}
       {isPlayablePracticeSession ? (
