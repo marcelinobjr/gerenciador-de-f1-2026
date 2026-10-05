@@ -1970,14 +1970,34 @@ export default function WeekendV2Page() {
             })
             targetSlotNum = 2
           } else if (stageId === 'sq2') {
-            // SQ2 concluída: avança subPhase para SQ3 e marca o próximo slot/fase como DISPONÍVEL
-            await canonicalWeekendSlotPersistenceService.updateSubPhase({
+            // SQ2 concluída: avança subPhase para SQ3 e marca o próximo slot/fase correspondente à SQ3 como DISPONÍVEL (AVAILABLE)
+            const currentSlotState = await canonicalWeekendSlotPersistenceService.loadOrMigrateSlotState({
               careerId: careerIdForSlots,
               seasonId: season.id,
               round: currentRound,
-              slotNumber: 2,
-              subPhase: 'SQ3',
             })
+            if (currentSlotState) {
+              if (currentSlotState.slots[2]) {
+                currentSlotState.slots[2].subPhase = 'SQ3'
+                currentSlotState.slots[2].status = 'AVAILABLE'
+              }
+              currentSlotState.subPhase = 'SQ3'
+              currentSlotState.slotStatus = 'AVAILABLE'
+              // Se existir slot 3 ou slot específico configurado para SQ3, promove para AVAILABLE
+              if (currentSlotState.slots[3] && currentSlotState.slots[3].slotType === 'QUALI_SPRINT') {
+                currentSlotState.slots[3].status = 'AVAILABLE'
+                currentSlotState.slots[3].subPhase = 'SQ3'
+              }
+              await canonicalWeekendSlotPersistenceService.saveSlotState(currentSlotState)
+            } else {
+              await canonicalWeekendSlotPersistenceService.updateSubPhase({
+                careerId: careerIdForSlots,
+                seasonId: season.id,
+                round: currentRound,
+                slotNumber: 2,
+                subPhase: 'SQ3',
+              })
+            }
             targetSlotNum = 2
           } else if (stageId === 'sq3') {
             // SQ3 conclui o Slot 2 (QUALI_SPRINT) e promove o Slot 3 (SPRINT)
