@@ -311,9 +311,12 @@ export class CanonicalPowerUnitUsageApplierService {
     const { careerId, season, round, raceVariant, sessionKey } = projectionReport
     const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
 
-    // SE ESTIVER EM MODO POCKETBASE REAL (não dry-run / não forceLocalEngine)
-    // O débito e criação de journal DEVEM passar única e exclusivamente pelo hook transacional protegido do backend.
-    // Nenhum fallback de gravação direta em teams/power_unit_usage_journals é permitido no cliente.
+    // PU-05A2-P3-B1-SEC: DÉBITO SOMENTE PELO CAMINHO AUTORIZADO
+    // Em qualquer operação de produção/aplicação com cliente PocketBase ativo,
+    // o débito e criação de journal DEVEM passar ÚNICA e EXCLUSIVAMENTE pelo hook transacional
+    // protegido do backend (/backend/v1/pu-usage/apply-session).
+    // Nenhum fallback de leitura-antes-gravação no inventário/journal é chamado em caso de erro,
+    // timeout, indisponibilidade ou auth/autorização rejeitada.
     if (!options.dryRunOrLocalOnly && !options.forceLocalEngine && pb?.collection) {
       try {
         const response = await pb.send<SessionPowerUnitUsageApplicationResult>(
@@ -332,6 +335,7 @@ export class CanonicalPowerUnitUsageApplierService {
       } catch (backendHookErr: any) {
         // Em caso de erro remoto, timeout ou resposta perdida:
         // 1. Tentar consultar o journal autoritativo pelo endpoint protegido GET /backend/v1/pu-usage/journal
+        //    (se o servidor tiver concluído a aplicação antes da perda de rede, reconhece ALREADY_APPLIED sem novo débito)
         try {
           const backendJournal = await this.fetchBackendJournal(
             careerId,
@@ -388,8 +392,7 @@ export class CanonicalPowerUnitUsageApplierService {
               ? 'FAILED'
               : 'PENDING'
 
-        const resultStatus: SessionPowerUnitUsageApplicationResult['status'] =
-          journalStatus === 'FAILED' ? 'FAILED' : 'FAILED'
+        const resultStatus: SessionPowerUnitUsageApplicationResult['status'] = 'FAILED'
 
         return {
           sessionKey,
@@ -430,8 +433,388 @@ export class CanonicalPowerUnitUsageApplierService {
       }
     }
 
-    // Modo local / isolado para testes unitários offline estritos (quando explicitamente solicitado com dryRunOrLocalOnly ou forceLocalEngine)
-    return await this.applyWithDirectProtection(projectionReport, options)
+    // Modo estritamente local e em memória/objeto passado para testes de unidade offline puros
+    // (apenas se options.dryRunOrLocalOnly ou options.forceLocalEngine foram explicitamente configurados)
+    return await this.applyInMemoryIsolatedSimulation(projectionReport, options)
+  }
+
+  /**
+   * Executa a aplicação puramente em memória / TeamModel fornecido (para testes unitários isolados offline).
+   * NUNCA chamado no fluxo padrão de produção onde o PocketBase está conectado.
+   */
+  private async applyInMemoryIsolatedSimulation(
+    projectionReport: SessionPowerUnitUsageProjectionReport,
+    options: ApplySessionPowerUnitUsageOptions,
+  ): Promise<SessionPowerUnitUsageApplicationResult> {
+    const { careerId, season, round, raceVariant, sessionKey } = projectionReport
+    const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
+
+    const localJournal = this.getLocalJournalCache(careerId, season, round, raceVariant)
+    if (localJournal && localJournal.status === 'COMPLETE') {
+      const alreadyAppliedResults: UnitApplicationResult[] = projectionReport.projections.map(
+        (proj) => ({
+          driverId: proj.driverId,
+          driverName: proj.driverName,
+          teamId: proj.teamId,
+          powerUnitId: proj.powerUnitId,
+          status: 'ALREADY_APPLIED',
+          distanceKmAdded: 0,
+          wearDebitApplied: 0,
+          message: `Sessão ${sessionKey} e unidade PU-${proj.powerUnitId} já aplicadas autoritativamente.`,
+        }),
+      )
+
+      return {
+        sessionKey,
+        careerId,
+        season,
+        round,
+        raceVariant,
+        status: 'ALREADY_APPLIED',
+        journal: localJournal,
+        appliedCount: 0,
+        alreadyAppliedCount: alreadyAppliedResults.length,
+        pendingOrUnlinkedCount: 0,
+        failedCount: 0,
+        unitResults: alreadyAppliedResults,
+      }
+    }
+
+    const journal: PowerUnitUsageJournalEntry = localJournal || {
+      journalKey,
+      careerId,
+      season,
+      round,
+      raceVariant,
+      sessionKey,
+      status: 'PENDING',
+      appliedUnitIds: [],
+      appliedDriverIds: [],
+      startedAt: new Date().toISOString(),
+    }
+
+    journal.status = 'APPLYING'
+    this.saveLocalJournalCache(journal)
+
+    const appliedUnitIdsSet = new Set<number>(journal.appliedUnitIds || [])
+    const appliedDriverIdsSet = new Set<string>(journal.appliedDriverIds || [])
+
+    const unitResults: UnitApplicationResult[] = []
+    let appliedCount = 0
+    let alreadyAppliedCount = 0
+    let pendingOrUnlinkedCount = 0
+    let failedCount = 0
+
+    const projectionsByTeam = new Map<string, ParticipantPowerUnitUsageProjection[]>()
+    for (const proj of projectionReport.projections) {
+      const list = projectionsByTeam.get(proj.teamId) || []
+      list.push(proj)
+      projectionsByTeam.set(proj.teamId, list)
+    }
+
+    let globalUnitProcessingIndex = 0
+
+    try {
+      for (const [teamId, teamProjections] of projectionsByTeam.entries()) {
+        let team: TeamModel | null = null
+
+        if (options.teamOverrides) {
+          if (options.teamOverrides instanceof Map) {
+            team = options.teamOverrides.get(teamId) || null
+          } else {
+            team = (options.teamOverrides as Record<string, TeamModel>)[teamId] || null
+          }
+        }
+
+        for (const proj of teamProjections) {
+          if (!proj.hasValidLinkage || !proj.powerUnitId) {
+            pendingOrUnlinkedCount++
+            unitResults.push({
+              driverId: proj.driverId,
+              driverName: proj.driverName,
+              teamId: proj.teamId,
+              powerUnitId: undefined,
+              status: 'NOT_APPLICABLE',
+              distanceKmAdded: 0,
+              wearDebitApplied: 0,
+              message: `Participante sem vínculo individual de PU (${proj.wearDebitStatus}).`,
+            })
+            continue
+          }
+
+          if (
+            proj.wearDebitStatus === 'PENDING_ENGINE_SESSION_EVOLUTION' ||
+            proj.wearDebitStatus === 'LEGACY_UNLINKED'
+          ) {
+            pendingOrUnlinkedCount++
+            unitResults.push({
+              driverId: proj.driverId,
+              driverName: proj.driverName,
+              teamId: proj.teamId,
+              powerUnitId: proj.powerUnitId,
+              status: 'NOT_APPLICABLE',
+              distanceKmAdded: 0,
+              wearDebitApplied: 0,
+              message: `Débito de desgaste não reconhecido (${proj.wearDebitStatus}): ${proj.pendingReason || 'desgaste pendente'}.`,
+            })
+            continue
+          }
+
+          const puId = proj.powerUnitId
+
+          if (appliedUnitIdsSet.has(puId)) {
+            alreadyAppliedCount++
+            unitResults.push({
+              driverId: proj.driverId,
+              driverName: proj.driverName,
+              teamId: proj.teamId,
+              powerUnitId: puId,
+              status: 'ALREADY_APPLIED',
+              distanceKmAdded: 0,
+              wearDebitApplied: 0,
+              message: `Unidade PU-${puId} já foi aplicada nesta sessão pelo Journal.`,
+            })
+            continue
+          }
+
+          if (!team) {
+            failedCount++
+            unitResults.push({
+              driverId: proj.driverId,
+              driverName: proj.driverName,
+              teamId: proj.teamId,
+              powerUnitId: puId,
+              status: 'FAILED_NOT_FOUND',
+              distanceKmAdded: 0,
+              wearDebitApplied: 0,
+              message: `Equipe '${teamId}' não encontrada para aplicar unidade PU-${puId}.`,
+            })
+            continue
+          }
+
+          const history = Array.isArray(team.engine_history) ? [...team.engine_history] : []
+          const unitIndex = history.findIndex((eng) => Number(eng.id) === puId)
+
+          if (unitIndex === -1) {
+            failedCount++
+            unitResults.push({
+              driverId: proj.driverId,
+              driverName: proj.driverName,
+              teamId: proj.teamId,
+              powerUnitId: puId,
+              status: 'FAILED_NOT_FOUND',
+              distanceKmAdded: 0,
+              wearDebitApplied: 0,
+              message: `Unidade PU-${puId} não encontrada no engine_history da equipe '${teamId}'.`,
+            })
+            continue
+          }
+
+          const existingUnit = history[unitIndex]
+          const prevMileage =
+            typeof existingUnit.mileage_km === 'number' ? existingUnit.mileage_km : 0
+          const prevCond =
+            typeof existingUnit.condition === 'number'
+              ? existingUnit.condition
+              : typeof existingUnit.wear === 'number'
+                ? Math.max(0, 100 - existingUnit.wear)
+                : 100
+          const prevWear =
+            typeof existingUnit.wear === 'number' ? existingUnit.wear : Math.max(0, 100 - prevCond)
+
+          const addDistance = proj.distanceKm || 0
+          const wearDebit = proj.wearDebit || 0
+
+          const newMileage = Number((prevMileage + addDistance).toFixed(3))
+          const newCond = Number(Math.max(0, Math.min(100, prevCond - wearDebit)).toFixed(2))
+          const newWear = Number(Math.max(0, Math.min(100, 100 - newCond)).toFixed(2))
+
+          history[unitIndex] = {
+            ...existingUnit,
+            mileage_km: newMileage,
+            condition: newCond,
+            wear: newWear,
+          }
+
+          team.engine_history = history
+          if (
+            team.id === proj.teamId &&
+            (existingUnit.status === 'instalado' || !existingUnit.status)
+          ) {
+            team.active_engine_wear = newWear
+          }
+
+          globalUnitProcessingIndex++
+          appliedUnitIdsSet.add(puId)
+          appliedDriverIdsSet.add(proj.driverId)
+          journal.appliedUnitIds = Array.from(appliedUnitIdsSet)
+          journal.appliedDriverIds = Array.from(appliedDriverIdsSet)
+
+          this.saveLocalJournalCache(journal)
+
+          appliedCount++
+          unitResults.push({
+            driverId: proj.driverId,
+            driverName: proj.driverName,
+            teamId: proj.teamId,
+            powerUnitId: puId,
+            status: wearDebit === 0 ? 'ZERO_WEAR_APPLIED' : 'APPLIED',
+            distanceKmAdded: addDistance,
+            wearDebitApplied: wearDebit,
+            previousMileageKm: prevMileage,
+            newMileageKm: newMileage,
+            previousCondition: prevCond,
+            newCondition: newCond,
+            previousWear: prevWear,
+            newWear: newWear,
+          })
+
+          if (
+            options.simulateFailureAfterUnitIndex !== undefined &&
+            globalUnitProcessingIndex === options.simulateFailureAfterUnitIndex
+          ) {
+            throw new Error(
+              `[Simulação de Falha Injetada] Interrupção forçada após aplicar a unidade índice ${globalUnitProcessingIndex} (PU-${puId}).`,
+            )
+          }
+        }
+      }
+
+      const finalStatus: PowerUnitApplicationStatus =
+        failedCount > 0
+          ? 'PARTIAL'
+          : appliedCount > 0 || alreadyAppliedCount > 0
+            ? 'COMPLETE'
+            : 'COMPLETE'
+
+      journal.status = finalStatus
+      journal.completedAt = new Date().toISOString()
+      journal.lastError = undefined
+
+      this.saveLocalJournalCache(journal)
+
+      return {
+        sessionKey,
+        careerId,
+        season,
+        round,
+        raceVariant,
+        status: failedCount > 0 ? 'PARTIAL' : 'SUCCESS',
+        journal,
+        appliedCount,
+        alreadyAppliedCount,
+        pendingOrUnlinkedCount,
+        failedCount,
+        unitResults,
+      }
+    } catch (err: any) {
+      journal.status = appliedCount > 0 ? 'PARTIAL' : 'FAILED'
+      journal.lastError = err?.message || 'Erro durante a aplicação de uso de PU.'
+
+      return {
+        sessionKey,
+        careerId,
+        season,
+        round,
+        raceVariant,
+        status: appliedCount > 0 ? 'PARTIAL' : 'FAILED',
+        journal,
+        appliedCount,
+        alreadyAppliedCount,
+        pendingOrUnlinkedCount,
+        failedCount: failedCount || 1,
+  }
+=======
+        unitResults,
+        error: journal.lastError,
+      }
+    }
+  }
+}
+
+export const canonicalPowerUnitUsageApplierService = new CanonicalPowerUnitUsageApplierService()
+=======
+  }
+=======
+  private async applyWithDirectProtection(
+=======
+      return {
+        sessionKey,
+        careerId,
+        season,
+        round,
+        raceVariant,
+        status: appliedCount > 0 ? 'PARTIAL' : 'FAILED',
+        journal,
+        appliedCount,
+        alreadyAppliedCount,
+        pendingOrUnlinkedCount,
+        failedCount: failedCount || 1,
+        unitResults,
+        error: journal.lastError,
+      }
+    }
+  }
+
+  private async applyWithDirectProtection(
+=======
+  }
+=======
+        unitResults,
+        error: journal.lastError,
+      }
+    }
+  }
+}
+
+export const canonicalPowerUnitUsageApplierService = new CanonicalPowerUnitUsageApplierService()
+=======
+  }
+=======
+      this.saveLocalJournalCache(journal)
+
+      return {
+        sessionKey,
+        careerId,
+        season,
+        round,
+        raceVariant,
+        status: appliedCount > 0 ? 'PARTIAL' : 'FAILED',
+        journal,
+        appliedCount,
+        alreadyAppliedCount,
+        pendingOrUnlinkedCount,
+        failedCount: failedCount || 1,
+        unitResults,
+        error: journal.lastError,
+      }
+    }
+  }
+}
+
+export const canonicalPowerUnitUsageApplierService = new CanonicalPowerUnitUsageApplierService()
+=======
+      return {
+        sessionKey,
+        careerId,
+        season,
+        round,
+        raceVariant,
+        status: appliedCount > 0 ? 'PARTIAL' : 'FAILED',
+        journal,
+        appliedCount,
+        alreadyAppliedCount,
+        pendingOrUnlinkedCount,
+        failedCount: failedCount || 1,
+        unitResults,
+        error: journal.lastError,
+      }
+    }
+  }
+}
+
+export const canonicalPowerUnitUsageApplierService = new CanonicalPowerUnitUsageApplierService()
+=======
   }
 
   /**

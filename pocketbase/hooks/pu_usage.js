@@ -228,6 +228,14 @@ routerAdd('POST', '/backend/v1/pu-usage/apply-session', (e) => {
         teamRecord = null
       }
 
+      // Validar se a equipe solicitada pertence ao contexto do usuário autenticado
+      if (teamRecord && !authUser.isSuperuser?.()) {
+        const teamOwner = teamRecord.get('user_id')
+        if (teamOwner && teamOwner !== authUser.id) {
+          throw new ForbiddenError(`Equipe '${teamId}' não pertence ao usuário autenticado.`)
+        }
+      }
+
       for (let p = 0; p < teamProjections.length; p++) {
         const proj = teamProjections[p]
 
