@@ -88,7 +88,7 @@ export function NotificationBell({
           setNotifications(items)
         }
       } catch {
-        // Silencia erro transitório
+        // Silencia erro transitório (TypeError: Failed to fetch, etc.) sem exibir banner ou toast
       }
     }
 
