@@ -60,8 +60,12 @@ export function resolveEligibleQualifyingDrivers(
       consistency: isPlayer ? (e.carId === 'car1' ? 82 : 81) : 79,
       defense: isPlayer ? (e.carId === 'car1' ? 80 : 78) : 76,
       teamId: isPlayer ? playerTeam?.id || e.teamId || 'player_team' : e.teamId || `rival_${idx}`,
-      teamName: isPlayer ? playerTeam?.name || e.teamName || 'Equipe Jogador' : e.teamName || `Equipe ${idx + 1}`,
-      teamColor: isPlayer ? playerTeam?.color || e.teamColor || '#E10600' : e.teamColor || '#64748B',
+      teamName: isPlayer
+        ? playerTeam?.name || e.teamName || 'Equipe Jogador'
+        : e.teamName || `Equipe ${idx + 1}`,
+      teamColor: isPlayer
+        ? playerTeam?.color || e.teamColor || '#E10600'
+        : e.teamColor || '#64748B',
       carNumber: e.driverNumber || (isPlayer ? (e.carId === 'car1' ? 1 : 2) : idx + 3),
     })
   })
