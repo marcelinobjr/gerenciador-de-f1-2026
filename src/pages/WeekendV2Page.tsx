@@ -873,26 +873,31 @@ export default function WeekendV2Page() {
       // Q1, Q2 ou Q3: inicializa ou carrega a sessão de qualificação canônica
       setSelectedSessionId(sess)
       setSessionState(null)
-      // Carregar imediatamente se já houver estado em disco para evitar gap visual
+      // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
+      setQualifyingState(null)
       const existingState = canonicalQualifyingPersistenceService.readStageState(
         season.id,
         currentRound,
         sess as QualifyingStageId,
       )
-      setQualifyingState(existingState || null)
+      if (existingState) {
+        setQualifyingState(existingState)
+      }
       await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
     } else if (sess === 'sq1' || sess === 'sq2' || sess === 'sq3') {
       // SQ1, SQ2 ou SQ3: inicializa ou carrega a sessão de qualificação sprint canônica
       setSelectedSessionId(sess)
       setSessionState(null)
-      // Carregar imediatamente se já houver estado em disco para evitar gap visual
+      // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
+      setQualifyingState(null)
       const existingState = canonicalQualifyingPersistenceService.readStageState(
         season.id,
         currentRound,
         sess as QualifyingStageId,
       )
-      // Se não há estado salvo da nova fase, limpa qualifyingState para não exibir o da fase anterior
-      setQualifyingState(existingState || null)
+      if (existingState) {
+        setQualifyingState(existingState)
+      }
       await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
     } else {
       // CORRIDA (Principal ou Sprint): se qualificação concluída, exibe o grid final P1-P24 ou placeholder
@@ -1546,8 +1551,29 @@ export default function WeekendV2Page() {
         }
       }
 
+      // CORREÇÃO 3: a checagem de "Sessão Concluída" deve validar a sessão SELECIONADA (selectedSessionId),
+      // não activeState.stageId residual da fase anterior. Se activeState.stageId !== selectedSessionId,
+      // concluir a reidratação/inicialização da sessão selecionada antes de avaliar o guard.
+      if (activeState.stageId !== selectedSessionId) {
+        await initializeQualifyingSession(selectedSessionId as QualifyingStageId)
+        const fresh = season?.id
+          ? canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              selectedSessionId as QualifyingStageId,
+            )
+          : null
+        if (fresh) {
+          activeState = fresh
+          setQualifyingState(fresh)
+        }
+      }
+
       const stored = refreshCompletedSessions()
-      if (activeState.stageId === selectedSessionId && (activeState.status === 'completed' || stored.includes(activeState.stageId))) {
+      if (
+        selectedSessionId === activeState.stageId &&
+        (activeState.status === 'completed' || stored.includes(selectedSessionId))
+      ) {
         toast({
           variant: 'destructive',
           title: 'Sessão Concluída',
@@ -1971,7 +1997,10 @@ export default function WeekendV2Page() {
         }
 
         // Se for término de slot completo (ex: sq3 fecha o slot 2, q1 fecha slot 4, etc.)
-        if (targetSlotNum && (stageId === 'sq3' || stageId === 'q1' || stageId === 'q2' || stageId === 'q3')) {
+        if (
+          targetSlotNum &&
+          (stageId === 'sq3' || stageId === 'q1' || stageId === 'q2' || stageId === 'q3')
+        ) {
           if (slotState.currentSlot === targetSlotNum) {
             const updatedSlotState = await canonicalWeekendSlotPersistenceService.completeSlot(
               slotState,
@@ -2043,6 +2072,28 @@ export default function WeekendV2Page() {
       toast({
         title: `Fase ${stageId.toUpperCase()} Concluída`,
         description: `Eliminações e classificação oficial registradas. Próxima etapa disponível.`,
+      })
+    }
+
+    // CORREÇÃO 1: ao concluir sq1/sq2 (e q1/q2), além do que já faz hoje, promover a fase seguinte:
+    // setSelectedSessionId(<fase seguinte>), setQualifyingState(null) e inicializar a sessão seguinte
+    // (initializeQualifyingSession(<fase seguinte>)) com participantes derivados de advancingDriverIds canônico.
+    // Mapeamento: sq1→sq2, sq2→sq3, q1→q2, q2→q3.
+    const nextStageMap: Record<string, QualifyingStageId> = {
+      sq1: 'sq2',
+      sq2: 'sq3',
+      q1: 'q2',
+      q2: 'q3',
+    }
+    const nextStage = nextStageMap[stageId]
+    if (nextStage) {
+      setSelectedSessionId(nextStage)
+      setQualifyingState(null)
+      initializeQualifyingSession(nextStage).catch((err) => {
+        console.warn(
+          `[handleQualifyingStageCompleted] Falha ao inicializar próxima fase ${nextStage}:`,
+          err,
+        )
       })
     }
   }
@@ -2163,8 +2214,29 @@ export default function WeekendV2Page() {
         }
       }
 
+      // CORREÇÃO 3: a checagem de "Sessão Concluída" deve validar a sessão SELECIONADA (selectedSessionId),
+      // não activeState.stageId residual da fase anterior. Se activeState.stageId !== selectedSessionId,
+      // concluir a reidratação/inicialização da sessão selecionada antes de avaliar o guard.
+      if (activeState.stageId !== selectedSessionId) {
+        await initializeQualifyingSession(selectedSessionId as QualifyingStageId)
+        const fresh = season?.id
+          ? canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              selectedSessionId as QualifyingStageId,
+            )
+          : null
+        if (fresh) {
+          activeState = fresh
+          setQualifyingState(fresh)
+        }
+      }
+
       const stored = refreshCompletedSessions()
-      if (activeState.status === 'completed' || stored.includes(activeState.stageId)) {
+      if (
+        selectedSessionId === activeState.stageId &&
+        (activeState.status === 'completed' || stored.includes(selectedSessionId))
+      ) {
         toast({
           variant: 'destructive',
           title: 'Sessão Concluída',
@@ -2362,8 +2434,29 @@ export default function WeekendV2Page() {
         }
       }
 
+      // CORREÇÃO 3: a checagem de "Sessão Concluída" deve validar a sessão SELECIONADA (selectedSessionId),
+      // não activeState.stageId residual da fase anterior. Se activeState.stageId !== selectedSessionId,
+      // concluir a reidratação/inicialização da sessão selecionada antes de avaliar o guard.
+      if (activeState.stageId !== selectedSessionId) {
+        await initializeQualifyingSession(selectedSessionId as QualifyingStageId)
+        const fresh = season?.id
+          ? canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              selectedSessionId as QualifyingStageId,
+            )
+          : null
+        if (fresh) {
+          activeState = fresh
+          setQualifyingState(fresh)
+        }
+      }
+
       const stored = refreshCompletedSessions()
-      if (activeState.status === 'completed' || stored.includes(activeState.stageId)) {
+      if (
+        selectedSessionId === activeState.stageId &&
+        (activeState.status === 'completed' || stored.includes(selectedSessionId))
+      ) {
         toast({
           variant: 'destructive',
           title: 'Sessão Concluída',
