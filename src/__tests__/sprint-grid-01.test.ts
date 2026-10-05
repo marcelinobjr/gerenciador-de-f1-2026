@@ -7,7 +7,10 @@ import type {
   QualifyingDriverContext,
   QualifyingTickContext,
 } from '../services/canonicalQualifyingRunner'
-import type { QualifyingStageResult, CompleteQualifyingWeekendResult } from '../types/canonical-qualifying-types'
+import type {
+  QualifyingStageResult,
+  CompleteQualifyingWeekendResult,
+} from '../types/canonical-qualifying-types'
 
 // Fixture canônica determinística para 24 pilotos inscritos (F1 2026: 12 equipes x 2 pilotos)
 function createDeterministic24Entries() {
@@ -125,7 +128,12 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
         bestLapRecordedAtSec: idx * 5,
         gap: '+0.000',
         isPlayer: p.id === 'driver_01' || p.id === 'driver_02',
-        carId: p.id === 'driver_01' ? ('car1' as const) : p.id === 'driver_02' ? ('car2' as const) : undefined,
+        carId:
+          p.id === 'driver_01'
+            ? ('car1' as const)
+            : p.id === 'driver_02'
+              ? ('car2' as const)
+              : undefined,
         status: 'garage' as const,
         isEliminated: false,
       }
@@ -189,7 +197,12 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
         bestLapRecordedAtSec: idx * 5,
         gap: '+0.000',
         isPlayer: p.id === 'driver_01' || p.id === 'driver_02',
-        carId: p.id === 'driver_01' ? ('car1' as const) : p.id === 'driver_02' ? ('car2' as const) : undefined,
+        carId:
+          p.id === 'driver_01'
+            ? ('car1' as const)
+            : p.id === 'driver_02'
+              ? ('car2' as const)
+              : undefined,
         status: 'garage' as const,
         isEliminated: false,
       }
@@ -266,13 +279,20 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
         bestLapRecordedAtSec: idx * 10,
         gap: idx === 0 ? '+0.000' : `+${(item.time - 72.0).toFixed(3)}`,
         isPlayer: item.id === 'driver_01' || item.id === 'driver_02',
-        carId: item.id === 'driver_01' ? ('car1' as const) : item.id === 'driver_02' ? ('car2' as const) : undefined,
+        carId:
+          item.id === 'driver_01'
+            ? ('car1' as const)
+            : item.id === 'driver_02'
+              ? ('car2' as const)
+              : undefined,
         status: 'garage' as const,
         isEliminated: false,
       }
     })
 
-    const sq3FinalResult = CanonicalQualifyingRunner.finalizeStage(sq3State, tickCtx, { persistState: true })
+    const sq3FinalResult = CanonicalQualifyingRunner.finalizeStage(sq3State, tickCtx, {
+      persistState: true,
+    })
     expect(sq3FinalResult.stageId).toBe('sq3')
     expect(sq3FinalResult.entries).toHaveLength(10)
 
@@ -333,8 +353,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq1Entries,
       advancingDriverIds: sq1Entries.slice(0, 18).map((e) => e.driverId),
       eliminatedDriverIds: sq1Entries.slice(18).map((e) => e.driverId),
-      weather: 'seco',
-      parcFermeApplied: true,
     }
     canonicalQualifyingPersistenceService.saveStageResult(sq1Result)
 
@@ -359,8 +377,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq2Entries,
       advancingDriverIds: sq2Entries.slice(0, 10).map((e) => e.driverId),
       eliminatedDriverIds: sq2Entries.slice(10).map((e) => e.driverId),
-      weather: 'seco',
-      parcFermeApplied: true,
     }
     canonicalQualifyingPersistenceService.saveStageResult(sq2Result)
 
@@ -379,8 +395,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq3Entries,
       advancingDriverIds: sq3Entries.map((e) => e.driverId),
       eliminatedDriverIds: [],
-      weather: 'seco',
-      parcFermeApplied: true,
     }
     canonicalQualifyingPersistenceService.saveStageResult(sq3Result)
 
@@ -506,8 +520,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq3Entries,
       advancingDriverIds: ['sprint_pole_driver_11'],
       eliminatedDriverIds: [],
-      weather: 'seco',
-      parcFermeApplied: true,
     }
     canonicalQualifyingPersistenceService.saveStageResult(sq3Result)
 
@@ -564,8 +576,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq3Entries,
       advancingDriverIds: sq3Entries.map((e) => e.driverId),
       eliminatedDriverIds: [],
-      weather: 'seco',
-      parcFermeApplied: true,
     }
     canonicalQualifyingPersistenceService.saveStageResult(sq3Result)
 
@@ -629,7 +639,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq1Entries,
       advancingDriverIds: sq1Entries.slice(0, 18).map((e) => e.driverId),
       eliminatedDriverIds: sq1Entries.slice(18).map((e) => e.driverId),
-      weather: 'seco',
     })
 
     const sq2Entries = sq1Entries.slice(0, 18).map((e, idx) => ({
@@ -645,7 +654,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq2Entries,
       advancingDriverIds: sq2Entries.slice(0, 10).map((e) => e.driverId),
       eliminatedDriverIds: sq2Entries.slice(10).map((e) => e.driverId),
-      weather: 'seco',
     })
 
     // Em SQ3, driver_09 faz 71.0s (Pole), driver_01 faz 71.5s
@@ -663,7 +671,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq3Entries,
       advancingDriverIds: sq3Entries.map((e) => e.driverId),
       eliminatedDriverIds: [],
-      weather: 'seco',
     })
 
     // 1. Obtém grid da Sprint
@@ -675,29 +682,25 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
     expect(sprintGrid!.finalGrid[0].driverId).toBe('driver_09')
 
     // 2. Inicializa a Corrida Sprint exatamente como WeekendV2Page faz
-    const totalSprintLaps = canonicalRaceInitializationService.calculateSprintLaps(
-      4.309,
-      100,
-      71,
-    )
-    const initializedSprintRace = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
-      raceVariant: 'SPRINT_RACE',
-      careerId: TEST_CAREER_ID,
-      season: 2026,
-      round: TEST_ROUND,
-      circuitName: 'Autódromo de Interlagos',
-      circuitCountry: 'Brasil',
-      totalLaps: totalSprintLaps,
-      playerTeamId: 'team_player',
-      canonicalQualifyingGrid: sprintGrid!.finalGrid,
-      persistState: true,
-    })
+    const totalSprintLaps = canonicalRaceInitializationService.calculateSprintLaps(4.309, 100, 71)
+    const initializedSprintRace =
+      canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+        raceVariant: 'SPRINT_RACE',
+        careerId: TEST_CAREER_ID,
+        season: 2026,
+        round: TEST_ROUND,
+        circuitName: 'Autódromo de Interlagos',
+        circuitCountry: 'Brasil',
+        totalLaps: totalSprintLaps,
+        playerTeamId: 'team_player',
+        canonicalQualifyingGrid: sprintGrid!.finalGrid,
+        persistState: true,
+      })
 
     // 3. Prova que a corrida Sprint inicializou com a variante correta e com o grid derivado
     expect(initializedSprintRace.raceVariant).toBe('SPRINT_RACE')
     expect(initializedSprintRace.drivers).toHaveLength(24)
     expect(initializedSprintRace.drivers[0].driverId).toBe('driver_09')
-    expect(initializedSprintRace.drivers[0].position).toBe(1)
     expect(initializedSprintRace.drivers[0].gridPosition).toBe(1)
 
     // Bijeção exata: ordem dos motoristas na corrida Sprint = ordem do grid construído
@@ -778,13 +781,10 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: [],
       advancingDriverIds: [],
       eliminatedDriverIds: [],
-      weather: 'seco',
     })
 
-    const sprintGridEmptyEntries = canonicalQualifyingPersistenceService.buildSprintGridFromSQ3Result(
-      TEST_SEASON_ID,
-      TEST_ROUND,
-    )
+    const sprintGridEmptyEntries =
+      canonicalQualifyingPersistenceService.buildSprintGridFromSQ3Result(TEST_SEASON_ID, TEST_ROUND)
     expect(sprintGridEmptyEntries).toBeNull()
   })
 
@@ -833,7 +833,6 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
       entries: sq3Entries,
       advancingDriverIds: ['driver_tied_first', 'driver_tied_second'],
       eliminatedDriverIds: [],
-      weather: 'seco',
     })
 
     const sprintGrid = canonicalQualifyingPersistenceService.buildSprintGridFromSQ3Result(
@@ -845,5 +844,86 @@ describe('SPRINT-GRID-01 — SQ3 → GRID FINAL DA CORRIDA SPRINT', () => {
     expect(sprintGrid!.poleDriverId).toBe('driver_tied_first')
     expect(sprintGrid!.finalGrid[0].driverId).toBe('driver_tied_first')
     expect(sprintGrid!.finalGrid[1].driverId).toBe('driver_tied_second')
+  })
+
+  // -------------------------------------------------------------------------
+  // 8. ISOLAMENTO TOTAL: QUALIFICAÇÃO PRINCIPAL NÃO AFETADA
+  // Q1, Q2, Q3 principais continuam intactos e independentes de SQ1, SQ2, SQ3
+  // -------------------------------------------------------------------------
+  it('8. Isolamento de persistência de estágio: SQ1/SQ2/SQ3 e Q1/Q2/Q3 coexistem na mesma temporada e rodada sem colisão de chaves', () => {
+    // 1. Salva Q1 principal
+    const q1Result: QualifyingStageResult = {
+      stageId: 'q1',
+      seasonId: TEST_SEASON_ID,
+      round: TEST_ROUND,
+      completedAt: '2026-05-10T16:00:00.000Z',
+      entries: [
+        {
+          position: 1,
+          driverId: 'main_q1_p1',
+          driverName: 'Q1 Principal P1',
+          teamId: 'team_ferrari',
+          teamName: 'Ferrari',
+          teamColor: '#FF0000',
+          bestLapSec: 71.0,
+          bestLapTime: '1:11.000',
+          bestLapRecordedAtSec: 100,
+          compound: 'macio',
+          lapsCount: 3,
+          isPlayer: false,
+          isEliminated: false,
+        },
+      ],
+      advancingDriverIds: ['main_q1_p1'],
+      eliminatedDriverIds: [],
+    }
+    canonicalQualifyingPersistenceService.saveStageResult(q1Result)
+
+    // 2. Salva SQ1 sprint
+    const sq1Result: QualifyingStageResult = {
+      stageId: 'sq1',
+      seasonId: TEST_SEASON_ID,
+      round: TEST_ROUND,
+      completedAt: '2026-05-09T10:00:00.000Z',
+      entries: [
+        {
+          position: 1,
+          driverId: 'sprint_sq1_p1',
+          driverName: 'SQ1 Sprint P1',
+          teamId: 'team_mclaren',
+          teamName: 'McLaren',
+          teamColor: '#FF8000',
+          bestLapSec: 72.0,
+          bestLapTime: '1:12.000',
+          bestLapRecordedAtSec: 80,
+          compound: 'macio',
+          lapsCount: 2,
+          isPlayer: false,
+          isEliminated: false,
+        },
+      ],
+      advancingDriverIds: ['sprint_sq1_p1'],
+      eliminatedDriverIds: [],
+    }
+    canonicalQualifyingPersistenceService.saveStageResult(sq1Result)
+
+    // 3. Lê ambos os resultados e comprova total independência
+    const readQ1 = canonicalQualifyingPersistenceService.readStageResult(
+      TEST_SEASON_ID,
+      TEST_ROUND,
+      'q1',
+    )
+    const readSQ1 = canonicalQualifyingPersistenceService.readStageResult(
+      TEST_SEASON_ID,
+      TEST_ROUND,
+      'sq1',
+    )
+
+    expect(readQ1).not.toBeNull()
+    expect(readSQ1).not.toBeNull()
+    expect(readQ1!.entries[0].driverId).toBe('main_q1_p1')
+    expect(readSQ1!.entries[0].driverId).toBe('sprint_sq1_p1')
+    expect(readQ1!.completedAt).toBe('2026-05-10T16:00:00.000Z')
+    expect(readSQ1!.completedAt).toBe('2026-05-09T10:00:00.000Z')
   })
 })

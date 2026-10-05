@@ -207,18 +207,15 @@ export const canonicalQualifyingPersistenceService = {
 
     // Se temos as fases completas SQ1, SQ2 e SQ3
     if (sq1Result && sq2Result && sq3Result.stageId === 'sq3') {
-      const sq3Sorted = [...sq3Result.entries].sort((a, b) => {
-        if (a.bestLapSec > 0 && b.bestLapSec > 0) {
-          if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
-          return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
-        }
-        if (a.bestLapSec > 0) return -1
-        if (b.bestLapSec > 0) return 1
-        return 0
-      })
+      const assignedDriverIds = new Set<string>()
 
-      const sq2Eliminated = [...sq2Result.entries]
-        .filter((e) => !sq3Result.entries.some((s) => s.driverId === e.driverId))
+      // 1. P1 a P10 vêm de SQ3 ordenados pelos melhores tempos canônicos de SQ3
+      const sq3Sorted = [...sq3Result.entries]
+        .filter((e) => {
+          if (!e.driverId || assignedDriverIds.has(e.driverId)) return false
+          assignedDriverIds.add(e.driverId)
+          return true
+        })
         .sort((a, b) => {
           if (a.bestLapSec > 0 && b.bestLapSec > 0) {
             if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
@@ -229,12 +226,43 @@ export const canonicalQualifyingPersistenceService = {
           return 0
         })
 
+      // 2. P11 a P18 vêm dos eliminados da SQ2 (quem participou da SQ3 jamais pode figurar aqui)
+      const sq2Eliminated = [...sq2Result.entries]
+        .filter((e) => {
+          if (!e.driverId || assignedDriverIds.has(e.driverId)) return false
+          const isMarked =
+            sq2Result.eliminatedDriverIds?.includes(e.driverId) ||
+            !sq3Result.entries.some((s) => s.driverId === e.driverId)
+          if (isMarked) {
+            assignedDriverIds.add(e.driverId)
+            return true
+          }
+          return false
+        })
+        .sort((a, b) => {
+          if (a.bestLapSec > 0 && b.bestLapSec > 0) {
+            if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
+            return (a.bestLapRecordedAtSec || 0) - (b.bestLapRecordedAtSec || 0)
+          }
+          if (a.bestLapSec > 0) return -1
+          if (b.bestLapSec > 0) return 1
+          return 0
+        })
+
+      // 3. P19 a P24 vêm dos eliminados da SQ1 (quem participou de SQ2 ou SQ3 jamais pode figurar aqui)
       const sq1Eliminated = [...sq1Result.entries]
-        .filter(
-          (e) =>
-            !sq3Result.entries.some((s) => s.driverId === e.driverId) &&
-            !sq2Result.entries.some((s) => s.driverId === e.driverId),
-        )
+        .filter((e) => {
+          if (!e.driverId || assignedDriverIds.has(e.driverId)) return false
+          const isMarked =
+            sq1Result.eliminatedDriverIds?.includes(e.driverId) ||
+            (!sq3Result.entries.some((s) => s.driverId === e.driverId) &&
+              !sq2Result.entries.some((s) => s.driverId === e.driverId))
+          if (isMarked) {
+            assignedDriverIds.add(e.driverId)
+            return true
+          }
+          return false
+        })
         .sort((a, b) => {
           if (a.bestLapSec > 0 && b.bestLapSec > 0) {
             if (a.bestLapSec !== b.bestLapSec) return a.bestLapSec - b.bestLapSec
@@ -246,27 +274,35 @@ export const canonicalQualifyingPersistenceService = {
         })
 
       const combined = [...sq3Sorted, ...sq2Eliminated, ...sq1Eliminated]
-      const finalGrid: FinalQualifyingGridEntry[] = combined.map((e, idx) => ({
-        gridPosition: idx + 1,
-        driverId: e.driverId,
-        driverName: e.driverName,
-        teamId: e.teamId,
-        teamName: e.teamName,
-        teamColor: e.teamColor,
-        isPlayer: e.isPlayer,
-        carId: e.carId,
-        eliminationStage:
-          idx < sq3Sorted.length
-            ? 'Q3'
-            : idx < sq3Sorted.length + sq2Eliminated.length
-              ? 'Q2'
-              : 'Q1',
-        bestLapSec: e.bestLapSec,
-        bestLapTime: e.bestLapTime,
-        bestLapCompound: e.compound,
-        tyreSetId: e.tyreSetId,
-        q1LapTime: e.bestLapTime,
-      }))
+      const finalGrid: FinalQualifyingGridEntry[] = combined.map((e, idx) => {
+        const sq1Entry = sq1Result.entries.find((item) => item.driverId === e.driverId)
+        const sq2Entry = sq2Result.entries.find((item) => item.driverId === e.driverId)
+        const sq3Entry = sq3Result.entries.find((item) => item.driverId === e.driverId)
+
+        return {
+          gridPosition: idx + 1,
+          driverId: e.driverId,
+          driverName: e.driverName,
+          teamId: e.teamId,
+          teamName: e.teamName,
+          teamColor: e.teamColor,
+          isPlayer: e.isPlayer,
+          carId: e.carId,
+          eliminationStage:
+            idx < sq3Sorted.length
+              ? 'Q3'
+              : idx < sq3Sorted.length + sq2Eliminated.length
+                ? 'Q2'
+                : 'Q1',
+          bestLapSec: e.bestLapSec,
+          bestLapTime: e.bestLapTime,
+          bestLapCompound: e.compound,
+          tyreSetId: e.tyreSetId,
+          q1LapTime: sq1Entry?.bestLapTime || e.bestLapTime,
+          q2LapTime: sq2Entry?.bestLapTime,
+          q3LapTime: sq3Entry?.bestLapTime,
+        }
+      })
 
       const pole = finalGrid[0]
       return {
