@@ -4,7 +4,7 @@ import { canonicalRaceResultService } from '@/services/canonicalRaceResultServic
 import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 import { hasSprintWeekend } from '@/services/weekendProgressionService'
-import { F1_2026_CALENDAR } from '@/lib/f1-data'
+import { resolveRaceControlSessionContext } from '@/pages/RaceControlLivePage'
 import type { CanonicalRaceState, OfficialRaceResult } from '@/types/canonical-race-v2'
 
 /**
@@ -18,89 +18,10 @@ import type { CanonicalRaceState, OfficialRaceResult } from '@/types/canonical-r
  * E. CONTEXTO INVÁLIDO OU AMBÍGUO: variante inválida, rodada inválida, Sprint inexistente ou link sem contexto inequívoco não inicializam uma corrida escolhida por fallback.
  */
 
-// Simula a resolução canônica de contexto de RaceControlLivePage
-function resolveRaceControlSessionContext(searchParamsString: string, contextRound: number) {
-  const searchParams = new URLSearchParams(searchParamsString)
-  const rawVariant = searchParams.get('variant')
-  const rawRound = searchParams.get('round')
-
-  let resolvedRound: number | null = null
-  if (rawRound !== null) {
-    const parsed = parseInt(rawRound, 10)
-    if (isNaN(parsed) || parsed < 1 || parsed > 24) {
-      return {
-        isValid: false,
-        errorReason: `Rodada inválida informada na URL: "${rawRound}". As rodadas válidas vão de 1 a 24.`,
-        resolvedRound: null,
-        resolvedVariant: null,
-      }
-    }
-    const calendarMatch = F1_2026_CALENDAR.find((c) => c.round === parsed)
-    if (!calendarMatch) {
-      return {
-        isValid: false,
-        errorReason: `Rodada ${parsed} não existe no calendário da temporada.`,
-        resolvedRound: null,
-        resolvedVariant: null,
-      }
-    }
-    resolvedRound = parsed
-  } else {
-    if (typeof contextRound === 'number' && contextRound >= 1 && contextRound <= 24) {
-      resolvedRound = contextRound
-    } else {
-      return {
-        isValid: false,
-        errorReason: 'Nenhuma rodada especificada e contexto de temporada indisponível.',
-        resolvedRound: null,
-        resolvedVariant: null,
-      }
-    }
-  }
-
-  let resolvedVariant: 'SPRINT_RACE' | 'MAIN_RACE' | null = null
-  const hasSprintInRound = hasSprintWeekend(resolvedRound)
-
-  if (rawVariant !== null) {
-    if (rawVariant === 'SPRINT_RACE') {
-      if (!hasSprintInRound) {
-        return {
-          isValid: false,
-          errorReason: `A rodada ${resolvedRound} não possui Corrida Sprint programada no regulamento.`,
-          resolvedRound,
-          resolvedVariant: null,
-        }
-      }
-      resolvedVariant = 'SPRINT_RACE'
-    } else if (rawVariant === 'MAIN_RACE') {
-      resolvedVariant = 'MAIN_RACE'
-    } else {
-      return {
-        isValid: false,
-        errorReason: `Variante de corrida desconhecida: "${rawVariant}". Esperado "SPRINT_RACE" ou "MAIN_RACE".`,
-        resolvedRound,
-        resolvedVariant: null,
-      }
-    }
-  } else {
-    if (!hasSprintInRound) {
-      resolvedVariant = 'MAIN_RACE'
-    } else {
-      return {
-        isValid: false,
-        errorReason: `Fim de semana com Sprint na rodada ${resolvedRound} requer especificação inequívoca da sessão (?variant=SPRINT_RACE ou ?variant=MAIN_RACE).`,
-        resolvedRound,
-        resolvedVariant: null,
-      }
-    }
-  }
-
-  return {
-    isValid: true,
-    errorReason: null,
-    resolvedRound,
-    resolvedVariant,
-  }
+// Helper para invocar o resolver real de produção importado de RaceControlLivePage
+function parseAndResolve(searchParamsString: string, contextRound: number) {
+  const params = new URLSearchParams(searchParamsString)
+  return resolveRaceControlSessionContext(params, contextRound)
 }
 
 describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => {
@@ -128,7 +49,7 @@ describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => 
 
       // 2. Destino: RaceControlLivePage resolve searchParams
       const query = url.split('?')[1]
-      const resolution = resolveRaceControlSessionContext(query, sprintRound)
+      const resolution = parseAndResolve(query, sprintRound)
 
       expect(resolution.isValid).toBe(true)
       expect(resolution.resolvedRound).toBe(2)
@@ -188,7 +109,7 @@ describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => 
 
       // 2. Destino: RaceControlLivePage resolve searchParams
       const query = url.split('?')[1]
-      const resolution = resolveRaceControlSessionContext(query, sprintRound)
+      const resolution = parseAndResolve(query, sprintRound)
 
       expect(resolution.isValid).toBe(true)
       expect(resolution.resolvedRound).toBe(2)
@@ -368,10 +289,7 @@ describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => 
 
       // 3. Simular navegação: Sprint → Principal → Sprint
       // Visita 1: Sprint
-      const resSprint1 = resolveRaceControlSessionContext(
-        'variant=SPRINT_RACE&round=2',
-        sprintRound,
-      )
+      const resSprint1 = parseAndResolve('variant=SPRINT_RACE&round=2', sprintRound)
       const stateSprint1 = canonicalRaceInitializationService.readCanonicalRaceState(
         careerId,
         seasonYear,
@@ -382,7 +300,7 @@ describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => 
       expect(stateSprint1?.totalLaps).toBe(19)
 
       // Visita 2: Principal
-      const resMain = resolveRaceControlSessionContext('variant=MAIN_RACE&round=2', sprintRound)
+      const resMain = parseAndResolve('variant=MAIN_RACE&round=2', sprintRound)
       const stateMain = canonicalRaceInitializationService.readCanonicalRaceState(
         careerId,
         seasonYear,
@@ -393,10 +311,7 @@ describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => 
       expect(stateMain?.totalLaps).toBe(56)
 
       // Visita 3: Retorno à Sprint (sem perda de estado)
-      const resSprint2 = resolveRaceControlSessionContext(
-        'variant=SPRINT_RACE&round=2',
-        sprintRound,
-      )
+      const resSprint2 = parseAndResolve('variant=SPRINT_RACE&round=2', sprintRound)
       const stateSprint2 = canonicalRaceInitializationService.readCanonicalRaceState(
         careerId,
         seasonYear,
@@ -411,18 +326,18 @@ describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => 
 
   describe('Cenário E: CONTEXTO INVÁLIDO OU AMBÍGUO — rejeição estrita sem fallback silencioso', () => {
     it('deve rejeitar variante inválida', () => {
-      const res = resolveRaceControlSessionContext('variant=QUALIFYING&round=2', 2)
+      const res = parseAndResolve('variant=QUALIFYING&round=2', 2)
       expect(res.isValid).toBe(false)
       expect(res.resolvedVariant).toBeNull()
       expect(res.errorReason).toMatch(/Variante de corrida desconhecida/)
     })
 
     it('deve rejeitar rodada fora do calendário (round 99 ou round 0)', () => {
-      const res1 = resolveRaceControlSessionContext('variant=MAIN_RACE&round=99', 1)
+      const res1 = parseAndResolve('variant=MAIN_RACE&round=99', 1)
       expect(res1.isValid).toBe(false)
       expect(res1.errorReason).toMatch(/Rodada inválida informada/)
 
-      const res2 = resolveRaceControlSessionContext('variant=MAIN_RACE&round=0', 1)
+      const res2 = parseAndResolve('variant=MAIN_RACE&round=0', 1)
       expect(res2.isValid).toBe(false)
       expect(res2.errorReason).toMatch(/Rodada inválida informada/)
     })
@@ -430,21 +345,21 @@ describe('SPRINT-RACE-UI-01A-3: Link e Race Control com a Mesma Sessão', () => 
     it('deve rejeitar solicitação de SPRINT_RACE em rodada sem Sprint', () => {
       // Rodada 1 é Bahrein, sem Sprint
       expect(hasSprintWeekend(1)).toBe(false)
-      const res = resolveRaceControlSessionContext('variant=SPRINT_RACE&round=1', 1)
+      const res = parseAndResolve('variant=SPRINT_RACE&round=1', 1)
       expect(res.isValid).toBe(false)
       expect(res.errorReason).toMatch(/não possui Corrida Sprint/)
     })
 
     it('deve rejeitar link ambíguo sem variant em fim de semana com Sprint', () => {
       // Em rodada com Sprint (ex: rodada 2), sem variant na URL é ambíguo!
-      const res = resolveRaceControlSessionContext('round=2', 2)
+      const res = parseAndResolve('round=2', 2)
       expect(res.isValid).toBe(false)
       expect(res.errorReason).toMatch(/requer especificação inequívoca da sessão/)
     })
 
     it('deve aceitar link sem variant em fim de semana tradicional sem Sprint como MAIN_RACE', () => {
       // Em rodada sem Sprint (ex: rodada 1), não há ambiguidade esportiva
-      const res = resolveRaceControlSessionContext('round=1', 1)
+      const res = parseAndResolve('round=1', 1)
       expect(res.isValid).toBe(true)
       expect(res.resolvedVariant).toBe('MAIN_RACE')
       expect(res.resolvedRound).toBe(1)

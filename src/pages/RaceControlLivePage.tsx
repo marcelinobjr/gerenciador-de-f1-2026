@@ -19,6 +19,98 @@ import type { CanonicalRaceState, OfficialRaceResult } from '@/types/canonical-r
 import type { CompleteQualifyingWeekendResult } from '@/types/canonical-qualifying-types'
 import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
 
+export function resolveRaceControlSessionContext(
+  searchParams: URLSearchParams,
+  contextRound: number,
+) {
+  const rawVariant = searchParams.get('variant')
+  const rawRound = searchParams.get('round')
+
+  // 1. Resolução do round
+  let resolvedRound: number | null = null
+  if (rawRound !== null) {
+    const parsed = parseInt(rawRound, 10)
+    if (isNaN(parsed) || parsed < 1 || parsed > 24) {
+      return {
+        isValid: false,
+        errorReason: `Rodada inválida informada na URL: "${rawRound}". As rodadas válidas vão de 1 a 24.`,
+        resolvedRound: null,
+        resolvedVariant: null,
+      }
+    }
+    const calendarMatch = F1_2026_CALENDAR.find((c) => c.round === parsed)
+    if (!calendarMatch) {
+      return {
+        isValid: false,
+        errorReason: `Rodada ${parsed} não existe no calendário da temporada.`,
+        resolvedRound: null,
+        resolvedVariant: null,
+      }
+    }
+    resolvedRound = parsed
+  } else {
+    // Sem parâmetro de round: usar rodada canônica do contexto se disponível
+    if (typeof contextRound === 'number' && contextRound >= 1 && contextRound <= 24) {
+      resolvedRound = contextRound
+    } else {
+      return {
+        isValid: false,
+        errorReason: 'Nenhuma rodada especificada e contexto de temporada indisponível.',
+        resolvedRound: null,
+        resolvedVariant: null,
+      }
+    }
+  }
+
+  // 2. Resolução da variante
+  let resolvedVariant: 'SPRINT_RACE' | 'MAIN_RACE' | null = null
+  const hasSprintInRound = hasSprintWeekend(resolvedRound)
+
+  if (rawVariant !== null) {
+    if (rawVariant === 'SPRINT_RACE') {
+      if (!hasSprintInRound) {
+        return {
+          isValid: false,
+          errorReason: `A rodada ${resolvedRound} não possui Corrida Sprint programada no regulamento.`,
+          resolvedRound,
+          resolvedVariant: null,
+        }
+      }
+      resolvedVariant = 'SPRINT_RACE'
+    } else if (rawVariant === 'MAIN_RACE') {
+      resolvedVariant = 'MAIN_RACE'
+    } else {
+      return {
+        isValid: false,
+        errorReason: `Variante de corrida desconhecida: "${rawVariant}". Esperado "SPRINT_RACE" ou "MAIN_RACE".`,
+        resolvedRound,
+        resolvedVariant: null,
+      }
+    }
+  } else {
+    // Link legado sem parâmetro de variante:
+    // Se não houver sprint no fim de semana, é inequivocamente MAIN_RACE
+    if (!hasSprintInRound) {
+      resolvedVariant = 'MAIN_RACE'
+    } else {
+      // Fim de semana com Sprint sem variante explícita: ambíguo!
+      return {
+        isValid: false,
+        errorReason: `Fim de semana com Sprint na rodada ${resolvedRound} requer especificação inequívoca da sessão (?variant=SPRINT_RACE ou ?variant=MAIN_RACE).`,
+        resolvedRound,
+        resolvedVariant: null,
+      }
+    }
+  }
+
+  return {
+    isValid: true,
+    errorReason: null,
+    resolvedRound,
+    resolvedVariant,
+  }
+}
+
 export default function RaceControlLivePage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -28,92 +120,7 @@ export default function RaceControlLivePage() {
 
   // Resolução e validação estrita do contexto (variant + round) via searchParams
   const sessionResolution = useMemo(() => {
-    const rawVariant = searchParams.get('variant')
-    const rawRound = searchParams.get('round')
-
-    // 1. Resolução do round
-    let resolvedRound: number | null = null
-    if (rawRound !== null) {
-      const parsed = parseInt(rawRound, 10)
-      if (isNaN(parsed) || parsed < 1 || parsed > 24) {
-        return {
-          isValid: false,
-          errorReason: `Rodada inválida informada na URL: "${rawRound}". As rodadas válidas vão de 1 a 24.`,
-          resolvedRound: null,
-          resolvedVariant: null,
-        }
-      }
-      const calendarMatch = F1_2026_CALENDAR.find((c) => c.round === parsed)
-      if (!calendarMatch) {
-        return {
-          isValid: false,
-          errorReason: `Rodada ${parsed} não existe no calendário da temporada.`,
-          resolvedRound: null,
-          resolvedVariant: null,
-        }
-      }
-      resolvedRound = parsed
-    } else {
-      // Sem parâmetro de round: usar rodada canônica do contexto se disponível
-      if (typeof contextRound === 'number' && contextRound >= 1 && contextRound <= 24) {
-        resolvedRound = contextRound
-      } else {
-        return {
-          isValid: false,
-          errorReason: 'Nenhuma rodada especificada e contexto de temporada indisponível.',
-          resolvedRound: null,
-          resolvedVariant: null,
-        }
-      }
-    }
-
-    // 2. Resolução da variante
-    let resolvedVariant: 'SPRINT_RACE' | 'MAIN_RACE' | null = null
-    const hasSprintInRound = hasSprintWeekend(resolvedRound)
-
-    if (rawVariant !== null) {
-      if (rawVariant === 'SPRINT_RACE') {
-        if (!hasSprintInRound) {
-          return {
-            isValid: false,
-            errorReason: `A rodada ${resolvedRound} não possui Corrida Sprint programada no regulamento.`,
-            resolvedRound,
-            resolvedVariant: null,
-          }
-        }
-        resolvedVariant = 'SPRINT_RACE'
-      } else if (rawVariant === 'MAIN_RACE') {
-        resolvedVariant = 'MAIN_RACE'
-      } else {
-        return {
-          isValid: false,
-          errorReason: `Variante de corrida desconhecida: "${rawVariant}". Esperado "SPRINT_RACE" ou "MAIN_RACE".`,
-          resolvedRound,
-          resolvedVariant: null,
-        }
-      }
-    } else {
-      // Link legado sem parâmetro de variante:
-      // Se não houver sprint no fim de semana, é inequivocamente MAIN_RACE
-      if (!hasSprintInRound) {
-        resolvedVariant = 'MAIN_RACE'
-      } else {
-        // Fim de semana com Sprint sem variante explícita: ambíguo!
-        return {
-          isValid: false,
-          errorReason: `Fim de semana com Sprint na rodada ${resolvedRound} requer especificação inequívoca da sessão (?variant=SPRINT_RACE ou ?variant=MAIN_RACE).`,
-          resolvedRound,
-          resolvedVariant: null,
-        }
-      }
-    }
-
-    return {
-      isValid: true,
-      errorReason: null,
-      resolvedRound,
-      resolvedVariant,
-    }
+    return resolveRaceControlSessionContext(searchParams, contextRound)
   }, [searchParams, contextRound])
 
   const effectiveRound = sessionResolution.resolvedRound ?? contextRound ?? 1
