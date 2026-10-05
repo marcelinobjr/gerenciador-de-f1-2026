@@ -709,97 +709,23 @@ export default function WeekendV2Page() {
     }
   }
 
-  // Helper para resolver os 24 pilotos oficiais do grid para a qualificação
+  // Helper para resolver os participantes oficiais do grid para a qualificação (Q1-Q3 / SQ1-SQ3)
   const resolveEligibleQualifyingParticipants = (
     stageId: QualifyingStageId,
     reg: RegistrationValidationResult,
   ): QualifyingDriverContext[] => {
     if (!season?.id || !reg.snapshot) return []
-    const allSnapshotEntries = reg.snapshot.entries || []
-
-    const playerDriverIds = new Set(
-      [
+    return resolveEligibleQualifyingDrivers({
+      stageId,
+      seasonId: season.id,
+      round: currentRound,
+      allEntries: reg.snapshot.entries || [],
+      playerDriverIds: [
         reg.snapshot.entriesByCar?.playerCar1?.driverId,
         reg.snapshot.entriesByCar?.playerCar2?.driverId,
       ].filter(Boolean) as string[],
-    )
-
-    const all24: QualifyingDriverContext[] = []
-    const seenDriverIds = new Set<string>()
-
-    allSnapshotEntries.forEach((e: any, idx: number) => {
-      if (!e.driverId || seenDriverIds.has(e.driverId)) return
-      seenDriverIds.add(e.driverId)
-
-      const isPlayer = e.isPlayerTeam || playerDriverIds.has(e.driverId)
-      all24.push({
-        id: e.driverId,
-        name: e.driverName,
-        speed: isPlayer ? (e.carId === 'car1' ? 84 : 82) : 78 + (idx % 8),
-        consistency: isPlayer ? (e.carId === 'car1' ? 82 : 81) : 79,
-        defense: isPlayer ? (e.carId === 'car1' ? 80 : 78) : 76,
-        teamId: isPlayer ? team?.id || e.teamId : e.teamId || `rival_${idx}`,
-        teamName: isPlayer ? team?.name || e.teamName : e.teamName || `Equipe ${idx + 1}`,
-        teamColor: isPlayer ? team?.color || e.teamColor || '#E10600' : e.teamColor || '#64748B',
-        carNumber: e.driverNumber || (isPlayer ? (e.carId === 'car1' ? 1 : 2) : idx + 3),
-      })
+      playerTeam: team || undefined,
     })
-
-    if (stageId === 'q1' || (stageId as any) === 'sq1') {
-      return all24.slice(0, 24)
-    }
-
-    if (stageId === 'q2' || (stageId as any) === 'sq2') {
-      const parentStage = (stageId as any) === 'sq2' ? 'sq1' : 'q1'
-      const q1Res = canonicalQualifyingPersistenceService.readStageResult(
-        season.id,
-        currentRound,
-        parentStage as any,
-      )
-      if (q1Res && q1Res.advancingDriverIds && q1Res.advancingDriverIds.length > 0) {
-        const advSet = new Set(q1Res.advancingDriverIds)
-        const participantsMap = new Map(all24.map((p) => [p.id, p]))
-        const orderedClassified: QualifyingDriverContext[] = []
-        for (const driverId of q1Res.advancingDriverIds) {
-          const found = participantsMap.get(driverId)
-          if (found) {
-            orderedClassified.push(found)
-          }
-        }
-        if (orderedClassified.length > 0) {
-          return orderedClassified
-        }
-        return all24.filter((p) => advSet.has(p.id))
-      }
-      return []
-    }
-
-    if (stageId === 'q3' || (stageId as any) === 'sq3') {
-      const parentStage = (stageId as any) === 'sq3' ? 'sq2' : 'q2'
-      const q2Res = canonicalQualifyingPersistenceService.readStageResult(
-        season.id,
-        currentRound,
-        parentStage as any,
-      )
-      if (q2Res && q2Res.advancingDriverIds && q2Res.advancingDriverIds.length > 0) {
-        const advSet = new Set(q2Res.advancingDriverIds)
-        const participantsMap = new Map(all24.map((p) => [p.id, p]))
-        const orderedClassified: QualifyingDriverContext[] = []
-        for (const driverId of q2Res.advancingDriverIds) {
-          const found = participantsMap.get(driverId)
-          if (found) {
-            orderedClassified.push(found)
-          }
-        }
-        if (orderedClassified.length > 0) {
-          return orderedClassified
-        }
-        return all24.filter((p) => advSet.has(p.id))
-      }
-      return []
-    }
-
-    return all24
   }
 
   // Inicializador de sessão de qualificação (Q1, Q2 ou Q3)
