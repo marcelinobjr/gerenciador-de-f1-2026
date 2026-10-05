@@ -47,7 +47,7 @@ function createDummyTickContext(
   }
 }
 
-describe('BUG-SQ3-TRANSITION-R3 — Suíte de Homologação Final (R1 a R4)', () => {
+// test — Suíte de Homologação Final (R1 a R4)', () => {
   const TEST_SEASON_ID = 'season_canada_sq3_r3'
   const TEST_ROUND = 9
 
