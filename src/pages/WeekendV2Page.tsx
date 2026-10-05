@@ -32,6 +32,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { GPRegistrationScreen } from '@/pages/race/GPRegistrationScreen'
 
 // Serviços canônicos da F1 2026
@@ -58,6 +69,7 @@ import {
   readStoredCompletedSessions,
   writeStoredCompletedSessions,
   hasSprintWeekend,
+  resetWeekendForRound,
 } from '@/services/weekendProgressionService'
 import {
   getRaceWeekendPipeline,
@@ -230,6 +242,89 @@ export default function WeekendV2Page() {
     const stored = readStoredCompletedSessions(season.id, currentRound)
     setCompletedSessions(stored)
     return stored
+  }
+
+  // Handler para reiniciar o fim de semana da rodada atual
+  const handleResetCurrentWeekend = async () => {
+    if (!season?.id) return
+
+    // 1. Cancelar ticks/intervalos ativos
+    setIsAutoAdvancing(false)
+    if (autoAdvanceIntervalRef.current) {
+      clearInterval(autoAdvanceIntervalRef.current)
+      autoAdvanceIntervalRef.current = null
+    }
+
+    const canonicalCareerId = team ? resolveCanonicalCareerId(season, team) : undefined
+
+    // 2. Chamar serviço canônico de reset
+    resetWeekendForRound({
+      careerId: canonicalCareerId,
+      seasonId: season.id,
+      round: currentRound,
+    })
+
+    // 3. Limpar estados locais da página
+    setCompletedSessions([])
+    setQualifyingState(null)
+    setSessionState(null)
+    setCanonicalRaceState(null)
+    setOfficialRaceResult(null)
+    setCompleteQualifyingResult(null)
+    setShowPreRacePreparation(false)
+
+    // 4. Reidratar inventário e slots do zero
+    const pCar1 = registration?.snapshot?.entriesByCar.playerCar1
+    const pCar2 = registration?.snapshot?.entriesByCar.playerCar2
+    const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
+
+    const freshInvs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+      seasonId: season.id,
+      round: currentRound,
+      driverIds,
+      primaryDriverIds: driverIds,
+    })
+    setTyreInventories(freshInvs)
+
+    if (canonicalCareerId) {
+      try {
+        const freshSlots = canonicalWeekendSlotPersistenceService.createInitialState({
+          careerId: canonicalCareerId,
+          seasonId: season.id,
+          round: currentRound,
+        })
+        await canonicalWeekendSlotPersistenceService.saveSlotState(freshSlots)
+        setWeekendSlotState(freshSlots)
+      } catch (err) {
+        console.warn('[WeekendV2Page] Erro ao resetar slotState:', err)
+      }
+    }
+
+    // 5. Selecionar e inicializar a primeira fase da esteira
+    const initialSessionId = resolveInitialRaceSession({
+      pipeline,
+      completedSessions: [],
+    })
+    setSelectedSessionId(initialSessionId)
+
+    if (initialSessionId === 'tp1' || initialSessionId === 'tp2' || initialSessionId === 'tp3') {
+      if (registration) {
+        await initializePracticeSession(initialSessionId, registration, freshInvs)
+      }
+    } else if (isQualifyingStage(initialSessionId)) {
+      if (registration) {
+        await initializeQualifyingSession(
+          initialSessionId as QualifyingStageId,
+          registration,
+          freshInvs,
+        )
+      }
+    }
+
+    toast({
+      title: 'Fim de semana reiniciado',
+      description: `Todas as sessões da Rodada ${currentRound} voltaram ao status pendente.`,
+    })
   }
 
   // 3. Inicialização e Inscrição Canônica FIA (24 pilotos, 2 carros por equipe)
@@ -2758,6 +2853,49 @@ export default function WeekendV2Page() {
       <PageHeader
         title="CORRIDA"
         description="Gestão completa do fim de semana de Grande Prêmio: treinos, classificação e corrida."
+        actions={
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs font-bold border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50 gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-[#64748B]" />
+                Reiniciar fim de semana
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Reiniciar fim de semana da Rodada {currentRound}?
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2 text-xs">
+                  <span className="block">
+                    Todas as fases da rodada atual ({gpInfo.name}) — treinos livres, sessões de
+                    qualificação (SQ1/SQ2/SQ3 ou Q1/Q2/Q3), corrida Sprint e corrida principal —
+                    voltarão ao status <strong>Pendente</strong>.
+                  </span>
+                  <span className="block text-[#475569]">
+                    Pontos do campeonato, moral de pilotos, finanças, contratos, desenvolvimento do
+                    carro e histórico de rodadas anteriores ficam{' '}
+                    <strong>completamente intactos</strong>.
+                  </span>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleResetCurrentWeekend}
+                  className="bg-[#E10600] hover:bg-[#C00400] text-white font-bold"
+                >
+                  Confirmar Reinício
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        }
       />
 
       {/* 2. HERO COMPACTO DO GP ATUAL */}

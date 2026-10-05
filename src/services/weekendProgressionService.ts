@@ -361,6 +361,96 @@ export function writeStoredCompletedSessions(
   }
 }
 
+export interface ResetWeekendOptions {
+  careerId?: string
+  seasonId: string
+  round: number
+}
+
+export interface ResetWeekendResult {
+  success: boolean
+  clearedKeys: string[]
+}
+
+/**
+ * Reseta os dados e estados de sessões de um fim de semana específico sem tocar
+ * em campeonatos, pontuações, morais, contratos, PU ou histórico de outras rodadas.
+ */
+export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekendResult {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { success: false, clearedKeys: [] }
+  }
+
+  const { careerId, seasonId, round } = options
+  const clearedKeys: string[] = []
+
+  const removeKey = (key: string) => {
+    try {
+      if (window.localStorage.getItem(key) !== null) {
+        window.localStorage.removeItem(key)
+        clearedKeys.push(key)
+      }
+    } catch {
+      // Ignora erro de acesso ao localStorage
+    }
+  }
+
+  // 1. Chave de sessões concluídas do fim de semana
+  removeKey(getCompletedSessionsStorageKey(seasonId, round))
+
+  // 2. Chaves de qualificação por estágio (SQ1, SQ2, SQ3, Q1, Q2, Q3)
+  const qualiStages = ['sq1', 'sq2', 'sq3', 'q1', 'q2', 'q3'] as const
+  for (const stage of qualiStages) {
+    removeKey(`apex_qualifying_stage_state_v2_${seasonId}_r${round}_${stage}`)
+    removeKey(`apex_qualifying_stage_result_v2_${seasonId}_r${round}_${stage}`)
+    removeKey(`apex_f1_quali_${seasonId}_r${round}_${stage}`)
+  }
+
+  // 3. Grid final de qualificação
+  removeKey(`apex_qualifying_final_grid_v2_${seasonId}_r${round}`)
+
+  // 4. Parc Fermé
+  removeKey(`apex_parc_ferme_v2_${seasonId}_r${round}`)
+
+  // 5. Pneus do fim de semana
+  removeKey(`apex_gp_tires_${seasonId}_r${round}`)
+
+  // 6. Chaves que dependem de careerId
+  if (careerId) {
+    const practiceTypes = ['tp1', 'tp2', 'tp3'] as const
+    for (const tp of practiceTypes) {
+      removeKey(`apex_practice_session_${careerId}_${seasonId}_${round}_${tp}`)
+      removeKey(`apex_practice_prep_${careerId}_${seasonId}_${round}_${tp}`)
+      removeKey(`apex_practice_setup_${careerId}_${seasonId}_r${round}_${tp}`)
+    }
+
+    // Slots do fim de semana (RACE-SPRINT-SLOTS-01A)
+    removeKey(`apex_weekend_slot_state_v1_${careerId}_${seasonId}_r${round}`)
+
+    // Estados canônicos de corrida (Principal e Sprint)
+    removeKey(`apex_race_v2_canonical_state_${careerId}_s${seasonId}_r${round}`)
+    removeKey(`apex_sprint_race_canonical_state_${careerId}_s${seasonId}_r${round}`)
+    removeKey(`f1_2026_canonical_race_v2_${careerId}_s${seasonId}_r${round}`)
+    removeKey(`f1_2026_canonical_race_v2_sprint_${careerId}_s${seasonId}_r${round}`)
+
+    // Chaves de orquestração legado/alternativas se existirem para este round
+    const orchestratorPhases = ['q1', 'q2', 'q3', 'sq1', 'sq2', 'sq3', 'tp1', 'tp2', 'tp3']
+    for (const p of orchestratorPhases) {
+      removeKey(`apex_sprint_${p}_state_${careerId}_${seasonId}_r${round}`)
+      removeKey(`apex_${p}_state_${careerId}_${seasonId}_r${round}`)
+    }
+    removeKey(`apex_qualifying_result_state_${careerId}_${seasonId}_r${round}`)
+    removeKey(`apex_starting_grid_state_${careerId}_${seasonId}_r${round}`)
+    removeKey(`apex_sprint_qualifying_result_state_${careerId}_${seasonId}_r${round}`)
+    removeKey(`apex_sprint_starting_grid_state_${careerId}_${seasonId}_r${round}`)
+  }
+
+  return {
+    success: true,
+    clearedKeys,
+  }
+}
+
 export const weekendProgressionService = {
   getCanonicalWeekendSchedule,
   getNextRequiredWeekendSession,
@@ -369,4 +459,5 @@ export const weekendProgressionService = {
   normalizeCompletedSessions,
   readStoredCompletedSessions,
   writeStoredCompletedSessions,
+  resetWeekendForRound,
 }
