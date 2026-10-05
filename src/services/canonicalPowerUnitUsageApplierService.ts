@@ -153,38 +153,62 @@ export class CanonicalPowerUnitUsageApplierService {
     unitResults?: UnitApplicationResult[]
   } | null> {
     const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
-    if (!pb?.collection) return null
+    if (!pb) return null
 
+    // 1. Tentar consultar prioritariamente pelo endpoint autorizado do backend
     try {
-      const record = await pb
-        .collection('power_unit_usage_journals')
-        .getFirstListItem(`journal_key = "${journalKey}"`)
-
-      if (record) {
-        const entry: PowerUnitUsageJournalEntry = {
-          id: record.id,
-          journalKey: record.journal_key,
-          careerId: record.career_id,
-          season: record.season,
-          round: record.round,
-          raceVariant: record.race_variant,
-          sessionKey: record.session_key,
-          status: record.status as PowerUnitApplicationStatus,
-          appliedUnitIds: Array.isArray(record.applied_unit_ids) ? record.applied_unit_ids : [],
-          appliedDriverIds: Array.isArray(record.applied_driver_ids)
-            ? record.applied_driver_ids
-            : [],
-          startedAt: record.created,
-          completedAt: record.updated,
-          lastError: record.last_error,
-        }
-        const unitResults = Array.isArray(record.unit_results) ? record.unit_results : undefined
-        // Atualiza cache local
-        this.saveLocalJournalCache(entry)
-        return { journal: entry, unitResults }
+      const queryParams = new URLSearchParams({
+        careerId,
+        season: String(season),
+        round: String(round),
+        raceVariant,
+      })
+      const resp = await pb.send<{
+        journal: PowerUnitUsageJournalEntry
+        unitResults?: UnitApplicationResult[]
+      }>(`/backend/v1/pu-usage/journal?${queryParams.toString()}`, {
+        method: 'GET',
+      })
+      if (resp && resp.journal) {
+        this.saveLocalJournalCache(resp.journal)
+        return resp
       }
-    } catch {
-      // Registro não encontrado ou offline
+    } catch (_) {
+      // Falha no endpoint autorizado (401, 403, 404 ou indisponível)
+    }
+
+    // 2. Consulta via collection com RLS protegida (apenas leitura autorizada)
+    if (pb?.collection) {
+      try {
+        const record = await pb
+          .collection('power_unit_usage_journals')
+          .getFirstListItem(`journal_key = "${journalKey}"`)
+
+        if (record) {
+          const entry: PowerUnitUsageJournalEntry = {
+            id: record.id,
+            journalKey: record.journal_key,
+            careerId: record.career_id,
+            season: record.season,
+            round: record.round,
+            raceVariant: record.race_variant,
+            sessionKey: record.session_key,
+            status: record.status as PowerUnitApplicationStatus,
+            appliedUnitIds: Array.isArray(record.applied_unit_ids) ? record.applied_unit_ids : [],
+            appliedDriverIds: Array.isArray(record.applied_driver_ids)
+              ? record.applied_driver_ids
+              : [],
+            startedAt: record.created,
+            completedAt: record.updated,
+            lastError: record.last_error,
+          }
+          const unitResults = Array.isArray(record.unit_results) ? record.unit_results : undefined
+          this.saveLocalJournalCache(entry)
+          return { journal: entry, unitResults }
+        }
+      } catch {
+        // Registro não encontrado ou offline
+      }
     }
 
     return null
@@ -288,8 +312,9 @@ export class CanonicalPowerUnitUsageApplierService {
     const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
 
     // SE ESTIVER EM MODO POCKETBASE REAL (não dry-run / não forceLocalEngine)
+    // O débito e criação de journal DEVEM passar única e exclusivamente pelo hook transacional protegido do backend.
+    // Nenhum fallback de gravação direta em teams/power_unit_usage_journals é permitido no cliente.
     if (!options.dryRunOrLocalOnly && !options.forceLocalEngine && pb?.collection) {
-      // 1. Tentar executar via endpoint transacional protegido do backend (/backend/v1/pu-usage/apply-session)
       try {
         const response = await pb.send<SessionPowerUnitUsageApplicationResult>(
           '/backend/v1/pu-usage/apply-session',
@@ -305,8 +330,8 @@ export class CanonicalPowerUnitUsageApplierService {
           return response
         }
       } catch (backendHookErr: any) {
-        // Se o backend retornou 400 ou erro estruturado de ALREADY_APPLIED ou o endpoint não estiver disponível,
-        // inspecionar se foi falha de rota ou verificação de journal no backend
+        // Em caso de erro remoto, timeout ou resposta perdida:
+        // 1. Tentar consultar o journal autoritativo pelo endpoint protegido GET /backend/v1/pu-usage/journal
         try {
           const backendJournal = await this.fetchBackendJournal(
             careerId,
@@ -328,6 +353,8 @@ export class CanonicalPowerUnitUsageApplierService {
               }),
             )
 
+            this.saveLocalJournalCache(backendJournal.journal)
+
             return {
               sessionKey,
               careerId,
@@ -343,13 +370,67 @@ export class CanonicalPowerUnitUsageApplierService {
               unitResults: alreadyAppliedResults,
             }
           }
-        } catch {
-          // segue para persistência protegida padrão
+        } catch (_) {
+          // Falha na consulta ou acesso rejeitado
+        }
+
+        // B1-SEC: NÃO efetuar débito alternativo, NÃO marcar concluído no cache local.
+        // Devolver erro ou estado pendente explícito ao chamador mantendo a identidade para reconciliação.
+        const errorMessage =
+          backendHookErr?.response?.message ||
+          backendHookErr?.message ||
+          'Falha na aplicação autorizada de uso de PU no backend.'
+
+        const journalStatus: PowerUnitApplicationStatus =
+          backendHookErr?.status === 401
+            ? 'FAILED'
+            : backendHookErr?.status === 403
+              ? 'FAILED'
+              : 'PENDING'
+
+        const resultStatus: SessionPowerUnitUsageApplicationResult['status'] =
+          journalStatus === 'FAILED' ? 'FAILED' : 'FAILED'
+
+        return {
+          sessionKey,
+          careerId,
+          season,
+          round,
+          raceVariant,
+          status: resultStatus,
+          journal: {
+            journalKey,
+            careerId,
+            season,
+            round,
+            raceVariant,
+            sessionKey,
+            status: journalStatus,
+            appliedUnitIds: [],
+            appliedDriverIds: [],
+            startedAt: new Date().toISOString(),
+            lastError: errorMessage,
+          },
+          appliedCount: 0,
+          alreadyAppliedCount: 0,
+          pendingOrUnlinkedCount: projectionReport.projections.length,
+          failedCount: projectionReport.projections.length,
+          unitResults: projectionReport.projections.map((p) => ({
+            driverId: p.driverId,
+            driverName: p.driverName,
+            teamId: p.teamId,
+            powerUnitId: p.powerUnitId,
+            status: 'FAILED_PERSISTENCE',
+            distanceKmAdded: 0,
+            wearDebitApplied: 0,
+            message: `Aplicação rejeitada ou hook indisponível: ${errorMessage}`,
+          })),
+          error: errorMessage,
         }
       }
     }
 
-    // 2. MOTOR DE APLICAÇÃO E PERSISTÊNCIA DIRETA COM CONFERÊNCIA AUTORITATIVA
+    // Modo local / isolado para testes unitários offline estritos (quando explicitamente solicitado com dryRunOrLocalOnly ou forceLocalEngine)
     return await this.applyWithDirectProtection(projectionReport, options)
   }
 
