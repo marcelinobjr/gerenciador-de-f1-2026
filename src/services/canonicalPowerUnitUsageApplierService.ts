@@ -112,7 +112,8 @@ export interface ApplySessionPowerUnitUsageOptions {
 
 export class CanonicalPowerUnitUsageApplierService {
   // Mantém controle de concorrência ativa por journalKey
-  private static activeOperations: Map<string, Promise<SessionPowerUnitUsageApplicationResult>> = new Map()
+  private static activeOperations: Map<string, Promise<SessionPowerUnitUsageApplicationResult>> =
+    new Map()
   private memoryJournalCache: Map<string, PowerUnitUsageJournalEntry> = new Map()
 
   /**
