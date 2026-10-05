@@ -119,6 +119,7 @@ import {
   type QualifyingTickContext,
 } from '@/services/canonicalQualifyingRunner'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
+import { resolveEligibleQualifyingDrivers } from '@/services/qualifyingParticipantResolver'
 import type {
   QualifyingStageId,
   QualifyingStageState,

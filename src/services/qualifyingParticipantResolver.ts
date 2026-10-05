@@ -1,8 +1,5 @@
-import {
-  QualifyingDriverContext,
-  QualifyingStageId,
-  CANONICAL_QUALIFYING_RULES,
-} from '@/types/qualifying'
+import { QualifyingStageId, CANONICAL_QUALIFYING_RULES } from '@/types/canonical-qualifying-types'
+import type { QualifyingDriverContext } from '@/services/canonicalQualifyingRunner'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 
 export interface ResolveQualifyingParticipantsParams {
@@ -72,7 +69,7 @@ export function resolveEligibleQualifyingDrivers(
 
   // Fases iniciais: todos os 24 pilotos inscritos participam
   if (stageId === 'q1' || (stageId as any) === 'sq1') {
-    return all24.slice(0, CANONICAL_QUALIFYING_RULES[stageId].initialDriversCount || 24)
+    return all24.slice(0, CANONICAL_QUALIFYING_RULES[stageId].participantsCount || 24)
   }
 
   // Fases intermediárias (Q2 ou SQ2): avançam os classificados da fase 1 anterior
