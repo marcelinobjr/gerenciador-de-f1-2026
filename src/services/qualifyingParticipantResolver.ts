@@ -81,12 +81,35 @@ export function resolveEligibleQualifyingDrivers(
       parentStage as any,
     )
 
-    if (parentRes && parentRes.advancingDriverIds && parentRes.advancingDriverIds.length > 0) {
-      const advSet = new Set(parentRes.advancingDriverIds)
+    let advancingIds = parentRes?.advancingDriverIds || []
+
+    // Fallback: se advancingDriverIds ausente/vazio no resultado, recorrer a readStageState
+    if (advancingIds.length === 0) {
+      const parentState = canonicalQualifyingPersistenceService.readStageState(
+        seasonId,
+        round,
+        parentStage as any,
+      )
+      if (
+        parentState &&
+        parentState.status === 'completed' &&
+        Array.isArray(parentState.leaderboard) &&
+        parentState.leaderboard.length > 0
+      ) {
+        const advancingLimit =
+          CANONICAL_QUALIFYING_RULES[parentStage as QualifyingStageId].advancingCount
+        advancingIds = parentState.leaderboard
+          .slice(0, advancingLimit)
+          .map((entry) => entry.driverId)
+      }
+    }
+
+    if (advancingIds.length > 0) {
+      const advSet = new Set(advancingIds)
       const participantsMap = new Map(all24.map((p) => [p.id, p]))
       const orderedClassified: QualifyingDriverContext[] = []
 
-      for (const driverId of parentRes.advancingDriverIds) {
+      for (const driverId of advancingIds) {
         const found = participantsMap.get(driverId)
         if (found) {
           orderedClassified.push(found)
@@ -110,12 +133,35 @@ export function resolveEligibleQualifyingDrivers(
       parentStage as any,
     )
 
-    if (parentRes && parentRes.advancingDriverIds && parentRes.advancingDriverIds.length > 0) {
-      const advSet = new Set(parentRes.advancingDriverIds)
+    let advancingIds = parentRes?.advancingDriverIds || []
+
+    // Fallback: se advancingDriverIds ausente/vazio no resultado, recorrer a readStageState
+    if (advancingIds.length === 0) {
+      const parentState = canonicalQualifyingPersistenceService.readStageState(
+        seasonId,
+        round,
+        parentStage as any,
+      )
+      if (
+        parentState &&
+        parentState.status === 'completed' &&
+        Array.isArray(parentState.leaderboard) &&
+        parentState.leaderboard.length > 0
+      ) {
+        const advancingLimit =
+          CANONICAL_QUALIFYING_RULES[parentStage as QualifyingStageId].advancingCount
+        advancingIds = parentState.leaderboard
+          .slice(0, advancingLimit)
+          .map((entry) => entry.driverId)
+      }
+    }
+
+    if (advancingIds.length > 0) {
+      const advSet = new Set(advancingIds)
       const participantsMap = new Map(all24.map((p) => [p.id, p]))
       const orderedClassified: QualifyingDriverContext[] = []
 
-      for (const driverId of parentRes.advancingDriverIds) {
+      for (const driverId of advancingIds) {
         const found = participantsMap.get(driverId)
         if (found) {
           orderedClassified.push(found)

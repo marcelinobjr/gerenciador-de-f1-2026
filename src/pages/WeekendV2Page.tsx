@@ -1143,21 +1143,74 @@ export default function WeekendV2Page() {
   }, [runnerContext, season?.id, currentRound, registration])
 
   // 7. Controles de Play / Pause (Treino Livre ou Qualificação)
-  const handleTogglePlay = () => {
+  const handleTogglePlay = async () => {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState) return
-      if (qualifyingState.leaderboard.length === 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Sessão Sem Participantes',
-          description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
-        })
-        return
+
+      let activeState = qualifyingState
+      if (activeState.leaderboard.length === 0) {
+        const stageId = activeState.stageId
+        const parentStage =
+          stageId === 'sq2'
+            ? 'sq1'
+            : stageId === 'sq3'
+              ? 'sq2'
+              : stageId === 'q2'
+                ? 'q1'
+                : stageId === 'q3'
+                  ? 'q2'
+                  : null
+
+        let hasCanonicalPrevious = false
+        if (parentStage && season?.id) {
+          const pRes = canonicalQualifyingPersistenceService.readStageResult(
+            season.id,
+            currentRound,
+            parentStage as any,
+          )
+          const pState = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            parentStage as any,
+          )
+          if (
+            (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
+            (pState && pState.status === 'completed')
+          ) {
+            hasCanonicalPrevious = true
+          }
+        }
+
+        if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
+          toast({
+            variant: 'destructive',
+            title: 'Sessão Sem Participantes',
+            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+          })
+          return
+        }
+
+        // Reidratação automática
+        await initializeQualifyingSession(stageId)
+        const reloaded = season?.id
+          ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, stageId)
+          : null
+        if (reloaded && reloaded.leaderboard.length > 0) {
+          activeState = reloaded
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Sessão Sem Participantes',
+            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+          })
+          return
+        }
       }
+
       const stored = refreshCompletedSessions()
-      if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
+      if (activeState.status === 'completed' || stored.includes(activeState.stageId)) {
         toast({
           variant: 'destructive',
           title: 'Sessão Concluída',
@@ -1168,24 +1221,18 @@ export default function WeekendV2Page() {
 
       if (isAutoAdvancing) {
         setIsAutoAdvancing(false)
-        qualifyingState.status = 'paused'
+        activeState.status = 'paused'
         if (season?.id) {
-          canonicalQualifyingPersistenceService.saveStageState(
-            season.id,
-            currentRound,
-            qualifyingState,
-          )
+          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
         }
+        setQualifyingState({ ...activeState })
       } else {
         setIsAutoAdvancing(true)
-        qualifyingState.status = 'running'
+        activeState.status = 'running'
         if (season?.id) {
-          canonicalQualifyingPersistenceService.saveStageState(
-            season.id,
-            currentRound,
-            qualifyingState,
-          )
+          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
         }
+        setQualifyingState({ ...activeState })
       }
       return
     }
@@ -1225,9 +1272,44 @@ export default function WeekendV2Page() {
 
     const intervalMs = Math.round(1000 / selectedSpeed)
 
-    // SQ2/SQ3/Q2/Q3: Não iniciar autoAdvance caso não haja participantes válidos
+    // SQ2/SQ3/Q2/Q3: Diferenciar ausência real de classificados da fase anterior vs leaderboard vazio reidratável
     if (isQuali && qualifyingState && qualifyingState.leaderboard.length === 0) {
-      setIsAutoAdvancing(false)
+      const stageId = qualifyingState.stageId
+      const parentStage =
+        stageId === 'sq2'
+          ? 'sq1'
+          : stageId === 'sq3'
+            ? 'sq2'
+            : stageId === 'q2'
+              ? 'q1'
+              : stageId === 'q3'
+                ? 'q2'
+                : null
+      let hasPreviousAdvancing = false
+      if (parentStage && season?.id) {
+        const pRes = canonicalQualifyingPersistenceService.readStageResult(
+          season.id,
+          currentRound,
+          parentStage as any,
+        )
+        const pState = canonicalQualifyingPersistenceService.readStageState(
+          season.id,
+          currentRound,
+          parentStage as any,
+        )
+        if (
+          (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
+          (pState && pState.status === 'completed')
+        ) {
+          hasPreviousAdvancing = true
+        }
+      }
+      if (hasPreviousAdvancing) {
+        // Reidrata a sessão automaticamente em vez de bloquear
+        initializeQualifyingSession(stageId)
+      } else {
+        setIsAutoAdvancing(false)
+      }
       return
     }
 
@@ -1536,21 +1618,74 @@ export default function WeekendV2Page() {
   }
 
   // Controles: +1 MIN / +5 MIN (Treino Livre ou Qualificação)
-  const handleAdvanceStep = (minutes: 1 | 5) => {
+  const handleAdvanceStep = async (minutes: 1 | 5) => {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState || !qualifyingTickContext) return
-      if (qualifyingState.leaderboard.length === 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Sessão Sem Participantes',
-          description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
-        })
-        return
+
+      let activeState = qualifyingState
+      if (activeState.leaderboard.length === 0) {
+        const stageId = activeState.stageId
+        const parentStage =
+          stageId === 'sq2'
+            ? 'sq1'
+            : stageId === 'sq3'
+              ? 'sq2'
+              : stageId === 'q2'
+                ? 'q1'
+                : stageId === 'q3'
+                  ? 'q2'
+                  : null
+
+        let hasCanonicalPrevious = false
+        if (parentStage && season?.id) {
+          const pRes = canonicalQualifyingPersistenceService.readStageResult(
+            season.id,
+            currentRound,
+            parentStage as any,
+          )
+          const pState = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            parentStage as any,
+          )
+          if (
+            (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
+            (pState && pState.status === 'completed')
+          ) {
+            hasCanonicalPrevious = true
+          }
+        }
+
+        if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
+          toast({
+            variant: 'destructive',
+            title: 'Sessão Sem Participantes',
+            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+          })
+          return
+        }
+
+        // Reidratação automática
+        await initializeQualifyingSession(stageId)
+        const reloaded = season?.id
+          ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, stageId)
+          : null
+        if (reloaded && reloaded.leaderboard.length > 0) {
+          activeState = reloaded
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Sessão Sem Participantes',
+            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+          })
+          return
+        }
       }
+
       const stored = refreshCompletedSessions()
-      if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
+      if (activeState.status === 'completed' || stored.includes(activeState.stageId)) {
         toast({
           variant: 'destructive',
           title: 'Sessão Concluída',
@@ -1562,7 +1697,7 @@ export default function WeekendV2Page() {
 
       const seconds = minutes * 60
       const res = CanonicalQualifyingRunner.advanceBySeconds(
-        qualifyingState,
+        activeState,
         seconds,
         qualifyingTickContext,
       )
@@ -1572,7 +1707,7 @@ export default function WeekendV2Page() {
         const refreshed = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
           seasonId: season.id,
           round: currentRound,
-          driverIds: [qualifyingState.cars.car1.driverId, qualifyingState.cars.car2.driverId],
+          driverIds: [activeState.cars.car1.driverId, activeState.cars.car2.driverId],
         })
         setTyreInventories(refreshed)
       }
@@ -1633,21 +1768,74 @@ export default function WeekendV2Page() {
   }
 
   // Controle: SIMULAR RESTANTE (Treino Livre ou Qualificação)
-  const handleSimulateRemaining = () => {
+  const handleSimulateRemaining = async () => {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
       if (!qualifyingState || !qualifyingTickContext) return
-      if (qualifyingState.leaderboard.length === 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Sessão Sem Participantes',
-          description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
-        })
-        return
+
+      let activeState = qualifyingState
+      if (activeState.leaderboard.length === 0) {
+        const stageId = activeState.stageId
+        const parentStage =
+          stageId === 'sq2'
+            ? 'sq1'
+            : stageId === 'sq3'
+              ? 'sq2'
+              : stageId === 'q2'
+                ? 'q1'
+                : stageId === 'q3'
+                  ? 'q2'
+                  : null
+
+        let hasCanonicalPrevious = false
+        if (parentStage && season?.id) {
+          const pRes = canonicalQualifyingPersistenceService.readStageResult(
+            season.id,
+            currentRound,
+            parentStage as any,
+          )
+          const pState = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            parentStage as any,
+          )
+          if (
+            (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
+            (pState && pState.status === 'completed')
+          ) {
+            hasCanonicalPrevious = true
+          }
+        }
+
+        if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
+          toast({
+            variant: 'destructive',
+            title: 'Sessão Sem Participantes',
+            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+          })
+          return
+        }
+
+        // Reidratação automática
+        await initializeQualifyingSession(stageId)
+        const reloaded = season?.id
+          ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, stageId)
+          : null
+        if (reloaded && reloaded.leaderboard.length > 0) {
+          activeState = reloaded
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Sessão Sem Participantes',
+            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+          })
+          return
+        }
       }
+
       const stored = refreshCompletedSessions()
-      if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
+      if (activeState.status === 'completed' || stored.includes(activeState.stageId)) {
         toast({
           variant: 'destructive',
           title: 'Sessão Concluída',
@@ -1658,7 +1846,7 @@ export default function WeekendV2Page() {
       setIsAutoAdvancing(false)
 
       const res = CanonicalQualifyingRunner.simulateRemainingSession(
-        qualifyingState,
+        activeState,
         qualifyingTickContext,
       )
       setQualifyingState(res.nextState)
@@ -1667,7 +1855,7 @@ export default function WeekendV2Page() {
         const refreshed = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
           seasonId: season.id,
           round: currentRound,
-          driverIds: [qualifyingState.cars.car1.driverId, qualifyingState.cars.car2.driverId],
+          driverIds: [activeState.cars.car1.driverId, activeState.cars.car2.driverId],
         })
         setTyreInventories(refreshed)
       }
@@ -1675,7 +1863,7 @@ export default function WeekendV2Page() {
       handleQualifyingStageCompleted(res.nextState.stageId)
 
       toast({
-        title: `Restante do ${qualifyingState.stageId.toUpperCase()} Simulado com Sucesso!`,
+        title: `Restante do ${activeState.stageId.toUpperCase()} Simulado com Sucesso!`,
         description: `Foram computadas todas as tentativas, voltas e desempates da fase de classificação.`,
       })
       return

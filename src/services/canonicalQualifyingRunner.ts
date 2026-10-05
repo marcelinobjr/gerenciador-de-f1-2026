@@ -126,7 +126,7 @@ export class CanonicalQualifyingRunner {
 
     // Tenta carregar estado persistido para reload idempotente
     const saved = canonicalQualifyingPersistenceService.readStageState(seasonId, round, stageId)
-    if (saved) {
+    if (saved && Array.isArray(saved.leaderboard) && saved.leaderboard.length > 0) {
       return saved
     }
 
