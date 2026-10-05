@@ -494,8 +494,10 @@ export class CanonicalWeekendSlotPersistenceService {
     if (slotNumber < 7) {
       const nextSlot = (slotNumber + 1) as WeekendSlotNumber
       state.currentSlot = nextSlot
-      state.slots[nextSlot].status = 'AVAILABLE'
-      state.slotType = state.slots[nextSlot].slotType
+      if (state.slots[nextSlot]) {
+        state.slots[nextSlot].status = 'AVAILABLE'
+        state.slotType = state.slots[nextSlot].slotType
+      }
       state.slotStatus = 'AVAILABLE'
       state.subPhase = null
     } else {

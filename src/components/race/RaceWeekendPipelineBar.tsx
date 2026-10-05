@@ -30,7 +30,6 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
   onSelectSession,
 }) => {
   const isSprint = isSprintRound ?? sessions.some((s) => s.id === 'sq1' || s.id === 'sprint_race')
-
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F1F5F9] pb-3">
@@ -159,7 +158,7 @@ export const RaceWeekendPipelineBar: React.FC<RaceWeekendPipelineBarProps> = ({
                 'bg-[#F0F9FF] border-[#BAE6FD] text-[#0369A1] hover:bg-[#E0F2FE] hover:border-[#7DD3FC] cursor-pointer'
               statusBadge = (
                 <span className="text-[10px] font-bold text-[#0284C7] flex items-center gap-1 justify-center">
-                  Pendente
+                  Disponível
                 </span>
               )
             }

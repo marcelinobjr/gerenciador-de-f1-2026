@@ -866,17 +866,33 @@ export default function WeekendV2Page() {
 
     // Se for TL1, TL2 ou TL3: carrega/resume o runner de treino
     if (sess === 'tp1' || sess === 'tp2' || sess === 'tp3') {
-      await initializePracticeSession(sess, registration, invs)
+      setSelectedSessionId(sess)
       setQualifyingState(null)
+      await initializePracticeSession(sess, registration, invs)
     } else if (sess === 'q1' || sess === 'q2' || sess === 'q3') {
       // Q1, Q2 ou Q3: inicializa ou carrega a sessão de qualificação canônica
       setSelectedSessionId(sess)
       setSessionState(null)
+      // Carregar imediatamente se já houver estado em disco para evitar gap visual
+      const existingState = canonicalQualifyingPersistenceService.readStageState(
+        season.id,
+        currentRound,
+        sess as QualifyingStageId,
+      )
+      setQualifyingState(existingState || null)
       await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
     } else if (sess === 'sq1' || sess === 'sq2' || sess === 'sq3') {
       // SQ1, SQ2 ou SQ3: inicializa ou carrega a sessão de qualificação sprint canônica
       setSelectedSessionId(sess)
       setSessionState(null)
+      // Carregar imediatamente se já houver estado em disco para evitar gap visual
+      const existingState = canonicalQualifyingPersistenceService.readStageState(
+        season.id,
+        currentRound,
+        sess as QualifyingStageId,
+      )
+      // Se não há estado salvo da nova fase, limpa qualifyingState para não exibir o da fase anterior
+      setQualifyingState(existingState || null)
       await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
     } else {
       // CORRIDA (Principal ou Sprint): se qualificação concluída, exibe o grid final P1-P24 ou placeholder
@@ -1407,19 +1423,33 @@ export default function WeekendV2Page() {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
-      // Se não há qualifyingState em memória, tenta reidratar do storage canônico
+      // Se não há qualifyingState em memória ou se o qualifyingState em memória não corresponde à sessão selecionada,
+      // reidrata do storage canônico ou reinicializa para a sessão ativa
       let currentQuali = qualifyingState
-      if (!currentQuali && season?.id) {
-        const storedState = canonicalQualifyingPersistenceService.readStageState(
-          season.id,
-          currentRound,
-          selectedSessionId as QualifyingStageId,
-        )
-        if (storedState) {
-          currentQuali = storedState
-          setQualifyingState(storedState)
-        } else {
-          return
+      if (!currentQuali || currentQuali.stageId !== selectedSessionId) {
+        if (season?.id) {
+          const storedState = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            selectedSessionId as QualifyingStageId,
+          )
+          if (storedState) {
+            currentQuali = storedState
+            setQualifyingState(storedState)
+          } else {
+            await initializeQualifyingSession(selectedSessionId as QualifyingStageId)
+            const freshState = canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              selectedSessionId as QualifyingStageId,
+            )
+            if (freshState) {
+              currentQuali = freshState
+              setQualifyingState(freshState)
+            } else {
+              return
+            }
+          }
         }
       }
       if (!currentQuali) return
@@ -1517,7 +1547,7 @@ export default function WeekendV2Page() {
       }
 
       const stored = refreshCompletedSessions()
-      if (activeState.status === 'completed' || stored.includes(activeState.stageId)) {
+      if (activeState.stageId === selectedSessionId && (activeState.status === 'completed' || stored.includes(activeState.stageId))) {
         toast({
           variant: 'destructive',
           title: 'Sessão Concluída',
@@ -1887,6 +1917,82 @@ export default function WeekendV2Page() {
       setCompletedSessions(updated)
     }
 
+    // Avançar o weekend_slot_state canônico caso esteja no slot correspondente
+    const canonicalCareerId = resolveCanonicalCareerId(season, team)
+    const careerIdForSlots = team?.id || canonicalCareerId
+    canonicalWeekendSlotPersistenceService
+      .loadOrMigrateSlotState({
+        careerId: careerIdForSlots,
+        seasonId: season.id,
+        round: currentRound,
+      })
+      .then(async (slotState) => {
+        if (!slotState) return
+        // Mapear stageId para slotNumber
+        let targetSlotNum: WeekendSlotNumber | null = null
+        if (slotState.weekendFormat === 'SPRINT') {
+          // No formato Sprint dos 7 slots canônicos:
+          // Slot 1: TL1, Slot 2: QUALI_SPRINT (com subfases SQ1 -> SQ2 -> SQ3), Slot 3: SPRINT...
+          // Se o slot 2 for o QUALI_SPRINT, a subfase é atualizada.
+          if (stageId === 'sq1') {
+            await canonicalWeekendSlotPersistenceService.updateSubPhase({
+              careerId: careerIdForSlots,
+              seasonId: season.id,
+              round: currentRound,
+              slotNumber: 2,
+              subPhase: 'SQ2',
+            })
+            targetSlotNum = 2
+          } else if (stageId === 'sq2') {
+            // SQ2 concluída: avança subPhase para SQ3 e marca o próximo slot/fase como DISPONÍVEL
+            await canonicalWeekendSlotPersistenceService.updateSubPhase({
+              careerId: careerIdForSlots,
+              seasonId: season.id,
+              round: currentRound,
+              slotNumber: 2,
+              subPhase: 'SQ3',
+            })
+            targetSlotNum = 2
+          } else if (stageId === 'sq3') {
+            // SQ3 conclui o Slot 2 (QUALI_SPRINT) e promove o Slot 3 (SPRINT)
+            targetSlotNum = 2
+          } else if (stageId === 'q1') {
+            targetSlotNum = 4
+          } else if (stageId === 'q2') {
+            targetSlotNum = 5
+          } else if (stageId === 'q3') {
+            targetSlotNum = 6
+          }
+        } else {
+          // Normal sequence: 1: TL1, 2: TL2, 3: TL3, 4: Q1, 5: Q2, 6: Q3, 7: RACE
+          if (stageId === 'q1') targetSlotNum = 4
+          else if (stageId === 'q2') targetSlotNum = 5
+          else if (stageId === 'q3') targetSlotNum = 6
+        }
+
+        // Se for término de slot completo (ex: sq3 fecha o slot 2, q1 fecha slot 4, etc.)
+        if (targetSlotNum && (stageId === 'sq3' || stageId === 'q1' || stageId === 'q2' || stageId === 'q3')) {
+          if (slotState.currentSlot === targetSlotNum) {
+            const updatedSlotState = await canonicalWeekendSlotPersistenceService.completeSlot(
+              slotState,
+              targetSlotNum,
+            )
+            setWeekendSlotState(updatedSlotState)
+          }
+        } else {
+          // Recarregar o slotState atualizado para refletir a nova subfase (ex: SQ3 disponível)
+          const reloadedSlot = await canonicalWeekendSlotPersistenceService.loadOrMigrateSlotState({
+            careerId: careerIdForSlots,
+            seasonId: season.id,
+            round: currentRound,
+          })
+          setWeekendSlotState(reloadedSlot)
+        }
+      })
+      .catch((err) => {
+        console.warn('[handleQualifyingStageCompleted] Erro ao avançar weekend_slot_state:', err)
+      })
+
     if (stageId === 'q3') {
       // Conclusão de Q3: compõe e homologa o grid completo P1-P24
       const q1Res = canonicalQualifyingPersistenceService.readStageResult(
@@ -1947,17 +2053,30 @@ export default function WeekendV2Page() {
 
     if (isQuali) {
       let currentQuali = qualifyingState
-      if (!currentQuali && season?.id) {
-        const storedState = canonicalQualifyingPersistenceService.readStageState(
-          season.id,
-          currentRound,
-          selectedSessionId as QualifyingStageId,
-        )
-        if (storedState) {
-          currentQuali = storedState
-          setQualifyingState(storedState)
-        } else {
-          return
+      if (!currentQuali || currentQuali.stageId !== selectedSessionId) {
+        if (season?.id) {
+          const storedState = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            selectedSessionId as QualifyingStageId,
+          )
+          if (storedState) {
+            currentQuali = storedState
+            setQualifyingState(storedState)
+          } else {
+            await initializeQualifyingSession(selectedSessionId as QualifyingStageId)
+            const freshState = canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              selectedSessionId as QualifyingStageId,
+            )
+            if (freshState) {
+              currentQuali = freshState
+              setQualifyingState(freshState)
+            } else {
+              return
+            }
+          }
         }
       }
       if (!currentQuali || !qualifyingTickContext) return
@@ -2133,17 +2252,30 @@ export default function WeekendV2Page() {
 
     if (isQuali) {
       let currentQuali = qualifyingState
-      if (!currentQuali && season?.id) {
-        const storedState = canonicalQualifyingPersistenceService.readStageState(
-          season.id,
-          currentRound,
-          selectedSessionId as QualifyingStageId,
-        )
-        if (storedState) {
-          currentQuali = storedState
-          setQualifyingState(storedState)
-        } else {
-          return
+      if (!currentQuali || currentQuali.stageId !== selectedSessionId) {
+        if (season?.id) {
+          const storedState = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            selectedSessionId as QualifyingStageId,
+          )
+          if (storedState) {
+            currentQuali = storedState
+            setQualifyingState(storedState)
+          } else {
+            await initializeQualifyingSession(selectedSessionId as QualifyingStageId)
+            const freshState = canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              selectedSessionId as QualifyingStageId,
+            )
+            if (freshState) {
+              currentQuali = freshState
+              setQualifyingState(freshState)
+            } else {
+              return
+            }
+          }
         }
       }
       if (!currentQuali || !qualifyingTickContext) return
