@@ -775,6 +775,31 @@ export default function WeekendV2Page() {
 
     const eligible = resolveEligibleQualifyingParticipants(stageId, reg)
 
+    // BUG-SQ3-TRANSITION-R3: Se a fase não tem participantes elegíveis porque a fase anterior
+    // não foi concluída, não inicializar, não marcar pilotos como eliminados e não persistir estado vazio.
+    if (stageId !== 'q1' && stageId !== 'sq1' && eligible.length === 0) {
+      const parentStage =
+        stageId === 'sq2' ? 'sq1' : stageId === 'sq3' ? 'sq2' : stageId === 'q2' ? 'q1' : 'q2'
+      const pRes = canonicalQualifyingPersistenceService.readStageResult(
+        season.id,
+        currentRound,
+        parentStage as any,
+      )
+      const pState = canonicalQualifyingPersistenceService.readStageState(
+        season.id,
+        currentRound,
+        parentStage as any,
+      )
+      const hasParentCompleted = Boolean(
+        (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
+        (pState && pState.status === 'completed'),
+      )
+      if (!hasParentCompleted) {
+        setIsAutoAdvancing(false)
+        return
+      }
+    }
+
     // Buscar pneus disponíveis no mesmo inventário compartilhado de 20 jogos
     const car1Tire =
       inventories[pCar1.driverId]?.find((t) => (t.wear || 0) < 100) ||
@@ -1180,6 +1205,15 @@ export default function WeekendV2Page() {
       if (!qualifyingState) return
 
       let activeState = qualifyingState
+
+      // Se a sessão estiver em running órfão (sem simulação ativa), normaliza para paused
+      if (activeState.status === 'running' && !isAutoAdvancing) {
+        activeState.status = 'paused'
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
+        }
+        setQualifyingState({ ...activeState })
+      }
       if (activeState.leaderboard.length === 0) {
         const stageId = activeState.stageId
         const parentStage =
@@ -1194,7 +1228,8 @@ export default function WeekendV2Page() {
                   : null
 
         let hasCanonicalPrevious = false
-        let isParentPaused = false
+        let isParentIncomplete = false
+        let parentIncompleteState = ''
         if (parentStage && season?.id) {
           const pRes = canonicalQualifyingPersistenceService.readStageResult(
             season.id,
@@ -1206,8 +1241,12 @@ export default function WeekendV2Page() {
             currentRound,
             parentStage as any,
           )
-          if (pState && pState.status === 'paused') {
-            isParentPaused = true
+          if (
+            pState &&
+            (pState.status === 'paused' || (pState.status === 'running' && !isAutoAdvancing))
+          ) {
+            isParentIncomplete = true
+            parentIncompleteState = pState.status === 'paused' ? 'Pausada' : 'Em Andamento'
           }
           if (
             (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
@@ -1218,10 +1257,10 @@ export default function WeekendV2Page() {
         }
 
         if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
-          if (isParentPaused) {
+          if (isParentIncomplete) {
             toast({
               variant: 'destructive',
-              title: `Fase ${parentStage?.toUpperCase()} Pausada`,
+              title: `Fase ${parentStage?.toUpperCase()} ${parentIncompleteState || 'Em Andamento'}`,
               description: `A fase anterior (${parentStage?.toUpperCase()}) ainda está em andamento. Retome e conclua a fase anterior primeiro.`,
             })
           } else {
@@ -1328,6 +1367,7 @@ export default function WeekendV2Page() {
                 ? 'q2'
                 : null
       let hasPreviousAdvancing = false
+      let isParentIncomplete = false
       if (parentStage && season?.id) {
         const pRes = canonicalQualifyingPersistenceService.readStageResult(
           season.id,
@@ -1340,6 +1380,12 @@ export default function WeekendV2Page() {
           parentStage as any,
         )
         if (
+          pState &&
+          (pState.status === 'paused' || (pState.status === 'running' && !isAutoAdvancing))
+        ) {
+          isParentIncomplete = true
+        }
+        if (
           (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
           (pState && pState.status === 'completed')
         ) {
@@ -1351,6 +1397,13 @@ export default function WeekendV2Page() {
         initializeQualifyingSession(stageId)
       } else {
         setIsAutoAdvancing(false)
+        if (isParentIncomplete) {
+          toast({
+            variant: 'destructive',
+            title: `Fase ${parentStage?.toUpperCase()} Em Andamento`,
+            description: `A fase anterior (${parentStage?.toUpperCase()}) ainda está em andamento. Retome e conclua a fase anterior primeiro.`,
+          })
+        }
       }
       return
     }
@@ -1667,6 +1720,15 @@ export default function WeekendV2Page() {
       if (!qualifyingState || !qualifyingTickContext) return
 
       let activeState = qualifyingState
+
+      // Se a sessão estiver em running órfão (sem simulação ativa), normaliza para paused
+      if (activeState.status === 'running' && !isAutoAdvancing) {
+        activeState.status = 'paused'
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
+        }
+        setQualifyingState({ ...activeState })
+      }
       if (activeState.leaderboard.length === 0) {
         const stageId = activeState.stageId
         const parentStage =
@@ -1681,7 +1743,8 @@ export default function WeekendV2Page() {
                   : null
 
         let hasCanonicalPrevious = false
-        let isParentPaused = false
+        let isParentIncomplete = false
+        let parentIncompleteState = ''
         if (parentStage && season?.id) {
           const pRes = canonicalQualifyingPersistenceService.readStageResult(
             season.id,
@@ -1693,8 +1756,12 @@ export default function WeekendV2Page() {
             currentRound,
             parentStage as any,
           )
-          if (pState && pState.status === 'paused') {
-            isParentPaused = true
+          if (
+            pState &&
+            (pState.status === 'paused' || (pState.status === 'running' && !isAutoAdvancing))
+          ) {
+            isParentIncomplete = true
+            parentIncompleteState = pState.status === 'paused' ? 'Pausada' : 'Em Andamento'
           }
           if (
             (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
@@ -1705,10 +1772,10 @@ export default function WeekendV2Page() {
         }
 
         if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
-          if (isParentPaused) {
+          if (isParentIncomplete) {
             toast({
               variant: 'destructive',
-              title: `Fase ${parentStage?.toUpperCase()} Pausada`,
+              title: `Fase ${parentStage?.toUpperCase()} ${parentIncompleteState || 'Em Andamento'}`,
               description: `A fase anterior (${parentStage?.toUpperCase()}) ainda está em andamento. Retome e conclua a fase anterior primeiro.`,
             })
           } else {
@@ -1829,6 +1896,15 @@ export default function WeekendV2Page() {
       if (!qualifyingState || !qualifyingTickContext) return
 
       let activeState = qualifyingState
+
+      // Se a sessão estiver em running órfão (sem simulação ativa), normaliza para paused
+      if (activeState.status === 'running' && !isAutoAdvancing) {
+        activeState.status = 'paused'
+        if (season?.id) {
+          canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, activeState)
+        }
+        setQualifyingState({ ...activeState })
+      }
       if (activeState.leaderboard.length === 0) {
         const stageId = activeState.stageId
         const parentStage =
@@ -1843,7 +1919,8 @@ export default function WeekendV2Page() {
                   : null
 
         let hasCanonicalPrevious = false
-        let isParentPaused = false
+        let isParentIncomplete = false
+        let parentIncompleteState = ''
         if (parentStage && season?.id) {
           const pRes = canonicalQualifyingPersistenceService.readStageResult(
             season.id,
@@ -1855,8 +1932,12 @@ export default function WeekendV2Page() {
             currentRound,
             parentStage as any,
           )
-          if (pState && pState.status === 'paused') {
-            isParentPaused = true
+          if (
+            pState &&
+            (pState.status === 'paused' || (pState.status === 'running' && !isAutoAdvancing))
+          ) {
+            isParentIncomplete = true
+            parentIncompleteState = pState.status === 'paused' ? 'Pausada' : 'Em Andamento'
           }
           if (
             (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
@@ -1867,10 +1948,10 @@ export default function WeekendV2Page() {
         }
 
         if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
-          if (isParentPaused) {
+          if (isParentIncomplete) {
             toast({
               variant: 'destructive',
-              title: `Fase ${parentStage?.toUpperCase()} Pausada`,
+              title: `Fase ${parentStage?.toUpperCase()} ${parentIncompleteState || 'Em Andamento'}`,
               description: `A fase anterior (${parentStage?.toUpperCase()}) ainda está em andamento. Retome e conclua a fase anterior primeiro.`,
             })
           } else {

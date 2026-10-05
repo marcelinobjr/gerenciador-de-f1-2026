@@ -130,6 +130,15 @@ export class CanonicalQualifyingRunner {
       return saved
     }
 
+    // BUG-SQ3-TRANSITION-R3: Se a fase não é Q1/SQ1 e não há elegíveis, NÃO criar estado persistido vazio
+    if (
+      stageId !== 'q1' &&
+      stageId !== 'sq1' &&
+      (!eligibleParticipants || eligibleParticipants.length === 0)
+    ) {
+      params.persistState = false
+    }
+
     const rules = CANONICAL_QUALIFYING_RULES[stageId]
     const nowIso = new Date().toISOString()
 
