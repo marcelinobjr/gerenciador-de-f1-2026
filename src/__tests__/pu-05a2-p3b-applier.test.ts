@@ -250,6 +250,37 @@ describe('PU-05A2-P3-B1: Aplicador Persistente do Uso por Unidade de Potência',
   })
 
   // =========================================================================
+  // TESTE B.1: CHAMADAS CONCORRENTES
+  // =========================================================================
+  describe('B.1 Concorrência e bloqueio ativo de operações simultâneas', () => {
+    it('chamadas concorrentes para a mesma sessão retornam a mesma promessa sem duplo débito', async () => {
+      const team = createMockTeam('team_audi')
+      const raceState = createMockRaceState()
+      const projectionReport = projectSessionPowerUnitUsage(raceState)
+
+      const service = new CanonicalPowerUnitUsageApplierService()
+      const [resA, resB] = await Promise.all([
+        service.applySessionPowerUnitUsage(projectionReport, {
+          teamOverrides: { team_audi: team },
+          dryRunOrLocalOnly: true,
+        }),
+        service.applySessionPowerUnitUsage(projectionReport, {
+          teamOverrides: { team_audi: team },
+          dryRunOrLocalOnly: true,
+        }),
+      ])
+
+      expect(resA.status).toBe('SUCCESS')
+      expect(resB.status).toBe('SUCCESS')
+      expect(resA.appliedCount).toBe(2)
+      // Unidades foram incrementadas apenas uma vez
+      const u1 = team.engine_history?.find((e) => e.id === 1)
+      expect(u1?.mileage_km).toBe(750)
+      expect(u1?.condition).toBe(80)
+    })
+  })
+
+  // =========================================================================
   // TESTE B: REPETIÇÃO E RETOMADA (IDEMPOTÊNCIA PERSISTENTE)
   // =========================================================================
   describe('B. Repetição e retomada com nova instância do serviço', () => {
