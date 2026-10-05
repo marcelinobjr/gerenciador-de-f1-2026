@@ -2660,6 +2660,9 @@ export default function WeekendV2Page() {
             session={selectedSessionDef}
             isLocked={true}
             isPendingDevelopment={false}
+            gpName={gpInfo.name}
+            circuitName={gpInfo.circuit}
+            statusVariant="locked"
           />
         ) : qualifyingState ? (
           <div className="space-y-6">
@@ -3506,18 +3509,24 @@ export default function WeekendV2Page() {
           />
         )
       ) : (
-        // RENDERIZAÇÃO DOS PLACEHOLDERS (CORRIDA BLOQUEADA ATÉ Q3)
-        <SessionPlaceholderCard
-          session={selectedSessionDef}
-          isLocked={
-            resolveSessionVisualState({
-              sessionId: selectedSessionDef.id,
-              activeSessionId: selectedSessionId,
-              completedSessions,
-            }) === 'locked'
-          }
-          isPendingDevelopment={false}
-        />
+        // RENDERIZAÇÃO DOS PLACEHOLDERS (CORRIDA OU QUALIFICAÇÃO BLOQUEADA OU SEM DADOS)
+        (() => {
+          const visualState = resolveSessionVisualState({
+            sessionId: selectedSessionDef.id,
+            activeSessionId: selectedSessionId,
+            completedSessions,
+          })
+          return (
+            <SessionPlaceholderCard
+              session={selectedSessionDef}
+              isLocked={visualState === 'locked'}
+              isPendingDevelopment={false}
+              gpName={gpInfo.name}
+              circuitName={gpInfo.circuit}
+              statusVariant={visualState}
+            />
+          )
+        })()
       )}
 
       {/* MODAL DE REACERTO DO CARRO */}
