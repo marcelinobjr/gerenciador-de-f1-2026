@@ -133,26 +133,76 @@ export class CanonicalQualifyingRunner {
     const rules = CANONICAL_QUALIFYING_RULES[stageId]
     const nowIso = new Date().toISOString()
 
+    const parentStage =
+      stageId === 'sq2' ? 'sq1' : stageId === 'sq3' ? 'sq2' : stageId === 'q2' ? 'q1' : 'q2'
+
+    // BUG-SQ3-TRANSITION-R2: Não marcar eliminação sem corte esportivo concluído!
+    // isEliminated só pode ser atribuído quando houver resultado anterior canônico concluído
+    // e o piloto efetivamente não estiver em advancingDriverIds.
+    // Lista vazia de participantes provocada por fase anterior pausada, não iniciada ou erro
+    // NÃO significa eliminação dos pilotos do jogador.
+    let parentStageCompleted = false
+    let parentAdvancingIds: string[] = []
+
+    if (stageId !== 'q1' && stageId !== 'sq1') {
+      const parentResult = canonicalQualifyingPersistenceService.readStageResult(
+        seasonId,
+        round,
+        parentStage as QualifyingStageId,
+      )
+      const parentState = canonicalQualifyingPersistenceService.readStageState(
+        seasonId,
+        round,
+        parentStage as QualifyingStageId,
+      )
+
+      if (
+        parentResult &&
+        parentResult.advancingDriverIds &&
+        parentResult.advancingDriverIds.length > 0
+      ) {
+        parentStageCompleted = true
+        parentAdvancingIds = parentResult.advancingDriverIds
+      } else if (
+        parentState &&
+        parentState.status === 'completed' &&
+        Array.isArray(parentState.leaderboard) &&
+        parentState.leaderboard.length > 0
+      ) {
+        parentStageCompleted = true
+        const advancingCount =
+          CANONICAL_QUALIFYING_RULES[parentStage as QualifyingStageId].advancingCount
+        parentAdvancingIds = parentState.leaderboard.slice(0, advancingCount).map((e) => e.driverId)
+      }
+    }
+
     const isCar1Eligible =
       stageId === 'q1' || stageId === 'sq1'
         ? true
-        : eligibleParticipants.some((p) => p.id === playerCar1.driverId)
+        : parentStageCompleted
+          ? parentAdvancingIds.includes(playerCar1.driverId)
+          : true // Se fase anterior ainda não concluiu ou não há corte formal, não marcar falso eliminado
+
     const isCar2Eligible =
       stageId === 'q1' || stageId === 'sq1'
         ? true
-        : eligibleParticipants.some((p) => p.id === playerCar2.driverId)
+        : parentStageCompleted
+          ? parentAdvancingIds.includes(playerCar2.driverId)
+          : true // Se fase anterior ainda não concluiu ou não há corte formal, não marcar falso eliminado
 
-    const parentStage =
-      stageId === 'sq2' ? 'sq1' : stageId === 'sq3' ? 'sq2' : stageId === 'q2' ? 'q1' : 'q2'
-    const car1EliminationStage = !isCar1Eligible ? parentStage : undefined
-    const car2EliminationStage = !isCar2Eligible ? parentStage : undefined
+    // isEliminated só se a fase anterior realmente concluiu e o piloto não avançou
+    const car1IsEliminated = parentStageCompleted && !isCar1Eligible
+    const car2IsEliminated = parentStageCompleted && !isCar2Eligible
+
+    const car1EliminationStage = car1IsEliminated ? parentStage : undefined
+    const car2EliminationStage = car2IsEliminated ? parentStage : undefined
 
     const car1State: QualifyingCarState = {
       carId: 'car1',
       driverId: playerCar1.driverId,
       driverName: playerCar1.driverName,
       driverNumber: playerCar1.driverNumber || 1,
-      status: isCar1Eligible ? 'garage' : 'eliminated',
+      status: car1IsEliminated ? 'eliminated' : 'garage',
       pitRequested: false,
       setup: { ...playerCar1.setup },
       currentTyreSetId: playerCar1.tyreSetId,
@@ -164,7 +214,7 @@ export class CanonicalQualifyingRunner {
       inLapsDone: 0,
       totalLaps: 0,
       currentLapProgressPct: 0,
-      isEliminated: !isCar1Eligible,
+      isEliminated: car1IsEliminated,
       eliminatedInStage: car1EliminationStage,
     }
 
@@ -173,7 +223,7 @@ export class CanonicalQualifyingRunner {
       driverId: playerCar2.driverId,
       driverName: playerCar2.driverName,
       driverNumber: playerCar2.driverNumber || 2,
-      status: isCar2Eligible ? 'garage' : 'eliminated',
+      status: car2IsEliminated ? 'eliminated' : 'garage',
       pitRequested: false,
       setup: { ...playerCar2.setup },
       currentTyreSetId: playerCar2.tyreSetId,
@@ -185,7 +235,7 @@ export class CanonicalQualifyingRunner {
       inLapsDone: 0,
       totalLaps: 0,
       currentLapProgressPct: 0,
-      isEliminated: !isCar2Eligible,
+      isEliminated: car2IsEliminated,
       eliminatedInStage: car2EliminationStage,
     }
 
@@ -750,9 +800,24 @@ export class CanonicalQualifyingRunner {
     const circuitProfile = resolveCircuitProfile({ round: context.round })
     const chance = Math.min(0.9, (deltaSimSec / 45) * 0.5)
 
+    // BUG-SQ3-TRANSITION-R2: Política determinística de scheduling da IA
+    // Se um piloto apto ainda não possui tentativa (laps === 0) e a janela restante
+    // atingiu limite crítico (<= 240s restantes de sessão ou deltaSimSec grande),
+    // a prioridade de saída torna-se garantida (sem sorteio negativo impeditivo).
+    const AI_SCHEDULING_CONFIG = {
+      CRITICAL_TIME_WINDOW_SEC: 240, // Janela crítica para garantir pelo menos 1 tentativa
+      MAX_LAPS_PER_PHASE: 3,
+    }
+
     aiEntries.forEach((aiEntry) => {
-      // Pilotos da IA fazem até 2 ou 3 tentativas por fase
-      if (Math.random() < chance && aiEntry.laps < 3) {
+      const isUrgent =
+        aiEntry.laps === 0 &&
+        state.timeRemainingSec <= AI_SCHEDULING_CONFIG.CRITICAL_TIME_WINDOW_SEC
+      const shouldAttempt =
+        aiEntry.laps < AI_SCHEDULING_CONFIG.MAX_LAPS_PER_PHASE &&
+        (isUrgent || Math.random() < chance)
+
+      if (shouldAttempt) {
         const rivalObj = context.rivalDrivers.find((r) => r.id === aiEntry.driverId)
         const rivalTeamKey = aiEntry.teamId || 'haas'
 
@@ -838,8 +903,16 @@ export class CanonicalQualifyingRunner {
 
   /**
    * Ordena a tabela de tempos de qualificação pela melhor volta válida.
-   * Regra de desempate determinístico: se dois pilotos marcarem o mesmo tempo exato,
-   * quem registrou primeiro (bestLapRecordedAtSec menor) fica à frente.
+   * Regras canônicas da FIA / Apex GP Manager:
+   * 1. Piloto com volta válida (bestLapSec > 0) sempre classifica à frente de piloto sem tempo.
+   * 2. Entre pilotos com volta válida:
+   *    - Menor tempo de volta (bestLapSec menor) à frente.
+   *    - Empate exato: quem registrou primeiro (bestLapRecordedAtSec menor) fica à frente.
+   * 3. Entre pilotos sem tempo (bestLapSec <= 0):
+   *    - Mais voltas registradas na sessão (laps) à frente.
+   *    - Desempate esportivo obrigatório pré-existente: ordem canônica de entrada da fase
+   *      (prioridade para seed / carNumber numérico menor da FIA). Se carNumber empatar, ID do piloto.
+   *      Nunca índice acidental do array ou objeto!
    */
   public static sortLeaderboard(leaderboard: QualifyingTimeEntry[]): void {
     leaderboard.sort((a, b) => {
@@ -852,7 +925,17 @@ export class CanonicalQualifyingRunner {
       }
       if (a.bestLapSec > 0) return -1
       if (b.bestLapSec > 0) return 1
-      return (b.laps || 0) - (a.laps || 0)
+
+      // Ambos sem volta válida:
+      const lapsDiff = (b.laps || 0) - (a.laps || 0)
+      if (lapsDiff !== 0) return lapsDiff
+
+      // Ordem esportiva pré-existente: carNumber canônico de inscrição da FIA
+      const numA = typeof a.carNumber === 'number' && a.carNumber > 0 ? a.carNumber : 999
+      const numB = typeof b.carNumber === 'number' && b.carNumber > 0 ? b.carNumber : 999
+      if (numA !== numB) return numA - numB
+
+      return (a.driverId || '').localeCompare(b.driverId || '')
     })
 
     const leaderBest = leaderboard.find((e) => e.bestLapSec > 0)?.bestLapSec || 0

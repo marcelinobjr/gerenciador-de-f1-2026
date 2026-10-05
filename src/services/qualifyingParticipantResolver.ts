@@ -84,6 +84,7 @@ export function resolveEligibleQualifyingDrivers(
     let advancingIds = parentRes?.advancingDriverIds || []
 
     // Fallback: se advancingDriverIds ausente/vazio no resultado, recorrer a readStageState
+    // NOTA CANÔNICA: apenas se parentState.status === 'completed' E timeRemainingSec === 0
     if (advancingIds.length === 0) {
       const parentState = canonicalQualifyingPersistenceService.readStageState(
         seasonId,

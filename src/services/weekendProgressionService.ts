@@ -288,9 +288,54 @@ export function readStoredCompletedSessions(seasonId: string, round: number): st
   if (typeof window === 'undefined' || !window.localStorage) return []
   try {
     const raw = window.localStorage.getItem(getCompletedSessionsStorageKey(seasonId, round))
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    const parsed = raw ? JSON.parse(raw) : []
+    const list: string[] = Array.isArray(parsed) ? parsed : []
+
+    // BUG-SQ3-TRANSITION-R2: Reconciliação canônica com canonicalQualifyingPersistenceService
+    // O estado canônico é a fonte da verdade decisória. Uma sessão status === 'paused'
+    // NÃO PODE constar como concluída no completedSessions.
+    // Ao reidratar:
+    // - se a sessão de qualificação canônica estiver 'paused' ou 'running', expurgar de completedSessions.
+    // - se estiver 'completed', garantir que conste em completedSessions.
+    try {
+      const qualiStages = ['q1', 'q2', 'q3', 'sq1', 'sq2', 'sq3'] as const
+      let modified = false
+      const validated = new Set(list)
+
+      for (const stg of qualiStages) {
+        const stateKey = `apex_f1_quali_${seasonId}_r${round}_${stg}`
+        const rawState = window.localStorage.getItem(stateKey)
+        if (rawState) {
+          const parsedState = JSON.parse(rawState)
+          if (parsedState && parsedState.status) {
+            if (parsedState.status === 'paused' || parsedState.status === 'running') {
+              if (validated.has(stg)) {
+                validated.delete(stg)
+                modified = true
+              }
+            } else if (parsedState.status === 'completed') {
+              if (!validated.has(stg)) {
+                validated.add(stg)
+                modified = true
+              }
+            }
+          }
+        }
+      }
+
+      if (modified) {
+        const updatedList = Array.from(validated)
+        window.localStorage.setItem(
+          getCompletedSessionsStorageKey(seasonId, round),
+          JSON.stringify(updatedList),
+        )
+        return updatedList
+      }
+    } catch {
+      // Ignora erro na reconciliação e retorna lista básica
+    }
+
+    return list
   } catch {
     return []
   }

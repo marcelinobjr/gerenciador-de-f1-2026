@@ -554,13 +554,43 @@ export default function WeekendV2Page() {
       return
     }
 
-    if (sess === 'sq3' && !hasSq2) {
-      toast({
-        variant: 'destructive',
-        title: 'Sessão Bloqueada',
-        description: 'Você precisa concluir o SQ2 antes de iniciar o SQ3.',
-      })
-      return
+    if (sess === 'sq3') {
+      // BUG-SQ3-TRANSITION-R2: Distinguir explicitamente:
+      // - SQ2 nunca iniciada: não permitir SQ3.
+      // - SQ2 paused: não considerar concluída, não abrir SQ3, oferecer retomada da SQ2.
+      // - SQ2 completed: permitir SQ3 (tanto com piloto participante quanto como espectador).
+      const sq2State = season?.id
+        ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'sq2')
+        : null
+      const sq2Result = season?.id
+        ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'sq2')
+        : null
+
+      const isSq2CanonicalCompleted =
+        (sq2Result && sq2Result.advancingDriverIds && sq2Result.advancingDriverIds.length > 0) ||
+        (sq2State && sq2State.status === 'completed')
+
+      if (sq2State && sq2State.status === 'paused') {
+        toast({
+          variant: 'destructive',
+          title: 'SQ2 em Andamento (Pausada)',
+          description:
+            'A Qualificação Sprint (SQ2) está pausada e não foi concluída. Retome a SQ2 para finalizá-la.',
+        })
+        setSelectedSessionId('sq2')
+        setSessionState(null)
+        await initializeQualifyingSession('sq2', registration)
+        return
+      }
+
+      if (!hasSq2 && !isSq2CanonicalCompleted) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Bloqueada',
+          description: 'Você precisa concluir o SQ2 antes de iniciar o SQ3.',
+        })
+        return
+      }
     }
 
     if (
@@ -1164,6 +1194,7 @@ export default function WeekendV2Page() {
                   : null
 
         let hasCanonicalPrevious = false
+        let isParentPaused = false
         if (parentStage && season?.id) {
           const pRes = canonicalQualifyingPersistenceService.readStageResult(
             season.id,
@@ -1175,6 +1206,9 @@ export default function WeekendV2Page() {
             currentRound,
             parentStage as any,
           )
+          if (pState && pState.status === 'paused') {
+            isParentPaused = true
+          }
           if (
             (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
             (pState && pState.status === 'completed')
@@ -1184,11 +1218,19 @@ export default function WeekendV2Page() {
         }
 
         if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
-          toast({
-            variant: 'destructive',
-            title: 'Sessão Sem Participantes',
-            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
-          })
+          if (isParentPaused) {
+            toast({
+              variant: 'destructive',
+              title: `Fase ${parentStage?.toUpperCase()} Pausada`,
+              description: `A fase anterior (${parentStage?.toUpperCase()}) ainda está em andamento. Retome e conclua a fase anterior primeiro.`,
+            })
+          } else {
+            toast({
+              variant: 'destructive',
+              title: 'Sessão Sem Participantes',
+              description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+            })
+          }
           return
         }
 
@@ -1639,6 +1681,7 @@ export default function WeekendV2Page() {
                   : null
 
         let hasCanonicalPrevious = false
+        let isParentPaused = false
         if (parentStage && season?.id) {
           const pRes = canonicalQualifyingPersistenceService.readStageResult(
             season.id,
@@ -1650,6 +1693,9 @@ export default function WeekendV2Page() {
             currentRound,
             parentStage as any,
           )
+          if (pState && pState.status === 'paused') {
+            isParentPaused = true
+          }
           if (
             (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
             (pState && pState.status === 'completed')
@@ -1659,11 +1705,19 @@ export default function WeekendV2Page() {
         }
 
         if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
-          toast({
-            variant: 'destructive',
-            title: 'Sessão Sem Participantes',
-            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
-          })
+          if (isParentPaused) {
+            toast({
+              variant: 'destructive',
+              title: `Fase ${parentStage?.toUpperCase()} Pausada`,
+              description: `A fase anterior (${parentStage?.toUpperCase()}) ainda está em andamento. Retome e conclua a fase anterior primeiro.`,
+            })
+          } else {
+            toast({
+              variant: 'destructive',
+              title: 'Sessão Sem Participantes',
+              description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+            })
+          }
           return
         }
 
@@ -1789,6 +1843,7 @@ export default function WeekendV2Page() {
                   : null
 
         let hasCanonicalPrevious = false
+        let isParentPaused = false
         if (parentStage && season?.id) {
           const pRes = canonicalQualifyingPersistenceService.readStageResult(
             season.id,
@@ -1800,6 +1855,9 @@ export default function WeekendV2Page() {
             currentRound,
             parentStage as any,
           )
+          if (pState && pState.status === 'paused') {
+            isParentPaused = true
+          }
           if (
             (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
             (pState && pState.status === 'completed')
@@ -1809,11 +1867,19 @@ export default function WeekendV2Page() {
         }
 
         if (!hasCanonicalPrevious && stageId !== 'q1' && stageId !== 'sq1') {
-          toast({
-            variant: 'destructive',
-            title: 'Sessão Sem Participantes',
-            description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
-          })
+          if (isParentPaused) {
+            toast({
+              variant: 'destructive',
+              title: `Fase ${parentStage?.toUpperCase()} Pausada`,
+              description: `A fase anterior (${parentStage?.toUpperCase()}) ainda está em andamento. Retome e conclua a fase anterior primeiro.`,
+            })
+          } else {
+            toast({
+              variant: 'destructive',
+              title: 'Sessão Sem Participantes',
+              description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+            })
+          }
           return
         }
 
