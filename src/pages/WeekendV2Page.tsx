@@ -3036,7 +3036,11 @@ export default function WeekendV2Page() {
                 size="sm"
                 className="h-8 px-3 bg-cyan-600 hover:bg-cyan-500 text-white font-mono font-bold text-xs gap-1.5 shadow-md"
               >
-                <Link to="/corrida/live">Abrir Race Control Dedicado →</Link>
+                <Link
+                  to={`/corrida/live?variant=${isSprintRaceSession ? 'SPRINT_RACE' : 'MAIN_RACE'}&round=${currentRound}`}
+                >
+                  Abrir Race Control Dedicado →
+                </Link>
               </Button>{' '}
             </div>
             <CanonicalRaceInitializationPanel

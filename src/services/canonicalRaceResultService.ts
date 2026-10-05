@@ -115,9 +115,60 @@ export class CanonicalRaceResultService {
   public getOfficialRaceResult(
     careerId: string,
     season: number | string,
-    raceId: string | number,
+    raceIdOrRound: string | number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): OfficialRaceResult | null {
-    return this.loadOfficialResult(careerId, Number(season), raceId) as OfficialRaceResult | null
+    // 1. Tentar busca direta com raceIdOrRound (chave direta do armazenamento)
+    const direct = this.loadOfficialResult(
+      careerId,
+      Number(season),
+      raceIdOrRound,
+    ) as OfficialRaceResult | null
+    if (direct) {
+      if (!raceVariant || direct.raceVariant === raceVariant) {
+        return direct
+      }
+    }
+
+    // 2. Se round for numérico ou puder ser inferido, buscar na persistência da carreira
+    const roundNum =
+      typeof raceIdOrRound === 'number'
+        ? raceIdOrRound
+        : parseInt(String(raceIdOrRound).replace(/\D/g, ''), 10)
+
+    if (!isNaN(roundNum) && roundNum > 0) {
+      const sId = typeof season === 'number' ? `s${season}` : season
+      if (typeof localStorage !== 'undefined') {
+        const variantTag =
+          raceVariant === 'SPRINT_RACE' ? '_sprint' : raceVariant === 'MAIN_RACE' ? '_main' : ''
+        if (variantTag) {
+          const raw = localStorage.getItem(
+            `race_result_${careerId}_${sId}_${roundNum}${variantTag}`,
+          )
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw)
+              return (parsed.snapshot || parsed) as OfficialRaceResult
+            } catch {
+              // fallback
+            }
+          }
+        }
+        if (raceVariant === 'MAIN_RACE' || !raceVariant) {
+          const rawLegacy = localStorage.getItem(`race_result_${careerId}_${sId}_${roundNum}`)
+          if (rawLegacy) {
+            try {
+              const parsed = JSON.parse(rawLegacy)
+              return (parsed.snapshot || parsed) as OfficialRaceResult
+            } catch {
+              // fallback
+            }
+          }
+        }
+      }
+    }
+
+    return direct
   }
 
   public saveOfficialRaceResult(result: OfficialRaceResult, overwrite = false): boolean {

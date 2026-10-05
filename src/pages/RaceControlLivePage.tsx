@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Radio, AlertTriangle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -21,15 +21,110 @@ import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRac
 
 export default function RaceControlLivePage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { team, season, isLoading: isAuthLoading } = useAuth()
-  const { currentRound } = useUnifiedSeason()
+  const { currentRound: contextRound } = useUnifiedSeason()
   const { toast } = useToast()
 
+  // Resolução e validação estrita do contexto (variant + round) via searchParams
+  const sessionResolution = useMemo(() => {
+    const rawVariant = searchParams.get('variant')
+    const rawRound = searchParams.get('round')
+
+    // 1. Resolução do round
+    let resolvedRound: number | null = null
+    if (rawRound !== null) {
+      const parsed = parseInt(rawRound, 10)
+      if (isNaN(parsed) || parsed < 1 || parsed > 24) {
+        return {
+          isValid: false,
+          errorReason: `Rodada inválida informada na URL: "${rawRound}". As rodadas válidas vão de 1 a 24.`,
+          resolvedRound: null,
+          resolvedVariant: null,
+        }
+      }
+      const calendarMatch = F1_2026_CALENDAR.find((c) => c.round === parsed)
+      if (!calendarMatch) {
+        return {
+          isValid: false,
+          errorReason: `Rodada ${parsed} não existe no calendário da temporada.`,
+          resolvedRound: null,
+          resolvedVariant: null,
+        }
+      }
+      resolvedRound = parsed
+    } else {
+      // Sem parâmetro de round: usar rodada canônica do contexto se disponível
+      if (typeof contextRound === 'number' && contextRound >= 1 && contextRound <= 24) {
+        resolvedRound = contextRound
+      } else {
+        return {
+          isValid: false,
+          errorReason: 'Nenhuma rodada especificada e contexto de temporada indisponível.',
+          resolvedRound: null,
+          resolvedVariant: null,
+        }
+      }
+    }
+
+    // 2. Resolução da variante
+    let resolvedVariant: 'SPRINT_RACE' | 'MAIN_RACE' | null = null
+    const hasSprintInRound = hasSprintWeekend(resolvedRound)
+
+    if (rawVariant !== null) {
+      if (rawVariant === 'SPRINT_RACE') {
+        if (!hasSprintInRound) {
+          return {
+            isValid: false,
+            errorReason: `A rodada ${resolvedRound} não possui Corrida Sprint programada no regulamento.`,
+            resolvedRound,
+            resolvedVariant: null,
+          }
+        }
+        resolvedVariant = 'SPRINT_RACE'
+      } else if (rawVariant === 'MAIN_RACE') {
+        resolvedVariant = 'MAIN_RACE'
+      } else {
+        return {
+          isValid: false,
+          errorReason: `Variante de corrida desconhecida: "${rawVariant}". Esperado "SPRINT_RACE" ou "MAIN_RACE".`,
+          resolvedRound,
+          resolvedVariant: null,
+        }
+      }
+    } else {
+      // Link legado sem parâmetro de variante:
+      // Se não houver sprint no fim de semana, é inequivocamente MAIN_RACE
+      if (!hasSprintInRound) {
+        resolvedVariant = 'MAIN_RACE'
+      } else {
+        // Fim de semana com Sprint sem variante explícita: ambíguo!
+        return {
+          isValid: false,
+          errorReason: `Fim de semana com Sprint na rodada ${resolvedRound} requer especificação inequívoca da sessão (?variant=SPRINT_RACE ou ?variant=MAIN_RACE).`,
+          resolvedRound,
+          resolvedVariant: null,
+        }
+      }
+    }
+
+    return {
+      isValid: true,
+      errorReason: null,
+      resolvedRound,
+      resolvedVariant,
+    }
+  }, [searchParams, contextRound])
+
+  const effectiveRound = sessionResolution.resolvedRound ?? contextRound ?? 1
+  const effectiveVariant = sessionResolution.resolvedVariant ?? 'MAIN_RACE'
+  const isSprintTarget = effectiveVariant === 'SPRINT_RACE'
+
   const gpInfo = useMemo(() => {
-    const calendarItem = F1_2026_CALENDAR.find((c) => c.round === currentRound)
+    const calendarItem = F1_2026_CALENDAR.find((c) => c.round === effectiveRound)
     return (
       calendarItem || {
-        round: currentRound || 1,
+        round: effectiveRound || 1,
         name: 'Grande Prêmio',
         circuit: 'Circuito Internacional',
         country: 'Bahrain',
@@ -37,9 +132,7 @@ export default function RaceControlLivePage() {
         circuitLengthKm: 5.412,
       }
     )
-  }, [currentRound])
-
-  const isSprint = useMemo(() => hasSprintWeekend(currentRound), [currentRound])
+  }, [effectiveRound])
 
   const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
   const [officialRaceResult, setOfficialRaceResult] = useState<OfficialRaceResult | null>(null)
@@ -51,24 +144,38 @@ export default function RaceControlLivePage() {
   useEffect(() => {
     if (isAuthLoading || !team || !season?.id) return
 
+    // Se a resolução de contexto for inválida, não inicializar nem buscar sessão
+    if (
+      !sessionResolution.isValid ||
+      !sessionResolution.resolvedRound ||
+      !sessionResolution.resolvedVariant
+    ) {
+      setCanonicalRaceState(null)
+      setOfficialRaceResult(null)
+      setCompleteQualifyingResult(null)
+      setIsLoadingSession(false)
+      return
+    }
+
     let isMounted = true
     setIsLoadingSession(true)
 
     try {
       const canonicalCareerId = resolveCanonicalCareerId(season, team)
-      const isSprintTarget = isSprint // Se a corrida for sprint ativa
-      const targetVariant = isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE'
+      const targetRound = sessionResolution.resolvedRound
+      const targetVariant = sessionResolution.resolvedVariant
 
       // Grid canônico
-      const gridResult = isSprintTarget
-        ? canonicalQualifyingPersistenceService.buildSprintGridFromSQ3Result(
-            season.id,
-            currentRound,
-          )
-        : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-            season.id,
-            currentRound,
-          )
+      const gridResult =
+        targetVariant === 'SPRINT_RACE'
+          ? canonicalQualifyingPersistenceService.buildSprintGridFromSQ3Result(
+              season.id,
+              targetRound,
+            )
+          : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              season.id,
+              targetRound,
+            )
       if (isMounted) {
         setCompleteQualifyingResult(gridResult)
       }
@@ -77,9 +184,10 @@ export default function RaceControlLivePage() {
       const official = canonicalRaceResultService.getOfficialRaceResult(
         canonicalCareerId,
         season.year || 2026,
-        currentRound,
+        targetRound,
+        targetVariant,
       )
-      if (isMounted && official) {
+      if (isMounted) {
         setOfficialRaceResult(official)
       }
 
@@ -87,7 +195,7 @@ export default function RaceControlLivePage() {
       const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
         canonicalCareerId,
         season.year || 2026,
-        currentRound,
+        targetRound,
         targetVariant,
       )
 
@@ -105,7 +213,14 @@ export default function RaceControlLivePage() {
     return () => {
       isMounted = false
     }
-  }, [team?.id, season?.id, currentRound, isAuthLoading, isSprint])
+  }, [
+    team?.id,
+    season?.id,
+    isAuthLoading,
+    sessionResolution.isValid,
+    sessionResolution.resolvedRound,
+    sessionResolution.resolvedVariant,
+  ])
 
   if (isAuthLoading || isLoadingSession) {
     return (
@@ -114,6 +229,29 @@ export default function RaceControlLivePage() {
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
           Sincronizando F1 Race Control ao Vivo...
         </p>
+      </div>
+    )
+  }
+
+  // Se os parâmetros da URL forem inválidos ou ambíguos
+  if (!sessionResolution.isValid) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 text-center space-y-4 font-mono">
+        <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 space-y-2">
+          <div className="flex items-center justify-center gap-2 font-black text-sm">
+            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            CONTEXTO DE SESSÃO INVÁLIDO OU AMBÍGUO
+          </div>
+          <p className="text-xs text-slate-300 font-sans">{sessionResolution.errorReason}</p>
+        </div>
+        <Button
+          asChild
+          className="bg-[#e10600] hover:bg-[#c00400] text-white font-black text-xs gap-2"
+        >
+          <Link to="/corrida">
+            <ArrowLeft className="w-4 h-4" />← Voltar para Corrida
+          </Link>
+        </Button>
       </div>
     )
   }
@@ -128,9 +266,9 @@ export default function RaceControlLivePage() {
             NENHUMA CORRIDA ATIVA NESTE MOMENTO
           </div>
           <p className="text-xs text-slate-300 font-sans">
-            A corrida para o {gpInfo.name} ainda não foi inicializada na esteira do fim de semana.
-            Acesse a página principal de Corrida para concluir os treinos livres, a classificação e
-            definir a estratégia de largada.
+            A {isSprintTarget ? 'Corrida Sprint' : 'corrida'} para o {gpInfo.name} ainda não foi
+            inicializada na esteira do fim de semana. Acesse a página principal de Corrida para
+            concluir os treinos livres, a classificação e definir a estratégia de largada.
           </p>
         </div>
         <Button
@@ -173,9 +311,13 @@ export default function RaceControlLivePage() {
         </div>
 
         <div className="flex items-center gap-2 text-[10px] text-slate-400">
+          <span className="font-bold text-cyan-300">
+            {isSprintTarget ? 'CORRIDA SPRINT' : 'CORRIDA PRINCIPAL'}
+          </span>
+          <span className="text-slate-700">•</span>
           <span>{gpInfo.name}</span>
           <span className="text-slate-700">•</span>
-          <span className="text-slate-200 font-bold">Rodada {currentRound}/24</span>
+          <span className="text-slate-200 font-bold">Rodada {effectiveRound}/24</span>
         </div>
       </div>
 
@@ -194,6 +336,7 @@ export default function RaceControlLivePage() {
               const stateWithCanonicalId = {
                 ...canonicalRaceState,
                 careerId: canonicalCareerId,
+                raceVariant: effectiveVariant,
               }
               const official = canonicalRaceResultService.officializeRace(stateWithCanonicalId)
               setOfficialRaceResult(official)
@@ -205,7 +348,7 @@ export default function RaceControlLivePage() {
               canonicalChampionshipService.processAndPersistRoundChampionship(
                 canonicalCareerId,
                 season?.year || 2026,
-                currentRound,
+                effectiveRound,
               )
             } catch (e: any) {
               toast({
@@ -405,12 +548,12 @@ export default function RaceControlLivePage() {
               const clearRes = canonicalRaceInitializationService.clearCanonicalRaceState(
                 canonicalCareerId,
                 season.year || 2026,
-                currentRound,
-                { raceVariant: isSprint ? 'SPRINT_RACE' : 'MAIN_RACE' },
+                effectiveRound,
+                { raceVariant: effectiveVariant },
               )
               if (!clearRes.success) return
 
-              const totalLaps = isSprint
+              const totalLaps = isSprintTarget
                 ? canonicalRaceInitializationService.calculateSprintLaps(
                     gpInfo.circuitLengthKm || 5.8,
                     100,
@@ -419,10 +562,10 @@ export default function RaceControlLivePage() {
                 : gpInfo.laps || 57
 
               const freshRace = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
-                raceVariant: isSprint ? 'SPRINT_RACE' : 'MAIN_RACE',
+                raceVariant: effectiveVariant,
                 careerId: canonicalCareerId,
                 season: season.year || 2026,
-                round: currentRound,
+                round: effectiveRound,
                 circuitName: gpInfo.circuit,
                 circuitCountry: gpInfo.country,
                 totalLaps,
