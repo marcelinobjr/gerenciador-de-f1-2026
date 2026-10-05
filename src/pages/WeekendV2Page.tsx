@@ -717,8 +717,6 @@ export default function WeekendV2Page() {
     if (!season?.id || !reg.snapshot) return []
     const allSnapshotEntries = reg.snapshot.entries || []
 
-    // Constrói os participantes diretamente a partir das entradas canônicas do snapshot
-    // sem reinjetar ou duplicar pilotos do jogador.
     const playerDriverIds = new Set(
       [
         reg.snapshot.entriesByCar?.playerCar1?.driverId,
@@ -729,7 +727,7 @@ export default function WeekendV2Page() {
     const all24: QualifyingDriverContext[] = []
     const seenDriverIds = new Set<string>()
 
-    allSnapshotEntries.forEach((e, idx) => {
+    allSnapshotEntries.forEach((e: any, idx: number) => {
       if (!e.driverId || seenDriverIds.has(e.driverId)) return
       seenDriverIds.add(e.driverId)
 
@@ -758,10 +756,22 @@ export default function WeekendV2Page() {
         currentRound,
         parentStage as any,
       )
-      if (q1Res && q1Res.advancingDriverIds) {
-        return all24.filter((p) => q1Res.advancingDriverIds.includes(p.id))
+      if (q1Res && q1Res.advancingDriverIds && q1Res.advancingDriverIds.length > 0) {
+        const advSet = new Set(q1Res.advancingDriverIds)
+        const participantsMap = new Map(all24.map((p) => [p.id, p]))
+        const orderedClassified: QualifyingDriverContext[] = []
+        for (const driverId of q1Res.advancingDriverIds) {
+          const found = participantsMap.get(driverId)
+          if (found) {
+            orderedClassified.push(found)
+          }
+        }
+        if (orderedClassified.length > 0) {
+          return orderedClassified
+        }
+        return all24.filter((p) => advSet.has(p.id))
       }
-      return all24.slice(0, 18)
+      return []
     }
 
     if (stageId === 'q3' || (stageId as any) === 'sq3') {
@@ -771,10 +781,22 @@ export default function WeekendV2Page() {
         currentRound,
         parentStage as any,
       )
-      if (q2Res && q2Res.advancingDriverIds) {
-        return all24.filter((p) => q2Res.advancingDriverIds.includes(p.id))
+      if (q2Res && q2Res.advancingDriverIds && q2Res.advancingDriverIds.length > 0) {
+        const advSet = new Set(q2Res.advancingDriverIds)
+        const participantsMap = new Map(all24.map((p) => [p.id, p]))
+        const orderedClassified: QualifyingDriverContext[] = []
+        for (const driverId of q2Res.advancingDriverIds) {
+          const found = participantsMap.get(driverId)
+          if (found) {
+            orderedClassified.push(found)
+          }
+        }
+        if (orderedClassified.length > 0) {
+          return orderedClassified
+        }
+        return all24.filter((p) => advSet.has(p.id))
       }
-      return all24.slice(0, 10)
+      return []
     }
 
     return all24
@@ -1199,6 +1221,14 @@ export default function WeekendV2Page() {
 
     if (isQuali) {
       if (!qualifyingState) return
+      if (qualifyingState.leaderboard.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Sem Participantes',
+          description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+        })
+        return
+      }
       const stored = refreshCompletedSessions()
       if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
         toast({
@@ -1267,6 +1297,12 @@ export default function WeekendV2Page() {
     }
 
     const intervalMs = Math.round(1000 / selectedSpeed)
+
+    // SQ2/SQ3/Q2/Q3: Não iniciar autoAdvance caso não haja participantes válidos
+    if (isQuali && qualifyingState && qualifyingState.leaderboard.length === 0) {
+      setIsAutoAdvancing(false)
+      return
+    }
 
     if (isQuali && qualifyingTickContext) {
       autoAdvanceIntervalRef.current = setInterval(() => {
@@ -1578,6 +1614,14 @@ export default function WeekendV2Page() {
 
     if (isQuali) {
       if (!qualifyingState || !qualifyingTickContext) return
+      if (qualifyingState.leaderboard.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Sem Participantes',
+          description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+        })
+        return
+      }
       const stored = refreshCompletedSessions()
       if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
         toast({
@@ -1667,6 +1711,14 @@ export default function WeekendV2Page() {
 
     if (isQuali) {
       if (!qualifyingState || !qualifyingTickContext) return
+      if (qualifyingState.leaderboard.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Sessão Sem Participantes',
+          description: 'A fase de classificação anterior precisa ser concluída e confirmada.',
+        })
+        return
+      }
       const stored = refreshCompletedSessions()
       if (qualifyingState.status === 'completed' || stored.includes(qualifyingState.stageId)) {
         toast({
