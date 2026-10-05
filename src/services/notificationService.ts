@@ -23,10 +23,13 @@ export const notificationService = {
       const records = await pb.collection('notifications').getList<F1NotificationModel>(1, limit, {
         filter: `user_id = "${userId}"`,
         sort: '-created',
+        // Evita autoCancellation do SDK PocketBase para chamadas concorrentes/rápidas
+        requestKey: null,
       })
-      return records.items
+      return records?.items || []
     } catch (err) {
-      console.warn('Erro ao buscar notificações do PocketBase, usando cache local:', err)
+      // Falhas transitórias de rede (Failed to fetch, HTTP N/A, timeout, abort)
+      // devem ser tratadas de forma silenciosa e resiliente com fallback local.
       return this.getLocalNotifications(userId).slice(0, limit)
     }
   },

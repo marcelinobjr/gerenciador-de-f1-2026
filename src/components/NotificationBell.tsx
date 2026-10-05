@@ -55,25 +55,62 @@ export function NotificationBell({
     }
   }, [location.pathname])
 
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const loadNotifications = async () => {
-    if (!effectiveUserId) return
-    const items = await notificationService.getNotifications(effectiveUserId, 30)
-    setNotifications(items)
+    if (!effectiveUserId || !isMountedRef.current) return
+    try {
+      const items = await notificationService.getNotifications(effectiveUserId, 30)
+      if (isMountedRef.current && Array.isArray(items)) {
+        setNotifications(items)
+      }
+    } catch {
+      // Falha transitória de rede ou requisição abortada tratada silenciosamente
+    }
   }
 
   // Carrega notificações ao montar e quando user mudar
   useEffect(() => {
-    loadNotifications()
-    const timer = setInterval(loadNotifications, 10000)
-    return () => clearInterval(timer)
+    let isCancelled = false
+
+    const fetchSafe = async () => {
+      if (isCancelled || !effectiveUserId) return
+      try {
+        const items = await notificationService.getNotifications(effectiveUserId, 30)
+        if (!isCancelled && Array.isArray(items)) {
+          setNotifications(items)
+        }
+      } catch {
+        // Silencia erro transitório
+      }
+    }
+
+    fetchSafe()
+    const timer = setInterval(fetchSafe, 10000)
+
+    return () => {
+      isCancelled = true
+      clearInterval(timer)
+    }
   }, [effectiveUserId])
 
   // Realtime updates para coleção de notificações e eventos
   useRealtime('notifications', () => {
-    loadNotifications()
+    if (isMountedRef.current) {
+      loadNotifications().catch(() => {})
+    }
   })
   useRealtime('events', () => {
-    loadNotifications()
+    if (isMountedRef.current) {
+      loadNotifications().catch(() => {})
+    }
   })
 
   // Avaliação do estado do jogo (motor, teto FIA, patrocínios, lesões) para gerar notificações sem duplicar
@@ -96,7 +133,9 @@ export function NotificationBell({
           sponsors,
           parts,
         })
-        await loadNotifications()
+        if (isMountedRef.current) {
+          await loadNotifications()
+        }
       } catch (err) {
         console.warn('Erro ao avaliar notificações automáticas de estado:', err)
       }
