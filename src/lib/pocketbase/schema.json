@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T02:13:48.299Z",
+  "generatedAt": "2026-10-05T09:29:47.649Z",
   "collections": [
     {
       "name": "users",
@@ -2740,6 +2740,104 @@
         "CREATE UNIQUE INDEX idx_race_conf_version ON race_versioned_configs (version)",
         "CREATE INDEX idx_race_conf_sha256 ON race_versioned_configs (sha256)",
         "CREATE INDEX idx_race_conf_status ON race_versioned_configs (status)"
+      ]
+    },
+    {
+      "name": "power_unit_usage_journals",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "journal_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "season",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "race_variant",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "session_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["PENDING", "APPLYING", "COMPLETE", "PARTIAL", "FAILED", "SKIPPED"]
+        },
+        {
+          "name": "applied_unit_ids",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "applied_driver_ids",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "last_error",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "unit_results",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_pu_usage_journal_key ON power_unit_usage_journals (journal_key)",
+        "CREATE INDEX idx_pu_usage_career_season ON power_unit_usage_journals (career_id, season)"
       ]
     }
   ]

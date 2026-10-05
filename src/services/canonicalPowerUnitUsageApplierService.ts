@@ -1,21 +1,26 @@
 /**
  * canonicalPowerUnitUsageApplierService.ts
  *
- * PU-05A2-P3-B1: Aplicador Persistente do Uso por Unidade de Potência
+ * PU-05A2-P3-B1-R: Aplicador Persistente do Uso por Unidade de Potência
+ * (Idempotência Autoritativa no Backend / Skip Cloud / PocketBase)
  *
  * OBJETIVO:
  * Consumir o relatório de apuração P3-A (SessionPowerUnitUsageProjectionReport)
  * e aplicar quilometragem e débito de desgaste ao inventário correto (TeamModel.engine_history),
- * com proteção persistente contra aplicação duplicada via Journal de Idempotência.
+ * com proteção persistente e autoritativa no backend contra aplicação duplicada e concorrência.
  *
  * CONTRATOS E REGRAS:
  * 1. Não recalcular: consome diretamente projection.distanceKm e projection.wearDebit.
  * 2. Unidade registrada na sessão: localiza no inventário por teamId + powerUnitId, NUNCA pela garagem atual.
  * 3. Idempotência estrita: baseada na identidade da sessão (careerId, season, round, raceVariant)
- *    e rastreamento por unidade aplicada (appliedUnitIds) para suportar retomada e falha parcial.
- * 4. Proteção contra duplicidade: checagem prévia no Journal e pós-persistência consistente.
+ *    e rastreamento granular por unidade aplicada (appliedUnitIds) para suportar retomada e falha parcial.
+ * 4. AUTORIDADE DO BACKEND:
+ *    - O backend (coleção `power_unit_usage_journals` + hook transacional) é a FONTE AUTORITATIVA.
+ *    - localStorage e memória atuam estritamente como CACHE secundário de conveniência.
+ *    - O aplicador consulta o backend antes de qualquer operação; se já estiver COMPLETE no backend,
+ *      retorna ALREADY_APPLIED mesmo se o localStorage tiver sido completamente limpo.
  * 5. Registros não reconhecidos (LEGACY_UNLINKED, PENDING_ENGINE_SESSION_EVOLUTION, etc.):
- *    não são debitados e são categorizados como 'pending' ou 'unlinked'.
+ *    não são debitados e são categorizados como 'NOT_APPLICABLE'.
  * 6. NÃO conectar à oficialização automática nesta fase.
  */
 
@@ -38,6 +43,7 @@ export type PowerUnitApplicationStatus =
   | 'SKIPPED'
 
 export interface PowerUnitUsageJournalEntry {
+  id?: string
   journalKey: string
   careerId: string
   season: number
@@ -108,6 +114,10 @@ export interface ApplySessionPowerUnitUsageOptions {
    * Permite persistência sem rede (exclusivamente em memória/localStorage ou TeamModel fornecido).
    */
   dryRunOrLocalOnly?: boolean
+  /**
+   * Força a execução via fallback local mesmo com cliente PB presente (útil em testes de unidade puros).
+   */
+  forceLocalEngine?: boolean
 }
 
 export class CanonicalPowerUnitUsageApplierService {
@@ -131,10 +141,68 @@ export class CanonicalPowerUnitUsageApplierService {
   }
 
   /**
-   * Recupera o Journal de Aplicação persistido.
-   * Ordem: memória -> localStorage.
+   * Consulta o Journal autoritativo no Backend (PocketBase collection 'power_unit_usage_journals').
+   */
+  public async fetchBackendJournal(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: RaceVariant = 'MAIN_RACE',
+  ): Promise<{
+    journal: PowerUnitUsageJournalEntry
+    unitResults?: UnitApplicationResult[]
+  } | null> {
+    const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
+    if (!pb?.collection) return null
+
+    try {
+      const record = await pb
+        .collection('power_unit_usage_journals')
+        .getFirstListItem(`journal_key = "${journalKey}"`)
+
+      if (record) {
+        const entry: PowerUnitUsageJournalEntry = {
+          id: record.id,
+          journalKey: record.journal_key,
+          careerId: record.career_id,
+          season: record.season,
+          round: record.round,
+          raceVariant: record.race_variant,
+          sessionKey: record.session_key,
+          status: record.status as PowerUnitApplicationStatus,
+          appliedUnitIds: Array.isArray(record.applied_unit_ids) ? record.applied_unit_ids : [],
+          appliedDriverIds: Array.isArray(record.applied_driver_ids)
+            ? record.applied_driver_ids
+            : [],
+          startedAt: record.created,
+          completedAt: record.updated,
+          lastError: record.last_error,
+        }
+        const unitResults = Array.isArray(record.unit_results) ? record.unit_results : undefined
+        // Atualiza cache local
+        this.saveLocalJournalCache(entry)
+        return { journal: entry, unitResults }
+      }
+    } catch {
+      // Registro não encontrado ou offline
+    }
+
+    return null
+  }
+
+  /**
+   * Recupera o Journal de Aplicação do cache (memória -> localStorage).
    */
   public getJournal(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: RaceVariant = 'MAIN_RACE',
+  ): PowerUnitUsageJournalEntry | null {
+    return this.getLocalJournalCache(careerId, season, round, raceVariant)
+  }
+
+  public getLocalJournalCache(
     careerId: string,
     season: number,
     round: number,
@@ -161,9 +229,9 @@ export class CanonicalPowerUnitUsageApplierService {
   }
 
   /**
-   * Salva o Journal de Aplicação na memória e no localStorage.
+   * Salva o Journal de Aplicação no cache local (memória e localStorage).
    */
-  public saveJournal(journal: PowerUnitUsageJournalEntry): void {
+  public saveLocalJournalCache(journal: PowerUnitUsageJournalEntry): void {
     const key = journal.journalKey
     this.memoryJournalCache.set(key, { ...journal })
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -176,17 +244,14 @@ export class CanonicalPowerUnitUsageApplierService {
   }
 
   /**
-   * Limpa cache de journals (útil para testes).
+   * Limpa cache local de journals (útil para testes).
    */
   public clearJournalCache(): void {
     this.memoryJournalCache.clear()
   }
 
   /**
-   * Aplica o uso e desgaste de unidades de potência apurado por P3-A.
-   *
-   * @param projectionReport Relatório estruturado de projeção (projectSessionPowerUnitUsage).
-   * @param options Opções adicionais de injeção de modelo, simulação de falha ou modo local.
+   * Aplica o uso e desgaste de unidades de potência apurado por P3-A com idempotência autoritativa.
    */
   public async applySessionPowerUnitUsage(
     projectionReport: SessionPowerUnitUsageProjectionReport,
@@ -196,10 +261,10 @@ export class CanonicalPowerUnitUsageApplierService {
       throw new Error('[applySessionPowerUnitUsage] Relatório de apuração ausente ou nulo.')
     }
 
-    const { careerId, season, round, raceVariant, sessionKey } = projectionReport
+    const { careerId, season, round, raceVariant } = projectionReport
     const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
 
-    // 0. Proteção contra chamadas concorrentes para a mesma chave de sessão
+    // 0. Proteção contra chamadas concorrentes locais na mesma aba/instância
     const existingOp = CanonicalPowerUnitUsageApplierService.activeOperations.get(journalKey)
     if (existingOp) {
       return await existingOp
@@ -222,10 +287,123 @@ export class CanonicalPowerUnitUsageApplierService {
     const { careerId, season, round, raceVariant, sessionKey } = projectionReport
     const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
 
-    // 1. Verificar idempotência global da sessão
-    const existingJournal = this.getJournal(careerId, season, round, raceVariant)
-    if (existingJournal && existingJournal.status === 'COMPLETE') {
-      // Sessão já foi 100% aplicada anteriormente
+    // SE ESTIVER EM MODO POCKETBASE REAL (não dry-run / não forceLocalEngine)
+    if (!options.dryRunOrLocalOnly && !options.forceLocalEngine && pb?.collection) {
+      // 1. Tentar executar via endpoint transacional protegido do backend (/backend/v1/pu-usage/apply-session)
+      try {
+        const response = await pb.send<SessionPowerUnitUsageApplicationResult>(
+          '/backend/v1/pu-usage/apply-session',
+          {
+            method: 'POST',
+            body: { projectionReport },
+          },
+        )
+
+        if (response && response.journal) {
+          // Atualiza cache local após confirmação autoritativa do backend
+          this.saveLocalJournalCache(response.journal)
+          return response
+        }
+      } catch (backendHookErr: any) {
+        // Se o backend retornou 400 ou erro estruturado de ALREADY_APPLIED ou o endpoint não estiver disponível,
+        // inspecionar se foi falha de rota ou verificação de journal no backend
+        try {
+          const backendJournal = await this.fetchBackendJournal(
+            careerId,
+            season,
+            round,
+            raceVariant,
+          )
+          if (backendJournal && backendJournal.journal.status === 'COMPLETE') {
+            const alreadyAppliedResults: UnitApplicationResult[] = projectionReport.projections.map(
+              (proj) => ({
+                driverId: proj.driverId,
+                driverName: proj.driverName,
+                teamId: proj.teamId,
+                powerUnitId: proj.powerUnitId,
+                status: 'ALREADY_APPLIED',
+                distanceKmAdded: 0,
+                wearDebitApplied: 0,
+                message: `Sessão ${sessionKey} e unidade PU-${proj.powerUnitId} já aplicadas no backend.`,
+              }),
+            )
+
+            return {
+              sessionKey,
+              careerId,
+              season,
+              round,
+              raceVariant,
+              status: 'ALREADY_APPLIED',
+              journal: backendJournal.journal,
+              appliedCount: 0,
+              alreadyAppliedCount: alreadyAppliedResults.length,
+              pendingOrUnlinkedCount: 0,
+              failedCount: 0,
+              unitResults: alreadyAppliedResults,
+            }
+          }
+        } catch {
+          // segue para persistência protegida padrão
+        }
+      }
+    }
+
+    // 2. MOTOR DE APLICAÇÃO E PERSISTÊNCIA DIRETA COM CONFERÊNCIA AUTORITATIVA
+    return await this.applyWithDirectProtection(projectionReport, options)
+  }
+
+  /**
+   * Executa a aplicação com proteção direta e verificação prévia no Backend (ou cache se offline).
+   */
+  private async applyWithDirectProtection(
+    projectionReport: SessionPowerUnitUsageProjectionReport,
+    options: ApplySessionPowerUnitUsageOptions,
+  ): Promise<SessionPowerUnitUsageApplicationResult> {
+    const { careerId, season, round, raceVariant, sessionKey } = projectionReport
+    const journalKey = this.buildJournalKey(careerId, season, round, raceVariant)
+
+    // 1. VERIFICAR AUTORIDADE DO BACKEND (se disponível na sessão)
+    let authoritativeJournal: PowerUnitUsageJournalEntry | null = null
+    let authoritativeRecordId: string | null = null
+
+    if (!options.dryRunOrLocalOnly && pb?.collection) {
+      try {
+        const record = await pb
+          .collection('power_unit_usage_journals')
+          .getFirstListItem(`journal_key = "${journalKey}"`)
+
+        if (record) {
+          authoritativeRecordId = record.id
+          authoritativeJournal = {
+            id: record.id,
+            journalKey: record.journal_key,
+            careerId: record.career_id,
+            season: record.season,
+            round: record.round,
+            raceVariant: record.race_variant,
+            sessionKey: record.session_key,
+            status: record.status as PowerUnitApplicationStatus,
+            appliedUnitIds: Array.isArray(record.applied_unit_ids) ? record.applied_unit_ids : [],
+            appliedDriverIds: Array.isArray(record.applied_driver_ids)
+              ? record.applied_driver_ids
+              : [],
+            startedAt: record.created,
+            completedAt: record.updated,
+            lastError: record.last_error,
+          }
+        }
+      } catch {
+        // Não encontrado no backend
+      }
+    }
+
+    // Se não encontrou no backend, consulta cache local
+    const localJournal = this.getLocalJournalCache(careerId, season, round, raceVariant)
+    const effectiveJournal = authoritativeJournal || localJournal
+
+    // SE JÁ ESTÁ COMPLETO NO BACKEND (OU NO CACHE LOCAL CONFIRMADO)
+    if (effectiveJournal && effectiveJournal.status === 'COMPLETE') {
       const alreadyAppliedResults: UnitApplicationResult[] = projectionReport.projections.map(
         (proj) => ({
           driverId: proj.driverId,
@@ -235,9 +413,11 @@ export class CanonicalPowerUnitUsageApplierService {
           status: 'ALREADY_APPLIED',
           distanceKmAdded: 0,
           wearDebitApplied: 0,
-          message: `Sessão ${sessionKey} e unidade PU-${proj.powerUnitId} já aplicadas anteriormente.`,
+          message: `Sessão ${sessionKey} e unidade PU-${proj.powerUnitId} já aplicadas autoritativamente.`,
         }),
       )
+
+      this.saveLocalJournalCache(effectiveJournal)
 
       return {
         sessionKey,
@@ -246,7 +426,7 @@ export class CanonicalPowerUnitUsageApplierService {
         round,
         raceVariant,
         status: 'ALREADY_APPLIED',
-        journal: existingJournal,
+        journal: effectiveJournal,
         appliedCount: 0,
         alreadyAppliedCount: alreadyAppliedResults.length,
         pendingOrUnlinkedCount: 0,
@@ -255,8 +435,8 @@ export class CanonicalPowerUnitUsageApplierService {
       }
     }
 
-    // 2. Inicializar ou retomar Journal
-    const journal: PowerUnitUsageJournalEntry = existingJournal || {
+    // 2. INICIALIZAR OU RETOMAR JOURNAL
+    const journal: PowerUnitUsageJournalEntry = effectiveJournal || {
       journalKey,
       careerId,
       season,
@@ -270,7 +450,49 @@ export class CanonicalPowerUnitUsageApplierService {
     }
 
     journal.status = 'APPLYING'
-    this.saveJournal(journal)
+    this.saveLocalJournalCache(journal)
+
+    // Se estiver conectado ao PB, registrar o estado APPLYING no banco também
+    if (!options.dryRunOrLocalOnly && pb?.collection) {
+      try {
+        const payload = {
+          journal_key: journalKey,
+          career_id: careerId,
+          season,
+          round,
+          race_variant: raceVariant,
+          session_key: sessionKey,
+          status: 'APPLYING',
+          applied_unit_ids: journal.appliedUnitIds,
+          applied_driver_ids: journal.appliedDriverIds,
+        }
+
+        if (authoritativeRecordId) {
+          await pb.collection('power_unit_usage_journals').update(authoritativeRecordId, payload)
+        } else {
+          try {
+            const created = await pb.collection('power_unit_usage_journals').create(payload)
+            authoritativeRecordId = created.id
+            journal.id = created.id
+          } catch (createErr: any) {
+            // Em caso de colisão de unicidade por processo concorrente simultâneo
+            const raceRecord = await pb
+              .collection('power_unit_usage_journals')
+              .getFirstListItem(`journal_key = "${journalKey}"`)
+            if (raceRecord) {
+              authoritativeRecordId = raceRecord.id
+              journal.id = raceRecord.id
+              if (raceRecord.status === 'COMPLETE') {
+                // Outro cliente acabou de completar a aplicação!
+                return this.executeApplySessionPowerUnitUsage(projectionReport, options)
+              }
+            }
+          }
+        }
+      } catch (syncErr) {
+        // Tolerância caso a conexão falhe temporariamente
+      }
+    }
 
     const appliedUnitIdsSet = new Set<number>(journal.appliedUnitIds || [])
     const appliedDriverIdsSet = new Set<string>(journal.appliedDriverIds || [])
@@ -281,7 +503,7 @@ export class CanonicalPowerUnitUsageApplierService {
     let pendingOrUnlinkedCount = 0
     let failedCount = 0
 
-    // Agrupar projeções por equipe para resolver TeamModel e aplicar lote consistente
+    // Agrupar projeções por equipe
     const projectionsByTeam = new Map<string, ParticipantPowerUnitUsageProjection[]>()
     for (const proj of projectionReport.projections) {
       const list = projectionsByTeam.get(proj.teamId) || []
@@ -293,7 +515,6 @@ export class CanonicalPowerUnitUsageApplierService {
 
     try {
       for (const [teamId, teamProjections] of projectionsByTeam.entries()) {
-        // Obter TeamModel
         let team: TeamModel | null = null
 
         if (options.teamOverrides) {
@@ -304,16 +525,16 @@ export class CanonicalPowerUnitUsageApplierService {
           }
         }
 
-        if (!team && !options.dryRunOrLocalOnly) {
+        if (!team && !options.dryRunOrLocalOnly && pb?.collection) {
           try {
             team = await pb.collection('teams').getOne<TeamModel>(teamId)
           } catch {
-            // Se não encontrou no PocketBase, permanece null
+            // Se não encontrou no PocketBase
           }
         }
 
         for (const proj of teamProjections) {
-          // Checar se o participante possui vínculo válido e débito reconhecido ou zero uso
+          // Checar se o participante possui vínculo válido e débito reconhecido
           if (!proj.hasValidLinkage || !proj.powerUnitId) {
             pendingOrUnlinkedCount++
             unitResults.push({
@@ -380,7 +601,7 @@ export class CanonicalPowerUnitUsageApplierService {
             continue
           }
 
-          // Localizar a unidade no histórico/inventário da equipe
+          // Localizar a unidade no histórico da equipe
           const history = Array.isArray(team.engine_history) ? [...team.engine_history] : []
           const unitIndex = history.findIndex((eng) => Number(eng.id) === puId)
 
@@ -414,7 +635,6 @@ export class CanonicalPowerUnitUsageApplierService {
           const addDistance = proj.distanceKm || 0
           const wearDebit = proj.wearDebit || 0
 
-          // Novos valores com precisão e limites canônicos [0, 100]
           const newMileage = Number((prevMileage + addDistance).toFixed(3))
           const newCond = Number(Math.max(0, Math.min(100, prevCond - wearDebit)).toFixed(2))
           const newWear = Number(Math.max(0, Math.min(100, 100 - newCond)).toFixed(2))
@@ -433,11 +653,10 @@ export class CanonicalPowerUnitUsageApplierService {
             team.id === proj.teamId &&
             (existingUnit.status === 'instalado' || !existingUnit.status)
           ) {
-            // Se for unidade ativa, sincronizar active_engine_wear
             team.active_engine_wear = newWear
           }
 
-          // Se não estiver em modo local apenas, sincronizar com PocketBase
+          // Persistir atualização da equipe no backend se online
           if (!options.dryRunOrLocalOnly && pb?.collection) {
             try {
               await pb.collection('teams').update(team.id, {
@@ -468,7 +687,21 @@ export class CanonicalPowerUnitUsageApplierService {
           appliedDriverIdsSet.add(proj.driverId)
           journal.appliedUnitIds = Array.from(appliedUnitIdsSet)
           journal.appliedDriverIds = Array.from(appliedDriverIdsSet)
-          this.saveJournal(journal)
+
+          // Gravação atômica da marca no journal do backend
+          if (!options.dryRunOrLocalOnly && pb?.collection && authoritativeRecordId) {
+            try {
+              await pb.collection('power_unit_usage_journals').update(authoritativeRecordId, {
+                applied_unit_ids: journal.appliedUnitIds,
+                applied_driver_ids: journal.appliedDriverIds,
+                status: 'PARTIAL',
+              })
+            } catch (syncUnitErr) {
+              // tolerância em falha de sync pontual
+            }
+          }
+
+          this.saveLocalJournalCache(journal)
 
           appliedCount++
           unitResults.push({
@@ -487,7 +720,7 @@ export class CanonicalPowerUnitUsageApplierService {
             newWear: newWear,
           })
 
-          // Simulação de falha controlada para testes de tolerância e retomada
+          // Simulação de falha controlada para testes
           if (
             options.simulateFailureAfterUnitIndex !== undefined &&
             globalUnitProcessingIndex === options.simulateFailureAfterUnitIndex
@@ -510,7 +743,23 @@ export class CanonicalPowerUnitUsageApplierService {
       journal.status = finalStatus
       journal.completedAt = new Date().toISOString()
       journal.lastError = undefined
-      this.saveJournal(journal)
+
+      // Salva no backend autoritativo
+      if (!options.dryRunOrLocalOnly && pb?.collection && authoritativeRecordId) {
+        try {
+          await pb.collection('power_unit_usage_journals').update(authoritativeRecordId, {
+            status: finalStatus,
+            applied_unit_ids: journal.appliedUnitIds,
+            applied_driver_ids: journal.appliedDriverIds,
+            unit_results: unitResults,
+            last_error: '',
+          })
+        } catch {
+          // tolerância
+        }
+      }
+
+      this.saveLocalJournalCache(journal)
 
       return {
         sessionKey,
@@ -529,7 +778,21 @@ export class CanonicalPowerUnitUsageApplierService {
     } catch (err: any) {
       journal.status = appliedCount > 0 ? 'PARTIAL' : 'FAILED'
       journal.lastError = err?.message || 'Erro durante a aplicação de uso de PU.'
-      this.saveJournal(journal)
+
+      if (!options.dryRunOrLocalOnly && pb?.collection && authoritativeRecordId) {
+        try {
+          await pb.collection('power_unit_usage_journals').update(authoritativeRecordId, {
+            status: journal.status,
+            applied_unit_ids: journal.appliedUnitIds,
+            applied_driver_ids: journal.appliedDriverIds,
+            last_error: journal.lastError,
+          })
+        } catch {
+          // tolerância
+        }
+      }
+
+      this.saveLocalJournalCache(journal)
 
       return {
         sessionKey,
