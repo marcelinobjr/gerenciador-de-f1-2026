@@ -1123,6 +1123,49 @@ export class CanonicalRaceEngineService {
       const newFuel = Math.max(0, Number((drv.fuel - fuelBurnEffective).toFixed(1)))
       const newCondition = Math.max(0, Number((drv.carCondition - 0.25).toFixed(1)))
 
+      // PU-05A2-P3-A1: Evoluir a condição individual da Unidade de Potência vinculada ao participante
+      // Apenas para participantes com vínculo válido (powerUnitId positivo e condição conhecida).
+      // Utiliza a regra canônica de desgaste de PU (structuralMissingFactorsService.computeLapPUWearIncrement).
+      // Carros já em DNF ou suspensão não passam por este loop de avanço de volta.
+      let newPowerUnitCondition = drv.powerUnitCondition
+      const hasLinkedPu =
+        typeof drv.powerUnitId === 'number' &&
+        Number.isInteger(drv.powerUnitId) &&
+        drv.powerUnitId > 0
+
+      if (hasLinkedPu) {
+        // Seleciona a condição base da PU (prioridade: powerUnitCondition corrente, fallback: powerUnitInitialCondition)
+        // Zero é uma condição válida (não falsy / sem fallback indevido para 100)
+        const currentPuCond =
+          typeof drv.powerUnitCondition === 'number'
+            ? drv.powerUnitCondition
+            : typeof drv.powerUnitInitialCondition === 'number'
+              ? drv.powerUnitInitialCondition
+              : null
+
+        if (currentPuCond !== null) {
+          const paceMode = drv.strategy?.paceMode || 'NORMAL'
+          const aggressivePace = paceMode === 'PUSH'
+          const preserveCarUsed = paceMode === 'CONSERVE'
+
+          // MGU agressivo configurado na estratégia ou preparação
+          const aggressiveMGU =
+            (drv.strategy as any)?.puElectricRatio !== undefined
+              ? (drv.strategy as any).puElectricRatio > 65
+              : false
+
+          const puWearIncrement = structuralMissingFactorsService.computeLapPUWearIncrement({
+            trackTemp: 28,
+            weather: currentLapWeather,
+            aggressiveMGU,
+            aggressivePace,
+            preserveCarUsed,
+          })
+
+          newPowerUnitCondition = Math.max(0, Number((currentPuCond - puWearIncrement).toFixed(3)))
+        }
+      }
+
       // Atualizar melhor volta pessoal apenas em ritmo de bandeira verde
       const isGreenPace = rcState.currentFlag === 'GREEN'
       const bestLapSec =
@@ -1194,6 +1237,7 @@ export class CanonicalRaceEngineService {
           tyreAge: newTyreAge,
           fuel: 0,
           carCondition: newCondition,
+          powerUnitCondition: newPowerUnitCondition,
           raceStatus: 'dnf',
           isDnf: true,
           dnfReason: CANONICAL_DNF_REASON_OUT_OF_FUEL,
@@ -1213,6 +1257,7 @@ export class CanonicalRaceEngineService {
         tyreAge: newTyreAge,
         fuel: newFuel,
         carCondition: newCondition,
+        powerUnitCondition: newPowerUnitCondition,
         raceStatus: 'racing',
       }
     })
@@ -1622,6 +1667,7 @@ export class CanonicalRaceEngineService {
         carCondition: d.carCondition,
         powerUnitId: d.powerUnitId,
         powerUnitInitialCondition: d.powerUnitInitialCondition,
+        powerUnitCondition: d.powerUnitCondition,
         raceStatus: d.raceStatus,
         isDnf: d.isDnf,
         dnfReason: d.dnfReason,

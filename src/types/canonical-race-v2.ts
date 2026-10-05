@@ -329,6 +329,7 @@ export interface RedFlagDriverSnapshot {
   carCondition: number
   powerUnitId?: number
   powerUnitInitialCondition?: number
+  powerUnitCondition?: number
   raceStatus: CanonicalDriverRaceStatus
   isDnf?: boolean
   dnfReason?: string
