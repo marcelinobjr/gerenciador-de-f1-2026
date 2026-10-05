@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T19:17:12.471Z",
+  "generatedAt": "2026-10-05T19:23:49.267Z",
   "collections": [
     {
       "name": "users",
@@ -1572,7 +1572,8 @@
             "q1",
             "q2",
             "q3",
-            "race"
+            "race",
+            "weekend_slot_state"
           ]
         },
         {

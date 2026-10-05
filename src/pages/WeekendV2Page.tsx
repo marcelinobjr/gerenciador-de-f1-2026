@@ -286,10 +286,11 @@ export default function WeekendV2Page() {
     })
     setTyreInventories(freshInvs)
 
-    if (canonicalCareerId) {
+    const careerIdForSlots = team?.id || canonicalCareerId
+    if (careerIdForSlots) {
       try {
         const freshSlots = canonicalWeekendSlotPersistenceService.createInitialState({
-          careerId: canonicalCareerId,
+          careerId: careerIdForSlots,
           seasonId: season.id,
           round: currentRound,
         })
@@ -391,9 +392,10 @@ export default function WeekendV2Page() {
 
         // 3.3.1. Carregar ou migrar estado canônico dos 7 slots (RACE-SPRINT-SLOTS-01A)
         const canonicalCareerId = resolveCanonicalCareerId(season, team)
+        const careerIdForSlots = team?.id || canonicalCareerId
         canonicalWeekendSlotPersistenceService
           .loadOrMigrateSlotState({
-            careerId: canonicalCareerId,
+            careerId: careerIdForSlots,
             seasonId: season.id,
             round: currentRound,
           })

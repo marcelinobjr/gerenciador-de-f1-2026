@@ -117,8 +117,12 @@ export class CanonicalWeekendSlotPersistenceService {
 
   /**
    * Salva o estado do fim de semana em memória e no localStorage.
+   * Se explicitTeamId for fornecido, usa diretamente como team_id na relation com a collection teams.
    */
-  public async saveSlotState(state: CanonicalWeekendSlotState): Promise<void> {
+  public async saveSlotState(
+    state: CanonicalWeekendSlotState,
+    explicitTeamId?: string,
+  ): Promise<void> {
     const key = buildWeekendSlotStorageKey(state.careerId, state.seasonId, state.round)
     state.updatedAt = new Date().toISOString()
     this.inMemoryCache.set(key, state)
@@ -133,10 +137,25 @@ export class CanonicalWeekendSlotPersistenceService {
 
     // Opcional: espelhar no PocketBase de forma assíncrona tolerante a falhas
     try {
+      let resolvedTeamId = explicitTeamId || state.careerId
+      if (!explicitTeamId || resolvedTeamId === state.seasonId) {
+        try {
+          const seasonRecord = await pb.collection('seasons').getOne(state.seasonId)
+          if (seasonRecord?.team_id) {
+            resolvedTeamId = seasonRecord.team_id
+          }
+        } catch (seasonErr) {
+          console.warn(
+            '[WeekendSlotPersistence] Não foi possível resolver team_id a partir de season:',
+            seasonErr,
+          )
+        }
+      }
+
       const { canonicalSessionSetupPersistenceService } =
         await import('@/services/canonicalSessionSetupPersistenceService')
-      await canonicalSessionSetupPersistenceService.upsertSessionSetup({
-        teamId: state.careerId,
+      const result = await canonicalSessionSetupPersistenceService.upsertSessionSetup({
+        teamId: resolvedTeamId,
         seasonId: state.seasonId,
         round: state.round,
         session: 'weekend_slot_state',
@@ -153,8 +172,16 @@ export class CanonicalWeekendSlotPersistenceService {
           }
         },
       })
-    } catch {
-      // Falha silenciosa no PocketBase: o localStorage e memória garantem a persistência local
+      if (!result.success) {
+        console.warn(
+          '[WeekendSlotPersistence] Falha ao sincronizar weekendSlotState no PocketBase, mantendo persistência local.',
+        )
+      }
+    } catch (persistErr) {
+      console.warn(
+        '[WeekendSlotPersistence] Erro não-bloqueante ao sincronizar weekendSlotState no PocketBase:',
+        persistErr,
+      )
     }
   }
 
@@ -195,8 +222,20 @@ export class CanonicalWeekendSlotPersistenceService {
 
     // 3. Tenta carregar do PocketBase
     try {
+      let resolvedTeamId = careerId
+      if (resolvedTeamId === seasonId) {
+        try {
+          const seasonRecord = await pb.collection('seasons').getOne(seasonId)
+          if (seasonRecord?.team_id) {
+            resolvedTeamId = seasonRecord.team_id
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "weekend_slot_state"`,
+        filter: `(team_id = "${resolvedTeamId}" || team_id = "${careerId}") && season_id = "${seasonId}" && round = ${round} && session = "weekend_slot_state"`,
       })
       if (records.items.length > 0) {
         const item = records.items[0]
