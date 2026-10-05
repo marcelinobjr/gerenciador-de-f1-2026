@@ -306,22 +306,62 @@ export function readStoredCompletedSessions(seasonId: string, round: number): st
         // Verificar ambas as chaves: legado apex_f1_quali_ e canônica apex_qualifying_stage_state_v2
         const legacyKey = `apex_f1_quali_${seasonId}_r${round}_${stg}`
         const canonicalKey = `apex_qualifying_stage_state_v2_${seasonId}_r${round}_${stg}`
+        const resultKey = `apex_qualifying_stage_result_v2_${seasonId}_r${round}_${stg}`
         const rawState =
           window.localStorage.getItem(canonicalKey) || window.localStorage.getItem(legacyKey)
+        const rawResult = window.localStorage.getItem(resultKey)
+
         if (rawState) {
           const parsedState = JSON.parse(rawState)
           if (parsedState && parsedState.status) {
-            if (parsedState.status === 'paused' || parsedState.status === 'running') {
+            if (
+              parsedState.status === 'paused' ||
+              parsedState.status === 'running' ||
+              parsedState.status === 'not_started'
+            ) {
+              // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): purgar etapa de quali da lista de concluídas
+              // se o estado canônico estiver not_started (ou paused/running)
               if (validated.has(stg)) {
                 validated.delete(stg)
                 modified = true
               }
             } else if (parsedState.status === 'completed') {
-              if (!validated.has(stg)) {
-                validated.add(stg)
-                modified = true
+              // Só considerar concluída se houver resultado persistido com entries válidas
+              let hasValidResult = false
+              if (rawResult) {
+                try {
+                  const parsedResult = JSON.parse(rawResult)
+                  if (
+                    parsedResult &&
+                    Array.isArray(parsedResult.entries) &&
+                    parsedResult.entries.length > 0
+                  ) {
+                    hasValidResult = true
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+
+              if (hasValidResult) {
+                if (!validated.has(stg)) {
+                  validated.add(stg)
+                  modified = true
+                }
+              } else {
+                // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): Sem resultado persistido válido, purgar da lista de concluídas
+                if (validated.has(stg)) {
+                  validated.delete(stg)
+                  modified = true
+                }
               }
             }
+          }
+        } else {
+          // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): se estado canônico ausente, purgar da lista de concluídas
+          if (validated.has(stg)) {
+            validated.delete(stg)
+            modified = true
           }
         }
       }

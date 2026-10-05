@@ -211,6 +211,7 @@ export default function WeekendV2Page() {
 
   // Estado em memória da sessão de qualificação em andamento (Q1, Q2 ou Q3)
   const [qualifyingState, setQualifyingState] = useState<QualifyingStageState | null>(null)
+  const completedQualiStagesHandledRef = useRef<Set<string>>(new Set())
   const [completeQualifyingResult, setCompleteQualifyingResult] =
     useState<CompleteQualifyingWeekendResult | null>(null)
   const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
@@ -1712,7 +1713,6 @@ export default function WeekendV2Page() {
 
           if (res.nextState.status === 'completed') {
             setIsAutoAdvancing(false)
-            handleQualifyingStageCompleted(res.nextState.stageId)
           }
 
           if (season?.id) {
@@ -1921,23 +1921,119 @@ export default function WeekendV2Page() {
     }
   }, [isAutoAdvancing, selectedSpeed, runnerContext, qualifyingTickContext, selectedSessionId])
 
+  // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 4): Detecção de conclusão via useEffect observando qualifyingState.status === 'completed'
+  // com guard idempotente por stageId e rodada.
+  useEffect(() => {
+    if (!qualifyingState || qualifyingState.status !== 'completed' || !season?.id) {
+      return
+    }
+
+    const stageId = qualifyingState.stageId
+    const roundKey = `${season.id}_r${currentRound}_${stageId}`
+
+    if (completedQualiStagesHandledRef.current.has(roundKey)) {
+      return
+    }
+
+    completedQualiStagesHandledRef.current.add(roundKey)
+    handleQualifyingStageCompleted(stageId)
+  }, [qualifyingState?.status, qualifyingState?.stageId, season?.id, currentRound])
+
   // Conclusão oficial de fase de qualificação
   const handleQualifyingStageCompleted = (stageId: QualifyingStageId) => {
     if (!season?.id) return
+
     // Assegurar que o stageState persistido canônico tenha status 'completed'
-    const stgState = canonicalQualifyingPersistenceService.readStageState(
+    let stgState = canonicalQualifyingPersistenceService.readStageState(
       season.id,
       currentRound,
       stageId,
     )
+
+    // Se o estado não estava no storage, tentar pegar do state em memória se for o mesmo stage
+    if (!stgState && qualifyingState && qualifyingState.stageId === stageId) {
+      stgState = qualifyingState
+    }
+
     if (stgState && stgState.status !== 'completed') {
       stgState.status = 'completed'
       canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, stgState)
     }
 
+    // CORREÇÃO (1): Resultado como fonte da verdade:
+    // Em handleQualifyingStageCompleted, antes de gravar completedSessions, verificar readStageResult(stageId);
+    // se nulo, reconstruir o resultado a partir do estado (entradas ordenadas, advancing/eliminated pelas regras canônicas)
+    // e chamar saveStageResult. Só marcar concluída se o resultado existir ou o leaderboard > 0.
+    let stageResult = canonicalQualifyingPersistenceService.readStageResult(
+      season.id,
+      currentRound,
+      stageId,
+    )
+
+    if (
+      !stageResult &&
+      stgState &&
+      Array.isArray(stgState.leaderboard) &&
+      stgState.leaderboard.length > 0
+    ) {
+      // Ordena leaderboard antes de extrair corte
+      CanonicalQualifyingRunner.sortLeaderboard(stgState.leaderboard)
+      const rules = CANONICAL_QUALIFYING_RULES[stageId]
+      const advancingDriverIds: string[] = []
+      const eliminatedDriverIds: string[] = []
+
+      stgState.leaderboard.forEach((entry, idx) => {
+        const position = idx + 1
+        if (position <= rules.advancingCount) {
+          advancingDriverIds.push(entry.driverId)
+          entry.isEliminated = false
+        } else {
+          eliminatedDriverIds.push(entry.driverId)
+          entry.isEliminated = true
+          entry.eliminatedInStage = stageId
+        }
+      })
+
+      const reconstructedResult: QualifyingStageResult = {
+        stageId,
+        seasonId: season.id,
+        round: currentRound,
+        completedAt: new Date().toISOString(),
+        entries: stgState.leaderboard.map((e) => ({
+          position: e.position,
+          driverId: e.driverId,
+          driverName: e.driverName,
+          teamId: e.teamId,
+          teamName: e.teamName,
+          teamColor: e.teamColor,
+          bestLapSec: e.bestLapSec,
+          bestLapTime: e.bestLapTime,
+          bestLapRecordedAtSec: e.bestLapRecordedAtSec || 0,
+          compound: e.compound,
+          tyreSetId: e.tyreSetId,
+          lapsCount: e.laps,
+          isPlayer: e.isPlayer,
+          carId: e.carId,
+          isEliminated: !!e.isEliminated,
+          eliminatedInStage: e.eliminatedInStage,
+        })),
+        advancingDriverIds,
+        eliminatedDriverIds,
+      }
+
+      canonicalQualifyingPersistenceService.saveStageResult(reconstructedResult)
+      canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, stgState)
+      stageResult = reconstructedResult
+    }
+
+    // Só marcar concluída se o resultado existir ou o leaderboard > 0
+    const hasValidResult =
+      (!!stageResult && Array.isArray(stageResult.entries) && stageResult.entries.length > 0) ||
+      (stgState && Array.isArray(stgState.leaderboard) && stgState.leaderboard.length > 0)
+
     const currentStored = readStoredCompletedSessions(season.id, currentRound)
     let updated = currentStored
-    if (!currentStored.includes(stageId)) {
+    if (hasValidResult && !currentStored.includes(stageId)) {
       updated = [...currentStored, stageId]
       writeStoredCompletedSessions(season.id, currentRound, updated)
       setCompletedSessions(updated)
