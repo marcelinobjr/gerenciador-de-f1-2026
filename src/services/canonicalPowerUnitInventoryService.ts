@@ -159,3 +159,16 @@ export function getDriverSeasonPowerUnits(
     .filter((entry) => entry.driverId === driverId && entry.seasonYear === seasonYear)
     .sort((a, b) => (a.unitNumber || 0) - (b.unitNumber || 0))
 }
+
+/**
+ * Retorna o número de unidades de potência regulamentares marcadas como 'instalado'
+ * para determinado piloto e temporada no histórico da equipe.
+ */
+export function getInstalledUnitsCountForDriver(
+  team: TeamModel,
+  driverId: string,
+  seasonYear: number,
+): number {
+  const units = getDriverSeasonPowerUnits(team, driverId, seasonYear)
+  return units.filter((u) => u.status === 'instalado').length
+}

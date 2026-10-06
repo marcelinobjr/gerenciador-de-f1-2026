@@ -19,7 +19,7 @@
  */
 
 import pb from '@/lib/pocketbase/client'
-import type { TeamModel } from '@/types/f1'
+import type { TeamModel, PowerUnitHistoryEntry } from '@/types/f1'
 import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 
 export interface PowerUnitCarAllocation {
@@ -225,6 +225,393 @@ class CanonicalPowerUnitAllocationService {
    * 3. Atualiza cache em memória e cache isolado do localStorage após confirmação.
    * 4. Em caso de falha de persistência, reverte/rejeita e NÃO atualiza o estado canônico.
    */
+  /**
+   * Valida a elegibilidade de alocação de uma PU para um piloto e temporada específicos.
+   */
+  public validateDriverPowerUnitEligibility(params: {
+    team: TeamModel
+    driverId: string
+    seasonYear: number
+    targetPowerUnitId: number
+    carSlot?: 1 | 2
+    otherCarUnitId?: number
+  }): ValidateAllocationResult {
+    const { team, driverId, seasonYear, targetPowerUnitId, carSlot, otherCarUnitId } = params
+
+    if (!driverId) {
+      return { valid: false, error: 'driverId é obrigatório para validação da unidade.' }
+    }
+    if (!seasonYear || typeof seasonYear !== 'number') {
+      return { valid: false, error: 'seasonYear numérico é obrigatório.' }
+    }
+    if (!Number.isInteger(targetPowerUnitId) || targetPowerUnitId <= 0) {
+      return { valid: false, error: 'Identificador de unidade de potência inválido.' }
+    }
+
+    const history = team.engine_history || []
+    const targetUnit = history.find((u) => Number(u.id) === targetPowerUnitId)
+
+    if (!targetUnit) {
+      return {
+        valid: false,
+        error: `A unidade PU-${targetPowerUnitId} não existe no inventário da equipe.`,
+      }
+    }
+
+    if (targetUnit.driverId !== driverId) {
+      return {
+        valid: false,
+        error: `A unidade PU-${targetPowerUnitId} pertence a outro piloto e não pode ser instalada neste carro.`,
+      }
+    }
+
+    if (targetUnit.seasonYear !== seasonYear) {
+      return {
+        valid: false,
+        error: `A unidade PU-${targetPowerUnitId} é da temporada ${targetUnit.seasonYear} e não pode ser utilizada na temporada ${seasonYear}.`,
+      }
+    }
+
+    // Se fornecido outro carro ou slot, checar se a unidade não está no outro carro
+    if (otherCarUnitId && otherCarUnitId === targetPowerUnitId) {
+      return {
+        valid: false,
+        error: `A unidade PU-${targetPowerUnitId} não pode ser instalada simultaneamente nos dois carros.`,
+      }
+    }
+
+    const currentAlloc = this.extractAllocationFromTeam(team)
+    if (carSlot && currentAlloc) {
+      const currentOtherUnit = carSlot === 1 ? currentAlloc.car2Unit : currentAlloc.car1Unit
+      if (currentOtherUnit === targetPowerUnitId) {
+        return {
+          valid: false,
+          error: `A unidade PU-${targetPowerUnitId} já está instalada no outro carro.`,
+        }
+      }
+    }
+
+    return { valid: true }
+  }
+
+  /**
+   * Sincroniza o engine_history de forma estritamente pura e focada nos pilotos e temporada vigentes.
+   * Não altera valores de wear, condition, mileage_km, supplier, etc.
+   * Não altera unidades legadas sem driverId ou de temporadas anteriores.
+   */
+  public syncEngineHistoryStatuses(params: {
+    history: PowerUnitHistoryEntry[]
+    seasonYear: number
+    activeAllocations: Array<{ driverId: string; installedUnitId: number; assignedCar?: 1 | 2 }>
+  }): PowerUnitHistoryEntry[] {
+    const { history, seasonYear, activeAllocations } = params
+    const allocMap = new Map<string, { installedUnitId: number; assignedCar?: 1 | 2 }>()
+    for (const alloc of activeAllocations) {
+      if (alloc.driverId) {
+        allocMap.set(alloc.driverId, alloc)
+      }
+    }
+
+    return history.map((entry) => {
+      // Se não pertencer à temporada vigente ou não possuir driverId, manter intacto
+      if (entry.seasonYear !== seasonYear || !entry.driverId) {
+        return entry
+      }
+
+      const activeAlloc = allocMap.get(entry.driverId)
+      if (!activeAlloc) {
+        // Piloto não está no mapa ativo de alocação vigente: não alterar
+        return entry
+      }
+
+      const isInstalled = Number(entry.id) === activeAlloc.installedUnitId
+      if (isInstalled) {
+        return {
+          ...entry,
+          status: 'instalado' as const,
+          assignedCar: activeAlloc.assignedCar ?? entry.assignedCar,
+        }
+      } else {
+        return {
+          ...entry,
+          status: 'reserva' as const,
+          assignedCar: undefined,
+        }
+      }
+    })
+  }
+
+  /**
+   * Garante a instalação canônica inicial dos dois pilotos ativos (Carro 1 e Carro 2).
+   * Idempotente: se já houver alocação válida persistida para o piloto/temporada, preserva-a.
+   * Caso contrário, instala por padrão a PU1 do respectivo piloto.
+   * Sincroniza status: unidade alocada -> 'instalado', demais da temporada -> 'reserva'.
+   * Retorna o TeamModel atualizado.
+   */
+  public ensureInitialDriverAllocations(params: {
+    team: TeamModel
+    driver1Id: string
+    driver2Id: string
+    seasonYear: number
+    careerId?: string
+  }): TeamModel {
+    const { team, driver1Id, driver2Id, seasonYear } = params
+    const careerId = params.careerId || 'default_career'
+    const history = team.engine_history || []
+
+    const currentAlloc = this.extractAllocationFromTeam(team, careerId)
+
+    // Unidades candidatas de Driver 1 e Driver 2
+    const d1Units = history.filter((u) => u.driverId === driver1Id && u.seasonYear === seasonYear)
+    const d2Units = history.filter((u) => u.driverId === driver2Id && u.seasonYear === seasonYear)
+
+    // Determinar Carro 1 Unit:
+    // Se currentAlloc.car1Unit apontar para uma PU válida de driver1Id/seasonYear, preserva!
+    let targetC1: number | null = null
+    if (currentAlloc && typeof currentAlloc.car1Unit === 'number') {
+      const foundInD1 = d1Units.find((u) => Number(u.id) === currentAlloc.car1Unit)
+      if (foundInD1) {
+        targetC1 = Number(foundInD1.id)
+      }
+    }
+    if (!targetC1) {
+      // Fallback padrão: PU1 de driver1Id
+      const pu1 = d1Units.find((u) => u.unitNumber === 1) || d1Units[0]
+      if (pu1) {
+        targetC1 = Number(pu1.id)
+      }
+    }
+
+    // Determinar Carro 2 Unit:
+    let targetC2: number | null = null
+    if (currentAlloc && typeof currentAlloc.car2Unit === 'number') {
+      const foundInD2 = d2Units.find((u) => Number(u.id) === currentAlloc.car2Unit)
+      if (foundInD2) {
+        targetC2 = Number(foundInD2.id)
+      }
+    }
+    if (!targetC2) {
+      // Fallback padrão: PU1 de driver2Id
+      const pu1 = d2Units.find((u) => u.unitNumber === 1) || d2Units[0]
+      if (pu1) {
+        targetC2 = Number(pu1.id)
+      }
+    }
+
+    if (!targetC1 || !targetC2) {
+      throw new Error(
+        `[ensureInitialDriverAllocations] Não foi possível resolver PU1 para ambos os pilotos na temporada ${seasonYear}.`,
+      )
+    }
+
+    if (targetC1 === targetC2) {
+      throw new Error(
+        `[ensureInitialDriverAllocations] Mesma PU alocada aos dois carros (PU-${targetC1}).`,
+      )
+    }
+
+    const newAlloc: PowerUnitCarAllocation = {
+      car1Unit: targetC1,
+      car2Unit: targetC2,
+      updatedAt: currentAlloc?.updatedAt || new Date().toISOString(),
+      careerId,
+      teamId: team.id,
+    }
+
+    const updatedHistory = this.syncEngineHistoryStatuses({
+      history,
+      seasonYear,
+      activeAllocations: [
+        { driverId: driver1Id, installedUnitId: targetC1, assignedCar: 1 },
+        { driverId: driver2Id, installedUnitId: targetC2, assignedCar: 2 },
+      ],
+    })
+
+    const updatedSpecs = {
+      ...((team as any).car_specifications || {}),
+      power_unit_allocations: {
+        car1Unit: targetC1,
+        car2Unit: targetC2,
+        updatedAt: newAlloc.updatedAt,
+        careerId,
+      },
+    }
+
+    const updatedTeam: TeamModel = {
+      ...team,
+      car_specifications: updatedSpecs,
+      engine_history: updatedHistory,
+    }
+
+    this.memoryCache.set(careerId, newAlloc)
+    this.syncToLocalStorage(careerId, newAlloc)
+
+    return updatedTeam
+  }
+
+  /**
+   * Troca canônica da unidade de potência de um piloto (switchDriverPowerUnit).
+   *
+   * Entrada:
+   * - team: TeamModel
+   * - driverId: string
+   * - seasonYear: number
+   * - targetPowerUnitId?: number (ou targetUnitNumber: 1..4)
+   * - carSlot?: 1 | 2 (opcional, inferido de team.car_specifications ou passado)
+   *
+   * Comportamento:
+   * 1. Localiza a nova PU pelo ID (ou unitNumber do piloto e ano).
+   * 2. Valida que pertence estritamente ao piloto e à temporada atual.
+   * 3. Valida que não está em uso no outro carro.
+   * 4. Atualiza car_specifications.power_unit_allocations.
+   * 5. Sincroniza status no engine_history (antiga -> reserva, nova -> instalado).
+   * 6. Preserva integralmente wear, condition, mileage_km, supplier, etc. de todas as unidades.
+   * 7. Não altera o piloto do outro carro.
+   *
+   * Retorna o TeamModel atualizado.
+   */
+  public switchDriverPowerUnit(params: {
+    team: TeamModel
+    driverId: string
+    seasonYear: number
+    targetPowerUnitId?: number
+    targetUnitNumber?: number
+    carSlot?: 1 | 2
+    careerId?: string
+  }): TeamModel {
+    const { team, driverId, seasonYear, carSlot } = params
+    const careerId = params.careerId || 'default_career'
+    const history = team.engine_history ? [...team.engine_history] : []
+
+    // Resolver targetPowerUnitId
+    let targetId = params.targetPowerUnitId
+    if (typeof targetId !== 'number' && typeof params.targetUnitNumber === 'number') {
+      const match = history.find(
+        (u) =>
+          u.driverId === driverId &&
+          u.seasonYear === seasonYear &&
+          u.unitNumber === params.targetUnitNumber,
+      )
+      if (!match) {
+        throw new Error(
+          `Unidade PU-${params.targetUnitNumber} do piloto ${driverId} não encontrada para a temporada ${seasonYear}.`,
+        )
+      }
+      targetId = Number(match.id)
+    }
+
+    if (!targetId || typeof targetId !== 'number') {
+      throw new Error('targetPowerUnitId ou targetUnitNumber válido é obrigatório.')
+    }
+
+    // Obter alocação atual
+    const currentAlloc = this.resolveAllocation({ team, careerId })
+
+    // Resolver carSlot caso não informado
+    let resolvedSlot: 1 | 2 = carSlot || 1
+    if (!carSlot) {
+      // Tentar inferir de qual carro tem uma PU do piloto instalada atualmente
+      const d1Unit = history.find(
+        (u) =>
+          Number(u.id) === currentAlloc.car1Unit &&
+          u.driverId === driverId &&
+          u.seasonYear === seasonYear,
+      )
+      const d2Unit = history.find(
+        (u) =>
+          Number(u.id) === currentAlloc.car2Unit &&
+          u.driverId === driverId &&
+          u.seasonYear === seasonYear,
+      )
+
+      if (d1Unit && !d2Unit) {
+        resolvedSlot = 1
+      } else if (d2Unit && !d1Unit) {
+        resolvedSlot = 2
+      } else {
+        // Se ambos ou nenhum, fallback para slot se passado ou deduzir por assignedCar na PU
+        const puCandidate = history.find((u) => Number(u.id) === targetId)
+        if (puCandidate?.assignedCar) {
+          resolvedSlot = puCandidate.assignedCar
+        }
+      }
+    }
+
+    const otherCarUnit = resolvedSlot === 1 ? currentAlloc.car2Unit : currentAlloc.car1Unit
+
+    // Validação estrita
+    const eligibility = this.validateDriverPowerUnitEligibility({
+      team,
+      driverId,
+      seasonYear,
+      targetPowerUnitId: targetId,
+      carSlot: resolvedSlot,
+      otherCarUnitId: otherCarUnit,
+    })
+
+    if (!eligibility.valid) {
+      throw new Error(eligibility.error || 'Troca de unidade de potência inválida.')
+    }
+
+    const newC1 = resolvedSlot === 1 ? targetId : currentAlloc.car1Unit
+    const newC2 = resolvedSlot === 2 ? targetId : currentAlloc.car2Unit
+
+    const newAlloc: PowerUnitCarAllocation = {
+      car1Unit: newC1,
+      car2Unit: newC2,
+      updatedAt: new Date().toISOString(),
+      careerId,
+      teamId: team.id,
+    }
+
+    // Identificar o piloto do outro carro a partir da unidade instalada nele
+    const otherUnitObj = history.find((u) => Number(u.id) === otherCarUnit)
+    const otherDriverId = otherUnitObj?.driverId
+
+    const activeAllocations = [{ driverId, installedUnitId: targetId, assignedCar: resolvedSlot }]
+    if (otherDriverId && otherDriverId !== driverId) {
+      activeAllocations.push({
+        driverId: otherDriverId,
+        installedUnitId: otherCarUnit,
+        assignedCar: resolvedSlot === 1 ? 2 : 1,
+      })
+    }
+
+    const updatedHistory = this.syncEngineHistoryStatuses({
+      history,
+      seasonYear,
+      activeAllocations,
+    })
+
+    const updatedSpecs = {
+      ...((team as any).car_specifications || {}),
+      power_unit_allocations: {
+        car1Unit: newC1,
+        car2Unit: newC2,
+        updatedAt: newAlloc.updatedAt,
+        careerId,
+      },
+    }
+
+    const updatedTeam: TeamModel = {
+      ...team,
+      car_specifications: updatedSpecs,
+      engine_history: updatedHistory,
+    }
+
+    this.memoryCache.set(careerId, newAlloc)
+    this.syncToLocalStorage(careerId, newAlloc)
+
+    return updatedTeam
+  }
+
+  /**
+   * Grava a associação canônica:
+   * 1. Executa validação de domínio.
+   * 2. Persiste no backend (PocketBase) via team.car_specifications.
+   * 3. Atualiza cache em memória e cache isolado do localStorage após confirmação.
+   * 4. Em caso de falha de persistência, reverte/rejeita e NÃO atualiza o estado canônico.
+   */
   public async setAllocation(params: {
     team: TeamModel
     car1Unit: number
@@ -266,6 +653,11 @@ class CanonicalPowerUnitAllocationService {
     // Atualiza status no engine_history caso existente para semântica rica
     let updatedHistory = team.engine_history ? [...team.engine_history] : undefined
     if (updatedHistory && updatedHistory.length > 0) {
+      // Se as unidades possuem seasonYear, sincronizar apenas a temporada relevante
+      const u1 = updatedHistory.find((u) => Number(u.id) === car1Unit)
+      const u2 = updatedHistory.find((u) => Number(u.id) === car2Unit)
+      const targetSeason = u1?.seasonYear || u2?.seasonYear
+
       updatedHistory = updatedHistory.map((eng) => {
         const idNum = Number(eng.id)
         if (idNum === car1Unit) {
@@ -273,6 +665,10 @@ class CanonicalPowerUnitAllocationService {
         }
         if (idNum === car2Unit) {
           return { ...eng, status: 'instalado' as const, assignedCar: 2 }
+        }
+        // Se a unidade pertence a outra temporada e targetSeason existe, não alterar seu status
+        if (targetSeason && eng.seasonYear && eng.seasonYear !== targetSeason) {
+          return eng
         }
         return {
           ...eng,
