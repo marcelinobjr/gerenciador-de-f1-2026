@@ -133,42 +133,61 @@ export interface WeekendNormalState {
   >
 }
 
-// Estrutura de cache em memória para deduplicação e TTL curto
-interface SessionSetupCacheEntry {
-  store: Record<string, PracticeSetupApplicationRecord> | null
-  timestamp: number
-}
-
 export class RacePracticeSetupService {
-  // Cache de memória: chave (careerId, seasonId, round, session) -> dados com TTL de 5s
-  private memoryCache = new Map<string, SessionSetupCacheEntry>()
-  // Deduplicação in-flight: chave -> Promise da requisição em andamento
-  private inFlightRequests = new Map<
+  // Deduplicação in-flight de requisições GET para a collection session_setups:
+  // Map<canonicalKey, Promise<Result>>
+  // canonicalKey: `team_id::${careerId}::season_id::${seasonId}::round::${round}::session::${internalSession}`
+  private inFlightSessionSetupRequests = new Map<
     string,
     Promise<Record<string, PracticeSetupApplicationRecord> | null>
   >()
-  private readonly CACHE_TTL_MS = 5000
 
-  private getCacheKey(
+  /**
+   * Constrói a chave canônica estável que representa univocamente a consulta real ao PocketBase:
+   * collection session_setups com filtro:
+   * team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"
+   */
+  public buildSessionSetupCanonicalKey(
     careerId: string,
     seasonId: string,
     round: number,
     internalSession: string,
   ): string {
-    return `${careerId}::${seasonId}::${round}::${internalSession}`
+    return `team_id::${careerId}::season_id::${seasonId}::round::${round}::session::${internalSession}`
   }
 
   /**
-   * Limpa o cache em memória (útil para testes ou após escrita).
+   * Retorna a quantidade atual de requisições in-flight (para inspeção e testes).
+   */
+  public getInFlightRequestsCount(): number {
+    return this.inFlightSessionSetupRequests.size
+  }
+
+  /**
+   * Limpa o mapa in-flight (útil para testes ou reinicialização de estado).
+   */
+  public clearInFlightRequests(): void {
+    this.inFlightSessionSetupRequests.clear()
+  }
+
+  /**
+   * Mantido para compatibilidade retroativa de limpeza em testes.
    */
   public clearMemoryCache(): void {
-    this.memoryCache.clear()
-    this.inFlightRequests.clear()
+    this.clearInFlightRequests()
   }
 
   /**
-   * Busca no PocketBase ou no cache de memória, com deduplicação de requisições concorrentes
-   * e tolerância a HTTP 429 (Too Many Requests) com 1 retry e backoff curto de ~400ms.
+   * Busca no PocketBase a coleção session_setups com deduplicação estrita de requests in-flight.
+   *
+   * Comportamento:
+   * - Primeira chamada para a chave → cria GET e registra Promise no Map in-flight;
+   * - Segunda chamada para a mesma chave enquanto a primeira está pendente → reutiliza a mesma Promise;
+   * - Não dispara segundo GET;
+   * - Ao resolver ou rejeitar → remove a Promise do Map imediatamente (via finally);
+   * - Não mantém Promise rejeitada;
+   * - Não cria cache permanente acidental;
+   * - Não esconde erros (rejeição é propagada para quem aguardava).
    */
   private async fetchSessionSetupStore(
     careerId: string,
@@ -176,79 +195,42 @@ export class RacePracticeSetupService {
     round: number,
     internalSession: string,
   ): Promise<Record<string, PracticeSetupApplicationRecord> | null> {
-    const key = this.getCacheKey(careerId, seasonId, round, internalSession)
-    const now = Date.now()
+    const canonicalKey = this.buildSessionSetupCanonicalKey(
+      careerId,
+      seasonId,
+      round,
+      internalSession,
+    )
 
-    // 1. Checa cache de memória com TTL
-    const cached = this.memoryCache.get(key)
-    if (cached && now - cached.timestamp < this.CACHE_TTL_MS) {
-      return cached.store
+    // Se já existe uma requisição em voo para essa mesma chave canônica, reutiliza a mesma Promise
+    const existingPromise = this.inFlightSessionSetupRequests.get(canonicalKey)
+    if (existingPromise) {
+      return existingPromise
     }
 
-    // 2. Se já existe uma requisição em voo para essa mesma chave, compartilha a Promise
-    const inFlight = this.inFlightRequests.get(key)
-    if (inFlight) {
-      return inFlight
-    }
+    const queryPromise = (async () => {
+      const records = await pb.collection('session_setups').getList(1, 1, {
+        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
+      })
 
-    // 3. Executa a requisição com proteção de retry para 429
-    const fetchPromise = (async () => {
-      const executeQuery = async () => {
-        const records = await pb.collection('session_setups').getList(1, 1, {
-          filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
-        })
-
-        if (records.items.length > 0) {
-          const item = records.items[0]
-          const strategies = (item.driver_strategies as any) || {}
-          return (
-            (strategies.practiceSetupApplications as Record<
-              string,
-              PracticeSetupApplicationRecord
-            >) || null
-          )
-        }
-        return null
+      if (records && records.items && records.items.length > 0) {
+        const item = records.items[0]
+        const strategies = (item.driver_strategies as any) || {}
+        return (
+          (strategies.practiceSetupApplications as Record<
+            string,
+            PracticeSetupApplicationRecord
+          >) || null
+        )
       }
+      return null
+    })().finally(() => {
+      // Ao resolver ou rejeitar, remove a Promise do mapa imediatamente
+      this.inFlightSessionSetupRequests.delete(canonicalKey)
+    })
 
-      try {
-        const result = await executeQuery()
-        this.memoryCache.set(key, { store: result, timestamp: Date.now() })
-        return result
-      } catch (firstErr: any) {
-        const is429 =
-          firstErr?.status === 429 ||
-          firstErr?.response?.status === 429 ||
-          firstErr?.statusCode === 429 ||
-          String(firstErr?.message || '').includes('429') ||
-          String(firstErr?.message || '')
-            .toLowerCase()
-            .includes('too many requests')
-
-        if (is429) {
-          // Retry único com backoff curto (~400ms)
-          await new Promise((res) => setTimeout(res, 400))
-          try {
-            const retryResult = await executeQuery()
-            this.memoryCache.set(key, { store: retryResult, timestamp: Date.now() })
-            return retryResult
-          } catch (retryErr: any) {
-            console.warn(
-              `[RacePracticeSetupService] 429 persistiu após retry para chave ${key}. Retornando null para acionar fallback suave.`,
-              retryErr?.message || retryErr,
-            )
-            // Retorna null sem lançar exceção para acionar fallback do cache local ou default
-            return null
-          }
-        }
-        throw firstErr
-      } finally {
-        this.inFlightRequests.delete(key)
-      }
-    })()
-
-    this.inFlightRequests.set(key, fetchPromise)
-    return fetchPromise
+    this.inFlightSessionSetupRequests.set(canonicalKey, queryPromise)
+    return queryPromise
   }
 
   /**
@@ -756,7 +738,7 @@ export class RacePracticeSetupService {
     session: PracticeSessionId,
     applicationKey: string,
   ): Promise<PracticeSetupApplicationRecord | null> {
-    // 1. Tentar ler do PocketBase na coleção session_setups (com cache de memória e deduplicação de requisição)
+    // 1. Tentar ler do PocketBase na coleção session_setups (com deduplicação in-flight de requisição)
     const sessionInternalMap: Record<PracticeSessionId, string> = {
       TL1: 'tp1',
       TL2: 'tp2',
@@ -775,25 +757,10 @@ export class RacePracticeSetupService {
         return setupStore[applicationKey]
       }
     } catch (err: any) {
-      const is429 =
-        err?.status === 429 ||
-        err?.response?.status === 429 ||
-        err?.statusCode === 429 ||
-        String(err?.message || '').includes('429') ||
-        String(err?.message || '')
-          .toLowerCase()
-          .includes('too many requests')
-
-      if (is429) {
-        console.warn(
-          `[RacePracticeSetupService] PocketBase HTTP 429 (Too Many Requests) em session_setups para round ${round} ${session}. Fallback suave ativado.`,
-        )
-      } else {
-        console.warn(
-          `[RacePracticeSetupService] Erro ao carregar session_setups do PB (${session}):`,
-          err?.message || err,
-        )
-      }
+      console.warn(
+        `[RacePracticeSetupService] Erro ao carregar session_setups do PB (${session}):`,
+        err?.message || err,
+      )
     }
 
     // 2. Fallback de resiliência: Cache local
@@ -854,18 +821,6 @@ export class RacePracticeSetupService {
         err,
       )
     }
-
-    // Atualiza cache em memória para a chave correspondente
-    const cacheKey = this.getCacheKey(careerId, seasonId, round, internalSession)
-    const existingEntry = this.memoryCache.get(cacheKey)
-    const currentStore = existingEntry?.store || {}
-    this.memoryCache.set(cacheKey, {
-      store: {
-        ...currentStore,
-        [applicationKey]: record,
-      },
-      timestamp: Date.now(),
-    })
 
     // Espelho no armazenamento local resiliente
     this.saveToLocalCache(careerId, seasonId, round, session, record)
