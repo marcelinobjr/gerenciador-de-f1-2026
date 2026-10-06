@@ -5,6 +5,7 @@ import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import { carTechnicalService } from '@/services/carTechnicalService'
 import { generateDefaultComponentsFromMacro } from '@/lib/car-technical-data'
 import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
+import { ensureSeasonTeamPowerUnitInventories } from '@/services/canonicalPowerUnitInventoryService'
 import {
   TeamModel,
   SeasonModel,
@@ -2920,12 +2921,28 @@ export const f1Service = {
 
       // 6.1 RESET DE MOTOR E PEÇAS PARA O NOVO ANO
       try {
+        // Carrega estado atual da equipe e dos pilotos titulares ativos para a nova temporada
+        const currentTeam = await pb.collection('teams').getOne<TeamModel>(teamId)
+        const teamTitulars = await pb.collection('drivers').getFullList<DriverModel>({
+          filter: `team_id = "${teamId}" && role = "titular"`,
+        })
+        const titularDriverIds = teamTitulars.map((d) => d.id).filter(Boolean)
+
+        const updatedHistory = ensureSeasonTeamPowerUnitInventories({
+          team: currentTeam,
+          driverIds: titularDriverIds,
+          seasonYear: nextYear,
+          supplier: currentTeam.engine_supplier,
+          introducedRound: 1,
+        })
+
         await pb.collection('teams').update(teamId, {
           active_engine_wear: 0,
           engine_pool_used: 1,
           cost_cap_spent: 0,
           constructors_points_deduction: 0,
           rd_penalty_rounds_left: 0,
+          engine_history: updatedHistory,
         })
       } catch (err: any) {
         console.error('Erro ao resetar motor da equipe:', err)
