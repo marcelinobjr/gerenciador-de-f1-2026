@@ -4,7 +4,7 @@ import { CanonicalQualifyingRunner } from '@/services/canonicalQualifyingRunner'
 import { practiceSessionService } from '@/services/practiceSessionService'
 import { validateCarPreparation } from '@/services/practicePreparationService'
 import type { QualifyingDriverContext } from '@/services/canonicalQualifyingRunner'
-import type { PracticeCarPreparation } from '@/types/practice-session'
+import type { PracticeCarPreparation } from '@/types/practice-preparation'
 
 describe('BUG-TYRE-SYNC-01A: Tyre Sync & Inventory Integrity', () => {
   const seasonId = 'season_2026_test'
@@ -179,6 +179,8 @@ describe('BUG-TYRE-SYNC-01A: Tyre Sync & Inventory Integrity', () => {
       tyreSelection: null,
       fuelLoad: { kg: 30, estimatedLaps: 18 },
       setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+      objective: 'Teste sem pneu',
+      status: 'preparing',
     }
 
     const validation = validateCarPreparation(prepCar, updatedInvs[d1])
