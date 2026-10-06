@@ -478,17 +478,33 @@ export class PracticeSessionService {
    * BUG-TYRE-RESET-01A: Rejeita persistência se state.generation for incompatível com a geração ativa da rodada.
    */
   async saveSessionState(state: PracticeSessionRecordState): Promise<PracticeSessionRecordState> {
-    const activeGen = getActiveWeekendGeneration(state.seasonId, state.round)
-    // BUG-TYRE-RESET-01A: Rejeita escrita se state.generation divergir da geração ativa da rodada
-    if (state.generation !== undefined && state.generation !== activeGen) {
-      console.warn(
-        `[practiceSessionService] Escrita rejeitada por geração obsoleta: state.generation (${state.generation}) !== activeGen (${activeGen}) para ${state.seasonId} r${state.round}`,
-      )
-      return state
-    }
-    // Vincula à geração ativa se não estiver definida
-    if (state.generation === undefined) {
-      state.generation = activeGen
+    const currentGen = getActiveWeekendGeneration(state.seasonId, state.round, state.careerId)
+
+    // RESET-FIX-2: Gatekeeper central contra state stale / geração incompatível
+    if (state.generation !== undefined) {
+      if (state.generation < currentGen) {
+        console.warn(
+          `[practiceSessionService] STALE_STATE: escrita rejeitada por geração obsoleta (state=${state.generation} < current=${currentGen}) para ${state.seasonId} r${state.round}`,
+        )
+        return state
+      }
+      if (state.generation > currentGen) {
+        console.warn(
+          `[practiceSessionService] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${state.generation} > current=${currentGen}) para ${state.seasonId} r${state.round}`,
+        )
+        return state
+      }
+    } else {
+      // State legado sem generation:
+      // Só é aceito e associado à geração atual se a rodada ainda estiver na geração baseline (1).
+      // Se a rodada já avançou geração por reset (currentGen > 1), state sem geração é stale e não pode ser persistido.
+      if (currentGen > 1) {
+        console.warn(
+          `[practiceSessionService] STALE_STATE: escrita rejeitada para state legado sem generation após avanço de rodada (current=${currentGen}) para ${state.seasonId} r${state.round}`,
+        )
+        return state
+      }
+      state.generation = currentGen
     }
 
     state.revision = (state.revision || 0) + 1
@@ -609,15 +625,22 @@ export class PracticeSessionService {
       const data = localStorage.getItem(key)
       if (!data) return null
       const parsed = JSON.parse(data) as PracticeSessionRecordState
-      const activeGen = getActiveWeekendGeneration(seasonId, round)
-      if (parsed && parsed.generation !== undefined && parsed.generation !== activeGen) {
-        console.warn(
-          `[practiceSessionService] Cache local ignorado por geração obsoleta: ${parsed.generation} !== activeGen ${activeGen}`,
-        )
-        return null
-      }
-      if (parsed && parsed.generation === undefined) {
-        parsed.generation = activeGen
+      const currentGen = getActiveWeekendGeneration(seasonId, round, careerId)
+      if (parsed && parsed.generation !== undefined) {
+        if (parsed.generation !== currentGen) {
+          console.warn(
+            `[practiceSessionService] Cache local ignorado por geração obsoleta/incompatível: ${parsed.generation} !== currentGen ${currentGen}`,
+          )
+          return null
+        }
+      } else if (parsed) {
+        if (currentGen > 1) {
+          console.warn(
+            `[practiceSessionService] Cache local legado ignorado por avanço prévio de geração: currentGen ${currentGen}`,
+          )
+          return null
+        }
+        parsed.generation = currentGen
       }
       return parsed
     } catch {

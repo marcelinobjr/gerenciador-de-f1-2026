@@ -1,16 +1,18 @@
 /**
  * bug-tyre-reset-01a.test.ts
  *
- * BUG-TYRE-RESET-01A — BLOQUEAR RESSURREIÇÃO DE ESTADO PRÉ-RESET
+ * BUG-TYRE-RESET-01A / RESET-FIX-2 — GATEKEEPER CONTRA STATE STALE
  *
- * Validações:
- * R1: estado geração N → reset → tentativa de persistir N → storage permanece limpo.
- * R2: estado da geração N+1 pós-reset persiste normalmente.
- * R3: handler com referência antiga (ordem exit) não ressuscita estado.
- * R4: mesmo para apply car setup.
- * R5: pós-reset + tentativa espúria, reload reconhece apenas geração N+1.
- * R6: pneus/inventário da sessão descartada não reaparecem via objeto stale.
- * R7: regressão — fluxo normal sem reset continua salvando (incluindo estados legados sem generation).
+ * Contratos validados:
+ * S1 — STATE ATUAL SALVA: generation N, state N, persistência funciona normalmente.
+ * S2 — RESET INVALIDA: executar reset, generation vira N+1.
+ * S3 — STALE STAGE STATE: tentar saveStageState com state N; confirmar rejeitado, storage resetado permanece intacto, state antigo não reaparece.
+ * S4 — STALE SESSION STATE: mesmo contrato para saveSessionState (rejeitado, storage intacto).
+ * S5 — NOVO STATE FUNCIONA: state N+1 persiste normalmente.
+ * S6 — RELOAD: após reset e novo state, reload reconhece somente generation N+1.
+ * S7 — HANDLER INDIRETO: exercitar fluxos reais (orderCarExitToTrack, updateCarGarageSetup, fitTyreSetInGarage) que chamam save com referência antiga pós-reset; confirmar que o gatekeeper central bloqueia.
+ * S8 — LEGACY: cobrir explicitamente state sem generation conforme a regra de compatibilidade adotada (aceito se baseline N=1; rejeitado se rodada já avançou generation por reset).
+ * S9 — FUTURE INCONSISTENCY: state com generation > current é rejeitado e não sobrescreve storage silenciosamente.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -28,7 +30,7 @@ import { createInitialSetupKnowledge } from '@/services/canonicalPracticeFeedbac
 import type { QualifyingStageState } from '@/types/canonical-qualifying-types'
 import type { PracticeSessionRecordState } from '@/types/practice-session'
 
-describe('BUG-TYRE-RESET-01A — Bloquear Ressurreição de Estado Pré-Reset', () => {
+describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', () => {
   const seasonId = 'season_2026_test'
   const round = 1
   const careerId = 'career_player_01'
@@ -160,67 +162,28 @@ describe('BUG-TYRE-RESET-01A — Bloquear Ressurreição de Estado Pré-Reset', 
     }
   }
 
-  it('R1: estado geração N → reset → tentativa de persistir N → storage permanece limpo', async () => {
-    // 1. Iniciar na geração 1
-    expect(getActiveWeekendGeneration(seasonId, round)).toBe(1)
-    const stateQ1 = createMockQualiState('q1', 1)
-    const stateTP1 = createMockPracticeState(1)
+  it('S1 — STATE ATUAL SALVA: generation N, state N, persistência funciona normalmente', async () => {
+    const currentGen = getActiveWeekendGeneration(seasonId, round, careerId)
+    expect(currentGen).toBe(1)
 
-    // Salvar estados na geração 1
-    expect(canonicalQualifyingPersistenceService.saveStageState(seasonId, round, stateQ1)).toBe(
-      true,
+    const qualiState = createMockQualiState('q1', currentGen)
+    const practiceState = createMockPracticeState(currentGen)
+
+    const qualiSaved = canonicalQualifyingPersistenceService.saveStageState(
+      seasonId,
+      round,
+      qualiState,
     )
-    await practiceSessionService.saveSessionState(stateTP1)
+    expect(qualiSaved).toBe(true)
+
+    await practiceSessionService.saveSessionState(practiceState)
 
     const qualiKey = canonicalQualifyingPersistenceService.getStageStateKey(seasonId, round, 'q1')
     expect(localStorage.getItem(qualiKey)).not.toBeNull()
 
-    // 2. Executar resetWeekendForRound
-    const resetRes = resetWeekendForRound({
-      careerId,
-      seasonId,
-      round,
-    })
-    expect(resetRes.success).toBe(true)
-    expect(resetRes.newGeneration).toBe(2)
-    expect(getActiveWeekendGeneration(seasonId, round)).toBe(2)
-    // Chaves antigas foram limpas
-    expect(localStorage.getItem(qualiKey)).toBeNull()
-
-    // 3. Tentativa de persistir estado antigo da geração 1 (stale em memória)
-    const qualiSaveResult = canonicalQualifyingPersistenceService.saveStageState(
-      seasonId,
-      round,
-      stateQ1,
-    )
-    expect(qualiSaveResult).toBe(false)
-    // O storage continua estritamente limpo!
-    expect(localStorage.getItem(qualiKey)).toBeNull()
-
-    // Mesma garantia para treino livre
-    const tp1Key = `apex_practice_session_${careerId}_${seasonId}_${round}_tp1`
-    await practiceSessionService.saveSessionState(stateTP1)
-    expect(localStorage.getItem(tp1Key)).toBeNull()
-  })
-
-  it('R2: estado da geração N+1 pós-reset persiste normalmente', async () => {
-    // 1. Reset para subir geração de 1 para 2
-    resetWeekendForRound({ careerId, seasonId, round })
-    expect(getActiveWeekendGeneration(seasonId, round)).toBe(2)
-
-    // 2. Novo estado gerado explicitamente na geração 2
-    const freshQuali = createMockQualiState('q1', 2)
-    const freshPractice = createMockPracticeState(2)
-
-    const savedQ = canonicalQualifyingPersistenceService.saveStageState(seasonId, round, freshQuali)
-    expect(savedQ).toBe(true)
-
-    await practiceSessionService.saveSessionState(freshPractice)
-
-    // Deve estar persistido
-    const loadedQ = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
-    expect(loadedQ).not.toBeNull()
-    expect(loadedQ?.generation).toBe(2)
+    const loadedQuali = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
+    expect(loadedQuali).not.toBeNull()
+    expect(loadedQuali?.generation).toBe(currentGen)
 
     const loadedPractice = practiceSessionService.readFromLocalCache(
       careerId,
@@ -229,173 +192,220 @@ describe('BUG-TYRE-RESET-01A — Bloquear Ressurreição de Estado Pré-Reset', 
       'tp1',
     )
     expect(loadedPractice).not.toBeNull()
-    expect(loadedPractice?.generation).toBe(2)
+    expect(loadedPractice?.generation).toBe(currentGen)
   })
 
-  it('R3: handler com referência antiga (ordem exit) não ressuscita estado pós-reset', async () => {
-    // 1. Estado ativo de qualificação e treino na geração 1
-    const qualiStateStale = createMockQualiState('q1', 1)
-    const practiceStateStale = createMockPracticeState(1)
+  it('S2 — RESET INVALIDA: executar reset, generation vira N+1', () => {
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(1)
 
-    // 2. Usuário clica em Reset
-    resetWeekendForRound({ careerId, seasonId, round })
-    expect(getActiveWeekendGeneration(seasonId, round)).toBe(2)
-
-    // 3. Um evento de "Order Exit" ou ação concorrente que segurava qualiStateStale tenta rodar
-    const exitRes = CanonicalQualifyingRunner.orderCarExitToTrack(qualiStateStale, 'car1')
-    expect(exitRes.success).toBe(true)
-
-    // O handler tenta persistir o estado stale
-    const persisted = canonicalQualifyingPersistenceService.saveStageState(
-      seasonId,
-      round,
-      qualiStateStale,
-    )
-    expect(persisted).toBe(false)
-
-    // Storage de qualificação permanece vazio
-    const read = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
-    expect(read).toBeNull()
-
-    // O mesmo para treino
-    practiceStateStale.cars.car1.status = 'out_lap'
-    await practiceSessionService.saveSessionState(practiceStateStale)
-
-    const readPractice = practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')
-    expect(readPractice).toBeNull()
+    const resetRes = resetWeekendForRound({ careerId, seasonId, round })
+    expect(resetRes.success).toBe(true)
+    expect(resetRes.newGeneration).toBe(2)
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(2)
   })
 
-  it('R4: handler com referência antiga (apply car setup) não ressuscita estado', async () => {
-    // 1. Estado da geração 1
-    const qualiStateStale = createMockQualiState('q1', 1)
-    const practiceStateStale = createMockPracticeState(1)
-
-    // 2. Reset
-    resetWeekendForRound({ careerId, seasonId, round })
-    expect(getActiveWeekendGeneration(seasonId, round)).toBe(2)
-
-    // 3. Handler de acerto mecânico acionado em objeto da geração anterior
-    const newSetup = { frontWing: 10, rearWing: 10, suspension: 2, differential: 60 }
-    const qualiUpdate = CanonicalQualifyingRunner.updateCarGarageSetup(
-      qualiStateStale,
-      'car1',
-      newSetup,
+  it('S3 — STALE STAGE STATE: tentar saveStageState com state N após reset; confirmar rejeitado, storage resetado permanece intacto, state antigo não reaparece', () => {
+    // 1. Salvar state na geração 1
+    const stateQ1 = createMockQualiState('q1', 1)
+    expect(canonicalQualifyingPersistenceService.saveStageState(seasonId, round, stateQ1)).toBe(
+      true,
     )
-    expect(qualiUpdate.success).toBe(true)
+    const qualiKey = canonicalQualifyingPersistenceService.getStageStateKey(seasonId, round, 'q1')
+    expect(localStorage.getItem(qualiKey)).not.toBeNull()
 
-    const saveQuali = canonicalQualifyingPersistenceService.saveStageState(
+    // 2. Reset para geração 2
+    resetWeekendForRound({ careerId, seasonId, round })
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(2)
+    expect(localStorage.getItem(qualiKey)).toBeNull()
+
+    // 3. Tentar saveStageState com state da geração 1 (stale)
+    const savedStale = canonicalQualifyingPersistenceService.saveStageState(
       seasonId,
       round,
-      qualiStateStale,
+      stateQ1,
     )
-    expect(saveQuali).toBe(false)
+    expect(savedStale).toBe(false)
+
+    // Storage resetado permanece intacto e limpo
+    expect(localStorage.getItem(qualiKey)).toBeNull()
+    expect(canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')).toBeNull()
+  })
+
+  it('S4 — STALE SESSION STATE: mesmo contrato para saveSessionState (rejeitado, storage intacto)', async () => {
+    // 1. Salvar treino na geração 1
+    const stateTP1 = createMockPracticeState(1)
+    await practiceSessionService.saveSessionState(stateTP1)
+    const tp1Key = `apex_practice_session_${careerId}_${seasonId}_${round}_tp1`
+    expect(localStorage.getItem(tp1Key)).not.toBeNull()
+
+    // 2. Reset para geração 2
+    resetWeekendForRound({ careerId, seasonId, round })
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(2)
+    expect(localStorage.getItem(tp1Key)).toBeNull()
+
+    // 3. Tentar saveSessionState com state da geração 1 (stale)
+    await practiceSessionService.saveSessionState(stateTP1)
+
+    // Storage de treino permanece intacto e limpo
+    expect(localStorage.getItem(tp1Key)).toBeNull()
+    expect(practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')).toBeNull()
+  })
+
+  it('S5 — NOVO STATE FUNCIONA: state N+1 persiste normalmente', async () => {
+    // Reset para avançar para geração 2
+    resetWeekendForRound({ careerId, seasonId, round })
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(2)
+
+    // Novo state criado já com geração 2
+    const freshQuali = createMockQualiState('q1', 2)
+    const freshPractice = createMockPracticeState(2)
+
+    const savedQ = canonicalQualifyingPersistenceService.saveStageState(seasonId, round, freshQuali)
+    expect(savedQ).toBe(true)
+
+    await practiceSessionService.saveSessionState(freshPractice)
+
+    const loadedQ = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
+    expect(loadedQ).not.toBeNull()
+    expect(loadedQ?.generation).toBe(2)
+
+    const loadedP = practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')
+    expect(loadedP).not.toBeNull()
+    expect(loadedP?.generation).toBe(2)
+  })
+
+  it('S6 — RELOAD: após reset e novo state, reload reconhece somente generation N+1', () => {
+    // 1. Reset para geração 2
+    resetWeekendForRound({ careerId, seasonId, round })
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(2)
+
+    // 2. Se injeção externa espúria colocar chave antiga no storage
+    const qualiKey = canonicalQualifyingPersistenceService.getStageStateKey(seasonId, round, 'q1')
+    const rogueState = createMockQualiState('q1', 1)
+    localStorage.setItem(qualiKey, JSON.stringify(rogueState))
+
+    // 3. Leitor (reload) descarta state obsoleto
     expect(canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')).toBeNull()
 
-    // Para treino livre: aplicação de novo acerto em objeto stale e tentativa de salvar
-    practiceStateStale.cars.car1.setup = { ...practiceStateStale.cars.car1.setup, ...newSetup }
+    // 4. Salvar estado legítimo geração 2
+    const validGen2 = createMockQualiState('q1', 2)
+    canonicalQualifyingPersistenceService.saveStageState(seasonId, round, validGen2)
+
+    const reloaded = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
+    expect(reloaded).not.toBeNull()
+    expect(reloaded?.generation).toBe(2)
+  })
+
+  it('S7 — HANDLER INDIRETO: exercitar fluxos reais que chamam o save com referência antiga pós-reset; confirmar que o gatekeeper central bloqueia', async () => {
+    const qualiStateStale = createMockQualiState('q1', 1)
+    const practiceStateStale = createMockPracticeState(1)
+
+    // Reset do fim de semana
+    resetWeekendForRound({ careerId, seasonId, round })
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(2)
+
+    // A. Saída para pista via runner
+    const exitRes = CanonicalQualifyingRunner.orderCarExitToTrack(qualiStateStale, 'car1')
+    expect(exitRes.success).toBe(true)
+    const saveExit = canonicalQualifyingPersistenceService.saveStageState(
+      seasonId,
+      round,
+      qualiStateStale,
+    )
+    expect(saveExit).toBe(false)
+    expect(canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')).toBeNull()
+
+    // B. Ajuste de acerto mecânico em qualifying
+    const setupRes = CanonicalQualifyingRunner.updateCarGarageSetup(qualiStateStale, 'car1', {
+      frontWing: 10,
+    })
+    expect(setupRes.success).toBe(true)
+    const saveSetup = canonicalQualifyingPersistenceService.saveStageState(
+      seasonId,
+      round,
+      qualiStateStale,
+    )
+    expect(saveSetup).toBe(false)
+
+    // C. Instalação de pneu em qualifying
+    CanonicalQualifyingRunner.fitTyreSetInGarage(qualiStateStale, 'car1', {
+      id: 'tyre_set_stale_99',
+      compound: 'macio',
+      wear: 60,
+    })
+    const saveTyre = canonicalQualifyingPersistenceService.saveStageState(
+      seasonId,
+      round,
+      qualiStateStale,
+    )
+    expect(saveTyre).toBe(false)
+    expect(canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')).toBeNull()
+
+    // D. Treino: alteração de setup em objeto stale
+    practiceStateStale.cars.car1.setup = { ...practiceStateStale.cars.car1.setup, frontWing: 10 }
     await practiceSessionService.saveSessionState(practiceStateStale)
     expect(practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')).toBeNull()
   })
 
-  it('R5: pós-reset + tentativa espúria, reload reconhece apenas geração N+1', () => {
-    // 1. Rodada resetada, avançando para geração 2
+  it('S8 — LEGACY: cobrir explicitamente state sem generation conforme a regra de compatibilidade adotada', async () => {
+    // 1. Estado legado antes de qualquer reset (geração baseline = 1)
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(1)
+
+    const legacyQualiBeforeReset = createMockQualiState('q1', undefined)
+    const savedLegacyQ = canonicalQualifyingPersistenceService.saveStageState(
+      seasonId,
+      round,
+      legacyQualiBeforeReset,
+    )
+    expect(savedLegacyQ).toBe(true)
+    expect(legacyQualiBeforeReset.generation).toBe(1)
+
+    const readLegacyQ = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
+    expect(readLegacyQ).not.toBeNull()
+    expect(readLegacyQ?.generation).toBe(1)
+
+    const legacyPracticeBeforeReset = createMockPracticeState(undefined)
+    await practiceSessionService.saveSessionState(legacyPracticeBeforeReset)
+    expect(legacyPracticeBeforeReset.generation).toBe(1)
+
+    const readLegacyP = practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')
+    expect(readLegacyP).not.toBeNull()
+    expect(readLegacyP?.generation).toBe(1)
+
+    // 2. Agora o fim de semana avança geração por reset (geração vira 2)
     resetWeekendForRound({ careerId, seasonId, round })
-    expect(getActiveWeekendGeneration(seasonId, round)).toBe(2)
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(2)
 
-    // 2. Se algo espúrio conseguisse escrever diretamente uma chave antiga no localStorage
-    // (ex: simulação de script desatualizado com generation: 1)
-    const rogueState = createMockQualiState('q1', 1)
-    const qualiKey = canonicalQualifyingPersistenceService.getStageStateKey(seasonId, round, 'q1')
-    localStorage.setItem(qualiKey, JSON.stringify(rogueState))
-
-    // 3. O leitor canônico (reload) deve detectar a geração obsoleta e descartar o estado
-    const reloaded = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
-    expect(reloaded).toBeNull()
-
-    // O mesmo para treino
-    const roguePractice = createMockPracticeState(1)
-    const tpKey = `apex_practice_session_${careerId}_${seasonId}_${round}_tp1`
-    localStorage.setItem(tpKey, JSON.stringify(roguePractice))
-    const reloadedPractice = practiceSessionService.readFromLocalCache(
-      careerId,
+    // 3. Tentar persistir um state legado sem generation APÓS o reset
+    const legacyQualiAfterReset = createMockQualiState('q1', undefined)
+    const savedLegacyAfter = canonicalQualifyingPersistenceService.saveStageState(
       seasonId,
       round,
-      'tp1',
+      legacyQualiAfterReset,
     )
-    expect(reloadedPractice).toBeNull()
+    // REJEITADO! Pois a rodada já avançou além da baseline 1 e não pode presumir silenciosamente que é atual
+    expect(savedLegacyAfter).toBe(false)
+    expect(canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')).toBeNull()
 
-    // 4. Mas um estado salvo com geração 2 é lido perfeitamente
-    const gen2State = createMockQualiState('q1', 2)
-    canonicalQualifyingPersistenceService.saveStageState(seasonId, round, gen2State)
-    const validReloaded = canonicalQualifyingPersistenceService.readStageState(
-      seasonId,
-      round,
-      'q1',
-    )
-    expect(validReloaded).not.toBeNull()
-    expect(validReloaded?.generation).toBe(2)
+    const legacyPracticeAfterReset = createMockPracticeState(undefined)
+    await practiceSessionService.saveSessionState(legacyPracticeAfterReset)
+    expect(practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')).toBeNull()
   })
 
-  it('R6: pneus/inventário da sessão descartada não reaparecem via objeto stale', () => {
-    // 1. Sessão antiga tem pneu com desgaste acumulado
-    const qualiStateStale = createMockQualiState('q1', 1)
-    qualiStateStale.cars.car1.currentTyreSetId = 'tyre_used_99'
-    qualiStateStale.cars.car1.tyreWear = 75
+  it('S9 — FUTURE INCONSISTENCY: state com generation > current é rejeitado e não sobrescreve storage silenciosamente', async () => {
+    expect(getActiveWeekendGeneration(seasonId, round, careerId)).toBe(1)
 
-    // 2. Reset do fim de semana
-    resetWeekendForRound({ careerId, seasonId, round })
-    expect(getActiveWeekendGeneration(seasonId, round)).toBe(2)
-
-    // 3. Tentativa de chamar fitTyreSetInGarage e persistir
-    CanonicalQualifyingRunner.fitTyreSetInGarage(qualiStateStale, 'car1', {
-      id: 'tyre_used_99',
-      compound: 'macio',
-      wear: 75,
-    })
-    const saved = canonicalQualifyingPersistenceService.saveStageState(
+    const futureQuali = createMockQualiState('q1', 99)
+    const savedQ = canonicalQualifyingPersistenceService.saveStageState(
       seasonId,
       round,
-      qualiStateStale,
+      futureQuali,
     )
-    expect(saved).toBe(false)
+    expect(savedQ).toBe(false)
+    expect(canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')).toBeNull()
 
-    // Verifica que o estado persistido não existe e não contém esse pneu
-    const read = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
-    expect(read).toBeNull()
-  })
-
-  it('R7: regressão — fluxo normal sem reset continua salvando (com e sem generation prévio)', async () => {
-    // 1. Estado sem generation explícito (legado/retrocompatibilidade)
-    const legacyQuali = createMockQualiState('q1', undefined)
-    const savedLegacy = canonicalQualifyingPersistenceService.saveStageState(
-      seasonId,
-      round,
-      legacyQuali,
-    )
-    expect(savedLegacy).toBe(true)
-
-    // Foi salvo com a geração ativa atual (1)
-    const readLegacy = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
-    expect(readLegacy).not.toBeNull()
-    expect(readLegacy?.generation).toBe(1)
-
-    // 2. Treino sem generation explícito
-    const legacyPractice = createMockPracticeState(undefined)
-    await practiceSessionService.saveSessionState(legacyPractice)
-    const readPractice = practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')
-    expect(readPractice).not.toBeNull()
-    expect(readPractice?.generation).toBe(1)
-
-    // 3. Atualizações subsequentes na mesma geração continuam funcionando perfeitamente
-    readLegacy!.elapsedTimeSec += 60
-    const updateResult = canonicalQualifyingPersistenceService.saveStageState(
-      seasonId,
-      round,
-      readLegacy!,
-    )
-    expect(updateResult).toBe(true)
-
-    const reRead = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
-    expect(reRead?.elapsedTimeSec).toBe(180)
+    const futurePractice = createMockPracticeState(99)
+    await practiceSessionService.saveSessionState(futurePractice)
+    expect(practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')).toBeNull()
   })
 })

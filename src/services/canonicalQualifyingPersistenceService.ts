@@ -62,18 +62,35 @@ export const canonicalQualifyingPersistenceService = {
   saveStageState(seasonId: string, round: number, state: QualifyingStageState): boolean {
     if (typeof window === 'undefined' || !window.localStorage) return false
     try {
-      const activeGen = getActiveWeekendGeneration(seasonId, round)
-      // BUG-TYRE-RESET-01A: Rejeitar escrita se state.generation for incompatível com a geração ativa da rodada
-      if (state.generation !== undefined && state.generation !== activeGen) {
-        console.warn(
-          `[QualifyingPersistence] Escrita rejeitada por geração obsoleta: state.generation (${state.generation}) !== activeGen (${activeGen}) para ${seasonId} r${round}`,
-        )
-        return false
+      const currentGen = getActiveWeekendGeneration(seasonId, round)
+
+      // RESET-FIX-2: Gatekeeper central contra state stale / geração incompatível
+      if (state.generation !== undefined) {
+        if (state.generation < currentGen) {
+          console.warn(
+            `[QualifyingPersistence] STALE_STATE: escrita rejeitada por geração obsoleta (state=${state.generation} < current=${currentGen}) para ${seasonId} r${round}`,
+          )
+          return false
+        }
+        if (state.generation > currentGen) {
+          console.warn(
+            `[QualifyingPersistence] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${state.generation} > current=${currentGen}) para ${seasonId} r${round}`,
+          )
+          return false
+        }
+      } else {
+        // State legado sem generation:
+        // Só é aceito e associado à geração atual se a rodada ainda estiver na geração baseline (1).
+        // Se a rodada já avançou geração por reset (currentGen > 1), state sem geração é stale e não pode ser persistido.
+        if (currentGen > 1) {
+          console.warn(
+            `[QualifyingPersistence] STALE_STATE: escrita rejeitada para state legado sem generation após avanço de rodada (current=${currentGen}) para ${seasonId} r${round}`,
+          )
+          return false
+        }
+        state.generation = currentGen
       }
-      // Se state não tem generation (saves antigos/legados), vincula à geração canônica ativa
-      if (state.generation === undefined) {
-        state.generation = activeGen
-      }
+
       state.updatedAt = new Date().toISOString()
       state.revision = (state.revision || 0) + 1
       const key = this.getStageStateKey(seasonId, round, state.stageId)
@@ -100,16 +117,24 @@ export const canonicalQualifyingPersistenceService = {
       if (!raw) return null
       const parsed = JSON.parse(raw) as QualifyingStageState
 
-      const activeGen = getActiveWeekendGeneration(seasonId, round)
+      const currentGen = getActiveWeekendGeneration(seasonId, round)
       // Se tiver geração registrada e for diferente da ativa, o estado é obsoleto
-      if (parsed && parsed.generation !== undefined && parsed.generation !== activeGen) {
-        console.warn(
-          `[QualifyingPersistence] Estado lido ignorado por geração obsoleta: ${parsed.generation} !== activeGen ${activeGen}`,
-        )
-        return null
-      }
-      if (parsed && parsed.generation === undefined) {
-        parsed.generation = activeGen
+      if (parsed && parsed.generation !== undefined) {
+        if (parsed.generation !== currentGen) {
+          console.warn(
+            `[QualifyingPersistence] Estado lido ignorado por geração obsoleta/incompatível: ${parsed.generation} !== currentGen ${currentGen}`,
+          )
+          return null
+        }
+      } else if (parsed) {
+        // Se a rodada já avançou geração por reset (> 1), state sem geração é stale
+        if (currentGen > 1) {
+          console.warn(
+            `[QualifyingPersistence] Estado legado lido ignorado por avanço prévio de geração: currentGen ${currentGen}`,
+          )
+          return null
+        }
+        parsed.generation = currentGen
       }
 
       // BUG-SQ3-TRANSITION-R3: Reconciliação canônica de running órfão pós-reload/reidratação.
