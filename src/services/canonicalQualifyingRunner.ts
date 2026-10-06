@@ -20,12 +20,13 @@
 import type {
   QualifyingStageId,
   QualifyingStageState,
-  QualifyingCarState,
-  QualifyingTimeEntry,
-  QualifyingLapRecord,
-  QualifyingRadioFeedEvent,
   QualifyingStageResult,
+  QualifyingCarState,
+  QualifyingLapRecord,
+  QualifyingTimeEntry,
+  QualifyingRadioFeedEvent,
 } from '@/types/canonical-qualifying-types'
+import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 import { CANONICAL_QUALIFYING_RULES } from '@/types/canonical-qualifying-types'
 import { FUEL_CONSUMPTION_KG_PER_LAP } from '@/types/practice-preparation'
 import { TIRE_SPECS, type TrackWeatherState } from '@/lib/f1-tire-system'
@@ -145,6 +146,7 @@ export class CanonicalQualifyingRunner {
 
     const rules = CANONICAL_QUALIFYING_RULES[stageId]
     const nowIso = new Date().toISOString()
+    const activeGen = getActiveWeekendGeneration(seasonId, round)
 
     const parentStage =
       stageId === 'sq2' ? 'sq1' : stageId === 'sq3' ? 'sq2' : stageId === 'q2' ? 'q1' : 'q2'
