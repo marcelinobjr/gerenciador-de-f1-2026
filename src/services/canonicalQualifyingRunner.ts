@@ -1155,16 +1155,19 @@ export class CanonicalQualifyingRunner {
       }
     }
 
-    if (currentState.status !== 'completed') {
+    if (currentState.status === 'completed') {
+      this.finalizeStage(currentState, context, {
+        persistState: options?.persistState ?? true,
+      })
+    } else {
       currentState.status = 'paused'
-    }
-
-    if (options?.persistState ?? true) {
-      canonicalQualifyingPersistenceService.saveStageState(
-        context.seasonId,
-        context.round,
-        currentState,
-      )
+      if (options?.persistState ?? true) {
+        canonicalQualifyingPersistenceService.saveStageState(
+          context.seasonId,
+          context.round,
+          currentState,
+        )
+      }
     }
 
     return {

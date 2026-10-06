@@ -35,8 +35,9 @@ describe('BUG-TL1-RELEASE-LOCK-01: Sessão de treino fantasma após reset', () =
         objective: 'qualifying_sim',
         status: 'ready',
       } as any,
-    ],    overallObjective: 'Teste Canadá TL1',
-    confirmedAt: new Date().toISOString(),
+    ],
+    status: 'ready',
+    updatedAt: new Date().toISOString(),
   }
 
   beforeEach(() => {
