@@ -401,14 +401,13 @@ export default function WeekendV2Page() {
             round: currentRound,
           })
           .then((slotState) => {
-            if (isMounted) {
+            if (slotState) {
               setWeekendSlotState(slotState)
             }
           })
           .catch((err) => {
             console.warn('[WeekendV2Page] Erro ao carregar slotState:', err)
           })
-
         // 3.4. Determinar sessão canônica inicial
         // BUG-SQ3-TRANSITION-R3: Se uma sessão estiver em running ou paused, ela tem prioridade de retomada
         let resumableSessionId: RaceWeekendSessionId | null = null
