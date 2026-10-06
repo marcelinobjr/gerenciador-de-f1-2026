@@ -21,6 +21,7 @@
  */
 
 import pb from '@/lib/pocketbase/client'
+import { ClientResponseError } from 'pocketbase'
 import { loadVersionedRaceConfig, RaceConfigLoadError } from '@/lib/race/loader'
 import type { VersionedRaceConfig } from '@/lib/race/types'
 import {
@@ -142,6 +143,13 @@ export class RacePracticeSetupService {
     Promise<Record<string, PracticeSetupApplicationRecord> | null>
   >()
 
+  // Último valor válido carregado com sucesso por chave canônica (BUG-429-SETUPS-B Fallback)
+  // Map<canonicalKey, Record<string, PracticeSetupApplicationRecord> | null>
+  private lastKnownValidSessionSetupStore = new Map<
+    string,
+    Record<string, PracticeSetupApplicationRecord> | null
+  >()
+
   /**
    * Constrói a chave canônica estável que representa univocamente a consulta real ao PocketBase:
    * collection session_setups com filtro:
@@ -171,10 +179,18 @@ export class RacePracticeSetupService {
   }
 
   /**
+   * Limpa o cache de último valor válido conhecido (para testes).
+   */
+  public clearLastKnownValidStore(): void {
+    this.lastKnownValidSessionSetupStore.clear()
+  }
+
+  /**
    * Mantido para compatibilidade retroativa de limpeza em testes.
    */
   public clearMemoryCache(): void {
     this.clearInFlightRequests()
+    this.clearLastKnownValidStore()
   }
 
   /**
@@ -209,21 +225,43 @@ export class RacePracticeSetupService {
     }
 
     const queryPromise = (async () => {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
-      })
+      try {
+        const records = await pb.collection('session_setups').getList(1, 1, {
+          filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
+        })
 
-      if (records && records.items && records.items.length > 0) {
-        const item = records.items[0]
-        const strategies = (item.driver_strategies as any) || {}
-        return (
-          (strategies.practiceSetupApplications as Record<
-            string,
-            PracticeSetupApplicationRecord
-          >) || null
-        )
+        let resolvedStore: Record<string, PracticeSetupApplicationRecord> | null = null
+        if (records && records.items && records.items.length > 0) {
+          const item = records.items[0]
+          const strategies = (item.driver_strategies as any) || {}
+          resolvedStore =
+            (strategies.practiceSetupApplications as Record<
+              string,
+              PracticeSetupApplicationRecord
+            >) || null
+        }
+
+        // Armazena como último valor válido conhecido para esta chave canônica
+        this.lastKnownValidSessionSetupStore.set(canonicalKey, resolvedStore)
+        return resolvedStore
+      } catch (err: unknown) {
+        // Interceptar APENAS erro com status === 429 via ClientResponseError do PocketBase SDK
+        if (err instanceof ClientResponseError && err.status === 429) {
+          const hasCached = this.lastKnownValidSessionSetupStore.has(canonicalKey)
+          const fallbackStore = hasCached
+            ? (this.lastKnownValidSessionSetupStore.get(canonicalKey) ?? null)
+            : null
+
+          console.warn(
+            `[RacePracticeSetupService] HTTP 429 Too Many Requests interceptado na leitura de session_setups. Chave: "${canonicalKey}". Fallback aplicado: ${hasCached ? 'último valor válido em memória' : 'estado neutro (null)'}.`,
+          )
+
+          return fallbackStore
+        }
+
+        // Qualquer outro erro (400, 401, 403, 404, 500, erro de rede, desconhecido) continua propagando normalmente
+        throw err
       }
-      return null
     })().finally(() => {
       // Ao resolver ou rejeitar, remove a Promise do mapa imediatamente
       this.inFlightSessionSetupRequests.delete(canonicalKey)
@@ -754,16 +792,58 @@ export class RacePracticeSetupService {
         internalSession,
       )
       if (setupStore && setupStore[applicationKey]) {
+        // Atualiza o cache local com o valor válido recebido do backend
+        this.saveToLocalCache(careerId, seasonId, round, session, setupStore[applicationKey])
         return setupStore[applicationKey]
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      // BUG-429-SETUPS-B: Tratamento exclusivo para HTTP 429 (Too Many Requests) do PocketBase
+      const isRateLimited =
+        (err instanceof ClientResponseError && err.status === 429) ||
+        (typeof err === 'object' &&
+          err !== null &&
+          'status' in err &&
+          (err as { status: unknown }).status === 429)
+
+      if (isRateLimited) {
+        // Observabilidade: Registrar advertência não fatal informativa
+        const canonicalKey = this.buildSessionSetupCanonicalKey(
+          careerId,
+          seasonId,
+          round,
+          internalSession,
+        )
+        // Prioridade 1: Último valor válido já conhecido (armazenamento local / cache existente)
+        const lastValid = this.readFromLocalCache(
+          careerId,
+          seasonId,
+          round,
+          session,
+          applicationKey,
+        )
+        if (lastValid) {
+          console.warn(
+            `[RacePracticeSetupService] HTTP 429 detectado em loadPersistedApplication (${canonicalKey}, key=${applicationKey}). Fallback: reutilizando último valor válido conhecido.`,
+          )
+          return lastValid
+        }
+
+        // Prioridade 2: Estado neutro compatível (null -> sem registro persistido, accumulatedSetup = 0)
+        console.warn(
+          `[RacePracticeSetupService] HTTP 429 detectado em loadPersistedApplication (${canonicalKey}, key=${applicationKey}). Fallback: estado neutro (sem valor anterior).`,
+        )
+        return null
+      }
+
+      // Outros erros (400, 401, 403, 404, 500, etc.) DEVEM continuar falhando/propagando
       console.warn(
         `[RacePracticeSetupService] Erro ao carregar session_setups do PB (${session}):`,
-        err?.message || err,
+        err instanceof Error ? err.message : err,
       )
+      throw err
     }
 
-    // 2. Fallback de resiliência: Cache local
+    // 2. Sem erro 429, consulta concluída com sucesso: se não encontrou no backend, consulta cache local
     return this.readFromLocalCache(careerId, seasonId, round, session, applicationKey)
   }
 

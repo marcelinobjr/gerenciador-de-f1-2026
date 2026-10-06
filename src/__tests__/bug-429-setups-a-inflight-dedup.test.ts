@@ -265,16 +265,17 @@ describe('BUG-429-SETUPS-A: Deduplicação de Requests In-Flight para session_se
       return {} as any
     })
 
-    // 1ª chamada falha (rejeita)
-    // loadPersistedApplication captura o erro e retorna fallback (null quando não há cache local)
-    const res1 = await racePracticeSetupService.loadPersistedApplication(
-      'career_audi',
-      'season_2026',
-      1,
-      'TL1',
-      'app_ok',
-    )
-    expect(res1).toBeNull()
+    // 1ª chamada falha (rejeita com erro não-429)
+    // loadPersistedApplication propaga o erro não-429
+    await expect(
+      racePracticeSetupService.loadPersistedApplication(
+        'career_audi',
+        'season_2026',
+        1,
+        'TL1',
+        'app_ok',
+      ),
+    ).rejects.toThrow('Network failure or simulated 429')
     expect(callIndex).toBe(1)
 
     // In-flight deve estar limpo imediatamente
