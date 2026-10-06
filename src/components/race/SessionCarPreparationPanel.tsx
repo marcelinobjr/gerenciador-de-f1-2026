@@ -72,6 +72,9 @@ export interface SessionCarPreparationPanelProps {
   hasUnreadFeedback?: boolean
   isSessionRunning?: boolean
   isSessionCompleted?: boolean
+  careerId?: string
+  seasonId?: string
+  round?: number
   // Callbacks
   onOrderExitTrack?: () => void
   onRequestBox?: () => void
@@ -99,6 +102,9 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
   hasUnreadFeedback = false,
   isSessionRunning = false,
   isSessionCompleted = false,
+  careerId = 'default',
+  seasonId = 'default',
+  round = 1,
   onOrderExitTrack,
   onRequestBox,
   onUpdateSetup,
@@ -150,9 +156,9 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
     // Tenta obter o acerto acumulado canônico persistido para a vaga deste carro
     racePracticeSetupService
       .getCarAccumulatedSetup({
-        careerId: 'default',
-        seasonId: 'default',
-        round: 1,
+        careerId,
+        seasonId,
+        round,
         teamId: 'player',
         carIndex: car.carNumber as 1 | 2,
       })
@@ -166,7 +172,7 @@ export const SessionCarPreparationPanel: React.FC<SessionCarPreparationPanelProp
     return () => {
       active = false
     }
-  }, [sessionType, car.carNumber, car.totalLaps])
+  }, [sessionType, car.carNumber, car.totalLaps, careerId, seasonId, round])
 
   const isInGarage = car.status === 'garage'
   const isCarOnTrack = !isInGarage && car.status !== 'eliminated'

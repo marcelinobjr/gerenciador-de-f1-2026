@@ -3634,6 +3634,9 @@ export default function WeekendV2Page() {
                   hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car1')}
                   isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
                   isSessionCompleted={sessionState.status === 'completed'}
+                  careerId={team?.id || 'default'}
+                  seasonId={season?.id || 'default'}
+                  round={currentRound}
                   onOrderExitTrack={() => handleOrderExit('car1')}
                   onRequestBox={() => handleRequestBox('car1')}
                   onUpdateSetup={(newSetup) => handleApplyCarSetup('car1', newSetup)}
@@ -3683,6 +3686,9 @@ export default function WeekendV2Page() {
                   hasUnreadFeedback={sessionState.unreadFeedbackCarIds?.includes('car2')}
                   isSessionRunning={sessionState.status === 'running' || isAutoAdvancing}
                   isSessionCompleted={sessionState.status === 'completed'}
+                  careerId={team?.id || 'default'}
+                  seasonId={season?.id || 'default'}
+                  round={currentRound}
                   onOrderExitTrack={() => handleOrderExit('car2')}
                   onRequestBox={() => handleRequestBox('car2')}
                   onUpdateSetup={(newSetup) => handleApplyCarSetup('car2', newSetup)}
@@ -3906,6 +3912,9 @@ export default function WeekendV2Page() {
                   inventory={tyreInventories[pCar1.driverId] || []}
                   isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
                   isSessionCompleted={qualifyingState.status === 'completed'}
+                  careerId={team?.id || 'default'}
+                  seasonId={season?.id || 'default'}
+                  round={currentRound}
                   onOrderExitTrack={() => handleOrderExit('car1')}
                   onRequestBox={() => handleRequestBox('car1')}
                   onUpdateSetup={(newSetup) => handleApplyCarSetup('car1', newSetup)}
@@ -3943,6 +3952,9 @@ export default function WeekendV2Page() {
                   inventory={tyreInventories[pCar2.driverId] || []}
                   isSessionRunning={qualifyingState.status === 'running' || isAutoAdvancing}
                   isSessionCompleted={qualifyingState.status === 'completed'}
+                  careerId={team?.id || 'default'}
+                  seasonId={season?.id || 'default'}
+                  round={currentRound}
                   onOrderExitTrack={() => handleOrderExit('car2')}
                   onRequestBox={() => handleRequestBox('car2')}
                   onUpdateSetup={(newSetup) => handleApplyCarSetup('car2', newSetup)}

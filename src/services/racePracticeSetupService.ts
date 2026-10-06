@@ -133,7 +133,124 @@ export interface WeekendNormalState {
   >
 }
 
+// Estrutura de cache em memória para deduplicação e TTL curto
+interface SessionSetupCacheEntry {
+  store: Record<string, PracticeSetupApplicationRecord> | null
+  timestamp: number
+}
+
 export class RacePracticeSetupService {
+  // Cache de memória: chave (careerId, seasonId, round, session) -> dados com TTL de 5s
+  private memoryCache = new Map<string, SessionSetupCacheEntry>()
+  // Deduplicação in-flight: chave -> Promise da requisição em andamento
+  private inFlightRequests = new Map<
+    string,
+    Promise<Record<string, PracticeSetupApplicationRecord> | null>
+  >()
+  private readonly CACHE_TTL_MS = 5000
+
+  private getCacheKey(
+    careerId: string,
+    seasonId: string,
+    round: number,
+    internalSession: string,
+  ): string {
+    return `${careerId}::${seasonId}::${round}::${internalSession}`
+  }
+
+  /**
+   * Limpa o cache em memória (útil para testes ou após escrita).
+   */
+  public clearMemoryCache(): void {
+    this.memoryCache.clear()
+    this.inFlightRequests.clear()
+  }
+
+  /**
+   * Busca no PocketBase ou no cache de memória, com deduplicação de requisições concorrentes
+   * e tolerância a HTTP 429 (Too Many Requests) com 1 retry e backoff curto de ~400ms.
+   */
+  private async fetchSessionSetupStore(
+    careerId: string,
+    seasonId: string,
+    round: number,
+    internalSession: string,
+  ): Promise<Record<string, PracticeSetupApplicationRecord> | null> {
+    const key = this.getCacheKey(careerId, seasonId, round, internalSession)
+    const now = Date.now()
+
+    // 1. Checa cache de memória com TTL
+    const cached = this.memoryCache.get(key)
+    if (cached && now - cached.timestamp < this.CACHE_TTL_MS) {
+      return cached.store
+    }
+
+    // 2. Se já existe uma requisição em voo para essa mesma chave, compartilha a Promise
+    const inFlight = this.inFlightRequests.get(key)
+    if (inFlight) {
+      return inFlight
+    }
+
+    // 3. Executa a requisição com proteção de retry para 429
+    const fetchPromise = (async () => {
+      const executeQuery = async () => {
+        const records = await pb.collection('session_setups').getList(1, 1, {
+          filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
+        })
+
+        if (records.items.length > 0) {
+          const item = records.items[0]
+          const strategies = (item.driver_strategies as any) || {}
+          return (
+            (strategies.practiceSetupApplications as Record<
+              string,
+              PracticeSetupApplicationRecord
+            >) || null
+          )
+        }
+        return null
+      }
+
+      try {
+        const result = await executeQuery()
+        this.memoryCache.set(key, { store: result, timestamp: Date.now() })
+        return result
+      } catch (firstErr: any) {
+        const is429 =
+          firstErr?.status === 429 ||
+          firstErr?.response?.status === 429 ||
+          firstErr?.statusCode === 429 ||
+          String(firstErr?.message || '').includes('429') ||
+          String(firstErr?.message || '')
+            .toLowerCase()
+            .includes('too many requests')
+
+        if (is429) {
+          // Retry único com backoff curto (~400ms)
+          await new Promise((res) => setTimeout(res, 400))
+          try {
+            const retryResult = await executeQuery()
+            this.memoryCache.set(key, { store: retryResult, timestamp: Date.now() })
+            return retryResult
+          } catch (retryErr: any) {
+            console.warn(
+              `[RacePracticeSetupService] 429 persistiu após retry para chave ${key}. Retornando null para acionar fallback suave.`,
+              retryErr?.message || retryErr,
+            )
+            // Retorna null sem lançar exceção para acionar fallback do cache local ou default
+            return null
+          }
+        }
+        throw firstErr
+      } finally {
+        this.inFlightRequests.delete(key)
+      }
+    })()
+
+    this.inFlightRequests.set(key, fetchPromise)
+    return fetchPromise
+  }
+
   /**
    * Resolve as regras de treinos a partir da configuração versionada.
    * Não hardcoda valores caso a tabela practice_sessions exista no snapshot.
@@ -464,48 +581,55 @@ export class RacePracticeSetupService {
   }> {
     const { careerId, seasonId, round, teamId, carIndex, isSprint = false } = params
 
-    // Tenta TL3 -> TL2 -> TL1 (ordem reversa para obter o estado mais avançado)
-    const sessionsToCheck: PracticeSessionId[] = isSprint ? ['TL1'] : ['TL3', 'TL2', 'TL1']
+    try {
+      // Tenta TL3 -> TL2 -> TL1 (ordem reversa para obter o estado mais avançado)
+      const sessionsToCheck: PracticeSessionId[] = isSprint ? ['TL1'] : ['TL3', 'TL2', 'TL1']
 
-    for (const sess of sessionsToCheck) {
-      const factKey = buildPracticeSetupFactKey({
-        careerId,
-        seasonId,
-        round,
-        session: sess,
-        teamId,
-        carIndex,
-      })
-      const rec = await this.loadPersistedApplication(careerId, seasonId, round, sess, factKey)
-      if (rec) {
-        let isPracticeComplete = false
-        let nextStep: 'TL1' | 'TL2' | 'TL3' | 'Q1' | 'SQ1' = 'TL1'
+      for (const sess of sessionsToCheck) {
+        const factKey = buildPracticeSetupFactKey({
+          careerId,
+          seasonId,
+          round,
+          session: sess,
+          teamId,
+          carIndex,
+        })
+        const rec = await this.loadPersistedApplication(careerId, seasonId, round, sess, factKey)
+        if (rec) {
+          let isPracticeComplete = false
+          let nextStep: 'TL1' | 'TL2' | 'TL3' | 'Q1' | 'SQ1' = 'TL1'
 
-        if (isSprint) {
-          if (sess === 'TL1') {
-            isPracticeComplete = true
-            nextStep = 'SQ1'
+          if (isSprint) {
+            if (sess === 'TL1') {
+              isPracticeComplete = true
+              nextStep = 'SQ1'
+            }
+          } else {
+            if (sess === 'TL3') {
+              isPracticeComplete = true
+              nextStep = 'Q1'
+            } else if (sess === 'TL2') {
+              nextStep = 'TL3'
+            } else if (sess === 'TL1') {
+              nextStep = 'TL2'
+            }
           }
-        } else {
-          if (sess === 'TL3') {
-            isPracticeComplete = true
-            nextStep = 'Q1'
-          } else if (sess === 'TL2') {
-            nextStep = 'TL3'
-          } else if (sess === 'TL1') {
-            nextStep = 'TL2'
-          }
-        }
 
-        return {
-          accumulatedSetup: rec.accumulatedSetup,
-          lastCompletedSession: sess,
-          qualifyingBonusSeconds: rec.qualifyingBonusSeconds,
-          raceBonusSecondsPerLap: rec.raceBonusSecondsPerLap,
-          isPracticeComplete,
-          nextStep,
+          return {
+            accumulatedSetup: rec.accumulatedSetup,
+            lastCompletedSession: sess,
+            qualifyingBonusSeconds: rec.qualifyingBonusSeconds,
+            raceBonusSecondsPerLap: rec.raceBonusSecondsPerLap,
+            isPracticeComplete,
+            nextStep,
+          }
         }
       }
+    } catch (err: any) {
+      console.warn(
+        `[RacePracticeSetupService] Erro em getCarAccumulatedSetup (fallback padrão ativado):`,
+        err?.message || err,
+      )
     }
 
     return {
@@ -535,75 +659,90 @@ export class RacePracticeSetupService {
     const order: PracticeSessionId[] = ['TL1', 'TL2', 'TL3']
     const carCompletedIndices: number[] = []
 
-    for (const carIndex of cars) {
-      const carKey = `${teamId}_c${carIndex}`
-      let accumulated = 0
-      let qualiBonus = 0
-      let raceBonus = 0
-      let lastDriver = ''
-      const completedList: PracticeSessionId[] = []
-      let carMaxIndex = -1
+    try {
+      for (const carIndex of cars) {
+        const carKey = `${teamId}_c${carIndex}`
+        let accumulated = 0
+        let qualiBonus = 0
+        let raceBonus = 0
+        let lastDriver = ''
+        const completedList: PracticeSessionId[] = []
+        let carMaxIndex = -1
 
-      for (let i = 0; i < order.length; i++) {
-        const sess = order[i]
-        const factKey = buildPracticeSetupFactKey({
-          careerId,
-          seasonId,
-          round,
-          session: sess,
+        for (let i = 0; i < order.length; i++) {
+          const sess = order[i]
+          const factKey = buildPracticeSetupFactKey({
+            careerId,
+            seasonId,
+            round,
+            session: sess,
+            teamId,
+            carIndex,
+          })
+          const rec = await this.loadPersistedApplication(careerId, seasonId, round, sess, factKey)
+          if (rec) {
+            accumulated = rec.accumulatedSetup
+            qualiBonus = rec.qualifyingBonusSeconds
+            raceBonus = rec.raceBonusSecondsPerLap
+            lastDriver = rec.driverId
+            completedList.push(sess)
+            carMaxIndex = i
+          }
+        }
+
+        carCompletedIndices.push(carMaxIndex)
+
+        carSetups[carKey] = {
           teamId,
           carIndex,
-        })
-        const rec = await this.loadPersistedApplication(careerId, seasonId, round, sess, factKey)
-        if (rec) {
-          accumulated = rec.accumulatedSetup
-          qualiBonus = rec.qualifyingBonusSeconds
-          raceBonus = rec.raceBonusSecondsPerLap
-          lastDriver = rec.driverId
-          completedList.push(sess)
-          carMaxIndex = i
+          accumulatedSetup: accumulated,
+          qualifyingBonusSeconds: qualiBonus,
+          raceBonusSecondsPerLap: raceBonus,
+          lastDriverId: lastDriver,
+          sessionsCompleted: completedList,
         }
       }
 
-      carCompletedIndices.push(carMaxIndex)
+      // O status do fim de semana da equipe exige que todos os carros participantes
+      // tenham completado a sessão para a sessão como um todo ser considerada concluída.
+      // minIndex representa a sessão que TODOS os carros concluíram.
+      const minIndex = carCompletedIndices.length > 0 ? Math.min(...carCompletedIndices) : -1
 
-      carSetups[carKey] = {
-        teamId,
-        carIndex,
-        accumulatedSetup: accumulated,
-        qualifyingBonusSeconds: qualiBonus,
-        raceBonusSecondsPerLap: raceBonus,
-        lastDriverId: lastDriver,
-        sessionsCompleted: completedList,
+      let status: WeekendNormalStatus = 'TL1'
+      let lastCompletedSession: PracticeSessionId | null = null
+
+      if (minIndex === 0) {
+        status = 'TL2'
+        lastCompletedSession = 'TL1'
+      } else if (minIndex === 1) {
+        status = 'TL3'
+        lastCompletedSession = 'TL2'
+      } else if (minIndex >= 2) {
+        status = 'READY_FOR_Q1'
+        lastCompletedSession = 'TL3'
       }
-    }
 
-    // O status do fim de semana da equipe exige que todos os carros participantes
-    // tenham completado a sessão para a sessão como um todo ser considerada concluída.
-    // minIndex representa a sessão que TODOS os carros concluíram.
-    const minIndex = carCompletedIndices.length > 0 ? Math.min(...carCompletedIndices) : -1
-
-    let status: WeekendNormalStatus = 'TL1'
-    let lastCompletedSession: PracticeSessionId | null = null
-
-    if (minIndex === 0) {
-      status = 'TL2'
-      lastCompletedSession = 'TL1'
-    } else if (minIndex === 1) {
-      status = 'TL3'
-      lastCompletedSession = 'TL2'
-    } else if (minIndex >= 2) {
-      status = 'READY_FOR_Q1'
-      lastCompletedSession = 'TL3'
-    }
-
-    return {
-      careerId,
-      seasonId,
-      round,
-      status,
-      lastCompletedSession,
-      carSetups,
+      return {
+        careerId,
+        seasonId,
+        round,
+        status,
+        lastCompletedSession,
+        carSetups,
+      }
+    } catch (err: any) {
+      console.warn(
+        `[RacePracticeSetupService] Erro em getWeekendNormalState (fallback seguro):`,
+        err?.message || err,
+      )
+      return {
+        careerId,
+        seasonId,
+        round,
+        status: 'TL1',
+        lastCompletedSession: null,
+        carSetups,
+      }
     }
   }
 
@@ -617,7 +756,7 @@ export class RacePracticeSetupService {
     session: PracticeSessionId,
     applicationKey: string,
   ): Promise<PracticeSetupApplicationRecord | null> {
-    // 1. Tentar ler do PocketBase na coleção session_setups
+    // 1. Tentar ler do PocketBase na coleção session_setups (com cache de memória e deduplicação de requisição)
     const sessionInternalMap: Record<PracticeSessionId, string> = {
       TL1: 'tp1',
       TL2: 'tp2',
@@ -626,23 +765,35 @@ export class RacePracticeSetupService {
     const internalSession = sessionInternalMap[session] || 'tp1'
 
     try {
-      const records = await pb.collection('session_setups').getList(1, 1, {
-        filter: `team_id = "${careerId}" && season_id = "${seasonId}" && round = ${round} && session = "${internalSession}"`,
-      })
-
-      if (records.items.length > 0) {
-        const item = records.items[0]
-        const strategies = (item.driver_strategies as any) || {}
-        const setupStore = strategies.practiceSetupApplications as
-          | Record<string, PracticeSetupApplicationRecord>
-          | undefined
-
-        if (setupStore && setupStore[applicationKey]) {
-          return setupStore[applicationKey]
-        }
+      const setupStore = await this.fetchSessionSetupStore(
+        careerId,
+        seasonId,
+        round,
+        internalSession,
+      )
+      if (setupStore && setupStore[applicationKey]) {
+        return setupStore[applicationKey]
       }
-    } catch {
-      // Ignora erro de rede/mock do PB e tenta o cache local
+    } catch (err: any) {
+      const is429 =
+        err?.status === 429 ||
+        err?.response?.status === 429 ||
+        err?.statusCode === 429 ||
+        String(err?.message || '').includes('429') ||
+        String(err?.message || '')
+          .toLowerCase()
+          .includes('too many requests')
+
+      if (is429) {
+        console.warn(
+          `[RacePracticeSetupService] PocketBase HTTP 429 (Too Many Requests) em session_setups para round ${round} ${session}. Fallback suave ativado.`,
+        )
+      } else {
+        console.warn(
+          `[RacePracticeSetupService] Erro ao carregar session_setups do PB (${session}):`,
+          err?.message || err,
+        )
+      }
     }
 
     // 2. Fallback de resiliência: Cache local
@@ -703,6 +854,18 @@ export class RacePracticeSetupService {
         err,
       )
     }
+
+    // Atualiza cache em memória para a chave correspondente
+    const cacheKey = this.getCacheKey(careerId, seasonId, round, internalSession)
+    const existingEntry = this.memoryCache.get(cacheKey)
+    const currentStore = existingEntry?.store || {}
+    this.memoryCache.set(cacheKey, {
+      store: {
+        ...currentStore,
+        [applicationKey]: record,
+      },
+      timestamp: Date.now(),
+    })
 
     // Espelho no armazenamento local resiliente
     this.saveToLocalCache(careerId, seasonId, round, session, record)
