@@ -83,7 +83,11 @@ export function NotificationBell({
     }
   }
 
-  // Carrega notificações ao montar e quando user mudar
+  // Determina se a UI de corrida ao vivo está ativa (mesma condição que oculta o sino)
+  const isLiveRaceHidden =
+    (location.pathname === '/corrida' || location.pathname === '/corrida-ao-vivo') && isLiveActive
+
+  // Polling silencioso de segurança (60s) + reconciliação imediata ao sair da corrida ao vivo
   useEffect(() => {
     let isCancelled = false
 
@@ -92,8 +96,14 @@ export function NotificationBell({
       await loadNotifications().catch(() => {})
     }
 
-    // Polling silencioso de notificações: rejeições capturadas e ignoradas
+    // Se estiver na corrida ao vivo (sino oculto), suspender polling periódico
+    if (isLiveRaceHidden) {
+      return
+    }
+
+    // Ao sair da corrida ao vivo (ou no mount fora dela), executar carga imediata
     void fetchSafe().catch(() => {})
+
     const timer = setInterval(() => {
       void fetchSafe().catch(() => {})
     }, NOTIFICATION_SAFETY_POLL_INTERVAL_MS)
@@ -102,7 +112,7 @@ export function NotificationBell({
       isCancelled = true
       clearInterval(timer)
     }
-  }, [effectiveUserId])
+  }, [effectiveUserId, isLiveRaceHidden])
 
   // Realtime updates para coleção de notificações e eventos
   useRealtime('notifications', () => {
@@ -194,10 +204,7 @@ export function NotificationBell({
     }
   }
   // Ocultar sino durante corrida ao vivo na aba Corrida (requisito do prompt)
-  if (
-    (location.pathname === '/corrida' || location.pathname === '/corrida-ao-vivo') &&
-    isLiveActive
-  ) {
+  if (isLiveRaceHidden) {
     return null
   }
 
