@@ -611,6 +611,26 @@ export class CanonicalPowerUnitUsageApplierService {
           }
 
           const existingUnit = history[unitIndex]
+
+          // PU-4UNITS-01A3 ITEM 1: Guarda de integridade de piloto e temporada
+          if (
+            (existingUnit.driverId && proj.driverId && existingUnit.driverId !== proj.driverId) ||
+            (existingUnit.seasonYear && proj.season && existingUnit.seasonYear !== proj.season)
+          ) {
+            failedCount++
+            unitResults.push({
+              driverId: proj.driverId,
+              driverName: proj.driverName,
+              teamId: proj.teamId,
+              powerUnitId: puId,
+              status: 'FAILED_NOT_FOUND',
+              distanceKmAdded: 0,
+              wearDebitApplied: 0,
+              message: `Mismatch de integridade na unidade PU-${puId}: piloto ou temporada incompatíveis (unidade: piloto=${existingUnit.driverId || 'n/a'}, ano=${existingUnit.seasonYear || 'n/a'}; projeção: piloto=${proj.driverId}, ano=${proj.season}).`,
+            })
+            continue
+          }
+
           const prevMileage =
             typeof existingUnit.mileage_km === 'number' ? existingUnit.mileage_km : 0
           const prevCond =
@@ -641,6 +661,8 @@ export class CanonicalPowerUnitUsageApplierService {
             team.id === proj.teamId &&
             (existingUnit.status === 'instalado' || !existingUnit.status)
           ) {
+            // NOTA: active_engine_wear é APENAS espelho de compatibilidade, não fonte esportiva.
+            // A fonte canônica é engine_history por instância.
             team.active_engine_wear = newWear
           }
 
