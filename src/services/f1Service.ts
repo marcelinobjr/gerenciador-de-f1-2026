@@ -2042,42 +2042,122 @@ export const f1Service = {
   async introduceNewEngine(
     team: TeamModel,
     cost: number = 18000000,
+    options?: {
+      driverId?: string
+      seasonYear?: number
+      round?: number
+      careerId?: string
+      carSlot?: 1 | 2
+      autoInstall?: boolean
+    },
   ): Promise<{
     team: TeamModel
     penaltyPositions: number
     engineNumber: number
     costCapSpent: number
+    powerUnitId?: number
+    unitNumber?: number
+    driverId?: string
+    seasonYear?: number
   }> {
     const currentHistory = Array.isArray(team.engine_history) ? [...team.engine_history] : []
     const existingMaxId = currentHistory.reduce((max, eng) => Math.max(max, Number(eng.id) || 0), 0)
-    const currentPool = Math.max(team.engine_pool_used || 0, existingMaxId, currentHistory.length)
-    const unitIndex = currentPool + 1
-    const spentCostCap = (team.cost_cap_spent || 0) + cost
-    const newBudget = team.budget - cost
 
-    // Regra FIA regulamentar generalizada:
-    // Até FREE_ENGINE_QUOTA (4) unidades = 0 posições.
-    // 1ª unidade além da cota (unitIndex === FREE_ENGINE_QUOTA + 1) = 10 posições de grid
-    // Unidades subsequentes além da cota (unitIndex > FREE_ENGINE_QUOTA + 1) = 5 posições de grid
+    // Contexto moderno vs legado
+    // Se driverId for fornecido ou se o histórico atual contiver unidades identificadas por driverId
+    const hasDriverScopedEntries = currentHistory.some(
+      (eng) => Boolean(eng.driverId) && typeof eng.seasonYear === 'number' && typeof eng.unitNumber === 'number',
+    )
+    const isDriverScoped = Boolean(options?.driverId) || (hasDriverScopedEntries && Boolean(options?.driverId))
+
+    let targetDriverId = options?.driverId
+    const targetSeasonYear = options?.seasonYear || 2026
+    const targetRound = typeof options?.round === 'number' ? options?.round : 1
+    const autoInstall = options?.autoInstall ?? true
+
+    let unitIndex: number // unitNumber regulamentar (para escopo por piloto) ou unitIndex legado
+    let physicalId: number // id físico globalmente único dentro da equipe
+    let isExceedingQuota: boolean
     let penaltyPositions = 0
-    if (unitIndex > FREE_ENGINE_QUOTA) {
-      if (unitIndex === FREE_ENGINE_QUOTA + 1) {
-        penaltyPositions = 10
-      } else {
-        penaltyPositions = 5
+    let alreadyExists = false
+    let matchedExistingUnit: PowerUnitHistoryEntry | undefined
+
+    if (isDriverScoped && targetDriverId) {
+      // -------------------------------------------------------------
+      // MODO MODERNO: COTA POR PILOTO / TEMPORADA
+      // -------------------------------------------------------------
+      const driverSeasonUnits = currentHistory.filter(
+        (eng) => eng.driverId === targetDriverId && eng.seasonYear === targetSeasonYear,
+      )
+      const maxUnitNumber = driverSeasonUnits.reduce(
+        (max, eng) => Math.max(max, Number(eng.unitNumber) || 0),
+        0,
+      )
+
+      unitIndex = maxUnitNumber + 1 // unitNumber da nova PU do piloto (ex: 5 se já tem PU1..PU4)
+      isExceedingQuota = unitIndex > FREE_ENGINE_QUOTA
+
+      if (isExceedingQuota) {
+        if (unitIndex === FREE_ENGINE_QUOTA + 1) {
+          penaltyPositions = 10
+        } else {
+          penaltyPositions = 5
+        }
+      }
+
+      // ID físico globalmente único
+      physicalId = Math.max(existingMaxId, currentHistory.length) + 1
+
+      // Idempotência: verificar se este piloto já possui uma unidade com este unitNumber nesta temporada
+      matchedExistingUnit = driverSeasonUnits.find((eng) => eng.unitNumber === unitIndex)
+      if (matchedExistingUnit) {
+        alreadyExists = true
+        physicalId = Number(matchedExistingUnit.id)
+      }
+    } else {
+      // -------------------------------------------------------------
+      // MODO LEGADO (COMPATIBILIDADE): BASEADO EM ARRAY / ID GLOBAL
+      // -------------------------------------------------------------
+      const currentPool = Math.max(team.engine_pool_used || 0, existingMaxId, currentHistory.length)
+      unitIndex = currentPool + 1
+      physicalId = unitIndex
+      isExceedingQuota = unitIndex > FREE_ENGINE_QUOTA
+
+      if (isExceedingQuota) {
+        if (unitIndex === FREE_ENGINE_QUOTA + 1) {
+          penaltyPositions = 10
+        } else {
+          penaltyPositions = 5
+        }
+      }
+
+      matchedExistingUnit = currentHistory.find((eng) => Number(eng.id) === unitIndex)
+      if (matchedExistingUnit) {
+        alreadyExists = true
       }
     }
 
-    // Se a unidade já existe no histórico (idempotência contra chamadas duplicadas / reload), recuperar
-    const alreadyExists = currentHistory.some((eng) => Number(eng.id) === unitIndex)
-    let updatedHistory = currentHistory
-    if (alreadyExists) {
-      // Re-leitura/idempotência: não duplica entrada nem penalidades
-      const existingUnit = currentHistory.find((eng) => Number(eng.id) === unitIndex)
+    const spentCostCap = (team.cost_cap_spent || 0) + cost
+    const newBudget = team.budget - cost
+
+    // Tratar Idempotência (chamada duplicada / reload)
+    if (alreadyExists && matchedExistingUnit) {
       const existingPenalties = team.grid_penalties || []
-      const alreadyHasPenalty = existingPenalties.some((p) => p.unitIndex === unitIndex)
+      const alreadyHasPenalty = isDriverScoped && targetDriverId
+        ? existingPenalties.some(
+            (p) =>
+              (p.driverId === targetDriverId && p.seasonYear === targetSeasonYear && p.unitIndex === unitIndex) ||
+              (p.id === `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`),
+          )
+        : existingPenalties.some((p) => p.unitIndex === unitIndex)
+
       const effectivePenalty = alreadyHasPenalty
-        ? existingPenalties.find((p) => p.unitIndex === unitIndex)?.positions || 0
+        ? (existingPenalties.find((p) =>
+            isDriverScoped && targetDriverId
+              ? (p.driverId === targetDriverId && p.seasonYear === targetSeasonYear && p.unitIndex === unitIndex) ||
+                (p.id === `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`)
+              : p.unitIndex === unitIndex,
+          )?.positions ?? penaltyPositions)
         : penaltyPositions
 
       return {
@@ -2085,46 +2165,110 @@ export const f1Service = {
         penaltyPositions: effectivePenalty,
         engineNumber: unitIndex,
         costCapSpent: team.cost_cap_spent || 0,
+        powerUnitId: Number(matchedExistingUnit.id),
+        unitNumber: matchedExistingUnit.unitNumber ?? unitIndex,
+        driverId: matchedExistingUnit.driverId ?? targetDriverId,
+        seasonYear: matchedExistingUnit.seasonYear ?? targetSeasonYear,
       }
     }
 
-    // Atualizar motor antigo para reserva (preserva PU1..PU4 e anteriores intactas)
-    updatedHistory = currentHistory.map((eng) =>
-      eng.status === 'instalado' ? { ...eng, status: 'reserva' as const } : eng,
-    )
+    // Atualização de histórico e status
+    let updatedHistory: PowerUnitHistoryEntry[] = []
 
-    const isExceedingQuota = unitIndex > FREE_ENGINE_QUOTA
-    // Adicionar nova PU instalada com km/desgaste/condição iniciais padrão e atributos-base preservados
-    updatedHistory.push({
-      id: unitIndex,
-      wear: 0,
-      status: 'instalado' as const,
-      supplier: team.engine_supplier || 'Mercedes',
-      introducedRound: 1, // atualizado dinamicamente pelo chamador se disponível
-      exceedsQuota: isExceedingQuota,
-      condition: 100,
-      mileage_km: 0,
-    })
+    if (isDriverScoped && targetDriverId) {
+      // Se for modo por piloto:
+      // Se autoInstall=true, desinstala apenas o motor anterior DESSE piloto e dessa temporada (vira reserva)
+      // O companheiro de equipe permanece 100% intacto!
+      updatedHistory = currentHistory.map((eng) => {
+        if (
+          autoInstall &&
+          eng.driverId === targetDriverId &&
+          eng.seasonYear === targetSeasonYear &&
+          eng.status === 'instalado'
+        ) {
+          return { ...eng, status: 'reserva' as const }
+        }
+        return eng
+      })
+
+      // Nova PU física para o piloto
+      const newUnitEntry: PowerUnitHistoryEntry = {
+        id: physicalId,
+        wear: 0,
+        status: autoInstall ? ('instalado' as const) : ('reserva' as const),
+        supplier: team.engine_supplier || 'Audi',
+        introducedRound: targetRound,
+        exceedsQuota: isExceedingQuota,
+        condition: 100,
+        mileage_km: 0,
+        driverId: targetDriverId,
+        seasonYear: targetSeasonYear,
+        unitNumber: unitIndex,
+      }
+      updatedHistory.push(newUnitEntry)
+    } else {
+      // Modo Legado: motor antigo vira reserva
+      updatedHistory = currentHistory.map((eng) =>
+        eng.status === 'instalado' ? { ...eng, status: 'reserva' as const } : eng,
+      )
+      updatedHistory.push({
+        id: physicalId,
+        wear: 0,
+        status: 'instalado' as const,
+        supplier: team.engine_supplier || 'Mercedes',
+        introducedRound: targetRound,
+        exceedsQuota: isExceedingQuota,
+        condition: 100,
+        mileage_km: 0,
+      })
+    }
 
     // Registro da penalidade regulamentar de forma IDEMPOTENTE no modelo da equipe
     const currentPenalties = Array.isArray(team.grid_penalties) ? [...team.grid_penalties] : []
-    if (isExceedingQuota && !currentPenalties.some((p) => p.unitIndex === unitIndex)) {
+    const penaltyId = isDriverScoped && targetDriverId
+      ? `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`
+      : `pu_pen_${team.id}_u${unitIndex}`
+
+    const penaltyAlreadyRegistered = currentPenalties.some((p) => {
+      if (p.id === penaltyId) return true
+      if (isDriverScoped && targetDriverId) {
+        return (
+          p.driverId === targetDriverId &&
+          p.seasonYear === targetSeasonYear &&
+          p.unitIndex === unitIndex
+        )
+      }
+      return p.unitIndex === unitIndex && !p.driverId
+    })
+
+    if (isExceedingQuota && !penaltyAlreadyRegistered) {
       currentPenalties.push({
-        id: `pu_pen_${team.id}_u${unitIndex}`,
+        id: penaltyId,
         unitIndex,
         positions: penaltyPositions,
-        reason: `Excesso de cota anual de unidades de potência (PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`,
+        reason: isDriverScoped && targetDriverId
+          ? `Excesso de cota anual de unidades de potência do piloto (${targetDriverId}: PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`
+          : `Excesso de cota anual de unidades de potência (PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`,
         appliedAt: new Date().toISOString(),
+        driverId: isDriverScoped ? targetDriverId : undefined,
+        seasonYear: isDriverScoped ? targetSeasonYear : undefined,
+        round: targetRound,
+        source: 'PU_QUOTA_REGULATION',
       })
     }
 
     // Registro Canônico no Financial Ledger (Compra de nova unidade de potência)
+    // IDEMPOTENCY KEY: diferencia por piloto e temporada para evitar colisão quando ambos tiverem PU5
+    const financialIdempotencyKey = isDriverScoped && targetDriverId
+      ? `new_pu_${team.id}_${targetDriverId}_${targetSeasonYear}_pu${unitIndex}`
+      : `new_pu_${team.id}_engine_${unitIndex}`
+
     try {
       const { financialLedgerService } = await import('@/services/financialLedgerService')
       await financialLedgerService.postTransaction({
         teamId: team.id,
-        seasonYear: 2026,
-        round: 1,
+        seasonYear: targetSeasonYear,
+        round: targetRound,
         type: 'expense',
         category: 'development',
         subcategory: 'engine_pool_purchase',
@@ -2132,21 +2276,72 @@ export const f1Service = {
         amount: cost,
         costCapClassification: 'included',
         sourceSystem: 'engine_pool',
-        sourceEntityId: `pu_${unitIndex}`,
-        idempotencyKey: `new_pu_${team.id}_engine_${unitIndex}`,
-        description: `Aquisição de nova Unidade de Potência #${unitIndex} (${team.engine_supplier || 'Mercedes'})`,
+        sourceEntityId: isDriverScoped && targetDriverId ? `pu_${targetDriverId}_${unitIndex}` : `pu_${unitIndex}`,
+        idempotencyKey: financialIdempotencyKey,
+        description: isDriverScoped && targetDriverId
+          ? `Aquisição de nova Unidade de Potência #${unitIndex} (${targetDriverId} - ${team.engine_supplier || 'Audi'})`
+          : `Aquisição de nova Unidade de Potência #${unitIndex} (${team.engine_supplier || 'Mercedes'})`,
       })
     } catch (finErr) {
       console.warn('Erro ao lançar compra de motor no FinancialLedger:', finErr)
     }
 
+    // Se estiver em modo escopado por piloto e autoInstall=true, sincronizar a alocação do carro (A2)
+    let updatedSpecs = (team as any).car_specifications || {}
+    if (isDriverScoped && targetDriverId && autoInstall) {
+      const careerId = options?.careerId || 'default_career'
+      const existingAlloc = updatedSpecs.power_unit_allocations || {}
+      let targetCarSlot: 1 | 2 = options?.carSlot || 1
+
+      if (!options?.carSlot) {
+        // Deduz qual carro o piloto ocupava pela PU instalada anterior
+        const prevUnitCar1 = currentHistory.find(
+          (u) =>
+            Number(u.id) === existingAlloc.car1Unit &&
+            u.driverId === targetDriverId &&
+            u.seasonYear === targetSeasonYear,
+        )
+        const prevUnitCar2 = currentHistory.find(
+          (u) =>
+            Number(u.id) === existingAlloc.car2Unit &&
+            u.driverId === targetDriverId &&
+            u.seasonYear === targetSeasonYear,
+        )
+
+        if (prevUnitCar1 && !prevUnitCar2) {
+          targetCarSlot = 1
+        } else if (prevUnitCar2 && !prevUnitCar1) {
+          targetCarSlot = 2
+        } else {
+          targetCarSlot = 1
+        }
+      }
+
+      const newCar1 = targetCarSlot === 1 ? physicalId : (existingAlloc.car1Unit ?? 1)
+      const newCar2 = targetCarSlot === 2 ? physicalId : (existingAlloc.car2Unit ?? 2)
+
+      updatedSpecs = {
+        ...updatedSpecs,
+        power_unit_allocations: {
+          car1Unit: newCar1,
+          car2Unit: newCar2,
+          updatedAt: new Date().toISOString(),
+          careerId,
+        },
+      }
+    }
+
+    // Calcular novo engine_pool_used (mantido como cache/compatibilidade do maior pool)
+    const newPoolUsed = Math.max(team.engine_pool_used || 0, physicalId, unitIndex)
+
     const updatedTeam = await pb.collection('teams').update<TeamModel>(team.id, {
       budget: newBudget,
       cost_cap_spent: spentCostCap,
-      engine_pool_used: unitIndex,
+      engine_pool_used: newPoolUsed,
       active_engine_wear: 0,
       engine_history: updatedHistory,
       grid_penalties: currentPenalties,
+      car_specifications: updatedSpecs,
     })
 
     // Adiciona evento oficial
@@ -2155,8 +2350,10 @@ export const f1Service = {
         ? ` Penalidade FIA aplicada: PERDA DE ${penaltyPositions} POSIÇÕES NO GRID por exceder a cota anual (${FREE_ENGINE_QUOTA} unidades).`
         : ` Dentro da cota regulamentar (limite: ${FREE_ENGINE_QUOTA} unidades).`
 
+    const driverMsg = isDriverScoped && targetDriverId ? ` [Piloto: ${targetDriverId}]` : ''
+
     await pb.collection('events').create({
-      message: `NOVA UNIDADE DE POTÊNCIA: Motor #${unitIndex} (${team.engine_supplier || 'Mercedes'}) ativado com 0% de desgaste.${penaltyMsg} Custo: ${cost / 1000000}M contabilizado no teto de gastos.`,
+      message: `NOVA UNIDADE DE POTÊNCIA: Motor #${unitIndex}${driverMsg} (${team.engine_supplier || 'Mercedes'}) ativado com 0% de desgaste.${penaltyMsg} Custo: ${cost / 1000000}M contabilizado no teto de gastos.`,
       type: 'desenvolvimento',
       team_id: team.id,
     })
@@ -2166,6 +2363,10 @@ export const f1Service = {
       penaltyPositions,
       engineNumber: unitIndex,
       costCapSpent: spentCostCap,
+      powerUnitId: physicalId,
+      unitNumber: unitIndex,
+      driverId: targetDriverId,
+      seasonYear: targetSeasonYear,
     }
   },
 

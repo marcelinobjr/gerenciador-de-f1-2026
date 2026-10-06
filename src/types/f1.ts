@@ -103,6 +103,10 @@ export interface TeamModel {
     positions: number
     reason: string
     appliedAt: string
+    driverId?: string
+    seasonYear?: number
+    round?: number
+    source?: string
   }>
   user_id?: string
   manager_name?: string
