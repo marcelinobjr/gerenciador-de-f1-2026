@@ -1111,6 +1111,12 @@ export default function WeekendV2Page() {
     return (MBJ_2026_PILOTS as unknown as DriverModel[]) || []
   })
 
+  // Ref para guardar avisos pendentes de revisão de plano de rookie
+  const [pendingRookieReviewToasts, setPendingRookieReviewToasts] = useState<
+    Array<{ carId: 'car1' | 'car2'; title: string; description: string }>
+  >([])
+  const rookieReviewToastedRef = useRef<Set<string>>(new Set())
+
   // Carregar catálogo de pilotos para o modal de novatos e assignments salvos
   useEffect(() => {
     if (!season?.id || !team?.id) return
@@ -1152,6 +1158,12 @@ export default function WeekendV2Page() {
           setAllDriversCatalog(res)
         }
 
+        const newPendingToasts: Array<{
+          carId: 'car1' | 'car2'
+          title: string
+          description: string
+        }> = []
+
         // Revalidação do plano Carro 1
         if (planC1 && !a1) {
           const val1 = RookieTl1PlanningService.validateSeatPlan({
@@ -1184,8 +1196,8 @@ export default function WeekendV2Page() {
               p.round === currentRound && p.carId === 'car1' ? val1.updatedPlan : p,
             )
             RookieTl1PlanningService.savePlans(careerId, season.id, team.id, updated)
-            toast({
-              variant: 'destructive',
+            newPendingToasts.push({
+              carId: 'car1',
               title: 'PLANEJAMENTO DE ROOKIE PRECISA DE REVISÃO (Carro 1)',
               description: val1.reason || 'Piloto não elegível. Escolha um novo novato.',
             })
@@ -1224,12 +1236,16 @@ export default function WeekendV2Page() {
               p.round === currentRound && p.carId === 'car2' ? val2.updatedPlan : p,
             )
             RookieTl1PlanningService.savePlans(careerId, season.id, team.id, updated)
-            toast({
-              variant: 'destructive',
+            newPendingToasts.push({
+              carId: 'car2',
               title: 'PLANEJAMENTO DE ROOKIE PRECISA DE REVISÃO (Carro 2)',
               description: val2.reason || 'Piloto não elegível. Escolha um novo novato.',
             })
           }
+        }
+
+        if (newPendingToasts.length > 0) {
+          setPendingRookieReviewToasts(newPendingToasts)
         }
       })
       .catch(() => {})
@@ -1237,6 +1253,23 @@ export default function WeekendV2Page() {
     setActiveRookieCar1(a1)
     setActiveRookieCar2(a2)
   }, [season?.id, team?.id, currentRound, registration?.snapshot])
+
+  // Efeito dedicado para disparar avisos de revisão pós-render de forma idempotente por carro/rodada
+  useEffect(() => {
+    if (!pendingRookieReviewToasts.length || !season?.id) return
+
+    pendingRookieReviewToasts.forEach((item) => {
+      const guardKey = `${season.id}_r${currentRound}_${item.carId}`
+      if (!rookieReviewToastedRef.current.has(guardKey)) {
+        rookieReviewToastedRef.current.add(guardKey)
+        toast({
+          variant: 'destructive',
+          title: item.title,
+          description: item.description,
+        })
+      }
+    })
+  }, [pendingRookieReviewToasts, season?.id, currentRound, toast])
 
   // Handlers para atribuir ou limpar novato no TL1
   const handleAssignRookie = (

@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import {
-  resetWeekendForRound,
-} from '@/services/weekendProgressionService'
+import { resetWeekendForRound } from '@/services/weekendProgressionService'
 import { practiceSessionService } from '@/services/practiceSessionService'
 import type { PracticePreparation } from '@/types/practice-preparation'
 import type { PracticeSessionRecordState } from '@/types/practice-session'
@@ -19,22 +17,25 @@ describe('BUG-TL1-RELEASE-LOCK-01: Sessão de treino fantasma após reset', () =
     cars: [
       {
         carId: 'car1',
-        driverId: 'drv_bor',
+        driverId: 'drv_human_1',
         program: 'qualifying_sim',
-        setup: { frontWing: 5, rearWing: 5, suspension: 5, differential: 55 },
-        tyreSelection: { setId: 't1', compound: 'duro', isReserved: false },
-        fuelLoad: { kg: 42, estimatedLaps: 24 },
-      },
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+        tyreSelection: { setId: 'tire_c1', compound: 'duro', isReserved: false },
+        fuelLoad: { mode: 'medium', kg: 30, estimatedLaps: 18 },
+        objective: 'qualifying_sim',
+        status: 'ready',
+      } as any,
       {
         carId: 'car2',
-        driverId: 'drv_hul',
+        driverId: 'drv_human_2',
         program: 'qualifying_sim',
-        setup: { frontWing: 5, rearWing: 5, suspension: 5, differential: 55 },
-        tyreSelection: { setId: 't2', compound: 'duro', isReserved: false },
-        fuelLoad: { kg: 42, estimatedLaps: 24 },
-      },
-    ],
-    overallObjective: 'Teste Canadá TL1',
+        setup: { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
+        tyreSelection: { setId: 'tire_c2', compound: 'duro', isReserved: false },
+        fuelLoad: { mode: 'medium', kg: 30, estimatedLaps: 18 },
+        objective: 'qualifying_sim',
+        status: 'ready',
+      } as any,
+    ],    overallObjective: 'Teste Canadá TL1',
     confirmedAt: new Date().toISOString(),
   }
 
@@ -118,9 +119,7 @@ describe('BUG-TL1-RELEASE-LOCK-01: Sessão de treino fantasma após reset', () =
     const targetType = 'tp1'
     const slotForSession = weekendSlotState.slots[targetType]
     const isSlotResetOrAvailable =
-      !slotForSession ||
-      slotForSession.status === 'AVAILABLE' ||
-      slotForSession.status === 'LOCKED'
+      !slotForSession || slotForSession.status === 'AVAILABLE' || slotForSession.status === 'LOCKED'
     const isNotMarkedCompletedInWeekend = !completedSessions.includes(targetType)
 
     // Avalia lógica de reconciliação idêntica à do WeekendV2Page
@@ -155,9 +154,7 @@ describe('BUG-TL1-RELEASE-LOCK-01: Sessão de treino fantasma após reset', () =
     }
 
     const isButtonDisabled =
-      carUnderfuel.isSessionCompleted ||
-      carUnderfuel.isEliminated ||
-      carUnderfuel.fuelKg < 4
+      carUnderfuel.isSessionCompleted || carUnderfuel.isEliminated || carUnderfuel.fuelKg < 4
 
     expect(isButtonDisabled).toBe(true)
 
@@ -174,9 +171,7 @@ describe('BUG-TL1-RELEASE-LOCK-01: Sessão de treino fantasma após reset', () =
     // Reabastecendo para 42kg (como no screenshot)
     carUnderfuel.fuelKg = 42
     const isButtonDisabledAfterFuel =
-      carUnderfuel.isSessionCompleted ||
-      carUnderfuel.isEliminated ||
-      carUnderfuel.fuelKg < 4
+      carUnderfuel.isSessionCompleted || carUnderfuel.isEliminated || carUnderfuel.fuelKg < 4
     expect(isButtonDisabledAfterFuel).toBe(false)
   })
 
