@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
 import { f1Service } from '@/services/f1Service'
 
+export const NOTIFICATION_SAFETY_POLL_INTERVAL_MS = 60_000
+
 interface NotificationBellProps {
   currentRound?: number
   userId?: string
@@ -94,7 +96,7 @@ export function NotificationBell({
     void fetchSafe().catch(() => {})
     const timer = setInterval(() => {
       void fetchSafe().catch(() => {})
-    }, 10000)
+    }, NOTIFICATION_SAFETY_POLL_INTERVAL_MS)
 
     return () => {
       isCancelled = true

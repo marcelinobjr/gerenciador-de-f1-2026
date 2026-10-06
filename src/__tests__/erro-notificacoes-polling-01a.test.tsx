@@ -71,12 +71,12 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
   })
 
   /**
-   * P1 — MONTAGEM ÚNICA:
+   * P1 — MONTAGEM ÚNICA (ATUALIZADO PARA INTERVALO DE SEGURANÇA 60s):
    * Montar o componente real NotificationBell, avançar fake timers por 60 segundos.
-   * Provar: 1 chamada imediata no mount + 6 ticks (a cada 10s: 10s, 20s, 30s, 40s, 50s, 60s)
-   * = exatamente 7 chamadas ao notificationService.getNotifications em 60s (6 requests/minuto por poller).
+   * Provar: 1 chamada imediata no mount + 1 tick aos 60s
+   * = exatamente 2 chamadas ao notificationService.getNotifications em 60s (1 request/minuto além do mount).
    */
-  it('P1 — MONTAGEM ÚNICA: dispara 1 chamada no mount + 6 ticks em 60s (total 7 chamadas, 6 req/min)', async () => {
+  it('P1 — MONTAGEM ÚNICA: dispara 1 chamada no mount + 1 tick aos 60s (total 2 chamadas, 1 req/min)', async () => {
     const getNotificationsSpy = vi
       .spyOn(notificationService, 'getNotifications')
       .mockResolvedValue([])
@@ -91,31 +91,31 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
     expect(getNotificationsSpy).toHaveBeenLastCalledWith('usr_poller_test', 30)
 
-    // Avança 10s -> tick 1
+    // Avança 59s -> nenhuma nova chamada
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(59000)
+    })
+    expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
+
+    // Avança mais 1s (total 60s) -> tick 1
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(2)
 
-    // Avança mais 10s (total 20s) -> tick 2
+    // Avança mais 60s (total 120s) -> tick 2
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(3)
-
-    // Avança mais 40s (total 60s) -> ticks 3, 4, 5, 6
-    await act(async () => {
-      vi.advanceTimersByTime(40000)
-    })
-    expect(getNotificationsSpy).toHaveBeenCalledTimes(7)
   })
 
   /**
    * P2 — RERENDER SEM DESMONTAR:
    * Rerenderizar o componente mantendo o mesmo effectiveUserId.
-   * Provar que NÃO nasce um segundo timer: o ritmo se mantém estritamente em 1 a cada 10s (não dobra).
+   * Provar que NÃO nasce um segundo timer: o ritmo se mantém estritamente em 1 a cada 60s (não dobra).
    */
-  it('P2 — RERENDER SEM DESMONTAR: mantém ritmo de 1 chamada a cada 10s sem duplicar timers', async () => {
+  it('P2 — RERENDER SEM DESMONTAR: mantém ritmo de 1 chamada a cada 60s sem duplicar timers', async () => {
     const getNotificationsSpy = vi
       .spyOn(notificationService, 'getNotifications')
       .mockResolvedValue([])
@@ -148,24 +148,24 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
     // Rerender sem mudar effectiveUserId não deve disparar nova chamada imediata
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // Avança 10s: deve ter exatamente 1 chamada nova (total 2), não 4 chamadas
+    // Avança 60s: deve ter exatamente 1 chamada nova (total 2), não 4 chamadas
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(2)
 
-    // Avança mais 10s: deve ter exatamente 1 chamada nova (total 3)
+    // Avança mais 60s: deve ter exatamente 1 chamada nova (total 3)
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(3)
   })
 
   /**
    * P3 — UNMOUNT / REMOUNT:
-   * Desmontar o componente; avançar o relógio além de 10s (ex.: 30s) e provar que o poller antigo
+   * Desmontar o componente; avançar o relógio além de 60s (ex.: 120s) e provar que o poller antigo
    * PAROU completamente (nenhuma chamada nova).
-   * Em seguida, remontar e provar que nasce exatamente 1 novo poller (chamada imediata + 1 a cada 10s).
+   * Em seguida, remontar e provar que nasce exatamente 1 novo poller (chamada imediata + 1 a cada 60s).
    */
   it('P3 — UNMOUNT/REMOUNT: cleanup cancela o timer antigo e remontagem inicia exatamente 1 novo poller', async () => {
     const getNotificationsSpy = vi
@@ -181,16 +181,16 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(2)
 
     // Desmontar o componente
     unmount()
 
-    // Avança 30 segundos com componente desmontado
+    // Avança 120 segundos com componente desmontado
     await act(async () => {
-      vi.advanceTimersByTime(30000)
+      vi.advanceTimersByTime(120000)
     })
 
     // Nenhuma nova chamada deve ocorrer após o unmount
@@ -206,24 +206,23 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
     // Imediatamente dispara a chamada do novo mount (total 3)
     expect(getNotificationsSpy).toHaveBeenCalledTimes(3)
 
-    // Avança 10s: novo poller dispara tick 1 (total 4)
+    // Avança 60s: novo poller dispara tick 1 (total 4)
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(4)
 
-    // Avança mais 10s: novo poller dispara tick 2 (total 5)
+    // Avança mais 60s: novo poller dispara tick 2 (total 5)
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(5)
   })
 
   /**
-  /**
    * P4 — REGRESSÃO 01A / IN-FLIGHT GUARD:
    * Em 01A, P4 provava a ausência do guard (overlap).
-   * Em 01B1 (com o guard ativo), ticks concorrentes enquanto pendente são bloqueados.
+   * Em 01B1/B2 (com o guard ativo), ticks concorrentes enquanto pendente são bloqueados.
    * Quando a promise é resolvida, os próximos ticks ocorrem normalmente.
    */
   it('P4 — REGRESSÃO 01A (com in-flight guard ativo): bloqueia ticks concorrentes enquanto pendente e retoma após resolução', async () => {
@@ -254,15 +253,15 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
     // Primeira chamada disparada no mount e fica PENDENTE
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // Avança 10 segundos até o próximo tick do timer -> guard bloqueia tick concorrente
+    // Avança 60 segundos até o próximo tick do timer -> guard bloqueia tick concorrente
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // Avança mais 10 segundos -> continua bloqueado
+    // Avança mais 60 segundos -> continua bloqueado
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
@@ -275,7 +274,7 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
 
     // Próximo tick retoma normalmente
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(2)
   })
@@ -328,9 +327,9 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
     // O callback do realtime de 'events' gerou 3ª chamada
     expect(getNotificationsSpy).toHaveBeenCalledTimes(3)
 
-    // Polling continua correndo em paralelo: ao avançar 10s, tick do polling dispara 4ª chamada
+    // Polling de segurança continua correndo em paralelo: ao avançar 60s, tick do polling dispara 4ª chamada
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(4)
   })

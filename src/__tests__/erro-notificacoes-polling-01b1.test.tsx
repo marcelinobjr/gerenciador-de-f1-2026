@@ -101,21 +101,21 @@ describe('ERRO-NOTIFICACOES-POLLING-01B1 — Suíte de Bloqueio de Overlap de Re
     // Primeira request iniciada no mount
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // Avança 10s (tick 1 do interval)
+    // Avança 60s (tick 1 do interval de segurança)
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     // In-flight guard deve ter bloqueado a segunda chamada
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // Avança mais 10s (total 20s, tick 2 do interval)
+    // Avança mais 60s (total 120s, tick 2 do interval)
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     // Continua bloqueado em 1 chamada
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // Avança mais 15s (total 35s, tick 3 do interval)
+    // Avança mais 15s (total 135s)
     await act(async () => {
       vi.advanceTimersByTime(15000)
     })
@@ -217,7 +217,7 @@ describe('ERRO-NOTIFICACOES-POLLING-01B1 — Suíte de Bloqueio de Overlap de Re
 
     // Tick ocorre enquanto pendente -> bloqueado
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
@@ -226,9 +226,9 @@ describe('ERRO-NOTIFICACOES-POLLING-01B1 — Suíte de Bloqueio de Overlap de Re
       pendingResolver!([])
     })
 
-    // Próximo tick do polling (10s após) deve disparar normalmente
+    // Próximo tick do polling (60s após) deve disparar normalmente
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(2)
 
@@ -273,15 +273,15 @@ describe('ERRO-NOTIFICACOES-POLLING-01B1 — Suíte de Bloqueio de Overlap de Re
       pendingRejecter!(new Error('Network failure'))
     })
 
-    // Próximo tick do polling (10s) não deve ficar bloqueado
+    // Próximo tick do polling (60s) não deve ficar bloqueado
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(2)
 
-    // Novo tick mais 10s executa normalmente (total 3)
+    // Novo tick mais 60s executa normalmente (total 3)
     await act(async () => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(60000)
     })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(3)
   })
@@ -319,9 +319,9 @@ describe('ERRO-NOTIFICACOES-POLLING-01B1 — Suíte de Bloqueio de Overlap de Re
       })
     }
 
-    // Avança 30 segundos (3 ciclos de 10s)
+    // Avança 120 segundos (2 ciclos de 60s)
     await act(async () => {
-      vi.advanceTimersByTime(30000)
+      vi.advanceTimersByTime(120000)
     })
 
     // Nenhuma nova chamada após desmontagem
