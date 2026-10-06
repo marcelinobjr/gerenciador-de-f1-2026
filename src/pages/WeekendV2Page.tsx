@@ -1953,8 +1953,8 @@ export default function WeekendV2Page() {
     }
   }, [isAutoAdvancing, selectedSpeed, runnerContext, qualifyingTickContext, selectedSessionId])
 
-  // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 4): Detecção de conclusão via useEffect observando qualifyingState.status === 'completed'
-  // com guard idempotente por stageId e rodada.
+  // BUG-SQ1-RESULT-INTEGRITY-01 & BUG-Q1-RESULT-01B: Detecção de conclusão via useEffect observando qualifyingState.status === 'completed'.
+  // Guard robusto: completedQualiStagesHandledRef só marca após confirmar que o StageResult persistido existe e foi processado com sucesso.
   useEffect(() => {
     if (!qualifyingState || qualifyingState.status !== 'completed' || !season?.id) {
       return
@@ -1967,13 +1967,25 @@ export default function WeekendV2Page() {
       return
     }
 
-    completedQualiStagesHandledRef.current.add(roundKey)
-    handleQualifyingStageCompleted(stageId)
+    const success = handleQualifyingStageCompleted(stageId)
+    if (success) {
+      completedQualiStagesHandledRef.current.add(roundKey)
+    }
   }, [qualifyingState?.status, qualifyingState?.stageId, season?.id, currentRound])
 
   // Conclusão oficial de fase de qualificação
-  const handleQualifyingStageCompleted = (stageId: QualifyingStageId) => {
-    if (!season?.id) return
+  // Retorna boolean indicando se o processamento foi concluído com sucesso (StageResult válido confirmado)
+  const handleQualifyingStageCompleted = (stageId: QualifyingStageId): boolean => {
+    if (!season?.id) return false
+
+    // BUG-Q1-RESULT-01B (Item 3): Fonte primária é readStageResult.
+    // Se o resultado canônico já existir e estiver válido, consumi-lo diretamente
+    // SEM reconstruir classificação, recalcular advancingDriverIds ou sobrescrever o resultado salvo.
+    let stageResult = canonicalQualifyingPersistenceService.readStageResult(
+      season.id,
+      currentRound,
+      stageId,
+    )
 
     // Assegurar que o stageState persistido canônico tenha status 'completed'
     let stgState = canonicalQualifyingPersistenceService.readStageState(
@@ -1992,23 +2004,13 @@ export default function WeekendV2Page() {
       canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, stgState)
     }
 
-    // CORREÇÃO (1): Resultado como fonte da verdade:
-    // Em handleQualifyingStageCompleted, antes de gravar completedSessions, verificar readStageResult(stageId);
-    // se nulo, reconstruir o resultado a partir do estado (entradas ordenadas, advancing/eliminated pelas regras canônicas)
-    // e chamar saveStageResult. Só marcar concluída se o resultado existir ou o leaderboard > 0.
-    let stageResult = canonicalQualifyingPersistenceService.readStageResult(
-      season.id,
-      currentRound,
-      stageId,
-    )
-
+    // Fallback legado para sessões antigas que porventura não tenham persistido o StageResult pelo runner
     if (
-      !stageResult &&
+      (!stageResult || !Array.isArray(stageResult.entries) || stageResult.entries.length === 0) &&
       stgState &&
       Array.isArray(stgState.leaderboard) &&
       stgState.leaderboard.length > 0
     ) {
-      // Ordena leaderboard antes de extrair corte
       CanonicalQualifyingRunner.sortLeaderboard(stgState.leaderboard)
       const rules = CANONICAL_QUALIFYING_RULES[stageId]
       const advancingDriverIds: string[] = []
@@ -2058,14 +2060,19 @@ export default function WeekendV2Page() {
       stageResult = reconstructedResult
     }
 
-    // Só marcar concluída se o resultado existir ou o leaderboard > 0
-    const hasValidResult =
-      (!!stageResult && Array.isArray(stageResult.entries) && stageResult.entries.length > 0) ||
-      (stgState && Array.isArray(stgState.leaderboard) && stgState.leaderboard.length > 0)
+    // Validar se temos um StageResult válido e persistido com entradas
+    const hasValidPersistedResult =
+      !!stageResult && Array.isArray(stageResult.entries) && stageResult.entries.length > 0
+
+    if (!hasValidPersistedResult) {
+      // Não marca como handled para permitir retry no próximo ciclo
+      return false
+    }
 
     const currentStored = readStoredCompletedSessions(season.id, currentRound)
     let updated = currentStored
-    if (hasValidResult && !currentStored.includes(stageId)) {
+    const isStageAlreadyStored = currentStored.includes(stageId)
+    if (!isStageAlreadyStored) {
       updated = [...currentStored, stageId]
       writeStoredCompletedSessions(season.id, currentRound, updated)
       setCompletedSessions(updated)
@@ -2148,11 +2155,15 @@ export default function WeekendV2Page() {
           else if (stageId === 'q3') targetSlotNum = 6
         }
 
-        // Se for término de slot completo (ex: sq3 fecha o slot 2, q1 fecha slot 4, etc.)
-        if (
-          targetSlotNum &&
-          (stageId === 'sq3' || stageId === 'q1' || stageId === 'q2' || stageId === 'q3')
-        ) {
+        // BUG-Q1-RESULT-01B (Item 5): Promoção do slot correspondente
+        // No Q1, a conclusão confirmada deve sincronizar o slot 4 mesmo quando slotState.currentSlot estiver divergente.
+        if (stageId === 'q1') {
+          const updatedSlotState = await canonicalWeekendSlotPersistenceService.syncSlotCompleted(
+            slotState,
+            4,
+          )
+          setWeekendSlotState(updatedSlotState)
+        } else if (targetSlotNum && (stageId === 'sq3' || stageId === 'q2' || stageId === 'q3')) {
           if (slotState.currentSlot === targetSlotNum) {
             const updatedSlotState = await canonicalWeekendSlotPersistenceService.completeSlot(
               slotState,
@@ -2174,63 +2185,63 @@ export default function WeekendV2Page() {
         console.warn('[handleQualifyingStageCompleted] Erro ao avançar weekend_slot_state:', err)
       })
 
-    if (stageId === 'q3') {
-      // Conclusão de Q3: compõe e homologa o grid completo P1-P24
-      const q1Res = canonicalQualifyingPersistenceService.readStageResult(
-        season.id,
-        currentRound,
-        'q1',
-      )
-      const q2Res = canonicalQualifyingPersistenceService.readStageResult(
-        season.id,
-        currentRound,
-        'q2',
-      )
-      const q3Res = canonicalQualifyingPersistenceService.readStageResult(
-        season.id,
-        currentRound,
-        'q3',
-      )
+    // Efeitos colaterais que só devem acontecer uma vez por estágio
+    if (!isStageAlreadyStored) {
+      if (stageId === 'q3') {
+        // Conclusão de Q3: compõe e homologa o grid completo P1-P24
+        const q1Res = canonicalQualifyingPersistenceService.readStageResult(
+          season.id,
+          currentRound,
+          'q1',
+        )
+        const q2Res = canonicalQualifyingPersistenceService.readStageResult(
+          season.id,
+          currentRound,
+          'q2',
+        )
+        const q3Res = canonicalQualifyingPersistenceService.readStageResult(
+          season.id,
+          currentRound,
+          'q3',
+        )
 
-      if (q1Res && q2Res && q3Res) {
-        const fullGrid = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
-          seasonId: season.id,
-          round: currentRound,
-          q1Result: q1Res,
-          q2Result: q2Res,
-          q3Result: q3Res,
+        if (q1Res && q2Res && q3Res) {
+          const fullGrid = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+            seasonId: season.id,
+            round: currentRound,
+            q1Result: q1Res,
+            q2Result: q2Res,
+            q3Result: q3Res,
+          })
+          setCompleteQualifyingResult(fullGrid)
+        }
+
+        // Desbloqueia CORRIDA
+        if (!updated.includes('qualifying')) {
+          updated = [...updated, 'qualifying']
+          writeStoredCompletedSessions(season.id, currentRound, updated)
+          setCompletedSessions(updated)
+        }
+
+        toast({
+          title: 'Classificação Concluída — Grid Formado!',
+          description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
         })
-        setCompleteQualifyingResult(fullGrid)
+      } else if (stageId === 'sq3') {
+        // Desbloqueia sprint_race ao concluir SQ3 (Qualificação Sprint final)
+        toast({
+          title: 'Fase SQ3 Concluída',
+          description: 'Qualificação Sprint finalizada. A Corrida Sprint está disponível!',
+        })
+      } else {
+        toast({
+          title: `Fase ${stageId.toUpperCase()} Concluída`,
+          description: `Eliminações e classificação oficial registradas. Próxima etapa disponível.`,
+        })
       }
-
-      // Desbloqueia CORRIDA
-      if (!updated.includes('qualifying')) {
-        updated = [...updated, 'qualifying']
-        writeStoredCompletedSessions(season.id, currentRound, updated)
-        setCompletedSessions(updated)
-      }
-
-      toast({
-        title: 'Classificação Concluída — Grid Formado!',
-        description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
-      })
-    } else if (stageId === 'sq3') {
-      // Desbloqueia sprint_race ao concluir SQ3 (Qualificação Sprint final)
-      toast({
-        title: 'Fase SQ3 Concluída',
-        description: 'Qualificação Sprint finalizada. A Corrida Sprint está disponível!',
-      })
-    } else {
-      toast({
-        title: `Fase ${stageId.toUpperCase()} Concluída`,
-        description: `Eliminações e classificação oficial registradas. Próxima etapa disponível.`,
-      })
     }
 
-    // CORREÇÃO 1: ao concluir sq1/sq2 (e q1/q2), além do que já faz hoje, promover a fase seguinte:
-    // setSelectedSessionId(<fase seguinte>), setQualifyingState(null) e inicializar a sessão seguinte
-    // (initializeQualifyingSession(<fase seguinte>)) com participantes derivados de advancingDriverIds canônico.
-    // Mapeamento: sq1→sq2, sq2→sq3, q1→q2, q2→q3.
+    // Promover a fase seguinte apenas se a tela ainda não estiver selecionando ela
     const nextStageMap: Record<string, QualifyingStageId> = {
       sq1: 'sq2',
       sq2: 'sq3',
@@ -2238,7 +2249,7 @@ export default function WeekendV2Page() {
       q2: 'q3',
     }
     const nextStage = nextStageMap[stageId]
-    if (nextStage) {
+    if (nextStage && selectedSessionId !== nextStage) {
       setSelectedSessionId(nextStage)
       setQualifyingState(null)
       initializeQualifyingSession(nextStage).catch((err) => {
@@ -2248,6 +2259,8 @@ export default function WeekendV2Page() {
         )
       })
     }
+
+    return true
   }
 
   // Controles: +1 MIN / +5 MIN (Treino Livre ou Qualificação)

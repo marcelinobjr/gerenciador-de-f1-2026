@@ -541,6 +541,70 @@ export class CanonicalWeekendSlotPersistenceService {
     return state
   }
 
+  /**
+   * BUG-Q1-RESULT-01B: Sincroniza um slot específico como concluído mesmo se currentSlot estiver divergente.
+   * Não altera outros slots não relacionados e garante que o slotNumber alvo tenha status COMPLETED.
+   * Se currentSlot === slotNumber, avança para o próximo slot (como completeSlot).
+   * Se currentSlot < slotNumber (slot atual residual/atrasado), promove currentSlot para o próximo slot (slotNumber + 1).
+   * Se currentSlot > slotNumber (já à frente), apenas garante que o slot alvo e completedSlots estejam consistentes.
+   */
+  /**
+   * BUG-Q1-RESULT-01B: Sincroniza um slot específico como concluído mesmo se currentSlot estiver divergente.
+   * Não avança outros slots não relacionados e garante que o slotNumber alvo tenha status COMPLETED.
+   * Se currentSlot === slotNumber, avança para o próximo slot (slotNumber + 1) tornando-o AVAILABLE.
+   * Se currentSlot != slotNumber, NÃO avança cegamente outros slots e NÃO marca Q2 como concluído:
+   * apenas garante que o slot alvo (ex: slot 4) fique COMPLETED e registrado em completedSlots,
+   * preservando a integridade dos demais slots.
+   */
+  public async syncSlotCompleted(
+    state: CanonicalWeekendSlotState,
+    slotNumber: WeekendSlotNumber,
+    subPhase?: SprintQualifyingSubPhase | MainQualifyingSubPhase | string | null,
+  ): Promise<CanonicalWeekendSlotState> {
+    const targetSlotDef = state.slots[slotNumber]
+    if (targetSlotDef) {
+      targetSlotDef.status = 'COMPLETED'
+      if (!targetSlotDef.completedAt) {
+        targetSlotDef.completedAt = new Date().toISOString()
+      }
+      if (subPhase) {
+        targetSlotDef.subPhase = subPhase
+      }
+    }
+
+    if (!state.completedSlots.includes(slotNumber)) {
+      state.completedSlots.push(slotNumber)
+    }
+
+    // Se currentSlot for exatamente o slotNumber concluído, avança para o próximo slot
+    if (state.currentSlot === slotNumber) {
+      if (slotNumber < 7) {
+        const nextSlot = (slotNumber + 1) as WeekendSlotNumber
+        state.currentSlot = nextSlot
+        if (state.slots[nextSlot]) {
+          state.slots[nextSlot].status = 'AVAILABLE'
+          state.slotType = state.slots[nextSlot].slotType
+        }
+        state.slotStatus = 'AVAILABLE'
+        state.subPhase = null
+      } else {
+        state.slotStatus = 'COMPLETED'
+      }
+    } else {
+      // Quando currentSlot != slotNumber (divergente), garante que o próximo slot imediato
+      // fique disponível se o slot divergente anterior estava antes dele ou se o próximo era bloqueado
+      if (slotNumber < 7) {
+        const nextSlot = (slotNumber + 1) as WeekendSlotNumber
+        if (state.slots[nextSlot] && state.slots[nextSlot].status === 'LOCKED') {
+          state.slots[nextSlot].status = 'AVAILABLE'
+        }
+      }
+    }
+
+    await this.saveSlotState(state)
+    return state
+  }
+
   public clearMemoryCache(): void {
     this.inMemoryCache.clear()
   }
