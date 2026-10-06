@@ -596,6 +596,27 @@ export class PracticeSessionService {
     }
   }
 
+  clearLocalCache(
+    careerId: string,
+    seasonId: string,
+    round: number,
+    sessionType?: PracticeSessionType,
+  ): void {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    try {
+      if (sessionType) {
+        localStorage.removeItem(this.getStorageKey(careerId, seasonId, round, sessionType))
+      } else {
+        const types: PracticeSessionType[] = ['tp1', 'tp2', 'tp3']
+        for (const t of types) {
+          localStorage.removeItem(this.getStorageKey(careerId, seasonId, round, t))
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   /**
    * Resolve o conhecimento de pneus e setup herdado de sessões anteriores no mesmo fim de semana.
    * Regra: TP2 herda de TP1; TP3 herda de TP2 (ou TP1).

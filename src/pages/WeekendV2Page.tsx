@@ -599,11 +599,10 @@ export default function WeekendV2Page() {
         driver2Id: activeC2DriverId,
       },
       teamName: team.name,
-      teamColor: team.color,
-      teamChassisRating: team.strength || 75,
-      engineSupplier: team.engine_supplier || 'Audi',
+      teamColor: team.color || '#e10600',
+      teamChassisRating: team.chassis_level || 75,
+      engineSupplier: team.engine_supplier || 'Ferrari',
     })
-
     // Se estiver entrando no TL2 ou TL3, garante restauração dos nomes dos titulares no estado
     if (!isTL1) {
       session.cars.car1.driverId = pCar1.driverId

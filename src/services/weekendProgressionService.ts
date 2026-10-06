@@ -431,10 +431,9 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
         clearedKeys.push(key)
       }
     } catch {
-      // Ignora erro de acesso ao localStorage
+      // Ignora falha em chaves específicas
     }
   }
-
   // 1. Chave de sessões concluídas do fim de semana
   removeKey(getCompletedSessionsStorageKey(seasonId, round))
 
@@ -462,7 +461,15 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
       removeKey(`apex_practice_session_${careerId}_${seasonId}_${round}_${tp}`)
       removeKey(`apex_practice_prep_${careerId}_${seasonId}_${round}_${tp}`)
       removeKey(`apex_practice_setup_${careerId}_${seasonId}_r${round}_${tp}`)
-    }
+      // Variações de chave sem prefixo r ou com r
+      removeKey(`apex_practice_session_${careerId}_${seasonId}_r${round}_${tp}`)
+      removeKey(`apex_practice_prep_${careerId}_${seasonId}_r${round}_${tp}`)
+      removeKey(`apex_practice_setup_${careerId}_${seasonId}_${round}_${tp}`)
+      removeKey(`apex_practice_knowledge_${careerId}_${seasonId}_${round}_${tp}`)
+      removeKey(`apex_practice_knowledge_${careerId}_${seasonId}_r${round}_${tp}`)
+    } // Conhecimento de pneus e setups consolidados do fim de semana
+    removeKey(`apex_practice_weekend_tyre_knowledge_${careerId}_${seasonId}_${round}`)
+    removeKey(`apex_practice_weekend_tyre_knowledge_${careerId}_${seasonId}_r${round}`)
 
     // Slots do fim de semana (RACE-SPRINT-SLOTS-01A)
     removeKey(`apex_weekend_slot_state_v1_${careerId}_${seasonId}_r${round}`)
@@ -472,6 +479,10 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
     removeKey(`apex_sprint_race_canonical_state_${careerId}_s${seasonId}_r${round}`)
     removeKey(`f1_2026_canonical_race_v2_${careerId}_s${seasonId}_r${round}`)
     removeKey(`f1_2026_canonical_race_v2_sprint_${careerId}_s${seasonId}_r${round}`)
+    removeKey(`apex_race_v2_canonical_state_${careerId}_${seasonId}_${round}`)
+    removeKey(`apex_sprint_race_canonical_state_${careerId}_${seasonId}_${round}`)
+    removeKey(`apex_race_v2_canonical_state_${careerId}_${seasonId}_r${round}`)
+    removeKey(`apex_sprint_race_canonical_state_${careerId}_${seasonId}_r${round}`)
 
     // Chaves de orquestração legado/alternativas se existirem para este round
     const orchestratorPhases = ['q1', 'q2', 'q3', 'sq1', 'sq2', 'sq3', 'tp1', 'tp2', 'tp3']
