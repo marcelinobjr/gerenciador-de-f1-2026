@@ -176,6 +176,7 @@ export interface PracticeSessionRecordState {
   lockHeartbeatAt?: string
   revision: number
   generation?: number
+  weekendGeneration?: number
   createdAt: string
   updatedAt: string
 }

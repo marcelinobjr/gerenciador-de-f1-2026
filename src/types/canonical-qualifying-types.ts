@@ -194,6 +194,7 @@ export interface QualifyingStageState {
   parcFermeActive: boolean
   revision: number
   generation?: number
+  weekendGeneration?: number
   createdAt: string
   updatedAt: string
 }

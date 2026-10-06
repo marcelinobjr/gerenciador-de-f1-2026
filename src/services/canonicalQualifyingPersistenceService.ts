@@ -63,23 +63,26 @@ export const canonicalQualifyingPersistenceService = {
     if (typeof window === 'undefined' || !window.localStorage) return false
     try {
       const currentGen = getActiveWeekendGeneration(seasonId, round)
+      const effectiveGen = state.weekendGeneration ?? state.generation
 
       // RESET-FIX-2: Gatekeeper central contra state stale / geração incompatível
-      if (state.generation !== undefined) {
-        if (state.generation < currentGen) {
+      if (effectiveGen !== undefined) {
+        if (effectiveGen < currentGen) {
           console.warn(
-            `[QualifyingPersistence] STALE_STATE: escrita rejeitada por geração obsoleta (state=${state.generation} < current=${currentGen}) para ${seasonId} r${round}`,
+            `[QualifyingPersistence] STALE_STATE: escrita rejeitada por geração obsoleta (state=${effectiveGen} < current=${currentGen}) para ${seasonId} r${round}`,
           )
           return false
         }
-        if (state.generation > currentGen) {
+        if (effectiveGen > currentGen) {
           console.warn(
-            `[QualifyingPersistence] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${state.generation} > current=${currentGen}) para ${seasonId} r${round}`,
+            `[QualifyingPersistence] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${effectiveGen} > current=${currentGen}) para ${seasonId} r${round}`,
           )
           return false
         }
+        state.weekendGeneration = currentGen
+        state.generation = currentGen
       } else {
-        // State legado sem generation:
+        // State legado sem weekendGeneration / generation:
         // Só é aceito e associado à geração atual se a rodada ainda estiver na geração baseline (1).
         // Se a rodada já avançou geração por reset (currentGen > 1), state sem geração é stale e não pode ser persistido.
         if (currentGen > 1) {
@@ -88,6 +91,7 @@ export const canonicalQualifyingPersistenceService = {
           )
           return false
         }
+        state.weekendGeneration = currentGen
         state.generation = currentGen
       }
 
@@ -118,14 +122,17 @@ export const canonicalQualifyingPersistenceService = {
       const parsed = JSON.parse(raw) as QualifyingStageState
 
       const currentGen = getActiveWeekendGeneration(seasonId, round)
+      const parsedGen = parsed ? (parsed.weekendGeneration ?? parsed.generation) : undefined
       // Se tiver geração registrada e for diferente da ativa, o estado é obsoleto
-      if (parsed && parsed.generation !== undefined) {
-        if (parsed.generation !== currentGen) {
+      if (parsed && parsedGen !== undefined) {
+        if (parsedGen !== currentGen) {
           console.warn(
-            `[QualifyingPersistence] Estado lido ignorado por geração obsoleta/incompatível: ${parsed.generation} !== currentGen ${currentGen}`,
+            `[QualifyingPersistence] Estado lido ignorado por geração obsoleta/incompatível: ${parsedGen} !== currentGen ${currentGen}`,
           )
           return null
         }
+        parsed.weekendGeneration = currentGen
+        parsed.generation = currentGen
       } else if (parsed) {
         // Se a rodada já avançou geração por reset (> 1), state sem geração é stale
         if (currentGen > 1) {
@@ -134,6 +141,7 @@ export const canonicalQualifyingPersistenceService = {
           )
           return null
         }
+        parsed.weekendGeneration = currentGen
         parsed.generation = currentGen
       }
 

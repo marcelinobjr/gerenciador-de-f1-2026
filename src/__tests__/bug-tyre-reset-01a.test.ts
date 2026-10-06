@@ -98,6 +98,7 @@ describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', (
       parcFermeActive: false,
       revision: 1,
       generation,
+      weekendGeneration: generation,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -157,6 +158,7 @@ describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', (
       knowledge: createInitialSetupKnowledge(),
       revision: 1,
       generation,
+      weekendGeneration: generation,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -184,6 +186,7 @@ describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', (
     const loadedQuali = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
     expect(loadedQuali).not.toBeNull()
     expect(loadedQuali?.generation).toBe(currentGen)
+    expect(loadedQuali?.weekendGeneration).toBe(currentGen)
 
     const loadedPractice = practiceSessionService.readFromLocalCache(
       careerId,
@@ -193,6 +196,7 @@ describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', (
     )
     expect(loadedPractice).not.toBeNull()
     expect(loadedPractice?.generation).toBe(currentGen)
+    expect(loadedPractice?.weekendGeneration).toBe(currentGen)
   })
 
   it('S2 — RESET INVALIDA: executar reset, generation vira N+1', () => {
@@ -268,10 +272,12 @@ describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', (
     const loadedQ = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
     expect(loadedQ).not.toBeNull()
     expect(loadedQ?.generation).toBe(2)
+    expect(loadedQ?.weekendGeneration).toBe(2)
 
     const loadedP = practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')
     expect(loadedP).not.toBeNull()
     expect(loadedP?.generation).toBe(2)
+    expect(loadedP?.weekendGeneration).toBe(2)
   })
 
   it('S6 — RELOAD: após reset e novo state, reload reconhece somente generation N+1', () => {
@@ -294,6 +300,7 @@ describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', (
     const reloaded = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
     expect(reloaded).not.toBeNull()
     expect(reloaded?.generation).toBe(2)
+    expect(reloaded?.weekendGeneration).toBe(2)
   })
 
   it('S7 — HANDLER INDIRETO: exercitar fluxos reais que chamam o save com referência antiga pós-reset; confirmar que o gatekeeper central bloqueia', async () => {
@@ -359,18 +366,22 @@ describe('RESET-FIX-2 / bug-tyre-reset-01a — Gatekeeper Contra State Stale', (
     )
     expect(savedLegacyQ).toBe(true)
     expect(legacyQualiBeforeReset.generation).toBe(1)
+    expect(legacyQualiBeforeReset.weekendGeneration).toBe(1)
 
     const readLegacyQ = canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')
     expect(readLegacyQ).not.toBeNull()
     expect(readLegacyQ?.generation).toBe(1)
+    expect(readLegacyQ?.weekendGeneration).toBe(1)
 
     const legacyPracticeBeforeReset = createMockPracticeState(undefined)
     await practiceSessionService.saveSessionState(legacyPracticeBeforeReset)
     expect(legacyPracticeBeforeReset.generation).toBe(1)
+    expect(legacyPracticeBeforeReset.weekendGeneration).toBe(1)
 
     const readLegacyP = practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')
     expect(readLegacyP).not.toBeNull()
     expect(readLegacyP?.generation).toBe(1)
+    expect(readLegacyP?.weekendGeneration).toBe(1)
 
     // 2. Agora o fim de semana avança geração por reset (geração vira 2)
     resetWeekendForRound({ careerId, seasonId, round })
