@@ -27,10 +27,14 @@ export const notificationService = {
         requestKey: null,
       })
       return records?.items || []
-    } catch (err) {
+    } catch {
       // Falhas transitórias de rede (Failed to fetch, HTTP N/A, timeout, abort)
-      // devem ser tratadas de forma silenciosa e resiliente com fallback local.
-      return this.getLocalNotifications(userId).slice(0, limit)
+      // tratadas de forma 100% silenciosa sem banner de runtime nem console.error
+      try {
+        return this.getLocalNotifications(userId).slice(0, limit)
+      } catch {
+        return []
+      }
     }
   },
 

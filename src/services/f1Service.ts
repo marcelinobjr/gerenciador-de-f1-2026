@@ -35,7 +35,15 @@ export const f1Service = {
       })
       return records.items
     } catch {
-      // Falhas transitórias de rede tratadas de forma silenciosa
+      // Captura silenciosa de falhas transitórias de rede sem estourar banner nem console.error
+      try {
+        const local = localStorage.getItem(`f1_notifications_${userId}`)
+        if (local) {
+          return JSON.parse(local)
+        }
+      } catch {
+        // silencioso
+      }
       return []
     }
   },

@@ -88,13 +88,14 @@ export function NotificationBell({
           setNotifications(items)
         }
       } catch {
-        // Silencia erro transitório (TypeError: Failed to fetch, etc.) sem exibir banner ou toast
+        // Silencia erro transitório (TypeError: Failed to fetch, HTTP N/A, timeout) sem banner ou toast
       }
     }
 
-    fetchSafe().catch(() => {})
+    // Polling silencioso de notificações: rejeições capturadas e ignoradas
+    void fetchSafe().catch(() => {})
     const timer = setInterval(() => {
-      fetchSafe().catch(() => {})
+      void fetchSafe().catch(() => {})
     }, 10000)
 
     return () => {
