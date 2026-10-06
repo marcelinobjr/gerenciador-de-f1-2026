@@ -407,20 +407,66 @@ export interface ResetWeekendOptions {
   round: number
 }
 
+export interface WeekendGenerationContext {
+  careerId?: string
+  seasonId: string
+  round: number
+}
+
 export const WEEKEND_GENERATION_PREFIX = 'apex_weekend_generation'
 
-export function getWeekendGenerationStorageKey(seasonId: string, round: number): string {
+/**
+ * Constrói a chave canônica de storage para a geração de um fim de semana.
+ * Suporta assinatura polimórfica:
+ *  - getWeekendGenerationStorageKey(context: WeekendGenerationContext)
+ *  - getWeekendGenerationStorageKey(seasonId: string, round: number, careerId?: string)
+ *
+ * Se careerId for fornecido (ou presente no contexto), o namespace é isolado por carreira:
+ *  `${WEEKEND_GENERATION_PREFIX}_${careerId}_${seasonId}_r${round}`
+ * Caso contrário, mantém compatibilidade reversa direta:
+ *  `${WEEKEND_GENERATION_PREFIX}_${seasonId}_r${round}`
+ */
+export function getWeekendGenerationStorageKey(
+  contextOrSeasonId: WeekendGenerationContext | string,
+  roundOrCareerId?: number | string,
+  optionalCareerId?: string,
+): string {
+  let careerId: string | undefined
+  let seasonId: string
+  let round: number
+
+  if (typeof contextOrSeasonId === 'object' && contextOrSeasonId !== null) {
+    careerId = contextOrSeasonId.careerId
+    seasonId = contextOrSeasonId.seasonId
+    round = contextOrSeasonId.round
+  } else {
+    seasonId = String(contextOrSeasonId)
+    round = typeof roundOrCareerId === 'number' ? roundOrCareerId : 1
+    careerId =
+      optionalCareerId || (typeof roundOrCareerId === 'string' ? roundOrCareerId : undefined)
+  }
+
+  if (careerId && careerId.trim() !== '') {
+    return `${WEEKEND_GENERATION_PREFIX}_${careerId.trim()}_${seasonId}_r${round}`
+  }
   return `${WEEKEND_GENERATION_PREFIX}_${seasonId}_r${round}`
 }
 
 /**
- * Lê a geração canônica ativa para a rodada especificada.
- * Retorna 1 por padrão se nenhuma geração tiver sido gravada ainda.
+ * Lê a geração canônica ativa para o contexto (carreira + temporada + rodada).
+ * Baseline determinístico: 1 por padrão se nenhuma geração tiver sido gravada ainda.
+ * Sobrevive a reload de página.
+ * Suporta tanto objeto de contexto quanto parâmetros posicionais (seasonId, round, careerId?).
  */
-export function getActiveWeekendGeneration(seasonId: string, round: number): number {
+export function getWeekendGeneration(
+  contextOrSeasonId: WeekendGenerationContext | string,
+  round?: number,
+  careerId?: string,
+): number {
   if (typeof window === 'undefined' || !window.localStorage) return 1
   try {
-    const raw = window.localStorage.getItem(getWeekendGenerationStorageKey(seasonId, round))
+    const key = getWeekendGenerationStorageKey(contextOrSeasonId as any, round as any, careerId)
+    const raw = window.localStorage.getItem(key)
     if (!raw) return 1
     const parsed = parseInt(raw, 10)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
@@ -430,15 +476,54 @@ export function getActiveWeekendGeneration(seasonId: string, round: number): num
 }
 
 /**
- * Incrementa e persiste a geração canônica da rodada.
+ * Alias canônico de leitura para compatibilidade com o ecossistema existente.
+ */
+export function getActiveWeekendGeneration(
+  contextOrSeasonId: WeekendGenerationContext | string,
+  round?: number,
+  careerId?: string,
+): number {
+  return getWeekendGeneration(contextOrSeasonId, round, careerId)
+}
+
+/**
+ * Incrementa e persiste a geração canônica do fim de semana.
+ * Suporta tanto objeto de contexto quanto parâmetros posicionais (seasonId, round, careerId?).
  * Sobrevive a reload de página.
  */
-export function bumpWeekendGeneration(seasonId: string, round: number): number {
+export function bumpWeekendGeneration(
+  contextOrSeasonId: WeekendGenerationContext | string,
+  round?: number,
+  careerId?: string,
+): number {
   if (typeof window === 'undefined' || !window.localStorage) return 1
   try {
-    const current = getActiveWeekendGeneration(seasonId, round)
+    const key = getWeekendGenerationStorageKey(contextOrSeasonId as any, round as any, careerId)
+    const current = getWeekendGeneration(contextOrSeasonId, round, careerId)
     const next = current + 1
-    window.localStorage.setItem(getWeekendGenerationStorageKey(seasonId, round), String(next))
+    window.localStorage.setItem(key, String(next))
+
+    // Se houver careerId, também atualiza a chave global de seasonId+round caso exista leitor sem careerId
+    if (
+      typeof contextOrSeasonId === 'object' &&
+      contextOrSeasonId !== null &&
+      contextOrSeasonId.careerId
+    ) {
+      try {
+        const legacyKey = `${WEEKEND_GENERATION_PREFIX}_${contextOrSeasonId.seasonId}_r${contextOrSeasonId.round}`
+        window.localStorage.setItem(legacyKey, String(next))
+      } catch {
+        // ignore
+      }
+    } else if (careerId) {
+      try {
+        const legacyKey = `${WEEKEND_GENERATION_PREFIX}_${contextOrSeasonId}_r${round}`
+        window.localStorage.setItem(legacyKey, String(next))
+      } catch {
+        // ignore
+      }
+    }
+
     return next
   } catch {
     return 1
@@ -454,7 +539,7 @@ export interface ResetWeekendResult {
 /**
  * Reseta os dados e estados de sessões de um fim de semana específico sem tocar
  * em campeonatos, pontuações, morais, contratos, PU ou histórico de outras rodadas.
- * BUG-TYRE-RESET-01A: Incrementa e persiste a geração canônica da rodada ANTES da limpeza,
+ * RESET-FIX-1 / BUG-TYRE-RESET-01A: Incrementa e persiste a geração canônica da rodada ANTES da limpeza,
  * fechando a janela de concorrência onde handlers stale pudessem persistir dados antigos.
  */
 export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekendResult {
@@ -465,8 +550,8 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
   const { careerId, seasonId, round } = options
   const clearedKeys: string[] = []
 
-  // 0. BUG-TYRE-RESET-01A: Incrementar geração canônica ANTES da limpeza do storage
-  const newGeneration = bumpWeekendGeneration(seasonId, round)
+  // 0. RESET-FIX-1: Incrementar geração canônica isolada por careerId + seasonId + round ANTES da limpeza
+  const newGeneration = bumpWeekendGeneration({ careerId, seasonId, round })
 
   const removeKey = (key: string) => {
     try {
@@ -556,6 +641,7 @@ export const weekendProgressionService = {
   readStoredCompletedSessions,
   writeStoredCompletedSessions,
   getWeekendGenerationStorageKey,
+  getWeekendGeneration,
   getActiveWeekendGeneration,
   bumpWeekendGeneration,
   resetWeekendForRound,
