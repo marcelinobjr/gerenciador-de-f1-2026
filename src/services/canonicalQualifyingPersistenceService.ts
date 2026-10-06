@@ -63,13 +63,14 @@ export const canonicalQualifyingPersistenceService = {
     if (typeof window === 'undefined' || !window.localStorage) return false
     try {
       const activeGen = getActiveWeekendGeneration(seasonId, round)
-      // Se state não tem generation (saves antigos/legados), assume compatibilidade com activeGen
+      // BUG-TYRE-RESET-01A: Rejeitar escrita se state.generation for incompatível com a geração ativa da rodada
       if (state.generation !== undefined && state.generation !== activeGen) {
         console.warn(
           `[QualifyingPersistence] Escrita rejeitada por geração obsoleta: state.generation (${state.generation}) !== activeGen (${activeGen}) para ${seasonId} r${round}`,
         )
         return false
       }
+      // Se state não tem generation (saves antigos/legados), vincula à geração canônica ativa
       if (state.generation === undefined) {
         state.generation = activeGen
       }

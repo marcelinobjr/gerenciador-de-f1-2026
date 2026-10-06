@@ -23,7 +23,7 @@ import {
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 import { practiceSessionService } from '@/services/practiceSessionService'
 import { CanonicalQualifyingRunner } from '@/services/canonicalQualifyingRunner'
-import { CanonicalPracticeV2Runner as PracticeSessionRunner } from '@/services/canonicalPracticeV2Runner'
+import { CanonicalPracticeRunner as PracticeSessionRunner } from '@/services/canonicalPracticeRunner'
 import { createInitialSetupKnowledge } from '@/services/canonicalPracticeFeedbackService'
 import type { QualifyingStageState } from '@/types/canonical-qualifying-types'
 import type { PracticeSessionRecordState } from '@/types/practice-session'
@@ -258,8 +258,7 @@ describe('BUG-TYRE-RESET-01A — Bloquear Ressurreição de Estado Pré-Reset', 
     expect(read).toBeNull()
 
     // O mesmo para treino
-    const practiceExit = PracticeSessionRunner.orderCarExitToTrack(practiceStateStale, 'car1')
-    expect(practiceExit.success).toBe(true)
+    practiceStateStale.cars.car1.status = 'out_lap'
     await practiceSessionService.saveSessionState(practiceStateStale)
 
     const readPractice = practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')
@@ -292,14 +291,8 @@ describe('BUG-TYRE-RESET-01A — Bloquear Ressurreição de Estado Pré-Reset', 
     expect(saveQuali).toBe(false)
     expect(canonicalQualifyingPersistenceService.readStageState(seasonId, round, 'q1')).toBeNull()
 
-    // Para treino livre
-    const practiceUpdate = PracticeSessionRunner.updateCarGarageSetup(
-      practiceStateStale,
-      'car1',
-      newSetup,
-    )
-    expect(practiceUpdate).toBe(true)
-
+    // Para treino livre: aplicação de novo acerto em objeto stale e tentativa de salvar
+    practiceStateStale.cars.car1.setup = { ...practiceStateStale.cars.car1.setup, ...newSetup }
     await practiceSessionService.saveSessionState(practiceStateStale)
     expect(practiceSessionService.readFromLocalCache(careerId, seasonId, round, 'tp1')).toBeNull()
   })

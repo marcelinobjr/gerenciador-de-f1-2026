@@ -479,13 +479,14 @@ export class PracticeSessionService {
    */
   async saveSessionState(state: PracticeSessionRecordState): Promise<PracticeSessionRecordState> {
     const activeGen = getActiveWeekendGeneration(state.seasonId, state.round)
-    // Se state.generation !== activeGen, rejeita a escrita (no-op seguro)
+    // BUG-TYRE-RESET-01A: Rejeita escrita se state.generation divergir da geração ativa da rodada
     if (state.generation !== undefined && state.generation !== activeGen) {
       console.warn(
         `[practiceSessionService] Escrita rejeitada por geração obsoleta: state.generation (${state.generation}) !== activeGen (${activeGen}) para ${state.seasonId} r${state.round}`,
       )
       return state
     }
+    // Vincula à geração ativa se não estiver definida
     if (state.generation === undefined) {
       state.generation = activeGen
     }
