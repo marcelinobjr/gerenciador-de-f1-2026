@@ -1955,6 +1955,7 @@ export default function WeekendV2Page() {
 
   // BUG-SQ1-RESULT-INTEGRITY-01 & BUG-Q1-RESULT-01B: Detecção de conclusão via useEffect observando qualifyingState.status === 'completed'.
   // Guard robusto: completedQualiStagesHandledRef só marca após confirmar que o StageResult persistido existe e foi processado com sucesso.
+  // Se o resultado canônico ainda não foi persistido ou não foi lido com sucesso, não marca como handled para permitir retry no próximo ciclo.
   useEffect(() => {
     if (!qualifyingState || qualifyingState.status !== 'completed' || !season?.id) {
       return
