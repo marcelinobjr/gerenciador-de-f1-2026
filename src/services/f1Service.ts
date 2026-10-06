@@ -20,6 +20,7 @@ import {
   F1NotificationModel,
   F1NotificationType,
   RaceReportModel,
+  PowerUnitHistoryEntry,
 } from '@/types/f1'
 
 export const FREE_ENGINE_QUOTA = 4
@@ -2066,9 +2067,13 @@ export const f1Service = {
     // Contexto moderno vs legado
     // Se driverId for fornecido ou se o histórico atual contiver unidades identificadas por driverId
     const hasDriverScopedEntries = currentHistory.some(
-      (eng) => Boolean(eng.driverId) && typeof eng.seasonYear === 'number' && typeof eng.unitNumber === 'number',
+      (eng) =>
+        Boolean(eng.driverId) &&
+        typeof eng.seasonYear === 'number' &&
+        typeof eng.unitNumber === 'number',
     )
-    const isDriverScoped = Boolean(options?.driverId) || (hasDriverScopedEntries && Boolean(options?.driverId))
+    const isDriverScoped =
+      Boolean(options?.driverId) || (hasDriverScopedEntries && Boolean(options?.driverId))
 
     let targetDriverId = options?.driverId
     const targetSeasonYear = options?.seasonYear || 2026
@@ -2143,19 +2148,24 @@ export const f1Service = {
     // Tratar Idempotência (chamada duplicada / reload)
     if (alreadyExists && matchedExistingUnit) {
       const existingPenalties = team.grid_penalties || []
-      const alreadyHasPenalty = isDriverScoped && targetDriverId
-        ? existingPenalties.some(
-            (p) =>
-              (p.driverId === targetDriverId && p.seasonYear === targetSeasonYear && p.unitIndex === unitIndex) ||
-              (p.id === `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`),
-          )
-        : existingPenalties.some((p) => p.unitIndex === unitIndex)
+      const alreadyHasPenalty =
+        isDriverScoped && targetDriverId
+          ? existingPenalties.some(
+              (p) =>
+                (p.driverId === targetDriverId &&
+                  p.seasonYear === targetSeasonYear &&
+                  p.unitIndex === unitIndex) ||
+                p.id === `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`,
+            )
+          : existingPenalties.some((p) => p.unitIndex === unitIndex)
 
       const effectivePenalty = alreadyHasPenalty
         ? (existingPenalties.find((p) =>
             isDriverScoped && targetDriverId
-              ? (p.driverId === targetDriverId && p.seasonYear === targetSeasonYear && p.unitIndex === unitIndex) ||
-                (p.id === `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`)
+              ? (p.driverId === targetDriverId &&
+                  p.seasonYear === targetSeasonYear &&
+                  p.unitIndex === unitIndex) ||
+                p.id === `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`
               : p.unitIndex === unitIndex,
           )?.positions ?? penaltyPositions)
         : penaltyPositions
@@ -2225,9 +2235,10 @@ export const f1Service = {
 
     // Registro da penalidade regulamentar de forma IDEMPOTENTE no modelo da equipe
     const currentPenalties = Array.isArray(team.grid_penalties) ? [...team.grid_penalties] : []
-    const penaltyId = isDriverScoped && targetDriverId
-      ? `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`
-      : `pu_pen_${team.id}_u${unitIndex}`
+    const penaltyId =
+      isDriverScoped && targetDriverId
+        ? `pu_pen_${team.id}_${targetDriverId}_${targetSeasonYear}_u${unitIndex}`
+        : `pu_pen_${team.id}_u${unitIndex}`
 
     const penaltyAlreadyRegistered = currentPenalties.some((p) => {
       if (p.id === penaltyId) return true
@@ -2246,9 +2257,10 @@ export const f1Service = {
         id: penaltyId,
         unitIndex,
         positions: penaltyPositions,
-        reason: isDriverScoped && targetDriverId
-          ? `Excesso de cota anual de unidades de potência do piloto (${targetDriverId}: PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`
-          : `Excesso de cota anual de unidades de potência (PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`,
+        reason:
+          isDriverScoped && targetDriverId
+            ? `Excesso de cota anual de unidades de potência do piloto (${targetDriverId}: PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`
+            : `Excesso de cota anual de unidades de potência (PU #${unitIndex} > cota ${FREE_ENGINE_QUOTA})`,
         appliedAt: new Date().toISOString(),
         driverId: isDriverScoped ? targetDriverId : undefined,
         seasonYear: isDriverScoped ? targetSeasonYear : undefined,
@@ -2259,9 +2271,10 @@ export const f1Service = {
 
     // Registro Canônico no Financial Ledger (Compra de nova unidade de potência)
     // IDEMPOTENCY KEY: diferencia por piloto e temporada para evitar colisão quando ambos tiverem PU5
-    const financialIdempotencyKey = isDriverScoped && targetDriverId
-      ? `new_pu_${team.id}_${targetDriverId}_${targetSeasonYear}_pu${unitIndex}`
-      : `new_pu_${team.id}_engine_${unitIndex}`
+    const financialIdempotencyKey =
+      isDriverScoped && targetDriverId
+        ? `new_pu_${team.id}_${targetDriverId}_${targetSeasonYear}_pu${unitIndex}`
+        : `new_pu_${team.id}_engine_${unitIndex}`
 
     try {
       const { financialLedgerService } = await import('@/services/financialLedgerService')
@@ -2276,11 +2289,15 @@ export const f1Service = {
         amount: cost,
         costCapClassification: 'included',
         sourceSystem: 'engine_pool',
-        sourceEntityId: isDriverScoped && targetDriverId ? `pu_${targetDriverId}_${unitIndex}` : `pu_${unitIndex}`,
+        sourceEntityId:
+          isDriverScoped && targetDriverId
+            ? `pu_${targetDriverId}_${unitIndex}`
+            : `pu_${unitIndex}`,
         idempotencyKey: financialIdempotencyKey,
-        description: isDriverScoped && targetDriverId
-          ? `Aquisição de nova Unidade de Potência #${unitIndex} (${targetDriverId} - ${team.engine_supplier || 'Audi'})`
-          : `Aquisição de nova Unidade de Potência #${unitIndex} (${team.engine_supplier || 'Mercedes'})`,
+        description:
+          isDriverScoped && targetDriverId
+            ? `Aquisição de nova Unidade de Potência #${unitIndex} (${targetDriverId} - ${team.engine_supplier || 'Audi'})`
+            : `Aquisição de nova Unidade de Potência #${unitIndex} (${team.engine_supplier || 'Mercedes'})`,
       })
     } catch (finErr) {
       console.warn('Erro ao lançar compra de motor no FinancialLedger:', finErr)
