@@ -19,6 +19,7 @@ import type {
   CompleteQualifyingWeekendResult,
   FinalQualifyingGridEntry,
 } from '@/types/canonical-qualifying-types'
+import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 
 const STAGE_STATE_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_state_v2'
 const STAGE_RESULT_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_result_v2'
@@ -56,21 +57,36 @@ export const canonicalQualifyingPersistenceService = {
 
   /**
    * Salva o estado ao vivo da fase de classificação.
+   * BUG-TYRE-RESET-01A: Rejeita escrita se state.generation for incompatível com a geração ativa da rodada.
    */
-  saveStageState(seasonId: string, round: number, state: QualifyingStageState): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
+  saveStageState(seasonId: string, round: number, state: QualifyingStageState): boolean {
+    if (typeof window === 'undefined' || !window.localStorage) return false
     try {
+      const activeGen = getActiveWeekendGeneration(seasonId, round)
+      // Se state não tem generation (saves antigos/legados), assume compatibilidade com activeGen
+      if (state.generation !== undefined && state.generation !== activeGen) {
+        console.warn(
+          `[QualifyingPersistence] Escrita rejeitada por geração obsoleta: state.generation (${state.generation}) !== activeGen (${activeGen}) para ${seasonId} r${round}`,
+        )
+        return false
+      }
+      if (state.generation === undefined) {
+        state.generation = activeGen
+      }
       state.updatedAt = new Date().toISOString()
       state.revision = (state.revision || 0) + 1
       const key = this.getStageStateKey(seasonId, round, state.stageId)
       window.localStorage.setItem(key, JSON.stringify(state))
+      return true
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao salvar estado de fase:', e)
+      return false
     }
   },
 
   /**
    * Lê o estado ao vivo da fase para permitir reload seguro sem recomeçar.
+   * BUG-TYRE-RESET-01A: Se o estado persistido pertencer a uma geração anterior, descarta.
    */
   readStageState(
     seasonId: string,
@@ -82,6 +98,18 @@ export const canonicalQualifyingPersistenceService = {
       const raw = window.localStorage.getItem(this.getStageStateKey(seasonId, round, stageId))
       if (!raw) return null
       const parsed = JSON.parse(raw) as QualifyingStageState
+
+      const activeGen = getActiveWeekendGeneration(seasonId, round)
+      // Se tiver geração registrada e for diferente da ativa, o estado é obsoleto
+      if (parsed && parsed.generation !== undefined && parsed.generation !== activeGen) {
+        console.warn(
+          `[QualifyingPersistence] Estado lido ignorado por geração obsoleta: ${parsed.generation} !== activeGen ${activeGen}`,
+        )
+        return null
+      }
+      if (parsed && parsed.generation === undefined) {
+        parsed.generation = activeGen
+      }
 
       // BUG-SQ3-TRANSITION-R3: Reconciliação canônica de running órfão pós-reload/reidratação.
       // Se a sessão estiver persistida como 'running' mas sem executor ativo (ao ler do storage),

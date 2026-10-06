@@ -303,6 +303,7 @@ export class CanonicalQualifyingRunner {
       ],
       parcFermeActive: canonicalQualifyingPersistenceService.isParcFermeActive(seasonId, round),
       revision: 1,
+      generation: activeGen,
       createdAt: nowIso,
       updatedAt: nowIso,
     }

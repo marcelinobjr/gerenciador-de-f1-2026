@@ -407,14 +407,55 @@ export interface ResetWeekendOptions {
   round: number
 }
 
+export const WEEKEND_GENERATION_PREFIX = 'apex_weekend_generation'
+
+export function getWeekendGenerationStorageKey(seasonId: string, round: number): string {
+  return `${WEEKEND_GENERATION_PREFIX}_${seasonId}_r${round}`
+}
+
+/**
+ * Lê a geração canônica ativa para a rodada especificada.
+ * Retorna 1 por padrão se nenhuma geração tiver sido gravada ainda.
+ */
+export function getActiveWeekendGeneration(seasonId: string, round: number): number {
+  if (typeof window === 'undefined' || !window.localStorage) return 1
+  try {
+    const raw = window.localStorage.getItem(getWeekendGenerationStorageKey(seasonId, round))
+    if (!raw) return 1
+    const parsed = parseInt(raw, 10)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+  } catch {
+    return 1
+  }
+}
+
+/**
+ * Incrementa e persiste a geração canônica da rodada.
+ * Sobrevive a reload de página.
+ */
+export function bumpWeekendGeneration(seasonId: string, round: number): number {
+  if (typeof window === 'undefined' || !window.localStorage) return 1
+  try {
+    const current = getActiveWeekendGeneration(seasonId, round)
+    const next = current + 1
+    window.localStorage.setItem(getWeekendGenerationStorageKey(seasonId, round), String(next))
+    return next
+  } catch {
+    return 1
+  }
+}
+
 export interface ResetWeekendResult {
   success: boolean
   clearedKeys: string[]
+  newGeneration?: number
 }
 
 /**
  * Reseta os dados e estados de sessões de um fim de semana específico sem tocar
  * em campeonatos, pontuações, morais, contratos, PU ou histórico de outras rodadas.
+ * BUG-TYRE-RESET-01A: Incrementa e persiste a geração canônica da rodada ANTES da limpeza,
+ * fechando a janela de concorrência onde handlers stale pudessem persistir dados antigos.
  */
 export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekendResult {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -423,6 +464,9 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
 
   const { careerId, seasonId, round } = options
   const clearedKeys: string[] = []
+
+  // 0. BUG-TYRE-RESET-01A: Incrementar geração canônica ANTES da limpeza do storage
+  const newGeneration = bumpWeekendGeneration(seasonId, round)
 
   const removeKey = (key: string) => {
     try {
@@ -499,6 +543,7 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
   return {
     success: true,
     clearedKeys,
+    newGeneration,
   }
 }
 
@@ -510,5 +555,8 @@ export const weekendProgressionService = {
   normalizeCompletedSessions,
   readStoredCompletedSessions,
   writeStoredCompletedSessions,
+  getWeekendGenerationStorageKey,
+  getActiveWeekendGeneration,
+  bumpWeekendGeneration,
   resetWeekendForRound,
 }

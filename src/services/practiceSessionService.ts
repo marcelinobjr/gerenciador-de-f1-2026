@@ -20,6 +20,7 @@ import { OFFICIAL_POWER_UNITS } from '@/lib/car-technical-data'
 import { calculateCombinedPace } from '@/lib/f1-pace-model'
 import { createInitialSetupKnowledge } from '@/services/canonicalPracticeFeedbackService'
 import { createInitialWeekendTyreKnowledge } from '@/services/canonicalPracticeTyreService'
+import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 import type { WeekendTyreKnowledge, TyreStintObservation } from '@/types/practice-tyres'
 
 const LEASE_DURATION_MS = 25000 // 25s de lease para exclusividade de executor
@@ -225,6 +226,7 @@ export class PracticeSessionService {
     ]
 
     const nowIso = new Date().toISOString()
+    const activeGen = getActiveWeekendGeneration(seasonId, round)
     return {
       careerId,
       seasonId,
@@ -254,6 +256,7 @@ export class PracticeSessionService {
         ? JSON.parse(JSON.stringify(params.initialTyreKnowledge))
         : createInitialWeekendTyreKnowledge(),
       revision: 1,
+      generation: activeGen,
       createdAt: nowIso,
       updatedAt: nowIso,
     }
@@ -472,8 +475,21 @@ export class PracticeSessionService {
   /**
    * Salva o estado atual da sessão no PocketBase (em session_setups) e no cache local.
    * Totalmente idempotente.
+   * BUG-TYRE-RESET-01A: Rejeita persistência se state.generation for incompatível com a geração ativa da rodada.
    */
   async saveSessionState(state: PracticeSessionRecordState): Promise<PracticeSessionRecordState> {
+    const activeGen = getActiveWeekendGeneration(state.seasonId, state.round)
+    // Se state.generation !== activeGen, rejeita a escrita (no-op seguro)
+    if (state.generation !== undefined && state.generation !== activeGen) {
+      console.warn(
+        `[practiceSessionService] Escrita rejeitada por geração obsoleta: state.generation (${state.generation}) !== activeGen (${activeGen}) para ${state.seasonId} r${state.round}`,
+      )
+      return state
+    }
+    if (state.generation === undefined) {
+      state.generation = activeGen
+    }
+
     state.revision = (state.revision || 0) + 1
     state.updatedAt = new Date().toISOString()
 
@@ -591,7 +607,18 @@ export class PracticeSessionService {
       const key = this.getStorageKey(careerId, seasonId, round, sessionType)
       const data = localStorage.getItem(key)
       if (!data) return null
-      return JSON.parse(data) as PracticeSessionRecordState
+      const parsed = JSON.parse(data) as PracticeSessionRecordState
+      const activeGen = getActiveWeekendGeneration(seasonId, round)
+      if (parsed && parsed.generation !== undefined && parsed.generation !== activeGen) {
+        console.warn(
+          `[practiceSessionService] Cache local ignorado por geração obsoleta: ${parsed.generation} !== activeGen ${activeGen}`,
+        )
+        return null
+      }
+      if (parsed && parsed.generation === undefined) {
+        parsed.generation = activeGen
+      }
+      return parsed
     } catch {
       return null
     }

@@ -193,6 +193,7 @@ export interface QualifyingStageState {
   radioFeed: QualifyingRadioFeedEvent[]
   parcFermeActive: boolean
   revision: number
+  generation?: number
   createdAt: string
   updatedAt: string
 }

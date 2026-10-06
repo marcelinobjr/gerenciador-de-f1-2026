@@ -175,6 +175,7 @@ export interface PracticeSessionRecordState {
   executorLeaseUntil?: string
   lockHeartbeatAt?: string
   revision: number
+  generation?: number
   createdAt: string
   updatedAt: string
 }
