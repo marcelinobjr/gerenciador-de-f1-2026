@@ -28,6 +28,7 @@ import type {
   MainQualifyingSubPhase,
 } from '@/types/weekend-slot-types'
 import { resolveWeekendFormat, getSlotTypeForNumber } from '@/services/weekendSlotSequenceService'
+import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 
 const STORAGE_KEY_PREFIX = 'apex_weekend_slot_state_v1'
 
@@ -111,6 +112,8 @@ export class CanonicalWeekendSlotPersistenceService {
       completedSlots: [],
       slots,
       updatedAt: new Date().toISOString(),
+      generation: getActiveWeekendGeneration(seasonId, round, careerId),
+      weekendGeneration: getActiveWeekendGeneration(seasonId, round, careerId),
     }
   }
 
@@ -122,6 +125,43 @@ export class CanonicalWeekendSlotPersistenceService {
     state: CanonicalWeekendSlotState,
     explicitTeamId?: string,
   ): Promise<void> {
+    if (!state.careerId || !state.seasonId || state.round === undefined) {
+      return
+    }
+
+    const currentGen = getActiveWeekendGeneration(state.seasonId, state.round, state.careerId)
+    const effectiveGen = state.weekendGeneration ?? state.generation
+
+    // RESET-FIX-2: Gatekeeper central contra state stale / geração incompatível
+    if (effectiveGen !== undefined) {
+      if (effectiveGen < currentGen) {
+        console.warn(
+          `[WeekendSlotPersistence] STALE_STATE: escrita rejeitada por geração obsoleta (state=${effectiveGen} < current=${currentGen}) para ${state.seasonId} r${state.round}`,
+        )
+        return
+      }
+      if (effectiveGen > currentGen) {
+        console.warn(
+          `[WeekendSlotPersistence] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${effectiveGen} > current=${currentGen}) para ${state.seasonId} r${state.round}`,
+        )
+        return
+      }
+      state.weekendGeneration = currentGen
+      state.generation = currentGen
+    } else {
+      // State legado sem weekendGeneration / generation:
+      // Só é aceito e associado à geração atual se a rodada ainda estiver na geração baseline (1).
+      // Se a rodada já avançou geração por reset (currentGen > 1), state sem geração é stale e não pode ser persistido.
+      if (currentGen > 1) {
+        console.warn(
+          `[WeekendSlotPersistence] STALE_STATE: escrita rejeitada para state legado sem generation após avanço de rodada (current=${currentGen}) para ${state.seasonId} r${state.round}`,
+        )
+        return
+      }
+      state.weekendGeneration = currentGen
+      state.generation = currentGen
+    }
+
     const key = buildWeekendSlotStorageKey(state.careerId, state.seasonId, state.round)
     state.updatedAt = new Date().toISOString()
     this.inMemoryCache.set(key, state)
@@ -210,8 +250,25 @@ export class CanonicalWeekendSlotPersistenceService {
         if (raw) {
           const parsed = JSON.parse(raw) as CanonicalWeekendSlotState
           if (parsed && parsed.currentSlot && parsed.weekendFormat) {
-            this.inMemoryCache.set(key, parsed)
-            return parsed
+            const currentGen = getActiveWeekendGeneration(seasonId, round, careerId)
+            const parsedGen = parsed.weekendGeneration ?? parsed.generation
+            let isValidGen = false
+            if (parsedGen !== undefined) {
+              if (parsedGen === currentGen) {
+                isValidGen = true
+              }
+            } else {
+              if (currentGen === 1) {
+                isValidGen = true
+              }
+            }
+
+            if (isValidGen) {
+              parsed.weekendGeneration = currentGen
+              parsed.generation = currentGen
+              this.inMemoryCache.set(key, parsed)
+              return parsed
+            }
           }
         }
       } catch {
@@ -242,8 +299,45 @@ export class CanonicalWeekendSlotPersistenceService {
           ((item.driver_strategies as any)?.weekendSlotState as CanonicalWeekendSlotState) ||
           (item.notes ? JSON.parse(item.notes) : null)
         if (state && state.currentSlot && state.weekendFormat) {
-          this.inMemoryCache.set(key, state)
-          return state
+          const currentGen = getActiveWeekendGeneration(seasonId, round, careerId)
+          const parsedGen = state.weekendGeneration ?? state.generation
+
+          let isValidGen = false
+          if (parsedGen !== undefined) {
+            if (parsedGen === currentGen) {
+              isValidGen = true
+            } else {
+              console.warn(
+                `[WeekendSlotPersistence] Estado do PocketBase ignorado por geração incompatível/obsoleta: ${parsedGen} !== currentGen ${currentGen}`,
+              )
+            }
+          } else {
+            // Registro legado sem generation
+            if (currentGen === 1) {
+              isValidGen = true
+            } else {
+              console.warn(
+                `[WeekendSlotPersistence] Estado legado do PocketBase ignorado por avanço prévio de geração: currentGen ${currentGen}`,
+              )
+            }
+          }
+
+          if (isValidGen) {
+            state.weekendGeneration = currentGen
+            state.generation = currentGen
+            this.inMemoryCache.set(key, state)
+            return state
+          }
+          // Se generation for obsoleta, prossegue para criar estado inicial de weekend novo/resetado
+          const freshState = this.createInitialState({
+            careerId,
+            seasonId,
+            round,
+            configVersion,
+            weekendFormat: state.weekendFormat || weekendFormat,
+          })
+          await this.saveSlotState(freshState)
+          return freshState
         }
       }
     } catch {

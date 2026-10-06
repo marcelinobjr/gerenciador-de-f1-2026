@@ -65,6 +65,8 @@ export interface CanonicalWeekendSlotState {
   completedSlots?: WeekendSlotNumber[]
   slots: Record<WeekendSlotNumber, WeekendSlotData>
   updatedAt?: string
+  generation?: number
+  weekendGeneration?: number
 }
 
 export interface WeekendSlotViewModel {
