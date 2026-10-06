@@ -2,11 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { CanonicalQualifyingRunner } from '@/services/canonicalQualifyingRunner'
 import { practiceSessionService } from '@/services/practiceSessionService'
-import {
-  validateCarPreparation,
-  type PracticeCarPreparation,
-} from '@/services/practicePreparationService'
-import type { QualifyingDriverContext } from '@/types/qualifying'
+import { validateCarPreparation } from '@/services/practicePreparationService'
+import type { QualifyingDriverContext } from '@/services/canonicalQualifyingRunner'
+import type { PracticeCarPreparation } from '@/types/practice-session'
 
 describe('BUG-TYRE-SYNC-01A: Tyre Sync & Inventory Integrity', () => {
   const seasonId = 'season_2026_test'

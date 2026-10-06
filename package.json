@@ -3,7 +3,7 @@
   "description": "A frontend React Vite TypeScript Shadcn UI template for Skip projects",
   "private": true,
   "version": "0.0.974",
-  "buildAudit": "BUG-TYRE-SYNC-01A",
+  "buildAudit": "BUG-TYRE-SYNC-01A-FIN",
   "type": "module",
   "scripts": {
     "start": "vite dev",
