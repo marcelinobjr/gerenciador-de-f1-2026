@@ -56,6 +56,7 @@ export function NotificationBell({
   }, [location.pathname])
 
   const isMountedRef = useRef(true)
+  const inFlightRef = useRef(false)
 
   useEffect(() => {
     isMountedRef.current = true
@@ -66,6 +67,8 @@ export function NotificationBell({
 
   const loadNotifications = async () => {
     if (!effectiveUserId || !isMountedRef.current) return
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     try {
       const items = await notificationService.getNotifications(effectiveUserId, 30)
       if (isMountedRef.current && Array.isArray(items)) {
@@ -73,6 +76,8 @@ export function NotificationBell({
       }
     } catch {
       // Falha transitória de rede ou requisição abortada tratada silenciosamente sem propagar erro
+    } finally {
+      inFlightRef.current = false
     }
   }
 
@@ -82,14 +87,7 @@ export function NotificationBell({
 
     const fetchSafe = async () => {
       if (isCancelled || !effectiveUserId) return
-      try {
-        const items = await notificationService.getNotifications(effectiveUserId, 30)
-        if (!isCancelled && Array.isArray(items)) {
-          setNotifications(items)
-        }
-      } catch {
-        // Silencia erro transitório (TypeError: Failed to fetch, HTTP N/A, timeout) sem banner ou toast
-      }
+      await loadNotifications().catch(() => {})
     }
 
     // Polling silencioso de notificações: rejeições capturadas e ignoradas

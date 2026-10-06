@@ -220,14 +220,13 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
   })
 
   /**
-   * P4 — REQUEST LENTA (PROVA DO OVERLAP / AUSÊNCIA DE IN-FLIGHT GUARD):
-   * Fazer a primeira chamada ficar PENDENTE por mais de um intervalo (Promise não resolvida).
-   * Avançar o relógio para o próximo tick (10s).
-   * Provar que uma SEGUNDA chamada concorrente é disparada mesmo com a primeira pendente —
-   * documentando que NÃO existe in-flight guard na implementação atual de produção.
-   * NÃO corrigir na produção.
+  /**
+   * P4 — REGRESSÃO 01A / IN-FLIGHT GUARD:
+   * Em 01A, P4 provava a ausência do guard (overlap).
+   * Em 01B1 (com o guard ativo), ticks concorrentes enquanto pendente são bloqueados.
+   * Quando a promise é resolvida, os próximos ticks ocorrem normalmente.
    */
-  it('P4 — REQUEST LENTA (prova do overlap): dispara segundo tick mesmo com a primeira request ainda pendente', async () => {
+  it('P4 — REGRESSÃO 01A (com in-flight guard ativo): bloqueia ticks concorrentes enquanto pendente e retoma após resolução', async () => {
     let pendingResolver: ((value: any) => void) | null = null
     const pendingPromise = new Promise<any>((resolve) => {
       pendingResolver = resolve
@@ -239,7 +238,7 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
       .mockImplementation(() => {
         callCount++
         if (callCount === 1) {
-          // Primeira chamada fica pendente indefinidamente
+          // Primeira chamada fica pendente
           return pendingPromise
         }
         // Segunda chamada e subsequentes
@@ -255,31 +254,37 @@ describe('ERRO-NOTIFICACOES-POLLING-01A — Suíte de Reprodução Focada do Pol
     // Primeira chamada disparada no mount e fica PENDENTE
     expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // Avança 10 segundos até o próximo tick do timer
+    // Avança 10 segundos até o próximo tick do timer -> guard bloqueia tick concorrente
     await act(async () => {
       vi.advanceTimersByTime(10000)
     })
+    expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
 
-    // PROVA DO DEFEITO: Sem guard de in-flight, o setInterval dispara a 2ª chamada concorrente
+    // Avança mais 10 segundos -> continua bloqueado
+    await act(async () => {
+      vi.advanceTimersByTime(10000)
+    })
+    expect(getNotificationsSpy).toHaveBeenCalledTimes(1)
+
+    // Resolve a primeira promise pendente
+    await act(async () => {
+      if (pendingResolver) {
+        pendingResolver([])
+      }
+    })
+
+    // Próximo tick retoma normalmente
+    await act(async () => {
+      vi.advanceTimersByTime(10000)
+    })
     expect(getNotificationsSpy).toHaveBeenCalledTimes(2)
-
-    // Avança mais 10 segundos: dispara a 3ª chamada concorrente
-    await act(async () => {
-      vi.advanceTimersByTime(10000)
-    })
-    expect(getNotificationsSpy).toHaveBeenCalledTimes(3)
-
-    // Resolvemos a primeira promise pendente para garantir cleanup limpo
-    if (pendingResolver) {
-      pendingResolver([])
-    }
   })
 
   /**
    * P5 — DUPLICIDADE REALTIME / POLLING:
-   * Com o useRealtime mockado, disparar o callback registrado para a coleção 'notifications'.
-   * Provar que ele chama loadNotifications() e portanto dispara um getNotifications extra —
-   * documentando que realtime e polling coexistem e disparam chamadas adicionais.
+   * Com o useRealtime mockado e sem chamada pendente, disparar o callback registrado
+   * para as coleções 'notifications' e 'events' chama loadNotifications() normalmente
+   * coexistindo com o polling.
    */
   it('P5 — DUPLICIDADE REALTIME/POLLING: callback do useRealtime dispara getNotifications extra em paralelo ao polling', async () => {
     const getNotificationsSpy = vi
