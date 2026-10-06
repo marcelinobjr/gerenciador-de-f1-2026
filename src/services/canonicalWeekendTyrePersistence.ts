@@ -28,6 +28,25 @@ export function getWeekendTireStorageKey(seasonId: string, round: number): strin
   return `apex_gp_tires_${seasonId}_r${round}`
 }
 
+export type RecordTyreUsageStatusCode =
+  | 'APPLIED'
+  | 'INVENTORY_NOT_FOUND'
+  | 'SET_NOT_FOUND'
+  | 'PERSISTENCE_FAILED'
+
+export interface RecordTyreUsageResult {
+  success: boolean
+  status: RecordTyreUsageStatusCode
+  updatedSet?: TireSetItem
+  error?: string
+  context?: {
+    seasonId: string
+    round: number
+    driverId: string
+    tyreSetId: string
+  }
+}
+
 export interface StoredWeekendTireData {
   seasonId: string
   round: number
@@ -212,6 +231,7 @@ export const canonicalWeekendTyrePersistence = {
 
   /**
    * Registra voltas e desgaste em um jogo de pneus específico e persiste.
+   * Retorna resultado discriminado e tipado RecordTyreUsageResult.
    */
   recordTyreUsage(params: {
     seasonId: string
@@ -220,14 +240,36 @@ export const canonicalWeekendTyrePersistence = {
     tyreSetId: string
     lapsAdded: number
     finalWearPct: number
-  }): TireSetItem | null {
+  }): RecordTyreUsageResult {
     const { seasonId, round, driverId, tyreSetId, lapsAdded, finalWearPct } = params
+    const context = { seasonId, round, driverId, tyreSetId }
+
     const stored = this.readWeekendTireData(seasonId, round)
-    if (!stored || !stored.inventoriesByDriver[driverId]) return null
+    if (!stored || !stored.inventoriesByDriver || !stored.inventoriesByDriver[driverId]) {
+      console.warn(
+        `[canonicalWeekendTyrePersistence] recordTyreUsage: inventário não encontrado para piloto ${driverId} na rodada ${round} (seasonId=${seasonId}, tyreSetId=${tyreSetId})`,
+      )
+      return {
+        success: false,
+        status: 'INVENTORY_NOT_FOUND',
+        error: `Inventário de pneus não encontrado para o piloto ${driverId} (seasonId=${seasonId}, round=${round})`,
+        context,
+      }
+    }
 
     const sets = stored.inventoriesByDriver[driverId]
     const targetSet = sets.find((s) => s.id === tyreSetId || s.tyreSetId === tyreSetId)
-    if (!targetSet) return null
+    if (!targetSet) {
+      console.warn(
+        `[canonicalWeekendTyrePersistence] recordTyreUsage: jogo de pneus ${tyreSetId} não encontrado no inventário do piloto ${driverId} na rodada ${round}`,
+      )
+      return {
+        success: false,
+        status: 'SET_NOT_FOUND',
+        error: `Jogo de pneus ${tyreSetId} não encontrado no inventário do piloto ${driverId}`,
+        context,
+      }
+    }
 
     targetSet.lapsUsed = (targetSet.lapsUsed || 0) + lapsAdded
     targetSet.wear = Math.min(100, Math.max(targetSet.wear || 0, Math.round(finalWearPct)))
@@ -238,7 +280,26 @@ export const canonicalWeekendTyrePersistence = {
       targetSet.status = targetSet.isFitted ? 'instalado' : 'usado'
     }
 
-    this.writeWeekendTireData(stored)
-    return targetSet
+    try {
+      this.writeWeekendTireData(stored)
+    } catch (e: any) {
+      console.warn(
+        `[canonicalWeekendTyrePersistence] recordTyreUsage: falha ao persistir inventário após uso do jogo ${tyreSetId}:`,
+        e,
+      )
+      return {
+        success: false,
+        status: 'PERSISTENCE_FAILED',
+        error: `Falha ao persistir dados do inventário: ${e?.message || String(e)}`,
+        context,
+      }
+    }
+
+    return {
+      success: true,
+      status: 'APPLIED',
+      updatedSet: targetSet,
+      context,
+    }
   },
 }
