@@ -28,7 +28,6 @@ import type {
   MainQualifyingSubPhase,
 } from '@/types/weekend-slot-types'
 import { resolveWeekendFormat, getSlotTypeForNumber } from '@/services/weekendSlotSequenceService'
-import { readStoredCompletedSessions } from '@/services/weekendProgressionService'
 
 const STORAGE_KEY_PREFIX = 'apex_weekend_slot_state_v1'
 
@@ -283,7 +282,20 @@ export class CanonicalWeekendSlotPersistenceService {
     })
 
     // Lê histórico legado de sessões concluídas no localStorage
-    const legacyCompleted = readStoredCompletedSessions(seasonId, round)
+    let legacyCompleted: string[] = []
+    try {
+      // Import inline ou leitura direta do storage para evitar ciclo de módulo estático
+      const raw =
+        typeof window !== 'undefined' && window.localStorage
+          ? window.localStorage.getItem(`apex_f1_weekend_completed_v1_${seasonId}_r${round}`)
+          : null
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) legacyCompleted = parsed
+      }
+    } catch {
+      legacyCompleted = []
+    }
 
     if (format === 'NORMAL') {
       // Migração NORMAL:
@@ -603,6 +615,15 @@ export class CanonicalWeekendSlotPersistenceService {
 
     await this.saveSlotState(state)
     return state
+  }
+
+  /**
+   * Invalida a entrada do inMemoryCache referente a (careerId, seasonId, round).
+   * Reutiliza buildWeekendSlotStorageKey para manter estrita paridade de chave.
+   */
+  public invalidateMemoryCache(careerId: string, seasonId: string, round: number): void {
+    const key = buildWeekendSlotStorageKey(careerId, seasonId, round)
+    this.inMemoryCache.delete(key)
   }
 
   public clearMemoryCache(): void {

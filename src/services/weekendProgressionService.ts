@@ -12,6 +12,7 @@
  */
 
 import { CIRCUIT_PERFORMANCE_PROFILES } from '@/data/circuit-performance-profiles'
+import { canonicalWeekendSlotPersistenceService } from '@/services/canonicalWeekendSlotPersistenceService'
 
 export type CanonicalWeekendSession =
   | 'tp1'
@@ -601,8 +602,9 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
     removeKey(`apex_practice_weekend_tyre_knowledge_${careerId}_${seasonId}_${round}`)
     removeKey(`apex_practice_weekend_tyre_knowledge_${careerId}_${seasonId}_r${round}`)
 
-    // Slots do fim de semana (RACE-SPRINT-SLOTS-01A)
+    // Slots do fim de semana (RACE-SPRINT-SLOTS-01A / BUG-TL1-RELEASE-LOCK-01A1)
     removeKey(`apex_weekend_slot_state_v1_${careerId}_${seasonId}_r${round}`)
+    canonicalWeekendSlotPersistenceService.invalidateMemoryCache(careerId, seasonId, round)
 
     // Estados canônicos de corrida (Principal e Sprint)
     removeKey(`apex_race_v2_canonical_state_${careerId}_s${seasonId}_r${round}`)
