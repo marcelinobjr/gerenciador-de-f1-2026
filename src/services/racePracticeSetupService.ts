@@ -134,7 +134,7 @@ export interface WeekendNormalState {
 }
 
 export class RacePracticeSetupService {
-  // Deduplicação in-flight de requisições GET para a collection session_setups:
+  // Deduplicação in-flight de requisições GET para a collection session_setups (BUG-429-SETUPS-A):
   // Map<canonicalKey, Promise<Result>>
   // canonicalKey: `team_id::${careerId}::season_id::${seasonId}::round::${round}::session::${internalSession}`
   private inFlightSessionSetupRequests = new Map<
