@@ -72,7 +72,7 @@ export function NotificationBell({
         setNotifications(items)
       }
     } catch {
-      // Falha transitória de rede ou requisição abortada tratada silenciosamente
+      // Falha transitória de rede ou requisição abortada tratada silenciosamente sem propagar erro
     }
   }
 
@@ -92,8 +92,10 @@ export function NotificationBell({
       }
     }
 
-    fetchSafe()
-    const timer = setInterval(fetchSafe, 10000)
+    fetchSafe().catch(() => {})
+    const timer = setInterval(() => {
+      fetchSafe().catch(() => {})
+    }, 10000)
 
     return () => {
       isCancelled = true
@@ -134,7 +136,7 @@ export function NotificationBell({
           parts,
         })
         if (isMountedRef.current) {
-          await loadNotifications()
+          await loadNotifications().catch(() => {})
         }
       } catch (err) {
         console.warn('Erro ao avaliar notificações automáticas de estado:', err)

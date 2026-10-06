@@ -31,10 +31,11 @@ export const f1Service = {
       const records = await pb.collection('notifications').getList<F1NotificationModel>(1, limit, {
         filter: `user_id = "${userId}"`,
         sort: '-created',
+        requestKey: null,
       })
       return records.items
-    } catch (err) {
-      console.warn('Erro ao carregar notificações do PocketBase:', err)
+    } catch {
+      // Falhas transitórias de rede tratadas de forma silenciosa
       return []
     }
   },
