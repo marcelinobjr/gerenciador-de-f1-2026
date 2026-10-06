@@ -2,6 +2,21 @@ import type { CanonicalDriverContract } from '@/types/canonical-driver-market'
 
 export type EngineSupplierName = 'Ferrari' | 'Mercedes' | 'Honda' | 'Ford' | 'Audi'
 
+export interface PowerUnitHistoryEntry {
+  id: number
+  wear: number
+  status: 'instalado' | 'reserva' | 'aposentado'
+  supplier: string
+  introducedRound: number
+  exceedsQuota?: boolean
+  condition?: number
+  mileage_km?: number
+  assignedCar?: 1 | 2
+  driverId?: string
+  seasonYear?: number
+  unitNumber?: number
+}
+
 export interface TeamModel {
   id: string
   name: string
@@ -81,17 +96,7 @@ export interface TeamModel {
     }
     [key: string]: any
   }
-  engine_history?: Array<{
-    id: number
-    wear: number
-    status: 'instalado' | 'reserva' | 'aposentado'
-    supplier: string
-    introducedRound: number
-    exceedsQuota?: boolean
-    condition?: number
-    mileage_km?: number
-    assignedCar?: 1 | 2
-  }>
+  engine_history?: Array<PowerUnitHistoryEntry>
   grid_penalties?: Array<{
     id: string
     unitIndex: number
