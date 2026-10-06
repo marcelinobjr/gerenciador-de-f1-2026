@@ -287,11 +287,10 @@ export default function WeekendV2Page() {
     })
     setTyreInventories(freshInvs)
 
-    const careerIdForSlots = team?.id || canonicalCareerId
-    if (careerIdForSlots) {
+    if (canonicalCareerId) {
       try {
         const freshSlots = canonicalWeekendSlotPersistenceService.createInitialState({
-          careerId: careerIdForSlots,
+          careerId: canonicalCareerId,
           seasonId: season.id,
           round: currentRound,
         })
@@ -393,10 +392,9 @@ export default function WeekendV2Page() {
 
         // 3.3.1. Carregar ou migrar estado canônico dos 7 slots (RACE-SPRINT-SLOTS-01A)
         const canonicalCareerId = resolveCanonicalCareerId(season, team)
-        const careerIdForSlots = team?.id || canonicalCareerId
         canonicalWeekendSlotPersistenceService
           .loadOrMigrateSlotState({
-            careerId: careerIdForSlots,
+            careerId: canonicalCareerId,
             seasonId: season.id,
             round: currentRound,
           })
@@ -2109,10 +2107,9 @@ export default function WeekendV2Page() {
 
     // Avançar o weekend_slot_state canônico caso esteja no slot correspondente
     const canonicalCareerId = resolveCanonicalCareerId(season, team)
-    const careerIdForSlots = team?.id || canonicalCareerId
     canonicalWeekendSlotPersistenceService
       .loadOrMigrateSlotState({
-        careerId: careerIdForSlots,
+        careerId: canonicalCareerId,
         seasonId: season.id,
         round: currentRound,
       })
@@ -2126,7 +2123,7 @@ export default function WeekendV2Page() {
           // Se o slot 2 for o QUALI_SPRINT, a subfase é atualizada.
           if (stageId === 'sq1') {
             await canonicalWeekendSlotPersistenceService.updateSubPhase({
-              careerId: careerIdForSlots,
+              careerId: canonicalCareerId,
               seasonId: season.id,
               round: currentRound,
               slotNumber: 2,
@@ -2137,7 +2134,7 @@ export default function WeekendV2Page() {
             // SQ2 concluída: avança subPhase para SQ3 e marca o próximo slot/fase correspondente à SQ3 como DISPONÍVEL (AVAILABLE)
             const currentSlotState =
               await canonicalWeekendSlotPersistenceService.loadOrMigrateSlotState({
-                careerId: careerIdForSlots,
+                careerId: canonicalCareerId,
                 seasonId: season.id,
                 round: currentRound,
               })
@@ -2159,7 +2156,7 @@ export default function WeekendV2Page() {
               await canonicalWeekendSlotPersistenceService.saveSlotState(currentSlotState)
             } else {
               await canonicalWeekendSlotPersistenceService.updateSubPhase({
-                careerId: careerIdForSlots,
+                careerId: canonicalCareerId,
                 seasonId: season.id,
                 round: currentRound,
                 slotNumber: 2,
@@ -2203,7 +2200,7 @@ export default function WeekendV2Page() {
         } else {
           // Recarregar o slotState atualizado para refletir a nova subfase (ex: SQ3 disponível)
           const reloadedSlot = await canonicalWeekendSlotPersistenceService.loadOrMigrateSlotState({
-            careerId: careerIdForSlots,
+            careerId: canonicalCareerId,
             seasonId: season.id,
             round: currentRound,
           })
