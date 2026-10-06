@@ -143,6 +143,14 @@ export class RacePracticeSetupService {
     Promise<Record<string, PracticeSetupApplicationRecord> | null>
   >()
 
+  // Cache em memória de último valor válido (Last-Known-Good) por chave canônica (BUG-429-SETUPS-B2):
+  // Map<canonicalKey, validResult>
+  // Alimentado unicamente por respostas válidas do backend.
+  private lastKnownGoodSessionSetups = new Map<
+    string,
+    Record<string, PracticeSetupApplicationRecord>
+  >()
+
   /**
    * Constrói a chave canônica estável que representa univocamente a consulta real ao PocketBase:
    * collection session_setups com filtro:
@@ -174,8 +182,19 @@ export class RacePracticeSetupService {
   /**
    * Mantido para compatibilidade retroativa de limpeza em testes.
    */
+  /**
+   * Limpa o cache de último valor válido (útil para testes ou reinicialização de estado).
+   */
+  public clearLastKnownGood(): void {
+    this.lastKnownGoodSessionSetups.clear()
+  }
+
+  /**
+   * Mantido para compatibilidade retroativa de limpeza em testes.
+   */
   public clearMemoryCache(): void {
     this.clearInFlightRequests()
+    this.clearLastKnownGood()
   }
 
   /**
@@ -223,6 +242,12 @@ export class RacePracticeSetupService {
             string,
             PracticeSetupApplicationRecord
           >) || null
+      }
+
+      // BUG-429-SETUPS-B2: Somente resposta válida do backend alimenta o cache last-known-good.
+      // null por ausência real de registro deve respeitar o contrato do serviço — não inventar setup.
+      if (resolvedStore) {
+        this.lastKnownGoodSessionSetups.set(canonicalKey, resolvedStore)
       }
 
       return resolvedStore
@@ -748,6 +773,13 @@ export class RacePracticeSetupService {
     }
     const internalSession = sessionInternalMap[session] || 'tp1'
 
+    const canonicalKey = this.buildSessionSetupCanonicalKey(
+      careerId,
+      seasonId,
+      round,
+      internalSession,
+    )
+
     try {
       const setupStore = await this.fetchSessionSetupStore(
         careerId,
@@ -762,6 +794,14 @@ export class RacePracticeSetupService {
       }
     } catch (err: unknown) {
       if (err instanceof ClientResponseError && err.status === 429) {
+        // BUG-429-SETUPS-B2: Ordem do fallback em 429:
+        // Existe último valor válido da mesma chave?
+        // SIM -> retornar esse valor (para a applicationKey solicitada).
+        // NÃO -> manter comportamento do B1 (retornar null).
+        const lastGoodStore = this.lastKnownGoodSessionSetups.get(canonicalKey)
+        if (lastGoodStore && lastGoodStore[applicationKey]) {
+          return lastGoodStore[applicationKey]
+        }
         return null
       }
 
