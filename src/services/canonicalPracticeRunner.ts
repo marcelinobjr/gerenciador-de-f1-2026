@@ -7,6 +7,7 @@ import type {
   PracticeRadioFeedEvent,
 } from '@/types/practice-session'
 import { CANONICAL_PRACTICE_DURATION_SEC } from '@/types/practice-session'
+
 import { FUEL_CONSUMPTION_KG_PER_LAP } from '@/types/practice-preparation'
 import { TANK_CAPACITY_KG } from '@/services/canonicalFuelModel'
 import { TIRE_SPECS, type TrackWeatherState } from '@/lib/f1-tire-system'
@@ -827,3 +828,5 @@ export class PracticeSessionRunner {
     })
   }
 }
+
+export const CanonicalPracticeRunner = PracticeSessionRunner

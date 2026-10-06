@@ -1,5 +1,6 @@
 /**
  * weekendProgressionService.ts
+ * QA validation RESET-FIX-1
  *
  * HOTFIX WEEKEND-01A / SILVERSTONE-RACE-REVIEW-01A:
  * Bloquear bypass de sessões do fim de semana.
