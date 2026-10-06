@@ -161,6 +161,7 @@ export class PracticeSessionService {
     const pCar1 = preparation.cars[0]
     const pCar2 = preparation.cars[1]
 
+    // BUG-TYRE-SYNC-01A: Não usar fallback sintético para tyreSetId
     const car1Live: PracticeCarLiveState = {
       carId: 'car1',
       driverId: pCar1.driverId || params.driverNames?.driver1Id || 'drv_c1',
@@ -171,7 +172,7 @@ export class PracticeSessionService {
       setup: pCar1.setup
         ? { ...pCar1.setup }
         : { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      currentTyreSetId: pCar1.tyreSelection?.setId || `${careerId}_c1_default_tire`,
+      currentTyreSetId: pCar1.tyreSelection?.setId || '',
       currentCompound: pCar1.tyreSelection?.compound || 'medio',
       tyreWear: 2, // Pneu de treino
       fuelKg: pCar1.fuelLoad?.kg ?? 30,
@@ -190,7 +191,7 @@ export class PracticeSessionService {
       setup: pCar2.setup
         ? { ...pCar2.setup }
         : { frontWing: 6, rearWing: 6, suspension: 6, differential: 50 },
-      currentTyreSetId: pCar2.tyreSelection?.setId || `${careerId}_c2_default_tire`,
+      currentTyreSetId: pCar2.tyreSelection?.setId || '',
       currentCompound: pCar2.tyreSelection?.compound || 'medio',
       tyreWear: 2,
       fuelKg: pCar2.fuelLoad?.kg ?? 30,

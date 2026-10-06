@@ -530,12 +530,25 @@ export default function WeekendV2Page() {
     const activeC2DriverName = savedRookieC2 ? savedRookieC2.rookieDriverName : pCar2.driverName
 
     // Buscar pneus disponíveis no mesmo inventário compartilhado do assento/titular (20 jogos/piloto)
-    const car1Tire =
-      inventories[pCar1.driverId]?.find((t) => (t.wear || 0) < 100) ||
-      inventories[pCar1.driverId]?.[0]
-    const car2Tire =
-      inventories[pCar2.driverId]?.find((t) => (t.wear || 0) < 100) ||
-      inventories[pCar2.driverId]?.[0]
+    // BUG-TYRE-SYNC-01A: Garantir inventário canônico materializado e selecionar APENAS jogo real elegível (wear < 100)
+    let activeInvs = inventories
+    if (
+      !activeInvs[pCar1.driverId] ||
+      activeInvs[pCar1.driverId].length === 0 ||
+      !activeInvs[pCar2.driverId] ||
+      activeInvs[pCar2.driverId].length === 0
+    ) {
+      activeInvs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+        seasonId: season.id,
+        round: currentRound,
+        driverIds: [pCar1.driverId, pCar2.driverId],
+        primaryDriverIds: [pCar1.driverId, pCar2.driverId],
+      })
+      setTyreInventories(activeInvs)
+    }
+
+    const car1Tire = activeInvs[pCar1.driverId]?.find((t) => (t.wear || 0) < 100)
+    const car2Tire = activeInvs[pCar2.driverId]?.find((t) => (t.wear || 0) < 100)
 
     // Resolver herança de setup e conhecimento da sessão anterior (setup pertence ao CARRO)
     const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
@@ -560,10 +573,12 @@ export default function WeekendV2Page() {
             differential: 50,
           },
           fuelLoad: { mode: 'medium' as const, kg: 30, estimatedLaps: 18 },
-          tyreSelection: {
-            setId: car1Tire?.id || `${season.id}_c1_init_tire`,
-            compound: car1Tire?.compound || ('medio' as const),
-          },
+          tyreSelection: car1Tire
+            ? {
+                setId: car1Tire.id,
+                compound: car1Tire.compound || ('medio' as const),
+              }
+            : null,
         },
         {
           carId: 'car2' as const,
@@ -576,10 +591,12 @@ export default function WeekendV2Page() {
             differential: 50,
           },
           fuelLoad: { mode: 'medium' as const, kg: 30, estimatedLaps: 18 },
-          tyreSelection: {
-            setId: car2Tire?.id || `${season.id}_c2_init_tire`,
-            compound: car2Tire?.compound || ('medio' as const),
-          },
+          tyreSelection: car2Tire
+            ? {
+                setId: car2Tire.id,
+                compound: car2Tire.compound || ('medio' as const),
+              }
+            : null,
         },
       ],
       overallObjective: `Gestão e validação canônica da sessão ${targetType.toUpperCase()}`,
@@ -1026,13 +1043,25 @@ export default function WeekendV2Page() {
       canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, savedState)
     }
 
-    // Buscar pneus disponíveis no mesmo inventário compartilhado de 20 jogos
-    const car1Tire =
-      inventories[pCar1.driverId]?.find((t) => (t.wear || 0) < 100) ||
-      inventories[pCar1.driverId]?.[0]
-    const car2Tire =
-      inventories[pCar2.driverId]?.find((t) => (t.wear || 0) < 100) ||
-      inventories[pCar2.driverId]?.[0]
+    // BUG-TYRE-SYNC-01A: Garantir inventário canônico materializado e selecionar APENAS jogo real elegível (wear < 100)
+    let activeInvs = inventories
+    if (
+      !activeInvs[pCar1.driverId] ||
+      activeInvs[pCar1.driverId].length === 0 ||
+      !activeInvs[pCar2.driverId] ||
+      activeInvs[pCar2.driverId].length === 0
+    ) {
+      activeInvs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+        seasonId: season.id,
+        round: currentRound,
+        driverIds: [pCar1.driverId, pCar2.driverId],
+        primaryDriverIds: [pCar1.driverId, pCar2.driverId],
+      })
+      setTyreInventories(activeInvs)
+    }
+
+    const car1Tire = activeInvs[pCar1.driverId]?.find((t) => (t.wear || 0) < 100)
+    const car2Tire = activeInvs[pCar2.driverId]?.find((t) => (t.wear || 0) < 100)
 
     // Parc Fermé: setup herdado de TL2
     const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
@@ -1050,9 +1079,9 @@ export default function WeekendV2Page() {
         driverId: pCar1.driverId,
         driverName: pCar1.driverName,
         driverNumber: 1,
-        tyreSetId: car1Tire?.id || `${season.id}_c1_init_tire`,
+        tyreSetId: car1Tire?.id || '',
         compound: car1Tire?.compound || 'macio',
-        wear: car1Tire?.wear || 0,
+        wear: car1Tire?.wear ?? 100,
         setup: inherited.car1Setup || {
           frontWing: 6,
           rearWing: 6,
@@ -1064,9 +1093,9 @@ export default function WeekendV2Page() {
         driverId: pCar2.driverId,
         driverName: pCar2.driverName,
         driverNumber: 2,
-        tyreSetId: car2Tire?.id || `${season.id}_c2_init_tire`,
+        tyreSetId: car2Tire?.id || '',
         compound: car2Tire?.compound || 'macio',
-        wear: car2Tire?.wear || 0,
+        wear: car2Tire?.wear ?? 100,
         setup: inherited.car2Setup || {
           frontWing: 6,
           rearWing: 6,
