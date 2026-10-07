@@ -711,6 +711,24 @@ export const canonicalRaceInitializationService = {
   },
 
   /**
+   * STORAGE-QUOTA-01B1-C — Wrapper assíncrono para leitura/resume preferindo PocketBase.
+   */
+  async readCanonicalRaceStatePreferred(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
+  ): Promise<CanonicalRaceState | null> {
+    const res = await canonicalRaceSaveService.loadCanonicalRaceStatePreferred(
+      careerId,
+      season,
+      round,
+      raceVariant,
+    )
+    return res.state
+  },
+
+  /**
    * Remove o estado persistido (ex: ao reiniciar a corrida).
    */
   clearCanonicalRaceState(

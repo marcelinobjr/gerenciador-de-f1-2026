@@ -458,13 +458,30 @@ export default function WeekendV2Page() {
           const gridResult = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
           setCompleteQualifyingResult(gridResult)
           const canonicalCareerId = resolveCanonicalCareerId(season, team)
-          const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
-            canonicalCareerId,
-            season.year || 2026,
-            currentRound,
-            isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
-          )
-          setCanonicalRaceState(savedRace)
+          canonicalRaceInitializationService
+            .readCanonicalRaceStatePreferred(
+              canonicalCareerId,
+              season.year || 2026,
+              currentRound,
+              isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
+            )
+            .then((savedRace) => {
+              if (isMounted) {
+                setCanonicalRaceState(savedRace)
+              }
+            })
+            .catch((err) => {
+              console.warn('[WeekendV2Page] Falha ao ler race state inicial preferencial:', err)
+              if (isMounted) {
+                const fallback = canonicalRaceInitializationService.readCanonicalRaceState(
+                  canonicalCareerId,
+                  season.year || 2026,
+                  currentRound,
+                  isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
+                )
+                setCanonicalRaceState(fallback)
+              }
+            })
         }
 
         setIsInitializingRegistration(false)
@@ -981,13 +998,27 @@ export default function WeekendV2Page() {
 
         const fullGrid = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
         setCompleteQualifyingResult(fullGrid)
-        const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
-          canonicalCareerId,
-          season.year || 2026,
-          currentRound,
-          isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
-        )
-        setCanonicalRaceState(savedRace)
+        // STORAGE-QUOTA-01B1-C: Carregamento assíncrono preferindo PocketBase com fallback local
+        canonicalRaceInitializationService
+          .readCanonicalRaceStatePreferred(
+            canonicalCareerId,
+            season.year || 2026,
+            currentRound,
+            isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
+          )
+          .then((savedRace) => {
+            setCanonicalRaceState(savedRace)
+          })
+          .catch((err) => {
+            console.warn('[WeekendV2Page] Falha ao carregar estado preferencial de corrida:', err)
+            const fallbackRace = canonicalRaceInitializationService.readCanonicalRaceState(
+              canonicalCareerId,
+              season.year || 2026,
+              currentRound,
+              isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
+            )
+            setCanonicalRaceState(fallbackRace)
+          })
 
         // FW2.1E-F: Verificar resultado oficial
         const official = canonicalRaceResultService.getOfficialRaceResult(

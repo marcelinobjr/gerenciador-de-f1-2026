@@ -198,18 +198,33 @@ export default function RaceControlLivePage() {
         setOfficialRaceResult(official)
       }
 
-      // Estado salvo da corrida em andamento
-      const savedRace = canonicalRaceInitializationService.readCanonicalRaceState(
-        canonicalCareerId,
-        season.year || 2026,
-        targetRound,
-        targetVariant,
-      )
-
-      if (isMounted) {
-        setCanonicalRaceState(savedRace)
-        setIsLoadingSession(false)
-      }
+      // Estado salvo da corrida em andamento (STORAGE-QUOTA-01B1-C: preferindo PocketBase com fallback local)
+      canonicalRaceInitializationService
+        .readCanonicalRaceStatePreferred(
+          canonicalCareerId,
+          season.year || 2026,
+          targetRound,
+          targetVariant,
+        )
+        .then((savedRace) => {
+          if (isMounted) {
+            setCanonicalRaceState(savedRace)
+            setIsLoadingSession(false)
+          }
+        })
+        .catch((err) => {
+          console.warn('[RaceControlLivePage] Falha ao ler race state preferencial:', err)
+          if (isMounted) {
+            const fallback = canonicalRaceInitializationService.readCanonicalRaceState(
+              canonicalCareerId,
+              season.year || 2026,
+              targetRound,
+              targetVariant,
+            )
+            setCanonicalRaceState(fallback)
+            setIsLoadingSession(false)
+          }
+        })
     } catch (err: any) {
       if (isMounted) {
         console.error('[RaceControlLivePage] Erro ao carregar corrida:', err)

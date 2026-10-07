@@ -388,6 +388,112 @@ export class CanonicalRaceSaveService {
    * Idempotente: leitura repetida não executa simulação nem altera o estado.
    * Rejeita snapshots incompatíveis com erro diagnosticável.
    */
+  /**
+   * STORAGE-QUOTA-01B1-C — Leitura/Resume preferindo PocketBase com fallback explícito em localStorage.
+   *
+   * Ordem de leitura:
+   * 1. Consulta primeiro o PocketBase via canonicalRaceStateBackendService.readRaceState(context);
+   * 2. Se backend retornar payload válido, usa-o como fonte preferencial (backend vence local divergente);
+   * 3. Se backend retornar null (NOT_FOUND) ou erro de rede (BACKEND_ERROR), executa fallback para localStorage;
+   * 4. Validação estrita do payload (mesmo contrato canônico de validateRaceSnapshot);
+   * 5. Não sobrescreve nem apaga o localStorage nesta rodada;
+   * 6. Não regrava backend (leitura pura e idempotente sem efeitos colaterais de escrita).
+   */
+  public async loadCanonicalRaceStatePreferred(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
+  ): Promise<{
+    state: CanonicalRaceState | null
+    source: 'backend' | 'local' | 'none'
+    error?: string
+    backendError?: string
+    isFinished?: boolean
+  }> {
+    const backendContext = {
+      careerId,
+      season,
+      round,
+      variant: raceVariant,
+    }
+
+    let backendState: CanonicalRaceState | null = null
+    let backendError: string | undefined = undefined
+
+    // 1. Consultar primeiro o PocketBase
+    try {
+      backendState = await canonicalRaceStateBackendService.readRaceState(backendContext)
+    } catch (err: any) {
+      backendError = err?.message || 'Erro de rede ou indisponibilidade ao consultar PocketBase'
+      console.warn(
+        `[CanonicalRaceSaveService] Erro ao consultar backend para race_state (${careerId}, s${season}, r${round}, ${raceVariant}):`,
+        err,
+      )
+    }
+
+    // 2. Se o backend retornou estado, validar pelo contrato canônico
+    if (backendState) {
+      const validation = this.validateRaceSnapshot(backendState, { careerId, season, round })
+
+      // Validação adicional de isolamento estrito de raceVariant
+      const stateVariant = backendState.raceVariant || 'MAIN_RACE'
+      if (stateVariant !== raceVariant) {
+        validation.valid = false
+        validation.errors.push(
+          `Incompatibilidade de Variante: snapshot pertence a '${stateVariant}', esperado '${raceVariant}'`,
+        )
+      }
+
+      if (validation.valid) {
+        // Backend válido encontrado: backend vence
+        const resolvedState = this.deepClone(backendState)
+
+        if (!resolvedState.driverLookup || Object.keys(resolvedState.driverLookup).length === 0) {
+          resolvedState.driverLookup = {}
+          for (const d of resolvedState.drivers) {
+            resolvedState.driverLookup[d.driverId] = d
+          }
+        }
+
+        const isFinished =
+          resolvedState.status === 'completed' ||
+          resolvedState.raceControl?.currentFlag === 'FINISHED'
+
+        return {
+          state: resolvedState,
+          source: 'backend',
+          isFinished,
+        }
+      } else {
+        // Payload backend inválido / corrompido: rejeitar e registrar erro observável
+        const errorMsg = `Payload inválido no PocketBase: ${validation.errors.join('; ')}`
+        console.warn('[CanonicalRaceSaveService]', errorMsg)
+        backendError = errorMsg
+      }
+    }
+
+    // 3. Fallback explícito para localStorage local
+    const localResult = this.loadCanonicalRaceState(careerId, season, round, raceVariant)
+    if (localResult.state) {
+      return {
+        state: localResult.state,
+        source: 'local',
+        error: localResult.error,
+        backendError,
+        isFinished: localResult.isFinished,
+      }
+    }
+
+    // 4. Ambos ausentes ou inválidos
+    return {
+      state: null,
+      source: 'none',
+      error: localResult.error,
+      backendError,
+    }
+  }
+
   public loadCanonicalRaceState(
     careerId: string,
     season: number,
