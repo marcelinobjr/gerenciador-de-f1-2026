@@ -2138,6 +2138,40 @@ export default function WeekendV2Page() {
       return false
     }
 
+    // Q2FIX-01: Barreira de integridade obrigatória para a transição Q1 → Q2.
+    // Prova por read-back que o consumidor Q2 conseguirá ler aquilo que o produtor Q1 persistiu.
+    if (stageId === 'q1') {
+      const persistedQ1Result = canonicalQualifyingPersistenceService.readStageResult(
+        season.id,
+        currentRound,
+        'q1',
+      )
+
+      const expectedAdvancingCount = CANONICAL_QUALIFYING_RULES['q1'].advancingCount
+      const advancingIds = persistedQ1Result?.advancingDriverIds
+
+      const isValidAdvancing =
+        !!persistedQ1Result &&
+        Array.isArray(advancingIds) &&
+        advancingIds.length === expectedAdvancingCount &&
+        advancingIds.every((id) => typeof id === 'string' && id.trim().length > 0) &&
+        new Set(advancingIds).size === expectedAdvancingCount
+
+      if (!isValidAdvancing) {
+        console.warn(
+          '[Q2FIX-01] Barreira de integridade Q1→Q2 bloqueou a transição: advancingDriverIds inválidos ou ausentes no StageResult persistido de Q1.',
+          { persistedQ1Result, expectedAdvancingCount },
+        )
+        toast({
+          variant: 'destructive',
+          title: 'Transição Q1 → Q2 Bloqueada',
+          description:
+            'O resultado oficial do Q1 ainda não possui os classificados canônicos necessários para o Q2.',
+        })
+        return false
+      }
+    }
+
     const currentStored = readStoredCompletedSessions(season.id, currentRound)
     let updated = currentStored
     const isStageAlreadyStored = currentStored.includes(stageId)
