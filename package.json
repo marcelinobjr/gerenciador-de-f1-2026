@@ -3,7 +3,7 @@
   "description": "A frontend React Vite TypeScript Shadcn UI template for Skip projects",
   "private": true,
   "version": "0.0.1033",
-  "buildAudit": "ERRO-NOTIFICACOES-POLLING-01C",
+  "buildAudit": "STORAGE-QUOTA-01B1-B",
   "type": "module",
   "scripts": {
     "start": "vite dev",
