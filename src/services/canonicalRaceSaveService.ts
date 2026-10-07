@@ -282,6 +282,33 @@ export class CanonicalRaceSaveService {
    * Aplica saveSchemaVersion, atualiza updatedAt e incrementa revision caso necessário.
    * Não sobrescreve se o snapshot em disco tiver revision mais recente (controle de concorrência).
    */
+  /**
+   * Reduz o payload pesado do localStorage após CONFIRMAÇÃO de que o backend
+   * possui um state persistido com sucesso para a mesma identidade lógica.
+   * Remove tanto a chave v2 quanto a chave legacy correspondente para evitar
+   * acúmulo de estado duplicado pesado no navegador.
+   * STORAGE-QUOTA-01B1-E.
+   */
+  public purgeHeavyLocalStorageRaceState(
+    careerId: string,
+    season: number,
+    round: number,
+    raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
+  ): void {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    try {
+      const keyV2 = this.buildStorageKey(careerId, season, round, raceVariant)
+      const keyLegacy = this.buildLegacyStorageKey(careerId, season, round, raceVariant)
+      window.localStorage.removeItem(keyV2)
+      window.localStorage.removeItem(keyLegacy)
+    } catch (err: any) {
+      console.warn(
+        '[CanonicalRaceSaveService] Falha ao expurgar payload pesado do localStorage:',
+        err,
+      )
+    }
+  }
+
   public saveCanonicalRaceState(state: CanonicalRaceState): { success: boolean; error?: string } {
     if (typeof window === 'undefined' || !window.localStorage) {
       return { success: false, error: 'localStorage indisponível' }
@@ -342,11 +369,14 @@ export class CanonicalRaceSaveService {
       )
       safeLocalStorageSetItem(keyLegacy, serialized, pruneCtx)
 
-      // STORAGE-QUOTA-01B1-B: Espelhar a escrita no PocketBase
+      // STORAGE-QUOTA-01B1-B & STORAGE-QUOTA-01B1-E: Espelhar a escrita no PocketBase
       // 1. Manter ordem segura: localStorage gravado primeiro;
       // 2. Não bloquear o fluxo local em caso de erro transitório do backend;
       // 3. Tornar o erro backend observável via log e/ou retorno de promise;
-      // 4. Salvar com a mesma identidade lógica (careerId, season, round, variant) e payload idêntico.
+      // 4. Salvar com a mesma identidade lógica (careerId, season, round, variant) e payload idêntico;
+      // 5. STORAGE-QUOTA-01B1-E: Quando e SOMENTE quando o backend CONFIRMAR sucesso,
+      //    remover o payload pesado local (v2 + legacy) para desocupar o localStorage.
+      //    Em caso de falha do backend, o local completo é MANTIDO intacto para fallback.
       try {
         const backendContext = {
           careerId: snapshot.careerId,
@@ -360,6 +390,14 @@ export class CanonicalRaceSaveService {
             if (!backendRes.success) {
               console.warn(
                 `[CanonicalRaceSaveService] Falha ao espelhar race state no PocketBase: ${backendRes.error}`,
+              )
+            } else {
+              // Confirmação do backend obtida: expurgar a cópia pesada local
+              this.purgeHeavyLocalStorageRaceState(
+                snapshot.careerId,
+                snapshot.season,
+                snapshot.round,
+                raceVariant,
               )
             }
           })
@@ -494,6 +532,10 @@ export class CanonicalRaceSaveService {
         )
 
         if (saveRes.success) {
+          // STORAGE-QUOTA-01B1-E: Backend confirmou a migração com sucesso.
+          // Expurgar o payload pesado do localStorage para liberar cota.
+          this.purgeHeavyLocalStorageRaceState(careerId, season, round, raceVariant)
+
           return {
             state: localResult.state,
             source: 'local_migrated',
