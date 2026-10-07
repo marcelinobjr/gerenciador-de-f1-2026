@@ -5,7 +5,11 @@ import { canonicalHomologationAdapter } from '@/lib/canonical-adapters'
 import { carTechnicalService } from '@/services/carTechnicalService'
 import { generateDefaultComponentsFromMacro } from '@/lib/car-technical-data'
 import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
-import { ensureSeasonTeamPowerUnitInventories } from '@/services/canonicalPowerUnitInventoryService'
+import {
+  ensureSeasonTeamPowerUnitInventories,
+  FIRST_EXCESS_GRID_PENALTY,
+  SUBSEQUENT_EXCESS_GRID_PENALTY,
+} from '@/services/canonicalPowerUnitInventoryService'
 import {
   TeamModel,
   SeasonModel,
@@ -2104,9 +2108,9 @@ export const f1Service = {
 
       if (isExceedingQuota) {
         if (unitIndex === FREE_ENGINE_QUOTA + 1) {
-          penaltyPositions = 10
+          penaltyPositions = FIRST_EXCESS_GRID_PENALTY
         } else {
-          penaltyPositions = 5
+          penaltyPositions = SUBSEQUENT_EXCESS_GRID_PENALTY
         }
       }
 
@@ -2130,9 +2134,9 @@ export const f1Service = {
 
       if (isExceedingQuota) {
         if (unitIndex === FREE_ENGINE_QUOTA + 1) {
-          penaltyPositions = 10
+          penaltyPositions = FIRST_EXCESS_GRID_PENALTY
         } else {
-          penaltyPositions = 5
+          penaltyPositions = SUBSEQUENT_EXCESS_GRID_PENALTY
         }
       }
 
