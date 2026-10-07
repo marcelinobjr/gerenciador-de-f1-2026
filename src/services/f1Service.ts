@@ -7,6 +7,7 @@ import { generateDefaultComponentsFromMacro } from '@/lib/car-technical-data'
 import { getInitialTeamFacilities } from '@/data/initial-team-facilities'
 import {
   ensureSeasonTeamPowerUnitInventories,
+  resolveDriverPowerUnitQuota,
   FIRST_EXCESS_GRID_PENALTY,
   SUBSEQUENT_EXCESS_GRID_PENALTY,
 } from '@/services/canonicalPowerUnitInventoryService'
@@ -2095,30 +2096,26 @@ export const f1Service = {
       // -------------------------------------------------------------
       // MODO MODERNO: COTA POR PILOTO / TEMPORADA
       // -------------------------------------------------------------
-      const driverSeasonUnits = currentHistory.filter(
-        (eng) => eng.driverId === targetDriverId && eng.seasonYear === targetSeasonYear,
-      )
-      const maxUnitNumber = driverSeasonUnits.reduce(
-        (max, eng) => Math.max(max, Number(eng.unitNumber) || 0),
-        0,
+      const quotaResolution = resolveDriverPowerUnitQuota(
+        currentHistory,
+        targetDriverId,
+        targetSeasonYear,
       )
 
-      unitIndex = maxUnitNumber + 1 // unitNumber da nova PU do piloto (ex: 5 se já tem PU1..PU4)
-      isExceedingQuota = unitIndex > FREE_ENGINE_QUOTA
+      unitIndex = quotaResolution.nextUnitNumber
+      isExceedingQuota = quotaResolution.exceedsQuota
+      penaltyPositions = quotaResolution.gridPenaltyPositions
 
-      if (isExceedingQuota) {
-        if (unitIndex === FREE_ENGINE_QUOTA + 1) {
-          penaltyPositions = FIRST_EXCESS_GRID_PENALTY
-        } else {
-          penaltyPositions = SUBSEQUENT_EXCESS_GRID_PENALTY
-        }
-      }
-
-      // ID físico globalmente único
+      // ID físico globalmente único dentro da equipe (max(id) + 1)
       physicalId = Math.max(existingMaxId, currentHistory.length) + 1
 
       // Idempotência: verificar se este piloto já possui uma unidade com este unitNumber nesta temporada
-      matchedExistingUnit = driverSeasonUnits.find((eng) => eng.unitNumber === unitIndex)
+      matchedExistingUnit = currentHistory.find(
+        (eng) =>
+          eng.driverId === targetDriverId &&
+          eng.seasonYear === targetSeasonYear &&
+          eng.unitNumber === unitIndex,
+      )
       if (matchedExistingUnit) {
         alreadyExists = true
         physicalId = Number(matchedExistingUnit.id)
