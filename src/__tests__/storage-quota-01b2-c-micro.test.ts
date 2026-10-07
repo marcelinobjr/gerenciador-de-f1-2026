@@ -126,20 +126,25 @@ describe('storage-quota-01b2-c-micro: LEITURA DE PNEUS PREFERINDO BACKEND', () =
     expect(result.backendError).toBeUndefined()
   })
 
-  // C2 — NOT_FOUND: backend retorna null; local válido existe; retorno = local.
-  it('C2 — NOT_FOUND: backend retorna null; local válido existe; retorno = local', async () => {
+  // C2 — NOT_FOUND: backend retorna null; local válido existe; lazy migration promove para o backend (01B2-D).
+  it('C2 — NOT_FOUND: backend retorna null; local válido existe; lazy migration promove para o backend (01B2-D)', async () => {
     const localPayload = createSampleStoredWeekendTireData(careerId, round)
     localStorage.setItem(`apex_gp_tires_${careerId}_r${round}`, JSON.stringify(localPayload))
 
     // Backend retorna null (NOT_FOUND)
     vi.spyOn(canonicalWeekendTyreBackendService, 'readInventory').mockResolvedValue(null)
+    const saveSpy = vi
+      .spyOn(canonicalWeekendTyreBackendService, 'saveInventory')
+      .mockResolvedValue({ success: true, id: 'rec_c2_migrated' })
 
     const result = await canonicalWeekendTyrePersistence.readWeekendTyresPreferred(careerId, round)
 
-    expect(result.source).toBe('local')
+    // Em 01B2-D, NOT_FOUND + local válido dispara promoção com source 'local_migrated'
+    expect(result.source).toBe('local_migrated')
     expect(result.data).not.toBeNull()
     expect(result.data).toEqual(localPayload)
     expect(result.backendError).toBeUndefined()
+    expect(saveSpy).toHaveBeenCalledTimes(1)
   })
 
   // C3 — BACKEND_ERROR: backend falha; local válido existe; fallback local funciona e erro é observável.

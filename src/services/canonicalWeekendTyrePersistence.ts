@@ -63,8 +63,9 @@ export interface StoredWeekendTireData {
 
 export interface ReadWeekendTyresResult {
   data: StoredWeekendTireData | null
-  source: 'backend' | 'local' | 'none'
+  source: 'backend' | 'local' | 'local_migrated' | 'local_migration_failed' | 'none'
   backendError?: string
+  migrationError?: string
 }
 
 export function validateStoredWeekendTireData(
@@ -186,22 +187,75 @@ export const canonicalWeekendTyrePersistence = {
     // 3. Fallback para localStorage local
     const localData = this.readWeekendTireData(seasonId, round)
 
+    let isLocalValid = false
     if (localData) {
       const localValidation = validateStoredWeekendTireData(localData, { seasonId, round })
       if (localValidation.valid) {
-        return {
-          data: localData,
-          source: 'local',
-          backendError,
-        }
+        isLocalValid = true
       } else {
         console.warn(
-          `[canonicalWeekendTyrePersistence] Local storage contém dados inválidos para (${seasonId}, r${round})`,
+          `[canonicalWeekendTyrePersistence] Local storage contém dados inválidos para (${seasonId}, r${round}): ${localValidation.errors.join('; ')}`,
         )
       }
     }
 
-    // 4. Nenhum dado válido encontrado
+    // STORAGE-QUOTA-01B2-D: LAZY MIGRATION DO INVENTÁRIO DE PNEUS LOCAL PARA BACKEND
+    // Condições estritas para promoção:
+    // 1. Backend respondeu NOT_FOUND: backendData === null E NÃO ocorreu erro de rede/backend (backendError === undefined)
+    // 2. Local possui inventário válido: isLocalValid === true && localData !== null
+    // 3. Se houve erro do backend (backendError definido), NÃO tenta migrar (retorna local normal com fallback explícito)
+    const isBackendNotFound = !backendData && !backendError
+
+    if (isLocalValid && localData && isBackendNotFound) {
+      try {
+        const saveRes = await canonicalWeekendTyreBackendService.saveInventory(
+          backendContext,
+          localData,
+        )
+
+        if (saveRes.success) {
+          return {
+            data: localData,
+            source: 'local_migrated',
+          }
+        } else {
+          const migrationError =
+            saveRes.error || 'Falha ao promover inventário de pneus ao PocketBase'
+          console.warn(
+            `[canonicalWeekendTyrePersistence] Lazy migration falhou ao salvar no backend: ${migrationError}`,
+          )
+          return {
+            data: localData,
+            source: 'local_migration_failed',
+            backendError: migrationError,
+            migrationError,
+          }
+        }
+      } catch (migrationEx: any) {
+        const migrationError =
+          migrationEx?.message || 'Exceção ao executar lazy migration para o PocketBase'
+        console.warn(
+          `[canonicalWeekendTyrePersistence] Exceção durante lazy migration: ${migrationError}`,
+        )
+        return {
+          data: localData,
+          source: 'local_migration_failed',
+          backendError: migrationError,
+          migrationError,
+        }
+      }
+    }
+
+    // Se local existe e é válido (mas backend teve erro prévio, ex: BACKEND_ERROR ou payload corrompido)
+    if (isLocalValid && localData) {
+      return {
+        data: localData,
+        source: 'local',
+        backendError,
+      }
+    }
+
+    // 4. Nenhum dado válido encontrado (ambos ausentes ou inválidos)
     return {
       data: null,
       source: 'none',
