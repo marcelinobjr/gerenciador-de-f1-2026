@@ -92,8 +92,12 @@ export function NotificationBell({
     let isCancelled = false
 
     const fetchSafe = async () => {
-      if (isCancelled || !effectiveUserId) return
-      await loadNotifications().catch(() => {})
+      try {
+        if (isCancelled || !effectiveUserId) return
+        await loadNotifications().catch(() => {})
+      } catch {
+        // Silencioso - previne propagação de erros de rede
+      }
     }
 
     // Se estiver na corrida ao vivo (sino oculto), suspender polling periódico
@@ -102,10 +106,18 @@ export function NotificationBell({
     }
 
     // Ao sair da corrida ao vivo (ou no mount fora dela), executar carga imediata
-    void fetchSafe().catch(() => {})
+    try {
+      void fetchSafe().catch(() => {})
+    } catch {
+      // Ignorar
+    }
 
     const timer = setInterval(() => {
-      void fetchSafe().catch(() => {})
+      try {
+        void fetchSafe().catch(() => {})
+      } catch {
+        // Ignorar
+      }
     }, NOTIFICATION_SAFETY_POLL_INTERVAL_MS)
 
     return () => {
@@ -117,12 +129,20 @@ export function NotificationBell({
   // Realtime updates para coleção de notificações e eventos
   useRealtime('notifications', () => {
     if (isMountedRef.current) {
-      loadNotifications().catch(() => {})
+      try {
+        void loadNotifications().catch(() => {})
+      } catch {
+        // Silencioso
+      }
     }
   })
   useRealtime('events', () => {
     if (isMountedRef.current) {
-      loadNotifications().catch(() => {})
+      try {
+        void loadNotifications().catch(() => {})
+      } catch {
+        // Silencioso
+      }
     }
   })
 
