@@ -895,44 +895,49 @@ export default function WeekendV2Page() {
       await initializePracticeSession(sess, registration, invs)
     } else if (sess === 'q1' || sess === 'q2' || sess === 'q3') {
       // Q1, Q2 ou Q3: inicializa ou carrega a sessão de qualificação canônica
-      setSelectedSessionId(sess)
-      setSessionState(null)
-      // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
-      setQualifyingState(null)
+      // Q1FIX-01: Guard antes de initializeQualifyingSession.
+      // Ler o estado persistido da fase selecionada usando o mecanismo já existente.
+      // Se o estado persistido existir e status === 'completed', reutilizar esse estado na UI,
+      // selecionar a fase normalmente, não chamar initializeQualifyingSession/initializeStage e retornar imediatamente.
       const existingState = canonicalQualifyingPersistenceService.readStageState(
         season.id,
         currentRound,
         sess as QualifyingStageId,
       )
-      // BUG-Q1-Q2-TRANSITION-01A1: Guard antes de initializeQualifyingSession.
-      // Se a fase já estiver officially completed, carregar/reutilizar o estado persistido,
-      // atualizar a UI e NÃO chamar initializeQualifyingSession/initializeStage para evitar overwrite destrutivo.
       if (existingState && existingState.status === 'completed') {
+        setSelectedSessionId(sess)
+        setSessionState(null)
         setQualifyingState(existingState)
         setIsAutoAdvancing(false)
         return
       }
+      setSelectedSessionId(sess)
+      setSessionState(null)
+      // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
+      setQualifyingState(null)
       if (existingState) {
         setQualifyingState(existingState)
       }
       await initializeQualifyingSession(sess as QualifyingStageId, registration, invs)
     } else if (sess === 'sq1' || sess === 'sq2' || sess === 'sq3') {
       // SQ1, SQ2 ou SQ3: inicializa ou carrega a sessão de qualificação sprint canônica
-      setSelectedSessionId(sess)
-      setSessionState(null)
-      // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
-      setQualifyingState(null)
+      // Q1FIX-01: Guard antes de initializeQualifyingSession para sessões sprint também.
       const existingState = canonicalQualifyingPersistenceService.readStageState(
         season.id,
         currentRound,
         sess as QualifyingStageId,
       )
-      // BUG-Q1-Q2-TRANSITION-01A1: Guard antes de initializeQualifyingSession para sessões sprint também.
       if (existingState && existingState.status === 'completed') {
+        setSelectedSessionId(sess)
+        setSessionState(null)
         setQualifyingState(existingState)
         setIsAutoAdvancing(false)
         return
       }
+      setSelectedSessionId(sess)
+      setSessionState(null)
+      // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
+      setQualifyingState(null)
       if (existingState) {
         setQualifyingState(existingState)
       }
