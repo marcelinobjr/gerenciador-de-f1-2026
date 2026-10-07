@@ -214,6 +214,8 @@ export const canonicalWeekendTyrePersistence = {
         )
 
         if (saveRes.success) {
+          // STORAGE-QUOTA-01B2-E: Expurgar inventário pesado local somente após confirmação backend
+          this.purgeLocalWeekendTires(seasonId, round)
           return {
             data: localData,
             source: 'local_migrated',
@@ -294,7 +296,7 @@ export const canonicalWeekendTyrePersistence = {
       console.warn('[WeekendTirePersistence] Falha ao salvar pneus do fim de semana:', e)
     }
 
-    // 01B2-B: Espelhamento de escrita viva no PocketBase
+    // 01B2-B / 01B2-E: Espelhamento de escrita viva no PocketBase com expurgo local pós-confirmação
     try {
       const seasonNum = parseInt(String(data.seasonId).replace(/\D/g, ''), 10) || 1
       canonicalWeekendTyreBackendService
@@ -307,6 +309,16 @@ export const canonicalWeekendTyrePersistence = {
           },
           data,
         )
+        .then((res) => {
+          if (res?.success) {
+            // STORAGE-QUOTA-01B2-E: Expurgar cópia pesada local somente após sucesso real do backend
+            this.purgeLocalWeekendTires(data.seasonId, data.round)
+          } else {
+            console.warn(
+              `[WeekendTirePersistence] Backend não confirmou save (${res?.error || 'sem sucesso'}), preservando cópia local para (${data.seasonId}, r${data.round})`,
+            )
+          }
+        })
         .catch((err) => {
           console.warn(
             '[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:',
@@ -315,6 +327,24 @@ export const canonicalWeekendTyrePersistence = {
         })
     } catch (mirrorErr) {
       console.warn('[WeekendTirePersistence] Falha ao disparar espelho PocketBase:', mirrorErr)
+    }
+  },
+
+  /**
+   * STORAGE-QUOTA-01B2-E: Expurgar o inventário pesado do localStorage para a mesma identidade lógica.
+   * Chamado estritamente após confirmação real (success === true) do backend (saveInventory).
+   * Não afeta outras carreiras, temporadas ou rodadas.
+   */
+  purgeLocalWeekendTires(seasonId: string, round: number): void {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    try {
+      const key = getWeekendTireStorageKey(seasonId, round)
+      window.localStorage.removeItem(key)
+    } catch (e) {
+      console.warn(
+        `[canonicalWeekendTyrePersistence] Falha ao expurgar cópia pesada local de pneus (${seasonId}, r${round}):`,
+        e,
+      )
     }
   },
 

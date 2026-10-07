@@ -136,8 +136,8 @@ describe('STORAGE-QUOTA-01B2-D: LAZY MIGRATION DO INVENTÁRIO DE PNEUS LOCAL PAR
     })
     expect(savedPayload).toEqual(localPayload)
 
-    // localStorage continua intacto (não apagado em 01B2-D)
-    expect(localStorage.getItem(`apex_gp_tires_${careerId}_r${round}`)).not.toBeNull()
+    // STORAGE-QUOTA-01B2-E: após confirmação do backend em 01B2-E, o local pesado é expurgado
+    expect(localStorage.getItem(`apex_gp_tires_${careerId}_r${round}`)).toBeNull()
 
     // Teste de falha na promoção: jogador não é bloqueado, erro observável registrado
     saveSpy.mockResolvedValueOnce({ success: false, error: 'Storage quota exceeded in PB' })
