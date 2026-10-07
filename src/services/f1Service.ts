@@ -2051,6 +2051,7 @@ export const f1Service = {
     options?: {
       driverId?: string
       seasonYear?: number
+      unitNumber?: number
       round?: number
       careerId?: string
       carSlot?: 1 | 2
@@ -2096,29 +2097,60 @@ export const f1Service = {
       // -------------------------------------------------------------
       // MODO MODERNO: COTA POR PILOTO / TEMPORADA
       // -------------------------------------------------------------
+      const requestedUnitNumber = options?.unitNumber
+
+      // Idempotência preventiva obrigatória:
+      // Se a chamada solicitou explicitamente um unitNumber, verificar primeiro se já existe
+      // no histórico deste piloto/temporada para reutilizar a mesma instância sem recalculá-la como próxima PU.
+      if (typeof requestedUnitNumber === 'number' && requestedUnitNumber > 0) {
+        matchedExistingUnit = currentHistory.find(
+          (eng) =>
+            eng.driverId === targetDriverId &&
+            eng.seasonYear === targetSeasonYear &&
+            eng.unitNumber === requestedUnitNumber,
+        )
+      }
+
+      // Resolver canônico de cota regulamentar
       const quotaResolution = resolveDriverPowerUnitQuota(
         currentHistory,
         targetDriverId,
         targetSeasonYear,
       )
 
-      unitIndex = quotaResolution.nextUnitNumber
-      isExceedingQuota = quotaResolution.exceedsQuota
-      penaltyPositions = quotaResolution.gridPenaltyPositions
-
-      // ID físico globalmente único dentro da equipe (max(id) + 1)
-      physicalId = Math.max(existingMaxId, currentHistory.length) + 1
-
-      // Idempotência: verificar se este piloto já possui uma unidade com este unitNumber nesta temporada
-      matchedExistingUnit = currentHistory.find(
-        (eng) =>
-          eng.driverId === targetDriverId &&
-          eng.seasonYear === targetSeasonYear &&
-          eng.unitNumber === unitIndex,
-      )
       if (matchedExistingUnit) {
+        // Instância solicitada já existe: reutilizar e preservar
         alreadyExists = true
+        unitIndex = matchedExistingUnit.unitNumber ?? requestedUnitNumber!
         physicalId = Number(matchedExistingUnit.id)
+        isExceedingQuota = Boolean(
+          matchedExistingUnit.exceedsQuota ?? unitIndex > FREE_ENGINE_QUOTA,
+        )
+        penaltyPositions = isExceedingQuota
+          ? unitIndex === FREE_ENGINE_QUOTA + 1
+            ? FIRST_EXCESS_GRID_PENALTY
+            : SUBSEQUENT_EXCESS_GRID_PENALTY
+          : 0
+      } else {
+        // Criar próxima unidade determinada exclusivamente pelo resolver canônico
+        unitIndex = quotaResolution.nextUnitNumber
+        isExceedingQuota = quotaResolution.exceedsQuota
+        penaltyPositions = quotaResolution.gridPenaltyPositions
+
+        // ID físico globalmente único na equipe (independente de unitNumber)
+        physicalId = Math.max(existingMaxId, currentHistory.length) + 1
+
+        // Verificação defensiva se a próxima unidade calculada já existia no histórico
+        matchedExistingUnit = currentHistory.find(
+          (eng) =>
+            eng.driverId === targetDriverId &&
+            eng.seasonYear === targetSeasonYear &&
+            eng.unitNumber === unitIndex,
+        )
+        if (matchedExistingUnit) {
+          alreadyExists = true
+          physicalId = Number(matchedExistingUnit.id)
+        }
       }
     } else {
       // -------------------------------------------------------------
