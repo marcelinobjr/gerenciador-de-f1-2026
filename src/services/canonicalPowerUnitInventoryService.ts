@@ -22,6 +22,14 @@
 import type { TeamModel, PowerUnitHistoryEntry } from '@/types/f1'
 
 export const REGULATION_UNITS_PER_DRIVER = 4
+export const FIRST_EXCESS_GRID_PENALTY = 10
+export const SUBSEQUENT_EXCESS_GRID_PENALTY = 5
+
+export interface DriverPowerUnitQuotaResolution {
+  nextUnitNumber: number
+  exceedsQuota: boolean
+  gridPenaltyPositions: number
+}
 
 export interface EnsureDriverInventoryParams {
   team: TeamModel
@@ -171,4 +179,72 @@ export function getInstalledUnitsCountForDriver(
 ): number {
   const units = getDriverSeasonPowerUnits(team, driverId, seasonYear)
   return units.filter((u) => u.status === 'instalado').length
+}
+
+/**
+ * POWER-UNIT-4UNITS-01A4.1: Resolve cota regulamentar por piloto.
+ *
+ * Função pura e canônica que determina:
+ * 1. nextUnitNumber: próximo número de unidade do piloto na temporada (max(unitNumber) + 1 ou 1 se vazio)
+ * 2. exceedsQuota: se a nova unidade excede a cota regulamentar (unitNumber > REGULATION_UNITS_PER_DRIVER)
+ * 3. gridPenaltyPositions: penalidade esportiva correspondente:
+ *    - PU1..PU4: 0 posições
+ *    - PU5 (1ª unidade excedente): 10 posições
+ *    - PU6+ (demais excedentes): 5 posições
+ *
+ * Filtro exclusivo:
+ * - Filtra estritamente unidades com driverId === driverId && seasonYear === seasonYear
+ * - Ignora entradas legadas sem driverId, seasonYear ou unitNumber válido
+ * - Não usa engine_history[].id, tamanho global, índice do array ou companheiro de equipe
+ * - Zero efeitos colaterais: pura, não muta o array nem seus itens.
+ */
+export function resolveDriverPowerUnitQuota(
+  engineHistory: PowerUnitHistoryEntry[] | undefined | null,
+  driverId: string,
+  seasonYear: number,
+): DriverPowerUnitQuotaResolution {
+  if (!driverId || typeof seasonYear !== 'number') {
+    return {
+      nextUnitNumber: 1,
+      exceedsQuota: false,
+      gridPenaltyPositions: 0,
+    }
+  }
+
+  const list = Array.isArray(engineHistory) ? engineHistory : []
+
+  // Filtrar exclusivamente unidades válidas deste piloto nesta temporada
+  let maxUnitNumber = 0
+  for (const entry of list) {
+    if (
+      entry &&
+      entry.driverId === driverId &&
+      entry.seasonYear === seasonYear &&
+      typeof entry.unitNumber === 'number' &&
+      !isNaN(entry.unitNumber) &&
+      entry.unitNumber > 0
+    ) {
+      if (entry.unitNumber > maxUnitNumber) {
+        maxUnitNumber = entry.unitNumber
+      }
+    }
+  }
+
+  const nextUnitNumber = maxUnitNumber + 1
+  const exceedsQuota = nextUnitNumber > REGULATION_UNITS_PER_DRIVER
+
+  let gridPenaltyPositions = 0
+  if (exceedsQuota) {
+    if (nextUnitNumber === REGULATION_UNITS_PER_DRIVER + 1) {
+      gridPenaltyPositions = FIRST_EXCESS_GRID_PENALTY
+    } else {
+      gridPenaltyPositions = SUBSEQUENT_EXCESS_GRID_PENALTY
+    }
+  }
+
+  return {
+    nextUnitNumber,
+    exceedsQuota,
+    gridPenaltyPositions,
+  }
 }
