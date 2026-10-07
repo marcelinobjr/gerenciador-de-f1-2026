@@ -165,7 +165,7 @@ describe('STORAGE-QUOTA-01B2-B: Espelhamento de Escrita Viva do Inventário de P
             id: 'set_1',
             compound: 'macio',
             condition: 75.5,
-            status: 'usado_sessao',
+            status: 'usado',
             isFitted: false,
             wear: 24.5,
             lapsUsed: 12,

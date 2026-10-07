@@ -61,7 +61,153 @@ export interface StoredWeekendTireData {
   updatedAt: string
 }
 
+export interface ReadWeekendTyresResult {
+  data: StoredWeekendTireData | null
+  source: 'backend' | 'local' | 'none'
+  backendError?: string
+}
+
+export function validateStoredWeekendTireData(
+  payload: any,
+  expectedContext?: { seasonId?: string; round?: number },
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  if (!payload || typeof payload !== 'object') {
+    errors.push('Payload não é um objeto válido')
+    return { valid: false, errors }
+  }
+
+  if (typeof payload.seasonId !== 'string' || !payload.seasonId) {
+    errors.push('seasonId ausente ou inválido no payload')
+  } else if (expectedContext?.seasonId && payload.seasonId !== expectedContext.seasonId) {
+    errors.push(
+      `Incompatibilidade de temporada: seasonId '${payload.seasonId}', esperado '${expectedContext.seasonId}'`,
+    )
+  }
+
+  if (typeof payload.round !== 'number' || isNaN(payload.round)) {
+    errors.push('round ausente ou inválido no payload')
+  } else if (expectedContext?.round !== undefined && payload.round !== expectedContext.round) {
+    errors.push(
+      `Incompatibilidade de rodada: round '${payload.round}', esperado '${expectedContext.round}'`,
+    )
+  }
+
+  if (!payload.inventoriesByDriver || typeof payload.inventoriesByDriver !== 'object') {
+    errors.push('inventoriesByDriver ausente ou inválido')
+  } else {
+    for (const [driverId, sets] of Object.entries(payload.inventoriesByDriver)) {
+      if (!Array.isArray(sets)) {
+        errors.push(`inventoriesByDriver['${driverId}'] não é um array de jogos`)
+        break
+      }
+      for (let i = 0; i < sets.length; i++) {
+        const s = sets[i] as any
+        if (!s || typeof s !== 'object') {
+          errors.push(`Jogo de pneus inválido para piloto '${driverId}' no índice ${i}`)
+          break
+        }
+        if (!s.id && !s.tyreSetId) {
+          errors.push(`id/tyreSetId ausente em jogo para piloto '${driverId}' no índice ${i}`)
+          break
+        }
+        if (typeof s.wear === 'number' && (s.wear < 0 || s.wear > 100)) {
+          errors.push(`Desgaste fora do intervalo válido [0..100] no piloto '${driverId}'`)
+          break
+        }
+      }
+      if (errors.length > 0) break
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 export const canonicalWeekendTyrePersistence = {
+  /**
+   * STORAGE-QUOTA-01B2-C-MICRO: Leitura preferindo PocketBase com fallback local explícito.
+   *
+   * Ordem:
+   * 1. Consulta primeiro o PocketBase via canonicalWeekendTyreBackendService.readInventory(...)
+   * 2. Se houver payload válido no backend, usa esse inventário (backend vence divergência) -> source: backend
+   * 3. Se backend responder NOT_FOUND (null), cai para a leitura local atual -> source: local ou none
+   * 4. Se backend falhar (ERROR ou payload inválido), erro observável e fallback local explícito -> source: local ou none
+   *
+   * Regras estritas:
+   * - LOAD NÃO ESCREVE: não chama saveInventory, não regravar localStorage, não apaga dados, não regenera.
+   */
+  async readWeekendTyresPreferred(
+    seasonId: string,
+    round: number,
+  ): Promise<ReadWeekendTyresResult> {
+    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const backendContext = {
+      careerId: seasonId,
+      season: seasonNum,
+      round,
+      driverId: undefined, // _all para agregado por rodada
+    }
+
+    let backendData: StoredWeekendTireData | null = null
+    let backendError: string | undefined = undefined
+
+    // 1. Consultar primeiro o PocketBase
+    try {
+      backendData =
+        await canonicalWeekendTyreBackendService.readInventory<StoredWeekendTireData>(
+          backendContext,
+        )
+    } catch (err: any) {
+      backendError = err?.message || 'Erro de rede ou indisponibilidade ao consultar PocketBase'
+      console.warn(
+        `[canonicalWeekendTyrePersistence] Falha ao consultar PocketBase para inventário (${seasonId}, r${round}):`,
+        err,
+      )
+    }
+
+    // 2. Se backend retornou payload, validar
+    if (backendData) {
+      const validation = validateStoredWeekendTireData(backendData, { seasonId, round })
+      if (validation.valid) {
+        // Backend válido: backend vence sem merge e sem regravação
+        return {
+          data: backendData,
+          source: 'backend',
+        }
+      } else {
+        const errorMsg = `Payload inválido no PocketBase: ${validation.errors.join('; ')}`
+        console.warn('[canonicalWeekendTyrePersistence]', errorMsg)
+        backendError = errorMsg
+      }
+    }
+
+    // 3. Fallback para localStorage local
+    const localData = this.readWeekendTireData(seasonId, round)
+
+    if (localData) {
+      const localValidation = validateStoredWeekendTireData(localData, { seasonId, round })
+      if (localValidation.valid) {
+        return {
+          data: localData,
+          source: 'local',
+          backendError,
+        }
+      } else {
+        console.warn(
+          `[canonicalWeekendTyrePersistence] Local storage contém dados inválidos para (${seasonId}, r${round})`,
+        )
+      }
+    }
+
+    // 4. Nenhum dado válido encontrado
+    return {
+      data: null,
+      source: 'none',
+      backendError,
+    }
+  },
+
   /**
    * Lê o armazenamento persistente do fim de semana.
    */
