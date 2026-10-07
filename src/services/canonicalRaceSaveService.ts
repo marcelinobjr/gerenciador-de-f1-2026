@@ -36,6 +36,8 @@ import type {
 
 export const RACE_SAVE_SCHEMA_VERSION = 'race-save-v1' as const
 
+import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
+
 export const CANONICAL_RACE_STORAGE_PREFIX_V2 = 'f1_2026_canonical_race_v2'
 
 export interface SaveValidationResult {
@@ -323,8 +325,13 @@ export class CanonicalRaceSaveService {
       }
 
       const serialized = JSON.stringify(snapshot)
+      const pruneCtx = {
+        careerId: snapshot.careerId,
+        seasonId: `s${snapshot.season}`,
+        currentRound: snapshot.round,
+      }
       // Grava na chave canônica v2
-      window.localStorage.setItem(keyV2, serialized)
+      safeLocalStorageSetItem(keyV2, serialized, pruneCtx)
       // Grava espelho na chave retrocompatível
       const keyLegacy = this.buildLegacyStorageKey(
         snapshot.careerId,
@@ -332,7 +339,7 @@ export class CanonicalRaceSaveService {
         snapshot.round,
         raceVariant,
       )
-      window.localStorage.setItem(keyLegacy, serialized)
+      safeLocalStorageSetItem(keyLegacy, serialized, pruneCtx)
 
       return { success: true }
     } catch (e: any) {

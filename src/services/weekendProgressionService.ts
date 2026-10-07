@@ -13,6 +13,7 @@
 
 import { CIRCUIT_PERFORMANCE_PROFILES } from '@/data/circuit-performance-profiles'
 import { canonicalWeekendSlotPersistenceService } from '@/services/canonicalWeekendSlotPersistenceService'
+import { pruneStorageData } from '@/services/storageQuotaService'
 
 export type CanonicalWeekendSession =
   | 'tp1'
@@ -626,6 +627,22 @@ export function resetWeekendForRound(options: ResetWeekendOptions): ResetWeekend
     removeKey(`apex_starting_grid_state_${careerId}_${seasonId}_r${round}`)
     removeKey(`apex_sprint_qualifying_result_state_${careerId}_${seasonId}_r${round}`)
     removeKey(`apex_sprint_starting_grid_state_${careerId}_${seasonId}_r${round}`)
+  }
+
+  // STORAGE-QUOTA-01A: Ponto controlado de prune ao resetar a rodada
+  try {
+    const pruneRes = pruneStorageData({
+      careerId,
+      seasonId,
+      currentRound: round,
+    })
+    for (const pk of pruneRes.prunedKeys) {
+      if (!clearedKeys.includes(pk)) {
+        clearedKeys.push(pk)
+      }
+    }
+  } catch (pruneErr) {
+    console.warn('Aviso: falha não-bloqueante no prune durante reset:', pruneErr)
   }
 
   return {

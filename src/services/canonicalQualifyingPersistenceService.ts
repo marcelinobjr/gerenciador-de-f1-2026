@@ -20,6 +20,7 @@ import type {
   FinalQualifyingGridEntry,
 } from '@/types/canonical-qualifying-types'
 import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
+import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
 
 const STAGE_STATE_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_state_v2'
 const STAGE_RESULT_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_result_v2'
@@ -98,7 +99,7 @@ export const canonicalQualifyingPersistenceService = {
       state.updatedAt = new Date().toISOString()
       state.revision = (state.revision || 0) + 1
       const key = this.getStageStateKey(seasonId, round, state.stageId)
-      window.localStorage.setItem(key, JSON.stringify(state))
+      safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
       return true
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao salvar estado de fase:', e)
@@ -154,9 +155,10 @@ export const canonicalQualifyingPersistenceService = {
         parsed.status = 'paused'
         // Persistir de volta como paused para manter coerência canônica
         try {
-          window.localStorage.setItem(
+          safeLocalStorageSetItem(
             this.getStageStateKey(seasonId, round, stageId),
             JSON.stringify(parsed),
+            { seasonId, currentRound: round },
           )
         } catch {
           // Ignore write error
@@ -178,7 +180,10 @@ export const canonicalQualifyingPersistenceService = {
     if (typeof window === 'undefined' || !window.localStorage) return
     try {
       const key = this.getStageResultKey(result.seasonId, result.round, result.stageId)
-      window.localStorage.setItem(key, JSON.stringify(result))
+      safeLocalStorageSetItem(key, JSON.stringify(result), {
+        seasonId: result.seasonId,
+        currentRound: result.round,
+      })
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao salvar resultado de fase:', e)
     }
@@ -210,7 +215,10 @@ export const canonicalQualifyingPersistenceService = {
     if (typeof window === 'undefined' || !window.localStorage) return
     try {
       const key = this.getFinalGridKey(result.seasonId, result.round)
-      window.localStorage.setItem(key, JSON.stringify(result))
+      safeLocalStorageSetItem(key, JSON.stringify(result), {
+        seasonId: result.seasonId,
+        currentRound: result.round,
+      })
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao salvar grid final completo:', e)
     }
@@ -242,9 +250,10 @@ export const canonicalQualifyingPersistenceService = {
     if (typeof window === 'undefined' || !window.localStorage) return
     try {
       const key = this.getParcFermeKey(seasonId, round)
-      window.localStorage.setItem(
+      safeLocalStorageSetItem(
         key,
         JSON.stringify({ active, updatedAt: new Date().toISOString() }),
+        { seasonId, currentRound: round },
       )
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao definir Parc Fermé:', e)

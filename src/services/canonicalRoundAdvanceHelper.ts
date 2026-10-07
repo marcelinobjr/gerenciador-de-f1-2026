@@ -16,6 +16,7 @@ import { canonicalRaceResultService } from '@/services/canonicalRaceResultServic
 import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
 import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
+import { pruneStorageData } from '@/services/storageQuotaService'
 import type { OfficialRaceResult } from '@/types/canonical-race-v2'
 import type { SeasonModel, TeamModel } from '@/types/f1'
 
@@ -169,6 +170,17 @@ export async function advanceWeekendRound(
       current_round: nextRound,
       last_processed_round: currentRound,
     })
+
+    // STORAGE-QUOTA-01A: Ponto controlado de prune ao iniciar nova rodada
+    try {
+      pruneStorageData({
+        careerId: canonicalCareerId,
+        seasonId: `s${seasonYear}`,
+        currentRound: nextRound,
+      })
+    } catch (pruneErr) {
+      console.warn('Aviso: falha não-bloqueante no prune de rodada:', pruneErr)
+    }
 
     // Processamento de Silly Season opcional legado (rodadas 12 a 24)
     if (currentRound >= 12 && currentRound <= 24 && team?.id) {

@@ -23,6 +23,7 @@ import {
   type CanonicalTyreAllocationRules,
 } from '@/services/canonicalTyreAllocationService'
 import { hasSprintWeekend } from '@/services/weekendProgressionService'
+import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
 
 export function getWeekendTireStorageKey(seasonId: string, round: number): string {
   return `apex_gp_tires_${seasonId}_r${round}`
@@ -82,9 +83,10 @@ export const canonicalWeekendTyrePersistence = {
     if (typeof window === 'undefined' || !window.localStorage) return
     try {
       data.updatedAt = new Date().toISOString()
-      window.localStorage.setItem(
+      safeLocalStorageSetItem(
         getWeekendTireStorageKey(data.seasonId, data.round),
         JSON.stringify(data),
+        { seasonId: data.seasonId, currentRound: data.round },
       )
     } catch (e) {
       console.warn('[canonicalWeekendTyrePersistence] Falha ao salvar armazenamento de pneus:', e)
