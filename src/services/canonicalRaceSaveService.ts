@@ -406,9 +406,10 @@ export class CanonicalRaceSaveService {
     raceVariant: import('@/types/canonical-race-v2').RaceVariant = 'MAIN_RACE',
   ): Promise<{
     state: CanonicalRaceState | null
-    source: 'backend' | 'local' | 'none'
+    source: 'backend' | 'local' | 'local_migrated' | 'local_migration_failed' | 'none'
     error?: string
     backendError?: string
+    migrationError?: string
     isFinished?: boolean
   }> {
     const backendContext = {
@@ -420,11 +421,13 @@ export class CanonicalRaceSaveService {
 
     let backendState: CanonicalRaceState | null = null
     let backendError: string | undefined = undefined
+    let isBackendNetworkError = false
 
     // 1. Consultar primeiro o PocketBase
     try {
       backendState = await canonicalRaceStateBackendService.readRaceState(backendContext)
     } catch (err: any) {
+      isBackendNetworkError = true
       backendError = err?.message || 'Erro de rede ou indisponibilidade ao consultar PocketBase'
       console.warn(
         `[CanonicalRaceSaveService] Erro ao consultar backend para race_state (${careerId}, s${season}, r${round}, ${raceVariant}):`,
@@ -446,7 +449,7 @@ export class CanonicalRaceSaveService {
       }
 
       if (validation.valid) {
-        // Backend válido encontrado: backend vence
+        // Backend válido encontrado: backend vence (não migra pois backend já possui state)
         const resolvedState = this.deepClone(backendState)
 
         if (!resolvedState.driverLookup || Object.keys(resolvedState.driverLookup).length === 0) {
@@ -473,8 +476,58 @@ export class CanonicalRaceSaveService {
       }
     }
 
-    // 3. Fallback explícito para localStorage local
+    // 3. Fallback para localStorage local
     const localResult = this.loadCanonicalRaceState(careerId, season, round, raceVariant)
+
+    // STORAGE-QUOTA-01B1-D: LAZY MIGRATION DO RACE STATE LOCAL PARA BACKEND
+    // Condições estritas para promoção:
+    // 1. Backend respondeu NOT_FOUND: backendState === null E NÃO ocorreu erro de rede (isBackendNetworkError === false) E sem erro de payload prévio
+    // 2. Local possui state válido: localResult.state !== null
+    // 3. Se houve erro de rede/indisponibilidade (BACKEND_ERROR), NÃO tenta migrar (retorna local normal com fallback explícito)
+    const isBackendNotFound = !backendState && !isBackendNetworkError && !backendError
+
+    if (localResult.state && isBackendNotFound) {
+      try {
+        const saveRes = await canonicalRaceStateBackendService.saveRaceState(
+          backendContext,
+          localResult.state,
+        )
+
+        if (saveRes.success) {
+          return {
+            state: localResult.state,
+            source: 'local_migrated',
+            isFinished: localResult.isFinished,
+          }
+        } else {
+          const migrationError =
+            saveRes.error || 'Falha desconhecida ao promover race state ao PocketBase'
+          console.warn(
+            `[CanonicalRaceSaveService] Lazy migration falhou ao salvar no backend: ${migrationError}`,
+          )
+          return {
+            state: localResult.state,
+            source: 'local_migration_failed',
+            migrationError,
+            error: migrationError,
+            isFinished: localResult.isFinished,
+          }
+        }
+      } catch (migrationEx: any) {
+        const migrationError =
+          migrationEx?.message || 'Exceção ao executar lazy migration para o PocketBase'
+        console.warn(`[CanonicalRaceSaveService] Exceção durante lazy migration: ${migrationError}`)
+        return {
+          state: localResult.state,
+          source: 'local_migration_failed',
+          migrationError,
+          error: migrationError,
+          isFinished: localResult.isFinished,
+        }
+      }
+    }
+
+    // Se local existe mas backend teve erro (BACKEND_ERROR), ou payload backend corrompido:
     if (localResult.state) {
       return {
         state: localResult.state,
@@ -485,7 +538,7 @@ export class CanonicalRaceSaveService {
       }
     }
 
-    // 4. Ambos ausentes ou inválidos
+    // 4. Ambos ausentes ou inválidos (NOT_FOUND ou erro sem local)
     return {
       state: null,
       source: 'none',

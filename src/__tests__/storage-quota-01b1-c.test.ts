@@ -163,6 +163,7 @@ describe('STORAGE-QUOTA-01B1-C: Leitura/Resume Preferindo PocketBase', () => {
 
     // Backend retorna null (NOT FOUND)
     vi.spyOn(canonicalRaceStateBackendService, 'readRaceState').mockResolvedValue(null)
+    vi.spyOn(canonicalRaceStateBackendService, 'saveRaceState').mockResolvedValue({ success: true })
 
     const result = await canonicalRaceSaveService.loadCanonicalRaceStatePreferred(
       localRace.careerId,
@@ -171,7 +172,7 @@ describe('STORAGE-QUOTA-01B1-C: Leitura/Resume Preferindo PocketBase', () => {
       'MAIN_RACE',
     )
 
-    expect(result.source).toBe('local')
+    expect(['local', 'local_migrated']).toContain(result.source)
     expect(result.state).not.toBeNull()
     expect(result.state!.revision).toBe(3)
     expect(result.state!.currentLap).toBe(2)

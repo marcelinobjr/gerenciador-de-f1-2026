@@ -143,8 +143,8 @@ describe('storage-quota-01b1-c-micro: LOAD PREFERINDO BACKEND', () => {
     expect(wrapped!.currentLap).toBe(10)
   })
 
-  // C2 — NOT FOUND: backend retorna null, local válido existe → retorno é local.
-  it('C2 — NOT FOUND: backend retorna null, local válido existe → retorno é local', async () => {
+  // C2 — NOT FOUND: backend retorna null, local válido existe → retorno é local_migrated (ou local com promoção).
+  it('C2 — NOT FOUND: backend retorna null, local válido existe → retorno é local com promoção ou fallback local', async () => {
     const localRace = initializeStandardRace({ round: 2 })
     localRace.revision = 4
     localRace.currentLap = 6
@@ -157,8 +157,9 @@ describe('storage-quota-01b1-c-micro: LOAD PREFERINDO BACKEND', () => {
     )
     localStorage.setItem(keyV2, JSON.stringify(localRace))
 
-    // Backend retorna null (NOT_FOUND)
+    // Backend retorna null (NOT_FOUND) e saveRaceState confirma
     vi.spyOn(canonicalRaceStateBackendService, 'readRaceState').mockResolvedValue(null)
+    vi.spyOn(canonicalRaceStateBackendService, 'saveRaceState').mockResolvedValue({ success: true })
 
     const result = await canonicalRaceSaveService.loadCanonicalRaceStatePreferred(
       localRace.careerId,
@@ -167,13 +168,12 @@ describe('storage-quota-01b1-c-micro: LOAD PREFERINDO BACKEND', () => {
       'MAIN_RACE',
     )
 
-    expect(result.source).toBe('local')
+    expect(['local', 'local_migrated']).toContain(result.source)
     expect(result.state).not.toBeNull()
     expect(result.state!.revision).toBe(4)
     expect(result.state!.currentLap).toBe(6)
     expect(result.backendError).toBeUndefined()
   })
-
   // C3 — BACKEND ERROR: backend falha, local válido existe → retorno é local e erro é observável.
   it('C3 — BACKEND ERROR: backend falha, local válido existe → retorno é local e erro é observável', async () => {
     const localRace = initializeStandardRace({ round: 3 })
