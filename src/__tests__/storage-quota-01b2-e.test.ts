@@ -113,7 +113,10 @@ function createSampleStoredWeekendTireData(
  * Cria uma fixture completa de inventário representativo de GP (20 pilotos x 20 jogos)
  * para medir com precisão a redução de bytes no localStorage.
  */
-function createFullGridRepresentativeFixture(seasonId: string, round: number): StoredWeekendTireData {
+function createFullGridRepresentativeFixture(
+  seasonId: string,
+  round: number,
+): StoredWeekendTireData {
   const inventoriesByDriver: Record<string, TireSetItem[]> = {}
   const compounds: Array<'macio' | 'medio' | 'duro' | 'intermediario' | 'chuva_extrema'> = [
     'macio',
@@ -237,7 +240,10 @@ describe('STORAGE-QUOTA-01B2-E: Expurgar inventário pesado de pneus do localSto
       .spyOn(canonicalWeekendTyreBackendService, 'saveInventory')
       .mockResolvedValue({ success: true, id: 'rec_e3_migrated' })
 
-    const readResult = await canonicalWeekendTyrePersistence.readWeekendTyresPreferred(careerId, round)
+    const readResult = await canonicalWeekendTyrePersistence.readWeekendTyresPreferred(
+      careerId,
+      round,
+    )
 
     expect(readResult.source).toBe('local_migrated')
     expect(readResult.data).toEqual(payload)
@@ -263,7 +269,10 @@ describe('STORAGE-QUOTA-01B2-E: Expurgar inventário pesado de pneus do localSto
       error: 'PB Disk Full',
     })
 
-    const readResult = await canonicalWeekendTyrePersistence.readWeekendTyresPreferred(careerId, round)
+    const readResult = await canonicalWeekendTyrePersistence.readWeekendTyresPreferred(
+      careerId,
+      round,
+    )
 
     expect(readResult.source).toBe('local_migration_failed')
     expect(readResult.data).toEqual(payload)
