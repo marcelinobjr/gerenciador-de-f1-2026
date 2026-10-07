@@ -22,34 +22,49 @@ describe('STORAGE-QUOTA-01B2-B: Espelhamento de Escrita Viva do Inventário de P
       wet: 3,
       totalSlick: 13,
       totalDryWet: 20,
-    },
+      totalSets: 20,
+      wetWeather: {
+        intermediario: 4,
+        chuva_extrema: 3,
+        total: 7,
+      },
+    } as any,
     inventoriesByDriver: {
       drv_hamilton: [
         {
           id: 'set_1',
-          compound: 'SOFT',
-          condition: 'NEW',
-          status: 'AVAILABLE',
+          tyreSetId: 'set_1',
+          driverId: 'drv_hamilton',
+          compound: 'macio',
+          condition: 100,
+          status: 'disponivel',
           wear: 0,
           lapsUsed: 0,
+          isFitted: false,
         },
         {
           id: 'set_2',
-          compound: 'MEDIUM',
-          condition: 'NEW',
-          status: 'AVAILABLE',
+          tyreSetId: 'set_2',
+          driverId: 'drv_hamilton',
+          compound: 'medio',
+          condition: 100,
+          status: 'disponivel',
           wear: 0,
           lapsUsed: 0,
+          isFitted: false,
         },
       ],
       drv_verstappen: [
         {
           id: 'set_v1',
-          compound: 'HARD',
-          condition: 'NEW',
-          status: 'AVAILABLE',
+          tyreSetId: 'set_v1',
+          driverId: 'drv_verstappen',
+          compound: 'duro',
+          condition: 100,
+          status: 'disponivel',
           wear: 0,
           lapsUsed: 0,
+          isFitted: false,
         },
       ],
     },
@@ -148,9 +163,10 @@ describe('STORAGE-QUOTA-01B2-B: Espelhamento de Escrita Viva do Inventário de P
         drv_hamilton: [
           {
             id: 'set_1',
-            compound: 'SOFT',
-            condition: 'USED',
-            status: 'AVAILABLE',
+            compound: 'macio',
+            condition: 75.5,
+            status: 'usado_sessao',
+            isFitted: false,
             wear: 24.5,
             lapsUsed: 12,
           },
@@ -168,7 +184,7 @@ describe('STORAGE-QUOTA-01B2-B: Espelhamento de Escrita Viva do Inventário de P
     const hamSet1 = lastSavedPayload.inventoriesByDriver.drv_hamilton[0]
     expect(hamSet1.wear).toBe(24.5)
     expect(hamSet1.lapsUsed).toBe(12)
-    expect(hamSet1.condition).toBe('USED')
+    expect(hamSet1.condition).toBe(75.5)
   })
 
   // B3 — UPSERT: salvar mesma identidade novamente; backend atualiza registro existente, sem duplicata lógica.
@@ -349,9 +365,9 @@ describe('STORAGE-QUOTA-01B2-B: Espelhamento de Escrita Viva do Inventário de P
     // Comparar item por item
     const ham1 = capturedPayload.inventoriesByDriver.drv_hamilton[0]
     expect(ham1.id).toBe('set_1')
-    expect(ham1.compound).toBe('SOFT')
-    expect(ham1.condition).toBe('NEW')
-    expect(ham1.status).toBe('AVAILABLE')
+    expect(ham1.compound).toBe('macio')
+    expect(ham1.condition).toBe(100)
+    expect(ham1.status).toBe('disponivel')
     expect(ham1.wear).toBe(0)
     expect(ham1.lapsUsed).toBe(0)
   })

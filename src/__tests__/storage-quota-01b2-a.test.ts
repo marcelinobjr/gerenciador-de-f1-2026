@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import pb from '@/lib/pocketbase/client'
 import {
-  canonicalWeekendTyreBackendService,
-  type CanonicalWeekendTyreBackendContext,
+  canonicalWeekendTyreBackendService,  type CanonicalWeekendTyreBackendContext,
 } from '@/services/canonicalWeekendTyreBackendService'
 import type { StoredWeekendTireData } from '@/services/canonicalWeekendTyrePersistence'
 import type { TireSetItem } from '@/types/f1'
