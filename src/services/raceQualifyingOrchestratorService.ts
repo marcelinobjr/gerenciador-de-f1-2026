@@ -2353,13 +2353,36 @@ export class RaceQualifyingOrchestratorService {
       // As penalidades específicas do piloto têm precedência ou combinam-se com penalidades da equipe atribuídas a esta entrada/carro
       const combinedPenalties: GridPenaltyApplied[] = [...driverPenalties]
       for (const tp of teamPens) {
-        // Se a penalidade da equipe especificar driverId ou carIndex, aplica apenas se for compatível
-        const penaltyMatchesDriver = (tp as any).driverId
-          ? (tp as any).driverId === entry.driverId
-          : true
-        const penaltyMatchesCar = (tp as any).carIndex
-          ? (tp as any).carIndex === entry.carIndex
-          : true
+        // Modern PU penalty identification: driverId, seasonYear, unitNumber
+        const penaltyDriverId = (tp as any).driverId || (tp as any).driver_id
+        const penaltySeason = (tp as any).seasonYear || (tp as any).season || (tp as any).seasonId
+
+        // Season filter: if penalty has seasonYear/season, only apply if matching current season
+        if (penaltySeason !== undefined && penaltySeason !== null) {
+          const penaltySeasonStr = String(penaltySeason)
+          const currentSeasonStr = String(seasonId)
+          // If neither contains the other or matches, ignore penalty from another season
+          if (
+            penaltySeasonStr !== currentSeasonStr &&
+            !currentSeasonStr.includes(penaltySeasonStr) &&
+            !penaltySeasonStr.includes(currentSeasonStr)
+          ) {
+            continue
+          }
+        }
+
+        // Modern PU penalty matching: must match entry.driverId if specified
+        // If modern penalty has driverId, strictly match driver
+        const penaltyMatchesDriver = penaltyDriverId
+          ? penaltyDriverId === entry.driverId
+          : (tp as any).carIndex !== undefined
+            ? (tp as any).carIndex === entry.carIndex
+            : true
+
+        const penaltyMatchesCar =
+          (tp as any).carIndex !== undefined && !penaltyDriverId
+            ? (tp as any).carIndex === entry.carIndex
+            : true
 
         if (penaltyMatchesDriver && penaltyMatchesCar) {
           // Evita duplicata por id
