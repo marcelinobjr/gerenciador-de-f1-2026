@@ -2,6 +2,39 @@ import { QualifyingStageId, CANONICAL_QUALIFYING_RULES } from '@/types/canonical
 import type { QualifyingDriverContext } from '@/services/canonicalQualifyingRunner'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 
+export type QualifyingPrerequisiteReason =
+  | 'missing_stage_result'
+  | 'invalid_advancing_count'
+  | 'duplicate_or_invalid_driver_ids'
+
+export class QualifyingPrerequisiteError extends Error {
+  readonly stageId: QualifyingStageId
+  readonly parentStageId: QualifyingStageId
+  readonly reason: QualifyingPrerequisiteReason
+
+  constructor(
+    stageId: QualifyingStageId,
+    parentStageId: QualifyingStageId,
+    reason: QualifyingPrerequisiteReason,
+    message?: string,
+  ) {
+    const defaultMessage = `Falha de pré-requisito para qualificação na fase '${stageId}' (fase anterior: '${parentStageId}'): ${reason}`
+    super(message || defaultMessage)
+    this.name = 'QualifyingPrerequisiteError'
+    this.stageId = stageId
+    this.parentStageId = parentStageId
+    this.reason = reason
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+}
+
+const parentStageMap: Record<Exclude<QualifyingStageId, 'q1' | 'sq1'>, QualifyingStageId> = {
+  q2: 'q1',
+  q3: 'q2',
+  sq2: 'sq1',
+  sq3: 'sq2',
+}
+
 export interface ResolveQualifyingParticipantsParams {
   stageId: QualifyingStageId
   seasonId: string
@@ -68,114 +101,63 @@ export function resolveEligibleQualifyingDrivers(
   })
 
   // Fases iniciais: todos os 24 pilotos inscritos participam
-  if (stageId === 'q1' || (stageId as any) === 'sq1') {
+  if (stageId === 'q1' || stageId === 'sq1') {
     return all24.slice(0, CANONICAL_QUALIFYING_RULES[stageId].participantsCount || 24)
   }
 
-  // Fases intermediárias (Q2 ou SQ2): avançam os classificados da fase 1 anterior
-  if (stageId === 'q2' || (stageId as any) === 'sq2') {
-    const parentStage = (stageId as any) === 'sq2' ? 'sq1' : 'q1'
-    const parentRes = canonicalQualifyingPersistenceService.readStageResult(
-      seasonId,
-      round,
-      parentStage as any,
-    )
-
-    let advancingIds = parentRes?.advancingDriverIds || []
-
-    // Fallback: se advancingDriverIds ausente/vazio no resultado, recorrer a readStageState
-    // NOTA CANÔNICA: apenas se parentState.status === 'completed' E timeRemainingSec === 0
-    if (advancingIds.length === 0) {
-      const parentState = canonicalQualifyingPersistenceService.readStageState(
-        seasonId,
-        round,
-        parentStage as any,
-      )
-      if (
-        parentState &&
-        parentState.status === 'completed' &&
-        Array.isArray(parentState.leaderboard) &&
-        parentState.leaderboard.length > 0
-      ) {
-        const advancingLimit =
-          CANONICAL_QUALIFYING_RULES[parentStage as QualifyingStageId].advancingCount
-        advancingIds = parentState.leaderboard
-          .slice(0, advancingLimit)
-          .map((entry) => entry.driverId)
-      }
-    }
-
-    if (advancingIds.length > 0) {
-      const advSet = new Set(advancingIds)
-      const participantsMap = new Map(all24.map((p) => [p.id, p]))
-      const orderedClassified: QualifyingDriverContext[] = []
-
-      for (const driverId of advancingIds) {
-        const found = participantsMap.get(driverId)
-        if (found) {
-          orderedClassified.push(found)
-        }
-      }
-
-      if (orderedClassified.length > 0) {
-        return orderedClassified
-      }
-      return all24.filter((p) => advSet.has(p.id))
-    }
-    return []
+  // Fases dependentes: mapeamento único parentStageMap (sem branches hardcoded por nome)
+  const parentStage = parentStageMap[stageId]
+  if (!parentStage) {
+    return all24
   }
 
-  // Fases finais (Q3 ou SQ3): avançam os classificados da fase 2 anterior
-  if (stageId === 'q3' || (stageId as any) === 'sq3') {
-    const parentStage = (stageId as any) === 'sq3' ? 'sq2' : 'q2'
-    const parentRes = canonicalQualifyingPersistenceService.readStageResult(
-      seasonId,
-      round,
-      parentStage as any,
-    )
+  const parentRes = canonicalQualifyingPersistenceService.readStageResult(
+    seasonId,
+    round,
+    parentStage,
+  )
 
-    let advancingIds = parentRes?.advancingDriverIds || []
-
-    // Fallback: se advancingDriverIds ausente/vazio no resultado, recorrer a readStageState
-    if (advancingIds.length === 0) {
-      const parentState = canonicalQualifyingPersistenceService.readStageState(
-        seasonId,
-        round,
-        parentStage as any,
-      )
-      if (
-        parentState &&
-        parentState.status === 'completed' &&
-        Array.isArray(parentState.leaderboard) &&
-        parentState.leaderboard.length > 0
-      ) {
-        const advancingLimit =
-          CANONICAL_QUALIFYING_RULES[parentStage as QualifyingStageId].advancingCount
-        advancingIds = parentState.leaderboard
-          .slice(0, advancingLimit)
-          .map((entry) => entry.driverId)
-      }
-    }
-
-    if (advancingIds.length > 0) {
-      const advSet = new Set(advancingIds)
-      const participantsMap = new Map(all24.map((p) => [p.id, p]))
-      const orderedClassified: QualifyingDriverContext[] = []
-
-      for (const driverId of advancingIds) {
-        const found = participantsMap.get(driverId)
-        if (found) {
-          orderedClassified.push(found)
-        }
-      }
-
-      if (orderedClassified.length > 0) {
-        return orderedClassified
-      }
-      return all24.filter((p) => advSet.has(p.id))
-    }
-    return []
+  // 1. Ausente ou sem advancingDriverIds -> lançar QualifyingPrerequisiteError com 'missing_stage_result'
+  if (
+    !parentRes ||
+    !Array.isArray(parentRes.advancingDriverIds) ||
+    parentRes.advancingDriverIds.length === 0
+  ) {
+    throw new QualifyingPrerequisiteError(stageId, parentStage, 'missing_stage_result')
   }
 
-  return all24
+  const advancingIds = parentRes.advancingDriverIds
+  const expectedAdvancingCount = CANONICAL_QUALIFYING_RULES[parentStage].advancingCount
+
+  // 2. Contagem diferente da regra esportiva canônica -> 'invalid_advancing_count'
+  if (advancingIds.length !== expectedAdvancingCount) {
+    throw new QualifyingPrerequisiteError(stageId, parentStage, 'invalid_advancing_count')
+  }
+
+  // 3. IDs vazios ou duplicados -> 'duplicate_or_invalid_driver_ids'
+  const seenAdvancing = new Set<string>()
+  for (const id of advancingIds) {
+    if (!id || typeof id !== 'string' || id.trim() === '' || seenAdvancing.has(id)) {
+      throw new QualifyingPrerequisiteError(stageId, parentStage, 'duplicate_or_invalid_driver_ids')
+    }
+    seenAdvancing.add(id)
+  }
+
+  // Caminho feliz: mapear e preservar ordem e dados canônicos
+  const participantsMap = new Map(all24.map((p) => [p.id, p]))
+  const orderedClassified: QualifyingDriverContext[] = []
+
+  for (const driverId of advancingIds) {
+    const found = participantsMap.get(driverId)
+    if (found) {
+      orderedClassified.push(found)
+    }
+  }
+
+  if (orderedClassified.length > 0) {
+    return orderedClassified
+  }
+
+  const advSet = new Set(advancingIds)
+  return all24.filter((p) => advSet.has(p.id))
 }
