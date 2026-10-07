@@ -37,6 +37,7 @@ import type {
 export const RACE_SAVE_SCHEMA_VERSION = 'race-save-v1' as const
 
 import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
+import { canonicalRaceStateBackendService } from '@/services/canonicalRaceStateBackendService'
 
 export const CANONICAL_RACE_STORAGE_PREFIX_V2 = 'f1_2026_canonical_race_v2'
 
@@ -340,6 +341,40 @@ export class CanonicalRaceSaveService {
         raceVariant,
       )
       safeLocalStorageSetItem(keyLegacy, serialized, pruneCtx)
+
+      // STORAGE-QUOTA-01B1-B: Espelhar a escrita no PocketBase
+      // 1. Manter ordem segura: localStorage gravado primeiro;
+      // 2. Não bloquear o fluxo local em caso de erro transitório do backend;
+      // 3. Tornar o erro backend observável via log e/ou retorno de promise;
+      // 4. Salvar com a mesma identidade lógica (careerId, season, round, variant) e payload idêntico.
+      try {
+        const backendContext = {
+          careerId: snapshot.careerId,
+          season: snapshot.season,
+          round: snapshot.round,
+          variant: raceVariant,
+        }
+        canonicalRaceStateBackendService
+          .saveRaceState(backendContext, snapshot)
+          .then((backendRes) => {
+            if (!backendRes.success) {
+              console.warn(
+                `[CanonicalRaceSaveService] Falha ao espelhar race state no PocketBase: ${backendRes.error}`,
+              )
+            }
+          })
+          .catch((err) => {
+            console.warn(
+              '[CanonicalRaceSaveService] Erro inesperado ao espelhar race state no PocketBase:',
+              err?.message || err,
+            )
+          })
+      } catch (backendDispatchErr: any) {
+        console.warn(
+          '[CanonicalRaceSaveService] Exceção ao despachar salvamento no backend:',
+          backendDispatchErr?.message || backendDispatchErr,
+        )
+      }
 
       return { success: true }
     } catch (e: any) {
