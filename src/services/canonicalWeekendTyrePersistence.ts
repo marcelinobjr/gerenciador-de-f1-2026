@@ -136,6 +136,7 @@ export const canonicalWeekendTyrePersistence = {
    *
    * Regras estritas:
    * - LOAD NÃO ESCREVE: não chama saveInventory, não regravar localStorage, não apaga dados, não regenera.
+   * - BACKEND VENCE EM DIVERGÊNCIA: se backend e local existirem e forem diferentes, backend vence sem merge.
    */
   async readWeekendTyresPreferred(
     seasonId: string,
