@@ -127,8 +127,10 @@ export class CanonicalQualifyingRunner {
 
     // Tenta carregar estado persistido para reload idempotente
     const saved = canonicalQualifyingPersistenceService.readStageState(seasonId, round, stageId)
-    // BUG-SQ1-RESULT-INTEGRITY-01 & BUG-Q1-Q2-TRANSITION-01A1:
-    // Se saved.status === 'completed', retornar saved incondicionalmente; nunca sobrescrever ou persistir estado fresh por cima de estado concluído
+    // Q1FIX-02: Defesa Canônica Contra Reinicialização de Stage Concluído
+    // Se o estado persistido existir para a mesma identidade canônica (seasonId, round, stageId, weekendGeneration)
+    // e status === 'completed', preservar integralmente: não criar novo StageState, não salvar por cima,
+    // não zerar leaderboard, não zerar voltas e não zerar best laps.
     if (saved && saved.status === 'completed') {
       return saved
     }
