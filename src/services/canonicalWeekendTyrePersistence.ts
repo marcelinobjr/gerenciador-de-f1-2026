@@ -24,6 +24,7 @@ import {
 } from '@/services/canonicalTyreAllocationService'
 import { hasSprintWeekend } from '@/services/weekendProgressionService'
 import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
+import { canonicalWeekendTyreBackendService } from '@/services/canonicalWeekendTyreBackendService'
 
 export function getWeekendTireStorageKey(seasonId: string, round: number): string {
   return `apex_gp_tires_${seasonId}_r${round}`
@@ -89,7 +90,27 @@ export const canonicalWeekendTyrePersistence = {
         { seasonId: data.seasonId, currentRound: data.round },
       )
     } catch (e) {
-      console.warn('[canonicalWeekendTyrePersistence] Falha ao salvar armazenamento de pneus:', e)
+      console.warn('[WeekendTirePersistence] Falha ao salvar pneus do fim de semana:', e)
+    }
+
+    // 01B2-B: Espelhamento de escrita viva no PocketBase
+    try {
+      const seasonNum = parseInt(String(data.seasonId).replace(/\D/g, ''), 10) || 1
+      canonicalWeekendTyreBackendService
+        .saveInventory(
+          {
+            careerId: data.seasonId,
+            season: seasonNum,
+            round: data.round,
+            driverId: undefined, // _all para agregado por rodada
+          },
+          data,
+        )
+        .catch((err) => {
+          console.warn('[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:', err)
+        })
+    } catch (mirrorErr) {
+      console.warn('[WeekendTirePersistence] Falha ao disparar espelho PocketBase:', mirrorErr)
     }
   },
 
