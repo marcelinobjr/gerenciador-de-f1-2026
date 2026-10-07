@@ -311,7 +311,9 @@ describe('STORAGE-QUOTA-01B2-B: Espelhamento de Escrita Viva do Inventário de P
 
     // 2. Erro foi logado via console.warn
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:'),
+      expect.stringContaining(
+        '[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:',
+      ),
       expect.anything(),
     )
   })
@@ -359,10 +361,7 @@ describe('STORAGE-QUOTA-01B2-B: Espelhamento de Escrita Viva do Inventário de P
     const readBackendSpy = vi.spyOn(canonicalWeekendTyreBackendService, 'readInventory')
 
     // Popula localStorage
-    localStorage.setItem(
-      `apex_gp_tires_${mockCareerId}_r${mockRound}`,
-      JSON.stringify(mockPayload),
-    )
+    localStorage.setItem(`apex_gp_tires_${mockCareerId}_r${mockRound}`, JSON.stringify(mockPayload))
 
     // Chama leitura local
     const result = canonicalWeekendTyrePersistence.readWeekendTireData(mockCareerId, mockRound)

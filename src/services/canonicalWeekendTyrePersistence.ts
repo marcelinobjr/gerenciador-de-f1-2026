@@ -107,7 +107,10 @@ export const canonicalWeekendTyrePersistence = {
           data,
         )
         .catch((err) => {
-          console.warn('[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:', err)
+          console.warn(
+            '[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:',
+            err,
+          )
         })
     } catch (mirrorErr) {
       console.warn('[WeekendTirePersistence] Falha ao disparar espelho PocketBase:', mirrorErr)
