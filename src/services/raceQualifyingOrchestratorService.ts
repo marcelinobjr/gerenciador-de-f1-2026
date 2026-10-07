@@ -289,6 +289,7 @@ export interface SprintStartingGridState {
 export interface BuildStartingGridParams {
   careerId: string
   seasonId: string
+  seasonYear?: number
   round: number
   penaltiesByTeamId?: Record<string, GridPenaltyApplied[]>
   penaltiesByDriverId?: Record<string, GridPenaltyApplied[]>
@@ -2275,7 +2276,14 @@ export class RaceQualifyingOrchestratorService {
    * - Falha parcial: se o grid já foi calculado mas o status final GRID_READY não foi concluído, finaliza sem recalcular.
    */
   public async buildStartingGrid(params: BuildStartingGridParams): Promise<StartingGridState> {
-    const { careerId, seasonId, round, penaltiesByTeamId = {}, penaltiesByDriverId = {} } = params
+    const {
+      careerId,
+      seasonId,
+      seasonYear,
+      round,
+      penaltiesByTeamId = {},
+      penaltiesByDriverId = {},
+    } = params
 
     if (!careerId || !seasonId || round <= 0) {
       throw new Error(
@@ -2355,10 +2363,27 @@ export class RaceQualifyingOrchestratorService {
       for (const tp of teamPens) {
         // Modern PU penalty identification: driverId, seasonYear, unitNumber
         const penaltyDriverId = (tp as any).driverId || (tp as any).driver_id
-        const penaltySeason = (tp as any).seasonYear || (tp as any).season || (tp as any).seasonId
+        const penaltySeasonYear = (tp as any).seasonYear
+        const penaltySeason =
+          penaltySeasonYear !== undefined && penaltySeasonYear !== null
+            ? penaltySeasonYear
+            : (tp as any).season !== undefined && (tp as any).season !== null
+              ? (tp as any).season
+              : (tp as any).seasonId
 
-        // Season filter: if penalty has seasonYear/season, only apply if matching current season
-        if (penaltySeason !== undefined && penaltySeason !== null) {
+        // Season filter:
+        // Se params.seasonYear foi fornecido e a penalidade possui identidade moderna de ano (seasonYear ou season numérico):
+        // Usar comparação semântica canônica de ano sem inferir ano de seasonId.
+        if (
+          seasonYear !== undefined &&
+          penaltySeasonYear !== undefined &&
+          penaltySeasonYear !== null
+        ) {
+          if (Number(penaltySeasonYear) !== Number(seasonYear)) {
+            continue
+          }
+        } else if (penaltySeason !== undefined && penaltySeason !== null) {
+          // Fallback temporário de compatibilidade quando seasonYear não é fornecido ou para formatos anteriores
           const penaltySeasonStr = String(penaltySeason)
           const currentSeasonStr = String(seasonId)
           // If neither contains the other or matches, ignore penalty from another season
