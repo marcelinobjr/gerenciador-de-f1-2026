@@ -127,7 +127,8 @@ export class CanonicalQualifyingRunner {
 
     // Tenta carregar estado persistido para reload idempotente
     const saved = canonicalQualifyingPersistenceService.readStageState(seasonId, round, stageId)
-    // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 2): Se saved.status === 'completed', retornar saved incondicionalmente; nunca persistir estado fresh por cima de estado concluído
+    // BUG-SQ1-RESULT-INTEGRITY-01 & BUG-Q1-Q2-TRANSITION-01A1:
+    // Se saved.status === 'completed', retornar saved incondicionalmente; nunca sobrescrever ou persistir estado fresh por cima de estado concluído
     if (saved && saved.status === 'completed') {
       return saved
     }

@@ -645,6 +645,16 @@ export default function WeekendV2Page() {
         }
       } else if (isQualifyingStage(sess)) {
         if (!qualifyingState) {
+          const persisted = canonicalQualifyingPersistenceService.readStageState(
+            season.id,
+            currentRound,
+            sess as QualifyingStageId,
+          )
+          if (persisted && persisted.status === 'completed') {
+            setQualifyingState(persisted)
+            setIsAutoAdvancing(false)
+            return
+          }
           await initializeQualifyingSession(
             sess as QualifyingStageId,
             registration,
@@ -894,6 +904,14 @@ export default function WeekendV2Page() {
         currentRound,
         sess as QualifyingStageId,
       )
+      // BUG-Q1-Q2-TRANSITION-01A1: Guard antes de initializeQualifyingSession.
+      // Se a fase já estiver officially completed, carregar/reutilizar o estado persistido,
+      // atualizar a UI e NÃO chamar initializeQualifyingSession/initializeStage para evitar overwrite destrutivo.
+      if (existingState && existingState.status === 'completed') {
+        setQualifyingState(existingState)
+        setIsAutoAdvancing(false)
+        return
+      }
       if (existingState) {
         setQualifyingState(existingState)
       }
@@ -909,6 +927,12 @@ export default function WeekendV2Page() {
         currentRound,
         sess as QualifyingStageId,
       )
+      // BUG-Q1-Q2-TRANSITION-01A1: Guard antes de initializeQualifyingSession para sessões sprint também.
+      if (existingState && existingState.status === 'completed') {
+        setQualifyingState(existingState)
+        setIsAutoAdvancing(false)
+        return
+      }
       if (existingState) {
         setQualifyingState(existingState)
       }
@@ -995,6 +1019,19 @@ export default function WeekendV2Page() {
     const reg = currentReg || registration
     const inventories = currentInvs || tyreInventories
     if (!team || !season || !reg?.snapshot) return
+
+    // BUG-Q1-Q2-TRANSITION-01A1: Se a fase já possui estado persistido com status === 'completed',
+    // reutilizar o estado persistido e não chamar initializeStage para proteger os dados esportivos.
+    const persistedStage = canonicalQualifyingPersistenceService.readStageState(
+      season.id,
+      currentRound,
+      stageId,
+    )
+    if (persistedStage && persistedStage.status === 'completed') {
+      setQualifyingState(persistedStage)
+      setIsAutoAdvancing(false)
+      return
+    }
 
     const pCar1 = reg.snapshot.entriesByCar.playerCar1
     const pCar2 = reg.snapshot.entriesByCar.playerCar2
