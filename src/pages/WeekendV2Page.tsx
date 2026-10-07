@@ -132,7 +132,11 @@ import {
   type QualifyingTickContext,
 } from '@/services/canonicalQualifyingRunner'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
-import { resolveEligibleQualifyingDrivers } from '@/services/qualifyingParticipantResolver'
+import {
+  resolveEligibleQualifyingDrivers,
+  QualifyingPrerequisiteError,
+} from '@/services/qualifyingParticipantResolver'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import type {
   QualifyingStageId,
   QualifyingStageState,
@@ -211,6 +215,9 @@ export default function WeekendV2Page() {
 
   // Estado em memória da sessão de qualificação em andamento (Q1, Q2 ou Q3)
   const [qualifyingState, setQualifyingState] = useState<QualifyingStageState | null>(null)
+  const [isInitializingQualifying, setIsInitializingQualifying] = useState<boolean>(false)
+  const [qualifyingInitializationError, setQualifyingInitializationError] =
+    useState<QualifyingPrerequisiteError | null>(null)
   const completedQualiStagesHandledRef = useRef<Set<string>>(new Set())
   const [completeQualifyingResult, setCompleteQualifyingResult] =
     useState<CompleteQualifyingWeekendResult | null>(null)
@@ -268,6 +275,7 @@ export default function WeekendV2Page() {
     // 3. Limpar estados locais da página
     setCompletedSessions([])
     setQualifyingState(null)
+    setQualifyingInitializationError(null)
     setSessionState(null)
     setCanonicalRaceState(null)
     setOfficialRaceResult(null)
@@ -652,9 +660,11 @@ export default function WeekendV2Page() {
           )
           if (persisted && persisted.status === 'completed') {
             setQualifyingState(persisted)
+            setQualifyingInitializationError(null)
             setIsAutoAdvancing(false)
             return
           }
+          setQualifyingInitializationError(null)
           await initializeQualifyingSession(
             sess as QualifyingStageId,
             registration,
@@ -892,6 +902,7 @@ export default function WeekendV2Page() {
     if (sess === 'tp1' || sess === 'tp2' || sess === 'tp3') {
       setSelectedSessionId(sess)
       setQualifyingState(null)
+      setQualifyingInitializationError(null)
       await initializePracticeSession(sess, registration, invs)
     } else if (sess === 'q1' || sess === 'q2' || sess === 'q3') {
       // Q1, Q2 ou Q3: inicializa ou carrega a sessão de qualificação canônica
@@ -908,6 +919,7 @@ export default function WeekendV2Page() {
         setSelectedSessionId(sess)
         setSessionState(null)
         setQualifyingState(existingState)
+        setQualifyingInitializationError(null)
         setIsAutoAdvancing(false)
         return
       }
@@ -915,6 +927,7 @@ export default function WeekendV2Page() {
       setSessionState(null)
       // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
       setQualifyingState(null)
+      setQualifyingInitializationError(null)
       if (existingState) {
         setQualifyingState(existingState)
       }
@@ -931,6 +944,7 @@ export default function WeekendV2Page() {
         setSelectedSessionId(sess)
         setSessionState(null)
         setQualifyingState(existingState)
+        setQualifyingInitializationError(null)
         setIsAutoAdvancing(false)
         return
       }
@@ -938,6 +952,7 @@ export default function WeekendV2Page() {
       setSessionState(null)
       // CORREÇÃO 2: resetar sincronamente setQualifyingState(null) antes de qualquer await para desvincular snapshot anterior
       setQualifyingState(null)
+      setQualifyingInitializationError(null)
       if (existingState) {
         setQualifyingState(existingState)
       }
@@ -1034,6 +1049,8 @@ export default function WeekendV2Page() {
     )
     if (persistedStage && persistedStage.status === 'completed') {
       setQualifyingState(persistedStage)
+      setQualifyingInitializationError(null)
+      setIsInitializingQualifying(false)
       setIsAutoAdvancing(false)
       return
     }
@@ -1042,129 +1059,145 @@ export default function WeekendV2Page() {
     const pCar2 = reg.snapshot.entriesByCar.playerCar2
     if (!pCar1 || !pCar2) return
 
-    const eligible = resolveEligibleQualifyingParticipants(stageId, reg)
+    setIsInitializingQualifying(true)
 
-    // BUG-SQ3-TRANSITION-R3: Se a fase não tem participantes elegíveis porque a fase anterior
-    // não foi concluída, não inicializar, não marcar pilotos como eliminados e não persistir estado vazio.
-    if (stageId !== 'q1' && stageId !== 'sq1' && eligible.length === 0) {
-      const parentStage =
-        stageId === 'sq2' ? 'sq1' : stageId === 'sq3' ? 'sq2' : stageId === 'q2' ? 'q1' : 'q2'
-      const pRes = canonicalQualifyingPersistenceService.readStageResult(
-        season.id,
-        currentRound,
-        parentStage as any,
-      )
-      const pState = canonicalQualifyingPersistenceService.readStageState(
-        season.id,
-        currentRound,
-        parentStage as any,
-      )
-      const hasParentCompleted = Boolean(
-        (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
-        (pState && pState.status === 'completed'),
-      )
-      if (!hasParentCompleted) {
-        setIsAutoAdvancing(false)
-        return
+    try {
+      const eligible = resolveEligibleQualifyingParticipants(stageId, reg)
+
+      // BUG-SQ3-TRANSITION-R3: Se a fase não tem participantes elegíveis porque a fase anterior
+      // não foi concluída, não inicializar, não marcar pilotos como eliminados e não persistir estado vazio.
+      if (stageId !== 'q1' && stageId !== 'sq1' && eligible.length === 0) {
+        const parentStage =
+          stageId === 'sq2' ? 'sq1' : stageId === 'sq3' ? 'sq2' : stageId === 'q2' ? 'q1' : 'q2'
+        const pRes = canonicalQualifyingPersistenceService.readStageResult(
+          season.id,
+          currentRound,
+          parentStage as any,
+        )
+        const pState = canonicalQualifyingPersistenceService.readStageState(
+          season.id,
+          currentRound,
+          parentStage as any,
+        )
+        const hasParentCompleted = Boolean(
+          (pRes && pRes.advancingDriverIds && pRes.advancingDriverIds.length > 0) ||
+          (pState && pState.status === 'completed'),
+        )
+        if (!hasParentCompleted) {
+          setIsAutoAdvancing(false)
+          setIsInitializingQualifying(false)
+          return
+        }
       }
-    }
 
-    // Se estiver reidratando uma sessão que estava salva como 'running' (órfão) ou 'paused',
-    // normalizar para 'paused' ao reabrir sem ticker ativo, garantindo que o usuário precise dar PLAY
-    // e que a sessão seja retomável sem ser considerada running fantasma.
-    const savedState = canonicalQualifyingPersistenceService.readStageState(
-      season.id,
-      currentRound,
-      stageId,
-    )
-    if (savedState && savedState.status === 'running' && !isAutoAdvancing) {
-      savedState.status = 'paused'
-      canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, savedState)
-    }
+      // Se estiver reidratando uma sessão que estava salva como 'running' (órfão) ou 'paused',
+      // normalizar para 'paused' ao reabrir sem ticker ativo, garantindo que o usuário precise dar PLAY
+      // e que a sessão seja retomável sem ser considerada running fantasma.
+      const savedState = canonicalQualifyingPersistenceService.readStageState(
+        season.id,
+        currentRound,
+        stageId,
+      )
+      if (savedState && savedState.status === 'running' && !isAutoAdvancing) {
+        savedState.status = 'paused'
+        canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, savedState)
+      }
 
-    // BUG-TYRE-SYNC-01A: Garantir inventário canônico materializado e selecionar APENAS jogo real elegível (wear < 100)
-    let activeInvs = inventories
-    if (
-      !activeInvs[pCar1.driverId] ||
-      activeInvs[pCar1.driverId].length === 0 ||
-      !activeInvs[pCar2.driverId] ||
-      activeInvs[pCar2.driverId].length === 0
-    ) {
-      activeInvs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+      // BUG-TYRE-SYNC-01A: Garantir inventário canônico materializado e selecionar APENAS jogo real elegível (wear < 100)
+      let activeInvs = inventories
+      if (
+        !activeInvs[pCar1.driverId] ||
+        activeInvs[pCar1.driverId].length === 0 ||
+        !activeInvs[pCar2.driverId] ||
+        activeInvs[pCar2.driverId].length === 0
+      ) {
+        activeInvs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+          seasonId: season.id,
+          round: currentRound,
+          driverIds: [pCar1.driverId, pCar2.driverId],
+          primaryDriverIds: [pCar1.driverId, pCar2.driverId],
+        })
+        setTyreInventories(activeInvs)
+      }
+
+      const car1Tire = activeInvs[pCar1.driverId]?.find((t) => (t.wear || 0) < 100)
+      const car2Tire = activeInvs[pCar2.driverId]?.find((t) => (t.wear || 0) < 100)
+
+      // Parc Fermé: setup herdado de TL2
+      const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
+        team.id,
+        season.id,
+        currentRound,
+        'tp2',
+      )
+
+      const qState = CanonicalQualifyingRunner.initializeStage({
+        stageId,
         seasonId: season.id,
         round: currentRound,
-        driverIds: [pCar1.driverId, pCar2.driverId],
-        primaryDriverIds: [pCar1.driverId, pCar2.driverId],
+        playerCar1: {
+          driverId: pCar1.driverId,
+          driverName: pCar1.driverName,
+          driverNumber: 1,
+          tyreSetId: car1Tire?.id || '',
+          compound: car1Tire?.compound || 'macio',
+          wear: car1Tire?.wear ?? 100,
+          setup: inherited.car1Setup || {
+            frontWing: 6,
+            rearWing: 6,
+            suspension: 6,
+            differential: 50,
+          },
+        },
+        playerCar2: {
+          driverId: pCar2.driverId,
+          driverName: pCar2.driverName,
+          driverNumber: 2,
+          tyreSetId: car2Tire?.id || '',
+          compound: car2Tire?.compound || 'macio',
+          wear: car2Tire?.wear ?? 100,
+          setup: inherited.car2Setup || {
+            frontWing: 6,
+            rearWing: 6,
+            suspension: 6,
+            differential: 50,
+          },
+        },
+        eligibleParticipants: eligible,
       })
-      setTyreInventories(activeInvs)
-    }
 
-    const car1Tire = activeInvs[pCar1.driverId]?.find((t) => (t.wear || 0) < 100)
-    const car2Tire = activeInvs[pCar2.driverId]?.find((t) => (t.wear || 0) < 100)
+      setQualifyingState(qState)
+      setQualifyingInitializationError(null)
+      setIsInitializingQualifying(false)
+      setIsAutoAdvancing(false)
 
-    // Parc Fermé: setup herdado de TL2
-    const inherited = practiceSessionService.resolveInheritedWeekendKnowledge(
-      team.id,
-      season.id,
-      currentRound,
-      'tp2',
-    )
-
-    const qState = CanonicalQualifyingRunner.initializeStage({
-      stageId,
-      seasonId: season.id,
-      round: currentRound,
-      playerCar1: {
-        driverId: pCar1.driverId,
-        driverName: pCar1.driverName,
-        driverNumber: 1,
-        tyreSetId: car1Tire?.id || '',
-        compound: car1Tire?.compound || 'macio',
-        wear: car1Tire?.wear ?? 100,
-        setup: inherited.car1Setup || {
-          frontWing: 6,
-          rearWing: 6,
-          suspension: 6,
-          differential: 50,
-        },
-      },
-      playerCar2: {
-        driverId: pCar2.driverId,
-        driverName: pCar2.driverName,
-        driverNumber: 2,
-        tyreSetId: car2Tire?.id || '',
-        compound: car2Tire?.compound || 'macio',
-        wear: car2Tire?.wear ?? 100,
-        setup: inherited.car2Setup || {
-          frontWing: 6,
-          rearWing: 6,
-          suspension: 6,
-          differential: 50,
-        },
-      },
-      eligibleParticipants: eligible,
-    })
-
-    setQualifyingState(qState)
-    setIsAutoAdvancing(false)
-
-    // Se Q3 já estiver concluído, verificar se já temos o grid final
-    if (stageId === 'q3' && qState.status === 'completed') {
-      const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-        season.id,
-        currentRound,
-      )
-      setCompleteQualifyingResult(fullGrid)
-      // Carregar resultado oficial caso já tenha sido homologado
-      const canonicalCareerId = resolveCanonicalCareerId(season, team)
-      const official = canonicalRaceResultService.getOfficialRaceResult(
-        canonicalCareerId,
-        season.year || 2026,
-        currentRound,
-      )
-      if (official) {
-        setOfficialRaceResult(official)
+      // Se Q3 já estiver concluído, verificar se já temos o grid final
+      if (stageId === 'q3' && qState.status === 'completed') {
+        const fullGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+          season.id,
+          currentRound,
+        )
+        setCompleteQualifyingResult(fullGrid)
+        // Carregar resultado oficial caso já tenha sido homologado
+        const canonicalCareerId = resolveCanonicalCareerId(season, team)
+        const official = canonicalRaceResultService.getOfficialRaceResult(
+          canonicalCareerId,
+          season.year || 2026,
+          currentRound,
+        )
+        if (official) {
+          setOfficialRaceResult(official)
+        }
       }
+    } catch (err: unknown) {
+      if (err instanceof QualifyingPrerequisiteError) {
+        setQualifyingInitializationError(err)
+        setIsInitializingQualifying(false)
+        return
+      }
+      console.error('[initializeQualifyingSession] Erro inesperado:', err)
+      setIsInitializingQualifying(false)
+      throw err
     }
   }
 
@@ -2370,6 +2403,21 @@ export default function WeekendV2Page() {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
+      if (
+        qualifyingInitializationError ||
+        !qualifyingState ||
+        qualifyingState.leaderboard.length === 0
+      ) {
+        toast({
+          variant: 'destructive',
+          title: 'Classificação Indisponível',
+          description:
+            qualifyingInitializationError?.message ||
+            'Aguarde a conclusão e validação da fase anterior.',
+        })
+        return
+      }
+
       let currentQuali = qualifyingState
       if (!currentQuali || currentQuali.stageId !== selectedSessionId) {
         if (season?.id) {
@@ -2590,6 +2638,21 @@ export default function WeekendV2Page() {
     const isQuali = isQualifyingStage(selectedSessionId)
 
     if (isQuali) {
+      if (
+        qualifyingInitializationError ||
+        !qualifyingState ||
+        qualifyingState.leaderboard.length === 0
+      ) {
+        toast({
+          variant: 'destructive',
+          title: 'Classificação Indisponível',
+          description:
+            qualifyingInitializationError?.message ||
+            'Aguarde a conclusão e validação da fase anterior.',
+        })
+        return
+      }
+
       let currentQuali = qualifyingState
       if (!currentQuali || currentQuali.stageId !== selectedSessionId) {
         if (season?.id) {
@@ -4043,6 +4106,32 @@ export default function WeekendV2Page() {
               playerTeamName={team?.name}
               playerTeamColor={team?.color}
             />
+          </div>
+        ) : qualifyingInitializationError ? (
+          <div className="max-w-xl mx-auto my-8 p-4">
+            <Alert variant="destructive" className="bg-[#1a0f14] border-red-900/60 text-slate-100">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <div className="ml-2">
+                <AlertTitle className="text-sm font-bold text-red-400">
+                  Pré-requisito da Classificação Pendente
+                </AlertTitle>
+                <AlertDescription className="text-xs text-slate-300 mt-1 mb-4 leading-relaxed">
+                  {qualifyingInitializationError.message ||
+                    'Não foi possível iniciar a fase de classificação porque o resultado válido da fase anterior não está disponível.'}
+                </AlertDescription>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 border-red-500/40 text-red-200 hover:bg-red-950/50 hover:text-white text-xs font-bold"
+                  onClick={() => {
+                    setQualifyingInitializationError(null)
+                    initializeQualifyingSession(selectedSessionId as QualifyingStageId)
+                  }}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            </Alert>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[30vh] space-y-3">
