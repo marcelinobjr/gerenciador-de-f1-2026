@@ -2188,19 +2188,44 @@ export default function WeekendV2Page() {
         eliminatedDriverIds,
       }
 
-      canonicalQualifyingPersistenceService.saveStageResult(reconstructedResult)
+      const saveOutcome = canonicalQualifyingPersistenceService.saveStageResult(reconstructedResult)
+      if (!saveOutcome.success) {
+        console.warn(
+          `[WeekendV2Page] Falha ao persistir resultado reconstruído da fase ${stageId}:`,
+          saveOutcome,
+        )
+      } else {
+        stageResult = reconstructedResult
+      }
       canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, stgState)
-      stageResult = reconstructedResult
     }
+
+    // F-Q1-TIMES-01A: Reconfirmar a presença real e íntegra do StageResult no storage
+    const persistedResultCheck = canonicalQualifyingPersistenceService.readStageResult(
+      season.id,
+      currentRound,
+      stageId,
+    )
 
     // Validar se temos um StageResult válido e persistido com entradas
     const hasValidPersistedResult =
-      !!stageResult && Array.isArray(stageResult.entries) && stageResult.entries.length > 0
+      !!persistedResultCheck &&
+      Array.isArray(persistedResultCheck.entries) &&
+      persistedResultCheck.entries.length > 0
 
     if (!hasValidPersistedResult) {
-      // Não marca como handled para permitir retry no próximo ciclo
+      // F-Q1-TIMES-01A: Falha observável ao usuário.
+      // Não marca como handled para permitir retry controlado no próximo ciclo.
+      const stageName = stageId.toUpperCase()
+      toast({
+        variant: 'destructive',
+        title: `Erro ao Salvar Resultado do ${stageName}`,
+        description: `Não foi possível salvar o resultado do ${stageName}. Tente novamente.`,
+      })
       return false
     }
+
+    stageResult = persistedResultCheck
 
     // Q2FIX-01: Barreira de integridade obrigatória para a transição Q1 → Q2.
     // Prova por read-back que o consumidor Q2 conseguirá ler aquilo que o produtor Q1 persistiu.

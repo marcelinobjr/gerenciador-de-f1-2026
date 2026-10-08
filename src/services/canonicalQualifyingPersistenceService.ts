@@ -19,6 +19,12 @@ import type {
   CompleteQualifyingWeekendResult,
   FinalQualifyingGridEntry,
 } from '@/types/canonical-qualifying-types'
+
+export interface SaveStageResultOutcome {
+  success: boolean
+  error?: string
+  reason?: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR'
+}
 import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
 
@@ -174,18 +180,48 @@ export const canonicalQualifyingPersistenceService = {
 
   /**
    * Salva o resultado oficial homologado de uma fase específica (Q1, Q2 ou Q3).
-   * Idempotente: se já existir resultado válido com timestamp, preserva para evitar sobrescrita espúria.
+   * F-Q1-TIMES-01A: Retorno discriminado explícito ({ success: true } | { success: false, error, reason }).
+   * safeLocalStorageSetItem tenta prune + retry na cota. Se persistir QuotaExceededError ou outro erro,
+   * a falha é retornada de forma observável e NÃO silenciosa.
    */
-  saveStageResult(result: QualifyingStageResult): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
+  saveStageResult(result: QualifyingStageResult): SaveStageResultOutcome {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return {
+        success: false,
+        error: 'Storage não disponível neste ambiente',
+        reason: 'STORAGE_UNAVAILABLE',
+      }
+    }
     try {
       const key = this.getStageResultKey(result.seasonId, result.round, result.stageId)
       safeLocalStorageSetItem(key, JSON.stringify(result), {
         seasonId: result.seasonId,
         currentRound: result.round,
       })
-    } catch (e) {
-      console.warn('[QualifyingPersistence] Erro ao salvar resultado de fase:', e)
+      return { success: true }
+    } catch (e: any) {
+      const isQuotaError =
+        e?.name === 'QuotaExceededError' ||
+        e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        e?.code === 22 ||
+        e?.code === 1014 ||
+        (typeof e?.message === 'string' &&
+          (e.message.includes('quota') || e.message.includes('Quota')))
+
+      const reason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+      const errorMsg = e instanceof Error ? e.message : String(e)
+
+      console.warn('[QualifyingPersistence] Erro ao salvar resultado de fase:', {
+        reason,
+        error: errorMsg,
+        stageId: result.stageId,
+      })
+
+      return {
+        success: false,
+        error: errorMsg,
+        reason,
+      }
     }
   },
 

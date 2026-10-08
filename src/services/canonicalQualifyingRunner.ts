@@ -1103,7 +1103,13 @@ export class CanonicalQualifyingRunner {
     }
 
     if (shouldPersist) {
-      canonicalQualifyingPersistenceService.saveStageResult(stageResult)
+      const saveOutcome = canonicalQualifyingPersistenceService.saveStageResult(stageResult)
+      if (!saveOutcome.success) {
+        console.warn(
+          `[CanonicalQualifyingRunner] Falha ao persistir StageResult da fase ${state.stageId}:`,
+          saveOutcome,
+        )
+      }
       canonicalQualifyingPersistenceService.saveStageState(context.seasonId, context.round, state)
     }
 
