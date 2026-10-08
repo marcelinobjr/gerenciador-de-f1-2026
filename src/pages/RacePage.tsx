@@ -53,6 +53,7 @@ export default function RacePage() {
   )
   const [prepSnapshot, setPrepSnapshot] = useState<RacePreparationSnapshot | null>(null)
   const [showStrategyModal, setShowStrategyModal] = useState(false)
+  const [strategyModalCarId, setStrategyModalCarId] = useState<'car1' | 'car2'>('car1')
 
   // Carrega a sessão canônica
   useEffect(() => {
@@ -243,7 +244,10 @@ export default function RacePage() {
           <div className="flex items-center gap-3">
             <Button
               type="button"
-              onClick={() => setShowStrategyModal(true)}
+              onClick={() => {
+                setStrategyModalCarId('car1')
+                setShowStrategyModal(true)
+              }}
               className="bg-[#1A253A] hover:bg-[#253550] text-cyan-300 border border-cyan-700/60 font-black text-xs h-9 px-4 gap-2"
             >
               <Layers className="w-4 h-4" />
@@ -418,13 +422,19 @@ export default function RacePage() {
               driver={driver1}
               preparedCar={prepSnapshot?.cars[0]}
               teamColor={playerTeam.color || '#E10600'}
-              onOpenStrategyModal={() => setShowStrategyModal(true)}
+              onOpenStrategyModal={(carId) => {
+                setStrategyModalCarId(carId)
+                setShowStrategyModal(true)
+              }}
             />
             <RacePlayerDriverCard
               driver={driver2}
               preparedCar={prepSnapshot?.cars[1]}
               teamColor={playerTeam.color || '#E10600'}
-              onOpenStrategyModal={() => setShowStrategyModal(true)}
+              onOpenStrategyModal={(carId) => {
+                setStrategyModalCarId(carId)
+                setShowStrategyModal(true)
+              }}
             />
           </div>
 
@@ -451,9 +461,11 @@ export default function RacePage() {
       {/* 5. BOX DE ESTRATÉGIA INICIAL (OVERLAY MODAL) */}
       {showStrategyModal && prepSnapshot && (
         <PreRaceStrategyModalOverlay
+          key={strategyModalCarId}
           snapshot={prepSnapshot}
           inventories={context.tyreInventories}
           totalLaps={context.totalLaps}
+          initialCarId={strategyModalCarId}
           onClose={() => setShowStrategyModal(false)}
           onUpdateSnapshot={(next) => {
             setPrepSnapshot(next)

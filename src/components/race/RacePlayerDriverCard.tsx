@@ -11,7 +11,7 @@ export interface RacePlayerDriverCardProps {
   driver: CanonicalRacePlayerDriver
   preparedCar?: PreparedCarState
   teamColor?: string
-  onOpenStrategyModal?: () => void
+  onOpenStrategyModal?: (carId: 'car1' | 'car2', driverId: string) => void
 }
 
 function getTyreBadge(compound: string) {
@@ -166,7 +166,7 @@ export const RacePlayerDriverCard: React.FC<RacePlayerDriverCardProps> = ({
           <Button
             type="button"
             size="sm"
-            onClick={onOpenStrategyModal}
+            onClick={() => onOpenStrategyModal?.(driver.carId, driver.driverId)}
             className="flex-1 h-8 text-[11px] font-bold bg-[#132238] hover:bg-[#1A2E4C] text-cyan-300 border border-cyan-800/40"
           >
             Ajustar Estratégia

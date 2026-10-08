@@ -11,6 +11,7 @@ export interface PreRaceStrategyModalOverlayProps {
   snapshot: RacePreparationSnapshot
   inventories: Record<string, TireSetItem[]>
   totalLaps: number
+  initialCarId?: 'car1' | 'car2'
   onClose: () => void
   onUpdateSnapshot: (nextSnapshot: RacePreparationSnapshot) => void
 }
@@ -55,10 +56,11 @@ export const PreRaceStrategyModalOverlay: React.FC<PreRaceStrategyModalOverlayPr
   snapshot,
   inventories,
   totalLaps,
+  initialCarId = 'car1',
   onClose,
   onUpdateSnapshot,
 }) => {
-  const [activeCarTab, setActiveCarTab] = useState<'car1' | 'car2'>('car1')
+  const [activeCarTab, setActiveCarTab] = useState<'car1' | 'car2'>(initialCarId)
 
   const carIndex = activeCarTab === 'car1' ? 0 : 1
   const currentCar = snapshot.cars[carIndex]
