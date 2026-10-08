@@ -48,10 +48,25 @@ export interface ReadStageStateOutcome {
   backendError?: string
 }
 
+export interface SaveCompleteQualifyingResultOutcome {
+  success: boolean
+  error?: string
+  reason?: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR'
+  persistedBackend?: boolean
+  persistedLocal?: boolean
+}
+
+export interface ReadCompleteQualifyingResultOutcome {
+  data: CompleteQualifyingWeekendResult | null
+  source: 'backend' | 'local' | 'none'
+  backendError?: string
+}
+
 import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
 import { canonicalQualifyingStageResultBackendService } from '@/services/canonicalQualifyingStageResultBackendService'
 import { canonicalQualifyingStageStateBackendService } from '@/services/canonicalQualifyingStageStateBackendService'
+import { canonicalQualifyingFinalGridBackendService } from '@/services/canonicalQualifyingFinalGridBackendService'
 
 const STAGE_STATE_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_state_v2'
 const STAGE_RESULT_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_result_v2'
@@ -100,6 +115,13 @@ export const canonicalQualifyingPersistenceService = {
    * mesmo se o localStorage falhar por QuotaExceededError.
    */
   _memoryStageResults: new Map<string, QualifyingStageResult>(),
+
+  /**
+   * Cache em memória para grids finais completos de qualificação salvos na sessão.
+   * Permite que leituras síncronas encontrem imediatamente o grid final confirmado no backend
+   * mesmo se o localStorage falhar por QuotaExceededError ou após purge local.
+   */
+  _memoryFinalGrids: new Map<string, CompleteQualifyingWeekendResult>(),
 
   /**
    * Expurgar a cópia pesada do estado de fase local somente após confirmação real do backend.
@@ -897,44 +919,346 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
+   * Expurgar a cópia pesada do grid final combinado local somente após confirmação real do backend.
+   * Mantém o cache de memória íntegro e libera cota no localStorage.
+   */
+  purgeLocalFinalGrid(seasonId: string, round: number): void {
+    const key = this.getFinalGridKey(seasonId, round)
+    if (typeof window === 'undefined' || !window.localStorage) return
+    try {
+      window.localStorage.removeItem(key)
+    } catch (e) {
+      console.warn(
+        `[QualifyingPersistence] Falha ao expurgar cópia pesada local de finalGrid (${seasonId}, r${round}):`,
+        e,
+      )
+    }
+  },
+
+  /**
    * Limpa cache em memória para testes.
    */
   clearMemoryForTesting(): void {
     this._memoryStageStates.clear()
     this._memoryStageResults.clear()
+    this._memoryFinalGrids.clear()
   },
 
   /**
    * Salva o resultado final completo da qualificação (grid P1–P24 + referências).
+   * Resiliente a cota de localStorage (QuotaExceededError):
+   * 1. Captura QuotaExceededError, NS_ERROR_DOM_QUOTA_REACHED, codes 22/1014, mensagem "quota".
+   * 2. Sempre mantém cache em memória e dispara o espelhamento no PocketBase.
+   * 3. Se options.syncBackendPromise foi passado ou em encadeamento assíncrono, se o backend confirmar,
+   *    expurga a chave pesada local para manter a cota livre.
+   * 4. Retorna SaveCompleteQualifyingResultOutcome discriminado.
    */
-  saveCompleteQualifyingResult(result: CompleteQualifyingWeekendResult): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
-    try {
-      const key = this.getFinalGridKey(result.seasonId, result.round)
-      safeLocalStorageSetItem(key, JSON.stringify(result), {
-        seasonId: result.seasonId,
-        currentRound: result.round,
+  saveCompleteQualifyingResult(
+    result: CompleteQualifyingWeekendResult,
+    options?: { syncBackendPromise?: Promise<{ success: boolean; id?: string; error?: string }> },
+  ): SaveCompleteQualifyingResultOutcome {
+    const key = this.getFinalGridKey(result.seasonId, result.round)
+    const seasonNum = parseInt(String(result.seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: result.seasonId,
+      season: seasonNum,
+      round: result.round,
+    }
+
+    // Gravar no cache em memória imediatamente
+    this._memoryFinalGrids.set(key, result)
+
+    let localSuccess = false
+    let localError: string | undefined
+    let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
+
+    if (typeof window === 'undefined' || !window.localStorage) {
+      localSuccess = false
+      localError = 'Storage não disponível neste ambiente'
+      localReason = 'STORAGE_UNAVAILABLE'
+    } else {
+      try {
+        safeLocalStorageSetItem(key, JSON.stringify(result), {
+          seasonId: result.seasonId,
+          currentRound: result.round,
+        })
+        localSuccess = true
+      } catch (e: any) {
+        const isQuotaError =
+          e?.name === 'QuotaExceededError' ||
+          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e?.code === 22 ||
+          e?.code === 1014 ||
+          (typeof e?.message === 'string' &&
+            (e.message.includes('quota') || e.message.includes('Quota')))
+
+        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+        localError = e instanceof Error ? e.message : String(e)
+
+        console.warn('[QualifyingPersistence] Erro local ao salvar grid final completo:', {
+          reason: localReason,
+          error: localError,
+          seasonId: result.seasonId,
+          round: result.round,
+        })
+      }
+    }
+
+    // Espelhamento no PocketBase
+    let backendPromise: Promise<{ success: boolean; id?: string; error?: string }>
+    if (options?.syncBackendPromise) {
+      backendPromise = options.syncBackendPromise
+    } else {
+      try {
+        backendPromise = canonicalQualifyingFinalGridBackendService.saveFinalGrid(
+          backendCtx,
+          result,
+        )
+      } catch (beErr: any) {
+        backendPromise = Promise.resolve({
+          success: false,
+          error: beErr?.message || 'Falha síncrona ao invocar saveFinalGrid no backend',
+        })
+      }
+    }
+
+    if (localSuccess) {
+      backendPromise
+        .then((res) => {
+          if (res?.success) {
+            // Expurgar cópia pesada local se confirmado no backend para liberar cota
+            this.purgeLocalFinalGrid(result.seasonId, result.round)
+          }
+        })
+        .catch((beErr) => {
+          console.warn(
+            '[QualifyingPersistence] Falha assíncrona ao espelhar grid final no PocketBase:',
+            beErr,
+          )
+        })
+
+      return {
+        success: true,
+        persistedLocal: true,
+        persistedBackend: true,
+      }
+    }
+
+    // Se local falhou, encadeia purge na confirmação do backend
+    backendPromise
+      .then((res) => {
+        if (res?.success) {
+          this.purgeLocalFinalGrid(result.seasonId, result.round)
+        } else {
+          console.error(
+            `[QualifyingPersistence] Falha dupla: local e backend não confirmaram finalGrid (${result.seasonId}, r${result.round})`,
+          )
+        }
       })
-    } catch (e) {
-      console.warn('[QualifyingPersistence] Erro ao salvar grid final completo:', e)
+      .catch((beErr) => {
+        console.error(
+          `[QualifyingPersistence] Exceção assíncrona ao espelhar finalGrid pós-falha local:`,
+          beErr,
+        )
+      })
+
+    return {
+      success: false,
+      error: localError,
+      reason: localReason,
+      persistedLocal: false,
+      persistedBackend: false,
+    }
+  },
+
+  /**
+   * Versão assíncrona oficial de saveCompleteQualifyingResult:
+   * Aguarda tanto a tentativa local quanto a do PocketBase.
+   * Se o local falhar (QUOTA_EXCEEDED) mas o backend confirmar,
+   * retorna SUCESSO ({ success: true, persistedBackend: true, persistedLocal: false })
+   * e expurga a cópia pesada local dessa chave apenas.
+   */
+  async saveCompleteQualifyingResultAsync(
+    result: CompleteQualifyingWeekendResult,
+  ): Promise<SaveCompleteQualifyingResultOutcome> {
+    const key = this.getFinalGridKey(result.seasonId, result.round)
+    const seasonNum = parseInt(String(result.seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: result.seasonId,
+      season: seasonNum,
+      round: result.round,
+    }
+
+    // Gravar no cache em memória
+    this._memoryFinalGrids.set(key, result)
+
+    let localSuccess = false
+    let localError: string | undefined
+    let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
+
+    if (typeof window === 'undefined' || !window.localStorage) {
+      localSuccess = false
+      localError = 'Storage não disponível neste ambiente'
+      localReason = 'STORAGE_UNAVAILABLE'
+    } else {
+      try {
+        safeLocalStorageSetItem(key, JSON.stringify(result), {
+          seasonId: result.seasonId,
+          currentRound: result.round,
+        })
+        localSuccess = true
+      } catch (e: any) {
+        const isQuotaError =
+          e?.name === 'QuotaExceededError' ||
+          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e?.code === 22 ||
+          e?.code === 1014 ||
+          (typeof e?.message === 'string' &&
+            (e.message.includes('quota') || e.message.includes('Quota')))
+
+        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+        localError = e instanceof Error ? e.message : String(e)
+
+        console.warn('[QualifyingPersistence] Erro local ao salvar grid final completo:', {
+          reason: localReason,
+          error: localError,
+          seasonId: result.seasonId,
+          round: result.round,
+        })
+      }
+    }
+
+    // Executar gravação no PocketBase
+    let backendSuccess = false
+    let backendError: string | undefined
+
+    try {
+      const beRes = await canonicalQualifyingFinalGridBackendService.saveFinalGrid(
+        backendCtx,
+        result,
+      )
+      backendSuccess = !!beRes?.success
+      if (!backendSuccess) {
+        backendError = beRes?.error || 'PocketBase retornou success: false'
+      }
+    } catch (beErr: any) {
+      backendSuccess = false
+      backendError = beErr?.message || 'Falha ao conectar com PocketBase'
+    }
+
+    // Se o backend teve sucesso, o grid final canônico ESTÁ SALVO
+    if (backendSuccess) {
+      this.purgeLocalFinalGrid(result.seasonId, result.round)
+      return {
+        success: true,
+        persistedBackend: true,
+        persistedLocal: localSuccess,
+        error: localSuccess ? undefined : localError,
+      }
+    }
+
+    // Se o backend falhou mas o local teve sucesso
+    if (localSuccess) {
+      return {
+        success: true,
+        persistedBackend: false,
+        persistedLocal: true,
+        error: backendError,
+      }
+    }
+
+    // Se AMBOS falharam:
+    this._memoryFinalGrids.delete(key)
+    return {
+      success: false,
+      error: `Local: ${localError || 'falha'} | Backend: ${backendError || 'falha'}`,
+      reason: localReason || 'STORAGE_ERROR',
+      persistedBackend: false,
+      persistedLocal: false,
     }
   },
 
   /**
    * Lê o resultado final completo da qualificação (grid P1–P24).
+   * Consulta primeiro o cache em memória ativo / localStorage.
    */
   readCompleteQualifyingResult(
     seasonId: string,
     round: number,
   ): CompleteQualifyingWeekendResult | null {
+    const key = this.getFinalGridKey(seasonId, round)
+    const inMemory = this._memoryFinalGrids.get(key)
+    if (inMemory && Array.isArray(inMemory.finalGrid) && inMemory.finalGrid.length > 0) {
+      return inMemory
+    }
+
     if (typeof window === 'undefined' || !window.localStorage) return null
     try {
-      const raw = window.localStorage.getItem(this.getFinalGridKey(seasonId, round))
+      const raw = window.localStorage.getItem(key)
       if (!raw) return null
-      return JSON.parse(raw) as CompleteQualifyingWeekendResult
+      const parsed = JSON.parse(raw) as CompleteQualifyingWeekendResult
+      if (parsed) {
+        this._memoryFinalGrids.set(key, parsed)
+      }
+      return parsed
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao ler grid final completo:', e)
       return null
+    }
+  },
+
+  /**
+   * Leitura assíncrona preferencial de grid final com prioridade PocketBase:
+   * 1. Consulta PocketBase (backend). Se presente e válido, vence divergência e popula memória/cache.
+   * 2. Se PocketBase retornar NOT_FOUND (null), faz fallback para local.
+   * 3. Se PocketBase der ERROR de rede, registra backendError e faz fallback para local.
+   * Não altera nem recalcula posições ou tempos no load.
+   */
+  async readCompleteQualifyingResultPreferred(
+    seasonId: string,
+    round: number,
+  ): Promise<ReadCompleteQualifyingResultOutcome> {
+    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: seasonId,
+      season: seasonNum,
+      round,
+    }
+
+    let backendData: CompleteQualifyingWeekendResult | null = null
+    let backendError: string | undefined
+
+    // 1. Tentar ler do PocketBase
+    try {
+      backendData = await canonicalQualifyingFinalGridBackendService.readFinalGrid(backendCtx)
+    } catch (err: any) {
+      backendError = err?.message || 'Erro ao consultar PocketBase'
+    }
+
+    // 2. Se backend retornou dados válidos: backend vence
+    if (backendData && Array.isArray(backendData.finalGrid) && backendData.finalGrid.length > 0) {
+      const key = this.getFinalGridKey(seasonId, round)
+      this._memoryFinalGrids.set(key, backendData)
+      return {
+        data: backendData,
+        source: 'backend',
+      }
+    }
+
+    // 3. Fallback para storage local (ou memória)
+    const localData = this.readCompleteQualifyingResult(seasonId, round)
+    if (localData && Array.isArray(localData.finalGrid) && localData.finalGrid.length > 0) {
+      return {
+        data: localData,
+        source: 'local',
+        backendError,
+      }
+    }
+
+    return {
+      data: null,
+      source: 'none',
+      backendError,
     }
   },
 

@@ -2450,14 +2450,43 @@ export default function WeekendV2Page() {
         )
 
         if (q1Res && q2Res && q3Res) {
-          const fullGrid = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
-            seasonId: season.id,
-            round: currentRound,
-            q1Result: q1Res,
-            q2Result: q2Res,
-            q3Result: q3Res,
-          })
-          setCompleteQualifyingResult(fullGrid)
+          let fullGrid: CompleteQualifyingWeekendResult | null = null
+          try {
+            fullGrid = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+              seasonId: season.id,
+              round: currentRound,
+              q1Result: q1Res,
+              q2Result: q2Res,
+              q3Result: q3Res,
+            })
+          } catch (gridErr: any) {
+            console.error(
+              '[handleQualifyingStageCompleted] Exceção ao construir/salvar grid final combinado:',
+              gridErr,
+            )
+          }
+
+          const effectiveGrid =
+            fullGrid ||
+            canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+              season.id,
+              currentRound,
+            )
+
+          if (
+            !effectiveGrid ||
+            !Array.isArray(effectiveGrid.finalGrid) ||
+            effectiveGrid.finalGrid.length === 0
+          ) {
+            toast({
+              variant: 'destructive',
+              title: 'Erro ao Salvar Grid Final de Qualificação',
+              description: 'Não foi possível salvar o grid final combinado. Tente novamente.',
+            })
+            return false
+          }
+
+          setCompleteQualifyingResult(effectiveGrid)
         }
 
         // Desbloqueia CORRIDA

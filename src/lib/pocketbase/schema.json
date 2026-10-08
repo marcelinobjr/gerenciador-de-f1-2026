@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T13:23:08.063Z",
+  "generatedAt": "2026-10-08T13:47:49.600Z",
   "collections": [
     {
       "name": "users",
@@ -3109,6 +3109,67 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_canonical_quali_stage_state_key ON canonical_qualifying_stage_states (state_key)",
         "CREATE INDEX idx_canonical_quali_stage_state_career_season_round ON canonical_qualifying_stage_states (career_id, season, round, stage)"
+      ]
+    },
+    {
+      "name": "canonical_qualifying_final_grids",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "grid_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "season",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_canonical_quali_final_grid_key ON canonical_qualifying_final_grids (grid_key)",
+        "CREATE INDEX idx_canonical_quali_final_grid_career_season_round ON canonical_qualifying_final_grids (career_id, season, round)"
       ]
     }
   ]
