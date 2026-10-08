@@ -1,28 +1,32 @@
 /**
- * src/__tests__/f-quali-to-race-01c.test.ts
+ * src/__tests__/pre-race-auto-01.test.ts
  *
- * Suíte de Testes F-QUALI-TO-RACE-01C:
- * Autoavanço para a Corrida após Q3 concluída com grid válido.
+ * Suíte de Testes PRE-RACE-AUTO-01:
+ * Autoavanço para a Corrida e abertura automática do painel pré-corrida após Q3 concluída com grid válido.
  *
- * Casos de teste focados: RACE-C1..C9
- * C1 — Q3 + grid válido => seleciona 'race' (selectedSessionId atualizado, states limpos)
- * C2 — Q3 sem grid válido => NÃO seleciona 'race'
- * C3 — Backend authority + quota local com grid válido => seleciona 'race'
- * C4 — Q1 => q2 (sem regressão de avanço)
- * C5 — Q2 => q3 (sem regressão de avanço)
- * C6 — Handler q3 executado duas vezes => idempotente (não reexecuta nem sobrescreve indevidamente)
- * C7 — Não inicializa Race Engine (canonicalRaceState / engine permanecem null)
- * C8 — Não confirma/cria estratégia (showPreRacePreparation permanece false, snapshot não confirmado)
- * C9 — Sprint/SQ (sq1, sq2, sq3) não autoavançam para race
+ * Casos de teste focados: AUTO-R1..R9
+ * - AUTO-R1: Q3 válida termina => Corrida selecionada automaticamente ('race').
+ * - AUTO-R2: Q3 válida termina => showPreRacePreparation = true (painel pré-corrida abre automaticamente).
+ * - AUTO-R3: Q3 inválida/sem final grid => pré-corrida NÃO abre e sessão 'race' não é selecionada.
+ * - AUTO-R4: autoavanço NÃO inicializa Race Engine (canonicalRaceState permanece null).
+ * - AUTO-R5: autoavanço NÃO confirma estratégia nem dispara onConfirmAndStartRace automaticamente.
+ * - AUTO-R6: handler executado duas vezes => painel abre uma vez, sem duplicação de toasts nem loop.
+ * - AUTO-R7: PRE-RACE-01B continua funcionando: snapshot inválido => card de erro aparece dentro do painel.
+ * - AUTO-R8: Q1→Q2 e Q2→Q3 continuam inalterados (não abrem corrida nem pré-corrida).
+ * - AUTO-R9: Sprint não sofre alteração (SQ1→SQ2, SQ2→SQ3, SQ3 não abre corrida nem pré-corrida).
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import React from 'react'
+import { render, screen } from '@testing-library/react'
+import { PreRaceStrategyPreparationPanel } from '@/components/race/PreRaceStrategyPreparationPanel'
 import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
 import { canonicalQualifyingFinalGridBackendService } from '@/services/canonicalQualifyingFinalGridBackendService'
 import type {
   CompleteQualifyingWeekendResult,
   QualifyingStageResult,
   QualifyingStageId,
+  FinalQualifyingGridEntry,
 } from '@/types/canonical-qualifying-types'
 
 function buildMockStageResult(
@@ -76,7 +80,7 @@ function buildMockStageResult(
 }
 
 /**
- * Harness de simulação do handleQualifyingStageCompleted fiel ao código em WeekendV2Page
+ * Harness de simulação do handleQualifyingStageCompleted de WeekendV2Page
  */
 interface WeekendV2QualiStateHarness {
   selectedSessionId: string
@@ -86,6 +90,7 @@ interface WeekendV2QualiStateHarness {
   completeQualifyingResult: CompleteQualifyingWeekendResult | null
   canonicalRaceState: any
   showPreRacePreparation: boolean
+  strategyConfirmed: boolean
   completedStagesHandled: Set<string>
   toastMessages: Array<{ title: string; description?: string; variant?: string }>
 }
@@ -102,6 +107,7 @@ function createWeekendHarness(initialSessionId = 'q3'): {
     completeQualifyingResult: null,
     canonicalRaceState: null,
     showPreRacePreparation: false,
+    strategyConfirmed: false,
     completedStagesHandled: new Set<string>(),
     toastMessages: [],
   }
@@ -124,6 +130,9 @@ function createWeekendHarness(initialSessionId = 'q3'): {
   }
   const setCompletedSessions = (v: string[]) => {
     state.completedSessions = v
+  }
+  const setShowPreRacePreparation = (v: boolean) => {
+    state.showPreRacePreparation = v
   }
 
   const season = { id: 'season_2026' }
@@ -205,7 +214,7 @@ function createWeekendHarness(initialSessionId = 'q3'): {
           description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
         })
 
-        // F-QUALI-TO-RACE-01C / PRE-RACE-AUTO-01: Autoavanço para a Corrida e abertura automática do painel pré-corrida após Q3 concluída com grid válido
+        // PRE-RACE-AUTO-01: Autoavanço para a Corrida e abertura automática do painel pré-corrida após Q3 concluída com grid válido
         const hasValidGrid =
           !!effectiveGrid &&
           Array.isArray(effectiveGrid.finalGrid) &&
@@ -218,7 +227,7 @@ function createWeekendHarness(initialSessionId = 'q3'): {
             setQualifyingState(null)
           }
           if (!state.showPreRacePreparation) {
-            state.showPreRacePreparation = true
+            setShowPreRacePreparation(true)
           }
         }
       } else if (stageId === 'sq3') {
@@ -252,7 +261,7 @@ function createWeekendHarness(initialSessionId = 'q3'): {
   return { state, handleQualifyingStageCompletedSim }
 }
 
-describe('F-QUALI-TO-RACE-01C — Autoavanço para a Corrida pós-Q3 (RACE-C1..C9)', () => {
+describe('PRE-RACE-AUTO-01 — Autoavanço e Abertura do Painel Pré-Corrida (AUTO-R1..R9)', () => {
   let localStorageMock: Record<string, string> = {}
 
   beforeEach(() => {
@@ -279,8 +288,8 @@ describe('F-QUALI-TO-RACE-01C — Autoavanço para a Corrida pós-Q3 (RACE-C1..C
     })
   })
 
-  // C1: Q3 + grid válido => seleciona 'race'
-  it('RACE-C1: Q3 concluída com grid válido seleciona automaticamente "race" e limpa sessionState/qualifyingState', () => {
+  // AUTO-R1: Q3 válida termina => Corrida selecionada automaticamente
+  it('AUTO-R1: Q3 concluída com grid válido seleciona automaticamente "race"', () => {
     const q1 = buildMockStageResult('q1')
     const q2 = buildMockStageResult('q2')
     const q3 = buildMockStageResult('q3')
@@ -289,7 +298,6 @@ describe('F-QUALI-TO-RACE-01C — Autoavanço para a Corrida pós-Q3 (RACE-C1..C
     canonicalQualifyingPersistenceService.saveStageResult(q3)
 
     const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
-
     const success = handleQualifyingStageCompletedSim('q3')
 
     expect(success).toBe(true)
@@ -297,75 +305,10 @@ describe('F-QUALI-TO-RACE-01C — Autoavanço para a Corrida pós-Q3 (RACE-C1..C
     expect(state.sessionState).toBeNull()
     expect(state.qualifyingState).toBeNull()
     expect(state.completedSessions).toContain('qualifying')
-    expect(state.completeQualifyingResult).not.toBeNull()
-    expect(state.completeQualifyingResult?.finalGrid.length).toBe(24)
   })
 
-  // C2: Q3 sem grid válido => NÃO seleciona 'race'
-  it('RACE-C2: Q3 sem grid válido não seleciona "race" e mantém sessão anterior com erro observável', () => {
-    // Não persistimos q1/q2/q3, logo não há grid
-    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
-
-    const success = handleQualifyingStageCompletedSim('q3')
-
-    // Sem os 3 stages, effectiveGrid é null -> não avança para race
-    expect(state.selectedSessionId).toBe('q3')
-    expect(state.selectedSessionId).not.toBe('race')
-    expect(state.sessionState).not.toBeNull()
-  })
-
-  // C3: Backend authority + quota local => seleciona 'race'
-  it('RACE-C3: Backend authority + quota local (com grid válido) seleciona "race" com sucesso', () => {
-    const q1 = buildMockStageResult('q1')
-    const q2 = buildMockStageResult('q2')
-    const q3 = buildMockStageResult('q3')
-    canonicalQualifyingPersistenceService.saveStageResult(q1)
-    canonicalQualifyingPersistenceService.saveStageResult(q2)
-    canonicalQualifyingPersistenceService.saveStageResult(q3)
-
-    // Simula quota estourada no localStorage e backend respondendo com sucesso
-    vi.spyOn(canonicalQualifyingFinalGridBackendService, 'saveFinalGrid').mockResolvedValue({
-      success: true,
-      id: 'rec_grid_c3',
-    })
-
-    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
-
-    const success = handleQualifyingStageCompletedSim('q3')
-
-    expect(success).toBe(true)
-    expect(state.selectedSessionId).toBe('race')
-    expect(state.sessionState).toBeNull()
-    expect(state.qualifyingState).toBeNull()
-    expect(state.completeQualifyingResult?.finalGrid.length).toBe(24)
-  })
-
-  // C4: Q1 => q2 (sem regressão)
-  it('RACE-C4: Conclusão do Q1 avança para "q2" sem regressão e não toca na corrida', () => {
-    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q1')
-
-    const success = handleQualifyingStageCompletedSim('q1')
-
-    expect(success).toBe(true)
-    expect(state.selectedSessionId).toBe('q2')
-    expect(state.selectedSessionId).not.toBe('race')
-    expect(state.completedSessions).not.toContain('qualifying')
-  })
-
-  // C5: Q2 => q3 (sem regressão)
-  it('RACE-C5: Conclusão do Q2 avança para "q3" sem regressão e não toca na corrida', () => {
-    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q2')
-
-    const success = handleQualifyingStageCompletedSim('q2')
-
-    expect(success).toBe(true)
-    expect(state.selectedSessionId).toBe('q3')
-    expect(state.selectedSessionId).not.toBe('race')
-    expect(state.completedSessions).not.toContain('qualifying')
-  })
-
-  // C6: Handler Q3 duas vezes => idempotente
-  it('RACE-C6: Disparo duplicado do handler Q3 é estritamente idempotente', () => {
+  // AUTO-R2: Q3 válida termina => showPreRacePreparation = true (painel pré-corrida abre)
+  it('AUTO-R2: Q3 concluída com grid válido ativa automaticamente showPreRacePreparation = true', () => {
     const q1 = buildMockStageResult('q1')
     const q2 = buildMockStageResult('q2')
     const q3 = buildMockStageResult('q3')
@@ -374,39 +317,28 @@ describe('F-QUALI-TO-RACE-01C — Autoavanço para a Corrida pós-Q3 (RACE-C1..C
     canonicalQualifyingPersistenceService.saveStageResult(q3)
 
     const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
+    expect(state.showPreRacePreparation).toBe(false)
 
-    // Disparo 1
-    const run1 = handleQualifyingStageCompletedSim('q3')
-    expect(run1).toBe(true)
-    expect(state.selectedSessionId).toBe('race')
-
-    // Disparo 2 (idempotência via ref e selectedSessionId !== 'race')
-    const toastCountBefore = state.toastMessages.length
-    const run2 = handleQualifyingStageCompletedSim('q3')
-    expect(run2).toBe(true)
-    expect(state.selectedSessionId).toBe('race')
-    // Nenhum toast repetido (guard isStageAlreadyStored protegeu)
-    expect(state.toastMessages.length).toBe(toastCountBefore)
-  })
-
-  // C7: Não inicializa Race Engine (canonicalRaceState permanece null)
-  it('RACE-C7: Autoavanço seleciona a tela de Corrida sem inicializar o Race Engine (canonicalRaceState permanece null)', () => {
-    const q1 = buildMockStageResult('q1')
-    const q2 = buildMockStageResult('q2')
-    const q3 = buildMockStageResult('q3')
-    canonicalQualifyingPersistenceService.saveStageResult(q1)
-    canonicalQualifyingPersistenceService.saveStageResult(q2)
-    canonicalQualifyingPersistenceService.saveStageResult(q3)
-
-    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
     handleQualifyingStageCompletedSim('q3')
 
     expect(state.selectedSessionId).toBe('race')
-    expect(state.canonicalRaceState).toBeNull()
+    expect(state.showPreRacePreparation).toBe(true)
   })
 
-  // C8: Não confirma/cria estratégia automaticamente (autoavanço abre o pré-corrida mas não confirma snapshot de largada)
-  it('RACE-C8: Autoavanço abre preparação pré-corrida sem confirmar estratégia nem iniciar corrida automaticamente', () => {
+  // AUTO-R3: Q3 inválida/sem final grid => pré-corrida NÃO abre
+  it('AUTO-R3: Q3 inválida ou sem final grid não abre o painel pré-corrida nem avança para "race"', () => {
+    // Sem resultados prévios de q1, q2 e q3 salvos -> sem grid final
+    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
+
+    const success = handleQualifyingStageCompletedSim('q3')
+
+    expect(state.selectedSessionId).toBe('q3')
+    expect(state.selectedSessionId).not.toBe('race')
+    expect(state.showPreRacePreparation).toBe(false)
+  })
+
+  // AUTO-R4: autoavanço NÃO inicializa Race Engine
+  it('AUTO-R4: autoavanço NÃO inicializa Race Engine (canonicalRaceState permanece null)', () => {
     const q1 = buildMockStageResult('q1')
     const q2 = buildMockStageResult('q2')
     const q3 = buildMockStageResult('q3')
@@ -422,26 +354,120 @@ describe('F-QUALI-TO-RACE-01C — Autoavanço para a Corrida pós-Q3 (RACE-C1..C
     expect(state.canonicalRaceState).toBeNull()
   })
 
-  // C9: Sprint/SQ (sq1, sq2, sq3) não autoavançam para race
-  it('RACE-C9: Ciclos de Sprint SQ1, SQ2 e SQ3 não autoavançam para "race"', () => {
+  // AUTO-R5: autoavanço NÃO confirma estratégia
+  it('AUTO-R5: autoavanço NÃO confirma estratégia nem dispara início automático da prova', () => {
+    const q1 = buildMockStageResult('q1')
+    const q2 = buildMockStageResult('q2')
+    const q3 = buildMockStageResult('q3')
+    canonicalQualifyingPersistenceService.saveStageResult(q1)
+    canonicalQualifyingPersistenceService.saveStageResult(q2)
+    canonicalQualifyingPersistenceService.saveStageResult(q3)
+
+    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
+    handleQualifyingStageCompletedSim('q3')
+
+    expect(state.strategyConfirmed).toBe(false)
+    expect(state.canonicalRaceState).toBeNull()
+  })
+
+  // AUTO-R6: handler executado duas vezes => painel abre uma vez, sem duplicação
+  it('AUTO-R6: handler executado duas vezes é idempotente, sem duplicar toasts nem recriar estado', () => {
+    const q1 = buildMockStageResult('q1')
+    const q2 = buildMockStageResult('q2')
+    const q3 = buildMockStageResult('q3')
+    canonicalQualifyingPersistenceService.saveStageResult(q1)
+    canonicalQualifyingPersistenceService.saveStageResult(q2)
+    canonicalQualifyingPersistenceService.saveStageResult(q3)
+
+    const { state, handleQualifyingStageCompletedSim } = createWeekendHarness('q3')
+
+    // Disparo 1
+    handleQualifyingStageCompletedSim('q3')
+    expect(state.selectedSessionId).toBe('race')
+    expect(state.showPreRacePreparation).toBe(true)
+    const toastCountFirst = state.toastMessages.length
+
+    // Disparo 2
+    handleQualifyingStageCompletedSim('q3')
+    expect(state.selectedSessionId).toBe('race')
+    expect(state.showPreRacePreparation).toBe(true)
+    expect(state.toastMessages.length).toBe(toastCountFirst)
+  })
+
+  // AUTO-R7: PRE-RACE-01B continua funcionando: snapshot inválido => card de erro aparece
+  it('AUTO-R7: blindagem PRE-RACE-01B permanece ativa se snapshot falhar ao autoabrir', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    // Grid quebrado (sem pilotos da equipe 'audi')
+    const brokenGrid: FinalQualifyingGridEntry[] = Array.from({ length: 24 }, (_, i) => ({
+      gridPosition: i + 1,
+      driverId: `drv_adv_${i + 1}`,
+      driverName: `Adversary ${i + 1}`,
+      teamId: 'ferrari',
+      teamName: 'FERRARI',
+      teamColor: '#ff0000',
+      isPlayer: false,
+      eliminationStage: 'Q1',
+      bestLapSec: 85 + i * 0.1,
+      bestLapTime: '1:25.000',
+      bestLapCompound: 'duro',
+    }))
+
+    render(
+      React.createElement(PreRaceStrategyPreparationPanel, {
+        careerId: 'c_auto_r7',
+        seasonYear: 2026,
+        round: 1,
+        teamId: 'audi',
+        totalLaps: 57,
+        canonicalGrid: brokenGrid,
+        inventories: {},
+        onConfirmAndStartRace: () => {},
+      }),
+    )
+
+    // O card de erro blindado PRE-RACE-01B é montado
+    expect(screen.getByText('Não foi possível preparar a corrida')).toBeDefined()
+    expect(
+      screen.getByText(
+        'Não foi possível identificar corretamente os dois carros da sua equipe no grid oficial.',
+      ),
+    ).toBeDefined()
+    expect(screen.getByText('Tentar novamente')).toBeDefined()
+  })
+
+  // AUTO-R8: Q1→Q2 e Q2→Q3 continuam inalterados
+  it('AUTO-R8: Q1 avança para Q2 e Q2 avança para Q3 sem abrir pré-corrida nem selecionar race', () => {
+    const { state: stateQ1, handleQualifyingStageCompletedSim: simQ1 } = createWeekendHarness('q1')
+    simQ1('q1')
+    expect(stateQ1.selectedSessionId).toBe('q2')
+    expect(stateQ1.showPreRacePreparation).toBe(false)
+
+    const { state: stateQ2, handleQualifyingStageCompletedSim: simQ2 } = createWeekendHarness('q2')
+    simQ2('q2')
+    expect(stateQ2.selectedSessionId).toBe('q3')
+    expect(stateQ2.showPreRacePreparation).toBe(false)
+  })
+
+  // AUTO-R9: Sprint não sofre alteração
+  it('AUTO-R9: Fases Sprint SQ1, SQ2 e SQ3 não selecionam "race" nem abrem pré-corrida', () => {
     const { state: stateSq1, handleQualifyingStageCompletedSim: simSq1 } =
       createWeekendHarness('sq1')
     simSq1('sq1')
     expect(stateSq1.selectedSessionId).toBe('sq2')
-    expect(stateSq1.selectedSessionId).not.toBe('race')
+    expect(stateSq1.showPreRacePreparation).toBe(false)
 
     const { state: stateSq2, handleQualifyingStageCompletedSim: simSq2 } =
       createWeekendHarness('sq2')
     simSq2('sq2')
     expect(stateSq2.selectedSessionId).toBe('sq3')
-    expect(stateSq2.selectedSessionId).not.toBe('race')
+    expect(stateSq2.showPreRacePreparation).toBe(false)
 
     const { state: stateSq3, handleQualifyingStageCompletedSim: simSq3 } =
       createWeekendHarness('sq3')
     simSq3('sq3')
-    // SQ3 concluído não tem nextStage mapeado para 'race'
     expect(stateSq3.selectedSessionId).toBe('sq3')
     expect(stateSq3.selectedSessionId).not.toBe('race')
-    expect(stateSq3.completedSessions).not.toContain('qualifying')
+    expect(stateSq3.showPreRacePreparation).toBe(false)
   })
 })

@@ -2557,16 +2557,21 @@ export default function WeekendV2Page() {
           description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
         })
 
-        // F-QUALI-TO-RACE-01C: Autoavanço para a Corrida após Q3 concluída com grid válido
+        // F-QUALI-TO-RACE-01C / PRE-RACE-AUTO-01: Autoavanço para a Corrida e abertura automática do painel pré-corrida após Q3 concluída com grid válido
         const hasValidGrid =
           !!effectiveGrid &&
           Array.isArray(effectiveGrid.finalGrid) &&
           effectiveGrid.finalGrid.length > 0
 
-        if (hasValidGrid && selectedSessionId !== 'race') {
-          setSelectedSessionId('race')
-          setSessionState(null)
-          setQualifyingState(null)
+        if (hasValidGrid) {
+          if (selectedSessionId !== 'race') {
+            setSelectedSessionId('race')
+            setSessionState(null)
+            setQualifyingState(null)
+          }
+          if (!showPreRacePreparation) {
+            setShowPreRacePreparation(true)
+          }
         }
       } else if (stageId === 'sq3') {
         // Desbloqueia sprint_race ao concluir SQ3 (Qualificação Sprint final)
