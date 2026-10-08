@@ -1859,21 +1859,8 @@ export const canonicalQualifyingPersistenceService = {
    * Constrói o grid final oficial e persiste assincronamente aguardando PocketBase.
    */
   async buildCombinedFinalGridAsync(
-    params: {
-      seasonId: string
-      round: number
-      q1Result: QualifyingStageResult
-      q2Result: QualifyingStageResult
-      q3Result: QualifyingStageResult
-      persistResult?: boolean
-    },
-    ...restArgs: any[]
-  ): Promise<{
-    result: CompleteQualifyingWeekendResult
-    outcome?: SaveCompleteQualifyingResultOutcome
-  }>
-  async buildCombinedFinalGridAsync(
     params: any,
+    secondArg?: any,
     ...restArgs: any[]
   ): Promise<{
     result: CompleteQualifyingWeekendResult

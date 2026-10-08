@@ -272,4 +272,62 @@ describe('F-AVANCAR-CORRIDA-01A — Identidade Canônica da Equipe no Painel Pr�
     expect(screen.getByText('CARRO 1')).toBeDefined()
     expect(screen.getByText('CARRO 2')).toBeDefined()
   })
+
+  // A7 — F-AVANCAR-CORRIDA-01A-MICRO:
+  // Simular a passagem de props da WeekendV2Page:
+  // Objeto team possui record id opaco do PB ("84fx5fgl9317xqs") e team_key canônico ("audi").
+  // O binding repassado ao PreRaceStrategyPreparationPanel é resolveCanonicalTeamKey(team) || team?.team_key || ''.
+  // O grid possui teamId = "audi".
+  // createInitialSnapshot / painel encontra exatamente os 2 pilotos do jogador sem estourar exceção.
+  it('A7 (MICRO): binding canônico resolveCanonicalTeamKey(team) || team?.team_key passa chave canônica ao painel e createInitialSnapshot encontra 2 pilotos', () => {
+    const mockTeamRecord = {
+      id: '84fx5fgl9317xqs',
+      name: 'Audi F1 Team',
+      team_key: 'audi',
+      color: '#E10600',
+    }
+
+    // Campo equivalente ao repassado por WeekendV2Page:
+    const passedTeamId = resolveCanonicalTeamKey(mockTeamRecord) || mockTeamRecord.team_key || ''
+    expect(passedTeamId).toBe('audi')
+    expect(passedTeamId).not.toBe(mockTeamRecord.id)
+
+    // Grid com 24 entries, onde as 2 entries do jogador usam teamId: "audi"
+    const grid = createMockGrid('audi')
+    const playerEntriesInGrid = grid.filter((g) => g.teamId === 'audi')
+    expect(playerEntriesInGrid).toHaveLength(2)
+
+    // Com o passedTeamId canônico, createInitialSnapshot encontra exatamente os 2 pilotos
+    const snapshot = canonicalRacePreparationService.createInitialSnapshot({
+      careerId: 'career_test_a7',
+      seasonYear: 2026,
+      round: 1,
+      teamId: passedTeamId,
+      totalLaps: 57,
+      grid,
+      inventories: mockInventories,
+    })
+
+    expect(snapshot.cars).toHaveLength(2)
+    expect(snapshot.cars[0].driverName).toBe('Nico Hülkenberg')
+    expect(snapshot.cars[1].driverName).toBe('Gabriel Bortoleto')
+
+    // E o painel PreRaceStrategyPreparationPanel renderiza sem lançar exceção
+    const { container } = render(
+      React.createElement(PreRaceStrategyPreparationPanel, {
+        careerId: 'career_test_a7',
+        seasonYear: 2026,
+        round: 1,
+        teamId: passedTeamId,
+        totalLaps: 57,
+        canonicalGrid: grid,
+        inventories: mockInventories,
+        onConfirmAndStartRace: () => {},
+      }),
+    )
+
+    expect(container).toBeDefined()
+    expect(screen.getByText('Nico Hülkenberg')).toBeDefined()
+    expect(screen.getByText('Gabriel Bortoleto')).toBeDefined()
+  })
 })
