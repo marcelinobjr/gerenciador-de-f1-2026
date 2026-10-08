@@ -28,8 +28,22 @@ export interface SaveStageResultOutcome {
   persistedLocal?: boolean
 }
 
+export interface SaveStageStateOutcome {
+  success: boolean
+  error?: string
+  reason?: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR'
+  persistedBackend?: boolean
+  persistedLocal?: boolean
+}
+
 export interface ReadStageResultOutcome {
   data: QualifyingStageResult | null
+  source: 'backend' | 'local' | 'none'
+  backendError?: string
+}
+
+export interface ReadStageStateOutcome {
+  data: QualifyingStageState | null
   source: 'backend' | 'local' | 'none'
   backendError?: string
 }
@@ -37,6 +51,7 @@ export interface ReadStageResultOutcome {
 import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
 import { canonicalQualifyingStageResultBackendService } from '@/services/canonicalQualifyingStageResultBackendService'
+import { canonicalQualifyingStageStateBackendService } from '@/services/canonicalQualifyingStageStateBackendService'
 
 const STAGE_STATE_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_state_v2'
 const STAGE_RESULT_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_result_v2'
@@ -73,68 +88,390 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
+   * Cache em memória para estados de qualificação salvos na sessão.
+   * Permite que leituras síncronas encontrem imediatamente o estado mesmo
+   * quando o localStorage falha por cota cheia ou foi expurgado pós-confirmação backend.
+   */
+  _memoryStageStates: new Map<string, QualifyingStageState>(),
+
+  /**
+   * Cache em memória para resultados de qualificação salvos na sessão (read-back síncrono resiliente).
+   * Permite que leituras síncronas encontrem imediatamente o resultado confirmado no backend
+   * mesmo se o localStorage falhar por QuotaExceededError.
+   */
+  _memoryStageResults: new Map<string, QualifyingStageResult>(),
+
+  /**
+   * Expurgar a cópia pesada do estado de fase local somente após confirmação real do backend.
+   * Mantém o cache de memória íntegro e libera cota no localStorage.
+   */
+  purgeLocalStageState(seasonId: string, round: number, stageId: QualifyingStageId): void {
+    const key = this.getStageStateKey(seasonId, round, stageId)
+    if (typeof window === 'undefined' || !window.localStorage) return
+    try {
+      window.localStorage.removeItem(key)
+    } catch (e) {
+      console.warn(
+        `[QualifyingPersistence] Falha ao expurgar cópia pesada local de stageState (${seasonId}, r${round}, ${stageId}):`,
+        e,
+      )
+    }
+  },
+
+  /**
    * Salva o estado ao vivo da fase de classificação.
    * BUG-TYRE-RESET-01A: Rejeita escrita se state.generation for incompatível com a geração ativa da rodada.
+   * Resiliente a QuotaExceededError: captura erro de cota, mantém memória ativa e espelha no PocketBase.
    */
-  saveStageState(seasonId: string, round: number, state: QualifyingStageState): boolean {
-    if (typeof window === 'undefined' || !window.localStorage) return false
-    try {
-      const currentGen = getActiveWeekendGeneration(seasonId, round)
-      const effectiveGen = state.weekendGeneration ?? state.generation
+  saveStageState(
+    seasonId: string,
+    round: number,
+    state: QualifyingStageState,
+    options?: { syncBackendPromise?: Promise<{ success: boolean; id?: string; error?: string }> },
+  ): SaveStageStateOutcome {
+    const currentGen = getActiveWeekendGeneration(seasonId, round)
+    const effectiveGen = state.weekendGeneration ?? state.generation
 
-      // RESET-FIX-2: Gatekeeper central contra state stale / geração incompatível
-      if (effectiveGen !== undefined) {
-        if (effectiveGen < currentGen) {
-          console.warn(
-            `[QualifyingPersistence] STALE_STATE: escrita rejeitada por geração obsoleta (state=${effectiveGen} < current=${currentGen}) para ${seasonId} r${round}`,
-          )
-          return false
+    // RESET-FIX-2: Gatekeeper central contra state stale / geração incompatível
+    if (effectiveGen !== undefined) {
+      if (effectiveGen < currentGen) {
+        console.warn(
+          `[QualifyingPersistence] STALE_STATE: escrita rejeitada por geração obsoleta (state=${effectiveGen} < current=${currentGen}) para ${seasonId} r${round}`,
+        )
+        return {
+          success: false,
+          reason: 'STORAGE_ERROR',
+          error: 'STALE_STATE: geração obsoleta',
+          persistedLocal: false,
+          persistedBackend: false,
         }
-        if (effectiveGen > currentGen) {
-          console.warn(
-            `[QualifyingPersistence] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${effectiveGen} > current=${currentGen}) para ${seasonId} r${round}`,
-          )
-          return false
-        }
-        state.weekendGeneration = currentGen
-        state.generation = currentGen
-      } else {
-        // State legado sem weekendGeneration / generation:
-        // Só é aceito e associado à geração atual se a rodada ainda estiver na geração baseline (1).
-        // Se a rodada já avançou geração por reset (currentGen > 1), state sem geração é stale e não pode ser persistido.
-        if (currentGen > 1) {
-          console.warn(
-            `[QualifyingPersistence] STALE_STATE: escrita rejeitada para state legado sem generation após avanço de rodada (current=${currentGen}) para ${seasonId} r${round}`,
-          )
-          return false
-        }
-        state.weekendGeneration = currentGen
-        state.generation = currentGen
       }
+      if (effectiveGen > currentGen) {
+        console.warn(
+          `[QualifyingPersistence] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${effectiveGen} > current=${currentGen}) para ${seasonId} r${round}`,
+        )
+        return {
+          success: false,
+          reason: 'STORAGE_ERROR',
+          error: 'INCONSISTENT_GENERATION: geração futura',
+          persistedLocal: false,
+          persistedBackend: false,
+        }
+      }
+      state.weekendGeneration = currentGen
+      state.generation = currentGen
+    } else {
+      if (currentGen > 1) {
+        console.warn(
+          `[QualifyingPersistence] STALE_STATE: escrita rejeitada para state legado sem generation após avanço de rodada (current=${currentGen}) para ${seasonId} r${round}`,
+        )
+        return {
+          success: false,
+          reason: 'STORAGE_ERROR',
+          error: 'STALE_STATE: geração obsoleta para state legado',
+          persistedLocal: false,
+          persistedBackend: false,
+        }
+      }
+      state.weekendGeneration = currentGen
+      state.generation = currentGen
+    }
 
-      state.updatedAt = new Date().toISOString()
-      state.revision = (state.revision || 0) + 1
-      const key = this.getStageStateKey(seasonId, round, state.stageId)
-      safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
-      return true
-    } catch (e) {
-      console.warn('[QualifyingPersistence] Erro ao salvar estado de fase:', e)
-      return false
+    state.updatedAt = new Date().toISOString()
+    state.revision = (state.revision || 0) + 1
+    const key = this.getStageStateKey(seasonId, round, state.stageId)
+
+    // Manter sempre no cache em memória da sessão
+    this._memoryStageStates.set(key, state)
+
+    let localSuccess = false
+    let localError: string | undefined
+    let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
+
+    if (typeof window === 'undefined' || !window.localStorage) {
+      localSuccess = false
+      localError = 'Storage não disponível neste ambiente'
+      localReason = 'STORAGE_UNAVAILABLE'
+    } else {
+      try {
+        safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
+        localSuccess = true
+      } catch (e: any) {
+        const isQuotaError =
+          e?.name === 'QuotaExceededError' ||
+          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e?.code === 22 ||
+          e?.code === 1014 ||
+          (typeof e?.message === 'string' &&
+            (e.message.includes('quota') || e.message.includes('Quota')))
+
+        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+        localError = e instanceof Error ? e.message : String(e)
+
+        console.warn('[QualifyingPersistence] Erro local ao salvar estado de fase:', {
+          reason: localReason,
+          error: localError,
+          stageId: state.stageId,
+        })
+      }
+    }
+
+    // Espelhamento no PocketBase
+    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: seasonId,
+      season: seasonNum,
+      round,
+      stage: state.stageId,
+    }
+
+    let backendPromise: Promise<{ success: boolean; id?: string; error?: string }>
+    if (options?.syncBackendPromise) {
+      backendPromise = options.syncBackendPromise
+    } else {
+      try {
+        backendPromise = canonicalQualifyingStageStateBackendService.saveStageState(
+          backendCtx,
+          state,
+        )
+      } catch (beErr: any) {
+        backendPromise = Promise.resolve({
+          success: false,
+          error: beErr?.message || 'Falha síncrona ao invocar saveStageState no backend',
+        })
+      }
+    }
+
+    // Se local teve sucesso:
+    if (localSuccess) {
+      backendPromise
+        .then((res) => {
+          if (res?.success) {
+            // Expurgar cópia pesada local se confirmado no backend para liberar cota
+            this.purgeLocalStageState(seasonId, round, state.stageId)
+          }
+        })
+        .catch((beErr) => {
+          console.warn(
+            '[QualifyingPersistence] Falha assíncrona ao espelhar StageState no PocketBase:',
+            beErr,
+          )
+        })
+
+      return {
+        success: true,
+        persistedLocal: true,
+        persistedBackend: true,
+      }
+    }
+
+    // Se local falhou mas backendPromise foi passado diretamente:
+    backendPromise
+      .then((res) => {
+        if (res?.success) {
+          this.purgeLocalStageState(seasonId, round, state.stageId)
+        } else {
+          console.error(
+            `[QualifyingPersistence] Falha dupla: local e backend não confirmaram stageState (${seasonId}, r${round}, ${state.stageId})`,
+          )
+        }
+      })
+      .catch((beErr) => {
+        console.error(
+          `[QualifyingPersistence] Exceção assíncrona ao espelhar stageState pós-falha local:`,
+          beErr,
+        )
+      })
+
+    return {
+      success: false,
+      error: localError,
+      reason: localReason,
+      persistedLocal: false,
+      persistedBackend: false,
+    }
+  },
+
+  /**
+   * Versão assíncrona oficial de saveStageState:
+   * Aguarda tanto a tentativa local quanto a do PocketBase.
+   * Se o local falhar (QUOTA_EXCEEDED) mas o backend confirmar,
+   * retorna SUCESSO ({ success: true, persistedBackend: true, persistedLocal: false })
+   * e expurga o payload pesado local para a mesma identidade lógica.
+   */
+  async saveStageStateAsync(
+    seasonId: string,
+    round: number,
+    state: QualifyingStageState,
+  ): Promise<SaveStageStateOutcome> {
+    const currentGen = getActiveWeekendGeneration(seasonId, round)
+    const effectiveGen = state.weekendGeneration ?? state.generation
+
+    if (effectiveGen !== undefined) {
+      if (effectiveGen < currentGen) {
+        console.warn(
+          `[QualifyingPersistence] STALE_STATE: escrita rejeitada por geração obsoleta (state=${effectiveGen} < current=${currentGen}) para ${seasonId} r${round}`,
+        )
+        return {
+          success: false,
+          reason: 'STORAGE_ERROR',
+          error: 'STALE_STATE: geração obsoleta',
+          persistedLocal: false,
+          persistedBackend: false,
+        }
+      }
+      if (effectiveGen > currentGen) {
+        console.warn(
+          `[QualifyingPersistence] INCONSISTENT_GENERATION: escrita rejeitada por geração futura não sincronizada (state=${effectiveGen} > current=${currentGen}) para ${seasonId} r${round}`,
+        )
+        return {
+          success: false,
+          reason: 'STORAGE_ERROR',
+          error: 'INCONSISTENT_GENERATION: geração futura',
+          persistedLocal: false,
+          persistedBackend: false,
+        }
+      }
+      state.weekendGeneration = currentGen
+      state.generation = currentGen
+    } else {
+      if (currentGen > 1) {
+        console.warn(
+          `[QualifyingPersistence] STALE_STATE: escrita rejeitada para state legado sem generation após avanço de rodada (current=${currentGen}) para ${seasonId} r${round}`,
+        )
+        return {
+          success: false,
+          reason: 'STORAGE_ERROR',
+          error: 'STALE_STATE: geração obsoleta para state legado',
+          persistedLocal: false,
+          persistedBackend: false,
+        }
+      }
+      state.weekendGeneration = currentGen
+      state.generation = currentGen
+    }
+
+    state.updatedAt = new Date().toISOString()
+    state.revision = (state.revision || 0) + 1
+    const key = this.getStageStateKey(seasonId, round, state.stageId)
+
+    this._memoryStageStates.set(key, state)
+
+    let localSuccess = false
+    let localError: string | undefined
+    let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
+
+    if (typeof window === 'undefined' || !window.localStorage) {
+      localSuccess = false
+      localError = 'Storage não disponível neste ambiente'
+      localReason = 'STORAGE_UNAVAILABLE'
+    } else {
+      try {
+        safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
+        localSuccess = true
+      } catch (e: any) {
+        const isQuotaError =
+          e?.name === 'QuotaExceededError' ||
+          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e?.code === 22 ||
+          e?.code === 1014 ||
+          (typeof e?.message === 'string' &&
+            (e.message.includes('quota') || e.message.includes('Quota')))
+
+        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+        localError = e instanceof Error ? e.message : String(e)
+
+        console.warn('[QualifyingPersistence] Erro local ao salvar estado de fase:', {
+          reason: localReason,
+          error: localError,
+          stageId: state.stageId,
+        })
+      }
+    }
+
+    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: seasonId,
+      season: seasonNum,
+      round,
+      stage: state.stageId,
+    }
+
+    let backendSuccess = false
+    let backendError: string | undefined
+
+    try {
+      const beRes = await canonicalQualifyingStageStateBackendService.saveStageState(
+        backendCtx,
+        state,
+      )
+      backendSuccess = !!beRes?.success
+      if (!backendSuccess) {
+        backendError = beRes?.error || 'PocketBase retornou success: false'
+      }
+    } catch (beErr: any) {
+      backendSuccess = false
+      backendError = beErr?.message || 'Falha ao conectar com PocketBase'
+    }
+
+    // Se o backend teve sucesso, o estado canônico ESTÁ SALVO
+    if (backendSuccess) {
+      // Expurgar cópia pesada local se confirmado no backend para liberar cota
+      this.purgeLocalStageState(seasonId, round, state.stageId)
+      return {
+        success: true,
+        persistedBackend: true,
+        persistedLocal: localSuccess,
+        error: localSuccess ? undefined : localError,
+      }
+    }
+
+    // Se backend falhou mas local sucedeu
+    if (localSuccess) {
+      return {
+        success: true,
+        persistedBackend: false,
+        persistedLocal: true,
+        error: backendError,
+      }
+    }
+
+    // Se AMBOS falharam:
+    this._memoryStageStates.delete(key)
+    return {
+      success: false,
+      error: `Local: ${localError || 'falha'} | Backend: ${backendError || 'falha'}`,
+      reason: localReason || 'STORAGE_ERROR',
+      persistedBackend: false,
+      persistedLocal: false,
     }
   },
 
   /**
    * Lê o estado ao vivo da fase para permitir reload seguro sem recomeçar.
    * BUG-TYRE-RESET-01A: Se o estado persistido pertencer a uma geração anterior, descarta.
+   * Consulta memória ativa se local estiver ausente.
    */
   readStageState(
     seasonId: string,
     round: number,
     stageId: QualifyingStageId,
   ): QualifyingStageState | null {
+    const key = this.getStageStateKey(seasonId, round, stageId)
+    const inMemory = this._memoryStageStates.get(key)
+    if (inMemory && inMemory.leaderboard && inMemory.leaderboard.length > 0) {
+      const currentGen = getActiveWeekendGeneration(seasonId, round)
+      const parsedGen = inMemory.weekendGeneration ?? inMemory.generation
+      if (parsedGen !== undefined && parsedGen !== currentGen) {
+        this._memoryStageStates.delete(key)
+        return null
+      }
+      return inMemory
+    }
+
     if (typeof window === 'undefined' || !window.localStorage) return null
     try {
-      const raw = window.localStorage.getItem(this.getStageStateKey(seasonId, round, stageId))
+      const raw = window.localStorage.getItem(key)
       if (!raw) return null
       const parsed = JSON.parse(raw) as QualifyingStageState
 
@@ -163,13 +500,8 @@ export const canonicalQualifyingPersistenceService = {
       }
 
       // BUG-SQ3-TRANSITION-R3: Reconciliação canônica de running órfão pós-reload/reidratação.
-      // Se a sessão estiver persistida como 'running' mas sem executor ativo (ao ler do storage),
-      // semanticamente ela é uma sessão interrompida/retomável ('paused').
-      // Preserva integralmente: stageId, timeRemainingSec, sessionDurationSec, cars, leaderboard,
-      // laps, weather, setup, RNG/seed e demais propriedades sem reiniciar do zero nem marcar como concluída.
       if (parsed && parsed.status === 'running') {
         parsed.status = 'paused'
-        // Persistir de volta como paused para manter coerência canônica
         try {
           safeLocalStorageSetItem(
             this.getStageStateKey(seasonId, round, stageId),
@@ -181,6 +513,10 @@ export const canonicalQualifyingPersistenceService = {
         }
       }
 
+      if (parsed) {
+        this._memoryStageStates.set(key, parsed)
+      }
+
       return parsed
     } catch (e) {
       console.warn('[QualifyingPersistence] Erro ao ler estado de fase:', e)
@@ -189,11 +525,74 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
-   * Cache em memória para resultados de qualificação salvos na sessão (read-back síncrono resiliente).
-   * Permite que leituras síncronas encontrem imediatamente o resultado confirmado no backend
-   * mesmo se o localStorage falhar por QuotaExceededError.
+   * Leitura assíncrona preferencial de StageState com prioridade PocketBase:
+   * 1. Consulta PocketBase (backend). Se presente e válido, vence divergência e popula memória/cache.
+   * 2. Se PocketBase retornar NOT_FOUND (null), faz fallback para local.
+   * 3. Se PocketBase der ERROR de rede, registra backendError e faz fallback para local.
+   * Não altera nem recalcula dados no load.
    */
-  _memoryStageResults: new Map<string, QualifyingStageResult>(),
+  async readStageStatePreferred(
+    seasonId: string,
+    round: number,
+    stageId: QualifyingStageId,
+  ): Promise<ReadStageStateOutcome> {
+    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: seasonId,
+      season: seasonNum,
+      round,
+      stage: stageId,
+    }
+
+    let backendData: QualifyingStageState | null = null
+    let backendError: string | undefined
+
+    // 1. Tentar ler do PocketBase
+    try {
+      backendData = await canonicalQualifyingStageStateBackendService.readStageState(backendCtx)
+    } catch (err: any) {
+      backendError = err?.message || 'Erro ao consultar PocketBase'
+    }
+
+    // 2. Se backend retornou dados válidos: backend vence
+    if (
+      backendData &&
+      Array.isArray(backendData.leaderboard) &&
+      backendData.leaderboard.length > 0
+    ) {
+      const currentGen = getActiveWeekendGeneration(seasonId, round)
+      const parsedGen = backendData.weekendGeneration ?? backendData.generation
+      if (parsedGen !== undefined && parsedGen !== currentGen) {
+        return {
+          data: null,
+          source: 'none',
+          backendError: `Geração incompatível no backend (${parsedGen} !== ${currentGen})`,
+        }
+      }
+      const key = this.getStageStateKey(seasonId, round, stageId)
+      this._memoryStageStates.set(key, backendData)
+      return {
+        data: backendData,
+        source: 'backend',
+      }
+    }
+
+    // 3. Fallback para storage local (ou memória)
+    const localData = this.readStageState(seasonId, round, stageId)
+    if (localData && Array.isArray(localData.leaderboard) && localData.leaderboard.length > 0) {
+      return {
+        data: localData,
+        source: 'local',
+        backendError,
+      }
+    }
+
+    return {
+      data: null,
+      source: 'none',
+      backendError,
+    }
+  },
 
   /**
    * Salva o resultado oficial homologado de uma fase específica (Q1, Q2, Q3, SQ1, SQ2, SQ3).
@@ -501,6 +900,7 @@ export const canonicalQualifyingPersistenceService = {
    * Limpa cache em memória para testes.
    */
   clearMemoryForTesting(): void {
+    this._memoryStageStates.clear()
     this._memoryStageResults.clear()
   },
 

@@ -2143,7 +2143,21 @@ export default function WeekendV2Page() {
 
     if (stgState && stgState.status !== 'completed') {
       stgState.status = 'completed'
-      canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, stgState)
+      try {
+        const stateSaveOutcome = canonicalQualifyingPersistenceService.saveStageState(
+          season.id,
+          currentRound,
+          stgState,
+        )
+        if (!stateSaveOutcome.success) {
+          console.warn(
+            `[WeekendV2Page] Falha observável ao salvar estado concluído da fase ${stageId}:`,
+            stateSaveOutcome,
+          )
+        }
+      } catch (err: any) {
+        console.warn(`[WeekendV2Page] Exceção capturada ao salvar estado da fase ${stageId}:`, err)
+      }
     }
 
     // Fallback legado para sessões antigas que porventura não tenham persistido o StageResult pelo runner
@@ -2206,7 +2220,24 @@ export default function WeekendV2Page() {
       } else {
         stageResult = reconstructedResult
       }
-      canonicalQualifyingPersistenceService.saveStageState(season.id, currentRound, stgState)
+      try {
+        const stateSaveOutcome = canonicalQualifyingPersistenceService.saveStageState(
+          season.id,
+          currentRound,
+          stgState,
+        )
+        if (!stateSaveOutcome.success) {
+          console.warn(
+            `[WeekendV2Page] Falha ao persistir stageState reconstruído da fase ${stageId}:`,
+            stateSaveOutcome,
+          )
+        }
+      } catch (err: any) {
+        console.warn(
+          `[WeekendV2Page] Exceção capturada ao salvar stageState reconstruído da fase ${stageId}:`,
+          err,
+        )
+      }
     }
 
     // F-Q1-TIMES-01A: Reconfirmar a presença real e íntegra do StageResult no storage
