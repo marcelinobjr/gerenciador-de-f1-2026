@@ -659,7 +659,7 @@ export function safeLocalStorageSetItem(key: string, value: string, context?: Pr
       window.localStorage.setItem(key, value)
       console.info(`[safeLocalStorageSetItem] Gravação de '${key}' bem-sucedida após prune.`)
     } catch (retryErr) {
-      console.error(
+      console.warn(
         `[safeLocalStorageSetItem] Gravação de '${key}' falhou no retry após prune. Cota exaurida persistentemente.`,
         retryErr,
       )

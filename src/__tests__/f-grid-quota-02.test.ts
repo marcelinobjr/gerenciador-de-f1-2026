@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { canonicalQualifyingPersistenceService } from '../services/canonicalQualifyingPersistenceService'
 import { canonicalQualifyingFinalGridBackendService } from '../services/canonicalQualifyingFinalGridBackendService'
 import * as storageQuotaService from '../services/storageQuotaService'
-import type { CompleteQualifyingWeekendResult } from '../types/weekend'
+import type { CompleteQualifyingWeekendResult } from '../types/canonical-qualifying-types'
 
 describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à quota do localStorage', () => {
   const seasonId = 'test_season_quota_02'
@@ -22,31 +22,40 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
       completedAt: '2026-03-29T14:20:00.000Z',
       entries: [
         {
+          position: 1,
           driverId: 'driver_1',
           driverName: 'Max Verstappen',
           teamId: 'red_bull',
           teamName: 'Red Bull Racing',
           teamColor: '#0600EF',
           isPlayer: false,
-          carId: 'car_1',
+          carId: 'car1',
           bestLapSec: 80.0,
           bestLapTime: '1:20.000',
-          compound: 'SOFT',
+          bestLapRecordedAtSec: 80.0,
+          compound: 'macio',
+          tyreSetId: 't1',
+          lapsCount: 3,
+          isEliminated: false,
         },
         {
+          position: 2,
           driverId: 'driver_2',
           driverName: 'Lewis Hamilton',
           teamId: 'ferrari',
           teamName: 'Ferrari',
           teamColor: '#E80020',
           isPlayer: false,
-          carId: 'car_2',
+          carId: 'car2',
           bestLapSec: 81.0,
           bestLapTime: '1:21.000',
-          compound: 'SOFT',
+          bestLapRecordedAtSec: 81.0,
+          compound: 'macio',
+          tyreSetId: 't2',
+          lapsCount: 3,
+          isEliminated: true,
         },
-      ],
-      eliminatedDriverIds: ['driver_2'],
+      ],      eliminatedDriverIds: ['driver_2'],
       advancingDriverIds: ['driver_1'],
     },
     q2Result: {
@@ -56,19 +65,23 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
       completedAt: '2026-03-29T14:40:00.000Z',
       entries: [
         {
+          position: 1,
           driverId: 'driver_1',
           driverName: 'Max Verstappen',
           teamId: 'red_bull',
           teamName: 'Red Bull Racing',
           teamColor: '#0600EF',
           isPlayer: false,
-          carId: 'car_1',
+          carId: 'car1',
           bestLapSec: 79.5,
           bestLapTime: '1:19.500',
-          compound: 'SOFT',
+          bestLapRecordedAtSec: 79.5,
+          compound: 'macio',
+          tyreSetId: 't1',
+          lapsCount: 3,
+          isEliminated: false,
         },
-      ],
-      eliminatedDriverIds: [],
+      ],      eliminatedDriverIds: [],
       advancingDriverIds: ['driver_1'],
     },
     q3Result: {
@@ -78,19 +91,23 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
       completedAt: '2026-03-29T15:00:00.000Z',
       entries: [
         {
+          position: 1,
           driverId: 'driver_1',
           driverName: 'Max Verstappen',
           teamId: 'red_bull',
           teamName: 'Red Bull Racing',
           teamColor: '#0600EF',
           isPlayer: false,
-          carId: 'car_1',
+          carId: 'car1',
           bestLapSec: 79.0,
           bestLapTime: '1:19.000',
-          compound: 'SOFT',
+          bestLapRecordedAtSec: 79.0,
+          compound: 'macio',
+          tyreSetId: 't1',
+          lapsCount: 3,
+          isEliminated: false,
         },
-      ],
-      eliminatedDriverIds: [],
+      ],      eliminatedDriverIds: [],
       advancingDriverIds: [],
     },
     finalGrid: [
@@ -102,11 +119,11 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
         teamName: 'Red Bull Racing',
         teamColor: '#0600EF',
         isPlayer: false,
-        carId: 'car_1',
+        carId: 'car1',
         eliminationStage: 'Q3',
         bestLapSec: 79.0,
         bestLapTime: '1:19.000',
-        bestLapCompound: 'SOFT',
+        bestLapCompound: 'macio',
       },
       {
         gridPosition: 2,
@@ -116,11 +133,11 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
         teamName: 'Ferrari',
         teamColor: '#E80020',
         isPlayer: false,
-        carId: 'car_2',
+        carId: 'car2',
         eliminationStage: 'Q1',
         bestLapSec: 81.0,
         bestLapTime: '1:21.000',
-        bestLapCompound: 'SOFT',
+        bestLapCompound: 'macio',
       },
     ],
   }
@@ -146,14 +163,18 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
 
     let outcome: any
     expect(() => {
-      outcome = canonicalQualifyingPersistenceService.saveCompleteQualifyingResult(mockCompleteResult)
+      outcome =
+        canonicalQualifyingPersistenceService.saveCompleteQualifyingResult(mockCompleteResult)
     }).not.toThrow()
 
     expect(outcome.persistedLocal).toBe(false)
     expect(outcome.reason).toBe('QUOTA_EXCEEDED')
 
     // Deve estar no cache de memória para leitura síncrona imediata
-    const inMemory = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(seasonId, round)
+    const inMemory = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+      seasonId,
+      round,
+    )
     expect(inMemory).not.toBeNull()
     expect(inMemory?.poleDriverId).toBe('driver_1')
   })
@@ -170,7 +191,10 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
 
     const purgeSpy = vi.spyOn(canonicalQualifyingPersistenceService, 'purgeLocalFinalGrid')
 
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(mockCompleteResult)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(
+        mockCompleteResult,
+      )
 
     expect(outcome.success).toBe(true)
     expect(outcome.persistedBackend).toBe(true)
@@ -202,7 +226,6 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
     expect(() => {
       result = canonicalQualifyingPersistenceService.buildCombinedFinalGrid(seasonId, round)
     }).not.toThrow()
-
     expect(result).not.toBeNull()
     expect(result?.finalGrid).toBeDefined()
     expect(result?.finalGrid.length).toBeGreaterThan(0)
@@ -218,7 +241,10 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
       error: 'Backend network unreachable',
     })
 
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(mockCompleteResult)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(
+        mockCompleteResult,
+      )
 
     expect(outcome.success).toBe(false)
     expect(outcome.persistedBackend).toBe(false)
@@ -232,7 +258,10 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
       id: 'rec_ok_01',
     })
 
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(mockCompleteResult)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(
+        mockCompleteResult,
+      )
 
     expect(outcome.success).toBe(true)
     expect(outcome.persistedBackend).toBe(true)

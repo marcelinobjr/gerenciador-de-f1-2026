@@ -280,11 +280,14 @@ describe('storage-quota-01a: Auditoria de Tamanho + Prune Seguro do LocalStorage
   // =========================================================================
   // S6 — QUOTA CONTINUA: Se a segunda tentativa também falhar: erro explícito, sem loop infinito, sem apagar rodada atual.
   // =========================================================================
-  it('S6 — QUOTA CONTINUA: Se 2ª tentativa também falhar, lança erro explícito sem apagar rodada atual', () => {
+  it('S6 — QUOTA CONTINUA: Se 2ª tentativa também falhar, lança erro explícito sem apagar rodada atual e sem emitir console.error', () => {
     const currentRound = 4
     const activeKey = `apex_gp_tires_${seasonId}_r${currentRound}`
     const activeVal = 'existing_active_round_data'
     window.localStorage.setItem(activeKey, activeVal)
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     let attempts = 0
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
@@ -308,6 +311,17 @@ describe('storage-quota-01a: Auditoria de Tamanho + Prune Seguro do LocalStorage
     // A rodada atual NUNCA é apagada
     expect(window.localStorage.getItem(activeKey)).toBe(activeVal)
 
+    // Falha persistente esperada é rebaixada para warn e NÃO polui o console com console.error
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "[safeLocalStorageSetItem] Gravação de 'some_large_key' falhou no retry após prune. Cota exaurida persistentemente.",
+      ),
+      expect.any(Error),
+    )
+
+    consoleErrorSpy.mockRestore()
+    consoleWarnSpy.mockRestore()
     setItemSpy.mockRestore()
   })
 
