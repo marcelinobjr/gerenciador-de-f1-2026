@@ -30,6 +30,9 @@ export function getWeekendTireStorageKey(seasonId: string, round: number): strin
   return `apex_gp_tires_${seasonId}_r${round}`
 }
 
+/** Cache em memória para resiliência quando o localStorage estiver com QuotaExceeded */
+const _memoryWeekendTireData = new Map<string, StoredWeekendTireData>()
+
 export type RecordTyreUsageStatusCode =
   | 'APPLIED'
   | 'INVENTORY_NOT_FOUND'
@@ -269,11 +272,23 @@ export const canonicalWeekendTyrePersistence = {
    * Lê o armazenamento persistente do fim de semana.
    */
   readWeekendTireData(seasonId: string, round: number): StoredWeekendTireData | null {
+    const key = getWeekendTireStorageKey(seasonId, round)
+
+    // 1. Se estiver no cache de memória (ex: gravado nesta sessão ou salvo enquanto cota estava cheia)
+    const mem = _memoryWeekendTireData.get(key)
+    if (mem && mem.inventoriesByDriver && Object.keys(mem.inventoriesByDriver).length > 0) {
+      return mem
+    }
+
     if (typeof window === 'undefined' || !window.localStorage) return null
     try {
-      const raw = window.localStorage.getItem(getWeekendTireStorageKey(seasonId, round))
+      const raw = window.localStorage.getItem(key)
       if (!raw) return null
-      return JSON.parse(raw) as StoredWeekendTireData
+      const parsed = JSON.parse(raw) as StoredWeekendTireData
+      if (parsed) {
+        _memoryWeekendTireData.set(key, parsed)
+      }
+      return parsed
     } catch (e) {
       console.warn('[canonicalWeekendTyrePersistence] Falha ao ler armazenamento de pneus:', e)
       return null
@@ -281,22 +296,52 @@ export const canonicalWeekendTyrePersistence = {
   },
 
   /**
+   * Limpa o cache em memória (utilizado em testes).
+   */
+  clearMemoryForTesting(): void {
+    _memoryWeekendTireData.clear()
+  },
+
+  /**
    * Grava o armazenamento persistente do fim de semana.
+   * Resiliente a QuotaExceededError: falha de cota local é capturada e observável,
+   * permitindo que o espelhamento no PocketBase prossiga como autoridade canônica.
+   * Se o backend confirmar com sucesso real, expurga a cópia pesada local liberando cota.
    */
   writeWeekendTireData(data: StoredWeekendTireData): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
-    try {
-      data.updatedAt = new Date().toISOString()
-      safeLocalStorageSetItem(
-        getWeekendTireStorageKey(data.seasonId, data.round),
-        JSON.stringify(data),
-        { seasonId: data.seasonId, currentRound: data.round },
-      )
-    } catch (e) {
-      console.warn('[WeekendTirePersistence] Falha ao salvar pneus do fim de semana:', e)
+    const key = getWeekendTireStorageKey(data.seasonId, data.round)
+    // Manter sempre disponível em cache de memória ativo
+    _memoryWeekendTireData.set(key, data)
+
+    let localSuccess = false
+    let isQuotaError = false
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        data.updatedAt = new Date().toISOString()
+        safeLocalStorageSetItem(key, JSON.stringify(data), {
+          seasonId: data.seasonId,
+          currentRound: data.round,
+        })
+        localSuccess = true
+      } catch (e: any) {
+        isQuotaError =
+          e?.name === 'QuotaExceededError' ||
+          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e?.code === 22 ||
+          e?.code === 1014 ||
+          (typeof e?.message === 'string' &&
+            (e.message.includes('quota') || e.message.includes('Quota')))
+
+        console.warn(
+          `[WeekendTirePersistence] Falha local (${isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'}) ao salvar pneus (${data.seasonId}, r${data.round}):`,
+          e,
+        )
+      }
     }
 
-    // 01B2-B / 01B2-E: Espelhamento de escrita viva no PocketBase com expurgo local pós-confirmação
+    // 01B2-B / 01B2-E: Espelhamento de escrita viva no PocketBase com expurgo local pós-confirmação.
+    // DEVE ser tentado mesmo que o save local tenha falhado por cota.
     try {
       const seasonNum = parseInt(String(data.seasonId).replace(/\D/g, ''), 10) || 1
       canonicalWeekendTyreBackendService
@@ -314,19 +359,39 @@ export const canonicalWeekendTyrePersistence = {
             // STORAGE-QUOTA-01B2-E: Expurgar cópia pesada local somente após sucesso real do backend
             this.purgeLocalWeekendTires(data.seasonId, data.round)
           } else {
-            console.warn(
-              `[WeekendTirePersistence] Backend não confirmou save (${res?.error || 'sem sucesso'}), preservando cópia local para (${data.seasonId}, r${data.round})`,
-            )
+            if (!localSuccess) {
+              console.error(
+                `[WeekendTirePersistence] Ambos local e backend falharam ao salvar pneus para (${data.seasonId}, r${data.round}). Backend error: ${res?.error || 'sem sucesso'}. Operando em modo memória degradado.`,
+              )
+            } else {
+              console.warn(
+                `[WeekendTirePersistence] Backend não confirmou save (${res?.error || 'sem sucesso'}), preservando cópia local para (${data.seasonId}, r${data.round})`,
+              )
+            }
           }
         })
         .catch((err) => {
-          console.warn(
-            '[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:',
-            err,
-          )
+          if (!localSuccess) {
+            console.error(
+              `[WeekendTirePersistence] Ambos local e backend falharam ao salvar pneus para (${data.seasonId}, r${data.round}). Exceção backend:`,
+              err,
+            )
+          } else {
+            console.warn(
+              '[WeekendTirePersistence] Falha assíncrona ao espelhar pneus no PocketBase:',
+              err,
+            )
+          }
         })
     } catch (mirrorErr) {
-      console.warn('[WeekendTirePersistence] Falha ao disparar espelho PocketBase:', mirrorErr)
+      if (!localSuccess) {
+        console.error(
+          `[WeekendTirePersistence] Falha ao disparar espelho PocketBase e escrita local havia falhado:`,
+          mirrorErr,
+        )
+      } else {
+        console.warn('[WeekendTirePersistence] Falha ao disparar espelho PocketBase:', mirrorErr)
+      }
     }
   },
 
@@ -336,9 +401,10 @@ export const canonicalWeekendTyrePersistence = {
    * Não afeta outras carreiras, temporadas ou rodadas.
    */
   purgeLocalWeekendTires(seasonId: string, round: number): void {
+    const key = getWeekendTireStorageKey(seasonId, round)
+    // Manter o cache de memória íntegro caso a UI precise de leitura síncrona imediata
     if (typeof window === 'undefined' || !window.localStorage) return
     try {
-      const key = getWeekendTireStorageKey(seasonId, round)
       window.localStorage.removeItem(key)
     } catch (e) {
       console.warn(
@@ -424,7 +490,14 @@ export const canonicalWeekendTyrePersistence = {
     }
 
     if (modified) {
-      this.writeWeekendTireData(stored)
+      try {
+        this.writeWeekendTireData(stored)
+      } catch (writeErr) {
+        console.warn(
+          `[canonicalWeekendTyrePersistence] Exceção inesperada capturada em writeWeekendTireData durante getOrCreateWeekendInventories (${seasonId}, r${round}):`,
+          writeErr,
+        )
+      }
     }
 
     return stored.inventoriesByDriver
@@ -454,7 +527,14 @@ export const canonicalWeekendTyrePersistence = {
     }
 
     stored.inventoriesByDriver[driverId] = updatedSets
-    this.writeWeekendTireData(stored)
+    try {
+      this.writeWeekendTireData(stored)
+    } catch (writeErr) {
+      console.warn(
+        `[canonicalWeekendTyrePersistence] Exceção inesperada capturada em writeWeekendTireData durante updateDriverInventory (${seasonId}, r${round}, ${driverId}):`,
+        writeErr,
+      )
+    }
   },
 
   /**
@@ -483,7 +563,14 @@ export const canonicalWeekendTyrePersistence = {
       ...stored.inventoriesByDriver,
       ...inventories,
     }
-    this.writeWeekendTireData(stored)
+    try {
+      this.writeWeekendTireData(stored)
+    } catch (writeErr) {
+      console.warn(
+        `[canonicalWeekendTyrePersistence] Exceção inesperada capturada em writeWeekendTireData durante updateAllInventories (${seasonId}, r${round}):`,
+        writeErr,
+      )
+    }
   },
 
   /**

@@ -907,12 +907,21 @@ export default function WeekendV2Page() {
     const pCar1 = registration.snapshot?.entriesByCar.playerCar1
     const pCar2 = registration.snapshot?.entriesByCar.playerCar2
     const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
-    const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
-      seasonId: season.id,
-      round: currentRound,
-      driverIds,
-      primaryDriverIds: driverIds,
-    })
+    let invs: Record<string, TireSetItem[]> = {}
+    try {
+      invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+        seasonId: season.id,
+        round: currentRound,
+        driverIds,
+        primaryDriverIds: driverIds,
+      })
+    } catch (tyreErr) {
+      console.warn(
+        '[WeekendV2Page] Erro ao obter inventário de pneus na seleção de sessão:',
+        tyreErr,
+      )
+      invs = tyreInventories || {}
+    }
     setTyreInventories(invs)
 
     // Se for TL1, TL2 ou TL3: carrega/resume o runner de treino
