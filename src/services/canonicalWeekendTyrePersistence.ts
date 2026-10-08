@@ -341,7 +341,7 @@ export const canonicalWeekendTyrePersistence = {
     }
 
     // 01B2-B / 01B2-E: Espelhamento de escrita viva no PocketBase com expurgo local pós-confirmação.
-    // DEVE ser tentado mesmo que o save local tenha falhado por cota.
+    // DEVE ser tentado mesmo quando o save local falha por QuotaExceededError.
     try {
       const seasonNum = parseInt(String(data.seasonId).replace(/\D/g, ''), 10) || 1
       canonicalWeekendTyreBackendService
