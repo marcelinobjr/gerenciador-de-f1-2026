@@ -134,12 +134,11 @@ export const canonicalQualifyingPersistenceService = {
       window.localStorage.removeItem(key)
     } catch (e) {
       console.warn(
-        `[QualifyingPersistence] Falha ao expurgar cópia pesada local de stageState (${seasonId}, r${round}, ${stageId}):`,
+        `[QualifyingPersistence] Falha ao expurgar cópia pesada local de stageState (${stageId}, ${seasonId}, r${round}):`,
         e,
       )
     }
   },
-
   /**
    * Salva o estado ao vivo da fase de classificação.
    * BUG-TYRE-RESET-01A: Rejeita escrita se state.generation for incompatível com a geração ativa da rodada.
@@ -210,32 +209,55 @@ export const canonicalQualifyingPersistenceService = {
     let localError: string | undefined
     let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
 
-    if (typeof window === 'undefined' || !window.localStorage) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        localSuccess = false
+        localError = 'Storage não disponível neste ambiente'
+        localReason = 'STORAGE_UNAVAILABLE'
+      } else {
+        try {
+          safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
+          localSuccess = true
+        } catch (e: any) {
+          const isQuotaError =
+            e?.name === 'QuotaExceededError' ||
+            e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+            e?.code === 22 ||
+            e?.code === 1014 ||
+            (typeof e?.message === 'string' &&
+              (e.message.includes('quota') || e.message.includes('Quota')))
+
+          localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+          localError = e instanceof Error ? e.message : String(e)
+
+          console.warn('[QualifyingPersistence] Erro local ao salvar estado de fase:', {
+            reason: localReason,
+            error: localError,
+            stageId: state.stageId,
+          })
+        }
+      }
+    } catch (outerErr: any) {
+      const isQuotaError =
+        outerErr?.name === 'QuotaExceededError' ||
+        outerErr?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        outerErr?.code === 22 ||
+        outerErr?.code === 1014 ||
+        (typeof outerErr?.message === 'string' &&
+          (outerErr.message.includes('quota') || outerErr.message.includes('Quota')))
+
       localSuccess = false
-      localError = 'Storage não disponível neste ambiente'
-      localReason = 'STORAGE_UNAVAILABLE'
-    } else {
-      try {
-        safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
-        localSuccess = true
-      } catch (e: any) {
-        const isQuotaError =
-          e?.name === 'QuotaExceededError' ||
-          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-          e?.code === 22 ||
-          e?.code === 1014 ||
-          (typeof e?.message === 'string' &&
-            (e.message.includes('quota') || e.message.includes('Quota')))
+      localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+      localError = outerErr instanceof Error ? outerErr.message : String(outerErr)
 
-        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
-        localError = e instanceof Error ? e.message : String(e)
-
-        console.warn('[QualifyingPersistence] Erro local ao salvar estado de fase:', {
+      console.warn(
+        '[QualifyingPersistence] Exceção externa capturada ao salvar estado de fase local:',
+        {
           reason: localReason,
           error: localError,
           stageId: state.stageId,
-        })
-      }
+        },
+      )
     }
 
     // Espelhamento no PocketBase
@@ -383,32 +405,55 @@ export const canonicalQualifyingPersistenceService = {
     let localError: string | undefined
     let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
 
-    if (typeof window === 'undefined' || !window.localStorage) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        localSuccess = false
+        localError = 'Storage não disponível neste ambiente'
+        localReason = 'STORAGE_UNAVAILABLE'
+      } else {
+        try {
+          safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
+          localSuccess = true
+        } catch (e: any) {
+          const isQuotaError =
+            e?.name === 'QuotaExceededError' ||
+            e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+            e?.code === 22 ||
+            e?.code === 1014 ||
+            (typeof e?.message === 'string' &&
+              (e.message.includes('quota') || e.message.includes('Quota')))
+
+          localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+          localError = e instanceof Error ? e.message : String(e)
+
+          console.warn('[QualifyingPersistence] Erro local ao salvar estado de fase:', {
+            reason: localReason,
+            error: localError,
+            stageId: state.stageId,
+          })
+        }
+      }
+    } catch (outerErr: any) {
+      const isQuotaError =
+        outerErr?.name === 'QuotaExceededError' ||
+        outerErr?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        outerErr?.code === 22 ||
+        outerErr?.code === 1014 ||
+        (typeof outerErr?.message === 'string' &&
+          (outerErr.message.includes('quota') || outerErr.message.includes('Quota')))
+
       localSuccess = false
-      localError = 'Storage não disponível neste ambiente'
-      localReason = 'STORAGE_UNAVAILABLE'
-    } else {
-      try {
-        safeLocalStorageSetItem(key, JSON.stringify(state), { seasonId, currentRound: round })
-        localSuccess = true
-      } catch (e: any) {
-        const isQuotaError =
-          e?.name === 'QuotaExceededError' ||
-          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-          e?.code === 22 ||
-          e?.code === 1014 ||
-          (typeof e?.message === 'string' &&
-            (e.message.includes('quota') || e.message.includes('Quota')))
+      localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+      localError = outerErr instanceof Error ? outerErr.message : String(outerErr)
 
-        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
-        localError = e instanceof Error ? e.message : String(e)
-
-        console.warn('[QualifyingPersistence] Erro local ao salvar estado de fase:', {
+      console.warn(
+        '[QualifyingPersistence] Exceção externa capturada ao salvar estado de fase local (async):',
+        {
           reason: localReason,
           error: localError,
           stageId: state.stageId,
-        })
-      }
+        },
+      )
     }
 
     const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
@@ -646,35 +691,58 @@ export const canonicalQualifyingPersistenceService = {
     let localError: string | undefined
     let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
 
-    if (typeof window === 'undefined' || !window.localStorage) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        localSuccess = false
+        localError = 'Storage não disponível neste ambiente'
+        localReason = 'STORAGE_UNAVAILABLE'
+      } else {
+        try {
+          safeLocalStorageSetItem(key, JSON.stringify(result), {
+            seasonId: result.seasonId,
+            currentRound: result.round,
+          })
+          localSuccess = true
+        } catch (e: any) {
+          const isQuotaError =
+            e?.name === 'QuotaExceededError' ||
+            e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+            e?.code === 22 ||
+            e?.code === 1014 ||
+            (typeof e?.message === 'string' &&
+              (e.message.includes('quota') || e.message.includes('Quota')))
+
+          localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+          localError = e instanceof Error ? e.message : String(e)
+
+          console.warn('[QualifyingPersistence] Erro local ao salvar resultado de fase:', {
+            reason: localReason,
+            error: localError,
+            stageId: result.stageId,
+          })
+        }
+      }
+    } catch (outerErr: any) {
+      const isQuotaError =
+        outerErr?.name === 'QuotaExceededError' ||
+        outerErr?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        outerErr?.code === 22 ||
+        outerErr?.code === 1014 ||
+        (typeof outerErr?.message === 'string' &&
+          (outerErr.message.includes('quota') || outerErr.message.includes('Quota')))
+
       localSuccess = false
-      localError = 'Storage não disponível neste ambiente'
-      localReason = 'STORAGE_UNAVAILABLE'
-    } else {
-      try {
-        safeLocalStorageSetItem(key, JSON.stringify(result), {
-          seasonId: result.seasonId,
-          currentRound: result.round,
-        })
-        localSuccess = true
-      } catch (e: any) {
-        const isQuotaError =
-          e?.name === 'QuotaExceededError' ||
-          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-          e?.code === 22 ||
-          e?.code === 1014 ||
-          (typeof e?.message === 'string' &&
-            (e.message.includes('quota') || e.message.includes('Quota')))
+      localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+      localError = outerErr instanceof Error ? outerErr.message : String(outerErr)
 
-        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
-        localError = e instanceof Error ? e.message : String(e)
-
-        console.warn('[QualifyingPersistence] Erro local ao salvar resultado de fase:', {
+      console.warn(
+        '[QualifyingPersistence] Exceção externa capturada ao salvar resultado de fase local:',
+        {
           reason: localReason,
           error: localError,
           stageId: result.stageId,
-        })
-      }
+        },
+      )
     }
 
     // Espelhamento no PocketBase
@@ -748,35 +816,58 @@ export const canonicalQualifyingPersistenceService = {
     let localError: string | undefined
     let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
 
-    if (typeof window === 'undefined' || !window.localStorage) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        localSuccess = false
+        localError = 'Storage não disponível neste ambiente'
+        localReason = 'STORAGE_UNAVAILABLE'
+      } else {
+        try {
+          safeLocalStorageSetItem(key, JSON.stringify(result), {
+            seasonId: result.seasonId,
+            currentRound: result.round,
+          })
+          localSuccess = true
+        } catch (e: any) {
+          const isQuotaError =
+            e?.name === 'QuotaExceededError' ||
+            e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+            e?.code === 22 ||
+            e?.code === 1014 ||
+            (typeof e?.message === 'string' &&
+              (e.message.includes('quota') || e.message.includes('Quota')))
+
+          localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+          localError = e instanceof Error ? e.message : String(e)
+
+          console.warn('[QualifyingPersistence] Erro local ao salvar resultado de fase:', {
+            reason: localReason,
+            error: localError,
+            stageId: result.stageId,
+          })
+        }
+      }
+    } catch (outerErr: any) {
+      const isQuotaError =
+        outerErr?.name === 'QuotaExceededError' ||
+        outerErr?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        outerErr?.code === 22 ||
+        outerErr?.code === 1014 ||
+        (typeof outerErr?.message === 'string' &&
+          (outerErr.message.includes('quota') || outerErr.message.includes('Quota')))
+
       localSuccess = false
-      localError = 'Storage não disponível neste ambiente'
-      localReason = 'STORAGE_UNAVAILABLE'
-    } else {
-      try {
-        safeLocalStorageSetItem(key, JSON.stringify(result), {
-          seasonId: result.seasonId,
-          currentRound: result.round,
-        })
-        localSuccess = true
-      } catch (e: any) {
-        const isQuotaError =
-          e?.name === 'QuotaExceededError' ||
-          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-          e?.code === 22 ||
-          e?.code === 1014 ||
-          (typeof e?.message === 'string' &&
-            (e.message.includes('quota') || e.message.includes('Quota')))
+      localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+      localError = outerErr instanceof Error ? outerErr.message : String(outerErr)
 
-        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
-        localError = e instanceof Error ? e.message : String(e)
-
-        console.warn('[QualifyingPersistence] Erro local ao salvar resultado de fase:', {
+      console.warn(
+        '[QualifyingPersistence] Exceção externa capturada ao salvar resultado de fase local (async):',
+        {
           reason: localReason,
           error: localError,
           stageId: result.stageId,
-        })
-      }
+        },
+      )
     }
 
     // Executar gravação no PocketBase
@@ -972,36 +1063,60 @@ export const canonicalQualifyingPersistenceService = {
     let localError: string | undefined
     let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
 
-    if (typeof window === 'undefined' || !window.localStorage) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        localSuccess = false
+        localError = 'Storage não disponível neste ambiente'
+        localReason = 'STORAGE_UNAVAILABLE'
+      } else {
+        try {
+          safeLocalStorageSetItem(key, JSON.stringify(result), {
+            seasonId: result.seasonId,
+            currentRound: result.round,
+          })
+          localSuccess = true
+        } catch (e: any) {
+          const isQuotaError =
+            e?.name === 'QuotaExceededError' ||
+            e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+            e?.code === 22 ||
+            e?.code === 1014 ||
+            (typeof e?.message === 'string' &&
+              (e.message.includes('quota') || e.message.includes('Quota')))
+
+          localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+          localError = e instanceof Error ? e.message : String(e)
+
+          console.warn('[QualifyingPersistence] Erro local ao salvar grid final completo:', {
+            reason: localReason,
+            error: localError,
+            seasonId: result.seasonId,
+            round: result.round,
+          })
+        }
+      }
+    } catch (outerErr: any) {
+      const isQuotaError =
+        outerErr?.name === 'QuotaExceededError' ||
+        outerErr?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        outerErr?.code === 22 ||
+        outerErr?.code === 1014 ||
+        (typeof outerErr?.message === 'string' &&
+          (outerErr.message.includes('quota') || outerErr.message.includes('Quota')))
+
       localSuccess = false
-      localError = 'Storage não disponível neste ambiente'
-      localReason = 'STORAGE_UNAVAILABLE'
-    } else {
-      try {
-        safeLocalStorageSetItem(key, JSON.stringify(result), {
-          seasonId: result.seasonId,
-          currentRound: result.round,
-        })
-        localSuccess = true
-      } catch (e: any) {
-        const isQuotaError =
-          e?.name === 'QuotaExceededError' ||
-          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-          e?.code === 22 ||
-          e?.code === 1014 ||
-          (typeof e?.message === 'string' &&
-            (e.message.includes('quota') || e.message.includes('Quota')))
+      localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+      localError = outerErr instanceof Error ? outerErr.message : String(outerErr)
 
-        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
-        localError = e instanceof Error ? e.message : String(e)
-
-        console.warn('[QualifyingPersistence] Erro local ao salvar grid final completo:', {
+      console.warn(
+        '[QualifyingPersistence] Exceção externa capturada ao salvar grid final local:',
+        {
           reason: localReason,
           error: localError,
           seasonId: result.seasonId,
           round: result.round,
-        })
-      }
+        },
+      )
     }
 
     // Espelhamento no PocketBase
@@ -1096,36 +1211,60 @@ export const canonicalQualifyingPersistenceService = {
     let localError: string | undefined
     let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
 
-    if (typeof window === 'undefined' || !window.localStorage) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        localSuccess = false
+        localError = 'Storage não disponível neste ambiente'
+        localReason = 'STORAGE_UNAVAILABLE'
+      } else {
+        try {
+          safeLocalStorageSetItem(key, JSON.stringify(result), {
+            seasonId: result.seasonId,
+            currentRound: result.round,
+          })
+          localSuccess = true
+        } catch (e: any) {
+          const isQuotaError =
+            e?.name === 'QuotaExceededError' ||
+            e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+            e?.code === 22 ||
+            e?.code === 1014 ||
+            (typeof e?.message === 'string' &&
+              (e.message.includes('quota') || e.message.includes('Quota')))
+
+          localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+          localError = e instanceof Error ? e.message : String(e)
+
+          console.warn('[QualifyingPersistence] Erro local ao salvar grid final completo:', {
+            reason: localReason,
+            error: localError,
+            seasonId: result.seasonId,
+            round: result.round,
+          })
+        }
+      }
+    } catch (outerErr: any) {
+      const isQuotaError =
+        outerErr?.name === 'QuotaExceededError' ||
+        outerErr?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        outerErr?.code === 22 ||
+        outerErr?.code === 1014 ||
+        (typeof outerErr?.message === 'string' &&
+          (outerErr.message.includes('quota') || outerErr.message.includes('Quota')))
+
       localSuccess = false
-      localError = 'Storage não disponível neste ambiente'
-      localReason = 'STORAGE_UNAVAILABLE'
-    } else {
-      try {
-        safeLocalStorageSetItem(key, JSON.stringify(result), {
-          seasonId: result.seasonId,
-          currentRound: result.round,
-        })
-        localSuccess = true
-      } catch (e: any) {
-        const isQuotaError =
-          e?.name === 'QuotaExceededError' ||
-          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-          e?.code === 22 ||
-          e?.code === 1014 ||
-          (typeof e?.message === 'string' &&
-            (e.message.includes('quota') || e.message.includes('Quota')))
+      localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+      localError = outerErr instanceof Error ? outerErr.message : String(outerErr)
 
-        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
-        localError = e instanceof Error ? e.message : String(e)
-
-        console.warn('[QualifyingPersistence] Erro local ao salvar grid final completo:', {
+      console.warn(
+        '[QualifyingPersistence] Exceção externa capturada ao salvar grid final local (async):',
+        {
           reason: localReason,
           error: localError,
           seasonId: result.seasonId,
           round: result.round,
-        })
-      }
+        },
+      )
     }
 
     // Executar gravação no PocketBase
@@ -1270,13 +1409,40 @@ export const canonicalQualifyingPersistenceService = {
     if (typeof window === 'undefined' || !window.localStorage) return
     try {
       const key = this.getParcFermeKey(seasonId, round)
-      safeLocalStorageSetItem(
-        key,
-        JSON.stringify({ active, updatedAt: new Date().toISOString() }),
-        { seasonId, currentRound: round },
-      )
-    } catch (e) {
-      console.warn('[QualifyingPersistence] Erro ao definir Parc Fermé:', e)
+      try {
+        safeLocalStorageSetItem(
+          key,
+          JSON.stringify({ active, updatedAt: new Date().toISOString() }),
+          { seasonId, currentRound: round },
+        )
+      } catch (e) {
+        console.warn('[QualifyingPersistence] Erro ao definir Parc Fermé:', e)
+      }
+    } catch (outerErr) {
+      console.warn('[QualifyingPersistence] Exceção externa em setParcFermeActive:', outerErr)
+    }
+  },
+
+  /**
+   * Salva o grid final de Sprint a partir de SQ3 de forma resiliente à cota.
+   */
+  saveSprintGridFromSQ3Result(
+    seasonId: string,
+    round: number,
+  ): SaveCompleteQualifyingResultOutcome | null {
+    const grid = this.buildSprintGridFromSQ3Result(seasonId, round)
+    if (!grid) return null
+    try {
+      return this.saveCompleteQualifyingResult(grid)
+    } catch (err: any) {
+      console.warn('[QualifyingPersistence] Exceção em saveSprintGridFromSQ3Result:', err)
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+        reason: 'STORAGE_ERROR',
+        persistedBackend: false,
+        persistedLocal: false,
+      }
     }
   },
 
@@ -1676,8 +1842,57 @@ export const canonicalQualifyingPersistenceService = {
     }
 
     if (persistResult) {
-      this.saveCompleteQualifyingResult(completeResult)
+      try {
+        this.saveCompleteQualifyingResult(completeResult)
+      } catch (err: any) {
+        console.warn(
+          '[QualifyingPersistence] Exceção capturada em buildCombinedFinalGrid ao salvar grid final:',
+          err,
+        )
+      }
     }
     return completeResult
+  },
+
+  /**
+   * Versão assíncrona oficial de buildCombinedFinalGrid:
+   * Constrói o grid final oficial e persiste assincronamente aguardando PocketBase.
+   */
+  async buildCombinedFinalGridAsync(params: {
+    seasonId: string
+    round: number
+    q1Result: QualifyingStageResult
+    q2Result: QualifyingStageResult
+    q3Result: QualifyingStageResult
+    persistResult?: boolean
+  }): Promise<{
+    result: CompleteQualifyingWeekendResult
+    outcome?: SaveCompleteQualifyingResultOutcome
+  }> {
+    const completeResult = this.buildCombinedFinalGrid({
+      ...params,
+      persistResult: false,
+    })
+
+    if (params.persistResult === false) {
+      return { result: completeResult }
+    }
+
+    try {
+      const outcome = await this.saveCompleteQualifyingResultAsync(completeResult)
+      return { result: completeResult, outcome }
+    } catch (err: any) {
+      console.warn('[QualifyingPersistence] Exceção capturada em buildCombinedFinalGridAsync:', err)
+      return {
+        result: completeResult,
+        outcome: {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+          reason: 'STORAGE_ERROR',
+          persistedBackend: false,
+          persistedLocal: false,
+        },
+      }
+    }
   },
 }
