@@ -5001,9 +5001,10 @@ export default function WeekendV2Page() {
           <CompleteQualifyingGridSummary
             result={completeQualifyingResult}
             onGoToRace={() => {
-              // BUG-02 COMMIT C / PRE-RACE-AUTO-02-MICRO: Abertura manual do painel pré-corrida como fallback seguro
+              // RACE-PAGE-01A: Navega para a nova página canônica /race
+              // Mantém o estado pré-corrida antigo preservado no WeekendV2Page
               userChoseReturnToGridRef.current = false
-              setShowPreRacePreparation(true)
+              navigate(`/race?round=${currentRound}`)
             }}
           />
         )
