@@ -2503,6 +2503,8 @@ export default function WeekendV2Page() {
           'q3',
         )
 
+        let effectiveGrid: CompleteQualifyingWeekendResult | null = null
+
         if (q1Res && q2Res && q3Res) {
           let fullGrid: CompleteQualifyingWeekendResult | null = null
           try {
@@ -2520,7 +2522,7 @@ export default function WeekendV2Page() {
             )
           }
 
-          const effectiveGrid =
+          effectiveGrid =
             fullGrid ||
             canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
               season.id,
@@ -2554,6 +2556,18 @@ export default function WeekendV2Page() {
           title: 'Classificação Concluída — Grid Formado!',
           description: 'Q1, Q2 e Q3 finalizados. A etapa de Corrida Principal está desbloqueada.',
         })
+
+        // F-QUALI-TO-RACE-01C: Autoavanço para a Corrida após Q3 concluída com grid válido
+        const hasValidGrid =
+          !!effectiveGrid &&
+          Array.isArray(effectiveGrid.finalGrid) &&
+          effectiveGrid.finalGrid.length > 0
+
+        if (hasValidGrid && selectedSessionId !== 'race') {
+          setSelectedSessionId('race')
+          setSessionState(null)
+          setQualifyingState(null)
+        }
       } else if (stageId === 'sq3') {
         // Desbloqueia sprint_race ao concluir SQ3 (Qualificação Sprint final)
         toast({
