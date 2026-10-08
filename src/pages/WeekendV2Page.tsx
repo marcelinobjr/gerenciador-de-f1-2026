@@ -458,6 +458,24 @@ export default function WeekendV2Page() {
           const isSprintTarget = initialSessionId === 'sprint_race'
           const gridResult = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
           setCompleteQualifyingResult(gridResult)
+
+          // QGRID-PB-01B: Se for corrida principal e o grid não estiver na memória, buscar de forma assíncrona preferindo PocketBase
+          if (!isSprintTarget && !gridResult) {
+            canonicalQualifyingPersistenceService
+              .readFinalGridPreferred(season.id, currentRound)
+              .then((outcome) => {
+                if (isMounted && outcome.data) {
+                  setCompleteQualifyingResult(outcome.data)
+                }
+              })
+              .catch((err) => {
+                console.warn(
+                  '[WeekendV2Page] Falha ao carregar grid final preferencial no load inicial:',
+                  err,
+                )
+              })
+          }
+
           const canonicalCareerId = resolveCanonicalCareerId(season, team)
           canonicalRaceInitializationService
             .readCanonicalRaceStatePreferred(
@@ -1008,6 +1026,24 @@ export default function WeekendV2Page() {
 
         const fullGrid = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
         setCompleteQualifyingResult(fullGrid)
+
+        // QGRID-PB-01B: Se for corrida principal e o grid não estiver na memória, buscar backend-first
+        if (!isSprintTarget && !fullGrid) {
+          canonicalQualifyingPersistenceService
+            .readFinalGridPreferred(season.id, currentRound)
+            .then((outcome) => {
+              if (outcome.data) {
+                setCompleteQualifyingResult(outcome.data)
+              }
+            })
+            .catch((err) => {
+              console.warn(
+                '[WeekendV2Page] Falha ao ler grid final preferencial em handleSelectSession:',
+                err,
+              )
+            })
+        }
+
         // STORAGE-QUOTA-01B1-C: Carregamento assíncrono preferindo PocketBase com fallback local
         canonicalRaceInitializationService
           .readCanonicalRaceStatePreferred(
@@ -1218,7 +1254,24 @@ export default function WeekendV2Page() {
           season.id,
           currentRound,
         )
-        setCompleteQualifyingResult(fullGrid)
+        if (fullGrid) {
+          setCompleteQualifyingResult(fullGrid)
+        } else {
+          // QGRID-PB-01B: Se não achou de forma síncrona, reidratar via backend-first
+          canonicalQualifyingPersistenceService
+            .readFinalGridPreferred(season.id, currentRound)
+            .then((outcome) => {
+              if (outcome.data) {
+                setCompleteQualifyingResult(outcome.data)
+              }
+            })
+            .catch((err) => {
+              console.warn(
+                '[WeekendV2Page] Falha ao reidratar grid final preferencial em Q3 completed:',
+                err,
+              )
+            })
+        }
         // Carregar resultado oficial caso já tenha sido homologado
         const canonicalCareerId = resolveCanonicalCareerId(season, team)
         const official = canonicalRaceResultService.getOfficialRaceResult(

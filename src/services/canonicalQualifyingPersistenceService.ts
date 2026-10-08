@@ -1347,13 +1347,45 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
-   * Leitura assíncrona preferencial de grid final com prioridade PocketBase:
-   * 1. Consulta PocketBase (backend). Se presente e válido, vence divergência e popula memória/cache.
-   * 2. Se PocketBase retornar NOT_FOUND (null), faz fallback para local.
-   * 3. Se PocketBase der ERROR de rede, registra backendError e faz fallback para local.
-   * Não altera nem recalcula posições ou tempos no load.
+   * Validador canônico para payload de grid final completo (P1–P24).
+   * Confirma integridade estrutural sem recalcular nem reordenar.
    */
-  async readCompleteQualifyingResultPreferred(
+  isValidFinalQualifyingGrid(grid: unknown): grid is CompleteQualifyingWeekendResult {
+    if (!grid || typeof grid !== 'object') return false
+    const cand = grid as Partial<CompleteQualifyingWeekendResult>
+    if (!cand.seasonId || cand.round === undefined || cand.round === null) return false
+    if (!Array.isArray(cand.finalGrid) || cand.finalGrid.length === 0) return false
+    // Cada entrada deve ter minimamente gridPosition e driverId válidos
+    const hasValidEntries = cand.finalGrid.every(
+      (entry) =>
+        entry &&
+        typeof entry === 'object' &&
+        typeof entry.gridPosition === 'number' &&
+        entry.gridPosition >= 1 &&
+        typeof entry.driverId === 'string' &&
+        entry.driverId.trim().length > 0,
+    )
+    return hasValidEntries
+  },
+
+  /**
+   * QGRID-PB-01B: Leitura canônica backend-first do grid final de qualificação.
+   *
+   * Ordem estrita de leitura:
+   * CASO A — BACKEND FOUND VÁLIDO: PocketBase retorna FOUND com payload válido -> source: 'backend'.
+   *         Não lê/reconstrói local. Backend vence qualquer divergência sem merge.
+   * CASO B — BACKEND NOT_FOUND: backend retorna null (sem erro) -> fallback para local.
+   *         Se local for válido: source: 'local', backendError: undefined.
+   *         Se local for ausente ou inválido: source: 'none', backendError: undefined.
+   * CASO C — BACKEND ERROR (rede, auth, payload backend inválido, exceção):
+   *         Não mascarar como NOT_FOUND; backendError observável.
+   *         Tenta local como fallback de continuidade.
+   *         Se local for válido: source: 'local', backendError preenchido.
+   *         Se local ausente/inválido: source: 'none', backendError preenchido.
+   *
+   * Não recalcula posições, cortes, tempos ou leaderboard vivo. Consome o payload persistido.
+   */
+  async readFinalGridPreferred(
     seasonId: string,
     round: number,
   ): Promise<ReadCompleteQualifyingResultOutcome> {
@@ -1366,27 +1398,40 @@ export const canonicalQualifyingPersistenceService = {
 
     let backendData: CompleteQualifyingWeekendResult | null = null
     let backendError: string | undefined
+    let backendFetchSuccess = false
 
-    // 1. Tentar ler do PocketBase
+    // 1. Tentar ler do PocketBase (backend-first)
     try {
       backendData = await canonicalQualifyingFinalGridBackendService.readFinalGrid(backendCtx)
+      backendFetchSuccess = true
     } catch (err: any) {
-      backendError = err?.message || 'Erro ao consultar PocketBase'
+      backendFetchSuccess = false
+      backendError =
+        typeof err?.message === 'string' && err.message.length > 0
+          ? err.message
+          : 'Erro ao consultar PocketBase para grid final de qualificação'
     }
 
-    // 2. Se backend retornou dados válidos: backend vence
-    if (backendData && Array.isArray(backendData.finalGrid) && backendData.finalGrid.length > 0) {
-      const key = this.getFinalGridKey(seasonId, round)
-      this._memoryFinalGrids.set(key, backendData)
-      return {
-        data: backendData,
-        source: 'backend',
+    // CASO A — Backend retornou registro: validar payload
+    if (backendFetchSuccess && backendData !== null) {
+      if (this.isValidFinalQualifyingGrid(backendData)) {
+        // Backend FOUND válido: vence sem ler nem mergear com local
+        const key = this.getFinalGridKey(seasonId, round)
+        this._memoryFinalGrids.set(key, backendData)
+        return {
+          data: backendData,
+          source: 'backend',
+        }
       }
+      // Se o backend retornou registro mas o payload é inválido, NÃO tratar como NOT_FOUND (CASO C / QG-B7)
+      backendError = 'Payload do grid final retornado pelo PocketBase é inválido ou corrompido'
     }
 
-    // 3. Fallback para storage local (ou memória)
+    // Fallback para storage local (ou memória)
     const localData = this.readCompleteQualifyingResult(seasonId, round)
-    if (localData && Array.isArray(localData.finalGrid) && localData.finalGrid.length > 0) {
+    const isLocalValid = this.isValidFinalQualifyingGrid(localData)
+
+    if (isLocalValid && localData) {
       return {
         data: localData,
         source: 'local',
@@ -1399,6 +1444,16 @@ export const canonicalQualifyingPersistenceService = {
       source: 'none',
       backendError,
     }
+  },
+
+  /**
+   * Alias de compatibilidade com readFinalGridPreferred.
+   */
+  async readCompleteQualifyingResultPreferred(
+    seasonId: string,
+    round: number,
+  ): Promise<ReadCompleteQualifyingResultOutcome> {
+    return this.readFinalGridPreferred(seasonId, round)
   },
 
   /**

@@ -173,18 +173,29 @@ export default function RaceControlLivePage() {
       const targetVariant = sessionResolution.resolvedVariant
 
       // Grid canônico
-      const gridResult =
-        targetVariant === 'SPRINT_RACE'
-          ? canonicalQualifyingPersistenceService.buildSprintGridFromSQ3Result(
-              season.id,
-              targetRound,
-            )
-          : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
-              season.id,
-              targetRound,
-            )
+      const isSprintTarget = targetVariant === 'SPRINT_RACE'
+      const gridResult = isSprintTarget
+        ? canonicalQualifyingPersistenceService.buildSprintGridFromSQ3Result(season.id, targetRound)
+        : canonicalQualifyingPersistenceService.readCompleteQualifyingResult(season.id, targetRound)
       if (isMounted) {
         setCompleteQualifyingResult(gridResult)
+      }
+
+      // QGRID-PB-01B: Se for corrida principal e o grid não estiver na memória, buscar backend-first
+      if (!isSprintTarget && !gridResult) {
+        canonicalQualifyingPersistenceService
+          .readFinalGridPreferred(season.id, targetRound)
+          .then((outcome) => {
+            if (isMounted && outcome.data) {
+              setCompleteQualifyingResult(outcome.data)
+            }
+          })
+          .catch((err) => {
+            console.warn(
+              '[RaceControlLivePage] Falha ao carregar grid preferencial no load inicial:',
+              err,
+            )
+          })
       }
 
       // Resultado oficial se já finalizado
