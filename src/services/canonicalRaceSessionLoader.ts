@@ -16,6 +16,8 @@ import { canonicalQualifyingPersistenceService } from '@/services/canonicalQuali
 import { canonicalWeekendTyrePersistence } from '@/services/canonicalWeekendTyrePersistence'
 import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
 import { resolveCanonicalTeamKey } from '@/services/canonicalTeamIdentityService'
+import { canonicalEventRegistrationService } from '@/services/canonicalEventRegistrationService'
+import { teamRosterService } from '@/services/teamRosterService'
 import {
   resolveDeterministicRaceWeather,
   CanonicalRaceInitialWeather,
@@ -192,6 +194,8 @@ export async function loadCanonicalRaceSessionContext(params: {
   }
 
   // 4. Resolução rigorosa dos 2 pilotos da equipe do jogador no grid oficial
+  // B. IDENTIDADE DOS CARROS: Carro 1/Carro 2 vêm do vínculo oficial de assentos/inscrição
+  // para esse fim de semana, NUNCA da ordem do grid (quem larga na frente não vira Carro 1).
   const normTeam = (resolvedTeamKey || '').trim().toLowerCase()
   let playerEntries = finalGrid.filter((e) => {
     const entryTeam = (e.teamId || '').trim().toLowerCase()
@@ -232,8 +236,64 @@ export async function loadCanonicalRaceSessionContext(params: {
     }
   }
 
-  const pEntry1 = playerEntries[0]
-  const pEntry2 = playerEntries[1]
+  // Identificar fonte oficial dos assentos (Carro 1 vs Carro 2)
+  // Fonte 1: Snapshot oficial de inscrição do GP (EventRegistrationSnapshot)
+  const regSnapshot = canonicalEventRegistrationService.readRegistrationSnapshot(season.id, round)
+  let seat1DriverId: string | undefined = regSnapshot?.entriesByCar.playerCar1?.driverId
+  let seat2DriverId: string | undefined = regSnapshot?.entriesByCar.playerCar2?.driverId
+
+  // Fonte 2: Roster canônico da equipe do jogador (titular 1 = car1, titular 2 = car2)
+  if (!seat1DriverId || !seat2DriverId) {
+    const roster = teamRosterService.buildTeamRoster(team, allPlayerDrivers)
+    if (roster.driver1 && roster.driver2) {
+      if (!seat1DriverId) seat1DriverId = roster.driver1.id
+      if (!seat2DriverId) seat2DriverId = roster.driver2.id
+    }
+  }
+
+  // Fonte 3: Campo carId gravado nas próprias entradas do grid (se presente)
+  if (!seat1DriverId) {
+    const gridC1 = playerEntries.find((e) => e.carId === 'car1')
+    if (gridC1) seat1DriverId = gridC1.driverId
+  }
+  if (!seat2DriverId) {
+    const gridC2 = playerEntries.find((e) => e.carId === 'car2')
+    if (gridC2) seat2DriverId = gridC2.driverId
+  }
+
+  // Atribuição canônica de pEntry1 e pEntry2 baseada em seat1DriverId e seat2DriverId
+  let pEntry1: FinalQualifyingGridEntry
+  let pEntry2: FinalQualifyingGridEntry
+
+  if (seat1DriverId && seat2DriverId && seat1DriverId !== seat2DriverId) {
+    const found1 = playerEntries.find((e) => e.driverId === seat1DriverId)
+    const found2 = playerEntries.find((e) => e.driverId === seat2DriverId)
+    if (found1 && found2) {
+      pEntry1 = found1
+      pEntry2 = found2
+    } else if (found1) {
+      pEntry1 = found1
+      pEntry2 = playerEntries.find((e) => e.driverId !== seat1DriverId) || playerEntries[1]
+    } else if (found2) {
+      pEntry2 = found2
+      pEntry1 = playerEntries.find((e) => e.driverId !== seat2DriverId) || playerEntries[0]
+    } else {
+      pEntry1 = playerEntries[0]
+      pEntry2 = playerEntries[1]
+    }
+  } else if (seat1DriverId) {
+    const found1 = playerEntries.find((e) => e.driverId === seat1DriverId)
+    if (found1) {
+      pEntry1 = found1
+      pEntry2 = playerEntries.find((e) => e.driverId !== seat1DriverId) || playerEntries[1]
+    } else {
+      pEntry1 = playerEntries[0]
+      pEntry2 = playerEntries[1]
+    }
+  } else {
+    pEntry1 = playerEntries[0]
+    pEntry2 = playerEntries[1]
+  }
 
   const pModel1 = allPlayerDrivers.find((d) => d.id === pEntry1.driverId)
   const pModel2 = allPlayerDrivers.find((d) => d.id === pEntry2.driverId)

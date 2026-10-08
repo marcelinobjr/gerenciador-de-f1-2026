@@ -347,173 +347,280 @@ export default function WeekendV2Page() {
     let isMounted = true
     setIsInitializingRegistration(true)
 
-    try {
-      // 3.1. Verificar se já existe snapshot persistido para este GP
-      const existingSnapshot = canonicalEventRegistrationService.readRegistrationSnapshot(
-        season.id,
-        currentRound,
-      )
+    const initRegistrationFlow = async () => {
+      try {
+        // 3.1. Verificar se já existe snapshot persistido para este GP
+        let existingSnapshot = canonicalEventRegistrationService.readRegistrationSnapshot(
+          season.id,
+          currentRound,
+        )
 
-      if (!existingSnapshot) {
-        // Sem snapshot gravado: abrir tela formal de inscrição do GP
-        if (isMounted) {
-          setShowRegistrationScreen(true)
-          setIsInitializingRegistration(false)
-        }
-        return
-      }
-
-      // Snapshot existente: carrega e valida
-      const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
-        seasonId: season.id,
-        round: currentRound,
-        gpName: gpInfo.name,
-        playerTeam: team,
-        allDrivers: playerDrivers,
-      })
-
-      if (!reg.valid) {
-        if (isMounted) {
-          setRegistrationErrors(reg.errors)
-          setIsInitializingRegistration(false)
-        }
-        return
-      }
-
-      if (isMounted) {
-        setRegistration(reg)
-        setRegistrationErrors([])
-        setShowRegistrationScreen(false)
-
-        // 3.2. Carregar inventário persistente de pneus do evento (20 jogos por piloto)
-        const pCar1 = reg.snapshot?.entriesByCar.playerCar1
-        const pCar2 = reg.snapshot?.entriesByCar.playerCar2
-        const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
-
-        const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
-          seasonId: season.id,
-          round: currentRound,
-          driverIds,
-          primaryDriverIds: driverIds,
-        })
-        setTyreInventories(invs)
-
-        // 3.3. Carregar sessões concluídas
-        const stored = readStoredCompletedSessions(season.id, currentRound)
-        setCompletedSessions(stored)
-
-        // 3.3.1. Carregar ou migrar estado canônico dos 7 slots (RACE-SPRINT-SLOTS-01A)
-        const canonicalCareerId = resolveCanonicalCareerId(season, team)
-        canonicalWeekendSlotPersistenceService
-          .loadOrMigrateSlotState({
-            careerId: canonicalCareerId,
-            seasonId: season.id,
-            round: currentRound,
-          })
-          .then((slotState) => {
-            if (slotState) {
-              setWeekendSlotState(slotState)
-            }
-          })
-          .catch((err) => {
-            console.warn('[WeekendV2Page] Erro ao carregar slotState:', err)
-          })
-        // 3.4. Determinar sessão canônica inicial
-        // BUG-SQ3-TRANSITION-R3: Se uma sessão estiver em running ou paused, ela tem prioridade de retomada
-        let resumableSessionId: RaceWeekendSessionId | null = null
-        const qualiStagesToCheck = ['sq3', 'sq2', 'sq1', 'q3', 'q2', 'q1'] as const
-        for (const stg of qualiStagesToCheck) {
-          const stgState = canonicalQualifyingPersistenceService.readStageState(
+        // RETOMADA COERENTE: Se o snapshot de inscrição local não estiver presente,
+        // verificar se já existe um finalGrid oficial válido ou sessões de qualificação para este GP.
+        // Caso positivo, sintetizar/reidratar a inscrição automaticamente a partir dos assentos comprovados,
+        // sem exigir re-inscrição manual e sem resetar o GP.
+        if (!existingSnapshot) {
+          let gridForRecovery = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
             season.id,
             currentRound,
-            stg,
           )
-          if (stgState && (stgState.status === 'paused' || stgState.status === 'running')) {
-            resumableSessionId = stg
-            break
+          if (
+            !gridForRecovery ||
+            !Array.isArray(gridForRecovery.finalGrid) ||
+            gridForRecovery.finalGrid.length === 0
+          ) {
+            try {
+              const outcome = await canonicalQualifyingPersistenceService.readFinalGridPreferred(
+                season.id,
+                currentRound,
+              )
+              if (
+                outcome.data &&
+                Array.isArray(outcome.data.finalGrid) &&
+                outcome.data.finalGrid.length > 0
+              ) {
+                gridForRecovery = outcome.data
+              }
+            } catch {
+              // falha de rede tratada como não-bloqueante
+            }
+          }
+
+          if (
+            gridForRecovery &&
+            Array.isArray(gridForRecovery.finalGrid) &&
+            gridForRecovery.finalGrid.length > 0
+          ) {
+            // Extrair os pilotos da equipe do jogador a partir do grid
+            const normTeam = (team.team_key || team.id || '').trim().toLowerCase()
+            let pEntries = gridForRecovery.finalGrid.filter((e) => {
+              const entryTeam = (e.teamId || '').trim().toLowerCase()
+              return (
+                entryTeam === normTeam ||
+                (normTeam !== '' &&
+                  (entryTeam === `team_${normTeam}` || normTeam === `team_${entryTeam}`))
+              )
+            })
+            if (pEntries.length !== 2) {
+              pEntries = gridForRecovery.finalGrid.filter((e) => Boolean(e.isPlayer))
+            }
+
+            let c1Id: string | undefined
+            let c2Id: string | undefined
+
+            if (pEntries.length === 2) {
+              const c1Entry = pEntries.find((e) => e.carId === 'car1')
+              const c2Entry = pEntries.find((e) => e.carId === 'car2')
+              if (c1Entry && c2Entry) {
+                c1Id = c1Entry.driverId
+                c2Id = c2Entry.driverId
+              } else {
+                c1Id = pEntries[0].driverId
+                c2Id = pEntries[1].driverId
+              }
+            }
+
+            // Reidratar e salvar o snapshot da inscrição para o evento
+            const recoveredReg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
+              seasonId: season.id,
+              round: currentRound,
+              gpName: gpInfo.name,
+              playerTeam: team,
+              allDrivers: playerDrivers,
+              playerSeatOverrides:
+                c1Id && c2Id ? { car1DriverId: c1Id, car2DriverId: c2Id } : undefined,
+              forceRecalculate: true,
+            })
+
+            if (recoveredReg.valid && recoveredReg.snapshot) {
+              existingSnapshot = recoveredReg.snapshot
+            }
           }
         }
 
-        const initialSessionId = resolveInitialRaceSession({
-          pipeline,
-          completedSessions: stored,
-          lastActiveSessionId: resumableSessionId,
+        if (!existingSnapshot) {
+          // Sem snapshot gravado e sem grid oficial para recuperação: abrir tela formal de inscrição do GP
+          if (isMounted) {
+            setShowRegistrationScreen(true)
+            setIsInitializingRegistration(false)
+          }
+          return
+        }
+
+        // Snapshot existente: carrega e valida
+        const reg = canonicalEventRegistrationService.resolveOrLoadEventRegistration({
+          seasonId: season.id,
+          round: currentRound,
+          gpName: gpInfo.name,
+          playerTeam: team,
+          allDrivers: playerDrivers,
         })
-        setSelectedSessionId(initialSessionId)
 
-        // 3.5. Se for sessão de treino (TL1/TL2/TL3), carregar ou inicializar
-        if (
-          initialSessionId === 'tp1' ||
-          initialSessionId === 'tp2' ||
-          initialSessionId === 'tp3'
-        ) {
-          initializePracticeSession(initialSessionId, reg, invs)
-        } else if (
-          initialSessionId === 'q1' ||
-          initialSessionId === 'q2' ||
-          initialSessionId === 'q3' ||
-          initialSessionId === 'sq1' ||
-          initialSessionId === 'sq2' ||
-          initialSessionId === 'sq3'
-        ) {
-          initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
-        } else if (initialSessionId === 'race' || initialSessionId === 'sprint_race') {
-          const isSprintTarget = initialSessionId === 'sprint_race'
-          const gridResult = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
-          setCompleteQualifyingResult(gridResult)
+        if (!reg.valid) {
+          if (isMounted) {
+            setRegistrationErrors(reg.errors)
+            setIsInitializingRegistration(false)
+          }
+          return
+        }
 
-          // QGRID-PB-01B: Se for corrida principal e o grid não estiver na memória, buscar de forma assíncrona preferindo PocketBase
-          if (!isSprintTarget && !gridResult) {
-            canonicalQualifyingPersistenceService
-              .readFinalGridPreferred(season.id, currentRound)
-              .then((outcome) => {
-                if (isMounted && outcome.data) {
-                  setCompleteQualifyingResult(outcome.data)
-                }
-              })
-              .catch((err) => {
-                console.warn(
-                  '[WeekendV2Page] Falha ao carregar grid final preferencial no load inicial:',
-                  err,
-                )
-              })
+        if (isMounted) {
+          setRegistration(reg)
+          setRegistrationErrors([])
+          setShowRegistrationScreen(false)
+
+          // 3.2. Carregar inventário persistente de pneus do evento (20 jogos por piloto)
+          const pCar1 = reg.snapshot?.entriesByCar.playerCar1
+          const pCar2 = reg.snapshot?.entriesByCar.playerCar2
+          const driverIds = [pCar1?.driverId, pCar2?.driverId].filter(Boolean) as string[]
+
+          const invs = canonicalWeekendTyrePersistence.getOrCreateWeekendInventories({
+            seasonId: season.id,
+            round: currentRound,
+            driverIds,
+            primaryDriverIds: driverIds,
+          })
+          setTyreInventories(invs)
+
+          // 3.3. Carregar sessões concluídas
+          let stored = readStoredCompletedSessions(season.id, currentRound)
+
+          // Se houver grid final oficial mas 'q3' não estiver em stored (ex: salvo antes da lista de sessões ou em outro dispositivo),
+          // assegurar que a qualificação figure como concluída para permitir a transição imediata para a Corrida.
+          const hasQualiGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+            season.id,
+            currentRound,
+          )
+          if (
+            hasQualiGrid &&
+            Array.isArray(hasQualiGrid.finalGrid) &&
+            hasQualiGrid.finalGrid.length > 0 &&
+            !stored.includes('q3') &&
+            !stored.includes('qualifying')
+          ) {
+            stored = [...stored, 'q1', 'q2', 'q3']
+            writeStoredCompletedSessions(season.id, currentRound, stored)
           }
 
+          setCompletedSessions(stored)
+
+          // 3.3.1. Carregar ou migrar estado canônico dos 7 slots (RACE-SPRINT-SLOTS-01A)
           const canonicalCareerId = resolveCanonicalCareerId(season, team)
-          canonicalRaceInitializationService
-            .readCanonicalRaceStatePreferred(
-              canonicalCareerId,
-              season.year || 2026,
-              currentRound,
-              isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
-            )
-            .then((savedRace) => {
-              if (isMounted) {
-                setCanonicalRaceState(savedRace)
+          canonicalWeekendSlotPersistenceService
+            .loadOrMigrateSlotState({
+              careerId: canonicalCareerId,
+              seasonId: season.id,
+              round: currentRound,
+            })
+            .then((slotState) => {
+              if (slotState) {
+                setWeekendSlotState(slotState)
               }
             })
             .catch((err) => {
-              console.warn('[WeekendV2Page] Falha ao ler race state inicial preferencial:', err)
-              if (isMounted) {
-                const fallback = canonicalRaceInitializationService.readCanonicalRaceState(
-                  canonicalCareerId,
-                  season.year || 2026,
-                  currentRound,
-                  isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
-                )
-                setCanonicalRaceState(fallback)
-              }
+              console.warn('[WeekendV2Page] Erro ao carregar slotState:', err)
             })
-        }
+          // 3.4. Determinar sessão canônica inicial
+          // BUG-SQ3-TRANSITION-R3: Se uma sessão estiver em running ou paused, ela tem prioridade de retomada
+          let resumableSessionId: RaceWeekendSessionId | null = null
+          const qualiStagesToCheck = ['sq3', 'sq2', 'sq1', 'q3', 'q2', 'q1'] as const
+          for (const stg of qualiStagesToCheck) {
+            const stgState = canonicalQualifyingPersistenceService.readStageState(
+              season.id,
+              currentRound,
+              stg,
+            )
+            if (stgState && (stgState.status === 'paused' || stgState.status === 'running')) {
+              resumableSessionId = stg
+              break
+            }
+          }
 
-        setIsInitializingRegistration(false)
-      }
-    } catch (err: any) {
-      if (isMounted) {
-        setRegistrationErrors([err?.message || 'Falha ao inicializar inscrição do fim de semana.'])
-        setIsInitializingRegistration(false)
+          const initialSessionId = resolveInitialRaceSession({
+            pipeline,
+            completedSessions: stored,
+            lastActiveSessionId: resumableSessionId,
+          })
+          setSelectedSessionId(initialSessionId)
+
+          // 3.5. Se for sessão de treino (TL1/TL2/TL3), carregar ou inicializar
+          if (
+            initialSessionId === 'tp1' ||
+            initialSessionId === 'tp2' ||
+            initialSessionId === 'tp3'
+          ) {
+            initializePracticeSession(initialSessionId, reg, invs)
+          } else if (
+            initialSessionId === 'q1' ||
+            initialSessionId === 'q2' ||
+            initialSessionId === 'q3' ||
+            initialSessionId === 'sq1' ||
+            initialSessionId === 'sq2' ||
+            initialSessionId === 'sq3'
+          ) {
+            initializeQualifyingSession(initialSessionId as QualifyingStageId, reg, invs)
+          } else if (initialSessionId === 'race' || initialSessionId === 'sprint_race') {
+            const isSprintTarget = initialSessionId === 'sprint_race'
+            const gridResult = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
+            setCompleteQualifyingResult(gridResult)
+
+            // QGRID-PB-01B: Se for corrida principal e o grid não estiver na memória, buscar de forma assíncrona preferindo PocketBase
+            if (!isSprintTarget && !gridResult) {
+              canonicalQualifyingPersistenceService
+                .readFinalGridPreferred(season.id, currentRound)
+                .then((outcome) => {
+                  if (isMounted && outcome.data) {
+                    setCompleteQualifyingResult(outcome.data)
+                  }
+                })
+                .catch((err) => {
+                  console.warn(
+                    '[WeekendV2Page] Falha ao carregar grid final preferencial no load inicial:',
+                    err,
+                  )
+                })
+            }
+
+            const canonicalCareerId = resolveCanonicalCareerId(season, team)
+            canonicalRaceInitializationService
+              .readCanonicalRaceStatePreferred(
+                canonicalCareerId,
+                season.year || 2026,
+                currentRound,
+                isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
+              )
+              .then((savedRace) => {
+                if (isMounted) {
+                  setCanonicalRaceState(savedRace)
+                }
+              })
+              .catch((err) => {
+                console.warn('[WeekendV2Page] Falha ao ler race state inicial preferencial:', err)
+                if (isMounted) {
+                  const fallback = canonicalRaceInitializationService.readCanonicalRaceState(
+                    canonicalCareerId,
+                    season.year || 2026,
+                    currentRound,
+                    isSprintTarget ? 'SPRINT_RACE' : 'MAIN_RACE',
+                  )
+                  setCanonicalRaceState(fallback)
+                }
+              })
+          }
+
+          setIsInitializingRegistration(false)
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setRegistrationErrors([
+            err?.message || 'Falha ao inicializar inscrição do fim de semana.',
+          ])
+          setIsInitializingRegistration(false)
+        }
       }
     }
+
+    initRegistrationFlow()
 
     return () => {
       isMounted = false

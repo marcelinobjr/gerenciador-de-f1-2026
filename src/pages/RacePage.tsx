@@ -81,7 +81,17 @@ export default function RacePage() {
             ctx.round,
           )
 
-          if (!snap || !snap.cars || snap.cars.length !== 2) {
+          const [pDriver1, pDriver2] = ctx.playerDrivers
+
+          // Validar se o snapshot existente condiz com os assentos oficiais atuais
+          const snapMatchesSeats =
+            snap &&
+            snap.cars &&
+            snap.cars.length === 2 &&
+            snap.cars[0]?.driverId === pDriver1.driverId &&
+            snap.cars[1]?.driverId === pDriver2.driverId
+
+          if (!snapMatchesSeats) {
             try {
               snap = canonicalRacePreparationService.createInitialSnapshot({
                 careerId: ctx.careerId,
@@ -92,6 +102,19 @@ export default function RacePage() {
                 grid: ctx.finalGrid,
                 inventories: ctx.tyreInventories,
               })
+
+              // Garantir que snap.cars[0] corresponda a Carro 1 e snap.cars[1] a Carro 2 segundo pDriver1 e pDriver2
+              if (snap && snap.cars && snap.cars.length === 2) {
+                const carForD1 = snap.cars.find((c) => c.driverId === pDriver1.driverId)
+                const carForD2 = snap.cars.find((c) => c.driverId === pDriver2.driverId)
+                if (carForD1 && carForD2) {
+                  snap.cars = [
+                    { ...carForD1, carId: 'car1' },
+                    { ...carForD2, carId: 'car2' },
+                  ]
+                }
+              }
+
               canonicalRacePreparationService.saveSnapshot(snap)
             } catch (snapErr) {
               console.warn('[RacePage] Erro ao criar snapshot inicial de preparação:', snapErr)
