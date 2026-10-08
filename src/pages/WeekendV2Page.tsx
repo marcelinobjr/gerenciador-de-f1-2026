@@ -110,6 +110,7 @@ import { QualifyingLeaderboardTable } from '@/components/race/QualifyingLeaderbo
 import { CompleteQualifyingGridSummary } from '@/components/race/CompleteQualifyingGridSummary'
 import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
 import { PreRaceStrategyPreparationPanel } from '@/components/race/PreRaceStrategyPreparationPanel'
+import { resolveCanonicalTeamKey } from '@/services/canonicalTeamIdentityService'
 import { canonicalRacePreparationService } from '@/services/canonicalRacePreparationService'
 import type { RacePreparationSnapshot } from '@/types/canonical-race-preparation'
 import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPanel'
@@ -4809,7 +4810,7 @@ export default function WeekendV2Page() {
               careerId={resolveCanonicalCareerId(season, team)}
               seasonYear={season?.year || 2026}
               round={currentRound}
-              teamId={team?.id || 'default_team'}
+              teamId={resolveCanonicalTeamKey(team) || team?.team_key || team?.id || 'default_team'}
               teamColor={team?.color || '#E10600'}
               totalLaps={gpInfo.laps || 57}
               canonicalGrid={completeQualifyingResult.finalGrid}

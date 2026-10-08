@@ -288,9 +288,25 @@ export const canonicalRacePreparationService = {
   }): RacePreparationSnapshot {
     const { careerId, seasonYear, round, teamId, totalLaps, grid, inventories } = params
 
-    // Filtrar os 2 carros do jogador no grid
-    const playerEntries = grid.filter((e) => e.teamId === teamId || e.isPlayer)
-    if (playerEntries.length < 2) {
+    // Filtrar os 2 carros da equipe do jogador no grid prioritariamente pela chave canônica de equipe
+    const normTeamId = (teamId || '').trim().toLowerCase()
+    let playerEntries = grid.filter((e) => {
+      const entryTeam = (e.teamId || '').trim().toLowerCase()
+      return (
+        entryTeam === normTeamId ||
+        (normTeamId && (entryTeam === `team_${normTeamId}` || normTeamId === `team_${entryTeam}`))
+      )
+    })
+
+    // Se o vínculo por chave canônica não encontrou os 2 pilotos e há entries com isPlayer marcadas, usar como fallback
+    if (playerEntries.length !== 2) {
+      const byPlayerFlag = grid.filter((e) => e.isPlayer)
+      if (byPlayerFlag.length === 2) {
+        playerEntries = byPlayerFlag
+      }
+    }
+
+    if (playerEntries.length !== 2) {
       throw new Error(
         `[canonicalRacePreparationService] Grid oficial deve conter exatamente 2 pilotos da equipe do jogador (${teamId}). Encontrados: ${playerEntries.length}.`,
       )

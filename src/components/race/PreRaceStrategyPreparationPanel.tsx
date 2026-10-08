@@ -28,6 +28,7 @@ import type {
   RaceStrategyPlan,
 } from '@/types/canonical-race-preparation'
 import { canonicalRacePreparationService } from '@/services/canonicalRacePreparationService'
+import { resolveCanonicalTeamKey } from '@/services/canonicalTeamIdentityService'
 import { formatTireName } from '@/lib/f1-tire-system'
 import {
   estimateCompoundLifespanLaps,
@@ -65,6 +66,7 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
   onCancelToGrid,
 }) => {
   // Inicializar estado a partir do snapshot salvo em localStorage ("race-prep-v1") ou criar novo
+  const resolvedTeamId = resolveCanonicalTeamKey(teamId) || teamId
   const [snapshot, setSnapshot] = useState<RacePreparationSnapshot>(() => {
     const existing = canonicalRacePreparationService.loadSnapshot(careerId, seasonYear, round)
     if (existing && existing.cars && existing.cars.length === 2) {
@@ -74,7 +76,7 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
       careerId,
       seasonYear,
       round,
-      teamId,
+      teamId: resolvedTeamId,
       totalLaps,
       grid: canonicalGrid,
       inventories,
