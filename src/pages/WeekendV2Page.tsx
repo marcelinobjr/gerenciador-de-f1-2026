@@ -226,6 +226,8 @@ export default function WeekendV2Page() {
   const [officialRaceResult, setOfficialRaceResult] = useState<OfficialRaceResult | null>(null)
   // BUG-02 COMMIT C: Estado de navegação interna entre Grid Oficial e Estratégia Pré-Corrida
   const [showPreRacePreparation, setShowPreRacePreparation] = useState<boolean>(false)
+  // PRE-RACE-AUTO-02-MICRO: Guard em memória para impedir loop quando o usuário escolher explicitamente "Voltar ao grid"
+  const userChoseReturnToGridRef = useRef<boolean>(false)
   const [careerPersistenceStatus, setCareerPersistenceStatus] =
     useState<CareerApplicationStatus>('PENDING')
   const [isPersistingCareer, setIsPersistingCareer] = useState(false)
@@ -282,6 +284,7 @@ export default function WeekendV2Page() {
     setOfficialRaceResult(null)
     setCompleteQualifyingResult(null)
     setShowPreRacePreparation(false)
+    userChoseReturnToGridRef.current = false
 
     // 4. Reidratar inventário e slots do zero
     const pCar1 = registration?.snapshot?.entriesByCar.playerCar1
@@ -516,6 +519,48 @@ export default function WeekendV2Page() {
       isMounted = false
     }
   }, [team, season?.id, currentRound, isAuthLoading, gpInfo.name, playerDrivers])
+
+  // PRE-RACE-AUTO-02-MICRO: Reconciliação na retomada (reload com Q3 concluída, corrida ainda não iniciada)
+  useEffect(() => {
+    // Apenas quando a sessão de corrida principal estiver selecionada
+    if (selectedSessionId !== 'race') return
+
+    // Guard explícito: o usuário escolheu "Voltar ao grid"
+    if (userChoseReturnToGridRef.current) return
+
+    // Se já estiver exibindo a preparação, nada a fazer
+    if (showPreRacePreparation) return
+
+    // Se a corrida já foi iniciada ou possui resultado oficial, não abrir pré-corrida
+    if (canonicalRaceState != null || officialRaceResult != null) return
+
+    // Verificar se a qualificação está concluída
+    const normalizedStored = normalizeCompletedSessions(completedSessions)
+    const isQualifyingCompleted =
+      normalizedStored.includes('q3') ||
+      normalizedStored.includes('qualifying') ||
+      completedSessions.includes('q3') ||
+      completedSessions.includes('qualifying')
+
+    if (!isQualifyingCompleted) return
+
+    // Validar se o final grid válido está disponível em memória
+    const hasValidGrid =
+      !!completeQualifyingResult &&
+      Array.isArray(completeQualifyingResult.finalGrid) &&
+      completeQualifyingResult.finalGrid.length > 0
+
+    if (hasValidGrid) {
+      setShowPreRacePreparation(true)
+    }
+  }, [
+    selectedSessionId,
+    completedSessions,
+    completeQualifyingResult,
+    canonicalRaceState,
+    officialRaceResult,
+    showPreRacePreparation,
+  ])
 
   // Helper unificado canônico para obter o grid da Corrida (Principal ou Sprint)
   const resolveRaceOrSprintGrid = (
@@ -4887,7 +4932,10 @@ export default function WeekendV2Page() {
               totalLaps={gpInfo.laps || 57}
               canonicalGrid={completeQualifyingResult.finalGrid}
               inventories={tyreInventories}
-              onCancelToGrid={() => setShowPreRacePreparation(false)}
+              onCancelToGrid={() => {
+                userChoseReturnToGridRef.current = true
+                setShowPreRacePreparation(false)
+              }}
               onConfirmAndStartRace={(prepSnapshot: RacePreparationSnapshot) => {
                 try {
                   if (!team?.id || !season?.id) return
@@ -4953,7 +5001,8 @@ export default function WeekendV2Page() {
           <CompleteQualifyingGridSummary
             result={completeQualifyingResult}
             onGoToRace={() => {
-              // BUG-02 COMMIT C: Transição obrigatória passa pela etapa de Estratégia de Corrida
+              // BUG-02 COMMIT C / PRE-RACE-AUTO-02-MICRO: Abertura manual do painel pré-corrida como fallback seguro
+              userChoseReturnToGridRef.current = false
               setShowPreRacePreparation(true)
             }}
           />

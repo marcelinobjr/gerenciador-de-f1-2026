@@ -1,7 +1,8 @@
 import React from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Trophy } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Trophy, ChevronRight } from 'lucide-react'
 import type { CompleteQualifyingWeekendResult } from '@/types/canonical-qualifying-types'
 import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 
@@ -12,6 +13,7 @@ export interface CompleteQualifyingGridSummaryProps {
 
 export const CompleteQualifyingGridSummary: React.FC<CompleteQualifyingGridSummaryProps> = ({
   result,
+  onGoToRace,
 }) => {
   const { finalGrid, poleDriverName, poleLapTime } = result
 
@@ -42,6 +44,17 @@ export const CompleteQualifyingGridSummary: React.FC<CompleteQualifyingGridSumma
               etapa de Corrida Principal está desbloqueada.
             </p>
           </div>
+
+          {onGoToRace && (
+            <Button
+              type="button"
+              onClick={onGoToRace}
+              className="bg-[#E10600] hover:bg-[#C00400] text-white font-black text-xs uppercase tracking-wider px-5 py-2.5 h-auto shadow-lg hover:shadow-xl transition-all shrink-0 flex items-center gap-2"
+            >
+              PREPARAR CORRIDA
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          )}
         </CardContent>
       </Card>
 
