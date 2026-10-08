@@ -1038,6 +1038,13 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
+   * Alias de compatibilidade para suítes de teste.
+   */
+  clearCachesForTesting(): void {
+    this.clearMemoryForTesting()
+  },
+
+  /**
    * Salva o resultado final completo da qualificação (grid P1–P24 + referências).
    * Resiliente a cota de localStorage (QuotaExceededError):
    * 1. Captura QuotaExceededError, NS_ERROR_DOM_QUOTA_REACHED, codes 22/1014, mensagem "quota".

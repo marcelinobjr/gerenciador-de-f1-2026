@@ -9,29 +9,32 @@
  * - Recuperação do grid homologado via backend-first (readFinalGridPreferred)
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import {
-  canonicalQualifyingPersistenceService,
+import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
+import { canonicalQualifyingFinalGridBackendService } from '@/services/canonicalQualifyingFinalGridBackendService'
+import type {
   CompleteQualifyingWeekendResult,
   QualifyingStageResult,
-} from './canonicalQualifyingPersistenceService'
-import { canonicalQualifyingFinalGridBackendService } from './canonicalQualifyingFinalGridBackendService'
+} from '@/types/canonical-qualifying-types'
 
 function buildMockStageResult(stageId: 'q1' | 'q2' | 'q3'): QualifyingStageResult {
   const driverCount = stageId === 'q1' ? 24 : stageId === 'q2' ? 18 : 10
   const entries = Array.from({ length: driverCount }, (_, i) => ({
+    position: i + 1,
     driverId: `drv_${i + 1}`,
     driverName: `Driver ${i + 1}`,
     teamId: `team_${Math.floor(i / 2) + 1}`,
     teamName: `Team ${Math.floor(i / 2) + 1}`,
     teamColor: '#ff0000',
-    carId: `car_${i + 1}`,
+    carId: (i % 2 === 0 ? 'car1' : 'car2') as 'car1' | 'car2',
     isPlayer: i === 0,
     bestLapSec: 80 + i * 0.1,
     bestLapTime: `1:20.${String(i).padStart(3, '0')}`,
     bestLapRecordedAtSec: 500 + i,
-    compound: 'soft' as const,
+    compound: 'macio' as const,
     tyreSetId: `set_${i + 1}`,
     lapsCompleted: 3,
+    lapsCount: 3,
+    isEliminated: stageId === 'q1' ? i >= 18 : stageId === 'q2' ? i >= 10 : false,
   }))
 
   const eliminatedDriverIds =
