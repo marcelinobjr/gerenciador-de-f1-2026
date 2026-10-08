@@ -227,7 +227,13 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
 
     let result: CompleteQualifyingWeekendResult | null = null
     expect(() => {
-      result = canonicalQualifyingPersistenceService.buildCombinedFinalGrid(seasonId, round)
+      result = canonicalQualifyingPersistenceService.buildCombinedFinalGrid({
+        seasonId,
+        round,
+        q1Result: mockCompleteResult.q1Result,
+        q2Result: mockCompleteResult.q2Result,
+        q3Result: mockCompleteResult.q3Result,
+      })
     }).not.toThrow()
     expect(result).not.toBeNull()
     expect(result?.finalGrid).toBeDefined()

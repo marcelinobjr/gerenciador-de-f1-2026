@@ -292,8 +292,8 @@ describe('F-AVANCAR-CORRIDA-01A — Identidade Canônica da Equipe no Painel Pr�
     expect(passedTeamId).toBe('audi')
     expect(passedTeamId).not.toBe(mockTeamRecord.id)
 
-    // Grid com 24 entries, onde as 2 entries do jogador usam teamId: "audi"
-    const grid = createMockGrid('audi')
+    // Grid com 24 entries, onde as 2 entries do jogador usam teamId: "audi", com pelo menos um isPlayer = false
+    const grid = createMockGrid('audi', { isPlayerFlags: [true, false] })
     const playerEntriesInGrid = grid.filter((g) => g.teamId === 'audi')
     expect(playerEntriesInGrid).toHaveLength(2)
 
@@ -329,5 +329,39 @@ describe('F-AVANCAR-CORRIDA-01A — Identidade Canônica da Equipe no Painel Pr�
     expect(container).toBeDefined()
     expect(screen.getByText('Nico Hülkenberg')).toBeDefined()
     expect(screen.getByText('Gabriel Bortoleto')).toBeDefined()
+  })
+
+  // A8 — F-AVANCAR-CORRIDA-01A-MICRO: Prova estrita de independência de isPlayer
+  // team.id = "84fx5fgl9317xqs"; team.team_key = "audi";
+  // grid com 2 entries com teamId="audi" e isPlayer ausente/false;
+  // o painel recebe "audi" via resolveCanonicalTeamKey(team);
+  // createInitialSnapshot encontra exatamente os 2 pilotos sem depender de isPlayer=true.
+  it('A8 (MICRO): createInitialSnapshot encontra 2 pilotos estritamente por teamId="audi" mesmo quando ambos têm isPlayer=false ou ausente', () => {
+    const mockTeamRecord = {
+      id: '84fx5fgl9317xqs',
+      name: 'Audi F1 Team',
+      team_key: 'audi',
+    }
+
+    const resolvedKey = resolveCanonicalTeamKey(mockTeamRecord)
+    expect(resolvedKey).toBe('audi')
+
+    // Grid onde nenhuma entrada tem isPlayer: true (isPlayer: false em ambas)
+    const grid = createMockGrid('audi', { isPlayerFlags: [false, false] })
+    expect(grid.filter((e) => e.isPlayer)).toHaveLength(0)
+    expect(grid.filter((e) => e.teamId === 'audi')).toHaveLength(2)
+
+    const snapshot = canonicalRacePreparationService.createInitialSnapshot({
+      careerId: 'career_test_a8',
+      seasonYear: 2026,
+      round: 1,
+      teamId: resolvedKey!,
+      totalLaps: 57,
+      grid,
+      inventories: mockInventories,
+    })
+
+    expect(snapshot.cars).toHaveLength(2)
+    expect(snapshot.cars.map((c) => c.driverId)).toEqual(['drv_player_1', 'drv_player_2'])
   })
 })
