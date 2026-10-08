@@ -12,10 +12,55 @@ export interface CreateNotificationInput {
 
 const STORAGE_KEY_PREFIX = 'f1_notifications_read_'
 
+/**
+ * Erro específico para falhas de rede/transientes do serviço de notificações (NOTIF-BELL-NETWORK-01).
+ * Permite que chamadores identifiquem explicitamente a natureza do erro e silenciem logs/toasts.
+ */
+export class NotificationNetworkError extends Error {
+  readonly isNetworkError = true
+  readonly originalError?: unknown
+
+  constructor(
+    message = 'Failed to fetch notifications: backend network unavailable',
+    originalError?: unknown,
+  ) {
+    super(message)
+    this.name = 'NotificationNetworkError'
+    this.originalError = originalError
+    Object.setPrototypeOf(this, NotificationNetworkError.prototype)
+  }
+}
+
+/**
+ * Helper utilitário para identificar se um erro arbitrário é uma falha de rede/transiente.
+ */
+export function isNotificationNetworkError(err: unknown): boolean {
+  if (!err) return false
+  if (err instanceof NotificationNetworkError || (err as any)?.isNetworkError) return true
+  if (
+    err instanceof TypeError &&
+    typeof err.message === 'string' &&
+    err.message.toLowerCase().includes('fetch')
+  ) {
+    return true
+  }
+  const msg = (err as any)?.message?.toLowerCase?.() || ''
+  const status = (err as any)?.status
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('network') ||
+    msg.includes('load failed') ||
+    msg.includes('connection') ||
+    status === 0 ||
+    msg.includes('http n/a')
+  )
+}
+
 export const notificationService = {
   /**
    * Retorna as últimas 30 notificações do usuário logado (mais recentes primeiro).
    * Possui fallback offline/local se a collection no PB ainda estiver indisponível ou em caso de erro de rede.
+   * Não lança exceção em falhas transitórias de rede (Failed to fetch, HTTP N/A, timeout).
    */
   async getNotifications(userId: string, limit = 30): Promise<F1NotificationModel[]> {
     if (!userId) return []
@@ -26,15 +71,37 @@ export const notificationService = {
         // Evita autoCancellation do SDK PocketBase para chamadas concorrentes/rápidas
         requestKey: null,
       })
-      return records?.items || []
-    } catch {
-      // Falhas transitórias de rede (Failed to fetch, HTTP N/A, timeout, abort)
-      // tratadas de forma 100% silenciosa sem banner de runtime nem console.error
-      try {
-        return this.getLocalNotifications(userId).slice(0, limit)
-      } catch {
-        return []
+      const items = records?.items || []
+      // Atualiza cache local com itens mais recentes obtidos com sucesso do servidor
+      if (items.length > 0) {
+        try {
+          this.saveLocalNotifications(userId, items)
+        } catch {
+          // Silencioso
+        }
       }
+      return items
+    } catch (rawErr) {
+      // Falhas transitórias de rede (Failed to fetch, HTTP N/A, timeout, abort)
+      // Se há cache local de notificações, retorna o fallback local.
+      try {
+        const localItems = this.getLocalNotifications(userId).slice(0, limit)
+        if (localItems.length > 0) {
+          return localItems
+        }
+      } catch {
+        // Silencioso
+      }
+
+      // Se for falha de rede identificável (NOTIF-BELL-NETWORK-01), expõe NotificationNetworkError
+      // para o chamador identificar a natureza da falha.
+      if (isNotificationNetworkError(rawErr)) {
+        throw new NotificationNetworkError(
+          `Failed to fetch notifications: backend network unavailable (${(rawErr as any)?.message || 'transient error'})`,
+          rawErr,
+        )
+      }
+      return []
     }
   },
 

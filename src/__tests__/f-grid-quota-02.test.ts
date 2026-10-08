@@ -55,7 +55,8 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
           lapsCount: 3,
           isEliminated: true,
         },
-      ],      eliminatedDriverIds: ['driver_2'],
+      ],
+      eliminatedDriverIds: ['driver_2'],
       advancingDriverIds: ['driver_1'],
     },
     q2Result: {
@@ -81,7 +82,8 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
           lapsCount: 3,
           isEliminated: false,
         },
-      ],      eliminatedDriverIds: [],
+      ],
+      eliminatedDriverIds: [],
       advancingDriverIds: ['driver_1'],
     },
     q3Result: {
@@ -107,7 +109,8 @@ describe('f-grid-quota-02: Cadeia de persistência de grid final resiliente à q
           lapsCount: 3,
           isEliminated: false,
         },
-      ],      eliminatedDriverIds: [],
+      ],
+      eliminatedDriverIds: [],
       advancingDriverIds: [],
     },
     finalGrid: [

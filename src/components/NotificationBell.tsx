@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { F1NotificationModel, F1NotificationType } from '@/types/f1'
-import { notificationService } from '@/services/notificationService'
+import { notificationService, isNotificationNetworkError } from '@/services/notificationService'
 import { notificationGenerator } from '@/services/notificationGenerator'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -59,25 +59,83 @@ export function NotificationBell({
 
   const isMountedRef = useRef(true)
   const inFlightRef = useRef(false)
+  const retryCountRef = useRef(0)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
     }
   }, [])
 
-  const loadNotifications = async () => {
-    if (!effectiveUserId || !isMountedRef.current) return
-    if (inFlightRef.current) return
+  const scheduleBackoffRetry = () => {
+    if (!isMountedRef.current || !effectiveUserId) return
+    if (retryTimerRef.current) return
+
+    // Backoff simples com teto seguro (mín 5s, máx 60s - sem loop apertado)
+    const nextAttempt = Math.min(retryCountRef.current + 1, 5)
+    retryCountRef.current = nextAttempt
+    const delayMs = Math.min(
+      5000 * Math.pow(1.5, nextAttempt - 1),
+      NOTIFICATION_SAFETY_POLL_INTERVAL_MS,
+    )
+
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null
+      if (isMountedRef.current) {
+        void loadNotifications().catch(() => {})
+      }
+    }, delayMs)
+  }
+
+  const loadNotifications = async (): Promise<F1NotificationModel[] | null> => {
+    if (!effectiveUserId || !isMountedRef.current) return null
+    if (inFlightRef.current) return null
     inFlightRef.current = true
     try {
       const items = await notificationService.getNotifications(effectiveUserId, 30)
       if (isMountedRef.current && Array.isArray(items)) {
-        setNotifications(items)
+        // Preserva lista atual se retorno for vazio por fallback ou atualiza se houver itens
+        if (items.length > 0) {
+          setNotifications(items)
+        } else {
+          setNotifications((prev) => (prev.length > 0 ? prev : items))
+        }
+        // Sucesso: reseta contador de retry e cancela timer pendente
+        retryCountRef.current = 0
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current)
+          retryTimerRef.current = null
+        }
       }
-    } catch {
-      // Falha transitória de rede ou requisição abortada tratada silenciosamente sem propagar erro
+      return items
+    } catch (err: unknown) {
+      // NOTIF-BELL-NETWORK-01: Falha transitória de rede ou backend momentaneamente inacessível.
+      // Capturar silenciosamente, reter estado existente e degradar com console.warn no máximo (sem console.error nem toast).
+      if (isNotificationNetworkError(err)) {
+        console.warn(
+          '[NotificationBell] Backend temporariamente inacessível (transient network failure). Mantendo estado atual.',
+        )
+      } else {
+        console.warn('[NotificationBell] Erro ao carregar notificações (silencioso):', err)
+      }
+      // Se não temos nada em memória, tenta recuperar do cache local do usuário
+      try {
+        const cached = notificationService.getLocalNotifications(effectiveUserId).slice(0, 30)
+        if (isMountedRef.current && cached.length > 0) {
+          setNotifications((prev) => (prev.length === 0 ? cached : prev))
+        }
+      } catch {
+        // Silencioso
+      }
+      // Programa retry com backoff simples sem loop apertado
+      scheduleBackoffRetry()
+      return null
     } finally {
       inFlightRef.current = false
     }
@@ -94,9 +152,12 @@ export function NotificationBell({
     const fetchSafe = async () => {
       try {
         if (isCancelled || !effectiveUserId) return
-        await loadNotifications().catch(() => {})
-      } catch {
+        await loadNotifications().catch((err) => {
+          console.warn('[NotificationBell] fetchSafe catch silencioso:', err)
+        })
+      } catch (err) {
         // Silencioso - previne propagação de erros de rede
+        console.warn('[NotificationBell] fetchSafe outer catch silencioso:', err)
       }
     }
 
@@ -123,6 +184,10 @@ export function NotificationBell({
     return () => {
       isCancelled = true
       clearInterval(timer)
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
     }
   }, [effectiveUserId, isLiveRaceHidden])
 
