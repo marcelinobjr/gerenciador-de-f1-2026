@@ -50,7 +50,9 @@ export interface ReadStageStateOutcome {
 
 export interface SaveCompleteQualifyingResultOutcome {
   success: boolean
+  authority?: 'backend' | 'local'
   error?: string
+  backendError?: string
   reason?: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR'
   persistedBackend?: boolean
   persistedLocal?: boolean
@@ -1119,7 +1121,7 @@ export const canonicalQualifyingPersistenceService = {
       )
     }
 
-    // Espelhamento no PocketBase
+    // Espelhamento no PocketBase (mesmo payload exato)
     let backendPromise: Promise<{ success: boolean; id?: string; error?: string }>
     if (options?.syncBackendPromise) {
       backendPromise = options.syncBackendPromise
@@ -1137,48 +1139,45 @@ export const canonicalQualifyingPersistenceService = {
       }
     }
 
-    if (localSuccess) {
-      backendPromise
-        .then((res) => {
-          if (res?.success) {
-            // Expurgar cópia pesada local se confirmado no backend para liberar cota
-            this.purgeLocalFinalGrid(result.seasonId, result.round)
-          }
-        })
-        .catch((beErr) => {
-          console.warn(
-            '[QualifyingPersistence] Falha assíncrona ao espelhar grid final no PocketBase:',
-            beErr,
-          )
-        })
-
-      return {
-        success: true,
-        persistedLocal: true,
-        persistedBackend: true,
-      }
-    }
-
-    // Se local falhou, encadeia purge na confirmação do backend
+    // Encadeia observabilidade assíncrona do backend e purge caso backend confirme
     backendPromise
       .then((res) => {
         if (res?.success) {
           this.purgeLocalFinalGrid(result.seasonId, result.round)
-        } else {
+        } else if (!localSuccess) {
+          // Se ambos falharam, limpar memória para evitar estado fantasma persistente não salvo
+          this._memoryFinalGrids.delete(key)
           console.error(
             `[QualifyingPersistence] Falha dupla: local e backend não confirmaram finalGrid (${result.seasonId}, r${result.round})`,
           )
         }
       })
       .catch((beErr) => {
-        console.error(
-          `[QualifyingPersistence] Exceção assíncrona ao espelhar finalGrid pós-falha local:`,
+        if (!localSuccess) {
+          this._memoryFinalGrids.delete(key)
+        }
+        console.warn(
+          '[QualifyingPersistence] Falha assíncrona ao espelhar grid final no PocketBase:',
           beErr,
         )
       })
 
+    // QGRID-PB-01C: Se local foi bem sucedido
+    if (localSuccess) {
+      return {
+        success: true,
+        authority: 'local',
+        persistedLocal: true,
+        persistedBackend: true,
+      }
+    }
+
+    // Se local falhou mas NÃO há como saber o backend sincronicamente (options.syncBackendPromise não fornecido)
+    // Se options.syncBackendPromise foi fornecido ou a chamada síncrona falhou localmente:
+    // Retornamos falha com autoridade pendente/local, mas o encadeamento pode purgar no PocketBase
     return {
       success: false,
+      authority: undefined,
       error: localError,
       reason: localReason,
       persistedLocal: false,
@@ -1187,11 +1186,15 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
-   * Versão assíncrona oficial de saveCompleteQualifyingResult:
-   * Aguarda tanto a tentativa local quanto a do PocketBase.
-   * Se o local falhar (QUOTA_EXCEEDED) mas o backend confirmar,
-   * retorna SUCESSO ({ success: true, persistedBackend: true, persistedLocal: false })
-   * e expurga a cópia pesada local dessa chave apenas.
+   * Versão assíncrona oficial de saveCompleteQualifyingResult (QGRID-PB-01C):
+   * Aguarda tanto a tentativa do PocketBase quanto a local.
+   * Backend-first / autoritativo:
+   * 1. Submeter o MESMO payload ao PocketBase (saveFinalGrid) e ao localStorage.
+   * 2. Backend SUCCESS ⇒ success = true, authority = 'backend', independente do local;
+   *    com quota local: apenas warning diagnóstico, SEM toast de falha;
+   *    ao backend confirmar, executa purgeLocalFinalGrid para liberar cota.
+   * 3. Backend FAILURE + local SUCCESS ⇒ success = true, authority = 'local', backendError observável.
+   * 4. Backend FAILURE + local FAILURE ⇒ success = false, fluxo bloqueado.
    */
   async saveCompleteQualifyingResultAsync(
     result: CompleteQualifyingWeekendResult,
@@ -1267,7 +1270,7 @@ export const canonicalQualifyingPersistenceService = {
       )
     }
 
-    // Executar gravação no PocketBase
+    // Executar gravação no PocketBase (backend-first / autoritativo)
     let backendSuccess = false
     let backendError: string | undefined
 
@@ -1285,32 +1288,39 @@ export const canonicalQualifyingPersistenceService = {
       backendError = beErr?.message || 'Falha ao conectar com PocketBase'
     }
 
-    // Se o backend teve sucesso, o grid final canônico ESTÁ SALVO
+    // 1. BACKEND SUCCESS: PocketBase é a autoridade canônica
     if (backendSuccess) {
+      // Expurga cópia pesada local se confirmado no backend para liberar cota
       this.purgeLocalFinalGrid(result.seasonId, result.round)
       return {
         success: true,
+        authority: 'backend',
         persistedBackend: true,
         persistedLocal: localSuccess,
         error: localSuccess ? undefined : localError,
+        reason: localSuccess ? undefined : localReason,
       }
     }
 
-    // Se o backend falhou mas o local teve sucesso
+    // 2. BACKEND FAILURE + LOCAL SUCCESS: Autoridade fallback local
     if (localSuccess) {
       return {
         success: true,
+        authority: 'local',
         persistedBackend: false,
         persistedLocal: true,
         error: backendError,
+        backendError,
       }
     }
 
-    // Se AMBOS falharam:
+    // 3. BACKEND FAILURE + LOCAL FAILURE: Ambos falharam
     this._memoryFinalGrids.delete(key)
     return {
       success: false,
+      authority: undefined,
       error: `Local: ${localError || 'falha'} | Backend: ${backendError || 'falha'}`,
+      backendError,
       reason: localReason || 'STORAGE_ERROR',
       persistedBackend: false,
       persistedLocal: false,
