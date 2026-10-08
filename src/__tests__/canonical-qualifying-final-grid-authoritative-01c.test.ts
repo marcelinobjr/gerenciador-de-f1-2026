@@ -59,7 +59,10 @@ function buildMockStageResult(stageId: 'q1' | 'q2' | 'q3'): QualifyingStageResul
   }
 }
 
-function buildMockCompleteResult(seasonId = 'season_2026', round = 1): CompleteQualifyingWeekendResult {
+function buildMockCompleteResult(
+  seasonId = 'season_2026',
+  round = 1,
+): CompleteQualifyingWeekendResult {
   const q1Result = buildMockStageResult('q1')
   const q2Result = buildMockStageResult('q2')
   const q3Result = buildMockStageResult('q3')
@@ -122,7 +125,8 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     })
 
     const sample = buildMockCompleteResult()
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
 
     expect(outcome.success).toBe(true)
     expect(outcome.authority).toBe('backend')
@@ -141,7 +145,8 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     })
 
     const sample = buildMockCompleteResult()
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
 
     expect(outcome.success).toBe(true)
     expect(outcome.authority).toBe('backend')
@@ -160,19 +165,27 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     })
 
     // Salva com quota local estourada
-    const saveOutcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
+    const saveOutcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
     expect(saveOutcome.success).toBe(true)
     expect(saveOutcome.authority).toBe('backend')
 
     // Simula reload: limpa cache em memória e garante que localStorage está vazio
     canonicalQualifyingPersistenceService.clearCachesForTesting()
-    expect(window.localStorage.getItem(`apex_qualifying_final_grid_v2_${sample.seasonId}_r${sample.round}`)).toBeNull()
+    expect(
+      window.localStorage.getItem(
+        `apex_qualifying_final_grid_v2_${sample.seasonId}_r${sample.round}`,
+      ),
+    ).toBeNull()
 
     // Configura backend para responder na leitura
     vi.spyOn(canonicalQualifyingFinalGridBackendService, 'readFinalGrid').mockResolvedValue(sample)
 
     // Leitura backend-first
-    const readOutcome = await canonicalQualifyingPersistenceService.readFinalGridPreferred(sample.seasonId, sample.round)
+    const readOutcome = await canonicalQualifyingPersistenceService.readFinalGridPreferred(
+      sample.seasonId,
+      sample.round,
+    )
     expect(readOutcome.source).toBe('backend')
     expect(readOutcome.data).not.toBeNull()
     expect(readOutcome.data?.poleDriverId).toBe(sample.poleDriverId)
@@ -186,7 +199,8 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     })
 
     const sample = buildMockCompleteResult()
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
 
     expect(outcome.success).toBe(true)
     expect(outcome.authority).toBe('local')
@@ -203,7 +217,8 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     })
 
     const sample = buildMockCompleteResult()
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
 
     expect(outcome.success).toBe(false)
     expect(outcome.persistedBackend).toBe(false)
@@ -226,13 +241,14 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     const q2Result = buildMockStageResult('q2')
     const q3Result = buildMockStageResult('q3')
 
-    const { result, outcome } = await canonicalQualifyingPersistenceService.buildCombinedFinalGridAsync({
-      seasonId: 'season_2026',
-      round: 1,
-      q1Result,
-      q2Result,
-      q3Result,
-    })
+    const { result, outcome } =
+      await canonicalQualifyingPersistenceService.buildCombinedFinalGridAsync({
+        seasonId: 'season_2026',
+        round: 1,
+        q1Result,
+        q2Result,
+        q3Result,
+      })
 
     expect(outcome?.success).toBe(true)
     expect(outcome?.authority).toBe('backend')
@@ -253,7 +269,8 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     })
 
     const sample = buildMockCompleteResult()
-    const outcome = await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
+    const outcome =
+      await canonicalQualifyingPersistenceService.saveCompleteQualifyingResultAsync(sample)
 
     expect(outcome.success).toBe(true)
     expect(outcome.authority).toBe('backend')
@@ -283,7 +300,10 @@ describe('QGRID-PB-01C — Backend Autoritativo no Grid Final de Qualificação 
     // Backend retorna o grid homologado no boot / preparação de corrida
     vi.spyOn(canonicalQualifyingFinalGridBackendService, 'readFinalGrid').mockResolvedValue(sample)
 
-    const preferred = await canonicalQualifyingPersistenceService.readFinalGridPreferred('season_2026', 2)
+    const preferred = await canonicalQualifyingPersistenceService.readFinalGridPreferred(
+      'season_2026',
+      2,
+    )
     expect(preferred.source).toBe('backend')
     expect(preferred.data).not.toBeNull()
     expect(preferred.data?.finalGrid[0].driverId).toBe(sample.finalGrid[0].driverId)
