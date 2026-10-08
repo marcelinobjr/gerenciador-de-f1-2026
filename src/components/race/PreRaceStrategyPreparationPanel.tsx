@@ -51,6 +51,24 @@ export interface PreRaceStrategyPreparationPanelProps {
   onCancelToGrid?: () => void
 }
 
+export interface PreRaceDiagnosticsCandidate {
+  driverId: string
+  teamId: string
+  isPlayer: boolean
+}
+
+export interface PreRaceDiagnostics {
+  canonicalTeamKey: string
+  playerEntriesCount: number
+  entriesMatchedByTeamId: number
+  entriesMatchedByIsPlayer: number
+  candidates: PreRaceDiagnosticsCandidate[]
+}
+
+export type PreRaceInitState =
+  | { status: 'ready'; snapshot: RacePreparationSnapshot }
+  | { status: 'error'; errorMessage: string; diagnostics: PreRaceDiagnostics }
+
 const COMPOUND_ORDER: TireCompound[] = ['macio', 'medio', 'duro', 'intermediario', 'chuva_extrema']
 
 export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparationPanelProps> = ({
@@ -65,30 +83,256 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
   onConfirmAndStartRace,
   onCancelToGrid,
 }) => {
-  // Inicializar estado a partir do snapshot salvo em localStorage ("race-prep-v1") ou criar novo
   const resolvedTeamId = resolveCanonicalTeamKey(teamId) || teamId
-  const [snapshot, setSnapshot] = useState<RacePreparationSnapshot>(() => {
-    const existing = canonicalRacePreparationService.loadSnapshot(careerId, seasonYear, round)
-    if (existing && existing.cars && existing.cars.length === 2) {
-      return existing
+
+  // Helper puro para inicialização segura do snapshot
+  const computeInitialState = (currentResolvedTeamId: string): PreRaceInitState => {
+    try {
+      const existing = canonicalRacePreparationService.loadSnapshot(careerId, seasonYear, round)
+      if (existing && existing.cars && existing.cars.length === 2) {
+        return { status: 'ready', snapshot: existing }
+      }
+      const fresh = canonicalRacePreparationService.createInitialSnapshot({
+        careerId,
+        seasonYear,
+        round,
+        teamId: currentResolvedTeamId,
+        totalLaps,
+        grid: canonicalGrid,
+        inventories,
+      })
+      canonicalRacePreparationService.saveSnapshot(fresh)
+      return { status: 'ready', snapshot: fresh }
+    } catch (err: any) {
+      // Diagnóstico seguro e estruturado sem alterar o critério de match
+      const normTeamId = (currentResolvedTeamId || '').trim().toLowerCase()
+      const entriesByTeam = (canonicalGrid || []).filter((e) => {
+        const entryTeam = (e.teamId || '').trim().toLowerCase()
+        return (
+          entryTeam === normTeamId ||
+          (normTeamId !== '' &&
+            (entryTeam === `team_${normTeamId}` || normTeamId === `team_${entryTeam}`))
+        )
+      })
+      const entriesByPlayerFlag = (canonicalGrid || []).filter((e) => Boolean(e.isPlayer))
+
+      // Candidatos potenciais do jogador (unindo correspondências por teamId e por isPlayer)
+      const candidateDriverMap = new Map<string, PreRaceDiagnosticsCandidate>()
+      for (const e of canonicalGrid || []) {
+        const entryTeam = (e.teamId || '').trim().toLowerCase()
+        const matchTeam =
+          entryTeam === normTeamId ||
+          (normTeamId !== '' &&
+            (entryTeam === `team_${normTeamId}` || normTeamId === `team_${entryTeam}`))
+        if (matchTeam || e.isPlayer) {
+          candidateDriverMap.set(e.driverId || 'unknown', {
+            driverId: e.driverId || 'unknown',
+            teamId: e.teamId || '',
+            isPlayer: Boolean(e.isPlayer),
+          })
+        }
+      }
+
+      // Contagem real que o serviço produziu
+      const playerEntriesCount =
+        entriesByTeam.length === 2 ? 2 : entriesByPlayerFlag.length === 2 ? 2 : entriesByTeam.length
+
+      const diagnostics: PreRaceDiagnostics = {
+        canonicalTeamKey: currentResolvedTeamId,
+        playerEntriesCount,
+        entriesMatchedByTeamId: entriesByTeam.length,
+        entriesMatchedByIsPlayer: entriesByPlayerFlag.length,
+        candidates: Array.from(candidateDriverMap.values()),
+      }
+
+      console.error('[PreRacePreparation] Failed to initialize snapshot', {
+        canonicalTeamKey: diagnostics.canonicalTeamKey,
+        playerEntriesCount: diagnostics.playerEntriesCount,
+        entriesMatchedByTeamId: diagnostics.entriesMatchedByTeamId,
+        entriesMatchedByIsPlayer: diagnostics.entriesMatchedByIsPlayer,
+        candidates: diagnostics.candidates,
+      })
+
+      return {
+        status: 'error',
+        errorMessage:
+          err?.message ||
+          'Não foi possível identificar corretamente os dois carros da sua equipe no grid oficial.',
+        diagnostics,
+      }
     }
-    const fresh = canonicalRacePreparationService.createInitialSnapshot({
-      careerId,
-      seasonYear,
-      round,
-      teamId: resolvedTeamId,
-      totalLaps,
-      grid: canonicalGrid,
-      inventories,
-    })
-    canonicalRacePreparationService.saveSnapshot(fresh)
-    return fresh
-  })
+  }
+
+  // Estado seguro discriminado
+  const [initState, setInitState] = useState<PreRaceInitState>(() =>
+    computeInitialState(resolvedTeamId),
+  )
+
+  // Handler de retry idempotente (recalcula SOMENTE a inicialização com os dados já carregados)
+  const handleRetry = () => {
+    const freshResolvedTeamId = resolveCanonicalTeamKey(teamId) || teamId
+    setInitState(computeInitialState(freshResolvedTeamId))
+  }
 
   // Controles de visibilidade dos seletores de jogos por carro
   const [showTyresCar1, setShowTyresCar1] = useState(false)
   const [showTyresCar2, setShowTyresCar2] = useState(false)
 
+  // SE O ESTADO FOR DE ERRO, RENDERIZA CARD VISÍVEL SEM CRASH
+  if (initState.status === 'error') {
+    const { diagnostics } = initState
+    return (
+      <div className="space-y-6 max-w-6xl mx-auto font-sans">
+        {/* CABEÇALHO */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-[#E2E8F0] shadow-sm">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-7 rounded-full bg-rose-600" />
+              <h2 className="text-xl font-black text-[#0F172A] uppercase tracking-wide">
+                Estratégia de Corrida — Pré-Largada
+              </h2>
+            </div>
+            <p className="text-xs text-[#64748B] mt-1 pl-5">
+              Validação do grid oficial e preparação dos carros.
+            </p>
+          </div>
+
+          {onCancelToGrid && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancelToGrid}
+              className="text-xs font-bold border-[#CBD5E1]"
+            >
+              ← Voltar ao Grid
+            </Button>
+          )}
+        </div>
+
+        {/* CARD VISÍVEL DE ERRO (PRE-RACE-01B) */}
+        <Card className="p-6 bg-white border-2 border-rose-300 rounded-2xl shadow-sm space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-rose-600">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 flex-1">
+              <h3 className="text-base font-black text-[#0F172A]">
+                Não foi possível preparar a corrida
+              </h3>
+              <p className="text-xs text-[#64748B]">
+                Não foi possível identificar corretamente os dois carros da sua equipe no grid
+                oficial.
+              </p>
+            </div>
+          </div>
+
+          {/* DADOS DIAGNÓSTICOS OBJETIVOS */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+            <h4 className="font-bold text-[#0F172A] uppercase text-[11px] tracking-wider">
+              Diagnóstico do Grid Oficial
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">
+                  Equipe Canônica Esperada
+                </span>
+                <span className="text-xs font-mono font-black text-[#0F172A]">
+                  {diagnostics.canonicalTeamKey || '(não identificada)'}
+                </span>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">
+                  Entries Encontradas
+                </span>
+                <span
+                  className={`text-xs font-mono font-black ${
+                    diagnostics.playerEntriesCount === 2 ? 'text-emerald-600' : 'text-rose-600'
+                  }`}
+                >
+                  {diagnostics.playerEntriesCount} (esperado: 2)
+                </span>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">
+                  Match por Team ID
+                </span>
+                <span className="text-xs font-mono font-bold text-[#0F172A]">
+                  {diagnostics.entriesMatchedByTeamId}
+                </span>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">
+                  Match isPlayer=true
+                </span>
+                <span className="text-xs font-mono font-bold text-[#0F172A]">
+                  {diagnostics.entriesMatchedByIsPlayer}
+                </span>
+              </div>
+            </div>
+
+            {/* CANDIDATOS ENCONTRADOS */}
+            <div className="pt-2">
+              <span className="text-[10px] text-slate-500 font-bold block uppercase mb-1.5">
+                Candidatos Encontrados ({diagnostics.candidates.length})
+              </span>
+              {diagnostics.candidates.length === 0 ? (
+                <p className="text-[11px] text-slate-500 italic">
+                  Nenhum piloto do grid corresponde à equipe informada ou à flag de jogador.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {diagnostics.candidates.map((c, i) => (
+                    <div
+                      key={c.driverId || i}
+                      className="flex items-center justify-between p-2 rounded bg-white border border-slate-200 font-mono text-[11px]"
+                    >
+                      <span className="text-slate-700 font-bold">driverId: {c.driverId}</span>
+                      <span className="text-slate-600">teamId: {c.teamId || '(vazio)'}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                          c.isPlayer
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        isPlayer: {c.isPlayer ? 'true' : 'false'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* BOTÕES DE AÇÃO */}
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+            {onCancelToGrid && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancelToGrid}
+                className="w-full sm:w-auto text-xs font-bold border-slate-300"
+              >
+                Voltar ao Grid
+              </Button>
+            )}
+            <Button
+              type="button"
+              onClick={handleRetry}
+              className="w-full sm:w-auto bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider gap-2"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Tentar novamente
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  // Snapshot pronto
+  const snapshot = initState.snapshot
   const car1 = snapshot.cars[0]
   const car2 = snapshot.cars[1]
 
@@ -103,57 +347,71 @@ export const PreRaceStrategyPreparationPanel: React.FC<PreRaceStrategyPreparatio
 
   // Handlers Carro 1
   const updateCar1 = (patch: Partial<PreparedCarState>) => {
-    setSnapshot((prev) => {
-      const nextCar1: PreparedCarState = { ...prev.cars[0], ...patch, confirmed: false }
+    setInitState((prev) => {
+      if (prev.status !== 'ready') return prev
+      const currentSnap = prev.snapshot
+      const nextCar1: PreparedCarState = { ...currentSnap.cars[0], ...patch, confirmed: false }
       const nextSnapshot: RacePreparationSnapshot = {
-        ...prev,
-        cars: [nextCar1, prev.cars[1]],
+        ...currentSnap,
+        cars: [nextCar1, currentSnap.cars[1]],
         allConfirmed: false,
       }
       canonicalRacePreparationService.saveSnapshot(nextSnapshot)
-      return nextSnapshot
+      return { status: 'ready', snapshot: nextSnapshot }
     })
   }
 
   // Handlers Carro 2
   const updateCar2 = (patch: Partial<PreparedCarState>) => {
-    setSnapshot((prev) => {
-      const nextCar2: PreparedCarState = { ...prev.cars[1], ...patch, confirmed: false }
+    setInitState((prev) => {
+      if (prev.status !== 'ready') return prev
+      const currentSnap = prev.snapshot
+      const nextCar2: PreparedCarState = { ...currentSnap.cars[1], ...patch, confirmed: false }
       const nextSnapshot: RacePreparationSnapshot = {
-        ...prev,
-        cars: [prev.cars[0], nextCar2],
+        ...currentSnap,
+        cars: [currentSnap.cars[0], nextCar2],
         allConfirmed: false,
       }
       canonicalRacePreparationService.saveSnapshot(nextSnapshot)
-      return nextSnapshot
+      return { status: 'ready', snapshot: nextSnapshot }
     })
   }
 
   const toggleConfirmCar1 = () => {
     if (!val1.valid) return
-    setSnapshot((prev) => {
-      const nextCar1: PreparedCarState = { ...prev.cars[0], confirmed: !prev.cars[0].confirmed }
+    setInitState((prev) => {
+      if (prev.status !== 'ready') return prev
+      const currentSnap = prev.snapshot
+      const nextCar1: PreparedCarState = {
+        ...currentSnap.cars[0],
+        confirmed: !currentSnap.cars[0].confirmed,
+      }
       const nextSnapshot: RacePreparationSnapshot = {
-        ...prev,
-        cars: [nextCar1, prev.cars[1]],
-        allConfirmed: nextCar1.confirmed && prev.cars[1].confirmed,
+        ...currentSnap,
+        cars: [nextCar1, currentSnap.cars[1]],
+        allConfirmed: nextCar1.confirmed && currentSnap.cars[1].confirmed,
       }
       canonicalRacePreparationService.saveSnapshot(nextSnapshot)
-      return nextSnapshot
+      return { status: 'ready', snapshot: nextSnapshot }
     })
   }
 
   const toggleConfirmCar2 = () => {
     if (!val2.valid) return
-    setSnapshot((prev) => {
-      const nextCar2: PreparedCarState = { ...prev.cars[1], confirmed: !prev.cars[1].confirmed }
+    setInitState((prev) => {
+      if (prev.status !== 'ready') return prev
+      const currentSnap = prev.snapshot
+      const nextCar2: PreparedCarState = {
+        ...currentSnap.cars[1],
+        confirmed: !currentSnap.cars[1].confirmed,
+      }
       const nextSnapshot: RacePreparationSnapshot = {
-        ...prev,
-        cars: [prev.cars[0], nextCar2],
-        allConfirmed: prev.cars[0].confirmed && nextCar2.confirmed,
+        ...currentSnap,
+        cars: [currentSnap.cars[0], nextCar2],
+        allConfirmed: prev.snapshot.cars[0].confirmed && nextCar2.confirmed,
       }
       canonicalRacePreparationService.saveSnapshot(nextSnapshot)
-      return nextSnapshot
+      return { status: 'ready', snapshot: nextSnapshot }
     })
   }
 
