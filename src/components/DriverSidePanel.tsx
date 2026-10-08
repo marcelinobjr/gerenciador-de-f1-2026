@@ -143,6 +143,7 @@ export const DriverSidePanel: React.FC<DriverSidePanelProps> = ({
                   src={teamLogo}
                   alt={driver.teamName || 'Equipe'}
                   className="w-3.5 h-3.5 object-contain rounded-xs shrink-0"
+                  data-html2canvas-ignore="true"
                 />
               )}
               <span className="truncate">{driver.teamName || 'Agente livre'}</span>

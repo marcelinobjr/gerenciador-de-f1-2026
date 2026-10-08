@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getTeamLogoUrl } from '@/lib/lobby-assets'
+import { resolveTeamLogo } from '@/data/teamLogos'
 import { cn } from '@/lib/utils'
 import apexLogoImg from '@/assets/apex-gp-manager-logo-3bf8a.jpg'
 
@@ -98,8 +99,23 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
   // Logo da equipe (se oficial)
   const teamLogoUrl = useMemo(() => {
     if (team?.team_key) return getTeamLogoUrl(team.team_key)
+    if (team?.id) return getTeamLogoUrl(team.id)
     return undefined
-  }, [team?.team_key])
+  }, [team?.team_key, team?.id])
+
+  // Fallback local caso imagem falhe ou precise de recuperação
+  const fallbackLogoUrl = useMemo(() => {
+    const key = team?.team_key || team?.id || 'audi'
+    const resolved = resolveTeamLogo(key)
+    return resolved.logoUrl || undefined
+  }, [team?.team_key, team?.id])
+
+  const [logoLoadError, setLogoLoadError] = React.useState(false)
+
+  // Resetar erro ao trocar de equipe
+  React.useEffect(() => {
+    setLogoLoadError(false)
+  }, [team?.team_key, team?.id])
 
   // SVG ring de progresso para o teto de gastos
   const radius = 10
@@ -145,11 +161,19 @@ export function Topbar({ onOpenMobileMenu, user, team, season, onLogout, classNa
             </div>
           </div>
 
-          {teamLogoUrl && (
+          {teamLogoUrl && !logoLoadError && (
             <img
               src={teamLogoUrl}
               alt={teamName}
               className="h-6 w-auto max-w-[60px] object-contain hidden md:block shrink-0"
+              data-html2canvas-ignore="true"
+              onError={(e) => {
+                if (fallbackLogoUrl && e.currentTarget.src !== fallbackLogoUrl) {
+                  e.currentTarget.src = fallbackLogoUrl
+                } else {
+                  setLogoLoadError(true)
+                }
+              }}
             />
           )}
         </div>

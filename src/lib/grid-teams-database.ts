@@ -755,7 +755,7 @@ export const ALL_GRID_TEAMS_DATABASE: GridTeamDefinition[] = [
       'A gigante General Motors traz sua lendária divisão de luxo e velocidade para o pináculo do automobilismo.',
     currentSituation:
       'Estreante fechando a tabela, mesmo com os experientes Sergio Pérez e Valtteri Bottas.',
-    logoUrl: undefined, // Cadillac sem logo oficial no pacote -> inicial estilizada
+    logoUrl: getTeamLogoUrl('cadillac'),
     headquarters: 'Warren, Michigan & Fishers, Indiana, EUA',
     category: 'Estreante Oficial GM (Cliente Ferrari UP temporário)',
     specialTraits: [
@@ -1316,7 +1316,7 @@ export const ALL_GRID_TEAMS_DATABASE: GridTeamDefinition[] = [
     historySummary:
       'Gigante japonesa sediada em Colônia, multicampeã do WEC e WRC retornando à F1.',
     currentSituation: 'Ryo Hirakawa e Alex Palou formam uma dupla cirúrgica e hipercompetitiva.',
-    logoUrl: undefined, // Toyota sem logo no dropbox -> estilizada
+    logoUrl: getTeamLogoUrl('toyota'),
     headquarters: 'Colônia, Alemanha & Toyota City, Japão',
     category: 'Escuderia Convidada / Reserva FIA',
     specialTraits: ['Estrutura Hi-Tech de Colônia', 'Kaizen de Produção', 'Campeã WEC & WRC'],

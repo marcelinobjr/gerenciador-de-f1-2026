@@ -1,7 +1,9 @@
 // Mapeamento e URLs públicas seguras de assets do jogo:
 // - 6 Avatares de Manager (Manager.pdf e pasta Dropbox)
-// - Logos de Equipes (Equipes.pdf e pasta Dropbox)
+// - Logos de Equipes (Assets locais vetoriais em src/assets/logos/*.svg e fallback canônico)
 // - Modelos de Carro (Carro1 a Carro5 para equipe personalizada)
+
+import { TEAM_LOGOS, resolveTeamLogo, normalizeTeamKey } from '@/data/teamLogos'
 
 export interface ManagerAvatarAsset {
   id: string
@@ -95,60 +97,75 @@ export const CAR_MODEL_ASSETS = [
   },
 ]
 
-// Mapeamento das 26 logos de equipes presentes no Dropbox
-export const TEAM_LOGOS_MAP: Record<string, string> = {
-  alfaromeo:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/ANir-8SjJtE7iot1pQIi8i4/Alfa_Romeo.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  alphatauri:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AGbAjEA839MCEsT_z3Et9bs/Alfa_Tauri.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  alpine:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/APZwbknFDUfH-UAywFuYu0Q/Alpine.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  andretti:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/ACUHOwkZ-IWUxqWpQr9LDl4/Andretti.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  astonmartin:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AIQmaBVXSu5Mew9NfscybVI/Aston_Martin.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  audi: 'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AF3MGgkE232B6Xfpe20mxEk/Audi.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  benetton:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AJZ3kUfA-pOTIY8G1SyXf1A/Benetton.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  byd: 'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AM2ryyQR9HksDevR18JMhaQ/BYD.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  copersucar:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AEzT6WaI2TedfmoQc28otGo/Copersucar.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  ferrari:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AJdZ5IlvncA__FBlCcvyB94/Ferrari.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  fittipaldi:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AEQfu-RkS_fem_a8jp6p5FU/Fittipapdi.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  haas: 'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AOVhQwCBY0qxXnsqHavDlvc/Haas.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  honda:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AIdug8dCg49zVEaFU0UuG40/Honda.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  jordan:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AOAexVQg5LkLugUIQAK2BN8/Jordan.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  lamborghini:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AC6PNK3F4ybgJ32B63yclD0/Lamborguini.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  lotus:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/ANjYXUx8bXksla9a6UnZZLM/Lotus.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  mclaren:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AKDZwT8xRAmS12hMdcOgxT4/McLAren.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  mercedes:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AKKbQRwwpUzmflvtMz6WRQc/Mercedes.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  penske:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/ALBAZ6qE2bHOhv0r5NcnhlM/Penske.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  porsche:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AF4fH2juWGGpvrHjDWzN5LU/Porshe.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  racingbulls:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AJM78PKZj2hlAAwKUZU43ho/Racing_Bulls.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  redbull:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AGKPAkQU-jtPpGpVh91UdJU/Red_Bull.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  renault:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AOAXga77BD2lRw_QcPL3RK4/Renaut.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  sauber:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AFlc71e-nnFh7LXGni1MXME/Sauber.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  toleman:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AKPdb3S1FD_YLNhiITyAKmw/Tolerman.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
-  williams:
-    'https://www.dropbox.com/scl/fo/ydtmveudv8i1tyvntggnp/AFrv26DFUkw8C4-QdgNB-J0/Williams.png?rlkey=fddnrl5qj9wsejc6aaf9pmxq7&dl=1',
+/**
+ * Helper inline para gerar um data URI SVG seguro a partir do Crest de uma equipe.
+ * Usado como fallback 100% local e imune a CORS para equipes sem arquivo SVG vetorial estático.
+ */
+function createCrestDataUri(
+  primaryColor: string,
+  secondaryColor: string,
+  acronym: string,
+  textColor: string = '#FFFFFF',
+): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40"><circle cx="20" cy="20" r="18" fill="${primaryColor}" stroke="${secondaryColor}" stroke-width="2.5"/><text x="20" y="24" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-weight="900" font-size="12" fill="${textColor}" text-anchor="middle" letter-spacing="-0.5">${acronym}</text></svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
-export function getTeamLogoUrl(teamKey: string): string | undefined {
-  const normalized = teamKey.toLowerCase().replace(/[^a-z0-9]/g, '')
-  return TEAM_LOGOS_MAP[normalized] || TEAM_LOGOS_MAP[teamKey]
+/**
+ * Mapeamento das logos de equipes usando assets locais em src/assets/logos/ ou crest SVG procedural em data: URI.
+ * Zero URLs externas de terceiros/Dropbox: bundled localmente pelo Vite, imunes a bloqueios de CORS e html-to-image.
+ */
+export const TEAM_LOGOS_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(TEAM_LOGOS)) {
+    if (entry.logoUrl) {
+      map[key] = entry.logoUrl
+    } else if (entry.crest) {
+      map[key] = createCrestDataUri(
+        entry.crest.primaryColor,
+        entry.crest.secondaryColor,
+        entry.crest.acronym,
+        entry.crest.textColor || '#FFFFFF',
+      )
+    }
+  }
+  return map
+})()
+
+/**
+ * Retorna o logo seguro (asset local bundled pelo Vite ou data: URI SVG de crest).
+ * Nunca retorna URLs do Dropbox para evitar falhas de CORS no html-to-image de preview/screenshots.
+ */
+export function getTeamLogoUrl(teamKey: string | null | undefined): string | undefined {
+  if (!teamKey) return undefined
+  const clean = teamKey.toLowerCase().trim()
+  const normalized = clean.replace(/[^a-z0-9]/g, '')
+
+  // 1. Direct match no TEAM_LOGOS_MAP
+  if (TEAM_LOGOS_MAP[normalized]) return TEAM_LOGOS_MAP[normalized]
+  if (TEAM_LOGOS_MAP[clean]) return TEAM_LOGOS_MAP[clean]
+
+  // 2. Normalização canônica via resolveTeamLogo
+  const canonicalKey = normalizeTeamKey(teamKey)
+  if (TEAM_LOGOS_MAP[canonicalKey]) return TEAM_LOGOS_MAP[canonicalKey]
+
+  const resolved = resolveTeamLogo(teamKey)
+  if (resolved.type === 'logo' && resolved.logoUrl) {
+    return resolved.logoUrl
+  }
+  if (resolved.crest) {
+    return createCrestDataUri(
+      resolved.crest.primaryColor,
+      resolved.crest.secondaryColor,
+      resolved.crest.acronym,
+      resolved.crest.textColor || '#FFFFFF',
+    )
+  }
+
+  // Fallback seguro: se não encontrar nada, gera SVG neutro com a sigla de fallback
+  if (resolved.fallbackText) {
+    return createCrestDataUri('#475569', '#94A3B8', resolved.fallbackText, '#FFFFFF')
+  }
+
+  return undefined
 }
