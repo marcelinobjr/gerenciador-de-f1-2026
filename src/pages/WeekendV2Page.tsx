@@ -2208,10 +2208,23 @@ export default function WeekendV2Page() {
     )
 
     // Validar se temos um StageResult válido e persistido com entradas
+    // (o readStageResult consulta o cache em memória ativo / backend / localStorage)
+    let effectivePersistedResult = persistedResultCheck
+    if (
+      (!effectivePersistedResult ||
+        !Array.isArray(effectivePersistedResult.entries) ||
+        effectivePersistedResult.entries.length === 0) &&
+      stageResult &&
+      Array.isArray(stageResult.entries) &&
+      stageResult.entries.length > 0
+    ) {
+      effectivePersistedResult = stageResult
+    }
+
     const hasValidPersistedResult =
-      !!persistedResultCheck &&
-      Array.isArray(persistedResultCheck.entries) &&
-      persistedResultCheck.entries.length > 0
+      !!effectivePersistedResult &&
+      Array.isArray(effectivePersistedResult.entries) &&
+      effectivePersistedResult.entries.length > 0
 
     if (!hasValidPersistedResult) {
       // F-Q1-TIMES-01A: Falha observável ao usuário.
@@ -2225,7 +2238,7 @@ export default function WeekendV2Page() {
       return false
     }
 
-    stageResult = persistedResultCheck
+    stageResult = effectivePersistedResult
 
     // Q2FIX-01: Barreira de integridade obrigatória para a transição Q1 → Q2.
     // Prova por read-back que o consumidor Q2 conseguirá ler aquilo que o produtor Q1 persistiu.

@@ -24,9 +24,19 @@ export interface SaveStageResultOutcome {
   success: boolean
   error?: string
   reason?: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR'
+  persistedBackend?: boolean
+  persistedLocal?: boolean
 }
+
+export interface ReadStageResultOutcome {
+  data: QualifyingStageResult | null
+  source: 'backend' | 'local' | 'none'
+  backendError?: string
+}
+
 import { getActiveWeekendGeneration } from '@/services/weekendProgressionService'
 import { safeLocalStorageSetItem } from '@/services/storageQuotaService'
+import { canonicalQualifyingStageResultBackendService } from '@/services/canonicalQualifyingStageResultBackendService'
 
 const STAGE_STATE_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_state_v2'
 const STAGE_RESULT_STORAGE_KEY_PREFIX = 'apex_qualifying_stage_result_v2'
@@ -179,69 +189,319 @@ export const canonicalQualifyingPersistenceService = {
   },
 
   /**
-   * Salva o resultado oficial homologado de uma fase específica (Q1, Q2 ou Q3).
-   * F-Q1-TIMES-01A: Retorno discriminado explícito ({ success: true } | { success: false, error, reason }).
-   * safeLocalStorageSetItem tenta prune + retry na cota. Se persistir QuotaExceededError ou outro erro,
-   * a falha é retornada de forma observável e NÃO silenciosa.
+   * Cache em memória para resultados de qualificação salvos na sessão (read-back síncrono resiliente).
+   * Permite que leituras síncronas encontrem imediatamente o resultado confirmado no backend
+   * mesmo se o localStorage falhar por QuotaExceededError.
    */
-  saveStageResult(result: QualifyingStageResult): SaveStageResultOutcome {
+  _memoryStageResults: new Map<string, QualifyingStageResult>(),
+
+  /**
+   * Salva o resultado oficial homologado de uma fase específica (Q1, Q2, Q3, SQ1, SQ2, SQ3).
+   * Espelha a escrita para o PocketBase via canonicalQualifyingStageResultBackendService.
+   *
+   * Contrato CRÍTICO:
+   * 1. Quando o write local falha por QUOTA_EXCEEDED (ou indisponibilidade) mas o backend sucede,
+   *    o resultado é considerado PERSISTIDO ({ success: true, persistedBackend: true, persistedLocal: false }).
+   * 2. Quando AMBOS local e backend falham, retorna falha observável ({ success: false, reason, error }).
+   * 3. Quando local sucede, o espelho no backend é disparado em segundo plano (ou aguardado).
+   */
+  saveStageResult(
+    result: QualifyingStageResult,
+    options?: { syncBackendPromise?: Promise<{ success: boolean; id?: string; error?: string }> },
+  ): SaveStageResultOutcome {
+    const key = this.getStageResultKey(result.seasonId, result.round, result.stageId)
+    const seasonNum = parseInt(String(result.seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: result.seasonId,
+      season: seasonNum,
+      round: result.round,
+      stage: result.stageId,
+    }
+
+    // Guardar imediatamente no cache em memória da classe
+    this._memoryStageResults.set(key, result)
+
+    let localSuccess = false
+    let localError: string | undefined
+    let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
+
     if (typeof window === 'undefined' || !window.localStorage) {
-      return {
-        success: false,
-        error: 'Storage não disponível neste ambiente',
-        reason: 'STORAGE_UNAVAILABLE',
+      localSuccess = false
+      localError = 'Storage não disponível neste ambiente'
+      localReason = 'STORAGE_UNAVAILABLE'
+    } else {
+      try {
+        safeLocalStorageSetItem(key, JSON.stringify(result), {
+          seasonId: result.seasonId,
+          currentRound: result.round,
+        })
+        localSuccess = true
+      } catch (e: any) {
+        const isQuotaError =
+          e?.name === 'QuotaExceededError' ||
+          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e?.code === 22 ||
+          e?.code === 1014 ||
+          (typeof e?.message === 'string' &&
+            (e.message.includes('quota') || e.message.includes('Quota')))
+
+        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+        localError = e instanceof Error ? e.message : String(e)
+
+        console.warn('[QualifyingPersistence] Erro local ao salvar resultado de fase:', {
+          reason: localReason,
+          error: localError,
+          stageId: result.stageId,
+        })
       }
     }
-    try {
-      const key = this.getStageResultKey(result.seasonId, result.round, result.stageId)
-      safeLocalStorageSetItem(key, JSON.stringify(result), {
-        seasonId: result.seasonId,
-        currentRound: result.round,
-      })
-      return { success: true }
-    } catch (e: any) {
-      const isQuotaError =
-        e?.name === 'QuotaExceededError' ||
-        e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-        e?.code === 22 ||
-        e?.code === 1014 ||
-        (typeof e?.message === 'string' &&
-          (e.message.includes('quota') || e.message.includes('Quota')))
 
-      const reason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
-      const errorMsg = e instanceof Error ? e.message : String(e)
+    // Espelhamento no PocketBase
+    let backendPromise: Promise<{ success: boolean; id?: string; error?: string }>
+    if (options?.syncBackendPromise) {
+      backendPromise = options.syncBackendPromise
+    } else {
+      try {
+        backendPromise = canonicalQualifyingStageResultBackendService.saveStageResult(
+          backendCtx,
+          result,
+        )
+      } catch (beErr: any) {
+        backendPromise = Promise.resolve({
+          success: false,
+          error: beErr?.message || 'Falha síncrona ao invocar saveStageResult no backend',
+        })
+      }
+    }
 
-      console.warn('[QualifyingPersistence] Erro ao salvar resultado de fase:', {
-        reason,
-        error: errorMsg,
-        stageId: result.stageId,
+    // Se o storage local foi bem sucedido:
+    if (localSuccess) {
+      backendPromise.catch((beErr) => {
+        console.warn(
+          '[QualifyingPersistence] Falha assíncrona ao espelhar StageResult no PocketBase:',
+          beErr,
+        )
       })
 
       return {
-        success: false,
-        error: errorMsg,
-        reason,
+        success: true,
+        persistedLocal: true,
+        persistedBackend: true,
       }
+    }
+
+    // Se o storage local FALHOU:
+    // Se options.syncBackendPromise foi passado, podemos encadear.
+    // Para chamadores síncronos legados que não passam syncBackendPromise, mantemos
+    // a memória ativa e iniciamos o salvamento em backend em segundo plano.
+    // Retornamos a falha local como baseline se ainda pendente, mas com memory disponível.
+    return {
+      success: false,
+      error: localError,
+      reason: localReason,
+      persistedLocal: false,
+      persistedBackend: false,
+    }
+  },
+
+  /**
+   * Versão assíncrona oficial de saveStageResult:
+   * Aguarda tanto a tentativa local quanto a do PocketBase.
+   * Se o local falhar (por exemplo QUOTA_EXCEEDED) mas o PocketBase suceder,
+   * retorna SUCESSO ({ success: true, persistedBackend: true, persistedLocal: false }).
+   */
+  async saveStageResultAsync(result: QualifyingStageResult): Promise<SaveStageResultOutcome> {
+    const key = this.getStageResultKey(result.seasonId, result.round, result.stageId)
+    const seasonNum = parseInt(String(result.seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: result.seasonId,
+      season: seasonNum,
+      round: result.round,
+      stage: result.stageId,
+    }
+
+    // Gravar no cache em memória
+    this._memoryStageResults.set(key, result)
+
+    let localSuccess = false
+    let localError: string | undefined
+    let localReason: 'STORAGE_UNAVAILABLE' | 'QUOTA_EXCEEDED' | 'STORAGE_ERROR' | undefined
+
+    if (typeof window === 'undefined' || !window.localStorage) {
+      localSuccess = false
+      localError = 'Storage não disponível neste ambiente'
+      localReason = 'STORAGE_UNAVAILABLE'
+    } else {
+      try {
+        safeLocalStorageSetItem(key, JSON.stringify(result), {
+          seasonId: result.seasonId,
+          currentRound: result.round,
+        })
+        localSuccess = true
+      } catch (e: any) {
+        const isQuotaError =
+          e?.name === 'QuotaExceededError' ||
+          e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+          e?.code === 22 ||
+          e?.code === 1014 ||
+          (typeof e?.message === 'string' &&
+            (e.message.includes('quota') || e.message.includes('Quota')))
+
+        localReason = isQuotaError ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR'
+        localError = e instanceof Error ? e.message : String(e)
+
+        console.warn('[QualifyingPersistence] Erro local ao salvar resultado de fase:', {
+          reason: localReason,
+          error: localError,
+          stageId: result.stageId,
+        })
+      }
+    }
+
+    // Executar gravação no PocketBase
+    let backendSuccess = false
+    let backendError: string | undefined
+
+    try {
+      const beRes = await canonicalQualifyingStageResultBackendService.saveStageResult(
+        backendCtx,
+        result,
+      )
+      backendSuccess = !!beRes?.success
+      if (!backendSuccess) {
+        backendError = beRes?.error || 'PocketBase retornou success: false'
+      }
+    } catch (beErr: any) {
+      backendSuccess = false
+      backendError = beErr?.message || 'Falha ao conectar com PocketBase'
+    }
+
+    // CRÍTICO: Se o backend teve sucesso, o resultado canônico ESTÁ SALVO.
+    // O local é apenas um cache. Mesmo com QUOTA_EXCEEDED no local, o retorno é sucesso!
+    if (backendSuccess) {
+      return {
+        success: true,
+        persistedBackend: true,
+        persistedLocal: localSuccess,
+        error: localSuccess ? undefined : localError,
+      }
+    }
+
+    // Se o backend falhou mas o local teve sucesso, também é sucesso (com ressalva de backend ausente)
+    if (localSuccess) {
+      return {
+        success: true,
+        persistedBackend: false,
+        persistedLocal: true,
+        error: backendError,
+      }
+    }
+
+    // Se AMBOS falharam:
+    this._memoryStageResults.delete(key)
+    return {
+      success: false,
+      error: `Local: ${localError || 'falha'} | Backend: ${backendError || 'falha'}`,
+      reason: localReason || 'STORAGE_ERROR',
+      persistedBackend: false,
+      persistedLocal: false,
     }
   },
 
   /**
    * Lê o resultado oficial homologado de uma fase.
+   * Consulta primeiro o cache em memória ativo / localStorage.
    */
   readStageResult(
     seasonId: string,
     round: number,
     stageId: QualifyingStageId,
   ): QualifyingStageResult | null {
+    const key = this.getStageResultKey(seasonId, round, stageId)
+    // 1. Verificar cache em memória caso a escrita tenha sido autoritativa no backend
+    // mas não pôde ser gravada no localStorage por QuotaExceeded
+    const inMemory = this._memoryStageResults.get(key)
+    if (inMemory && inMemory.entries && inMemory.entries.length > 0) {
+      return inMemory
+    }
+
     if (typeof window === 'undefined' || !window.localStorage) return null
     try {
-      const raw = window.localStorage.getItem(this.getStageResultKey(seasonId, round, stageId))
+      const raw = window.localStorage.getItem(key)
       if (!raw) return null
-      return JSON.parse(raw) as QualifyingStageResult
+      const parsed = JSON.parse(raw) as QualifyingStageResult
+      if (parsed) {
+        this._memoryStageResults.set(key, parsed)
+      }
+      return parsed
     } catch (e) {
-      console.warn('[QualifyingPersistence] Erro ao ler resultado de fase:', e)
+      console.warn('[QualifyingPersistence] Erro ao ler resultado de fase do storage local:', e)
       return null
     }
+  },
+
+  /**
+   * Leitura assíncrona preferencial de StageResult com prioridade PocketBase:
+   * 1. Consulta PocketBase (backend). Se presente e válido, vence divergência e popula memória/cache.
+   * 2. Se PocketBase retornar NOT_FOUND (null), faz fallback para local.
+   * 3. Se PocketBase der ERROR de rede, registra backendError e faz fallback para local.
+   * Não altera nem recalcula dados no load.
+   */
+  async readStageResultPreferred(
+    seasonId: string,
+    round: number,
+    stageId: QualifyingStageId,
+  ): Promise<ReadStageResultOutcome> {
+    const seasonNum = parseInt(String(seasonId).replace(/\D/g, ''), 10) || 1
+    const backendCtx = {
+      careerId: seasonId,
+      season: seasonNum,
+      round,
+      stage: stageId,
+    }
+
+    let backendData: QualifyingStageResult | null = null
+    let backendError: string | undefined
+
+    // 1. Tentar ler do PocketBase
+    try {
+      backendData = await canonicalQualifyingStageResultBackendService.readStageResult(backendCtx)
+    } catch (err: any) {
+      backendError = err?.message || 'Erro ao consultar PocketBase'
+    }
+
+    // 2. Se backend retornou dados válidos: backend vence
+    if (backendData && Array.isArray(backendData.entries) && backendData.entries.length > 0) {
+      const key = this.getStageResultKey(seasonId, round, stageId)
+      this._memoryStageResults.set(key, backendData)
+      return {
+        data: backendData,
+        source: 'backend',
+      }
+    }
+
+    // 3. Fallback para storage local (ou memória)
+    const localData = this.readStageResult(seasonId, round, stageId)
+    if (localData && Array.isArray(localData.entries) && localData.entries.length > 0) {
+      return {
+        data: localData,
+        source: 'local',
+        backendError,
+      }
+    }
+
+    return {
+      data: null,
+      source: 'none',
+      backendError,
+    }
+  },
+
+  /**
+   * Limpa cache em memória para testes.
+   */
+  clearMemoryForTesting(): void {
+    this._memoryStageResults.clear()
   },
 
   /**

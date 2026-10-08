@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T11:54:43.343Z",
+  "generatedAt": "2026-10-08T12:17:39.719Z",
   "collections": [
     {
       "name": "users",
@@ -2973,6 +2973,74 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_canonical_weekend_tyres_inventory_key ON canonical_weekend_tyres (inventory_key)",
         "CREATE INDEX idx_canonical_weekend_tyres_career_season_round ON canonical_weekend_tyres (career_id, season, round)"
+      ]
+    },
+    {
+      "name": "canonical_qualifying_stage_results",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "result_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "season",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "stage",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["q1", "q2", "q3", "sq1", "sq2", "sq3"]
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_canonical_quali_stage_result_key ON canonical_qualifying_stage_results (result_key)",
+        "CREATE INDEX idx_canonical_quali_stage_career_season_round ON canonical_qualifying_stage_results (career_id, season, round, stage)"
       ]
     }
   ]
