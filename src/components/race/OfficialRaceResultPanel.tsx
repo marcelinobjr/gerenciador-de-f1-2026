@@ -32,6 +32,7 @@ import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 import { PodiumVisualCard } from './PodiumVisualCard'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
+// probe 11
 
 export interface OfficialRaceResultPanelProps {
   result: OfficialRaceResult
@@ -60,7 +61,6 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
 }) => {
   const [tableExpanded, setTableExpanded] = useState(false)
   const [continueClicked, setContinueClicked] = useState(false)
-
   // 1. Integridade canônica do resultado (sem recalcular nada)
   const isChecksumVerified = useMemo(() => {
     return canonicalRaceResultService.verifyResultIntegrity(result)

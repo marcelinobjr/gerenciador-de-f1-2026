@@ -29,6 +29,7 @@ import { RacePlayerDriverCard } from '@/components/race/RacePlayerDriverCard'
 import { RaceStrategyPanel } from '@/components/race/RaceStrategyPanel'
 import { RaceTeamMessagesFeed } from '@/components/race/RaceTeamMessagesFeed'
 import { PreRaceStrategyModalOverlay } from '@/components/race/PreRaceStrategyModalOverlay'
+// probe 10
 import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
 import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPanel'
 import { Badge } from '@/components/ui/badge'
@@ -759,9 +760,11 @@ export default function RacePage() {
               setCareerPersistenceError(undefined)
               const res =
                 await canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(
+                  // probe async call
                   officialRaceResult,
                   { requireBackendSync: true },
                 )
+              // probe async result
               setCareerPersistenceStatus(res.journal.status)
               setIsPersistingCareer(false)
               if (res.success) {

@@ -66,7 +66,7 @@ const App = () => (
               <Route path="/infraestrutura" element={<InfrastructurePage />} />
               <Route path="/sponsors" element={<SponsorsPage />} />
               <Route path="/race" element={<RacePage />} />
-              <Route path="/corrida" element={<WeekendV2Page />} />
+              <Route path="/corrida" element={<WeekendV2Page />} />{' '}
               <Route path="/corrida/live" element={<RaceControlLivePage />} />
               <Route path="/weekend-v2" element={<WeekendV2Page />} />
               <Route path="/corrida-ao-vivo" element={<LiveRacePage />} />
