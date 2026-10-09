@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T11:38:45.920Z",
+  "generatedAt": "2026-10-09T11:48:31.057Z",
   "collections": [
     {
       "name": "users",
@@ -3170,6 +3170,109 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_canonical_quali_final_grid_key ON canonical_qualifying_final_grids (grid_key)",
         "CREATE INDEX idx_canonical_quali_final_grid_career_season_round ON canonical_qualifying_final_grids (career_id, season, round)"
+      ]
+    },
+    {
+      "name": "canonical_driver_morale_receipts",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "operation_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "season",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "session_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "driver_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "driver_slug",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "before_morale",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "delta",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "final_morale",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "applied_at",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_driver_morale_operation_key ON canonical_driver_morale_receipts (operation_key)",
+        "CREATE INDEX idx_driver_morale_receipt_lookup ON canonical_driver_morale_receipts (career_id, season, round, driver_id)"
       ]
     }
   ]

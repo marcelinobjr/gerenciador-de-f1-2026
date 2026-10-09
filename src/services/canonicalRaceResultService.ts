@@ -1021,7 +1021,7 @@ export class CanonicalRaceResultService {
       },
       driverCurrentMoraleMap: moraleMap,
       driverAliasesMap,
-      onSaveDriverMorale: async (driverId, newMorale) => {
+      onSaveDriverMorale: async (driverId, newMorale, context) => {
         // Encontrar a entrada correspondente para ter acesso ao nome caso necessário
         const entry = (officialResult.entries || []).find((e) => e.driverId === driverId)
         const realDbId = resolveDriverDbId(driverId, entry?.driverName)
@@ -1045,8 +1045,48 @@ export class CanonicalRaceResultService {
           )
         }
 
-        // Propaga a falha real de updateDriver se ocorrer (sem engolir nem devolver sucesso aparente)
-        await f1Service.updateDriver(targetDbId, { morale: newMorale })
+        // Tentar aplicação ATÔMICA no backend via hook /backend/v1/driver-morale/apply-atomic
+        let atomicApplied = false
+        try {
+          const pbModule = await import('@/lib/pocketbase/client')
+          const pb = pbModule.default
+          if (pb?.send) {
+            const atomicRes = await pb.send<any>('/backend/v1/driver-morale/apply-atomic', {
+              method: 'POST',
+              body: {
+                careerId: officialResult.careerId,
+                season: officialResult.season,
+                round: officialResult.round,
+                sessionType,
+                driverId: targetDbId,
+                driverName: entry?.driverName,
+                driverSlug: driverId,
+                beforeMorale: context?.beforeMorale,
+                delta: context?.delta,
+                finalMorale: newMorale,
+                officializedAt: officialResult.officializedAt,
+              },
+            })
+            if (
+              atomicRes &&
+              (atomicRes.status === 'applied' || atomicRes.status === 'already_applied')
+            ) {
+              atomicApplied = true
+            }
+          }
+        } catch (atomicErr) {
+          // Se falhou no backend atomic (ex: sem rede ou rejeição), propaga se não houver fallback
+          console.warn(
+            `[CanonicalRaceResultService] Atomic morale endpoint failed for ${targetDbId}:`,
+            atomicErr,
+          )
+          throw atomicErr
+        }
+
+        // Se o hook não estiver disponível (ex: pb sem send), executa updateDriver direto
+        if (!atomicApplied) {
+          await f1Service.updateDriver(targetDbId, { morale: newMorale })
+        }
 
         // Também assegura persistência na fonte canônica de career_drivers se careerId presente
         if (officialResult.careerId) {

@@ -340,6 +340,86 @@ export class DriverMoraleService {
   }
 
   /**
+   * Consulta recibo autoritativo no backend (PocketBase) via endpoint ou collection
+   */
+  public async fetchBackendReceipt(params: {
+    careerId?: string
+    season: number | string
+    round: number | string
+    sessionType?: string
+    driverId: string
+    driverName?: string
+  }): Promise<{
+    exists: boolean
+    operationKey?: string
+    beforeMorale?: number
+    delta?: number
+    finalMorale?: number
+    appliedAt?: string
+    currentDriverMorale?: number
+  } | null> {
+    const careerId = params.careerId || 'default'
+    const season = params.season || 2026
+    const round = params.round || 1
+    const sessionType = params.sessionType || 'MAIN_RACE'
+    const driverId = params.driverId
+
+    try {
+      const pbModule = await import('@/lib/pocketbase/client')
+      const pb = pbModule.default
+      if (pb?.send) {
+        const queryParams = new URLSearchParams({
+          careerId: String(careerId),
+          season: String(season),
+          round: String(round),
+          sessionType,
+          driverId,
+          ...(params.driverName ? { driverName: params.driverName } : {}),
+        })
+        const res = await pb.send<any>(
+          `/backend/v1/driver-morale/receipt?${queryParams.toString()}`,
+          {
+            method: 'GET',
+          },
+        )
+        if (res && typeof res.exists === 'boolean') {
+          return res
+        }
+      }
+    } catch {
+      // Endpoint indisponível ou offline; tenta via collection direta
+    }
+
+    try {
+      const pbModule = await import('@/lib/pocketbase/client')
+      const pb = pbModule.default
+      if (pb?.collection) {
+        const sessSuffix = sessionType ? `_${sessionType}` : '_MAIN_RACE'
+        const opKey = `driver_morale_receipt_${careerId}_${season}_${round}${sessSuffix}_${driverId}`
+        const record = await pb
+          .collection('canonical_driver_morale_receipts')
+          .getFirstListItem(
+            `operation_key = "${opKey}" || (career_id = "${careerId}" && season = ${season} && round = ${round} && (driver_id = "${driverId}" || driver_slug = "${driverId}"))`,
+          )
+        if (record) {
+          return {
+            exists: true,
+            operationKey: record.operation_key,
+            beforeMorale: record.before_morale,
+            delta: record.delta,
+            finalMorale: record.final_morale,
+            appliedAt: record.applied_at,
+          }
+        }
+      }
+    } catch {
+      // Sem recibo ou erro de rede
+    }
+
+    return null
+  }
+
+  /**
    * Recupera o registro persistido de processamento ou confirmação de moral prévia
    */
   public getStoredMoraleRecord(params: {
@@ -606,7 +686,11 @@ export class DriverMoraleService {
     }
     driverCurrentMoraleMap?: Record<string, number>
     driverAliasesMap?: Record<string, string[]>
-    onSaveDriverMorale?: (driverId: string, newMorale: number) => Promise<boolean | void>
+    onSaveDriverMorale?: (
+      driverId: string,
+      newMorale: number,
+      context?: { beforeMorale: number; delta: number },
+    ) => Promise<boolean | void>
   }): Promise<DriverMoraleCalculationResult[] & { batchResult?: DriverMoraleBatchResult }> {
     const {
       officialResult,
@@ -620,6 +704,69 @@ export class DriverMoraleService {
 
     for (const entry of officialResult.entries) {
       const aliases = entry.aliases || driverAliasesMap[entry.driverId] || []
+
+      // 0. Consulta AUTORITATIVA no backend (PocketBase) se disponível
+      let backendReceipt: any = null
+      try {
+        backendReceipt = await this.fetchBackendReceipt({
+          careerId: officialResult.careerId,
+          season: officialResult.season,
+          round: officialResult.round,
+          sessionType: officialResult.sessionType,
+          driverId: entry.driverId,
+          driverName: entry.driverName,
+        })
+      } catch {
+        backendReceipt = null
+      }
+
+      // Se o backend confirmar existência de recibo prévio:
+      // O efeito JÁ FOI APLICADO de forma atômica no servidor.
+      // Reconcilia o cache local e conclui sem alterar a moral novamente.
+      // IMPORTANTE: NÃO restaura finalMorale do recibo sobre a moral atual se esta
+      // tiver sido alterada posteriormente por outro evento (requisito 2).
+      if (backendReceipt && backendReceipt.exists) {
+        // Atualiza cache local
+        this.markMoralePersisted({
+          careerId: officialResult.careerId,
+          season: officialResult.season,
+          round: officialResult.round,
+          sessionType: officialResult.sessionType,
+          driverId: entry.driverId,
+          driverAliases: aliases,
+          finalMorale: backendReceipt.finalMorale,
+          delta: backendReceipt.delta,
+          before: backendReceipt.beforeMorale,
+        })
+        try {
+          this.markMoraleProcessed(
+            {
+              careerId: officialResult.careerId,
+              season: officialResult.season,
+              round: officialResult.round,
+              sessionType: officialResult.sessionType,
+              driverId: entry.driverId,
+              driverAliases: aliases,
+            },
+            {
+              before: backendReceipt.beforeMorale ?? 80,
+              after: backendReceipt.finalMorale ?? 80,
+              delta: backendReceipt.delta ?? 0,
+              officializedAt: officialResult.officializedAt,
+            },
+          )
+        } catch {
+          /* intentionally ignored */
+        }
+
+        itemResults.push({
+          driverId: entry.driverId,
+          status: 'already_processed',
+          savedMorale: backendReceipt.finalMorale,
+        })
+        continue
+      }
+
       const stored = this.getStoredMoraleRecord({
         careerId: officialResult.careerId,
         season: officialResult.season,
@@ -629,7 +776,7 @@ export class DriverMoraleService {
         driverAliases: aliases,
       })
 
-      // Caso 1: Já totalmente processado anteriormente
+      // Caso 1: Já totalmente processado anteriormente (segundo cache local)
       if (stored && stored.isFullyProcessed) {
         itemResults.push({
           driverId: entry.driverId,
@@ -715,7 +862,10 @@ export class DriverMoraleService {
       // Persistência canônica via hook ou callback
       if (onSaveDriverMorale) {
         try {
-          const saveRes = await onSaveDriverMorale(entry.driverId, calculation.afterMorale)
+          const saveRes = await onSaveDriverMorale(entry.driverId, calculation.afterMorale, {
+            beforeMorale: calculation.beforeMorale,
+            delta: calculation.clampedRaceDelta,
+          })
           if (saveRes === false) {
             saveSuccess = false
             saveErrorMsg = 'onSaveDriverMorale returned false'
