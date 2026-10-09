@@ -12,8 +12,11 @@ export interface PreRaceStrategyModalOverlayProps {
   inventories: Record<string, TireSetItem[]>
   totalLaps: number
   initialCarId?: 'car1' | 'car2'
+  isConfirmed?: boolean
   onClose: () => void
   onUpdateSnapshot: (nextSnapshot: RacePreparationSnapshot) => void
+  onConfirmAndPrepare?: () => Promise<void> | void
+  isConfirming?: boolean
 }
 
 function getTyreStyle(compound: TireCompound) {
@@ -57,8 +60,11 @@ export const PreRaceStrategyModalOverlay: React.FC<PreRaceStrategyModalOverlayPr
   inventories,
   totalLaps,
   initialCarId = 'car1',
+  isConfirmed = false,
   onClose,
   onUpdateSnapshot,
+  onConfirmAndPrepare,
+  isConfirming = false,
 }) => {
   const [activeCarTab, setActiveCarTab] = useState<'car1' | 'car2'>(initialCarId)
 
@@ -289,42 +295,58 @@ export const PreRaceStrategyModalOverlay: React.FC<PreRaceStrategyModalOverlayPr
                   Plano de Paradas Planejado ({totalLaps} Voltas)
                 </span>
                 <div className="space-y-1.5">
-                  {currentCar.strategyPlan.stints.map((stint, sIdx) => {
-                    const style = getTyreStyle(stint.compound)
-                    return (
-                      <div
-                        key={sIdx}
-                        className="flex items-center justify-between p-2 rounded bg-[#090F1C] border border-[#1E293B] text-xs font-mono"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-4 h-4 rounded-full border flex items-center justify-center text-[9px] font-black ${style.color}`}
-                          >
-                            {style.symbol}
-                          </span>
-                          <span className="text-slate-200 font-bold">
-                            Stint {sIdx + 1}: {style.label}
+                  {(() => {
+                    const intervals = computeStintIntervals(
+                      currentCar.strategyPlan.stints,
+                      totalLaps,
+                    )
+                    return currentCar.strategyPlan.stints.map((stint, sIdx) => {
+                      const style = getTyreStyle(stint.compound)
+                      const interval = intervals[sIdx]
+                      return (
+                        <div
+                          key={sIdx}
+                          className="flex items-center justify-between p-2 rounded bg-[#090F1C] border border-[#1E293B] text-xs font-mono"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center text-[9px] font-black ${style.color}`}
+                            >
+                              {style.symbol}
+                            </span>
+                            <span className="text-slate-200 font-bold">
+                              Stint {sIdx + 1}: {style.label}
+                            </span>
+                          </div>
+                          <span className="text-slate-400">
+                            {interval ? interval.formattedLabel : `Stint ${sIdx + 1}`}
                           </span>
                         </div>
-                        <span className="text-slate-400">
-                          {sIdx === 0
-                            ? `Voltas 1 → ${stint.targetPitLap}`
-                            : `Voltas ${stint.targetPitLap} → Fim`}
-                        </span>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  })()}
                 </div>
               </div>
             </TabsContent>
           </Tabs>
 
-          {/* AVISO DO MOTOR DE CORRIDA */}
-          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3 text-xs text-slate-300">
-            <AlertCircle className="w-4 h-4 text-cyan-400 shrink-0" />
+          {/* STATUS REAL DA PREPARAÇÃO */}
+          <div
+            className={`p-3 rounded-xl border flex items-center gap-3 text-xs ${
+              isConfirmed
+                ? 'bg-emerald-950/20 border-emerald-800/50 text-emerald-300'
+                : 'bg-slate-900 border-slate-800 text-slate-300'
+            }`}
+          >
+            {isConfirmed ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            )}
             <span>
-              A preparação inicial está confirmada. O motor de simulação da corrida será conectado
-              na próxima etapa (01B).
+              {isConfirmed
+                ? 'Preparação da corrida confirmada. Você pode fechar o box e apertar PLAY para iniciar a prova.'
+                : 'Revise os pneus, combustível e paradas para cada piloto e clique em "Confirmar e Preparar Corrida" antes da largada.'}
             </span>
           </div>
         </CardContent>
@@ -342,11 +364,19 @@ export const PreRaceStrategyModalOverlay: React.FC<PreRaceStrategyModalOverlayPr
 
           <Button
             type="button"
-            disabled
-            className="text-xs font-black uppercase tracking-wider bg-[#1E293B] text-slate-500 cursor-not-allowed border border-slate-700"
-            title="Motor de corrida será conectado na próxima etapa."
+            disabled={isConfirming || !onConfirmAndPrepare}
+            onClick={async () => {
+              if (onConfirmAndPrepare) {
+                await onConfirmAndPrepare()
+              }
+            }}
+            className="text-xs font-black uppercase tracking-wider bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-900/30 border border-cyan-400/30"
           >
-            Confirmar e Preparar Corrida (Etapa 01B)
+            {isConfirming
+              ? 'Processando...'
+              : isConfirmed
+                ? 'Reconfirmar Estratégia'
+                : 'Confirmar e Preparar Corrida'}
           </Button>
         </div>
       </Card>

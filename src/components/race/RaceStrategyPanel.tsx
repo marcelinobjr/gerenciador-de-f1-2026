@@ -2,6 +2,7 @@ import React from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Layers } from 'lucide-react'
+import { computeStintIntervals } from '@/lib/canonical-stint-intervals'
 import type { PreparedCarState } from '@/types/canonical-race-preparation'
 
 export interface RaceStrategyPanelProps {
@@ -63,27 +64,25 @@ export const RaceStrategyPanel: React.FC<RaceStrategyPanelProps> = ({
 
               {/* STINTS VISUAIS */}
               <div className="space-y-1.5 pt-1">
-                {stints.map((stint, sIdx) => {
-                  const isFirst = sIdx === 0
-                  const isLast = sIdx === stints.length - 1
-                  const pitLap = stint.targetPitLap || 20
-
-                  return (
-                    <div
-                      key={sIdx}
-                      className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0D1524] border border-[#1E293B]/70"
-                    >
-                      <span className="text-slate-300 font-bold">
-                        Stint {sIdx + 1}: {getCompoundLabel(stint.compound)}
-                      </span>
-                      <span className="text-slate-400">
-                        {isFirst && `Voltas 1 → ${pitLap}`}
-                        {!isFirst && !isLast && `Voltas ${pitLap} → ${pitLap + 18}`}
-                        {!isFirst && isLast && `Volta ${pitLap} → Fim (${totalLaps})`}
-                      </span>
-                    </div>
-                  )
-                })}
+                {(() => {
+                  const intervals = computeStintIntervals(stints, totalLaps)
+                  return stints.map((stint, sIdx) => {
+                    const interval = intervals[sIdx]
+                    return (
+                      <div
+                        key={sIdx}
+                        className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0D1524] border border-[#1E293B]/70"
+                      >
+                        <span className="text-slate-300 font-bold">
+                          Stint {sIdx + 1}: {getCompoundLabel(stint.compound)}
+                        </span>
+                        <span className="text-slate-400 font-mono">
+                          {interval ? interval.formattedLabel : `Stint ${sIdx + 1}`}
+                        </span>
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             </div>
           )
