@@ -39,12 +39,17 @@ export interface OfficialRaceResultPanelProps {
   careerPersistenceStatus?: 'PENDING' | 'APPLYING' | 'COMPLETE' | 'FAILED'
   isPersisting?: boolean
   persistenceError?: string
+  remoteQueryState?: 'idle' | 'checking' | 'found' | 'missing' | 'error'
+  remoteQueryError?: string
+  isReconciliationPending?: boolean
+  onVerifyRemoteJournal?: () => void
   onRegisterInCareer?: () => void
   onContinue?: () => void
   onViewChampionship?: () => void
   onExportDiagnostics?: () => void
   onDownloadMemoryResult?: () => void
   isContinuing?: boolean
+  canAdvance?: boolean
 }
 
 export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = ({
@@ -52,12 +57,17 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
   careerPersistenceStatus = 'PENDING',
   isPersisting = false,
   persistenceError,
+  remoteQueryState = 'idle',
+  remoteQueryError,
+  isReconciliationPending = false,
+  onVerifyRemoteJournal,
   onRegisterInCareer,
   onContinue,
   onViewChampionship,
   onExportDiagnostics,
   onDownloadMemoryResult,
   isContinuing = false,
+  canAdvance,
 }) => {
   const [tableExpanded, setTableExpanded] = useState(false)
   const [continueClicked, setContinueClicked] = useState(false)
@@ -180,13 +190,17 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
   }, [result.round])
 
   const isComplete = careerPersistenceStatus === 'COMPLETE'
+  // Avanço permitido somente quando canAdvance === true (ou fallback para isComplete se canAdvance não fornecido)
+  const isAdvanceAllowed = canAdvance !== undefined ? canAdvance : isComplete
 
-  // Handler de avanço com guarda contra clique duplo e bloqueio estrito se a carreira não estiver concluída
+  // Handler de avanço com guarda contra clique duplo e bloqueio estrito se o avanço não estiver autorizado
   const handleContinueClick = () => {
-    if (continueClicked || isContinuing || !isComplete) return
+    if (continueClicked || isContinuing || !isAdvanceAllowed) return
     setContinueClicked(true)
     if (onContinue) {
-      onContinue()
+      Promise.resolve(onContinue()).finally(() => {
+        setContinueClicked(false)
+      })
     }
   }
 
@@ -282,15 +296,33 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
                   RESULTADO OFICIAL ✓
                 </div>
                 <span className="text-slate-300">→</span>
-                {careerPersistenceStatus === 'COMPLETE' ? (
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    CARREIRA REGISTRADA ✓
-                  </div>
-                ) : isPersisting || careerPersistenceStatus === 'APPLYING' ? (
+                {remoteQueryState === 'checking' ||
+                isPersisting ||
+                careerPersistenceStatus === 'APPLYING' ? (
                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 animate-pulse">
                     <Timer className="w-4 h-4 text-amber-600" />
-                    REGISTRANDO...
+                    {remoteQueryState === 'checking'
+                      ? 'CONSULTANDO BACKEND...'
+                      : 'REGISTRANDO NO BACKEND...'}
+                  </div>
+                ) : isReconciliationPending ? (
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    RECONCILIAÇÃO PENDENTE (01D)
+                  </div>
+                ) : remoteQueryState === 'error' ? (
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-red-700">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    FALHA DE CONSULTA REMOTA
+                  </div>
+                ) : remoteQueryState === 'missing' ? (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                    JOURNAL REMOTO AUSENTE
+                  </div>
+                ) : careerPersistenceStatus === 'COMPLETE' ? (
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    CONFIRMADO NO BACKEND ✓
                   </div>
                 ) : careerPersistenceStatus === 'FAILED' ? (
                   <div className="flex items-center gap-1.5 text-xs font-bold text-red-700">
@@ -303,39 +335,97 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
                 <span className="text-slate-300">→</span>
                 <div
                   className={`flex items-center gap-1.5 text-xs font-bold ${
-                    isComplete ? 'text-emerald-700' : 'text-slate-400'
+                    isAdvanceAllowed ? 'text-emerald-700' : 'text-slate-400'
                   }`}
                 >
-                  {isComplete ? 'CAMPEONATO ATUALIZADO ✓' : 'CAMPEONATO PENDENTE'}
+                  {isAdvanceAllowed ? 'CAMPEONATO ATUALIZADO ✓' : 'CAMPEONATO PENDENTE'}
                 </div>
               </div>
             </div>
 
-            {/* Aviso de erro e Retry caso a persistência tenha falhado */}
-            {careerPersistenceStatus === 'FAILED' && onRegisterInCareer && (
+            {/* Diferenciação de Ações: (a) Falha de Consulta -> Verificar registro; (b) Aplicação incerta -> Reconciliação pendente; (c) Falha comum */}
+            {remoteQueryState === 'error' && (
               <div
-                className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex flex-wrap items-center justify-between gap-3 text-red-800"
-                data-testid="persistence-failure-alert"
+                className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex flex-wrap items-center justify-between gap-3 text-amber-900"
+                data-testid="remote-query-error-alert"
               >
                 <div className="flex items-center gap-2 text-xs">
-                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
-                    Falha ao registrar na carreira:{' '}
-                    <strong>{persistenceError || 'Erro de processamento.'}</strong>
+                    Falha ao consultar registro no backend:{' '}
+                    <strong>{remoteQueryError || 'Erro de comunicação remota.'}</strong>
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={onRegisterInCareer}
-                  disabled={isPersisting}
-                  className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
-                  data-testid="retry-persistence-btn"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  TENTAR NOVAMENTE
-                </button>
+                {onVerifyRemoteJournal && (
+                  <button
+                    type="button"
+                    onClick={onVerifyRemoteJournal}
+                    disabled={(remoteQueryState as string) === 'checking'}
+                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    data-testid="verify-remote-journal-btn"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    VERIFICAR REGISTRO
+                  </button>
+                )}
               </div>
             )}
+
+            {isReconciliationPending && (
+              <div
+                className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex flex-wrap items-center justify-between gap-3 text-amber-900"
+                data-testid="reconciliation-pending-alert"
+              >
+                <div className="flex items-center gap-2 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>Aplicação incerta:</strong> o estado remoto da carreira requer
+                    reconciliação (01D). Replay automático de efeitos bloqueado para proteção dos
+                    dados.
+                  </span>
+                </div>
+                {onVerifyRemoteJournal && (
+                  <button
+                    type="button"
+                    onClick={onVerifyRemoteJournal}
+                    disabled={(remoteQueryState as string) === 'checking'}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    data-testid="verify-remote-journal-btn"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    VERIFICAR REGISTRO
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!isReconciliationPending &&
+              (remoteQueryState as string) !== 'error' &&
+              careerPersistenceStatus === 'FAILED' &&
+              onRegisterInCareer && (
+                <div
+                  className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex flex-wrap items-center justify-between gap-3 text-red-800"
+                  data-testid="persistence-failure-alert"
+                >
+                  <div className="flex items-center gap-2 text-xs">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>
+                      Falha ao registrar na carreira:{' '}
+                      <strong>{persistenceError || 'Erro de processamento.'}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onRegisterInCareer}
+                    disabled={isPersisting}
+                    className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+                    data-testid="retry-persistence-btn"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    TENTAR NOVAMENTE
+                  </button>
+                </div>
+              )}
 
             {/* Destaques Esportivos Principais: VENCEDOR, PÓDIO, POLE, VOLTA MAIS RÁPIDA */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
@@ -1351,16 +1441,16 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
                 <div className="flex flex-col items-end gap-1">
                   <button
                     type="button"
-                    disabled={!isComplete || continueClicked || isContinuing}
+                    disabled={!isAdvanceAllowed || continueClicked || isContinuing}
                     onClick={handleContinueClick}
                     className={`px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-md ${
-                      !isComplete
+                      !isAdvanceAllowed
                         ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-60'
                         : 'bg-[#E10600] hover:bg-red-600 text-white cursor-pointer'
                     }`}
                     data-testid="continue-to-next-round-btn"
                     title={
-                      !isComplete
+                      !isAdvanceAllowed
                         ? 'O avanço requer a confirmação do registro esportivo da carreira no backend.'
                         : 'Avançar para a próxima etapa/rodada'
                     }
@@ -1377,11 +1467,22 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
                       </>
                     )}
                   </button>
-                  {!isComplete && (
-                    <span className="text-[10px] text-amber-400 font-medium">
-                      {careerPersistenceStatus === 'FAILED'
-                        ? 'Registro pendente/falho: use "Tentar Novamente" acima.'
-                        : 'Aguardando confirmação do registro no backend...'}
+                  {!isAdvanceAllowed && (
+                    <span
+                      className="text-[10px] text-amber-400 font-medium"
+                      data-testid="advance-blocked-reason"
+                    >
+                      {remoteQueryState === 'checking'
+                        ? 'Consultando confirmação remota no backend...'
+                        : remoteQueryState === 'error'
+                          ? 'Falha na consulta remota: verifique o registro antes de avançar.'
+                          : isReconciliationPending
+                            ? 'Aplicação incerta: reconciliação da carreira pendente (01D).'
+                            : remoteQueryState === 'missing'
+                              ? 'Registro remoto do journal ausente no backend.'
+                              : careerPersistenceStatus === 'FAILED'
+                                ? 'Registro remoto falho no backend.'
+                                : 'Aguardando confirmação do registro no backend...'}
                     </span>
                   )}
                 </div>

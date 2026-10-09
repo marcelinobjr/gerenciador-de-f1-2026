@@ -86,6 +86,11 @@ export default function RacePage() {
   const [careerPersistenceStatus, setCareerPersistenceStatus] = useState<
     'PENDING' | 'APPLYING' | 'COMPLETE' | 'FAILED'
   >('PENDING')
+  const [remoteQueryState, setRemoteQueryState] = useState<
+    'idle' | 'checking' | 'found' | 'missing' | 'error'
+  >('idle')
+  const [remoteQueryError, setRemoteQueryError] = useState<string | undefined>(undefined)
+  const [isReconciliationPending, setIsReconciliationPending] = useState(false)
   const [isPersistingCareer, setIsPersistingCareer] = useState(false)
   const [careerPersistenceError, setCareerPersistenceError] = useState<string | undefined>(
     undefined,
@@ -96,6 +101,7 @@ export default function RacePage() {
 
   // Refs de controle de avanço e timer
   const isAdvancingRef = useRef(false)
+  const activeRequestIdRef = useRef<number>(0)
   const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const canonicalRaceStateRef = useRef<CanonicalRaceState | null>(null)
   canonicalRaceStateRef.current = canonicalRaceState
@@ -109,6 +115,77 @@ export default function RacePage() {
       }
     }
   }, [])
+
+  // Função centralizada para consultar e validar o journal remoto
+  const verifyRemoteJournalStatus = useCallback(
+    async (
+      targetResult: OfficialRaceResult,
+      targetContext: CanonicalRaceSessionContext,
+    ): Promise<boolean> => {
+      const currentRequestId = ++activeRequestIdRef.current
+      setRemoteQueryState('checking')
+      setRemoteQueryError(undefined)
+      setIsReconciliationPending(false)
+
+      try {
+        const remoteJournal =
+          await canonicalCareerPersistenceService.getApplicationJournalFromBackend(
+            targetContext.careerId,
+            targetContext.seasonYear,
+            targetContext.round,
+            'MAIN_RACE',
+          )
+
+        // Se uma requisição mais recente foi disparada ou mudou de contexto, descartar
+        if (currentRequestId !== activeRequestIdRef.current) {
+          return false
+        }
+
+        if (!remoteJournal) {
+          setRemoteQueryState('missing')
+          setCareerPersistenceStatus('PENDING')
+          return false
+        }
+
+        // Validar correspondência estrita da prova exibida
+        const matchesCareer = remoteJournal.careerId === targetContext.careerId
+        const matchesSeason = Number(remoteJournal.season) === Number(targetContext.seasonYear)
+        const matchesRound = Number(remoteJournal.round) === Number(targetContext.round)
+        const matchesHash =
+          !targetResult.resultHash ||
+          !remoteJournal.checksum ||
+          remoteJournal.checksum === targetResult.resultHash
+
+        if (!matchesCareer || !matchesSeason || !matchesRound || !matchesHash) {
+          setRemoteQueryState('error')
+          setRemoteQueryError('Divergência de identidade ou hash no journal remoto.')
+          setCareerPersistenceStatus('FAILED')
+          return false
+        }
+
+        // Journal correspondente encontrado
+        setRemoteQueryState('found')
+        setCareerPersistenceStatus(remoteJournal.status)
+
+        // Verificar se há pendência de reconciliação (status != COMPLETE com falha em etapas)
+        if (remoteJournal.status === 'FAILED') {
+          setIsReconciliationPending(true)
+        }
+
+        return remoteJournal.status === 'COMPLETE'
+      } catch (err: any) {
+        if (currentRequestId !== activeRequestIdRef.current) {
+          return false
+        }
+        console.warn('[RacePage] Erro ao consultar journal remoto:', err)
+        setRemoteQueryState('error')
+        setRemoteQueryError(err?.message || 'Falha de comunicação ao consultar o backend.')
+        setCareerPersistenceStatus('FAILED')
+        return false
+      }
+    },
+    [],
+  )
 
   // Carrega a sessão canônica
   useEffect(() => {
@@ -141,24 +218,7 @@ export default function RacePage() {
 
           const processOfficialFound = (offResult: OfficialRaceResult) => {
             setOfficialRaceResult(offResult)
-            const isRegSync = canonicalCareerPersistenceService.isResultRegistered(
-              ctx.careerId,
-              ctx.seasonYear,
-              ctx.round,
-              'MAIN_RACE',
-            )
-            setCareerPersistenceStatus(isRegSync ? 'COMPLETE' : 'PENDING')
-            // Consulta autoritativa no backend para confirmar status real do journal
-            canonicalCareerPersistenceService
-              .isResultRegisteredAsync(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
-              .then((isRegAsync) => {
-                if (isMounted) {
-                  setCareerPersistenceStatus(isRegAsync ? 'COMPLETE' : 'PENDING')
-                }
-              })
-              .catch((err) => {
-                console.warn('[RacePage] Erro ao consultar journal autoritativo no backend:', err)
-              })
+            verifyRemoteJournalStatus(offResult, ctx)
           }
 
           if (official) {
@@ -266,24 +326,7 @@ export default function RacePage() {
         } catch {
           /* cache local opcional */
         }
-        const isRegSync = canonicalCareerPersistenceService.isResultRegistered(
-          ctx.careerId,
-          ctx.seasonYear,
-          ctx.round,
-          'MAIN_RACE',
-        )
-        setCareerPersistenceStatus(isRegSync ? 'COMPLETE' : 'PENDING')
-        // Consulta assíncrona autoritativa ao backend para status verídico do journal
-        canonicalCareerPersistenceService
-          .isResultRegisteredAsync(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
-          .then((isRegAsync) => {
-            if (isMounted) {
-              setCareerPersistenceStatus(isRegAsync ? 'COMPLETE' : 'PENDING')
-            }
-          })
-          .catch((err) => {
-            console.warn('[RacePage] Falha ao verificar journal no backend:', err)
-          })
+        verifyRemoteJournalStatus(remoteOfficial, ctx)
       })
       .catch((remoteErr) => {
         // Diferenciar consulta com falha de registro ausente: falha de rede preserva o estado carregado e apenas loga aviso
@@ -569,19 +612,31 @@ export default function RacePage() {
   // D) Avanço para o Próximo Fim de Semana (fluxo canônico)
   const handleAdvanceToNextWeekend = useCallback(async () => {
     if (!sessionResolution || sessionResolution.status !== 'ready' || !season?.id) return
-    if (careerPersistenceStatus !== 'COMPLETE') {
+    const ctx = sessionResolution.context
+
+    // Revalidação estrita da condição no backend antes de prosseguir
+    if (!officialRaceResult) {
       toast({
         variant: 'destructive',
         title: 'Avanço Bloqueado',
-        description:
-          'O registro obrigatório do resultado na carreira deve ser concluído com sucesso antes de avançar.',
+        description: 'Resultado da prova ausente.',
       })
       return
     }
-    const ctx = sessionResolution.context
 
     setIsAdvancingRound(true)
     try {
+      const isRemoteValid = await verifyRemoteJournalStatus(officialRaceResult, ctx)
+      if (!isRemoteValid) {
+        toast({
+          variant: 'destructive',
+          title: 'Avanço Bloqueado',
+          description:
+            'A confirmação remota no backend é obrigatória e deve estar íntegra antes de avançar.',
+        })
+        return
+      }
+
       const res = await advanceWeekendRound({
         officialResult: officialRaceResult,
         season,
@@ -621,7 +676,7 @@ export default function RacePage() {
     } finally {
       setIsAdvancingRound(false)
     }
-  }, [sessionResolution, officialRaceResult, season, team, navigate, careerPersistenceStatus])
+  }, [sessionResolution, officialRaceResult, season, team, navigate, verifyRemoteJournalStatus])
 
   // ESTADO DE CARREGAMENTO
   if (isAuthLoading || isLoadingSession) {
@@ -788,7 +843,18 @@ export default function RacePage() {
           careerPersistenceStatus={careerPersistenceStatus}
           isPersisting={isPersistingCareer}
           persistenceError={careerPersistenceError}
+          remoteQueryState={remoteQueryState}
+          remoteQueryError={remoteQueryError}
+          isReconciliationPending={isReconciliationPending}
+          canAdvance={
+            remoteQueryState === 'found' &&
+            careerPersistenceStatus === 'COMPLETE' &&
+            !isReconciliationPending
+          }
           isContinuing={isAdvancingRound}
+          onVerifyRemoteJournal={() => {
+            verifyRemoteJournalStatus(officialRaceResult, context)
+          }}
           onExportDiagnostics={() => {
             try {
               const diagData = collectRaceDiagnosticData(context.careerId, {
@@ -823,20 +889,29 @@ export default function RacePage() {
             }
           }}
           onRegisterInCareer={async () => {
+            // Guard: se a aplicação está incerta (reconciliação pendente), impedir replay
+            if (isReconciliationPending) {
+              toast({
+                variant: 'destructive',
+                title: 'Replay Bloqueado',
+                description:
+                  'Aplicação incerta: reconciliação da carreira pendente (01D). Replay bloqueado.',
+              })
+              return
+            }
             try {
               setIsPersistingCareer(true)
               setCareerPersistenceStatus('APPLYING')
               setCareerPersistenceError(undefined)
               const res =
                 await canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(
-                  // probe async call
                   officialRaceResult,
                   { requireBackendSync: true },
                 )
-              // probe async result
               setCareerPersistenceStatus(res.journal.status)
               setIsPersistingCareer(false)
               if (res.success) {
+                setRemoteQueryState('found')
                 canonicalChampionshipService.processAndPersistRoundChampionship(
                   context.careerId,
                   context.seasonYear,
@@ -845,10 +920,13 @@ export default function RacePage() {
                 )
               } else {
                 setCareerPersistenceError(res.error)
+                // Se a persistência falhou em etapas, marcar reconciliação pendente
+                setIsReconciliationPending(true)
               }
             } catch (err: any) {
               setIsPersistingCareer(false)
               setCareerPersistenceStatus('FAILED')
+              setIsReconciliationPending(true)
               setCareerPersistenceError(err?.message || 'Falha na persistência da carreira.')
             }
           }}
