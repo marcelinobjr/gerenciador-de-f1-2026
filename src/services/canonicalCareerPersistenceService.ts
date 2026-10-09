@@ -189,9 +189,10 @@ export class CanonicalCareerPersistenceService {
   }
 
   /**
-   * Busca o journal de aplicação de forma autoritativa no backend PocketBase
-   * com fallback transparente para o cache local se offline.
-   * Lança erro caso a conexão falhe sem ser 404.
+   * Busca o journal de aplicação de forma autoritativa no backend PocketBase.
+   * Lança erro caso a conexão ou consulta falhe (NÃO trata erro como ausência).
+   * Retorna explicitamente null quando o registro está ausente no backend.
+   * O localStorage funciona estritamente como cache opcional, NUNCA como autoridade ou substituto.
    */
   public async getApplicationJournalFromBackend(
     careerId: string,
@@ -199,80 +200,81 @@ export class CanonicalCareerPersistenceService {
     round: number,
     raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): Promise<CareerApplicationJournal | null> {
-    const sNum =
-      typeof season === 'number' ? season : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
     const key = this.buildApplyJournalKey(careerId, season, round, raceVariant)
     const legacyKey =
       raceVariant === 'MAIN_RACE' ? this.buildApplyJournalKey(careerId, season, round) : null
 
-    if (pb?.collection) {
-      try {
-        const filter = legacyKey
-          ? `journal_key = "${key}" || journal_key = "${legacyKey}" || (career_id = "${careerId}" && round = ${round})`
-          : `journal_key = "${key}" || (career_id = "${careerId}" && round = ${round})`
-
-        const records = await pb.collection('canonical_career_apply_journals').getFullList({
-          filter,
-          sort: '-created',
-        })
-
-        if (records && records.length > 0) {
-          const matched =
-            records.find((r: any) => {
-              if (raceVariant === 'SPRINT_RACE') {
-                return r.journal_key?.endsWith('_sprint') || r.race_variant === 'SPRINT_RACE'
-              }
-              if (raceVariant === 'MAIN_RACE') {
-                return !r.journal_key?.endsWith('_sprint')
-              }
-              return true
-            }) || records[0]
-
-          if (matched) {
-            const backendJournal: CareerApplicationJournal = {
-              key: matched.journal_key || key,
-              careerId: matched.career_id,
-              season: matched.season,
-              round: matched.round,
-              officialRaceResultId: matched.official_race_result_id,
-              checksum: matched.result_hash,
-              status: matched.status as CareerApplicationStatus,
-              appliedDriverIds: Array.isArray(matched.applied_driver_ids)
-                ? matched.applied_driver_ids
-                : [],
-              totalEntries: matched.total_entries || 0,
-              version: matched.version || 1,
-              startedAt: matched.started_at,
-              completedAt: matched.completed_at || undefined,
-              lastError: matched.last_error || undefined,
-            }
-            // Atualizar cache local silenciosamente se possível
-            try {
-              this.saveApplicationJournal(backendJournal, raceVariant)
-            } catch {
-              /* ignore cache write fail */
-            }
-            return backendJournal
-          }
-        }
-        return null
-      } catch (err: any) {
-        if (err?.status === 404) {
-          return null
-        }
-        // Se der erro no backend, relançar para não mascarar falha como ausência
-        throw err
-      }
+    if (!pb?.collection) {
+      throw new Error(
+        `[CareerPersistence] Cliente PocketBase indisponível para consulta remota do journal: ${key}`,
+      )
     }
 
-    // Se PB não estiver disponível, usar cache local
-    return this.getApplicationJournal(careerId, season, round, raceVariant)
+    try {
+      const filter = legacyKey
+        ? `journal_key = "${key}" || journal_key = "${legacyKey}" || (career_id = "${careerId}" && round = ${round})`
+        : `journal_key = "${key}" || (career_id = "${careerId}" && round = ${round})`
+
+      const records = await pb.collection('canonical_career_apply_journals').getFullList({
+        filter,
+        sort: '-created',
+      })
+
+      if (records && records.length > 0) {
+        const matched =
+          records.find((r: any) => {
+            if (raceVariant === 'SPRINT_RACE') {
+              return r.journal_key?.endsWith('_sprint') || r.race_variant === 'SPRINT_RACE'
+            }
+            if (raceVariant === 'MAIN_RACE') {
+              return !r.journal_key?.endsWith('_sprint')
+            }
+            return true
+          }) || records[0]
+
+        if (matched) {
+          const backendJournal: CareerApplicationJournal = {
+            key: matched.journal_key || key,
+            careerId: matched.career_id,
+            season: matched.season,
+            round: matched.round,
+            officialRaceResultId: matched.official_race_result_id,
+            checksum: matched.result_hash,
+            status: matched.status as CareerApplicationStatus,
+            appliedDriverIds: Array.isArray(matched.applied_driver_ids)
+              ? matched.applied_driver_ids
+              : [],
+            totalEntries: matched.total_entries || 0,
+            version: matched.version || 1,
+            startedAt: matched.started_at,
+            completedAt: matched.completed_at || undefined,
+            lastError: matched.last_error || undefined,
+          }
+          // Atualizar cache local silenciosamente como cache passivo (falhas de localStorage são ignoradas)
+          try {
+            this.saveApplicationJournal(backendJournal, raceVariant)
+          } catch {
+            /* ignore cache write fail */
+          }
+          return backendJournal
+        }
+      }
+      // Registro não encontrado no backend: retornar ausência de forma explícita
+      return null
+    } catch (err: any) {
+      if (err?.status === 404) {
+        return null
+      }
+      // Se der erro no backend, relançar; NUNCA mascarar falha remota como ausência ou retornar cache local
+      throw err
+    }
   }
 
   /**
    * Salva o journal de aplicação de forma autoritativa e aguardada no backend PocketBase.
    * Protege contra sobrescrita por versão desatualizada e previne regressão de progresso já confirmado.
    * Conflitos de hash ou officialRaceResultId disparam exceção explícita.
+   * Propaga falhas de gravação remota; atualizações de cache local são puramente secundárias.
    */
   public async saveApplicationJournalToBackend(
     journal: CareerApplicationJournal,
@@ -286,11 +288,17 @@ export class CanonicalCareerPersistenceService {
       journal.key ||
       this.buildApplyJournalKey(journal.careerId, journal.season, journal.round, raceVariant)
 
-    // Atualizar cache local opcional antes
-    this.saveApplicationJournal(journal, raceVariant)
-
     if (!pb?.collection) {
-      return { success: true }
+      throw new Error(
+        `[CareerPersistence] Cliente PocketBase indisponível para gravação remota do journal: ${key}`,
+      )
+    }
+
+    // Tentativa de cache local preventivo antes da chamada remota (falhas de cache JAMAIS impedem a gravação remota)
+    try {
+      this.saveApplicationJournal(journal, raceVariant)
+    } catch {
+      /* ignore cache write fail */
     }
 
     // 1. Buscar registro existente pelo journal_key
@@ -379,7 +387,12 @@ export class CanonicalCareerPersistenceService {
           .collection('canonical_career_apply_journals')
           .update(existingRecord.id, payload)
         journal.version = nextVersion
-        this.saveApplicationJournal(journal, raceVariant)
+        // Sincronizar cache local após sucesso remoto; eventual falha de cache JAMAIS transforma o sucesso em erro
+        try {
+          this.saveApplicationJournal(journal, raceVariant)
+        } catch {
+          /* ignore cache write fail */
+        }
         return { success: true, recordId: updated.id }
       } catch (updateErr: any) {
         console.error('[CareerPersistence] Falha ao atualizar journal no PB:', updateErr)
@@ -409,7 +422,12 @@ export class CanonicalCareerPersistenceService {
     try {
       const created = await pb.collection('canonical_career_apply_journals').create(createPayload)
       journal.version = initialVersion
-      this.saveApplicationJournal(journal, raceVariant)
+      // Sincronizar cache local após sucesso remoto; eventual falha de cache JAMAIS transforma o sucesso em erro
+      try {
+        this.saveApplicationJournal(journal, raceVariant)
+      } catch {
+        /* ignore cache write fail */
+      }
       return { success: true, recordId: created.id }
     } catch (createErr: any) {
       if (createErr?.status === 400 || createErr?.message?.includes('validation_not_unique')) {
