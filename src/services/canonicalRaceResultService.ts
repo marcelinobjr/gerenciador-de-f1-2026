@@ -934,8 +934,9 @@ export class CanonicalRaceResultService {
     // Base do banco (preservando moral válida igual a 0 sem cair no fallback de 80)
     for (const d of allDrivers) {
       if (d && d.id) {
-        const mor = typeof d.morale === 'number' && !isNaN(d.morale) ? d.morale : 80
-        moraleMap[d.id] = mor
+        if (typeof d.morale === 'number' && !isNaN(d.morale)) {
+          moraleMap[d.id] = d.morale
+        }
       }
     }
 
@@ -966,14 +967,19 @@ export class CanonicalRaceResultService {
 
     // Normalizar as entradas e também garantir que cada entry.driverId no moraleMap tenha valor
     // tanto na chave de entry.driverId quanto no ID real resolvido
+    // Apenas aplica fallback 80 se realmente ausente em ambas as chaves
     for (const entry of officialResult.entries || []) {
       const resolvedId = resolveDriverDbId(entry.driverId, entry.driverName)
-      if (resolvedId && typeof moraleMap[resolvedId] === 'number') {
-        moraleMap[entry.driverId] = moraleMap[resolvedId]
-      } else if (typeof moraleMap[entry.driverId] === 'number') {
-        if (resolvedId) {
-          moraleMap[resolvedId] = moraleMap[entry.driverId]
-        }
+      const existingMorale =
+        resolvedId && typeof moraleMap[resolvedId] === 'number'
+          ? moraleMap[resolvedId]
+          : typeof moraleMap[entry.driverId] === 'number'
+            ? moraleMap[entry.driverId]
+            : 80
+
+      moraleMap[entry.driverId] = existingMorale
+      if (resolvedId) {
+        moraleMap[resolvedId] = existingMorale
       }
     }
 
@@ -1058,7 +1064,8 @@ export class CanonicalRaceResultService {
 
         return updateSuccess
       },
-    })  }
+    })
+  }
 
   public terminateEarlyAndOfficialize(
     raceState: CanonicalRaceState,

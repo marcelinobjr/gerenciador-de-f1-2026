@@ -642,4 +642,102 @@ describe('BUG-MORALE-DRIVER-IDS-01: Canonical Morale Driver Resolution & Resilie
     })
     expect(isP2Done).toBe(true)
   })
+
+  it('6. BUG-MORALE-01R-A focal: canônico->ID correto, ID direto continua, moral pelos 2 identificadores (moral 0 preservada), não resolvido sem PATCH', async () => {
+    const mockDrivers = [
+      { id: 'pb_russell_15ch', name: 'George Russell', morale: 0 }, // Moral 0 que deve ser preservada (sem fallback para 80)
+      { id: 'pb_direct_15chr', name: 'Direct Driver', morale: 45 },
+    ]
+    vi.spyOn(f1Service, 'getAllDrivers').mockResolvedValue(mockDrivers as any)
+    vi.spyOn(f1Service, 'getAllTeams').mockResolvedValue([] as any)
+
+    const updatedDrivers: Record<string, any> = {}
+    const updateSpy = vi.spyOn(f1Service, 'updateDriver').mockImplementation(async (id, data) => {
+      updatedDrivers[id] = data
+      return {} as any
+    })
+
+    const capturedMoraleMaps: Record<string, number>[] = []
+    const origProcessOfficialRaceMorale =
+      driverMoraleService.processOfficialRaceMorale.bind(driverMoraleService)
+    vi.spyOn(driverMoraleService, 'processOfficialRaceMorale').mockImplementation(
+      async (params) => {
+        capturedMoraleMaps.push({ ...params.driverCurrentMoraleMap })
+        return origProcessOfficialRaceMorale(params)
+      },
+    )
+
+    const officialResult: any = {
+      careerId: 'career_focal_01ra',
+      season: 2026,
+      round: 1,
+      officializedAt: new Date().toISOString(),
+      entries: [
+        {
+          // 1. Piloto com chave canônica 'mercedes_d1'
+          driverId: 'mercedes_d1',
+          driverName: 'George Russell',
+          finalPosition: 1,
+          gridPosition: 1,
+          status: 'finished',
+          isDnf: false,
+        },
+        {
+          // 2. Piloto já com ID PB real direto
+          driverId: 'pb_direct_15chr',
+          driverName: 'Direct Driver',
+          finalPosition: 2,
+          gridPosition: 2,
+          status: 'finished',
+          isDnf: false,
+        },
+        {
+          // 3. Piloto não resolvível / desconhecido
+          driverId: 'unknown_alien_driver',
+          driverName: 'Alien Ghost',
+          finalPosition: 20,
+          gridPosition: 20,
+          status: 'finished',
+          isDnf: false,
+        },
+      ],
+    }
+
+    await canonicalRaceResultService.processOfficialMoraleDirect(officialResult)
+
+    // A. Verificação do moraleMap capturado
+    expect(capturedMoraleMaps.length).toBeGreaterThan(0)
+    const moraleMap = capturedMoraleMaps[0]
+
+    // Moral 0 do George Russell preservada tanto na chave canônica quanto no ID real
+    expect(moraleMap['pb_russell_15ch']).toBe(0)
+    expect(moraleMap['mercedes_d1']).toBe(0)
+
+    // ID direto mantém moral 45
+    expect(moraleMap['pb_direct_15chr']).toBe(45)
+
+    // Desconhecido cai no fallback 80 por estar ausente
+    expect(moraleMap['unknown_alien_driver']).toBe(80)
+
+    // B. Verificação dos patches enviados ao f1Service.updateDriver
+    // 1. Chave canônica 'mercedes_d1' deve ser resolvida para 'pb_russell_15ch' e NUNCA passada como 'mercedes_d1'
+    expect(updateSpy).toHaveBeenCalledWith(
+      'pb_russell_15ch',
+      expect.objectContaining({ morale: expect.any(Number) }),
+    )
+    expect(updateSpy).not.toHaveBeenCalledWith('mercedes_d1', expect.anything())
+
+    // 2. ID real direto 'pb_direct_15chr' continua sendo chamado diretamente
+    expect(updateSpy).toHaveBeenCalledWith(
+      'pb_direct_15chr',
+      expect.objectContaining({ morale: expect.any(Number) }),
+    )
+
+    // 3. Não resolvido 'unknown_alien_driver' NUNCA dispara updateDriver / PATCH (sem PATCH para evitar 404)
+    expect(updateSpy).not.toHaveBeenCalledWith('unknown_alien_driver', expect.anything())
+    expect(updatedDrivers['unknown_alien_driver']).toBeUndefined()
+
+    // Total de chamadas ao updateDriver deve ser exatamente 2 (para os dois pilotos resolvidos)
+    expect(updateSpy).toHaveBeenCalledTimes(2)
+  })
 })
