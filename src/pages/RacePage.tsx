@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useToast } from '@/hooks/use-toast'
+import { advanceWeekendRound } from '@/services/canonicalRoundAdvanceHelper'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
 import {
@@ -44,11 +46,14 @@ import {
   AlertTriangle,
   RotateCcw,
   Shield,
+  CheckCircle2,
   Layers,
 } from 'lucide-react'
 import type { RacePreparationSnapshot } from '@/types/canonical-race-preparation'
 
 export default function RacePage() {
+  const navigate = useNavigate()
+  const { toast } = useToast()
   const [searchParams] = useSearchParams()
   const { team, season, isLoading: isAuthLoading } = useAuth()
   const { currentRound: contextRound, playerDrivers: catalogDrivers } = useUnifiedSeason()
@@ -83,6 +88,9 @@ export default function RacePage() {
   const [careerPersistenceError, setCareerPersistenceError] = useState<string | undefined>(
     undefined,
   )
+  const [isOfficializing, setIsOfficializing] = useState(false)
+  const [officializeError, setOfficializeError] = useState<string | null>(null)
+  const [isAdvancingRound, setIsAdvancingRound] = useState(false)
 
   // Refs de controle de avanço e timer
   const isAdvancingRef = useRef(false)
@@ -364,6 +372,153 @@ export default function RacePage() {
     }
   }, [canonicalRaceState, isPlaying, advanceLap])
 
+  // C) Oficialização Canônica e Registro na Carreira
+  const handleOfficializeRace = useCallback(async () => {
+    if (!sessionResolution || sessionResolution.status !== 'ready') return
+    const ctx = sessionResolution.context
+    const currentState = canonicalRaceStateRef.current
+
+    if (!currentState) {
+      setOfficializeError('Estado da corrida não encontrado.')
+      return
+    }
+
+    // Verificar se já foi oficializada previamente
+    const alreadyOfficial = canonicalRaceResultService.getOfficialRaceResult(
+      ctx.careerId,
+      ctx.seasonYear,
+      ctx.round,
+      'MAIN_RACE',
+    )
+    if (alreadyOfficial) {
+      setOfficialRaceResult(alreadyOfficial)
+      // Assegurar registro da carreira
+      try {
+        canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(alreadyOfficial)
+        canonicalChampionshipService.processAndPersistRoundChampionship(
+          ctx.careerId,
+          ctx.seasonYear,
+          ctx.round,
+          alreadyOfficial.playerTeamId,
+        )
+      } catch (e: any) {
+        console.warn('[RacePage] Sync na carreira ao recuperar resultado existente:', e)
+      }
+      return
+    }
+
+    // Apenas pode oficializar se a corrida chegou ao final ou status 'completed'
+    if (currentState.status !== 'completed' && currentState.currentLap <= currentState.totalLaps) {
+      setOfficializeError('A corrida ainda está em andamento e não pode ser oficializada.')
+      return
+    }
+
+    setIsOfficializing(true)
+    setOfficializeError(null)
+
+    try {
+      // 1. Snapshot da corrida com o careerId canônico
+      const stateToOfficialize: CanonicalRaceState = {
+        ...currentState,
+        careerId: ctx.careerId,
+      }
+
+      // 2. Chamar canonicalRaceResultService.officializeRace (idempotente e canônico)
+      const official = canonicalRaceResultService.officializeRace(stateToOfficialize)
+      setOfficialRaceResult(official)
+
+      // 3. Persistência de carreira (journal atômico, pontos, stats, moral, etc.)
+      try {
+        setIsPersistingCareer(true)
+        setCareerPersistenceStatus('APPLYING')
+        const persistRes =
+          canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
+        setCareerPersistenceStatus(persistRes.journal.status)
+        setIsPersistingCareer(false)
+
+        if (persistRes.success) {
+          // Processar campeonato canônico da rodada
+          canonicalChampionshipService.processAndPersistRoundChampionship(
+            ctx.careerId,
+            ctx.seasonYear,
+            ctx.round,
+            official.playerTeamId,
+          )
+        } else {
+          setCareerPersistenceError(persistRes.error)
+        }
+      } catch (applyErr: any) {
+        setIsPersistingCareer(false)
+        setCareerPersistenceStatus('FAILED')
+        setCareerPersistenceError(applyErr?.message || 'Falha ao registrar carreira.')
+      }
+
+      toast({
+        title: 'Corrida Oficializada com Sucesso',
+        description:
+          'O resultado oficial imutável foi homologado pela FIA e registrado na temporada.',
+      })
+    } catch (err: any) {
+      console.error('[RacePage] Erro ao oficializar corrida:', err)
+      setOfficializeError(err?.message || 'Falha ao oficializar corrida.')
+      toast({
+        variant: 'destructive',
+        title: 'Falha na Oficialização',
+        description: err?.message || 'A prova não pôde ser homologada.',
+      })
+    } finally {
+      setIsOfficializing(false)
+    }
+  }, [sessionResolution])
+
+  // D) Avanço para o Próximo Fim de Semana (fluxo canônico)
+  const handleAdvanceToNextWeekend = useCallback(async () => {
+    if (!sessionResolution || sessionResolution.status !== 'ready' || !season?.id) return
+    const ctx = sessionResolution.context
+
+    setIsAdvancingRound(true)
+    try {
+      const res = await advanceWeekendRound({
+        officialResult: officialRaceResult,
+        season,
+        team,
+        currentRound: ctx.round,
+        totalRounds: 24,
+        onSuccess: (nextRound) => {
+          toast({
+            title: `Rodada ${ctx.round} Concluída!`,
+            description: `Avançando para a Rodada ${nextRound} da temporada 2026.`,
+          })
+          navigate(`/corrida?round=${nextRound}`)
+        },
+        onError: (err) => {
+          toast({
+            variant: 'destructive',
+            title: 'Erro ao avançar rodada',
+            description: err?.message || 'Falha ao atualizar rodada.',
+          })
+        },
+      })
+
+      if (!res.success && res.error) {
+        toast({
+          variant: 'destructive',
+          title: 'Avanço de Rodada Bloqueado',
+          description: res.error,
+        })
+      }
+    } catch (err: any) {
+      console.error('[RacePage] Erro ao avançar rodada:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro no Avanço',
+        description: err?.message || 'Não foi possível avançar para a próxima rodada.',
+      })
+    } finally {
+      setIsAdvancingRound(false)
+    }
+  }, [sessionResolution, officialRaceResult, season, team, navigate])
+
   // ESTADO DE CARREGAMENTO
   if (isAuthLoading || isLoadingSession) {
     return (
@@ -482,6 +637,87 @@ export default function RacePage() {
   // Clima inicial (CanonicalRaceInitialWeather) da sessão
   const initialWeather = weather
 
+  // SE HOUVER RESULTADO OFICIAL HOMOLOGADO, EXIBIR PAINEL OFICIAL FIA
+  if (officialRaceResult) {
+    return (
+      <div className="max-w-[1920px] mx-auto px-2 sm:px-4 py-4 space-y-4 font-sans text-white">
+        <header className="rounded-2xl overflow-hidden bg-gradient-to-r from-[#0E1626] via-[#1B1124] to-[#450A1A] border border-[#1E293B] shadow-xl p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-[#E10600] text-white text-[10px] font-black uppercase tracking-wider">
+                  BOX DA EQUIPE
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="text-emerald-300 border-emerald-800/60 bg-emerald-950/40 text-[10px] font-mono"
+                >
+                  RESULTADO OFICIAL HOMOLOGADO
+                </Badge>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">
+                {circuit.name}
+              </h1>
+              <p className="text-xs text-slate-300 font-mono">
+                {circuit.circuit} • {circuit.country} • Rodada {context.round} • Equipe:{' '}
+                <span className="text-white font-bold">{playerTeam.name}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                asChild
+                variant="outline"
+                className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 font-bold text-xs h-9 px-3 gap-1.5"
+              >
+                <Link to="/corrida">
+                  <ArrowLeft className="w-4 h-4" />
+                  Fim de Semana
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Componente canônico de Resultado Oficial FIA */}
+        <OfficialRaceResultPanel
+          result={officialRaceResult}
+          careerPersistenceStatus={careerPersistenceStatus}
+          isPersisting={isPersistingCareer}
+          persistenceError={careerPersistenceError}
+          isContinuing={isAdvancingRound}
+          onRegisterInCareer={() => {
+            try {
+              setIsPersistingCareer(true)
+              setCareerPersistenceStatus('APPLYING')
+              const res =
+                canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
+                  officialRaceResult,
+                )
+              setCareerPersistenceStatus(res.journal.status)
+              setIsPersistingCareer(false)
+              if (res.success) {
+                canonicalChampionshipService.processAndPersistRoundChampionship(
+                  context.careerId,
+                  context.seasonYear,
+                  context.round,
+                  officialRaceResult.playerTeamId,
+                )
+              } else {
+                setCareerPersistenceError(res.error)
+              }
+            } catch (err: any) {
+              setIsPersistingCareer(false)
+              setCareerPersistenceStatus('FAILED')
+              setCareerPersistenceError(err?.message)
+            }
+          }}
+          onContinue={handleAdvanceToNextWeekend}
+          onViewChampionship={() => navigate('/classificacao')}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 space-y-2.5 font-sans text-white">
       {/* 4.A HEADER: BOX DA EQUIPE — CONTROLE DE CORRIDA */}
@@ -562,18 +798,58 @@ export default function RacePage() {
         </div>
       )}
 
-      {/* BANNER SE CORRIDA ENCERRADA */}
-      {isFinished && (
-        <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-700 text-emerald-200 text-xs font-mono flex items-center justify-between">
+      {/* ALERTA DE ERRO DE OFICIALIZAÇÃO SE HOUVER */}
+      {officializeError && (
+        <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-700 text-rose-200 text-xs font-mono flex items-center justify-between">
+          <span>Erro ao oficializar resultado: {officializeError}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setOfficializeError(null)}
+            className="text-rose-300 hover:text-white h-7 px-2 text-[10px]"
+          >
+            Fechar
+          </Button>
+        </div>
+      )}
+
+      {/* BANNER SE CORRIDA ENCERRADA E NÃO OFICIALIZADA */}
+      {isFinished && !officialRaceResult && (
+        <div
+          className="p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-700 text-emerald-200 text-xs font-mono flex flex-wrap items-center justify-between gap-3 shadow-md"
+          data-testid="banner-race-finished-pending-official"
+        >
           <div className="flex items-center gap-2">
-            <Flag className="w-4 h-4 text-emerald-400" />
-            <span className="font-bold">
-              Corrida encerrada; resultado pendente de oficialização.
-            </span>
+            <Flag className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div>
+              <span className="font-bold block text-white">
+                Corrida encerrada ({currentLapDisplay}/{totalLapsDisplay} voltas completadas).
+              </span>
+              <span className="text-[11px] text-emerald-300">
+                O resultado canônico está congelado e pronto para homologação da FIA.
+              </span>
+            </div>
           </div>
-          <span className="text-[11px] text-emerald-400">
-            Oficialização será habilitada na próxima etapa.
-          </span>
+          <Button
+            type="button"
+            size="sm"
+            disabled={isOfficializing}
+            onClick={handleOfficializeRace}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs h-9 px-4 shadow-lg gap-2 cursor-pointer border border-emerald-400"
+            data-testid="btn-officialize-race"
+          >
+            {isOfficializing ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Oficializando...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Oficializar Resultado</span>
+              </>
+            )}
+          </Button>
         </div>
       )}
 
