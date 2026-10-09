@@ -24,6 +24,9 @@ import {
   ShieldCheck,
   UserCheck,
   CheckCircle2,
+  Download,
+  Copy,
+  Check,
 } from 'lucide-react'
 import {
   Dialog,
@@ -113,6 +116,13 @@ import { PreRaceStrategyPreparationPanel } from '@/components/race/PreRaceStrate
 import { resolveCanonicalTeamKey } from '@/services/canonicalTeamIdentityService'
 import { canonicalRacePreparationService } from '@/services/canonicalRacePreparationService'
 import type { RacePreparationSnapshot } from '@/types/canonical-race-preparation'
+import {
+  collectRaceDiagnosticData,
+  downloadDiagnosticJson,
+  copyDiagnosticToClipboard,
+  TARGET_CAREER_ID,
+  type RaceDiagnosticData,
+} from '@/utils/raceDiagnosticExport'
 import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPanel'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
@@ -239,6 +249,53 @@ export default function WeekendV2Page() {
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false)
   const [selectedSpeed, setSelectedSpeed] = useState<1 | 2 | 4>(1)
   const autoAdvanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Estados do Diagnóstico de Corrida (RACE-DIAGNOSTIC-EXPORT-01)
+  const [diagnosticModalOpen, setDiagnosticModalOpen] = useState(false)
+  const [diagnosticData, setDiagnosticData] = useState<RaceDiagnosticData | null>(null)
+  const [diagnosticCopied, setDiagnosticCopied] = useState(false)
+
+  const handleOpenDiagnosticModal = () => {
+    const data = collectRaceDiagnosticData(TARGET_CAREER_ID)
+    setDiagnosticData(data)
+    setDiagnosticCopied(false)
+    setDiagnosticModalOpen(true)
+  }
+
+  const handleDownloadDiagnostic = () => {
+    const data = diagnosticData || collectRaceDiagnosticData(TARGET_CAREER_ID)
+    const ok = downloadDiagnosticJson(data, 'apex-diagnostico-australia.json')
+    if (ok) {
+      toast({
+        title: 'Diagnóstico exportado',
+        description: `${data.recordCount} registro(s) salvo(s) em apex-diagnostico-australia.json`,
+      })
+    } else {
+      toast({
+        title: 'Erro no download',
+        description: 'Não foi possível baixar o arquivo diretamente.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleCopyDiagnostic = async () => {
+    const data = diagnosticData || collectRaceDiagnosticData(TARGET_CAREER_ID)
+    const result = await copyDiagnosticToClipboard(data)
+    if (result.success) {
+      setDiagnosticCopied(true)
+      toast({
+        title: 'Copiado para a área de transferência',
+        description: `${data.recordCount} registro(s) copiado(s) como JSON formatado.`,
+      })
+      setTimeout(() => setDiagnosticCopied(false), 2500)
+    } else {
+      toast({
+        title: 'Selecione e copie o texto',
+        description: 'O navegador bloqueou a cópia automática. Use o campo de texto abaixo.',
+      })
+    }
+  }
 
   // Modais de garagem e seleção direta de novato
   const [setupModalCarId, setSetupModalCarId] = useState<'car1' | 'car2' | null>(null)
@@ -3774,49 +3831,186 @@ export default function WeekendV2Page() {
         title="CORRIDA"
         description="Gestão completa do fim de semana de Grande Prêmio: treinos, classificação e corrida."
         actions={
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleOpenDiagnosticModal}
+              className="h-8 min-h-[36px] text-xs font-bold border-amber-300 text-amber-800 bg-amber-50/80 hover:bg-amber-100 hover:text-amber-900 gap-1.5"
+              title="Exportar dados de diagnóstico da corrida"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-700" />
+              Exportar diagnóstico
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 min-h-[36px] text-xs font-bold border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50 gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#64748B]" />
+                  Reiniciar fim de semana
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Reiniciar fim de semana da Rodada {currentRound}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-2 text-xs">
+                    <span className="block">
+                      Todas as fases da rodada atual ({gpInfo.name}) — treinos livres, sessões de
+                      qualificação (SQ1/SQ2/SQ3 ou Q1/Q2/Q3), corrida Sprint e corrida principal —
+                      voltarão ao status <strong>Pendente</strong>.
+                    </span>
+                    <span className="block text-[#475569]">
+                      Pontos do campeonato, moral de pilotos, finanças, contratos, desenvolvimento
+                      do carro e histórico de rodadas anteriores ficam{' '}
+                      <strong>completamente intactos</strong>.
+                    </span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleResetCurrentWeekend}
+                    className="bg-[#E10600] hover:bg-[#C00400] text-white font-bold"
+                  >
+                    Confirmar Reinício
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        }
+      />
+
+      {/* MODAL DE DIAGNÓSTICO TEMPORÁRIO (RACE-DIAGNOSTIC-EXPORT-01) */}
+      <Dialog open={diagnosticModalOpen} onOpenChange={setDiagnosticModalOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-6">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-base font-black text-[#0F172A] flex items-center gap-2">
+              <Download className="w-4 h-4 text-amber-600" />
+              Diagnóstico da Corrida ({TARGET_CAREER_ID})
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#64748B]">
+              Leitura pontual e segura das chaves de corrida e moral da carreira ativa. Nenhum
+              estado é modificado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2 flex-1 overflow-y-auto">
+            {diagnosticData && (
+              <>
+                <div
+                  className={`p-3 rounded-lg border text-xs font-semibold ${
+                    diagnosticData.recordCount > 0
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}
+                >
+                  {diagnosticData.recordCount > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        <strong>{diagnosticData.recordCount}</strong> registro(s) encontrado(s) no
+                        localStorage para os prefixos permitidos.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>
+                        Nenhum registro encontrado neste contexto. (Os metadados ainda podem ser
+                        exportados normalmente).
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 text-xs text-[#475569]">
+                  <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Carreira:</span>
+                    <strong className="font-mono text-[#0F172A]">{diagnosticData.careerId}</strong>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Horário da Coleta:</span>
+                    <span className="font-mono text-[11px]">{diagnosticData.exportedAt}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Origem:</span>
+                    <span className="font-mono text-[11px] truncate max-w-[240px]">
+                      {diagnosticData.origin}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="diagnostic-json-preview"
+                    className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block"
+                  >
+                    Pré-visualização do JSON (selecionável):
+                  </label>
+                  <textarea
+                    id="diagnostic-json-preview"
+                    readOnly
+                    value={JSON.stringify(diagnosticData, null, 2)}
+                    className="w-full h-44 p-2.5 font-mono text-[11px] bg-slate-900 text-slate-100 rounded-lg border border-slate-700 select-all focus:outline-hidden"
+                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#F1F5F9]">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDiagnosticModalOpen(false)}
+              className="text-xs font-bold border-[#CBD5E1]"
+            >
+              Fechar
+            </Button>
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs font-bold border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50 gap-1.5"
+                onClick={handleCopyDiagnostic}
+                className="text-xs font-bold border-[#CBD5E1] text-[#0F172A] gap-1.5"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-[#64748B]" />
-                Reiniciar fim de semana
+                {diagnosticCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    Copiado!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-[#64748B]" />
+                    Copiar diagnóstico
+                  </>
+                )}
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Reiniciar fim de semana da Rodada {currentRound}?
-                </AlertDialogTitle>
-                <AlertDialogDescription className="space-y-2 text-xs">
-                  <span className="block">
-                    Todas as fases da rodada atual ({gpInfo.name}) — treinos livres, sessões de
-                    qualificação (SQ1/SQ2/SQ3 ou Q1/Q2/Q3), corrida Sprint e corrida principal —
-                    voltarão ao status <strong>Pendente</strong>.
-                  </span>
-                  <span className="block text-[#475569]">
-                    Pontos do campeonato, moral de pilotos, finanças, contratos, desenvolvimento do
-                    carro e histórico de rodadas anteriores ficam{' '}
-                    <strong>completamente intactos</strong>.
-                  </span>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleResetCurrentWeekend}
-                  className="bg-[#E10600] hover:bg-[#C00400] text-white font-bold"
-                >
-                  Confirmar Reinício
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        }
-      />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleDownloadDiagnostic}
+                className="text-xs font-black bg-[#E10600] hover:bg-[#C00400] text-white gap-1.5 shadow-xs"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Baixar JSON
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 2. HERO COMPACTO DO GP ATUAL */}
       <RaceHeroCompact
