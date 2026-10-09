@@ -4,14 +4,15 @@ import {
   TARGET_CAREER_ID,
   downloadDiagnosticJson,
   copyDiagnosticToClipboard,
+  isAuthOrSensitiveKey,
 } from '@/utils/raceDiagnosticExport'
 
-describe('RACE-DIAGNOSTIC-EXPORT-01: raceDiagnosticExport', () => {
+describe('RACE-DIAGNOSTIC-EXPORT-01 & TAREFA: raceDiagnosticExport com inventário seguro', () => {
   beforeEach(() => {
     localStorage.clear()
   })
 
-  it('coleta SOMENTE as chaves dos prefixos permitidos para a carreira alvo', () => {
+  it('coleta SOMENTE as chaves dos prefixos permitidos para a carreira alvo nos valores brutos', () => {
     const career = TARGET_CAREER_ID
 
     // Chaves permitidas (devem ser coletadas)
@@ -40,13 +41,16 @@ describe('RACE-DIAGNOSTIC-EXPORT-01: raceDiagnosticExport', () => {
       JSON.stringify({ processedAt: '2026-03-01T00:00:00.000Z' }),
     )
 
-    // Chaves de OUTRAS carreiras (NÃO devem ser coletadas)
-    localStorage.setItem('f1_2026_canonical_official_result:other_career:2026:1', 'ignored')
-    localStorage.setItem('race_result_other_career_s2026_1', 'ignored')
-    localStorage.setItem('driver_morale_applied_other_career_2026_1_drv1', 'ignored')
-    localStorage.setItem('driver_morale_other_career_2026_1_drv1', 'ignored')
+    // Chaves de OUTRAS carreiras (NÃO devem ser coletadas em records)
+    localStorage.setItem(
+      'f1_2026_canonical_official_result:other_career:2026:1',
+      '{"val":"ignored"}',
+    )
+    localStorage.setItem('race_result_other_career_s2026_1', '{"val":"ignored"}')
+    localStorage.setItem('driver_morale_applied_other_career_2026_1_drv1', '{"val":"ignored"}')
+    localStorage.setItem('driver_morale_other_career_2026_1_drv1', '{"val":"ignored"}')
 
-    // Chaves sensíveis / tokens / auth (NÃO podem aparecer)
+    // Chaves sensíveis / tokens / auth (NÃO podem aparecer nem no inventário nem em records)
     localStorage.setItem('pocketbase_auth', '{"token":"secret_jwt_token"}')
     localStorage.setItem('sb-token', 'super_secret')
     localStorage.setItem('user_credentials', 'password123')
@@ -65,14 +69,89 @@ describe('RACE-DIAGNOSTIC-EXPORT-01: raceDiagnosticExport', () => {
     expect(collectedKeys).toContain(`driver_morale_receipt_${career}_2026_1_MAIN_RACE_drv1`)
     expect(collectedKeys).toContain(`driver_morale_${career}_2026_1_drv1`)
 
-    // Provar que tokens e credenciais NÃO estão presentes
+    // Provar que tokens e credenciais NÃO estão presentes nos registros
     expect(collectedKeys).not.toContain('pocketbase_auth')
     expect(collectedKeys).not.toContain('sb-token')
     expect(collectedKeys).not.toContain('user_credentials')
     expect(collectedKeys).not.toContain('theme')
 
-    // Provar que chaves de outras carreiras NÃO estão presentes
+    // Provar que chaves de outras carreiras NÃO estão presentes nos registros com valores
     expect(collectedKeys.some((k) => k.includes('other_career'))).toBe(false)
+  })
+
+  it('INVENTÁRIO: reporta nomes de chaves existentes mesmo sob outro identificador, mas NÃO expõe valores de outras carreiras', () => {
+    const activeCareer = TARGET_CAREER_ID
+    const altIdentifier = '3109528'
+
+    // Grava registros sob altIdentifier (ex. 3109528)
+    localStorage.setItem(
+      `f1_2026_canonical_official_result:${altIdentifier}:2026:1`,
+      'secret_race_result_val',
+    )
+    localStorage.setItem(`race_result_${altIdentifier}_s2026_1`, 'secret_career_result_val')
+    localStorage.setItem(`career_apply_result_${altIdentifier}_s2026_1`, 'secret_apply_val')
+    localStorage.setItem(`driver_morale_${altIdentifier}_2026_1_drv1`, 'secret_morale_val')
+
+    // Grava também token de autenticação
+    localStorage.setItem('pocketbase_auth', '{"token":"jwt.secret.here"}')
+
+    const result = collectRaceDiagnosticData(activeCareer)
+
+    // O filtro da carreira ativa (TARGET_CAREER_ID) não encontra registros
+    expect(result.recordCount).toBe(0)
+    expect(Object.keys(result.records).length).toBe(0)
+
+    // O inventário deve indicar:
+    expect(result.inventory.totalStorageKeys).toBe(5)
+    expect(result.inventory.readStatus).toBe('success')
+
+    // Inventário do grupo officialResult:
+    expect(result.inventory.groups.officialResult.totalKeysFound).toBe(1)
+    expect(result.inventory.groups.officialResult.matchingFilterCount).toBe(0)
+    expect(result.inventory.groups.officialResult.keys).toContain(
+      `f1_2026_canonical_official_result:${altIdentifier}:2026:1`,
+    )
+
+    // Inventário do grupo raceResult:
+    expect(result.inventory.groups.raceResult.totalKeysFound).toBe(1)
+    expect(result.inventory.groups.raceResult.matchingFilterCount).toBe(0)
+    expect(result.inventory.groups.raceResult.keys).toContain(
+      `race_result_${altIdentifier}_s2026_1`,
+    )
+
+    // Inventário do grupo careerApplyResult:
+    expect(result.inventory.groups.careerApplyResult.totalKeysFound).toBe(1)
+    expect(result.inventory.groups.careerApplyResult.matchingFilterCount).toBe(0)
+    expect(result.inventory.groups.careerApplyResult.keys).toContain(
+      `career_apply_result_${altIdentifier}_s2026_1`,
+    )
+
+    // Inventário do grupo driverMorale:
+    expect(result.inventory.groups.driverMorale.totalKeysFound).toBe(1)
+    expect(result.inventory.groups.driverMorale.matchingFilterCount).toBe(0)
+    expect(result.inventory.groups.driverMorale.keys).toContain(
+      `driver_morale_${altIdentifier}_2026_1_drv1`,
+    )
+
+    // NENHUM valor sob altIdentifier deve estar em result.records (preservando isolamento seguro)
+    const recordsValues = JSON.stringify(result.records)
+    expect(recordsValues).not.toContain('secret_race_result_val')
+    expect(recordsValues).not.toContain('secret_career_result_val')
+
+    // Chaves de autenticação NUNCA devem figurar no inventário
+    const inventoryAllKeys = result.inventory.allDiagnosticRelevantKeys
+    expect(inventoryAllKeys).not.toContain('pocketbase_auth')
+    expect(result.inventory.groups.officialResult.keys).not.toContain('pocketbase_auth')
+    expect(JSON.stringify(result.inventory)).not.toContain('pocketbase_auth')
+  })
+
+  it('FILTRAGEM DE AUTH: isAuthOrSensitiveKey bloqueia padrões sensíveis', () => {
+    expect(isAuthOrSensitiveKey('pocketbase_auth')).toBe(true)
+    expect(isAuthOrSensitiveKey('sb-token')).toBe(true)
+    expect(isAuthOrSensitiveKey('user_password_hash')).toBe(true)
+    expect(isAuthOrSensitiveKey('user_credentials')).toBe(true)
+    expect(isAuthOrSensitiveKey('race_result_31b0p9k5ygw2sc8_s2026_1')).toBe(false)
+    expect(isAuthOrSensitiveKey('driver_morale_31b0p9k5ygw2sc8_2026_1_drv1')).toBe(false)
   })
 
   it('preserva integralmente chaves e valores originais como string bruta', () => {
@@ -84,14 +163,53 @@ describe('RACE-DIAGNOSTIC-EXPORT-01: raceDiagnosticExport', () => {
     expect(result.records[key]).toBe(rawVal)
   })
 
-  it('retorna metadados mesmo quando nenhum registro é encontrado (recordCount = 0)', () => {
-    const result = collectRaceDiagnosticData(TARGET_CAREER_ID)
+  it('reporta metadados e contexto da aplicação de forma explícita', () => {
+    const appContext = {
+      careerId: 'test_career_123',
+      careerIdOrigin: 'season.id',
+      pocketBaseSeasonId: 'pb_season_abc',
+      pocketBaseSeasonIdOrigin: 'season.id',
+      internalNumericSeasonId: 3109528,
+      internalNumericSeasonIdOrigin: 'season.season_number',
+      displayedYear: 2026,
+      displayedYearOrigin: 'season.year',
+      currentRound: 1,
+      currentRoundOrigin: 'season.current_round',
+      sessionType: 'race',
+      sessionTypeOrigin: 'WeekendV2Page.selectedSessionId',
+    }
 
-    expect(result.recordCount).toBe(0)
-    expect(result.records).toEqual({})
-    expect(result.careerId).toBe(TARGET_CAREER_ID)
-    expect(result.exportedAt).toBeDefined()
-    expect(result.origin).toBeDefined()
+    const result = collectRaceDiagnosticData('test_career_123', {
+      appContext,
+    })
+
+    expect(result.appContext.careerId).toBe('test_career_123')
+    expect(result.appContext.careerIdOrigin).toBe('season.id')
+    expect(result.appContext.pocketBaseSeasonId).toBe('pb_season_abc')
+    expect(result.appContext.internalNumericSeasonId).toBe(3109528)
+    expect(result.appContext.displayedYear).toBe(2026)
+    expect(result.appContext.currentRound).toBe(1)
+    expect(result.appContext.sessionType).toBe('race')
+  })
+
+  it('trata falha de acesso ao storage sem mascarar como zero registros silencioso', () => {
+    const mockFaultyStorage = {
+      get length() {
+        throw new Error('SecurityError: localStorage is disabled')
+      },
+      key: () => null,
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+    } as unknown as Storage
+
+    const result = collectRaceDiagnosticData(TARGET_CAREER_ID, {
+      storage: mockFaultyStorage,
+    })
+
+    expect(result.inventory.readStatus).toBe('error')
+    expect(result.inventory.readError).toContain('SecurityError')
   })
 
   it('downloadDiagnosticJson cria blob e dispara download sem erro', () => {

@@ -255,15 +255,38 @@ export default function WeekendV2Page() {
   const [diagnosticData, setDiagnosticData] = useState<RaceDiagnosticData | null>(null)
   const [diagnosticCopied, setDiagnosticCopied] = useState(false)
 
+  const buildCurrentDiagnosticData = () => {
+    const resolvedCareerId = resolveCanonicalCareerId(season, team)
+    const appContext = {
+      careerId: resolvedCareerId,
+      careerIdOrigin: 'resolveCanonicalCareerId(season, team)',
+      pocketBaseSeasonId: season?.id,
+      pocketBaseSeasonIdOrigin: 'useAuth().season?.id',
+      internalNumericSeasonId:
+        (season as any)?.season_number ?? (season as any)?.seasonId ?? undefined,
+      internalNumericSeasonIdOrigin: '(season as any)?.season_number ?? (season as any)?.seasonId',
+      displayedYear: season?.year || 2026,
+      displayedYearOrigin: 'useAuth().season?.year || 2026',
+      currentRound: currentRound,
+      currentRoundOrigin: 'useUnifiedSeason().currentRound',
+      sessionType: selectedSessionId,
+      sessionTypeOrigin: 'WeekendV2Page.selectedSessionId',
+    }
+    return collectRaceDiagnosticData(resolvedCareerId || TARGET_CAREER_ID, {
+      careerId: resolvedCareerId || TARGET_CAREER_ID,
+      appContext,
+    })
+  }
+
   const handleOpenDiagnosticModal = () => {
-    const data = collectRaceDiagnosticData(TARGET_CAREER_ID)
+    const data = buildCurrentDiagnosticData()
     setDiagnosticData(data)
     setDiagnosticCopied(false)
     setDiagnosticModalOpen(true)
   }
 
   const handleDownloadDiagnostic = () => {
-    const data = diagnosticData || collectRaceDiagnosticData(TARGET_CAREER_ID)
+    const data = diagnosticData || buildCurrentDiagnosticData()
     const ok = downloadDiagnosticJson(data, 'apex-diagnostico-australia.json')
     if (ok) {
       toast({
@@ -280,7 +303,7 @@ export default function WeekendV2Page() {
   }
 
   const handleCopyDiagnostic = async () => {
-    const data = diagnosticData || collectRaceDiagnosticData(TARGET_CAREER_ID)
+    const data = diagnosticData || buildCurrentDiagnosticData()
     const result = await copyDiagnosticToClipboard(data)
     if (result.success) {
       setDiagnosticCopied(true)
@@ -3938,13 +3961,32 @@ export default function WeekendV2Page() {
                     <strong className="font-mono text-[#0F172A]">{diagnosticData.careerId}</strong>
                   </div>
                   <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Temporada PB (seasons.id):</span>
+                    <strong className="font-mono text-[11px] text-[#0F172A]">
+                      {diagnosticData.appContext.pocketBaseSeasonId || 'não carregada'}
+                    </strong>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Chaves Totais no Storage:</span>
+                    <span className="font-mono text-[11px]">
+                      {diagnosticData.inventory.totalStorageKeys} (Status:{' '}
+                      {diagnosticData.inventory.readStatus})
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
+                    <span className="text-[#64748B]">Chaves Relevantes Encontradas:</span>
+                    <span className="font-mono text-[11px]">
+                      {diagnosticData.inventory.allDiagnosticRelevantKeys.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
                     <span className="text-[#64748B]">Horário da Coleta:</span>
                     <span className="font-mono text-[11px]">{diagnosticData.exportedAt}</span>
                   </div>
                   <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
-                    <span className="text-[#64748B]">Origem:</span>
+                    <span className="text-[#64748B]">Origem / Rota:</span>
                     <span className="font-mono text-[11px] truncate max-w-[240px]">
-                      {diagnosticData.origin}
+                      {diagnosticData.origin} {diagnosticData.appContext.pathname}
                     </span>
                   </div>
                 </div>
