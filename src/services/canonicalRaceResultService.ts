@@ -835,6 +835,11 @@ export class CanonicalRaceResultService {
         }
       }
 
+      // Mapeamento via dados procedurais ou contratuais caso existam no schema PB
+      if (d.procedural_data?.driverId) {
+        canonicalSlugToDbId.set(String(d.procedural_data.driverId).toLowerCase(), d.id)
+      }
+
       // Se o piloto possui equipe vinculada no banco (team_id)
       if (d.team_id) {
         const teamRec = teamById.get(d.team_id)
@@ -872,8 +877,9 @@ export class CanonicalRaceResultService {
     }
 
     // Função helper para resolver qualquer identificador de piloto (seja slug ou ID real)
-    const resolveDriverDbId = (identifier: string, driverName?: string): string => {
-      if (!identifier) return ''
+    // Retorna o ID real do PocketBase ou null se não resolvido
+    const resolveDriverDbId = (identifier: string, driverName?: string): string | null => {
+      if (!identifier) return null
 
       // 1. Se já for um ID real existente no banco
       if (dbDriverById.has(identifier)) {
@@ -914,10 +920,15 @@ export class CanonicalRaceResultService {
         }
       }
 
-      return identifier
+      // 6. Se o identificador em si for um ID alfanumérico opaco válido de PB (15 chars alfanuméricos sem sublinhado)
+      if (/^[a-z0-9]{15}$/i.test(identifier)) {
+        return identifier
+      }
+
+      return null
     }
 
-    // Construção do moraleMap chaveado por ID real E por slug canônico
+    // Construção do moraleMap chaveado por ID real E por chave canônica
     const moraleMap: Record<string, number> = {}
 
     // Base do banco (preservando moral válida igual a 0 sem cair no fallback de 80)
@@ -954,10 +965,15 @@ export class CanonicalRaceResultService {
     }
 
     // Normalizar as entradas e também garantir que cada entry.driverId no moraleMap tenha valor
+    // tanto na chave de entry.driverId quanto no ID real resolvido
     for (const entry of officialResult.entries || []) {
       const resolvedId = resolveDriverDbId(entry.driverId, entry.driverName)
       if (resolvedId && typeof moraleMap[resolvedId] === 'number') {
         moraleMap[entry.driverId] = moraleMap[resolvedId]
+      } else if (typeof moraleMap[entry.driverId] === 'number') {
+        if (resolvedId) {
+          moraleMap[resolvedId] = moraleMap[entry.driverId]
+        }
       }
     }
 
@@ -982,22 +998,22 @@ export class CanonicalRaceResultService {
       },
       driverCurrentMoraleMap: moraleMap,
       onSaveDriverMorale: async (driverId, newMorale) => {
-        // Encontrar a entrada correspondente para resolução de identidade
+        // Encontrar a entrada correspondente para ter acesso ao nome caso necessário
         const entry = (officialResult.entries || []).find((e) => e.driverId === driverId)
         const realDbId = resolveDriverDbId(driverId, entry?.driverName)
 
         let updateSuccess = true
 
         // Se conseguimos resolver para um ID do banco comprovadamente existente
+        // ou ID PB válido (15 caracteres alfanuméricos)
         const targetDbId =
-          realDbId && dbDriverById.has(realDbId)
+          realDbId && (dbDriverById.has(realDbId) || /^[a-z0-9]{15}$/i.test(realDbId))
             ? realDbId
-            : realDbId && !realDbId.includes('_d') && !realDbId.includes('_')
-              ? realDbId
-              : null
+            : null
 
         if (targetDbId) {
           try {
+            // onSaveDriverMorale passa SOMENTE o ID real resolvido ao updateDriver (NUNCA slug ou chave canônica)
             await f1Service.updateDriver(targetDbId, { morale: newMorale })
           } catch (saveErr) {
             updateSuccess = false
@@ -1008,7 +1024,7 @@ export class CanonicalRaceResultService {
           }
         } else {
           // Identidade ausente ou ambígua: NUNCA faz PATCH com slug para evitar 404
-          // Marca updateSuccess como false para não registrar falso sucesso
+          // Falha individual explícita, sem PATCH
           updateSuccess = false
           console.warn(
             `[CanonicalRaceResultService] Driver slug '${driverId}' could not be resolved to a valid PocketBase record ID. Skipping DB patch to avoid 404.`,
@@ -1021,11 +1037,11 @@ export class CanonicalRaceResultService {
             const { driverBase2026Service } = await import('./driverBase2026Service')
             driverBase2026Service.updateCareerDriverStats({
               careerId: officialResult.careerId,
-              driverId: realDbId || driverId,
+              driverId: targetDbId || driverId,
               newMorale,
             })
-            // Se realDbId for diferente de driverId, atualizar em ambas as chaves para compatibilidade
-            if (realDbId && realDbId !== driverId) {
+            // Se targetDbId for diferente de driverId, atualizar em ambas as chaves para compatibilidade
+            if (targetDbId && targetDbId !== driverId) {
               driverBase2026Service.updateCareerDriverStats({
                 careerId: officialResult.careerId,
                 driverId,
@@ -1042,8 +1058,7 @@ export class CanonicalRaceResultService {
 
         return updateSuccess
       },
-    })
-  }
+    })  }
 
   public terminateEarlyAndOfficialize(
     raceState: CanonicalRaceState,
