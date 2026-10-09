@@ -920,10 +920,10 @@ export class CanonicalRaceResultService {
     // Construção do moraleMap chaveado por ID real E por slug canônico
     const moraleMap: Record<string, number> = {}
 
-    // Base do banco
+    // Base do banco (preservando moral válida igual a 0 sem cair no fallback de 80)
     for (const d of allDrivers) {
       if (d && d.id) {
-        const mor = typeof d.morale === 'number' ? d.morale : 80
+        const mor = typeof d.morale === 'number' && !isNaN(d.morale) ? d.morale : 80
         moraleMap[d.id] = mor
       }
     }
@@ -934,7 +934,7 @@ export class CanonicalRaceResultService {
       const careerDrivers = driverBase2026Service.getCareerDrivers(officialResult.careerId)
       if (careerDrivers) {
         for (const [drvId, rec] of Object.entries(careerDrivers)) {
-          if (rec && typeof rec.morale === 'number') {
+          if (rec && typeof rec.morale === 'number' && !isNaN(rec.morale)) {
             moraleMap[drvId] = rec.morale
             // Se drvId for mbj-XXX ou slug, resolver para ID real se possível
             const resolvedDb = resolveDriverDbId(drvId, (rec as any)?.name)
@@ -948,7 +948,7 @@ export class CanonicalRaceResultService {
 
     // Chavear também o moraleMap pelos slugs canônicos conhecidos (team_d1, team_d2, etc.)
     for (const [slug, dbId] of canonicalSlugToDbId.entries()) {
-      if (moraleMap[dbId] !== undefined) {
+      if (typeof moraleMap[dbId] === 'number') {
         moraleMap[slug] = moraleMap[dbId]
       }
     }

@@ -75,6 +75,85 @@ describe('BUG-MORALE-DRIVER-IDS-01: Canonical Morale Driver Resolution & Resilie
     expect(callCount).toBe(prevCallCount)
   })
 
+  it('1b. driverMoraleService: múltiplos pilotos - falha em um NÃO interrompe os demais e permite retry apenas do que falhou', async () => {
+    let callCount = 0
+    const mockSave = vi.fn().mockImplementation(async (driverId: string) => {
+      callCount++
+      if (driverId === 'drv_fail' && callCount === 1) {
+        throw new Error('Timeout saving drv_fail')
+      }
+      return true
+    })
+
+    const officialResult = {
+      careerId: 'career_test_multi',
+      season: 2026,
+      round: 1,
+      entries: [
+        {
+          driverId: 'drv_fail',
+          driverName: 'Driver Fail',
+          finalPosition: 4,
+          gridPosition: 4,
+          status: 'finished',
+        },
+        {
+          driverId: 'drv_ok',
+          driverName: 'Driver Ok',
+          finalPosition: 2,
+          gridPosition: 2,
+          status: 'finished',
+        },
+      ],
+    }
+
+    // 1ª tentativa
+    await driverMoraleService.processOfficialRaceMorale({
+      officialResult,
+      driverCurrentMoraleMap: { drv_fail: 75, drv_ok: 85 },
+      onSaveDriverMorale: mockSave,
+    })
+
+    // drv_fail deve ter falhado e NÃO estar marcado
+    expect(
+      driverMoraleService.isMoraleAlreadyProcessed({
+        careerId: 'career_test_multi',
+        season: 2026,
+        round: 1,
+        driverId: 'drv_fail',
+      }),
+    ).toBe(false)
+
+    // drv_ok deve ter sucesso e estar marcado
+    expect(
+      driverMoraleService.isMoraleAlreadyProcessed({
+        careerId: 'career_test_multi',
+        season: 2026,
+        round: 1,
+        driverId: 'drv_ok',
+      }),
+    ).toBe(true)
+
+    // 2ª tentativa (Retry)
+    const callsBeforeRetry = callCount
+    await driverMoraleService.processOfficialRaceMorale({
+      officialResult,
+      driverCurrentMoraleMap: { drv_fail: 75, drv_ok: 85 },
+      onSaveDriverMorale: mockSave,
+    })
+
+    // Deve ter chamado apenas para drv_fail (1 chamada a mais), SEM chamar para drv_ok
+    expect(callCount).toBe(callsBeforeRetry + 1)
+    expect(
+      driverMoraleService.isMoraleAlreadyProcessed({
+        careerId: 'career_test_multi',
+        season: 2026,
+        round: 1,
+        driverId: 'drv_fail',
+      }),
+    ).toBe(true)
+  })
+
   it('2. driverMoraleService: callback retornando false explicitamente NÃO grava markMoraleProcessed', async () => {
     const mockSave = vi.fn().mockResolvedValue(false)
 
