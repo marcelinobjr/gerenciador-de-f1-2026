@@ -9,7 +9,7 @@ describe('RACE-CAREER-SAVE-01 — Correção de Cota do LocalStorage e Persistê
   const round = 1
 
   const mockOfficialResult: OfficialRaceResult = {
-    schemaVersion: 2,
+    schemaVersion: 'official-race-result-v1',
     officialResultId: 'orr_test_career_quota_01_s2026_r1_123456789',
     raceVariant: 'MAIN_RACE',
     careerId,
@@ -25,10 +25,8 @@ describe('RACE-CAREER-SAVE-01 — Correção de Cota do LocalStorage e Persistê
     winnerDriverId: 'driver_piastri',
     winnerTeamId: 'team_mclaren',
     poleDriverId: 'driver_verstappen',
-    polePositionDriverId: 'driver_verstappen',
     fastestLapDriverId: 'driver_norris',
     podium: ['driver_piastri', 'driver_norris', 'driver_leclerc'],
-    podiumDriverIds: ['driver_piastri', 'driver_norris', 'driver_leclerc'],
     entries: [
       {
         driverId: 'driver_piastri',
@@ -59,7 +57,36 @@ describe('RACE-CAREER-SAVE-01 — Correção de Cota do LocalStorage e Persistê
         pointsAwarded: 18,
       } as any,
     ],
-    playerEntries: [],
+    playerEntries: [
+      {
+        driverId: 'driver_audi_1',
+        teamId: 'team_audi',
+        driverName: 'Audi Driver 1',
+        teamName: 'Audi F1 Team',
+        teamColor: '#00E700',
+        isPlayer: true,
+        gridPosition: 5,
+        finalPosition: 5,
+        positionsGainedLost: 0,
+        lapsCompleted: 58,
+        status: 'finished',
+        pointsAwarded: 10,
+      } as any,
+      {
+        driverId: 'driver_audi_2',
+        teamId: 'team_audi',
+        driverName: 'Audi Driver 2',
+        teamName: 'Audi F1 Team',
+        teamColor: '#00E700',
+        isPlayer: true,
+        gridPosition: 6,
+        finalPosition: 6,
+        positionsGainedLost: 0,
+        lapsCompleted: 58,
+        status: 'finished',
+        pointsAwarded: 8,
+      } as any,
+    ],
     eventsSummary: {
       safetyCarPeriods: 0,
       safetyCarLaps: 0,
@@ -68,17 +95,16 @@ describe('RACE-CAREER-SAVE-01 — Correção de Cota do LocalStorage e Persistê
       redFlagPeriods: 0,
       dnfCount: 0,
       totalPitStops: 2,
-    } as any,
-    integrityHash: '',
+      significantIncidents: [],
+    },
     resultHash: '',
   }
 
-  // Preencher integrity hash
+  // Preencher hash
   const entriesChecksum = (mockOfficialResult.entries || [])
     .map((e: any) => `${e.driverId}:${e.finalPosition}:${e.status}`)
     .join(';')
   mockOfficialResult.resultHash = `sha256-mock-${entriesChecksum.length}`
-  mockOfficialResult.integrityHash = mockOfficialResult.resultHash
 
   beforeEach(() => {
     localStorage.clear()
