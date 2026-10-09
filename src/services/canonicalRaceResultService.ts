@@ -722,22 +722,160 @@ export class CanonicalRaceResultService {
   public async processOfficialMoraleDirect(officialResult: OfficialRaceResult): Promise<void> {
     const { driverMoraleService } = await import('./driverMoraleService')
     const { f1Service } = await import('./f1Service')
+    const { findCanonicalDriverMaster } = await import('@/lib/canonical-driver-database')
+    const { OFFICIAL_GRID_TEAMS } = await import('@/lib/f1-data')
 
     let allDrivers: any[] = []
+    let allTeams: any[] = []
     try {
       allDrivers = await f1Service.getAllDrivers()
     } catch (e) {
       console.warn('[CanonicalRaceResultService] Could not fetch all drivers from DB:', e)
     }
 
-    const moraleMap: Record<string, number> = {}
+    try {
+      allTeams = await f1Service.getAllTeams()
+    } catch (e) {
+      console.warn('[CanonicalRaceResultService] Could not fetch all teams from DB:', e)
+    }
+
+    // Mapas para resolução rápida de equipes por ID e por chave canônica
+    const teamById = new Map<string, any>()
+    const teamByKey = new Map<string, any>()
+    for (const t of allTeams) {
+      if (t?.id) teamById.set(t.id, t)
+      const tKey = (t?.team_key || '').toLowerCase().trim()
+      if (tKey) teamByKey.set(tKey, t)
+    }
+
+    // Mapa ID PocketBase -> Registro do piloto
+    const dbDriverById = new Map<string, any>()
     for (const d of allDrivers) {
-      if (d && d.id) {
-        moraleMap[d.id] = d.morale ?? 80
+      if (d?.id) {
+        dbDriverById.set(d.id, d)
       }
     }
 
-    // Se estiver em contexto de carreira, complementar moraleMap com a fonte canônica career_drivers
+    // Mapa slug canônico -> ID real do PocketBase
+    const canonicalSlugToDbId = new Map<string, string>()
+
+    // Construção do mapa slug -> ID real
+    // 1. Slugs estruturais do formato teamKey_d1 e teamKey_d2
+    for (const teamDef of OFFICIAL_GRID_TEAMS) {
+      const tKey = teamDef.key.toLowerCase().trim()
+      const d1Name = teamDef.driver1?.name
+      const d2Name = teamDef.driver2?.name
+
+      // Resolver d1
+      if (d1Name) {
+        const d1Match = allDrivers.find(
+          (d) => (d.name || '').trim().toLowerCase() === d1Name.trim().toLowerCase(),
+        )
+        if (d1Match?.id) {
+          canonicalSlugToDbId.set(`${tKey}_d1`, d1Match.id)
+        }
+      }
+
+      // Resolver d2
+      if (d2Name) {
+        const d2Match = allDrivers.find(
+          (d) => (d.name || '').trim().toLowerCase() === d2Name.trim().toLowerCase(),
+        )
+        if (d2Match?.id) {
+          canonicalSlugToDbId.set(`${tKey}_d2`, d2Match.id)
+        }
+      }
+    }
+
+    // 2. Mapeamento adicional para cada piloto retornado do PocketBase
+    for (const d of allDrivers) {
+      if (!d || !d.id) continue
+
+      // Se o próprio ID já está em canonicalSlugToDbId como destino
+      canonicalSlugToDbId.set(d.id, d.id)
+
+      // Identificar piloto mestre canônico pelo nome ou ID
+      const master = findCanonicalDriverMaster(d.id, d.name)
+      if (master) {
+        if (master.driverId) {
+          canonicalSlugToDbId.set(master.driverId.toLowerCase(), d.id)
+        }
+        if (master.assetId) {
+          canonicalSlugToDbId.set(master.assetId.toLowerCase(), d.id)
+        }
+      }
+
+      // Se o piloto possui equipe vinculada no banco (team_id)
+      if (d.team_id) {
+        const teamRec = teamById.get(d.team_id)
+        const tKey = (teamRec?.team_key || '').toLowerCase().trim()
+        if (tKey) {
+          // Se soubermos pelo role se é d1 ou d2
+          const offTeam = OFFICIAL_GRID_TEAMS.find((t) => t.key.toLowerCase() === tKey)
+          if (offTeam) {
+            const dName = (d.name || '').trim().toLowerCase()
+            if (offTeam.driver1?.name && offTeam.driver1.name.trim().toLowerCase() === dName) {
+              canonicalSlugToDbId.set(`${tKey}_d1`, d.id)
+            } else if (
+              offTeam.driver2?.name &&
+              offTeam.driver2.name.trim().toLowerCase() === dName
+            ) {
+              canonicalSlugToDbId.set(`${tKey}_d2`, d.id)
+            }
+          }
+        }
+      }
+    }
+
+    // Função helper para resolver qualquer identificador de piloto (seja slug ou ID real)
+    const resolveDriverDbId = (identifier: string, driverName?: string): string => {
+      if (!identifier) return ''
+
+      // 1. Se já for um ID real existente no banco
+      if (dbDriverById.has(identifier)) {
+        return identifier
+      }
+
+      // 2. Busca no mapa de slugs canônicos
+      const lower = identifier.toLowerCase().trim()
+      if (canonicalSlugToDbId.has(lower)) {
+        return canonicalSlugToDbId.get(lower)!
+      }
+
+      // 3. Resolução pelo nome do piloto via banco
+      if (driverName && driverName.trim()) {
+        const normName = driverName.trim().toLowerCase()
+        const foundByName = allDrivers.find((d) => (d.name || '').trim().toLowerCase() === normName)
+        if (foundByName?.id) {
+          return foundByName.id
+        }
+      }
+
+      // 4. Resolução via findCanonicalDriverMaster
+      const master = findCanonicalDriverMaster(identifier, driverName)
+      if (master) {
+        const masterNameNorm = master.fullName.toLowerCase().trim()
+        const found = allDrivers.find((d) => (d.name || '').toLowerCase().trim() === masterNameNorm)
+        if (found?.id) {
+          return found.id
+        }
+      }
+
+      return identifier
+    }
+
+    // Construção do moraleMap chaveado por ID real E por slug canônico
+    const moraleMap: Record<string, number> = {}
+
+    // Base do banco
+    for (const d of allDrivers) {
+      if (d && d.id) {
+        const mor = d.morale ?? 80
+        moraleMap[d.id] = mor
+      }
+    }
+
+    // Contexto de carreira (career_drivers) se presente
     if (officialResult.careerId) {
       const { driverBase2026Service } = await import('./driverBase2026Service')
       const careerDrivers = driverBase2026Service.getCareerDrivers(officialResult.careerId)
@@ -745,8 +883,28 @@ export class CanonicalRaceResultService {
         for (const [drvId, rec] of Object.entries(careerDrivers)) {
           if (rec && typeof rec.morale === 'number') {
             moraleMap[drvId] = rec.morale
+            // Se drvId for mbj-XXX ou slug, resolver para ID real se possível
+            const resolvedDb = resolveDriverDbId(drvId, (rec as any)?.name)
+            if (resolvedDb && resolvedDb !== drvId) {
+              moraleMap[resolvedDb] = rec.morale
+            }
           }
         }
+      }
+    }
+
+    // Chavear também o moraleMap pelos slugs canônicos conhecidos (team_d1, team_d2, etc.)
+    for (const [slug, dbId] of canonicalSlugToDbId.entries()) {
+      if (moraleMap[dbId] !== undefined) {
+        moraleMap[slug] = moraleMap[dbId]
+      }
+    }
+
+    // Normalizar as entradas e também garantir que cada entry.driverId no moraleMap tenha valor
+    for (const entry of officialResult.entries || []) {
+      const resolvedId = resolveDriverDbId(entry.driverId, entry.driverName)
+      if (resolvedId && moraleMap[resolvedId] !== undefined) {
+        moraleMap[entry.driverId] = moraleMap[resolvedId]
       }
     }
 
@@ -771,12 +929,38 @@ export class CanonicalRaceResultService {
       },
       driverCurrentMoraleMap: moraleMap,
       onSaveDriverMorale: async (driverId, newMorale) => {
-        try {
-          await f1Service.updateDriver(driverId, { morale: newMorale })
-        } catch (saveErr) {
+        // Encontrar a entrada correspondente para ter acesso ao nome caso necessário
+        const entry = (officialResult.entries || []).find((e) => e.driverId === driverId)
+        const realDbId = resolveDriverDbId(driverId, entry?.driverName)
+
+        let updateSuccess = true
+
+        // Se conseguimos resolver para um ID do banco ou se driverId for válido
+        if (realDbId && dbDriverById.has(realDbId)) {
+          try {
+            await f1Service.updateDriver(realDbId, { morale: newMorale })
+          } catch (saveErr) {
+            updateSuccess = false
+            console.warn(
+              `[CanonicalRaceResultService] Error persisting driver ${realDbId} (slug ${driverId}) morale:`,
+              saveErr,
+            )
+          }
+        } else if (realDbId && !realDbId.includes('_d')) {
+          // ID com cara de registro do banco (não é slug sintetizado)
+          try {
+            await f1Service.updateDriver(realDbId, { morale: newMorale })
+          } catch (saveErr) {
+            updateSuccess = false
+            console.warn(
+              `[CanonicalRaceResultService] Error persisting driver ${realDbId} morale:`,
+              saveErr,
+            )
+          }
+        } else {
+          // Piloto IA cujo registro PB não foi encontrado no banco local
           console.warn(
-            `[CanonicalRaceResultService] Error persisting driver ${driverId} morale:`,
-            saveErr,
+            `[CanonicalRaceResultService] Driver slug '${driverId}' could not be resolved to a PocketBase record ID. Skipping DB patch to avoid 404.`,
           )
         }
 
@@ -786,9 +970,17 @@ export class CanonicalRaceResultService {
             const { driverBase2026Service } = await import('./driverBase2026Service')
             driverBase2026Service.updateCareerDriverStats({
               careerId: officialResult.careerId,
-              driverId,
+              driverId: realDbId || driverId,
               newMorale,
             })
+            // Se realDbId for diferente de driverId, atualizar em ambas as chaves para compatibilidade
+            if (realDbId && realDbId !== driverId) {
+              driverBase2026Service.updateCareerDriverStats({
+                careerId: officialResult.careerId,
+                driverId,
+                newMorale,
+              })
+            }
           } catch (careerErr) {
             console.warn(
               `[CanonicalRaceResultService] Error persisting driver ${driverId} in careerDrivers:`,
@@ -796,6 +988,8 @@ export class CanonicalRaceResultService {
             )
           }
         }
+
+        return updateSuccess
       },
     })
   }

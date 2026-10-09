@@ -314,6 +314,24 @@ export class DriverMoraleService {
   }
 
   /**
+   * Remove a marcação de processamento de um piloto (útil para retentativas ou testes)
+   */
+  public clearMoraleProcessed(params: {
+    careerId?: string
+    season: number | string
+    round: number | string
+    driverId: string
+  }): void {
+    if (typeof localStorage === 'undefined') return
+    const key = this.getIdempotencyKey(params)
+    try {
+      localStorage.removeItem(key)
+    } catch (e) {
+      console.warn('[DriverMoraleService] Failed to clear idempotency flag in localStorage:', e)
+    }
+  }
+
+  /**
    * Marca a corrida como processada para o piloto
    */
   public markMoraleProcessed(
@@ -368,7 +386,7 @@ export class DriverMoraleService {
       }>
     }
     driverCurrentMoraleMap?: Record<string, number>
-    onSaveDriverMorale?: (driverId: string, newMorale: number) => Promise<void>
+    onSaveDriverMorale?: (driverId: string, newMorale: number) => Promise<boolean | void>
   }): Promise<DriverMoraleCalculationResult[]> {
     const { officialResult, driverCurrentMoraleMap = {}, onSaveDriverMorale } = params
     const results: DriverMoraleCalculationResult[] = []
@@ -408,11 +426,16 @@ export class DriverMoraleService {
 
       results.push(calculation)
 
+      let saveSuccess = true
       // Persistência canônica via hook ou callback
       if (onSaveDriverMorale) {
         try {
-          await onSaveDriverMorale(entry.driverId, calculation.afterMorale)
+          const saveRes = await onSaveDriverMorale(entry.driverId, calculation.afterMorale)
+          if (saveRes === false) {
+            saveSuccess = false
+          }
         } catch (err) {
+          saveSuccess = false
           console.warn(
             `[DriverMoraleService] Error saving morale for driver ${entry.driverId}:`,
             err,
@@ -420,21 +443,27 @@ export class DriverMoraleService {
         }
       }
 
-      // Grava flag de idempotência
-      this.markMoraleProcessed(
-        {
-          careerId: officialResult.careerId,
-          season: officialResult.season,
-          round: officialResult.round,
-          driverId: entry.driverId,
-        },
-        {
-          before: calculation.beforeMorale,
-          after: calculation.afterMorale,
-          delta: calculation.clampedRaceDelta,
-          officializedAt: officialResult.officializedAt,
-        },
-      )
+      // Grava flag de idempotência SOMENTE quando o save foi bem-sucedido
+      if (saveSuccess) {
+        this.markMoraleProcessed(
+          {
+            careerId: officialResult.careerId,
+            season: officialResult.season,
+            round: officialResult.round,
+            driverId: entry.driverId,
+          },
+          {
+            before: calculation.beforeMorale,
+            after: calculation.afterMorale,
+            delta: calculation.clampedRaceDelta,
+            officializedAt: officialResult.officializedAt,
+          },
+        )
+      } else {
+        console.warn(
+          `[DriverMoraleService] Morale processing for driver ${entry.driverId} not marked as processed due to save failure (eligible for retry).`,
+        )
+      }
     }
 
     return results
