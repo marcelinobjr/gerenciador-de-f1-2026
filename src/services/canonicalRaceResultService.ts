@@ -719,11 +719,15 @@ export class CanonicalRaceResultService {
    * Processamento canônico de moral de pilotos após oficialização
    * Consome o driverMoraleService de forma idempotente e determinística
    */
-  public async processOfficialMoraleDirect(officialResult: OfficialRaceResult): Promise<void> {
+  public async processOfficialMoraleDirect(
+    officialResult: OfficialRaceResult,
+  ): Promise<import('./driverMoraleService').DriverMoraleBatchResult | undefined> {
     const { driverMoraleService } = await import('./driverMoraleService')
     const { f1Service } = await import('./f1Service')
     const { findCanonicalDriverMaster } = await import('@/lib/canonical-driver-database')
     const { OFFICIAL_GRID_TEAMS } = await import('@/lib/f1-data')
+
+    const sessionType = officialResult.raceVariant || 'MAIN_RACE'
 
     let allDrivers: any[] = []
     let allTeams: any[] = []
@@ -965,11 +969,22 @@ export class CanonicalRaceResultService {
       }
     }
 
+    // Construção do mapa de aliases para cada entrada (slug canônico <-> ID real PB)
+    const driverAliasesMap: Record<string, string[]> = {}
+
     // Normalizar as entradas e também garantir que cada entry.driverId no moraleMap tenha valor
     // tanto na chave de entry.driverId quanto no ID real resolvido
     // Apenas aplica fallback 80 se realmente ausente em ambas as chaves
     for (const entry of officialResult.entries || []) {
       const resolvedId = resolveDriverDbId(entry.driverId, entry.driverName)
+      const aliases = new Set<string>()
+      aliases.add(entry.driverId)
+      if (resolvedId) aliases.add(resolvedId)
+      driverAliasesMap[entry.driverId] = Array.from(aliases)
+      if (resolvedId) {
+        driverAliasesMap[resolvedId] = Array.from(aliases)
+      }
+
       const existingMorale =
         resolvedId && typeof moraleMap[resolvedId] === 'number'
           ? moraleMap[resolvedId]
@@ -983,11 +998,12 @@ export class CanonicalRaceResultService {
       }
     }
 
-    await driverMoraleService.processOfficialRaceMorale({
+    const calcResults = await driverMoraleService.processOfficialRaceMorale({
       officialResult: {
         careerId: officialResult.careerId,
         season: officialResult.season,
         round: officialResult.round,
+        sessionType,
         officializedAt: officialResult.officializedAt,
         entries: (officialResult.entries || []).map((e) => ({
           driverId: e.driverId,
@@ -1000,15 +1016,15 @@ export class CanonicalRaceResultService {
           isDnf: Boolean((e as any).isDnf || e.dnf),
           dnf: e.dnf,
           dnfReason: e.dnfReason,
+          aliases: driverAliasesMap[e.driverId],
         })),
       },
       driverCurrentMoraleMap: moraleMap,
+      driverAliasesMap,
       onSaveDriverMorale: async (driverId, newMorale) => {
         // Encontrar a entrada correspondente para ter acesso ao nome caso necessário
         const entry = (officialResult.entries || []).find((e) => e.driverId === driverId)
         const realDbId = resolveDriverDbId(driverId, entry?.driverName)
-
-        let updateSuccess = true
 
         // Se conseguimos resolver para um ID do banco comprovadamente existente
         // ou ID PB válido (15 caracteres alfanuméricos)
@@ -1017,25 +1033,20 @@ export class CanonicalRaceResultService {
             ? realDbId
             : null
 
-        if (targetDbId) {
-          try {
-            // onSaveDriverMorale passa SOMENTE o ID real resolvido ao updateDriver (NUNCA slug ou chave canônica)
-            await f1Service.updateDriver(targetDbId, { morale: newMorale })
-          } catch (saveErr) {
-            updateSuccess = false
-            console.warn(
-              `[CanonicalRaceResultService] Error persisting driver ${targetDbId} (slug ${driverId}) morale:`,
-              saveErr,
-            )
-          }
-        } else {
+        if (!targetDbId) {
           // Identidade ausente ou ambígua: NUNCA faz PATCH com slug para evitar 404
-          // Falha individual explícita, sem PATCH
-          updateSuccess = false
+          // Falha individual explícita lançando erro, para que o driverMoraleService
+          // NÃO marque o piloto como processado e registre pendência de resolução
           console.warn(
             `[CanonicalRaceResultService] Driver slug '${driverId}' could not be resolved to a valid PocketBase record ID. Skipping DB patch to avoid 404.`,
           )
+          throw new Error(
+            `Driver identity '${driverId}' could not be resolved to a valid PocketBase record ID`,
+          )
         }
+
+        // Propaga a falha real de updateDriver se ocorrer (sem engolir nem devolver sucesso aparente)
+        await f1Service.updateDriver(targetDbId, { morale: newMorale })
 
         // Também assegura persistência na fonte canônica de career_drivers se careerId presente
         if (officialResult.careerId) {
@@ -1043,11 +1054,10 @@ export class CanonicalRaceResultService {
             const { driverBase2026Service } = await import('./driverBase2026Service')
             driverBase2026Service.updateCareerDriverStats({
               careerId: officialResult.careerId,
-              driverId: targetDbId || driverId,
+              driverId: targetDbId,
               newMorale,
             })
-            // Se targetDbId for diferente de driverId, atualizar em ambas as chaves para compatibilidade
-            if (targetDbId && targetDbId !== driverId) {
+            if (targetDbId !== driverId) {
               driverBase2026Service.updateCareerDriverStats({
                 careerId: officialResult.careerId,
                 driverId,
@@ -1062,9 +1072,11 @@ export class CanonicalRaceResultService {
           }
         }
 
-        return updateSuccess
+        return true
       },
     })
+
+    return calcResults.batchResult
   }
 
   public terminateEarlyAndOfficialize(
