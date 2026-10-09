@@ -309,6 +309,152 @@ describe('BUG-MORALE-DRIVER-IDS-01: Canonical Morale Driver Resolution & Resilie
     expect(updateSpy).toHaveBeenCalledWith('pb_driver_real_999', { morale: 68 })
   })
 
+  it('4b. Preservar moral válida igual a 0 (não confundir 0 com ausente)', async () => {
+    const mockDrivers = [
+      {
+        id: 'pb_driver_zero_morale',
+        name: 'George Russell',
+        morale: 0, // Moral válida igual a zero!
+        team_id: 'team_merc_id',
+      },
+    ]
+
+    const mockTeams = [
+      {
+        id: 'team_merc_id',
+        team_key: 'mercedes',
+        name: 'Mercedes-AMG Petronas F1 Team',
+      },
+    ]
+
+    vi.spyOn(f1Service, 'getAllDrivers').mockResolvedValue(mockDrivers as any)
+    vi.spyOn(f1Service, 'getAllTeams').mockResolvedValue(mockTeams as any)
+    const updateSpy = vi.spyOn(f1Service, 'updateDriver').mockResolvedValue({} as any)
+
+    const officialResult: any = {
+      officialResultId: 'orr_test_morale_zero',
+      schemaVersion: 'official-race-result-v1',
+      raceVariant: 'MAIN_RACE',
+      careerId: 'career_test_morale_zero',
+      season: 2026,
+      round: 1,
+      raceId: 'gp_1',
+      circuitId: 'bahrain',
+      playerTeamId: 'team_williams',
+      officializedAt: new Date().toISOString(),
+      totalLaps: 57,
+      winnerDriverId: 'mercedes_d1',
+      winnerTeamId: 'team_mercedes',
+      poleDriverId: 'mercedes_d1',
+      podium: ['mercedes_d1'],
+      podiumDriverIds: ['mercedes_d1'],
+      entries: [
+        {
+          driverId: 'mercedes_d1',
+          driverName: 'George Russell',
+          finalPosition: 1, // Vence largando da P1 -> delta 0, bônus vitória +3 -> nova moral: 0 + 3 = 3
+          gridPosition: 1,
+          status: 'finished',
+          pointsAwarded: 25,
+          teamId: 'team_mercedes',
+          teamName: 'Mercedes',
+          isPlayer: false,
+          lapsCompleted: 57,
+          isClassified: true,
+          dnf: false,
+        },
+      ],
+    }
+
+    await canonicalRaceResultService.processOfficialMoraleDirect(officialResult)
+
+    // NÃO deve usar fallback 80 (80+3=83). Deve preservar 0 e calcular 0 + 3 = 3
+    expect(updateSpy).toHaveBeenCalledWith('pb_driver_zero_morale', { morale: 3 })
+  })
+
+  it('4c. Identidade ausente ou ambígua NÃO gera escrita nem PATCH no banco', async () => {
+    vi.spyOn(f1Service, 'getAllDrivers').mockResolvedValue([] as any)
+    vi.spyOn(f1Service, 'getAllTeams').mockResolvedValue([] as any)
+    const updateSpy = vi.spyOn(f1Service, 'updateDriver').mockResolvedValue({} as any)
+
+    const officialResult: any = {
+      officialResultId: 'orr_test_unknown',
+      careerId: 'career_test_unknown',
+      season: 2026,
+      round: 1,
+      entries: [
+        {
+          driverId: 'unknown_alien_d1',
+          driverName: 'Piloto Fantasma Desconhecido',
+          finalPosition: 10,
+          gridPosition: 10,
+          status: 'finished',
+        },
+      ],
+    }
+
+    await canonicalRaceResultService.processOfficialMoraleDirect(officialResult)
+
+    // Nenhuma chamada a updateDriver deve ser feita com slug fantasma
+    expect(updateSpy).not.toHaveBeenCalled()
+
+    // E não deve ser marcado como processado com sucesso
+    const isDone = driverMoraleService.isMoraleAlreadyProcessed({
+      careerId: 'career_test_unknown',
+      season: 2026,
+      round: 1,
+      driverId: 'unknown_alien_d1',
+    })
+    expect(isDone).toBe(false)
+  })
+
+  it('4d. Falha de marcação após update bem-sucedido NÃO duplica delta em retry', async () => {
+    let callCount = 0
+    const mockSave = vi.fn().mockImplementation(async () => {
+      callCount++
+      return true
+    })
+
+    // Simula falha em markMoraleProcessed
+    const markSpy = vi.spyOn(driverMoraleService, 'markMoraleProcessed').mockImplementation(() => {
+      throw new Error('QuotaExceeded on markMoraleProcessed')
+    })
+
+    const officialResult: any = {
+      careerId: 'career_test_mark_fail',
+      season: 2026,
+      round: 1,
+      entries: [
+        {
+          driverId: 'driver_p1',
+          driverName: 'Pilot One',
+          finalPosition: 1,
+          gridPosition: 1,
+          status: 'finished',
+        },
+      ],
+    }
+
+    // Primeira tentativa
+    await driverMoraleService.processOfficialRaceMorale({
+      officialResult,
+      driverCurrentMoraleMap: { driver_p1: 50 },
+      onSaveDriverMorale: mockSave,
+    })
+
+    expect(callCount).toBe(1)
+
+    // Segunda tentativa (retry): como o save já havia sido executado com sucesso e marcado como persistido,
+    // o retry deve reconhecer como processado e NÃO chamar onSaveDriverMorale novamente!
+    await driverMoraleService.processOfficialRaceMorale({
+      officialResult,
+      driverCurrentMoraleMap: { driver_p1: 50 },
+      onSaveDriverMorale: mockSave,
+    })
+
+    expect(callCount).toBe(1) // Continua 1, não aplicou novamente o delta!
+  })
+
   it('5. Resiliência a falhas individuais: lote não trava se um piloto falhar', async () => {
     const mockDrivers = [
       { id: 'pb_id_1', name: 'George Russell', morale: 70 },

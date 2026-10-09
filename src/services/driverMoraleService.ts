@@ -310,7 +310,43 @@ export class DriverMoraleService {
   }): boolean {
     if (typeof localStorage === 'undefined') return false
     const key = this.getIdempotencyKey(params)
-    return Boolean(localStorage.getItem(key))
+    try {
+      const stored = localStorage.getItem(key)
+      if (stored) return true
+    } catch {
+      // fallback
+    }
+
+    // Se houver registro de update confirmado (ex: caso de falha de markMoraleProcessed pós update bem-sucedido)
+    try {
+      const updateKey = `driver_morale_applied_${params.careerId || 'default'}_${params.season}_${params.round}_${params.driverId}`
+      if (localStorage.getItem(updateKey)) {
+        return true
+      }
+    } catch {
+      // fallback
+    }
+
+    return false
+  }
+
+  /**
+   * Registra confirmação direta de persistência executada com sucesso
+   * Protege contra reaplicação de delta em retries mesmo se markMoraleProcessed falhar
+   */
+  public markMoralePersisted(params: {
+    careerId?: string
+    season: number | string
+    round: number | string
+    driverId: string
+  }): void {
+    if (typeof localStorage === 'undefined') return
+    try {
+      const updateKey = `driver_morale_applied_${params.careerId || 'default'}_${params.season}_${params.round}_${params.driverId}`
+      localStorage.setItem(updateKey, JSON.stringify({ persistedAt: new Date().toISOString() }))
+    } catch (e) {
+      console.warn('[DriverMoraleService] Failed to set update flag:', e)
+    }
   }
 
   /**
@@ -404,7 +440,8 @@ export class DriverMoraleService {
         continue
       }
 
-      const currentMorale = driverCurrentMoraleMap[entry.driverId] ?? 80
+      const rawMoraleVal = driverCurrentMoraleMap[entry.driverId]
+      const currentMorale = typeof rawMoraleVal === 'number' ? rawMoraleVal : 80
       const isWinner = entry.finalPosition === 1
       const isPodium = entry.finalPosition === 2 || entry.finalPosition === 3
       const isDnf = Boolean(entry.isDnf || entry.dnf || entry.status === 'dnf')
@@ -445,20 +482,35 @@ export class DriverMoraleService {
 
       // Grava flag de idempotência SOMENTE quando o save foi bem-sucedido
       if (saveSuccess) {
-        this.markMoraleProcessed(
-          {
-            careerId: officialResult.careerId,
-            season: officialResult.season,
-            round: officialResult.round,
-            driverId: entry.driverId,
-          },
-          {
-            before: calculation.beforeMorale,
-            after: calculation.afterMorale,
-            delta: calculation.clampedRaceDelta,
-            officializedAt: officialResult.officializedAt,
-          },
-        )
+        // Marca persistência concluída primeiro (evita duplicar delta se a marcação seguinte falhar)
+        this.markMoralePersisted({
+          careerId: officialResult.careerId,
+          season: officialResult.season,
+          round: officialResult.round,
+          driverId: entry.driverId,
+        })
+
+        try {
+          this.markMoraleProcessed(
+            {
+              careerId: officialResult.careerId,
+              season: officialResult.season,
+              round: officialResult.round,
+              driverId: entry.driverId,
+            },
+            {
+              before: calculation.beforeMorale,
+              after: calculation.afterMorale,
+              delta: calculation.clampedRaceDelta,
+              officializedAt: officialResult.officializedAt,
+            },
+          )
+        } catch (markErr) {
+          console.warn(
+            `[DriverMoraleService] Warning: markMoraleProcessed failed for ${entry.driverId}:`,
+            markErr,
+          )
+        }
       } else {
         console.warn(
           `[DriverMoraleService] Morale processing for driver ${entry.driverId} not marked as processed due to save failure (eligible for retry).`,

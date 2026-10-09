@@ -760,6 +760,40 @@ export class CanonicalRaceResultService {
     const canonicalSlugToDbId = new Map<string, string>()
 
     // Construção do mapa slug -> ID real
+    // Helper de normalização fonética e diacrítica estrita para nomes
+    const normalizeName = (name: string): string => {
+      return (name || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .trim()
+    }
+
+    const findDriverByNameFuzzy = (nameToFind?: string): any | undefined => {
+      if (!nameToFind || !nameToFind.trim()) return undefined
+      const normTarget = normalizeName(nameToFind)
+      if (!normTarget) return undefined
+
+      // 1. Match exato normalizado
+      let match = allDrivers.find((d) => normalizeName(d.name) === normTarget)
+      if (match) return match
+
+      // 2. Match por sobrenome / subcadeia
+      const parts = nameToFind.trim().split(/\s+/)
+      const lastNameNorm = normalizeName(parts[parts.length - 1] || '')
+      if (lastNameNorm && lastNameNorm.length >= 4) {
+        match = allDrivers.find((d) => {
+          const dParts = (d.name || '').trim().split(/\s+/)
+          const dLast = normalizeName(dParts[dParts.length - 1] || '')
+          return dLast === lastNameNorm
+        })
+        if (match) return match
+      }
+
+      return undefined
+    }
+
     // 1. Slugs estruturais do formato teamKey_d1 e teamKey_d2
     for (const teamDef of OFFICIAL_GRID_TEAMS) {
       const tKey = teamDef.key.toLowerCase().trim()
@@ -768,9 +802,7 @@ export class CanonicalRaceResultService {
 
       // Resolver d1
       if (d1Name) {
-        const d1Match = allDrivers.find(
-          (d) => (d.name || '').trim().toLowerCase() === d1Name.trim().toLowerCase(),
-        )
+        const d1Match = findDriverByNameFuzzy(d1Name)
         if (d1Match?.id) {
           canonicalSlugToDbId.set(`${tKey}_d1`, d1Match.id)
         }
@@ -778,9 +810,7 @@ export class CanonicalRaceResultService {
 
       // Resolver d2
       if (d2Name) {
-        const d2Match = allDrivers.find(
-          (d) => (d.name || '').trim().toLowerCase() === d2Name.trim().toLowerCase(),
-        )
+        const d2Match = findDriverByNameFuzzy(d2Name)
         if (d2Match?.id) {
           canonicalSlugToDbId.set(`${tKey}_d2`, d2Match.id)
         }
@@ -810,19 +840,33 @@ export class CanonicalRaceResultService {
         const teamRec = teamById.get(d.team_id)
         const tKey = (teamRec?.team_key || '').toLowerCase().trim()
         if (tKey) {
-          // Se soubermos pelo role se é d1 ou d2
           const offTeam = OFFICIAL_GRID_TEAMS.find((t) => t.key.toLowerCase() === tKey)
           if (offTeam) {
-            const dName = (d.name || '').trim().toLowerCase()
-            if (offTeam.driver1?.name && offTeam.driver1.name.trim().toLowerCase() === dName) {
+            const dNorm = normalizeName(d.name)
+            if (offTeam.driver1?.name && normalizeName(offTeam.driver1.name) === dNorm) {
               canonicalSlugToDbId.set(`${tKey}_d1`, d.id)
-            } else if (
-              offTeam.driver2?.name &&
-              offTeam.driver2.name.trim().toLowerCase() === dName
-            ) {
+            } else if (offTeam.driver2?.name && normalizeName(offTeam.driver2.name) === dNorm) {
               canonicalSlugToDbId.set(`${tKey}_d2`, d.id)
             }
           }
+        }
+      }
+    }
+
+    // Mapeamentos conhecidos para slugs diretos de equipes FIA (ex: mercedes_d1, ferrari_d2, etc.)
+    // Mesmo que o nome da equipe no PB divirja ligeiramente de team_key
+    for (const teamRec of allTeams) {
+      const tKey = (teamRec?.team_key || '').toLowerCase().trim()
+      if (!tKey) continue
+      const offTeam = OFFICIAL_GRID_TEAMS.find((t) => t.key.toLowerCase() === tKey)
+      if (offTeam) {
+        if (offTeam.driver1?.name) {
+          const m1 = findDriverByNameFuzzy(offTeam.driver1.name)
+          if (m1?.id) canonicalSlugToDbId.set(`${tKey}_d1`, m1.id)
+        }
+        if (offTeam.driver2?.name) {
+          const m2 = findDriverByNameFuzzy(offTeam.driver2.name)
+          if (m2?.id) canonicalSlugToDbId.set(`${tKey}_d2`, m2.id)
         }
       }
     }
@@ -844,8 +888,7 @@ export class CanonicalRaceResultService {
 
       // 3. Resolução pelo nome do piloto via banco
       if (driverName && driverName.trim()) {
-        const normName = driverName.trim().toLowerCase()
-        const foundByName = allDrivers.find((d) => (d.name || '').trim().toLowerCase() === normName)
+        const foundByName = findDriverByNameFuzzy(driverName)
         if (foundByName?.id) {
           return foundByName.id
         }
@@ -854,10 +897,20 @@ export class CanonicalRaceResultService {
       // 4. Resolução via findCanonicalDriverMaster
       const master = findCanonicalDriverMaster(identifier, driverName)
       if (master) {
-        const masterNameNorm = master.fullName.toLowerCase().trim()
-        const found = allDrivers.find((d) => (d.name || '').toLowerCase().trim() === masterNameNorm)
+        const found = findDriverByNameFuzzy(master.fullName)
         if (found?.id) {
           return found.id
+        }
+      }
+
+      // 5. Se o identificador terminar em _d1 ou _d2 (ex: team_key_d1)
+      const slugMatch = lower.match(/^([a-z0-9_-]+)_(d[12])$/)
+      if (slugMatch) {
+        const teamKeyPrefix = slugMatch[1].replace(/^team_/, '')
+        const driverSlot = slugMatch[2]
+        const fallbackKey = `${teamKeyPrefix}_${driverSlot}`
+        if (canonicalSlugToDbId.has(fallbackKey)) {
+          return canonicalSlugToDbId.get(fallbackKey)!
         }
       }
 
@@ -870,7 +923,7 @@ export class CanonicalRaceResultService {
     // Base do banco
     for (const d of allDrivers) {
       if (d && d.id) {
-        const mor = d.morale ?? 80
+        const mor = typeof d.morale === 'number' ? d.morale : 80
         moraleMap[d.id] = mor
       }
     }
@@ -903,7 +956,7 @@ export class CanonicalRaceResultService {
     // Normalizar as entradas e também garantir que cada entry.driverId no moraleMap tenha valor
     for (const entry of officialResult.entries || []) {
       const resolvedId = resolveDriverDbId(entry.driverId, entry.driverName)
-      if (resolvedId && moraleMap[resolvedId] !== undefined) {
+      if (resolvedId && typeof moraleMap[resolvedId] === 'number') {
         moraleMap[entry.driverId] = moraleMap[resolvedId]
       }
     }
@@ -935,32 +988,30 @@ export class CanonicalRaceResultService {
 
         let updateSuccess = true
 
-        // Se conseguimos resolver para um ID do banco ou se driverId for válido
-        if (realDbId && dbDriverById.has(realDbId)) {
+        // Se conseguimos resolver para um ID do banco comprovadamente existente
+        const targetDbId =
+          realDbId && dbDriverById.has(realDbId)
+            ? realDbId
+            : realDbId && !realDbId.includes('_d') && !realDbId.includes('_')
+              ? realDbId
+              : null
+
+        if (targetDbId) {
           try {
-            await f1Service.updateDriver(realDbId, { morale: newMorale })
+            await f1Service.updateDriver(targetDbId, { morale: newMorale })
           } catch (saveErr) {
             updateSuccess = false
             console.warn(
-              `[CanonicalRaceResultService] Error persisting driver ${realDbId} (slug ${driverId}) morale:`,
-              saveErr,
-            )
-          }
-        } else if (realDbId && !realDbId.includes('_d')) {
-          // ID com cara de registro do banco (não é slug sintetizado)
-          try {
-            await f1Service.updateDriver(realDbId, { morale: newMorale })
-          } catch (saveErr) {
-            updateSuccess = false
-            console.warn(
-              `[CanonicalRaceResultService] Error persisting driver ${realDbId} morale:`,
+              `[CanonicalRaceResultService] Error persisting driver ${targetDbId} (slug ${driverId}) morale:`,
               saveErr,
             )
           }
         } else {
-          // Piloto IA cujo registro PB não foi encontrado no banco local
+          // Identidade ausente ou ambígua: NUNCA faz PATCH com slug para evitar 404
+          // Marca updateSuccess como false para não registrar falso sucesso
+          updateSuccess = false
           console.warn(
-            `[CanonicalRaceResultService] Driver slug '${driverId}' could not be resolved to a PocketBase record ID. Skipping DB patch to avoid 404.`,
+            `[CanonicalRaceResultService] Driver slug '${driverId}' could not be resolved to a valid PocketBase record ID. Skipping DB patch to avoid 404.`,
           )
         }
 

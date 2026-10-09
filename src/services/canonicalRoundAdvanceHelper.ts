@@ -200,6 +200,18 @@ export async function advanceWeekendRound(
       }
     }
 
+    // Processamento de moral pós-oficialização direto (caso ainda não tenha sido processado pelo resultado)
+    if (official) {
+      try {
+        await canonicalRaceResultService.processOfficialMoraleDirect(official)
+      } catch (moraleDirectErr) {
+        console.warn(
+          'Aviso: processOfficialMoraleDirect secundário encontrou aviso:',
+          moraleDirectErr,
+        )
+      }
+    }
+
     onSuccess?.(nextRound)
 
     return {
