@@ -18,6 +18,7 @@ import {
   Activity,
   Calendar,
   ExternalLink,
+  Download,
 } from 'lucide-react'
 import type { OfficialRaceResult, OfficialRaceResultEntry } from '@/types/canonical-race-v2'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
@@ -40,6 +41,8 @@ export interface OfficialRaceResultPanelProps {
   onRegisterInCareer?: () => void
   onContinue?: () => void
   onViewChampionship?: () => void
+  onExportDiagnostics?: () => void
+  onDownloadMemoryResult?: () => void
   isContinuing?: boolean
 }
 
@@ -51,6 +54,8 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
   onRegisterInCareer,
   onContinue,
   onViewChampionship,
+  onExportDiagnostics,
+  onDownloadMemoryResult,
   isContinuing = false,
 }) => {
   const [tableExpanded, setTableExpanded] = useState(false)
@@ -174,16 +179,16 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
     return F1_2026_CALENDAR.find((c) => c.round === nextRound) || null
   }, [result.round])
 
-  // Handler de avanço com guarda contra clique duplo
+  const isComplete = careerPersistenceStatus === 'COMPLETE'
+
+  // Handler de avanço com guarda contra clique duplo e bloqueio estrito se a carreira não estiver concluída
   const handleContinueClick = () => {
-    if (continueClicked || isContinuing) return
+    if (continueClicked || isContinuing || !isComplete) return
     setContinueClicked(true)
     if (onContinue) {
       onContinue()
     }
   }
-
-  const isComplete = careerPersistenceStatus === 'COMPLETE'
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -1318,28 +1323,69 @@ export const OfficialRaceResultPanel: React.FC<OfficialRaceResultPanelProps> = (
                   VER CAMPEONATO
                 </button>
               )}
-
-              {onContinue && (
+              {onExportDiagnostics && (
                 <button
                   type="button"
-                  disabled={continueClicked || isContinuing}
-                  onClick={handleContinueClick}
-                  className="px-5 py-2.5 rounded-xl bg-[#E10600] hover:bg-red-600 text-white text-xs font-black flex items-center gap-2 transition-all shadow-md disabled:opacity-50"
-                  data-testid="continue-to-next-round-btn"
+                  onClick={onExportDiagnostics}
+                  className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+                  data-testid="export-race-diagnostics-btn"
+                  title="Baixar diagnóstico técnico e resultado carregado"
                 >
-                  {continueClicked || isContinuing ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      PROCESSANDO...
-                    </>
-                  ) : (
-                    <>
-                      <span>CONTINUAR</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
+                  <Download className="w-3.5 h-3.5" />
+                  DIAGNÓSTICO
                 </button>
               )}
+              {onDownloadMemoryResult && (
+                <button
+                  type="button"
+                  onClick={onDownloadMemoryResult}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 text-xs font-bold flex items-center gap-2 transition-colors shadow-xs"
+                  title="Baixar resultado oficial que está carregado em memória nesta página"
+                  data-testid="download-memory-result-btn"
+                >
+                  <Download className="w-3.5 h-3.5 text-cyan-400" />
+                  BAIXAR RESULTADO EM MEMÓRIA
+                </button>
+              )}
+              {onContinue && (
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    type="button"
+                    disabled={!isComplete || continueClicked || isContinuing}
+                    onClick={handleContinueClick}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-md ${
+                      !isComplete
+                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-60'
+                        : 'bg-[#E10600] hover:bg-red-600 text-white cursor-pointer'
+                    }`}
+                    data-testid="continue-to-next-round-btn"
+                    title={
+                      !isComplete
+                        ? 'O avanço requer a confirmação do registro esportivo da carreira no backend.'
+                        : 'Avançar para a próxima etapa/rodada'
+                    }
+                  >
+                    {continueClicked || isContinuing ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        PROCESSANDO...
+                      </>
+                    ) : (
+                      <>
+                        <span>CONTINUAR</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                  {!isComplete && (
+                    <span className="text-[10px] text-amber-400 font-medium">
+                      {careerPersistenceStatus === 'FAILED'
+                        ? 'Registro pendente/falho: use "Tentar Novamente" acima.'
+                        : 'Aguardando confirmação do registro no backend...'}
+                    </span>
+                  )}
+                </div>
+              )}{' '}
             </div>
           </CardContent>
         </Card>

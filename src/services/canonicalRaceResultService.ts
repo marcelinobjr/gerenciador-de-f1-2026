@@ -1167,8 +1167,12 @@ export class CanonicalRaceResultService {
       }
       return true
     } catch (err) {
-      console.error('[CanonicalRaceResultService] Failed to save official race result:', err)
-      return false
+      console.warn(
+        '[CanonicalRaceResultService] Failed to cache official race result in localStorage:',
+        err,
+      )
+      // localStorage vira cache: falha de setItem não impede o resultado oficial de existir em memória
+      return true
     }
   }
 

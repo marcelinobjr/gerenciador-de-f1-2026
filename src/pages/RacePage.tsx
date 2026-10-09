@@ -15,6 +15,7 @@ import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineServic
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
 import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
+import { collectRaceDiagnosticData, downloadDiagnosticJson } from '@/utils/raceDiagnosticExport'
 import { raceStrategyService } from '@/services/raceStrategyService'
 import type {
   CanonicalRaceState,
@@ -137,7 +138,13 @@ export default function RacePage() {
           )
           if (official) {
             setOfficialRaceResult(official)
-            setCareerPersistenceStatus('COMPLETE')
+            const isReg = canonicalCareerPersistenceService.isResultRegistered(
+              ctx.careerId,
+              ctx.seasonYear,
+              ctx.round,
+              'MAIN_RACE',
+            )
+            setCareerPersistenceStatus(isReg ? 'COMPLETE' : 'PENDING')
             return
           }
 
@@ -392,16 +399,31 @@ export default function RacePage() {
     )
     if (alreadyOfficial) {
       setOfficialRaceResult(alreadyOfficial)
-      // Assegurar registro da carreira
+      // Assegurar registro da carreira sem duplicar
       try {
-        canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(alreadyOfficial)
-        canonicalChampionshipService.processAndPersistRoundChampionship(
-          ctx.careerId,
-          ctx.seasonYear,
-          ctx.round,
-          alreadyOfficial.playerTeamId,
-        )
+        setIsPersistingCareer(true)
+        setCareerPersistenceStatus('APPLYING')
+        const persistRes =
+          await canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(
+            alreadyOfficial,
+            { requireBackendSync: true },
+          )
+        setCareerPersistenceStatus(persistRes.journal.status)
+        setIsPersistingCareer(false)
+        if (persistRes.success) {
+          canonicalChampionshipService.processAndPersistRoundChampionship(
+            ctx.careerId,
+            ctx.seasonYear,
+            ctx.round,
+            alreadyOfficial.playerTeamId,
+          )
+        } else {
+          setCareerPersistenceError(persistRes.error)
+        }
       } catch (e: any) {
+        setIsPersistingCareer(false)
+        setCareerPersistenceStatus('FAILED')
+        setCareerPersistenceError(e?.message)
         console.warn('[RacePage] Sync na carreira ao recuperar resultado existente:', e)
       }
       return
@@ -432,7 +454,10 @@ export default function RacePage() {
         setIsPersistingCareer(true)
         setCareerPersistenceStatus('APPLYING')
         const persistRes =
-          canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
+          await canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(
+            official,
+            { requireBackendSync: true },
+          )
         setCareerPersistenceStatus(persistRes.journal.status)
         setIsPersistingCareer(false)
 
@@ -474,6 +499,15 @@ export default function RacePage() {
   // D) Avanço para o Próximo Fim de Semana (fluxo canônico)
   const handleAdvanceToNextWeekend = useCallback(async () => {
     if (!sessionResolution || sessionResolution.status !== 'ready' || !season?.id) return
+    if (careerPersistenceStatus !== 'COMPLETE') {
+      toast({
+        variant: 'destructive',
+        title: 'Avanço Bloqueado',
+        description:
+          'O registro obrigatório do resultado na carreira deve ser concluído com sucesso antes de avançar.',
+      })
+      return
+    }
     const ctx = sessionResolution.context
 
     setIsAdvancingRound(true)
@@ -517,7 +551,7 @@ export default function RacePage() {
     } finally {
       setIsAdvancingRound(false)
     }
-  }, [sessionResolution, officialRaceResult, season, team, navigate])
+  }, [sessionResolution, officialRaceResult, season, team, navigate, careerPersistenceStatus])
 
   // ESTADO DE CARREGAMENTO
   if (isAuthLoading || isLoadingSession) {
@@ -685,13 +719,48 @@ export default function RacePage() {
           isPersisting={isPersistingCareer}
           persistenceError={careerPersistenceError}
           isContinuing={isAdvancingRound}
-          onRegisterInCareer={() => {
+          onExportDiagnostics={() => {
+            try {
+              const diagData = collectRaceDiagnosticData(context.careerId, {
+                appContext: {
+                  careerId: context.careerId,
+                  careerIdOrigin: 'RacePage context.careerId',
+                  pocketBaseSeasonId: season?.id,
+                  pocketBaseSeasonIdOrigin: 'auth season.id',
+                  internalNumericSeasonId: context.seasonYear,
+                  internalNumericSeasonIdOrigin: 'RacePage context.seasonYear',
+                  displayedYear: season?.year || 2026,
+                  displayedYearOrigin: 'season.year',
+                  currentRound: context.round,
+                  currentRoundOrigin: 'RacePage context.round',
+                  sessionType: 'race',
+                  sessionTypeOrigin: 'RacePage OfficialPanel',
+                },
+              })
+              const ok = downloadDiagnosticJson(diagData, `apex-diagnostico-r${context.round}.json`)
+              if (ok) {
+                toast({
+                  title: 'Diagnóstico Exportado',
+                  description: 'Arquivo JSON com resultado e inventário baixado com sucesso.',
+                })
+              }
+            } catch (e: any) {
+              toast({
+                variant: 'destructive',
+                title: 'Erro ao exportar diagnóstico',
+                description: e?.message || 'Falha ao gerar arquivo de diagnóstico.',
+              })
+            }
+          }}
+          onRegisterInCareer={async () => {
             try {
               setIsPersistingCareer(true)
               setCareerPersistenceStatus('APPLYING')
+              setCareerPersistenceError(undefined)
               const res =
-                canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
+                await canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(
                   officialRaceResult,
+                  { requireBackendSync: true },
                 )
               setCareerPersistenceStatus(res.journal.status)
               setIsPersistingCareer(false)
@@ -708,7 +777,7 @@ export default function RacePage() {
             } catch (err: any) {
               setIsPersistingCareer(false)
               setCareerPersistenceStatus('FAILED')
-              setCareerPersistenceError(err?.message)
+              setCareerPersistenceError(err?.message || 'Falha na persistência da carreira.')
             }
           }}
           onContinue={handleAdvanceToNextWeekend}

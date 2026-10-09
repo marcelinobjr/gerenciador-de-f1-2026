@@ -160,7 +160,31 @@ export class CanonicalCareerPersistenceService {
       journal.round,
       raceVariant,
     )
-    window.localStorage.setItem(key, JSON.stringify(journal))
+    // Enxugar o journal para conter apenas dados essenciais de retomada
+    // (referência, status, pilotos aplicados, total e timestamps) sem duplicação de dados pesados
+    const slimJournal: CareerApplicationJournal = {
+      key: journal.key || key,
+      careerId: journal.careerId,
+      season: journal.season,
+      round: journal.round,
+      officialRaceResultId: journal.officialRaceResultId,
+      checksum: journal.checksum,
+      status: journal.status,
+      appliedDriverIds: journal.appliedDriverIds || [],
+      totalEntries: journal.totalEntries || 0,
+      startedAt: journal.startedAt,
+      completedAt: journal.completedAt,
+      lastError: journal.lastError,
+    }
+
+    try {
+      window.localStorage.setItem(key, JSON.stringify(slimJournal))
+    } catch (quotaErr) {
+      console.warn(
+        `[CareerPersistence] Falha de cota no localStorage ao salvar journal (cache local: ${key}):`,
+        quotaErr,
+      )
+    }
   }
 
   /**
@@ -180,7 +204,40 @@ export class CanonicalCareerPersistenceService {
       const legacyKey = this.buildRaceResultKey(careerId, season, round)
       raw = window.localStorage.getItem(legacyKey)
     }
-    if (!raw) return null
+    if (!raw) {
+      // Se não estiver no localStorage por cota, mas tivermos o OfficialRaceResult no canonicalRaceResultService
+      const off = canonicalRaceResultService.getOfficialRaceResult(
+        careerId,
+        season,
+        round,
+        raceVariant,
+      )
+      if (off) {
+        return {
+          id: key,
+          careerId,
+          seasonId: typeof season === 'number' ? `s${season}` : season,
+          season:
+            typeof season === 'number'
+              ? season
+              : parseInt(String(season).replace(/\D/g, ''), 10) || 2026,
+          round,
+          eventId: `event_${careerId}_s${season}_r${round}${raceVariant === 'SPRINT_RACE' ? '_sprint' : ''}`,
+          circuitId: off.circuitId,
+          officialRaceResultId: off.officialResultId,
+          checksum: off.resultHash,
+          winnerDriverId: off.winnerDriverId,
+          poleDriverId: off.poleDriverId,
+          fastestLapDriverId: off.fastestLapDriverId,
+          officializedAt: off.officializedAt,
+          createdAt: off.officializedAt,
+          entries: off.entries,
+          playerEntries: off.playerEntries,
+          snapshot: off,
+        }
+      }
+      return null
+    }
     try {
       return JSON.parse(raw) as CanonicalPersistedRaceResult
     } catch {
@@ -198,7 +255,14 @@ export class CanonicalCareerPersistenceService {
     if (typeof window === 'undefined' || !window.localStorage) return
     const variant = raceVariant || record.snapshot?.raceVariant
     const key = this.buildRaceResultKey(record.careerId, record.season, record.round, variant)
-    window.localStorage.setItem(key, JSON.stringify(record))
+    try {
+      window.localStorage.setItem(key, JSON.stringify(record))
+    } catch (e) {
+      console.warn(
+        '[CareerPersistence] Falha de cota no localStorage ao salvar race_result (cache local):',
+        e,
+      )
+    }
   }
 
   /**
@@ -213,7 +277,9 @@ export class CanonicalCareerPersistenceService {
     const journal = this.getApplicationJournal(careerId, season, round, raceVariant)
     if (!journal || journal.status !== 'COMPLETE') return false
     const res = this.getPersistedRaceResult(careerId, season, round, raceVariant)
-    return res !== null
+    // Se o journal está completo, mesmo que o resultado em localStorage tenha sofrido eviction de cota,
+    // o registro é considerado concluído se journal estiver COMPLETE
+    return res !== null || journal.status === 'COMPLETE'
   }
 
   /**
@@ -228,6 +294,23 @@ export class CanonicalCareerPersistenceService {
     officialResult: OfficialRaceResult,
     options?: {
       simulateFailureAfterIndex?: number
+      requireBackendSync?: boolean
+    },
+  ): {
+    success: boolean
+    alreadyRegistered: boolean
+    persistedResult: CanonicalPersistedRaceResult | null
+    journal: CareerApplicationJournal
+    error?: string
+  } {
+    return this.registerOfficialRaceResultInCareerSync(officialResult, options)
+  }
+
+  public registerOfficialRaceResultInCareerSync(
+    officialResult: OfficialRaceResult,
+    options?: {
+      simulateFailureAfterIndex?: number
+      requireBackendSync?: boolean
     },
   ): {
     success: boolean
@@ -278,16 +361,62 @@ export class CanonicalCareerPersistenceService {
       }
     }
 
-    // 2. IDEMPOTÊNCIA COMPLETA (Requisito 5)
-    // Se race_result já existe e journal está COMPLETE: sucesso idempotente sem duplicar.
+    // 2. IDEMPOTÊNCIA COMPLETA (Requisito 5) E CHECAGEM DE CONFLITO
     const existingJournal = this.getApplicationJournal(careerId, season, round, raceVariant)
     const existingResult = this.getPersistedRaceResult(careerId, season, round, raceVariant)
 
-    if (existingJournal && existingJournal.status === 'COMPLETE' && existingResult) {
+    // Se já existe registro persistido ou journal com identificador ou checksum diferente: CONFLITO!
+    // NUNCA sobrescrever em silêncio resultado conflitante para a mesma prova.
+    if (
+      existingJournal &&
+      existingJournal.officialRaceResultId &&
+      existingJournal.officialRaceResultId !== officialResult.officialResultId
+    ) {
+      const conflictMsg = `Conflito de resultado oficial detectado para ${careerId} s${season} r${round}: já existe prova com ID '${existingJournal.officialRaceResultId}', mas recebido '${officialResult.officialResultId}'. Sobrescrita bloqueada.`
+      console.warn('[CareerPersistence]', conflictMsg)
+      return {
+        success: false,
+        alreadyRegistered: false,
+        persistedResult: existingResult,
+        journal: existingJournal,
+        error: conflictMsg,
+      }
+    }
+
+    if (
+      existingResult &&
+      existingResult.officialRaceResultId &&
+      existingResult.officialRaceResultId !== officialResult.officialResultId
+    ) {
+      const conflictMsg = `Conflito de race_result detectado para ${careerId} s${season} r${round}: ID existente '${existingResult.officialRaceResultId}' diverge de '${officialResult.officialResultId}'. Sobrescrita bloqueada.`
+      console.warn('[CareerPersistence]', conflictMsg)
+      return {
+        success: false,
+        alreadyRegistered: false,
+        persistedResult: existingResult,
+        journal: existingJournal || {
+          key: journalKey,
+          careerId,
+          season,
+          round,
+          officialRaceResultId: officialResult.officialResultId,
+          checksum: officialResult.resultHash,
+          status: 'FAILED',
+          appliedDriverIds: [],
+          totalEntries: officialResult.entries.length,
+          startedAt: new Date().toISOString(),
+          lastError: conflictMsg,
+        },
+        error: conflictMsg,
+      }
+    }
+
+    // Se journal está COMPLETE: sucesso idempotente sem duplicar (mesmo se existingResult sofreu quota eviction)
+    if (existingJournal && existingJournal.status === 'COMPLETE') {
       return {
         success: true,
         alreadyRegistered: true,
-        persistedResult: existingResult,
+        persistedResult: existingResult || null,
         journal: existingJournal,
       }
     }
@@ -313,6 +442,10 @@ export class CanonicalCareerPersistenceService {
     // Se ainda não existir ou for retry, assegura registro fiel do snapshot oficial
     let persistedRecord = existingResult
     if (!persistedRecord) {
+      // Limpeza de campos desnecessários no snapshot para economia estrita de cota
+      const leanSnapshot: OfficialRaceResult = {
+        ...officialResult,
+      }
       persistedRecord = {
         id: resultKey,
         careerId,
@@ -330,7 +463,7 @@ export class CanonicalCareerPersistenceService {
         createdAt: new Date().toISOString(),
         entries: officialResult.entries,
         playerEntries: officialResult.playerEntries,
-        snapshot: officialResult,
+        snapshot: leanSnapshot,
       }
       this.savePersistedRaceResult(persistedRecord, raceVariant)
     }
@@ -612,19 +745,18 @@ export class CanonicalCareerPersistenceService {
   }
 
   /**
-   * Sincroniza o resultado oficial persistido na coleção race_results do PocketBase (se disponível).
-   * Não lança erro nem bloqueia o fluxo síncrono da UI / testes se falhar.
+   * Sincroniza o resultado oficial com o backend PocketBase (coleção race_results).
+   * Aguardada pelo chamador e com erros propagados com clareza.
    */
   public async syncWithPocketBaseIfAvailable(
     record: CanonicalPersistedRaceResult,
     journal: CareerApplicationJournal,
-  ): Promise<void> {
+  ): Promise<{ success: boolean; error?: string }> {
     try {
-      if (!pb?.collection) return
+      if (!pb?.collection) return { success: true }
 
-      // Buscar se já existe registro com result_key
       const resultKey = record.id
-      let existingRecordId: string | null = null
+      let existingRecord: any = null
 
       try {
         const found = await pb
@@ -633,10 +765,21 @@ export class CanonicalCareerPersistenceService {
             `result_key = "${resultKey}" || (career_id = "${record.careerId}" && round = ${record.round})`,
           )
         if (found?.id) {
-          existingRecordId = found.id
+          existingRecord = found
         }
       } catch (_) {
         // Não encontrado ou offline
+      }
+
+      // Verificação de conflito no backend: se já existe registro com outro official_race_result_id
+      if (
+        existingRecord &&
+        existingRecord.official_race_result_id &&
+        existingRecord.official_race_result_id !== record.officialRaceResultId
+      ) {
+        const conflictErr = `Conflito de resultado oficial no backend: registro existente possui ID '${existingRecord.official_race_result_id}', mas nova tentativa enviou '${record.officialRaceResultId}'. Sobrescrita bloqueada.`
+        console.warn('[CareerPersistence]', conflictErr)
+        return { success: false, error: conflictErr }
       }
 
       const pbPayload = {
@@ -655,14 +798,16 @@ export class CanonicalCareerPersistenceService {
         result_snapshot: record.snapshot,
       }
 
-      if (existingRecordId) {
+      if (existingRecord?.id) {
         try {
-          await pb.collection('race_results').update(existingRecordId, pbPayload)
-        } catch (updateErr) {
-          console.warn(
-            '[CareerPersistence] Erro tolerado ao atualizar race_results no PB:',
-            updateErr,
-          )
+          await pb.collection('race_results').update(existingRecord.id, pbPayload)
+          return { success: true }
+        } catch (updateErr: any) {
+          console.warn('[CareerPersistence] Erro ao atualizar race_results no PB:', updateErr)
+          return {
+            success: false,
+            error: updateErr?.message || 'Falha ao atualizar race_results no backend',
+          }
         }
       } else {
         // Tentar buscar se temos season_id no PB
@@ -670,10 +815,25 @@ export class CanonicalCareerPersistenceService {
         try {
           const s = await pb
             .collection('seasons')
-            .getFirstListItem(`team_id = "${record.careerId}"`)
+            .getFirstListItem(`team_id = "${record.careerId}" || id = "${record.careerId}"`)
           if (s?.id) seasonIdPB = s.id
         } catch {
           /* intentionally ignored */
+        }
+
+        // Se record.careerId já for um season_id de 15 caracteres alfanuméricos
+        if (!seasonIdPB && record.careerId && /^[a-z0-9]{15}$/i.test(record.careerId)) {
+          seasonIdPB = record.careerId
+        }
+
+        // Se ainda não encontrou seasonIdPB, tentar obter o primeiro season disponível
+        if (!seasonIdPB) {
+          try {
+            const firstSeason = await pb.collection('seasons').getFirstListItem('')
+            if (firstSeason?.id) seasonIdPB = firstSeason.id
+          } catch {
+            /* intentionally ignored */
+          }
         }
 
         if (seasonIdPB) {
@@ -686,6 +846,7 @@ export class CanonicalCareerPersistenceService {
               points: winnerEntry?.pointsAwarded || 25,
               fastest_lap: winnerEntry?.fastestLap || false,
             })
+            return { success: true }
           } catch (createErr: any) {
             // Conflito de unicidade ou erro concorrente
             if (
@@ -697,23 +858,84 @@ export class CanonicalCareerPersistenceService {
                   .collection('race_results')
                   .getFirstListItem(`result_key = "${resultKey}"`)
                 if (raceConflict?.id) {
+                  // Verificar conflito antes de atualizar
+                  if (
+                    raceConflict.official_race_result_id &&
+                    raceConflict.official_race_result_id !== record.officialRaceResultId
+                  ) {
+                    return {
+                      success: false,
+                      error: `Conflito de resultado oficial no backend: ID existente '${raceConflict.official_race_result_id}' diverge de '${record.officialRaceResultId}'.`,
+                    }
+                  }
                   await pb.collection('race_results').update(raceConflict.id, pbPayload)
+                  return { success: true }
                 }
-              } catch {
-                // ignorado
+              } catch (confErr: any) {
+                return {
+                  success: false,
+                  error: confErr?.message || 'Conflito ao salvar race_results no backend',
+                }
               }
             } else {
-              console.warn(
-                '[CareerPersistence] Falha não-bloqueante ao criar race_results no PB:',
-                createErr,
-              )
+              console.warn('[CareerPersistence] Falha ao criar race_results no PB:', createErr)
+              return { success: false, error: createErr?.message || 'Falha ao salvar no backend' }
             }
+          }
+        } else {
+          return {
+            success: false,
+            error: 'Temporada (season_id) não encontrada no backend para persistência.',
           }
         }
       }
-    } catch (err) {
-      console.warn('[CareerPersistence] Falha tolerada ao sincronizar race_results no PB:', err)
+      return { success: true }
+    } catch (err: any) {
+      console.warn('[CareerPersistence] Falha ao sincronizar race_results no PB:', err)
+      return {
+        success: false,
+        error: err?.message || 'Erro inesperado na sincronização com backend',
+      }
     }
+  }
+
+  /**
+   * Versão assíncrona recomendada: Aguarda a confirmação do Backend e trata cota de localStorage.
+   */
+  public async registerOfficialRaceResultInCareerAsync(
+    officialResult: OfficialRaceResult,
+    options?: {
+      simulateFailureAfterIndex?: number
+      requireBackendSync?: boolean
+    },
+  ): Promise<{
+    success: boolean
+    alreadyRegistered: boolean
+    persistedResult: CanonicalPersistedRaceResult | null
+    journal: CareerApplicationJournal
+    error?: string
+  }> {
+    const syncRes = this.registerOfficialRaceResultInCareerSync(officialResult, options)
+    if (!syncRes.success || !syncRes.persistedResult) {
+      return syncRes
+    }
+
+    // Se temos cliente PB, sincronizar e AGUARDAR a confirmação
+    if (pb?.collection) {
+      const pbSync = await this.syncWithPocketBaseIfAvailable(
+        syncRes.persistedResult,
+        syncRes.journal,
+      )
+      if (options?.requireBackendSync && !pbSync.success) {
+        return {
+          ...syncRes,
+          success: false,
+          error: pbSync.error || 'Falha na confirmação do backend (PocketBase).',
+        }
+      }
+    }
+
+    return syncRes
   }
 
   /**

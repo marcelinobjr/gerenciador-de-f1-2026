@@ -3855,6 +3855,45 @@ export default function WeekendV2Page() {
         description="Gestão completa do fim de semana de Grande Prêmio: treinos, classificação e corrida."
         actions={
           <div className="flex items-center gap-2 flex-wrap">
+            {officialRaceResult && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  try {
+                    const blob = new Blob([JSON.stringify(officialRaceResult, null, 2)], {
+                      type: 'application/json',
+                    })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `apex-resultado-oficial-r${officialRaceResult.round}-${officialRaceResult.circuitId || 'gp'}.json`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                    toast({
+                      title: 'Resultado em memória exportado',
+                      description: 'Download do OfficialRaceResult concluído.',
+                    })
+                  } catch (err: any) {
+                    toast({
+                      title: 'Erro no download',
+                      description: err?.message,
+                      variant: 'destructive',
+                    })
+                  }
+                }}
+                className="h-8 min-h-[36px] text-xs font-bold border-cyan-400 text-cyan-800 bg-cyan-50/80 hover:bg-cyan-100 hover:text-cyan-900 gap-1.5"
+                title="Baixar resultado oficial que a página já carregou em memória (sem depender do localStorage)"
+                data-testid="header-download-memory-result-btn"
+              >
+                <Download className="w-3.5 h-3.5 text-cyan-700" />
+                Baixar resultado (memória)
+              </Button>
+            )}
+
             <Button
               type="button"
               variant="outline"
@@ -4759,14 +4798,49 @@ export default function WeekendV2Page() {
               careerPersistenceStatus={careerPersistenceStatus}
               isPersisting={isPersistingCareer}
               persistenceError={careerPersistenceError}
-              onRegisterInCareer={() => {
+              onDownloadMemoryResult={() => {
+                try {
+                  if (!officialRaceResult) {
+                    toast({
+                      title: 'Nenhum resultado em memória',
+                      description: 'A corrida ainda não produziu resultado oficial.',
+                      variant: 'destructive',
+                    })
+                    return
+                  }
+                  const blob = new Blob([JSON.stringify(officialRaceResult, null, 2)], {
+                    type: 'application/json',
+                  })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `apex-resultado-oficial-r${officialRaceResult.round}-${officialRaceResult.circuitId || 'gp'}.json`
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  URL.revokeObjectURL(url)
+                  toast({
+                    title: 'Resultado oficial baixado',
+                    description: 'O snapshot que estava em memória foi salvo como JSON.',
+                  })
+                } catch (err: any) {
+                  toast({
+                    title: 'Falha ao baixar resultado',
+                    description: err?.message || 'Erro ao gerar arquivo.',
+                    variant: 'destructive',
+                  })
+                }
+              }}
+              onRegisterInCareer={async () => {
                 try {
                   setIsPersistingCareer(true)
                   setCareerPersistenceStatus('APPLYING')
+                  setCareerPersistenceError(undefined)
                   const canonicalCareerId = resolveCanonicalCareerId(season, team)
                   const res =
-                    canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
+                    await canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
                       officialRaceResult,
+                      { requireBackendSync: true },
                     )
                   setCareerPersistenceStatus(res.journal.status)
                   setIsPersistingCareer(false)
@@ -4779,7 +4853,7 @@ export default function WeekendV2Page() {
                     toast({
                       title: 'Resultado Registrado na Carreira',
                       description:
-                        'Os dados esportivos oficiais foram persistidos e as estatísticas dos pilotos acumuladas.',
+                        'Os dados esportivos oficiais foram persistidos no backend e as estatísticas dos pilotos acumuladas.',
                     })
                   } else {
                     setCareerPersistenceError(res.error)
@@ -4924,32 +4998,39 @@ export default function WeekendV2Page() {
                   }
 
                   // Persistência automática pós-oficialização canônica e idempotente
-                  try {
-                    setIsPersistingCareer(true)
-                    setCareerPersistenceStatus('APPLYING')
-                    const res =
-                      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
-                    setCareerPersistenceStatus(res.journal.status)
-                    setIsPersistingCareer(false)
-                    if (res.success) {
-                      // Processar e persistir imediatamente o campeonato canônico desta rodada
-                      canonicalChampionshipService.processAndPersistRoundChampionship(
-                        canonicalCareerId,
-                        season?.year || 2026,
-                        currentRound,
-                      )
-                      toast({
-                        title: 'Registrado na Carreira',
-                        description: 'Estatísticas acumuladas com sucesso.',
-                      })
-                    } else {
-                      setCareerPersistenceError(res.error)
+                  // Executa a persistência aguardando a confirmação do backend
+                  ;(async () => {
+                    try {
+                      setIsPersistingCareer(true)
+                      setCareerPersistenceStatus('APPLYING')
+                      setCareerPersistenceError(undefined)
+                      const res =
+                        await canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(
+                          official,
+                          { requireBackendSync: true },
+                        )
+                      setCareerPersistenceStatus(res.journal.status)
+                      setIsPersistingCareer(false)
+                      if (res.success) {
+                        // Processar e persistir imediatamente o campeonato canônico desta rodada
+                        canonicalChampionshipService.processAndPersistRoundChampionship(
+                          canonicalCareerId,
+                          season?.year || 2026,
+                          currentRound,
+                        )
+                        toast({
+                          title: 'Registrado na Carreira',
+                          description: 'Estatísticas e resultado confirmados no backend.',
+                        })
+                      } else {
+                        setCareerPersistenceError(res.error)
+                      }
+                    } catch (applyErr: any) {
+                      setIsPersistingCareer(false)
+                      setCareerPersistenceStatus('FAILED')
+                      setCareerPersistenceError(applyErr?.message)
                     }
-                  } catch (applyErr: any) {
-                    setIsPersistingCareer(false)
-                    setCareerPersistenceStatus('FAILED')
-                    setCareerPersistenceError(applyErr?.message)
-                  }
+                  })()
                 } catch (e: any) {
                   toast({
                     variant: 'destructive',
