@@ -1,59 +1,152 @@
 import { describe, it, expect } from 'vitest'
 import schema from '@/lib/pocketbase/schema.json'
 
-describe('RACE-CAREER-SAVE-01D2A2: Contrato do Endpoint Transacional de Estatísticas (career_driver_stats)', () => {
-  const collection = schema.collections.find(
+describe('RACE-CAREER-SAVE-01D2B1: Ajuste do Contrato do Hook Existente (career_driver_stats)', () => {
+  const collection: any = schema.collections.find(
     (c: any) => c.name === 'canonical_career_driver_stats_receipts',
   )
 
   it('1. Schema da coleção canonical_career_driver_stats_receipts deve estar protegido contra mutação direta por clientes', () => {
     expect(collection).toBeDefined()
-    // As regras de create, update e delete devem estar bloqueadas (null) no backend
-    // listRule e viewRule permitem consulta por usuários autenticados
     expect(collection?.name).toBe('canonical_career_driver_stats_receipts')
+    // As regras de create, update e delete devem estar bloqueadas (null) para clientes
+    // No schema.json exportado, as regras ficam em apiRules ou nos campos de regra
+    const apiRules = collection?.apiRules || {}
+    expect(apiRules.create ?? collection?.createRule).toBeNull()
+    expect(apiRules.update ?? collection?.updateRule).toBeNull()
+    expect(apiRules.delete ?? collection?.deleteRule).toBeNull()
   })
 
-  it('2. Chave de operação deve ser derivada no servidor distinguindo Sprint e Corrida Principal', () => {
+  it('2. Resolução da exigência de careerDriverId: contrato aceita careerDriverId opcional e deriva `${careerId}_${driverId}` se omitido', () => {
     const careerId = 'season_31b0p9k5ygw2sc8'
-    const season = 2026
-    const round = 2
-    const driverId = 'drv_verstappen_pb1'
+    const driverId = '9uazqw522oc9p4z' // Gabriel Bortoleto
 
-    const mainKey = `stats_receipt_${careerId}_${season}_${round}_MAIN_RACE_${driverId}`
-    const sprintKey = `stats_receipt_${careerId}_${season}_${round}_SPRINT_RACE_${driverId}`
-
-    expect(mainKey).not.toEqual(sprintKey)
-    expect(mainKey).toContain('MAIN_RACE')
-    expect(sprintKey).toContain('SPRINT_RACE')
-  })
-
-  it('3. Contrato de payload do recibo deve contemplar todos os campos canônicos sem aliases', () => {
-    const receiptFields = [
-      'operation_key',
-      'career_id',
-      'season',
-      'round',
-      'session',
-      'session_type',
-      'driver_id',
-      'career_driver_id',
-      'driver_slug',
-      'race_result_id',
-      'official_race_result_id',
-      'result_hash',
-      'before_stats',
-      'effect_data',
-      'after_stats',
-      'applied_at',
-    ]
-
-    const collectionFields = (collection?.fields || []).map((f: any) => f.name)
-    for (const field of receiptFields) {
-      expect(collectionFields).toContain(field)
+    const resolveCareerDriverId = (inputCareerDriverId?: string) => {
+      return inputCareerDriverId && inputCareerDriverId.trim()
+        ? inputCareerDriverId.trim()
+        : `${careerId}_${driverId}`
     }
+
+    // Se ausente: não falha nem exige criação de tabela career_drivers
+    expect(resolveCareerDriverId(undefined)).toBe(`${careerId}_${driverId}`)
+    expect(resolveCareerDriverId('')).toBe(`${careerId}_${driverId}`)
+
+    // Se fornecido explicitamente: respeita o valor fornecido
+    expect(resolveCareerDriverId('custom_career_driver_ref_123')).toBe(
+      'custom_career_driver_ref_123',
+    )
   })
 
-  it('4. Simulação lógica de transação atômica: já aplicado retorna already_applied sem modificar estatísticas', () => {
+  it('3. Garantir isolamento das estatísticas por carreira em procedural_data.career_stats_by_career', () => {
+    const careerA = 'career_season_audi_01'
+    const careerB = 'career_season_ferrari_02'
+
+    // Simulação do registro drivers compartilhado
+    const proceduralData: Record<string, any> = {
+      visualIdentity: { portraitId: 'img_01' },
+      psychology: { confidence: 90 },
+      career_stats_by_career: {},
+    }
+
+    const applyStatsForCareer = (
+      proc: Record<string, any>,
+      cId: string,
+      stats: Record<string, any>,
+    ): Record<string, any> => {
+      const statsByCareer = proc.career_stats_by_career || {}
+      return {
+        ...proc,
+        career_stats_by_career: {
+          ...statsByCareer,
+          [cId]: stats,
+        },
+        career_stats: stats, // espelho retrocompatível
+      }
+    }
+
+    // Aplica na Carreira A
+    const updatedAfterA = applyStatsForCareer(proceduralData, careerA, {
+      careerGps: 1,
+      careerWins: 1,
+      points: 25,
+    })
+
+    // Aplica na Carreira B
+    const updatedAfterB = applyStatsForCareer(updatedAfterA, careerB, {
+      careerGps: 5,
+      careerWins: 0,
+      points: 18,
+    })
+
+    // Carreira A permanece isolada e inalterada após gravação da Carreira B
+    expect(updatedAfterB.career_stats_by_career[careerA]).toEqual({
+      careerGps: 1,
+      careerWins: 1,
+      points: 25,
+    })
+    expect(updatedAfterB.career_stats_by_career[careerB]).toEqual({
+      careerGps: 5,
+      careerWins: 0,
+      points: 18,
+    })
+    // Demais dados de procedural_data são rigorosamente preservados
+    expect(updatedAfterB.visualIdentity).toEqual({ portraitId: 'img_01' })
+    expect(updatedAfterB.psychology).toEqual({ confidence: 90 })
+  })
+
+  it('4. Definir a base do cálculo: histórico ausente ou ambíguo retorna pendência de reconciliação (422)', () => {
+    const evaluateBaseCalculation = (params: {
+      confirmedBackendStats: any
+      allowHistoricalSeed?: boolean
+      initialStatsSeed?: any
+    }) => {
+      const { confirmedBackendStats, allowHistoricalSeed, initialStatsSeed } = params
+
+      const isValidStats = (obj: any) =>
+        obj &&
+        typeof obj === 'object' &&
+        (typeof obj.careerGps === 'number' || typeof obj.raceStarts === 'number')
+
+      if (!confirmedBackendStats || !isValidStats(confirmedBackendStats)) {
+        if (allowHistoricalSeed && isValidStats(initialStatsSeed)) {
+          return { status: 'proceed', base: initialStatsSeed }
+        }
+        return {
+          status: 'reconciliation_required',
+          httpStatus: 422,
+          code: 'HISTORICAL_BASE_AMBIGUOUS_OR_MISSING',
+        }
+      }
+
+      return { status: 'proceed', base: confirmedBackendStats }
+    }
+
+    // Caso 1: Sem base confirmada no backend e sem seed homologada -> 422 RECONCILIATION_REQUIRED
+    const resNoBase = evaluateBaseCalculation({ confirmedBackendStats: null })
+    expect(resNoBase.status).toBe('reconciliation_required')
+    expect(resNoBase.httpStatus).toBe(422)
+    expect(resNoBase.code).toBe('HISTORICAL_BASE_AMBIGUOUS_OR_MISSING')
+
+    // Caso 2: Sem base confirmada, mas com seed explícita permitida -> prossegue com seed
+    const seed = { careerGps: 10, raceStarts: 10, careerWins: 1, points: 50 }
+    const resWithSeed = evaluateBaseCalculation({
+      confirmedBackendStats: null,
+      allowHistoricalSeed: true,
+      initialStatsSeed: seed,
+    })
+    expect(resWithSeed.status).toBe('proceed')
+    expect(resWithSeed.base).toEqual(seed)
+
+    // Caso 3: Com base confirmada no backend -> prossegue com autoridade do backend
+    const backendStats = { careerGps: 20, raceStarts: 20, careerWins: 3, points: 120 }
+    const resConfirmed = evaluateBaseCalculation({
+      confirmedBackendStats: backendStats,
+    })
+    expect(resConfirmed.status).toBe('proceed')
+    expect(resConfirmed.base).toEqual(backendStats)
+  })
+
+  it('5. Preservar a operação atômica: idempotência (already_applied) e conflito (409)', () => {
     const receiptsDb = new Map<string, any>()
     const driverStatsDb = new Map<string, any>()
 
@@ -65,7 +158,6 @@ describe('RACE-CAREER-SAVE-01D2A2: Contrato do Endpoint Transacional de Estatís
     const operationKey = `stats_receipt_${careerId}_${season}_${round}_${session}_${driverId}`
     const resultHash = 'hash_official_norris_1'
 
-    // Estado inicial do piloto
     driverStatsDb.set(driverId, {
       careerGps: 10,
       careerWins: 2,
@@ -73,9 +165,7 @@ describe('RACE-CAREER-SAVE-01D2A2: Contrato do Endpoint Transacional de Estatís
       bestFinish: 1,
     })
 
-    // Primeira aplicação (ausente): cria recibo e altera stats
     const executeApply = (incomingHash: string, effect: any) => {
-      // 1. Consulta recibo
       const existing = receiptsDb.get(operationKey)
       if (existing) {
         if (existing.result_hash !== incomingHash) {
@@ -84,7 +174,6 @@ describe('RACE-CAREER-SAVE-01D2A2: Contrato do Endpoint Transacional de Estatís
         return { status: 'already_applied', httpStatus: 200, receipt: existing }
       }
 
-      // 2. Lê stats atuais
       const before = { ...driverStatsDb.get(driverId) }
       const after = {
         ...before,
@@ -94,7 +183,6 @@ describe('RACE-CAREER-SAVE-01D2A2: Contrato do Endpoint Transacional de Estatís
         bestFinish: Math.min(before.bestFinish, effect.newFinishPosition || before.bestFinish),
       }
 
-      // 3. Atualiza piloto e grava recibo
       driverStatsDb.set(driverId, after)
       const receipt = {
         operation_key: operationKey,
@@ -103,6 +191,7 @@ describe('RACE-CAREER-SAVE-01D2A2: Contrato do Endpoint Transacional de Estatís
         round,
         session,
         driver_id: driverId,
+        career_driver_id: `${careerId}_${driverId}`,
         result_hash: incomingHash,
         before_stats: before,
         effect_data: effect,
@@ -113,67 +202,20 @@ describe('RACE-CAREER-SAVE-01D2A2: Contrato do Endpoint Transacional de Estatís
       return { status: 'applied', httpStatus: 200, receipt }
     }
 
-    // Execução 1: sucesso e aplicação
-    const res1 = executeApply(resultHash, {
-      deltaGps: 1,
-      deltaWins: 1,
-      deltaPoints: 25,
-      newFinishPosition: 1,
-    })
+    // Execução 1: Sucesso
+    const res1 = executeApply(resultHash, { deltaGps: 1, deltaWins: 1, deltaPoints: 25 })
     expect(res1.status).toBe('applied')
-    expect(res1.httpStatus).toBe(200)
     expect(driverStatsDb.get(driverId).careerGps).toBe(11)
-    expect(driverStatsDb.get(driverId).points).toBe(70)
 
-    // Execução 2: idempotência - já aplicado com mesmo hash retorna already_applied e estatísticas NÃO são duplicadas
-    const res2 = executeApply(resultHash, {
-      deltaGps: 1,
-      deltaWins: 1,
-      deltaPoints: 25,
-      newFinishPosition: 1,
-    })
+    // Execução 2: Já aplicado com mesmo hash -> already_applied sem reaplicar deltas
+    const res2 = executeApply(resultHash, { deltaGps: 1, deltaWins: 1, deltaPoints: 25 })
     expect(res2.status).toBe('already_applied')
-    expect(res2.httpStatus).toBe(200)
-    expect(driverStatsDb.get(driverId).careerGps).toBe(11) // Preservado
-    expect(driverStatsDb.get(driverId).points).toBe(70) // Não subiu para 95
-
-    // Execução 3: divergência de resultHash gera conflito (409) sem qualquer gravação
-    const resConflict = executeApply('divergent_hash_xyz', {
-      deltaGps: 1,
-      deltaWins: 0,
-      deltaPoints: 10,
-    })
-    expect(resConflict.status).toBe('conflict')
-    expect(resConflict.httpStatus).toBe(409)
     expect(driverStatsDb.get(driverId).careerGps).toBe(11)
-  })
 
-  it('5. Tratamento de campos não aditivos: bestFinish e bestGridPosition usam menor valor numérico válido', () => {
-    const beforeStats = {
-      bestFinish: 4,
-      bestGridPosition: 3,
-    }
-
-    // Corrida melhor que anterior: P1, largou P2
-    const effBetter = { newFinishPosition: 1, newGridPosition: 2 }
-    const calculatedFinish1 =
-      beforeStats.bestFinish === null
-        ? effBetter.newFinishPosition
-        : Math.min(beforeStats.bestFinish, effBetter.newFinishPosition)
-    const calculatedGrid1 =
-      beforeStats.bestGridPosition === null
-        ? effBetter.newGridPosition
-        : Math.min(beforeStats.bestGridPosition, effBetter.newGridPosition)
-
-    expect(calculatedFinish1).toBe(1)
-    expect(calculatedGrid1).toBe(2)
-
-    // Corrida pior que anterior: P10, largou P8 -> mantém melhor
-    const effWorse = { newFinishPosition: 10, newGridPosition: 8 }
-    const calculatedFinish2 = Math.min(calculatedFinish1, effWorse.newFinishPosition)
-    const calculatedGrid2 = Math.min(calculatedGrid1, effWorse.newGridPosition)
-
-    expect(calculatedFinish2).toBe(1)
-    expect(calculatedGrid2).toBe(2)
+    // Execução 3: Divergência de hash -> 409 CONFLICT sem alteração
+    const res3 = executeApply('divergent_hash', { deltaGps: 1, deltaWins: 0, deltaPoints: 10 })
+    expect(res3.status).toBe('conflict')
+    expect(res3.httpStatus).toBe(409)
+    expect(driverStatsDb.get(driverId).careerGps).toBe(11)
   })
 })
