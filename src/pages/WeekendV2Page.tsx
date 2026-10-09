@@ -3948,8 +3948,9 @@ export default function WeekendV2Page() {
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                       <span>
-                        Nenhum registro encontrado neste contexto. (Os metadados ainda podem ser
-                        exportados normalmente).
+                        {diagnosticData.inventory.totalStorageKeys > 0
+                          ? 'Nenhum registro casou com os prefixos da carreira ativa, porém há chaves correlatas no inventário (ver JSON abaixo) — possivelmente gravadas sob outro identificador.'
+                          : 'Nenhum registro encontrado neste contexto. (Os metadados ainda podem ser exportados normalmente).'}
                       </span>
                     </div>
                   )}
@@ -3986,9 +3987,18 @@ export default function WeekendV2Page() {
                   <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9]">
                     <span className="text-[#64748B]">Origem / Rota:</span>
                     <span className="font-mono text-[11px] truncate max-w-[240px]">
-                      {diagnosticData.origin} {diagnosticData.appContext.pathname}
+                      {diagnosticData.origin} {diagnosticData.pathname}
+                      {diagnosticData.dentroDeIframe ? ' (dentro de iframe)' : ''}
                     </span>
                   </div>
+                  {diagnosticData.inventario.statusDaLeitura === 'erro' && (
+                    <div className="flex items-center justify-between py-1 border-b border-[#F1F5F9] text-red-600">
+                      <span className="font-bold">Erro na leitura do storage:</span>
+                      <span className="font-mono text-[11px] truncate max-w-[240px]">
+                        {diagnosticData.inventario.mensagemDeErro || 'desconhecido'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

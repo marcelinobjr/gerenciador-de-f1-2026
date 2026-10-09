@@ -2,35 +2,110 @@
  * raceDiagnosticExport.ts
  *
  * Utilitário puramente de leitura para diagnóstico pontual da corrida / fim de semana.
- * Coleta chaves de localStorage associadas à carreira e ao fim de semana,
- * além de inventário completo e seguro do storage (somente chaves/caminhos sem expor valores ou dados de auth).
+ * Coleta exclusivamente chaves de localStorage associadas à carreira especificada
+ * através de uma lista explícita de prefixos permitidos, sem tokens, credenciais ou outras carreiras.
+ *
+ * Baseado estritamente nos construtores de chave canônicos:
+ * - canonicalRaceResultService:
+ *     `${CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX}:${careerId}:${season}:${raceId}`
+ * - canonicalCareerPersistenceService:
+ *     `${CANONICAL_CAREER_RACE_RESULT_PREFIX}_${careerId}_${sId}_${round}${variantTag}`
+ *     `${CANONICAL_CAREER_APPLY_JOURNAL_PREFIX}_${careerId}_${sId}_${round}${variantTag}`
+ * - driverMoraleService:
+ *     `driver_morale_${career}_${season}_${round}${session}_${driverId}`
+ *     `driver_morale_applied_${career}_${season}_${round}${session}_${driverId}`
+ *     `driver_morale_receipt_${career}_${season}_${round}${session}_${driverId}`
  */
+
+import { CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX } from '@/services/canonicalRaceResultService'
+import {
+  CANONICAL_CAREER_RACE_RESULT_PREFIX,
+  CANONICAL_CAREER_APPLY_JOURNAL_PREFIX,
+} from '@/services/canonicalCareerPersistenceService'
 
 export const TARGET_CAREER_ID = '31b0p9k5ygw2sc8'
 
-export interface StorageInventoryGroup {
+/**
+ * Padrões de chaves estritamente sensíveis que NUNCA devem ser coletadas
+ * nem figurar em listas de nomes de inventário.
+ */
+export const SENSITIVE_STORAGE_KEY_PATTERNS: RegExp[] = [
+  /pocketbase/i,
+  /pb_/i,
+  /auth/i,
+  /token/i,
+  /jwt/i,
+  /credential/i,
+  /password/i,
+  /secret/i,
+  /cookie/i,
+  /session_user/i,
+  /sb-/i,
+]
+
+export function isAuthOrSensitiveKey(key: string): boolean {
+  return SENSITIVE_STORAGE_KEY_PATTERNS.some((pattern) => pattern.test(key))
+}
+
+/**
+ * Constrói os prefixos de filtro autorizados para uma carreira específica,
+ * replicando exatamente a convenção de delimitadores e formatos dos serviços canônicos.
+ */
+export function buildAllowedStoragePrefixes(careerId: string): string[] {
+  return [
+    // canonicalRaceResultService: f1_2026_canonical_official_result:{careerId}:
+    `${CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX}:${careerId}:`,
+    // canonicalCareerPersistenceService: race_result_{careerId}_
+    `${CANONICAL_CAREER_RACE_RESULT_PREFIX}_${careerId}_`,
+    // canonicalCareerPersistenceService: career_apply_result_{careerId}_
+    `${CANONICAL_CAREER_APPLY_JOURNAL_PREFIX}_${careerId}_`,
+    // driverMoraleService (applied): driver_morale_applied_{careerId}_
+    `driver_morale_applied_${careerId}_`,
+    // driverMoraleService (receipt): driver_morale_receipt_{careerId}_
+    `driver_morale_receipt_${careerId}_`,
+    // driverMoraleService (processed): driver_morale_{careerId}_
+    `driver_morale_${careerId}_`,
+  ]
+}
+
+export const ALLOWED_STORAGE_PREFIXES = buildAllowedStoragePrefixes(TARGET_CAREER_ID)
+
+export interface DiagnosticGroupInventory {
+  groupName: string
   totalKeysFound: number
   matchingFilterCount: number
   keys: string[]
 }
 
-export interface StorageInventory {
-  totalStorageKeys: number
-  readStatus: 'success' | 'error'
-  readError?: string
-  groups: {
-    officialResult: StorageInventoryGroup
-    raceResult: StorageInventoryGroup
-    careerApplyResult: StorageInventoryGroup
-    driverMorale: StorageInventoryGroup
-  }
-  allDiagnosticRelevantKeys: string[]
-}
-
-export interface AppRuntimeContext {
+export interface DiagnosticInventory {
   origin: string
   pathname: string
-  isIframe: boolean
+  dentroDeIframe: boolean
+  statusDaLeitura: 'ok' | 'erro'
+  // compatibilidade com testes anteriores:
+  readStatus?: 'success' | 'error'
+  readError?: string
+  mensagemDeErro?: string
+  totalDeChavesNoLocalStorage: number
+  totalStorageKeys?: number
+  grupos: {
+    resultadoOficial: DiagnosticGroupInventory
+    raceResult: DiagnosticGroupInventory
+    careerApplyResult: DiagnosticGroupInventory
+    recibosEMarcadoresMoral: DiagnosticGroupInventory
+  }
+  // alias compatível em inglês caso testes dependam:
+  groups?: {
+    officialResult: DiagnosticGroupInventory
+    raceResult: DiagnosticGroupInventory
+    careerApplyResult: DiagnosticGroupInventory
+    driverMorale: DiagnosticGroupInventory
+  }
+  todasAsChavesDiagnosticas?: string[]
+  allDiagnosticRelevantKeys?: string[]
+}
+
+export interface DiagnosticAppContext {
   careerId?: string
   careerIdOrigin?: string
   pocketBaseSeasonId?: string
@@ -43,229 +118,264 @@ export interface AppRuntimeContext {
   currentRoundOrigin?: string
   sessionType?: string
   sessionTypeOrigin?: string
+  [key: string]: any
+}
+
+export interface DiagnosticIdentificadores {
+  careerId: { valor: string; origem: string }
+  pocketBaseSeasonId: { valor: string; origem: string }
+  internalNumericSeasonId: { valor: string; origem: string }
+  displayedYear: { valor: string | number; origem: string }
+  currentRound: { valor: string | number; origem: string }
+  sessionType: { valor: string; origem: string }
 }
 
 export interface RaceDiagnosticData {
   exportedAt: string
   origin: string
+  pathname: string
+  dentroDeIframe: boolean
+  statusDaLeitura: 'ok' | 'erro'
   careerId: string
-  appContext: AppRuntimeContext
-  inventory: StorageInventory
   allowedPrefixes: string[]
   recordCount: number
   records: Record<string, string>
+  inventario: DiagnosticInventory
+  // Alias retrocompatível com suíte anterior:
+  inventory: DiagnosticInventory
+  identificadores: DiagnosticIdentificadores
+  // Alias retrocompatível com suíte anterior:
+  appContext: DiagnosticAppContext
 }
 
-// Chaves e substrings protegidas que JAMAIS devem figurar no inventário nem nos registros
-const PROTECTED_AUTH_PATTERNS = [
-  'auth',
-  'token',
-  'pocketbase',
-  'credential',
-  'password',
-  'secret',
-  'jwt',
-  'api_key',
-  'apikey',
-]
-
-export function isAuthOrSensitiveKey(key: string): boolean {
-  const lower = key.toLowerCase()
-  return PROTECTED_AUTH_PATTERNS.some((pat) => lower.includes(pat))
+/**
+ * Avalia se uma chave do localStorage pertence a um dos grupos canônicos
+ * independentemente de qual identificador de carreira esteja nela.
+ */
+function matchGroupName(
+  key: string,
+): 'resultadoOficial' | 'raceResult' | 'careerApplyResult' | 'recibosEMarcadoresMoral' | null {
+  if (key.startsWith(`${CANONICAL_OFFICIAL_RESULT_STORAGE_PREFIX}:`)) {
+    return 'resultadoOficial'
+  }
+  if (key.startsWith(`${CANONICAL_CAREER_RACE_RESULT_PREFIX}_`)) {
+    return 'raceResult'
+  }
+  if (key.startsWith(`${CANONICAL_CAREER_APPLY_JOURNAL_PREFIX}_`)) {
+    return 'careerApplyResult'
+  }
+  if (
+    key.startsWith('driver_morale_applied_') ||
+    key.startsWith('driver_morale_receipt_') ||
+    key.startsWith('driver_morale_')
+  ) {
+    return 'recibosEMarcadoresMoral'
+  }
+  return null
 }
 
 export interface CollectDiagnosticOptions {
-  careerId?: string
-  appContext?: Partial<AppRuntimeContext>
   storage?: Storage
+  appContext?: DiagnosticAppContext
+  careerId?: string
 }
 
 /**
- * Construtores reais e canônicos de prefixos/chaves confirmados no código:
- * 1. Resultado Oficial: f1_2026_canonical_official_result:${careerId}:
- * 2. Race Result (carreira): race_result_${careerId}_
- * 3. Career Apply Result: career_apply_result_${careerId}_
- * 4. Driver Morale (marcadores, confirmação e recibos):
- *    - driver_morale_${careerId}_
- *    - driver_morale_applied_${careerId}_
- *    - driver_morale_receipt_${careerId}_
- */
-export function getDiagnosticAllowedPrefixes(careerId: string): string[] {
-  return [
-    `f1_2026_canonical_official_result:${careerId}:`,
-    `race_result_${careerId}_`,
-    `career_apply_result_${careerId}_`,
-    `driver_morale_applied_${careerId}_`,
-    `driver_morale_receipt_${careerId}_`,
-    `driver_morale_${careerId}_`,
-  ]
-}
-
-/**
- * Coleta diagnóstico pontual seguro:
- * - Inventário de chaves dos grupos confirmados (sem valores, filtrando auth/tokens)
- * - Registros de valores estritamente da carreira filtrada
- * - Metadados e contexto de execução
+ * Coleta estritamente as chaves e valores do localStorage que casam com
+ * os prefixos permitidos da carreira informada (ou alvo padrão).
+ * Preserva os valores em texto bruto sem nenhuma alteração, normalização ou recálculo.
+ *
+ * Gera inventário completo de nomes de chaves (sem valores) e bloco de identificadores
+ * lidos sem reinicialização ou mutação.
  */
 export function collectRaceDiagnosticData(
-  targetCareerId: string = TARGET_CAREER_ID,
+  careerIdOrTarget: string = TARGET_CAREER_ID,
   options?: CollectDiagnosticOptions,
 ): RaceDiagnosticData {
-  const careerId = options?.careerId || targetCareerId
+  const targetCareerId = (options?.careerId || careerIdOrTarget || TARGET_CAREER_ID).trim()
+  const storage =
+    options?.storage ?? (typeof window !== 'undefined' ? window.localStorage : undefined)
 
   let origin = 'unknown'
   let pathname = 'unknown'
-  let isIframe = false
+  let dentroDeIframe = false
 
   if (typeof window !== 'undefined') {
-    origin = window.location?.origin || 'unknown'
-    pathname = window.location?.pathname || 'unknown'
     try {
-      isIframe = window.self !== window.top
+      origin = window.location.origin || 'unknown'
+      pathname = window.location.pathname || 'unknown'
+      dentroDeIframe = window.self !== window.top
     } catch {
-      isIframe = true
+      dentroDeIframe = true
     }
   }
 
-  const storage: Storage | undefined =
-    options?.storage ?? (typeof window !== 'undefined' ? window.localStorage : undefined)
+  const prefixes = buildAllowedStoragePrefixes(targetCareerId)
+  const records: Record<string, string> = {}
 
-  const prefixes = getDiagnosticAllowedPrefixes(careerId)
-
-  // 1. Inventário de chaves
-  let totalStorageKeys = 0
-  let readStatus: 'success' | 'error' = 'success'
+  let statusDaLeitura: 'ok' | 'erro' = 'ok'
   let readError: string | undefined = undefined
-  const allKeys: string[] = []
+  let totalDeChavesNoLocalStorage = 0
+
+  const groupKeysMap: Record<
+    'resultadoOficial' | 'raceResult' | 'careerApplyResult' | 'recibosEMarcadoresMoral',
+    string[]
+  > = {
+    resultadoOficial: [],
+    raceResult: [],
+    careerApplyResult: [],
+    recibosEMarcadoresMoral: [],
+  }
 
   if (storage) {
     try {
-      totalStorageKeys = storage.length
+      totalDeChavesNoLocalStorage = storage.length
+
+      const allKeys: string[] = []
       for (let i = 0; i < storage.length; i++) {
         const k = storage.key(i)
-        if (k && !isAuthOrSensitiveKey(k)) {
+        if (k) {
           allKeys.push(k)
         }
       }
-    } catch (err: any) {
-      readStatus = 'error'
-      readError = err?.message || String(err)
-    }
-  } else {
-    readStatus = 'error'
-    readError = 'Storage (localStorage) indisponível no ambiente de execução.'
-  }
 
-  allKeys.sort()
+      // Ordenação para inventário determinístico
+      allKeys.sort()
 
-  // Classificação nos 4 grupos pertinentes (independentemente do careerId)
-  const officialResultAll = allKeys.filter((k) =>
-    k.startsWith('f1_2026_canonical_official_result:'),
-  )
-  const raceResultAll = allKeys.filter((k) => k.startsWith('race_result_'))
-  const careerApplyResultAll = allKeys.filter((k) => k.startsWith('career_apply_result_'))
-  const driverMoraleAll = allKeys.filter(
-    (k) =>
-      k.startsWith('driver_morale_') ||
-      k.startsWith('driver_morale_applied_') ||
-      k.startsWith('driver_morale_receipt_'),
-  )
+      for (const key of allKeys) {
+        // EXCLUSÃO TOTAL E OBRIGATÓRIA: tokens, credenciais, senhas e chaves sensíveis
+        if (isAuthOrSensitiveKey(key)) {
+          continue
+        }
 
-  // Subconjuntos que correspondem ao filtro atual (específicos do careerId)
-  const officialResultMatched = officialResultAll.filter((k) =>
-    k.startsWith(`f1_2026_canonical_official_result:${careerId}:`),
-  )
-  const raceResultMatched = raceResultAll.filter((k) => k.startsWith(`race_result_${careerId}_`))
-  const careerApplyResultMatched = careerApplyResultAll.filter((k) =>
-    k.startsWith(`career_apply_result_${careerId}_`),
-  )
-  const driverMoraleMatched = driverMoraleAll.filter(
-    (k) =>
-      k.startsWith(`driver_morale_${careerId}_`) ||
-      k.startsWith(`driver_morale_applied_${careerId}_`) ||
-      k.startsWith(`driver_morale_receipt_${careerId}_`),
-  )
+        const group = matchGroupName(key)
+        if (group) {
+          groupKeysMap[group].push(key)
+        }
 
-  const relevantKeys = Array.from(
-    new Set([...officialResultAll, ...raceResultAll, ...careerApplyResultAll, ...driverMoraleAll]),
-  ).sort()
-
-  const inventory: StorageInventory = {
-    totalStorageKeys,
-    readStatus,
-    readError,
-    groups: {
-      officialResult: {
-        totalKeysFound: officialResultAll.length,
-        matchingFilterCount: officialResultMatched.length,
-        keys: officialResultAll,
-      },
-      raceResult: {
-        totalKeysFound: raceResultAll.length,
-        matchingFilterCount: raceResultMatched.length,
-        keys: raceResultAll,
-      },
-      careerApplyResult: {
-        totalKeysFound: careerApplyResultAll.length,
-        matchingFilterCount: careerApplyResultMatched.length,
-        keys: careerApplyResultAll,
-      },
-      driverMorale: {
-        totalKeysFound: driverMoraleAll.length,
-        matchingFilterCount: driverMoraleMatched.length,
-        keys: driverMoraleAll,
-      },
-    },
-    allDiagnosticRelevantKeys: relevantKeys,
-  }
-
-  // 2. Extração segura dos valores (APENAS para os prefixos que casam com o careerId)
-  const records: Record<string, string> = {}
-  if (storage && readStatus === 'success') {
-    for (const key of relevantKeys) {
-      const matchesCareer = prefixes.some((p) => key.startsWith(p))
-      if (matchesCareer) {
-        try {
-          const val = storage.getItem(key)
-          if (val !== null) {
-            records[key] = val
+        // Se casar com os prefixos permitidos da carreira ativa, coletar valor bruto
+        const matchesFilter = prefixes.some((prefix) => key.startsWith(prefix))
+        if (matchesFilter) {
+          try {
+            const val = storage.getItem(key)
+            if (val !== null) {
+              records[key] = val
+            }
+          } catch (itemErr: any) {
+            console.warn(`[RaceDiagnostic] Falha ao ler chave ${key}:`, itemErr)
           }
-        } catch {
-          // falha individual de leitura não bloqueia
         }
       }
+    } catch (err: any) {
+      statusDaLeitura = 'erro'
+      readError = err?.message || String(err)
+      console.error('[RaceDiagnostic] Falha crítica de leitura no localStorage:', err)
     }
+  } else {
+    statusDaLeitura = 'erro'
+    readError = 'Storage indisponível (ambiente sem window.localStorage)'
   }
 
   const recordCount = Object.keys(records).length
 
-  const resolvedAppContext: AppRuntimeContext = {
+  // Montagem do inventário de grupos
+  const buildGroupInv = (
+    groupKey: 'resultadoOficial' | 'raceResult' | 'careerApplyResult' | 'recibosEMarcadoresMoral',
+    groupName: string,
+  ): DiagnosticGroupInventory => {
+    const keys = groupKeysMap[groupKey]
+    const matchingFilterCount = keys.filter((k) => prefixes.some((p) => k.startsWith(p))).length
+    return {
+      groupName,
+      totalKeysFound: keys.length,
+      matchingFilterCount,
+      keys,
+    }
+  }
+
+  const groupResOficial = buildGroupInv('resultadoOficial', 'f1_2026_canonical_official_result')
+  const groupRaceRes = buildGroupInv('raceResult', 'race_result')
+  const groupApplyRes = buildGroupInv('careerApplyResult', 'career_apply_result')
+  const groupMorale = buildGroupInv('recibosEMarcadoresMoral', 'driver_morale_applied_e_receipts')
+
+  const allRelevantKeys = [
+    ...groupResOficial.keys,
+    ...groupRaceRes.keys,
+    ...groupApplyRes.keys,
+    ...groupMorale.keys,
+  ]
+
+  const inventario: DiagnosticInventory = {
     origin,
     pathname,
-    isIframe,
-    careerId,
-    careerIdOrigin: options?.appContext?.careerIdOrigin || 'parameter',
-    pocketBaseSeasonId: options?.appContext?.pocketBaseSeasonId,
-    pocketBaseSeasonIdOrigin: options?.appContext?.pocketBaseSeasonIdOrigin,
-    internalNumericSeasonId: options?.appContext?.internalNumericSeasonId,
-    internalNumericSeasonIdOrigin: options?.appContext?.internalNumericSeasonIdOrigin,
-    displayedYear: options?.appContext?.displayedYear,
-    displayedYearOrigin: options?.appContext?.displayedYearOrigin,
-    currentRound: options?.appContext?.currentRound,
-    currentRoundOrigin: options?.appContext?.currentRoundOrigin,
-    sessionType: options?.appContext?.sessionType,
-    sessionTypeOrigin: options?.appContext?.sessionTypeOrigin,
+    dentroDeIframe,
+    statusDaLeitura,
+    readStatus: statusDaLeitura === 'ok' ? 'success' : 'error',
+    readError,
+    mensagemDeErro: readError,
+    totalDeChavesNoLocalStorage,
+    totalStorageKeys: totalDeChavesNoLocalStorage,
+    grupos: {
+      resultadoOficial: groupResOficial,
+      raceResult: groupRaceRes,
+      careerApplyResult: groupApplyRes,
+      recibosEMarcadoresMoral: groupMorale,
+    },
+    groups: {
+      officialResult: groupResOficial,
+      raceResult: groupRaceRes,
+      careerApplyResult: groupApplyRes,
+      driverMorale: groupMorale,
+    },
+    todasAsChavesDiagnosticas: allRelevantKeys,
+    allDiagnosticRelevantKeys: allRelevantKeys,
+  }
+
+  const rawCtx = options?.appContext || {}
+  const identificadores: DiagnosticIdentificadores = {
+    careerId: {
+      valor: String(rawCtx.careerId ?? targetCareerId ?? 'indefinido'),
+      origem: rawCtx.careerIdOrigin ?? 'resolveCanonicalCareerId(season, team) | TARGET_CAREER_ID',
+    },
+    pocketBaseSeasonId: {
+      valor: String(rawCtx.pocketBaseSeasonId ?? 'indefinido'),
+      origem: rawCtx.pocketBaseSeasonIdOrigin ?? 'useAuth().season?.id',
+    },
+    internalNumericSeasonId: {
+      valor: String(rawCtx.internalNumericSeasonId ?? 'indefinido'),
+      origem: rawCtx.internalNumericSeasonIdOrigin ?? 'season.season_number / seasonId numérico',
+    },
+    displayedYear: {
+      valor: rawCtx.displayedYear ?? 2026,
+      origem: rawCtx.displayedYearOrigin ?? 'useAuth().season?.year || 2026',
+    },
+    currentRound: {
+      valor: rawCtx.currentRound ?? 1,
+      origem: rawCtx.currentRoundOrigin ?? 'useUnifiedSeason().currentRound',
+    },
+    sessionType: {
+      valor: String(rawCtx.sessionType ?? 'race'),
+      origem: rawCtx.sessionTypeOrigin ?? 'WeekendV2Page.selectedSessionId',
+    },
   }
 
   return {
     exportedAt: new Date().toISOString(),
     origin,
-    careerId,
-    appContext: resolvedAppContext,
-    inventory,
+    pathname,
+    dentroDeIframe,
+    statusDaLeitura,
+    careerId: targetCareerId,
     allowedPrefixes: prefixes,
     recordCount,
     records,
+    inventario,
+    inventory: inventario,
+    identificadores,
+    appContext: {
+      ...rawCtx,
+      careerId: targetCareerId,
+    },
   }
 }
 
