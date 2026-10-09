@@ -175,6 +175,227 @@ export class CanonicalRaceResultService {
     return this.saveOfficialResult(result, overwrite)
   }
 
+  /**
+   * Persiste o resultado oficial canônico completo no backend PocketBase (coleção race_results).
+   * Operação AGUARDADA (await) com detecção rigorosa de unicidade e conflito de hash/identidade.
+   */
+  public async saveOfficialRaceResultToBackend(
+    result: OfficialRaceResult,
+    options?: { overwrite?: boolean },
+  ): Promise<{ success: boolean; recordId?: string; isExisting?: boolean; error?: string }> {
+    if (!result) {
+      throw new Error(
+        '[CanonicalRaceResultService] Resultado oficial nulo ou indefinido para salvar no backend.',
+      )
+    }
+
+    const pbModule = await import('@/lib/pocketbase/client')
+    const pb = (pbModule as any).default || (pbModule as any).pb || pbModule
+    if (!pb || !pb.collection) {
+      throw new Error(
+        '[CanonicalRaceResultService] Cliente PocketBase não disponível para salvar resultado.',
+      )
+    }
+
+    const careerId = result.careerId
+    const season = result.season
+    const round = result.round
+    const raceVariant = result.raceVariant || 'MAIN_RACE'
+    const variantTag = raceVariant === 'SPRINT_RACE' ? '_sprint' : '_main'
+    const sId = typeof season === 'number' ? `s${season}` : season
+    const resultKey = `race_result_${careerId}_${sId}_${round}${variantTag}`
+    const resultHash = result.resultHash || (result as any).integrityHash || ''
+
+    // 1. Resolver seasonIdPB do PocketBase
+    let seasonIdPB: string | undefined
+    if (careerId && /^[a-z0-9]{15}$/i.test(careerId)) {
+      try {
+        const s = await pb.collection('seasons').getOne(careerId)
+        if (s?.id) seasonIdPB = s.id
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+    if (!seasonIdPB) {
+      try {
+        const s = await pb
+          .collection('seasons')
+          .getFirstListItem(`id = "${careerId}" || year = ${season}`)
+        if (s?.id) seasonIdPB = s.id
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+    if (!seasonIdPB) {
+      try {
+        const firstSeason = await pb.collection('seasons').getFirstListItem('')
+        if (firstSeason?.id) seasonIdPB = firstSeason.id
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+
+    if (!seasonIdPB) {
+      throw new Error(
+        `[CanonicalRaceResultService] Temporada não encontrada no PocketBase para careerId='${careerId}'.`,
+      )
+    }
+
+    // 2. Verificar se já existe registro para a mesma identidade (result_key ou career_id + round)
+    let existingRecord: any = null
+    try {
+      const found = await pb
+        .collection('race_results')
+        .getFirstListItem(
+          `result_key = "${resultKey}" || (career_id = "${careerId}" && round = ${round})`,
+        )
+      if (found?.id) {
+        existingRecord = found
+      }
+    } catch {
+      // Nenhum registro existente
+    }
+
+    // 3. Checagem de identidade e conflito
+    if (existingRecord) {
+      const existingHash =
+        existingRecord.checksum || existingRecord.result_snapshot?.resultHash || ''
+      const existingResultId = existingRecord.official_race_result_id || ''
+
+      const isSameHash = existingHash === resultHash
+      const isSameResultId = existingResultId === result.officialResultId
+
+      if (isSameHash && isSameResultId) {
+        // Mesmo resultado/hash: reconhece registro existente sem duplicar
+        return {
+          success: true,
+          recordId: existingRecord.id,
+          isExisting: true,
+        }
+      }
+
+      // Hash ou ResultId diferente: conflito explícito se não autorizado sobrescrever
+      if (!options?.overwrite) {
+        const conflictMsg = `Conflito de resultado oficial detectado no backend: resultado existente para '${resultKey}' possui hash '${existingHash}' e ID '${existingResultId}', divergindo do novo envio (hash '${resultHash}', ID '${result.officialResultId}'). Sobrescrita bloqueada.`
+        throw new Error(conflictMsg)
+      }
+    }
+
+    // 4. Preparar payload com o snapshot canônico COMPLETO
+    const winnerEntry = result.entries.find((e) => e.finalPosition === 1) || result.entries[0]
+    const pbPayload = {
+      result_key: resultKey,
+      career_id: careerId,
+      season_id: seasonIdPB,
+      round,
+      position: 1,
+      points: winnerEntry?.pointsAwarded || 25,
+      fastest_lap: winnerEntry?.fastestLap || false,
+      event_id: `event_${careerId}_${sId}_r${round}${variantTag}`,
+      circuit_id: result.circuitId,
+      official_race_result_id: result.officialResultId,
+      checksum: resultHash,
+      winner_driver_id: result.winnerDriverId,
+      pole_driver_id: result.poleDriverId,
+      fastest_lap_driver_id: result.fastestLapDriverId || '',
+      officialized_at: result.officializedAt,
+      application_status: existingRecord?.application_status || 'PENDING',
+      result_snapshot: result,
+    }
+
+    if (existingRecord?.id) {
+      const updated = await pb.collection('race_results').update(existingRecord.id, pbPayload)
+      return { success: true, recordId: updated.id, isExisting: true }
+    }
+
+    try {
+      const created = await pb.collection('race_results').create(pbPayload)
+      return { success: true, recordId: created.id, isExisting: false }
+    } catch (createErr: any) {
+      // Conflito de unicidade do índice único de result_key
+      if (createErr?.status === 400 || createErr?.message?.includes('validation_not_unique')) {
+        const conflictRec = await pb
+          .collection('race_results')
+          .getFirstListItem(`result_key = "${resultKey}"`)
+        if (conflictRec?.id) {
+          const recHash = conflictRec.checksum || conflictRec.result_snapshot?.resultHash || ''
+          if (recHash === resultHash) {
+            return { success: true, recordId: conflictRec.id, isExisting: true }
+          }
+          throw new Error(
+            `Conflito de unicidade no backend para chave '${resultKey}': hash no banco '${recHash}' diverge de '${resultHash}'.`,
+          )
+        }
+      }
+      throw createErr
+    }
+  }
+
+  /**
+   * Recupera o resultado oficial completo persistido no backend PocketBase.
+   * Retorna null se não houver registro para a identidade informada.
+   * Lança exceção se a consulta falhar (diferenciando consulta com falha de registro ausente).
+   */
+  public async getOfficialRaceResultFromBackend(
+    careerId: string,
+    season: number | string,
+    round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): Promise<OfficialRaceResult | null> {
+    const pbModule = await import('@/lib/pocketbase/client')
+    const pb = (pbModule as any).default || (pbModule as any).pb || pbModule
+    if (!pb || !pb.collection) {
+      throw new Error(
+        '[CanonicalRaceResultService] Cliente PocketBase não disponível para leitura de resultado.',
+      )
+    }
+
+    const sId = typeof season === 'number' ? `s${season}` : season
+    const variantTag = raceVariant === 'SPRINT_RACE' ? '_sprint' : '_main'
+    const resultKey = `race_result_${careerId}_${sId}_${round}${variantTag}`
+    const legacyResultKey = `race_result_${careerId}_${sId}_${round}`
+
+    try {
+      const filter = `result_key = "${resultKey}" || result_key = "${legacyResultKey}" || (career_id = "${careerId}" && round = ${round})`
+      const records = await pb.collection('race_results').getFullList({
+        filter,
+        sort: '-created',
+      })
+
+      if (!records || records.length === 0) {
+        return null
+      }
+
+      // Procurar registro correspondente à variante se especificada
+      const matched =
+        records.find((r: any) => {
+          if (raceVariant === 'SPRINT_RACE') {
+            return (
+              r.result_key?.endsWith('_sprint') || r.result_snapshot?.raceVariant === 'SPRINT_RACE'
+            )
+          }
+          if (raceVariant === 'MAIN_RACE') {
+            return !r.result_key?.endsWith('_sprint')
+          }
+          return true
+        }) || records[0]
+
+      if (matched && matched.result_snapshot) {
+        const snap = matched.result_snapshot as OfficialRaceResult
+        return snap
+      }
+
+      return null
+    } catch (err: any) {
+      // Se for 404, registro ausente
+      if (err?.status === 404) {
+        return null
+      }
+      // Outros erros: falha de rede/backend (propaga para o chamador poder diferenciar de 'registro ausente')
+      throw err
+    }
+  }
+
   public clearOfficialRaceResultForTesting(
     careerId?: string,
     season?: number | string,

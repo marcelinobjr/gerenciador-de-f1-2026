@@ -131,14 +131,16 @@ export default function RacePage() {
           const ctx = res.context
 
           // (1) Prioridade 1: Resultado oficial gravado
-          const official = canonicalRaceResultService.getOfficialRaceResult(
+          // Tentar cache local síncrono primeiro; se ausente, buscar do backend PocketBase
+          let official = canonicalRaceResultService.getOfficialRaceResult(
             ctx.careerId,
             ctx.seasonYear,
             ctx.round,
             'MAIN_RACE',
           )
-          if (official) {
-            setOfficialRaceResult(official)
+
+          const processOfficialFound = (offResult: OfficialRaceResult) => {
+            setOfficialRaceResult(offResult)
             const isReg = canonicalCareerPersistenceService.isResultRegistered(
               ctx.careerId,
               ctx.seasonYear,
@@ -146,6 +148,10 @@ export default function RacePage() {
               'MAIN_RACE',
             )
             setCareerPersistenceStatus(isReg ? 'COMPLETE' : 'PENDING')
+          }
+
+          if (official) {
+            processOfficialFound(official)
             return
           }
 
@@ -228,6 +234,47 @@ export default function RacePage() {
       isMounted = false
     }
   }, [isAuthLoading, season?.id, team?.id, requestedRound, catalogDrivers])
+
+  // Recuperação do resultado oficial persistido no backend caso localStorage não o tenha (ex: cota excedida)
+  useEffect(() => {
+    if (!sessionResolution || sessionResolution.status !== 'ready') return
+    // Se já temos resultado carregado, não sobrescrever
+    if (officialRaceResult) return
+
+    const ctx = sessionResolution.context
+    let isMounted = true
+
+    canonicalRaceResultService
+      .getOfficialRaceResultFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
+      .then((remoteOfficial) => {
+        if (!isMounted || !remoteOfficial) return
+        setOfficialRaceResult(remoteOfficial)
+        // Salvar em cache local se possível (não-bloqueante)
+        try {
+          canonicalRaceResultService.saveOfficialRaceResult(remoteOfficial)
+        } catch {
+          /* cache local opcional */
+        }
+        const isReg = canonicalCareerPersistenceService.isResultRegistered(
+          ctx.careerId,
+          ctx.seasonYear,
+          ctx.round,
+          'MAIN_RACE',
+        )
+        setCareerPersistenceStatus(isReg ? 'COMPLETE' : 'PENDING')
+      })
+      .catch((remoteErr) => {
+        // Diferenciar consulta com falha de registro ausente: falha de rede preserva o estado carregado e apenas loga aviso
+        console.warn(
+          '[RacePage] Consulta de resultado no backend falhou (preservando estado atual):',
+          remoteErr,
+        )
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [sessionResolution, officialRaceResult])
 
   // A) Conexão confirmação → motor em RacePage.tsx
   const handleConfirmAndPrepare = useCallback(async () => {

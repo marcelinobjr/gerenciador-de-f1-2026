@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T14:30:13.457Z",
+  "generatedAt": "2026-10-09T14:55:22.429Z",
   "collections": [
     {
       "name": "users",
@@ -1121,7 +1121,10 @@
           "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_race_results_season_round ON race_results (season_id, round)"]
+      "indexes": [
+        "CREATE INDEX idx_race_results_season_round ON race_results (season_id, round)",
+        "CREATE UNIQUE INDEX `idx_race_results_unique_result_key` ON `race_results` (result_key) WHERE result_key != ''"
+      ]
     },
     {
       "name": "sponsors",

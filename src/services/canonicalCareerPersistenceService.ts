@@ -810,23 +810,34 @@ export class CanonicalCareerPersistenceService {
           }
         }
       } else {
-        // Tentar buscar se temos season_id no PB
+        // Resolução correta do vínculo de identidade da temporada no PocketBase:
+        // Na arquitetura canônica (vide memória e schema), o campo career_id contém o ID da TEMPORADA (seasons),
+        // por exemplo '31b0p9k5ygw2sc8'. Não procurar seasons por team_id = careerId.
         let seasonIdPB: string | undefined
-        try {
-          const s = await pb
-            .collection('seasons')
-            .getFirstListItem(`team_id = "${record.careerId}" || id = "${record.careerId}"`)
-          if (s?.id) seasonIdPB = s.id
-        } catch {
-          /* intentionally ignored */
+
+        // 1. Verificar diretamente pelo ID da temporada (id = record.careerId)
+        if (record.careerId && /^[a-z0-9]{15}$/i.test(record.careerId)) {
+          try {
+            const s = await pb.collection('seasons').getOne(record.careerId)
+            if (s?.id) seasonIdPB = s.id
+          } catch {
+            /* intentionally ignored */
+          }
         }
 
-        // Se record.careerId já for um season_id de 15 caracteres alfanuméricos
-        if (!seasonIdPB && record.careerId && /^[a-z0-9]{15}$/i.test(record.careerId)) {
-          seasonIdPB = record.careerId
+        // 2. Se não encontrou por getOne, tentar busca por id ou ano correspondente
+        if (!seasonIdPB) {
+          try {
+            const s = await pb
+              .collection('seasons')
+              .getFirstListItem(`id = "${record.careerId}" || year = ${record.season}`)
+            if (s?.id) seasonIdPB = s.id
+          } catch {
+            /* intentionally ignored */
+          }
         }
 
-        // Se ainda não encontrou seasonIdPB, tentar obter o primeiro season disponível
+        // 3. Fallback: primeiro season ativo disponível
         if (!seasonIdPB) {
           try {
             const firstSeason = await pb.collection('seasons').getFirstListItem('')
@@ -920,8 +931,24 @@ export class CanonicalCareerPersistenceService {
       return syncRes
     }
 
-    // Se temos cliente PB, sincronizar e AGUARDAR a confirmação
+    // Se temos cliente PB, salvar objeto canônico completo no PocketBase com saveOfficialRaceResultToBackend
     if (pb?.collection) {
+      try {
+        await canonicalRaceResultService.saveOfficialRaceResultToBackend(officialResult)
+      } catch (pbErr: any) {
+        if (options?.requireBackendSync) {
+          return {
+            ...syncRes,
+            success: false,
+            error: pbErr?.message || 'Falha na confirmação do backend (PocketBase).',
+          }
+        }
+        console.warn(
+          '[CareerPersistence] Falha não-bloqueante ao sincronizar resultado com PB:',
+          pbErr,
+        )
+      }
+
       const pbSync = await this.syncWithPocketBaseIfAvailable(
         syncRes.persistedResult,
         syncRes.journal,
