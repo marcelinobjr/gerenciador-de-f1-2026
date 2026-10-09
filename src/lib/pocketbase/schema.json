@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T19:34:27.410Z",
+  "generatedAt": "2026-10-09T19:44:19.982Z",
   "collections": [
     {
       "name": "users",
@@ -3513,11 +3513,11 @@
       "name": "canonical_career_driver_stats_receipts",
       "type": "base",
       "apiRules": {
-        "list": "",
-        "view": "",
-        "create": "",
-        "update": "",
-        "delete": ""
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": null,
+        "update": null,
+        "delete": null
       },
       "fields": [
         {
