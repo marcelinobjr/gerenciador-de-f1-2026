@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T18:52:41.365Z",
+  "generatedAt": "2026-10-09T19:21:00.700Z",
   "collections": [
     {
       "name": "users",
@@ -3392,6 +3392,121 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_career_apply_journal_key ON canonical_career_apply_journals (journal_key)",
         "CREATE INDEX idx_career_apply_journal_lookup ON canonical_career_apply_journals (career_id, season, round)"
+      ]
+    },
+    {
+      "name": "canonical_driver_stats_receipts",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "operation_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "season",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "session_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "driver_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "driver_slug",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "official_race_result_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "result_hash",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "deltas",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "stats_before",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "stats_after",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "applied_at",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "payload",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_driver_stats_operation_key ON canonical_driver_stats_receipts (operation_key)",
+        "CREATE INDEX idx_driver_stats_receipt_lookup ON canonical_driver_stats_receipts (career_id, season, round, driver_id)"
       ]
     }
   ]
