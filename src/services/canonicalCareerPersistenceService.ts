@@ -61,6 +61,7 @@ export interface CareerApplicationJournal {
   status: CareerApplicationStatus
   appliedDriverIds: string[]
   totalEntries: number
+  version?: number
   startedAt: string
   completedAt?: string
   lastError?: string
@@ -147,21 +148,18 @@ export class CanonicalCareerPersistenceService {
   }
 
   /**
-   * Salva o Journal de Aplicação.
+   * Salva o Journal de Aplicação em cache local (opcional / tolerante a cota).
    */
   public saveApplicationJournal(
     journal: CareerApplicationJournal,
     raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
   ): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
     const key = this.buildApplyJournalKey(
       journal.careerId,
       journal.season,
       journal.round,
       raceVariant,
     )
-    // Enxugar o journal para conter apenas dados essenciais de retomada
-    // (referência, status, pilotos aplicados, total e timestamps) sem duplicação de dados pesados
     const slimJournal: CareerApplicationJournal = {
       key: journal.key || key,
       careerId: journal.careerId,
@@ -172,18 +170,263 @@ export class CanonicalCareerPersistenceService {
       status: journal.status,
       appliedDriverIds: journal.appliedDriverIds || [],
       totalEntries: journal.totalEntries || 0,
+      version: journal.version || 1,
       startedAt: journal.startedAt,
       completedAt: journal.completedAt,
       lastError: journal.lastError,
     }
 
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem(key, JSON.stringify(slimJournal))
+      } catch (quotaErr) {
+        console.warn(
+          `[CareerPersistence] Falha de cota no localStorage ao salvar journal (cache local: ${key}):`,
+          quotaErr,
+        )
+      }
+    }
+  }
+
+  /**
+   * Busca o journal de aplicação de forma autoritativa no backend PocketBase
+   * com fallback transparente para o cache local se offline.
+   * Lança erro caso a conexão falhe sem ser 404.
+   */
+  public async getApplicationJournalFromBackend(
+    careerId: string,
+    season: number | string,
+    round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): Promise<CareerApplicationJournal | null> {
+    const sNum =
+      typeof season === 'number' ? season : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
+    const key = this.buildApplyJournalKey(careerId, season, round, raceVariant)
+    const legacyKey =
+      raceVariant === 'MAIN_RACE' ? this.buildApplyJournalKey(careerId, season, round) : null
+
+    if (pb?.collection) {
+      try {
+        const filter = legacyKey
+          ? `journal_key = "${key}" || journal_key = "${legacyKey}" || (career_id = "${careerId}" && round = ${round})`
+          : `journal_key = "${key}" || (career_id = "${careerId}" && round = ${round})`
+
+        const records = await pb.collection('canonical_career_apply_journals').getFullList({
+          filter,
+          sort: '-created',
+        })
+
+        if (records && records.length > 0) {
+          const matched =
+            records.find((r: any) => {
+              if (raceVariant === 'SPRINT_RACE') {
+                return r.journal_key?.endsWith('_sprint') || r.race_variant === 'SPRINT_RACE'
+              }
+              if (raceVariant === 'MAIN_RACE') {
+                return !r.journal_key?.endsWith('_sprint')
+              }
+              return true
+            }) || records[0]
+
+          if (matched) {
+            const backendJournal: CareerApplicationJournal = {
+              key: matched.journal_key || key,
+              careerId: matched.career_id,
+              season: matched.season,
+              round: matched.round,
+              officialRaceResultId: matched.official_race_result_id,
+              checksum: matched.result_hash,
+              status: matched.status as CareerApplicationStatus,
+              appliedDriverIds: Array.isArray(matched.applied_driver_ids)
+                ? matched.applied_driver_ids
+                : [],
+              totalEntries: matched.total_entries || 0,
+              version: matched.version || 1,
+              startedAt: matched.started_at,
+              completedAt: matched.completed_at || undefined,
+              lastError: matched.last_error || undefined,
+            }
+            // Atualizar cache local silenciosamente se possível
+            try {
+              this.saveApplicationJournal(backendJournal, raceVariant)
+            } catch {
+              /* ignore cache write fail */
+            }
+            return backendJournal
+          }
+        }
+        return null
+      } catch (err: any) {
+        if (err?.status === 404) {
+          return null
+        }
+        // Se der erro no backend, relançar para não mascarar falha como ausência
+        throw err
+      }
+    }
+
+    // Se PB não estiver disponível, usar cache local
+    return this.getApplicationJournal(careerId, season, round, raceVariant)
+  }
+
+  /**
+   * Salva o journal de aplicação de forma autoritativa e aguardada no backend PocketBase.
+   * Protege contra sobrescrita por versão desatualizada e previne regressão de progresso já confirmado.
+   * Conflitos de hash ou officialRaceResultId disparam exceção explícita.
+   */
+  public async saveApplicationJournalToBackend(
+    journal: CareerApplicationJournal,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): Promise<{ success: boolean; recordId?: string; error?: string }> {
+    if (!journal) {
+      throw new Error('[CareerPersistence] Journal nulo para salvar no backend.')
+    }
+
+    const key =
+      journal.key ||
+      this.buildApplyJournalKey(journal.careerId, journal.season, journal.round, raceVariant)
+
+    // Atualizar cache local opcional antes
+    this.saveApplicationJournal(journal, raceVariant)
+
+    if (!pb?.collection) {
+      return { success: true }
+    }
+
+    // 1. Buscar registro existente pelo journal_key
+    let existingRecord: any = null
     try {
-      window.localStorage.setItem(key, JSON.stringify(slimJournal))
-    } catch (quotaErr) {
-      console.warn(
-        `[CareerPersistence] Falha de cota no localStorage ao salvar journal (cache local: ${key}):`,
-        quotaErr,
-      )
+      const found = await pb
+        .collection('canonical_career_apply_journals')
+        .getFirstListItem(`journal_key = "${key}"`)
+      if (found?.id) {
+        existingRecord = found
+      }
+    } catch (err: any) {
+      if (err?.status !== 404) {
+        // Se foi erro que não 404, propagar
+        throw err
+      }
+    }
+
+    // 2. Detecção rigorosa de conflito com resultado/hash incompatível
+    if (existingRecord) {
+      if (
+        existingRecord.official_race_result_id &&
+        existingRecord.official_race_result_id !== journal.officialRaceResultId
+      ) {
+        const conflictMsg = `Conflito de journal no backend para '${key}': resultado existente possui ID '${existingRecord.official_race_result_id}', mas nova tentativa enviou '${journal.officialRaceResultId}'. Sobrescrita bloqueada.`
+        throw new Error(conflictMsg)
+      }
+
+      if (
+        existingRecord.result_hash &&
+        journal.checksum &&
+        existingRecord.result_hash !== journal.checksum
+      ) {
+        const conflictMsg = `Conflito de checksum de resultado no journal backend para '${key}': hash existente '${existingRecord.result_hash}' diverge do novo '${journal.checksum}'. Sobrescrita bloqueada.`
+        throw new Error(conflictMsg)
+      }
+
+      // Proteção contra sobrescrita por versão desatualizada (Optimistic concurrency / version check)
+      const existingVersion = Number(existingRecord.version || 1)
+      const incomingVersion = Number(journal.version || 1)
+      if (incomingVersion < existingVersion) {
+        throw new Error(
+          `Conflito de versão desatualizada no journal '${key}': versão do banco (${existingVersion}) é superior à versão enviada (${incomingVersion}). Atualização rejeitada para proteger o progresso.`,
+        )
+      }
+
+      // Proteção contra regressão de progresso já confirmado:
+      // Se o banco já tinha pilotos aplicados, a atualização NÃO pode perder os que já foram confirmados
+      const existingApplied: string[] = Array.isArray(existingRecord.applied_driver_ids)
+        ? existingRecord.applied_driver_ids
+        : []
+      const incomingApplied: string[] = Array.isArray(journal.appliedDriverIds)
+        ? journal.appliedDriverIds
+        : []
+
+      // Combinar para garantir que nunca há perda de pilotos já aplicados
+      const mergedApplied = Array.from(new Set([...existingApplied, ...incomingApplied]))
+      journal.appliedDriverIds = mergedApplied
+
+      // Se o banco já estava COMPLETE, não permitir regredir para PENDING/APPLYING
+      if (existingRecord.status === 'COMPLETE' && journal.status !== 'COMPLETE') {
+        journal.status = 'COMPLETE'
+      }
+
+      const nextVersion = Math.max(existingVersion + 1, incomingVersion)
+
+      const payload = {
+        journal_key: key,
+        career_id: journal.careerId,
+        season: journal.season,
+        round: journal.round,
+        race_variant: raceVariant || (key.endsWith('_sprint') ? 'SPRINT_RACE' : 'MAIN_RACE'),
+        official_race_result_id: journal.officialRaceResultId,
+        result_hash: journal.checksum,
+        status: journal.status,
+        applied_driver_ids: journal.appliedDriverIds,
+        total_entries: journal.totalEntries || 0,
+        version: nextVersion,
+        started_at: journal.startedAt || existingRecord.started_at,
+        completed_at: journal.completedAt || existingRecord.completed_at || '',
+        last_error: journal.lastError || '',
+      }
+
+      try {
+        const updated = await pb
+          .collection('canonical_career_apply_journals')
+          .update(existingRecord.id, payload)
+        journal.version = nextVersion
+        this.saveApplicationJournal(journal, raceVariant)
+        return { success: true, recordId: updated.id }
+      } catch (updateErr: any) {
+        console.error('[CareerPersistence] Falha ao atualizar journal no PB:', updateErr)
+        throw updateErr
+      }
+    }
+
+    // 3. Criar novo registro
+    const initialVersion = journal.version || 1
+    const createPayload = {
+      journal_key: key,
+      career_id: journal.careerId,
+      season: journal.season,
+      round: journal.round,
+      race_variant: raceVariant || (key.endsWith('_sprint') ? 'SPRINT_RACE' : 'MAIN_RACE'),
+      official_race_result_id: journal.officialRaceResultId,
+      result_hash: journal.checksum,
+      status: journal.status,
+      applied_driver_ids: journal.appliedDriverIds || [],
+      total_entries: journal.totalEntries || 0,
+      version: initialVersion,
+      started_at: journal.startedAt || new Date().toISOString(),
+      completed_at: journal.completedAt || '',
+      last_error: journal.lastError || '',
+    }
+
+    try {
+      const created = await pb.collection('canonical_career_apply_journals').create(createPayload)
+      journal.version = initialVersion
+      this.saveApplicationJournal(journal, raceVariant)
+      return { success: true, recordId: created.id }
+    } catch (createErr: any) {
+      if (createErr?.status === 400 || createErr?.message?.includes('validation_not_unique')) {
+        // Tentar obter o registro concorrente
+        try {
+          const rec = await pb
+            .collection('canonical_career_apply_journals')
+            .getFirstListItem(`journal_key = "${key}"`)
+          if (rec?.id) {
+            return { success: true, recordId: rec.id }
+          }
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+      console.error('[CareerPersistence] Falha ao criar journal no PB:', createErr)
+      throw createErr
     }
   }
 
@@ -266,7 +509,7 @@ export class CanonicalCareerPersistenceService {
   }
 
   /**
-   * Verifica se o resultado já está completamente persistido e registrado na carreira.
+   * Verifica se o resultado já está completamente persistido e registrado na carreira (versão síncrona / cache local).
    */
   public isResultRegistered(
     careerId: string,
@@ -280,6 +523,33 @@ export class CanonicalCareerPersistenceService {
     // Se o journal está completo, mesmo que o resultado em localStorage tenha sofrido eviction de cota,
     // o registro é considerado concluído se journal estiver COMPLETE
     return res !== null || journal.status === 'COMPLETE'
+  }
+
+  /**
+   * Verifica de forma assíncrona e autoritativa no backend se o resultado e o journal estão COMPLETE.
+   * Não confia exclusivamente no localStorage; consulta o PocketBase.
+   * Se a consulta falhar (erro de rede/servidor), propaga o erro para o chamador (não assume falso silenciosamente).
+   */
+  public async isResultRegisteredAsync(
+    careerId: string,
+    season: number | string,
+    round: number,
+    raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE' | string,
+  ): Promise<boolean> {
+    const journal = await this.getApplicationJournalFromBackend(
+      careerId,
+      season,
+      round,
+      raceVariant,
+    )
+    if (!journal || journal.status !== 'COMPLETE') {
+      return false
+    }
+    // Requisito 3: Para COMPLETE ser válido, deve haver progresso confirmado de todos os pilotos (ou entries esperadas)
+    if (journal.totalEntries > 0 && journal.appliedDriverIds.length < journal.totalEntries) {
+      return false
+    }
+    return true
   }
 
   /**
@@ -912,6 +1182,8 @@ export class CanonicalCareerPersistenceService {
 
   /**
    * Versão assíncrona recomendada: Aguarda a confirmação do Backend e trata cota de localStorage.
+   * Torna o Backend a fonte autoritativa de verdade para o Journal e para o Resultado Oficial.
+   * Não mostra sucesso antes da confirmação da gravação do Journal no PocketBase.
    */
   public async registerOfficialRaceResultInCareerAsync(
     officialResult: OfficialRaceResult,
@@ -926,16 +1198,109 @@ export class CanonicalCareerPersistenceService {
     journal: CareerApplicationJournal
     error?: string
   }> {
+    if (!officialResult) {
+      throw new Error('[CareerPersistence] OfficialRaceResult nulo ou indefinido.')
+    }
+
+    const { careerId, season, round, raceVariant } = officialResult
+    const journalKey = this.buildApplyJournalKey(careerId, season, round, raceVariant)
+
+    // 1. Verificar integridade do resultado
+    const isIntegrityValid = canonicalRaceResultService.verifyResultIntegrity(officialResult)
+    if (!isIntegrityValid) {
+      const errMsg = 'Resultado oficial inválido ou alterado após oficialização.'
+      const failJournal: CareerApplicationJournal = {
+        key: journalKey,
+        careerId,
+        season,
+        round,
+        officialRaceResultId: officialResult.officialResultId,
+        checksum: officialResult.resultHash,
+        status: 'FAILED',
+        appliedDriverIds: [],
+        totalEntries: officialResult.entries?.length || 0,
+        version: 1,
+        startedAt: new Date().toISOString(),
+        lastError: errMsg,
+      }
+      if (pb?.collection) {
+        try {
+          await this.saveApplicationJournalToBackend(failJournal, raceVariant)
+        } catch {
+          /* intentionally ignored */
+        }
+      } else {
+        this.saveApplicationJournal(failJournal, raceVariant)
+      }
+      return {
+        success: false,
+        alreadyRegistered: false,
+        persistedResult: null,
+        journal: failJournal,
+        error: errMsg,
+      }
+    }
+
+    // 2. Se temos PocketBase, verificar existência autoritativa prévia do Journal no Backend
+    let existingRemoteJournal: CareerApplicationJournal | null = null
+    if (pb?.collection) {
+      try {
+        existingRemoteJournal = await this.getApplicationJournalFromBackend(
+          careerId,
+          season,
+          round,
+          raceVariant,
+        )
+      } catch (checkErr: any) {
+        console.warn('[CareerPersistence] Falha ao consultar journal prévio no PB:', checkErr)
+        if (options?.requireBackendSync) {
+          throw checkErr
+        }
+      }
+    }
+
+    // Se o journal remoto já estava COMPLETE e com mesmo officialResultId, sucesso idempotente imediato
+    if (
+      existingRemoteJournal &&
+      existingRemoteJournal.status === 'COMPLETE' &&
+      existingRemoteJournal.officialRaceResultId === officialResult.officialResultId &&
+      existingRemoteJournal.checksum === officialResult.resultHash
+    ) {
+      const persistedResult = this.getPersistedRaceResult(careerId, season, round, raceVariant)
+      return {
+        success: true,
+        alreadyRegistered: true,
+        persistedResult,
+        journal: existingRemoteJournal,
+      }
+    }
+
+    // 3. Executar o loop de aplicação em memória / local (acumulados, estatísticas, moral)
     const syncRes = this.registerOfficialRaceResultInCareerSync(officialResult, options)
     if (!syncRes.success || !syncRes.persistedResult) {
+      // Se falhou localmente, registrar status FAILED no backend se PB disponível
+      if (pb?.collection) {
+        try {
+          await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
+        } catch {
+          /* intentionally ignored */
+        }
+      }
       return syncRes
     }
 
-    // Se temos cliente PB, salvar objeto canônico completo no PocketBase com saveOfficialRaceResultToBackend
+    // 4. Salvar resultado oficial no PocketBase (aguardado)
     if (pb?.collection) {
       try {
         await canonicalRaceResultService.saveOfficialRaceResultToBackend(officialResult)
       } catch (pbErr: any) {
+        syncRes.journal.status = 'FAILED'
+        syncRes.journal.lastError = pbErr?.message || 'Falha ao salvar resultado no PocketBase'
+        try {
+          await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
+        } catch {
+          /* intentionally ignored */
+        }
         if (options?.requireBackendSync) {
           return {
             ...syncRes,
@@ -943,22 +1308,47 @@ export class CanonicalCareerPersistenceService {
             error: pbErr?.message || 'Falha na confirmação do backend (PocketBase).',
           }
         }
-        console.warn(
-          '[CareerPersistence] Falha não-bloqueante ao sincronizar resultado com PB:',
-          pbErr,
-        )
+        throw pbErr
       }
 
+      // Sincronizar race_results com metadados
       const pbSync = await this.syncWithPocketBaseIfAvailable(
         syncRes.persistedResult,
         syncRes.journal,
       )
-      if (options?.requireBackendSync && !pbSync.success) {
+      if (!pbSync.success && options?.requireBackendSync) {
+        syncRes.journal.status = 'FAILED'
+        syncRes.journal.lastError = pbSync.error || 'Falha ao sincronizar race_results no backend'
+        try {
+          await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
+        } catch {
+          /* intentionally ignored */
+        }
         return {
           ...syncRes,
           success: false,
           error: pbSync.error || 'Falha na confirmação do backend (PocketBase).',
         }
+      }
+
+      // 5. Salvar o Journal de forma autoritativa no PocketBase (aguardado)
+      try {
+        await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
+      } catch (journalSaveErr: any) {
+        console.error(
+          '[CareerPersistence] Falha ao persistir journal no PocketBase:',
+          journalSaveErr,
+        )
+        if (options?.requireBackendSync) {
+          return {
+            ...syncRes,
+            success: false,
+            error:
+              journalSaveErr?.message ||
+              'Falha ao confirmar journal autoritativo no backend (PocketBase).',
+          }
+        }
+        throw journalSaveErr
       }
     }
 

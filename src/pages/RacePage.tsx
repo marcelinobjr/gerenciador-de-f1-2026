@@ -141,13 +141,24 @@ export default function RacePage() {
 
           const processOfficialFound = (offResult: OfficialRaceResult) => {
             setOfficialRaceResult(offResult)
-            const isReg = canonicalCareerPersistenceService.isResultRegistered(
+            const isRegSync = canonicalCareerPersistenceService.isResultRegistered(
               ctx.careerId,
               ctx.seasonYear,
               ctx.round,
               'MAIN_RACE',
             )
-            setCareerPersistenceStatus(isReg ? 'COMPLETE' : 'PENDING')
+            setCareerPersistenceStatus(isRegSync ? 'COMPLETE' : 'PENDING')
+            // Consulta autoritativa no backend para confirmar status real do journal
+            canonicalCareerPersistenceService
+              .isResultRegisteredAsync(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
+              .then((isRegAsync) => {
+                if (isMounted) {
+                  setCareerPersistenceStatus(isRegAsync ? 'COMPLETE' : 'PENDING')
+                }
+              })
+              .catch((err) => {
+                console.warn('[RacePage] Erro ao consultar journal autoritativo no backend:', err)
+              })
           }
 
           if (official) {
@@ -255,13 +266,24 @@ export default function RacePage() {
         } catch {
           /* cache local opcional */
         }
-        const isReg = canonicalCareerPersistenceService.isResultRegistered(
+        const isRegSync = canonicalCareerPersistenceService.isResultRegistered(
           ctx.careerId,
           ctx.seasonYear,
           ctx.round,
           'MAIN_RACE',
         )
-        setCareerPersistenceStatus(isReg ? 'COMPLETE' : 'PENDING')
+        setCareerPersistenceStatus(isRegSync ? 'COMPLETE' : 'PENDING')
+        // Consulta assíncrona autoritativa ao backend para status verídico do journal
+        canonicalCareerPersistenceService
+          .isResultRegisteredAsync(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
+          .then((isRegAsync) => {
+            if (isMounted) {
+              setCareerPersistenceStatus(isRegAsync ? 'COMPLETE' : 'PENDING')
+            }
+          })
+          .catch((err) => {
+            console.warn('[RacePage] Falha ao verificar journal no backend:', err)
+          })
       })
       .catch((remoteErr) => {
         // Diferenciar consulta com falha de registro ausente: falha de rede preserva o estado carregado e apenas loga aviso

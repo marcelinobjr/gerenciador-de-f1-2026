@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T14:55:22.429Z",
+  "generatedAt": "2026-10-09T15:10:23.064Z",
   "collections": [
     {
       "name": "users",
@@ -3276,6 +3276,122 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_driver_morale_operation_key ON canonical_driver_morale_receipts (operation_key)",
         "CREATE INDEX idx_driver_morale_receipt_lookup ON canonical_driver_morale_receipts (career_id, season, round, driver_id)"
+      ]
+    },
+    {
+      "name": "canonical_career_apply_journals",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "journal_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "career_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "season",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "round",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "race_variant",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "official_race_result_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "result_hash",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["PENDING", "APPLYING", "COMPLETE", "FAILED"]
+        },
+        {
+          "name": "applied_driver_ids",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_entries",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "version",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "started_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "completed_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "last_error",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_career_apply_journal_key ON canonical_career_apply_journals (journal_key)",
+        "CREATE INDEX idx_career_apply_journal_lookup ON canonical_career_apply_journals (career_id, season, round)"
       ]
     }
   ]
