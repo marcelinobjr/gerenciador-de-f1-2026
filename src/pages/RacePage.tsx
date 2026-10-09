@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUnifiedSeason } from '@/hooks/use-unified-season'
@@ -74,6 +74,8 @@ export default function RacePage() {
   const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
   const [officialRaceResult, setOfficialRaceResult] = useState<OfficialRaceResult | null>(null)
   const [isConfirmingStrategy, setIsConfirmingStrategy] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [persistenceError, setPersistenceError] = useState<string | null>(null)
   const [careerPersistenceStatus, setCareerPersistenceStatus] = useState<
     'PENDING' | 'APPLYING' | 'COMPLETE' | 'FAILED'
   >('PENDING')
@@ -81,6 +83,22 @@ export default function RacePage() {
   const [careerPersistenceError, setCareerPersistenceError] = useState<string | undefined>(
     undefined,
   )
+
+  // Refs de controle de avanço e timer
+  const isAdvancingRef = useRef(false)
+  const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const canonicalRaceStateRef = useRef<CanonicalRaceState | null>(null)
+  canonicalRaceStateRef.current = canonicalRaceState
+
+  // Limpeza de timers ao desmontar
+  useEffect(() => {
+    return () => {
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current)
+        playbackTimerRef.current = null
+      }
+    }
+  }, [])
 
   // Carrega a sessão canônica
   useEffect(() => {
@@ -195,6 +213,157 @@ export default function RacePage() {
     }
   }, [isAuthLoading, season?.id, team?.id, requestedRound, catalogDrivers])
 
+  // A) Conexão confirmação → motor em RacePage.tsx
+  const handleConfirmAndPrepare = useCallback(async () => {
+    if (!sessionResolution || sessionResolution.status !== 'ready') return
+    const ctx = sessionResolution.context
+
+    // Guard contra corrida já existente
+    const existingRace = canonicalRaceInitializationService.readCanonicalRaceState(
+      ctx.careerId,
+      ctx.seasonYear,
+      ctx.round,
+      'MAIN_RACE',
+    )
+    if (existingRace) {
+      setCanonicalRaceState(existingRace)
+      setShowStrategyModal(false)
+      return
+    }
+
+    if (!prepSnapshot) return
+
+    setIsConfirmingStrategy(true)
+    try {
+      // 1. Validar e salvar snapshot
+      canonicalRacePreparationService.saveSnapshot(prepSnapshot)
+
+      // 2. Mapear carPreparations por driverId real
+      const carPreparations: Record<string, any> = {}
+      for (const car of prepSnapshot.cars) {
+        if (car && car.driverId) {
+          carPreparations[car.driverId] = {
+            carId: car.carId,
+            startingTyreSetId: car.startingTyreSetId,
+            startingCompound: car.startingCompound,
+            initialTyreWear: car.initialTyreWear,
+            initialTyreLapsUsed: car.initialTyreLapsUsed,
+            startingFuelKg: car.startingFuelKg,
+            strategyPlan: car.strategyPlan,
+          }
+        }
+      }
+
+      // 3. Inicializar corrida canônica
+      const initialState = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+        careerId: ctx.careerId,
+        season: ctx.seasonYear,
+        round: ctx.round,
+        circuitName: ctx.circuit.name,
+        circuitCountry: ctx.circuit.country,
+        circuitLengthKm: ctx.circuit.circuitLengthKm,
+        totalLaps: ctx.totalLaps,
+        playerTeamId: ctx.resolvedTeamKey,
+        playerTeam: ctx.playerTeam,
+        canonicalQualifyingGrid: ctx.finalGrid,
+        carPreparations,
+        persistState: true,
+      })
+
+      setCanonicalRaceState(initialState)
+      setShowStrategyModal(false)
+    } catch (err: any) {
+      console.error('[RacePage] Erro ao confirmar preparação e inicializar corrida:', err)
+      setPersistenceError(err?.message || 'Falha ao inicializar o motor de corrida.')
+    } finally {
+      setIsConfirmingStrategy(false)
+    }
+  }, [sessionResolution, prepSnapshot])
+
+  // B) Execução de uma volta real com o motor
+  const advanceLap = useCallback(async () => {
+    const currentState = canonicalRaceStateRef.current
+    if (!currentState || isAdvancingRef.current) return
+
+    // Checar se a corrida encerrou
+    if (currentState.status === 'completed' || currentState.currentLap > currentState.totalLaps) {
+      setIsPlaying(false)
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current)
+        playbackTimerRef.current = null
+      }
+      return
+    }
+
+    isAdvancingRef.current = true
+    try {
+      const nextState = canonicalRaceEngineService.advanceOneLap(currentState, {
+        persistState: true,
+      })
+      setCanonicalRaceState(nextState)
+
+      // Se a corrida acabou nesta volta
+      if (nextState.status === 'completed' || nextState.currentLap > nextState.totalLaps) {
+        setIsPlaying(false)
+        if (playbackTimerRef.current) {
+          clearInterval(playbackTimerRef.current)
+          playbackTimerRef.current = null
+        }
+      }
+    } catch (err: any) {
+      console.error('[RacePage] Erro ao avançar volta:', err)
+      setIsPlaying(false)
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current)
+        playbackTimerRef.current = null
+      }
+      setPersistenceError(err?.message || 'Falha ao gravar checkpoint da corrida no motor.')
+    } finally {
+      isAdvancingRef.current = false
+    }
+  }, [])
+
+  // Gerenciamento do loop de PLAY / PAUSE (1x = ~1500ms)
+  useEffect(() => {
+    if (isPlaying) {
+      if (!playbackTimerRef.current) {
+        playbackTimerRef.current = setInterval(() => {
+          advanceLap()
+        }, 1500)
+      }
+    } else {
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current)
+        playbackTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current)
+        playbackTimerRef.current = null
+      }
+    }
+  }, [isPlaying, advanceLap])
+
+  const handleTogglePlayPause = useCallback(() => {
+    if (!canonicalRaceState) return
+    if (
+      canonicalRaceState.status === 'completed' ||
+      canonicalRaceState.currentLap > canonicalRaceState.totalLaps
+    ) {
+      return
+    }
+
+    if (isPlaying) {
+      setIsPlaying(false)
+    } else {
+      setIsPlaying(true)
+      // Dispara o primeiro avanço imediatamente se não estiver avançando
+      advanceLap()
+    }
+  }, [canonicalRaceState, isPlaying, advanceLap])
+
   // ESTADO DE CARREGAMENTO
   if (isAuthLoading || isLoadingSession) {
     return (
@@ -285,6 +454,34 @@ export default function RacePage() {
   const { circuit, weather, playerTeam, playerDrivers, finalGrid } = context
   const [driver1, driver2] = playerDrivers
 
+  const isConfirmed = Boolean(canonicalRaceState)
+  const isFinished =
+    canonicalRaceState?.status === 'completed' ||
+    Boolean(canonicalRaceState && canonicalRaceState.currentLap > canonicalRaceState.totalLaps)
+
+  // Status exibido
+  const sessionStatusLabel = isFinished
+    ? 'CORRIDA ENCERRADA'
+    : canonicalRaceState
+      ? isPlaying
+        ? 'EM ANDAMENTO (1x)'
+        : 'PAUSADA'
+      : 'PRÉ-CORRIDA'
+
+  const currentLapDisplay = canonicalRaceState?.currentLap ?? 0
+  const totalLapsDisplay = canonicalRaceState?.totalLaps ?? context.totalLaps
+
+  // Dados dos pilotos do jogador do estado canônico se existirem
+  const canonicalDriver1State = canonicalRaceState?.drivers?.find(
+    (d) => d.driverId === driver1.driverId,
+  )
+  const canonicalDriver2State = canonicalRaceState?.drivers?.find(
+    (d) => d.driverId === driver2.driverId,
+  )
+
+  // Clima inicial (CanonicalRaceInitialWeather) da sessão
+  const initialWeather = weather
+
   return (
     <div className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 space-y-2.5 font-sans text-white">
       {/* 4.A HEADER: BOX DA EQUIPE — CONTROLE DE CORRIDA */}
@@ -303,9 +500,15 @@ export default function RacePage() {
               </Badge>
               <Badge
                 variant="outline"
-                className="text-amber-300 border-amber-800/60 bg-amber-950/40 text-[10px] font-mono"
+                className={`text-[10px] font-mono ${
+                  isFinished
+                    ? 'text-emerald-300 border-emerald-800/60 bg-emerald-950/40'
+                    : isConfirmed
+                      ? 'text-blue-300 border-blue-800/60 bg-blue-950/40'
+                      : 'text-amber-300 border-amber-800/60 bg-amber-950/40'
+                }`}
               >
-                STATUS: PRÉ-CORRIDA
+                STATUS: {sessionStatusLabel}
               </Badge>
             </div>
             <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
@@ -344,25 +547,80 @@ export default function RacePage() {
         </div>
       </header>
 
-      {/* 4.B CONTROLES SUPERIORES: DESABILITADOS EM PRE_RACE */}
+      {/* ALERTA DE ERRO DE PERSISTÊNCIA SE HOUVER */}
+      {persistenceError && (
+        <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-700 text-rose-200 text-xs font-mono flex items-center justify-between">
+          <span>Erro no motor de corrida: {persistenceError}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setPersistenceError(null)}
+            className="text-rose-300 hover:text-white h-7 px-2 text-[10px]"
+          >
+            Fechar
+          </Button>
+        </div>
+      )}
+
+      {/* BANNER SE CORRIDA ENCERRADA */}
+      {isFinished && (
+        <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-700 text-emerald-200 text-xs font-mono flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Flag className="w-4 h-4 text-emerald-400" />
+            <span className="font-bold">
+              Corrida encerrada; resultado pendente de oficialização.
+            </span>
+          </div>
+          <span className="text-[11px] text-emerald-400">
+            Oficialização será habilitada na próxima etapa.
+          </span>
+        </div>
+      )}
+
+      {/* 4.B CONTROLES SUPERIORES: PLAY / PAUSE (1x apenas) */}
       <div className="p-2 sm:p-2.5 rounded-xl bg-[#090F1C] border border-[#1E293B] shadow-md flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
         <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            size="sm"
-            disabled
-            className="h-8 px-3 text-xs font-black bg-[#1E293B] text-slate-500 cursor-not-allowed border border-slate-700/50 gap-1.5"
-            title="Motor de corrida será conectado na próxima etapa."
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            PLAY
-          </Button>
+          {isPlaying ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleTogglePlayPause}
+              disabled={isFinished}
+              className="h-8 px-3 text-xs font-black bg-amber-600 hover:bg-amber-500 text-white border border-amber-500 shadow gap-1.5 cursor-pointer"
+            >
+              <Pause className="w-3.5 h-3.5 fill-current" />
+              PAUSE
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleTogglePlayPause}
+              disabled={!isConfirmed || isFinished}
+              className={`h-8 px-3 text-xs font-black gap-1.5 ${
+                !isConfirmed || isFinished
+                  ? 'bg-[#1E293B] text-slate-500 cursor-not-allowed border border-slate-700/50'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 shadow cursor-pointer'
+              }`}
+              title={
+                !isConfirmed
+                  ? 'Confirme a estratégia antes de iniciar.'
+                  : isFinished
+                    ? 'Corrida encerrada.'
+                    : 'Iniciar simulação da corrida'
+              }
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              PLAY
+            </Button>
+          )}
 
           <Button
             type="button"
             size="sm"
             disabled
             className="h-8 px-2.5 text-xs font-bold bg-[#131D2E] text-slate-500 cursor-not-allowed border border-slate-800"
+            title="Velocidade 1x ativa por padrão"
           >
             1x
           </Button>
@@ -396,8 +654,13 @@ export default function RacePage() {
           <Button
             type="button"
             size="sm"
-            disabled
-            className="h-8 px-3 text-xs font-bold bg-[#131D2E] text-slate-500 cursor-not-allowed border border-slate-800 gap-1"
+            disabled={!isPlaying}
+            onClick={() => setIsPlaying(false)}
+            className={`h-8 px-3 text-xs font-bold gap-1 ${
+              isPlaying
+                ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                : 'bg-[#131D2E] text-slate-500 cursor-not-allowed border border-slate-800'
+            }`}
           >
             <Pause className="w-3 h-3" />
             PAUSE
@@ -415,9 +678,27 @@ export default function RacePage() {
         </div>
 
         <div className="flex items-center gap-2 text-[11px] text-slate-400">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          <span className="font-bold text-amber-300 uppercase">PRÉ-CORRIDA:</span>
-          <span>Controles de simulação bloqueados até a largada.</span>
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isFinished
+                ? 'bg-emerald-400'
+                : isPlaying
+                  ? 'bg-emerald-400 animate-pulse'
+                  : isConfirmed
+                    ? 'bg-blue-400'
+                    : 'bg-amber-400 animate-pulse'
+            }`}
+          />
+          <span className="font-bold text-slate-300 uppercase">{sessionStatusLabel}:</span>
+          <span>
+            {isFinished
+              ? 'Todas as voltas completadas.'
+              : isPlaying
+                ? 'Avanço a cada ~1.5s por volta.'
+                : isConfirmed
+                  ? 'Pronta para largada. Clique em PLAY.'
+                  : 'Confirme a estratégia para liberar o PLAY.'}
+          </span>
         </div>
       </div>
 
@@ -428,7 +709,7 @@ export default function RacePage() {
             Volta Atual
           </span>
           <span className="text-base font-black text-white font-mono mt-0.5 block">
-            0 / {context.totalLaps}
+            {currentLapDisplay} / {totalLapsDisplay}
           </span>
         </Card>
 
@@ -436,22 +717,32 @@ export default function RacePage() {
           <span className="text-[10px] text-slate-400 font-mono uppercase font-bold block">
             Status da Sessão
           </span>
-          <span className="text-xs font-black text-amber-400 font-mono mt-1 block">
-            PRÉ-CORRIDA
+          <span
+            className={`text-xs font-black font-mono mt-1 block ${
+              isFinished
+                ? 'text-emerald-400'
+                : isPlaying
+                  ? 'text-emerald-400 animate-pulse'
+                  : isConfirmed
+                    ? 'text-blue-400'
+                    : 'text-amber-400'
+            }`}
+          >
+            {sessionStatusLabel}
           </span>
         </Card>
 
         <Card className="bg-[#0D1524] border border-[#1E293B] p-2.5 rounded-xl text-center">
           <span className="text-[10px] text-slate-400 font-mono uppercase font-bold block flex items-center justify-center gap-1">
-            {weather.isWet ? (
+            {initialWeather.isWet ? (
               <CloudRain className="w-3 h-3 text-cyan-400" />
             ) : (
               <CloudSun className="w-3 h-3 text-amber-400" />
             )}
-            Clima Inicial
+            Clima
           </span>
           <span className="text-xs font-black text-white font-mono mt-1 block truncate">
-            {weather.airTempC}°C ar • {weather.trackTempC}°C pista
+            {initialWeather.airTempC}°C ar • {initialWeather.trackTempC}°C pista
           </span>
         </Card>
 
@@ -461,10 +752,10 @@ export default function RacePage() {
           </span>
           <span
             className={`text-xs font-black font-mono mt-1 block ${
-              weather.isWet ? 'text-cyan-300' : 'text-emerald-400'
+              initialWeather.isWet ? 'text-cyan-300' : 'text-emerald-400'
             }`}
           >
-            {weather.trackStatus}
+            {initialWeather.trackStatus}
           </span>
         </Card>
 
@@ -474,7 +765,7 @@ export default function RacePage() {
             Aderência
           </span>
           <span className="text-xs font-black text-white font-mono mt-1 block">
-            {weather.trackGripPct}% ({weather.trackGripLabel})
+            {initialWeather.trackGripPct}% ({initialWeather.trackGripLabel})
           </span>
         </Card>
 
@@ -484,7 +775,7 @@ export default function RacePage() {
             Vento & Chuva
           </span>
           <span className="text-xs font-black text-slate-200 font-mono mt-1 block truncate">
-            {weather.windSpeedKmh} km/h • {weather.rainProbabilityPct}% chuva
+            {initialWeather.windSpeedKmh} km/h • {initialWeather.rainProbabilityPct}% chuva
           </span>
         </Card>
       </div>
@@ -497,6 +788,7 @@ export default function RacePage() {
             <RacePlayerDriverCard
               driver={driver1}
               preparedCar={prepSnapshot?.cars[0]}
+              canonicalDriverState={canonicalDriver1State}
               teamColor={playerTeam.color || '#E10600'}
               onOpenStrategyModal={(carId) => {
                 setStrategyModalCarId(carId)
@@ -506,6 +798,7 @@ export default function RacePage() {
             <RacePlayerDriverCard
               driver={driver2}
               preparedCar={prepSnapshot?.cars[1]}
+              canonicalDriverState={canonicalDriver2State}
               teamColor={playerTeam.color || '#E10600'}
               onOpenStrategyModal={(carId) => {
                 setStrategyModalCarId(carId)
@@ -515,14 +808,15 @@ export default function RacePage() {
           </div>
 
           {/* 4.G MENSAGENS DA EQUIPE */}
-          <RaceTeamMessagesFeed />
+          <RaceTeamMessagesFeed events={canonicalRaceState?.events} />
         </div>
 
         {/* COLUNA DIREITA: TOP 10 DO GRID OFICIAL + ESTRATÉGIA (4 colunas no lg) */}
         <div className="lg:col-span-4 space-y-3">
-          {/* 4.D TOP 10 DO GRID OFICIAL */}
+          {/* 4.D TOP 10 DO GRID OFICIAL / CORRIDA EM TEMPO REAL */}
           <RaceTopTenBoard
             finalGrid={finalGrid}
+            canonicalDrivers={canonicalRaceState?.drivers}
             playerDriverIds={[driver1.driverId, driver2.driverId]}
           />
 
@@ -542,6 +836,9 @@ export default function RacePage() {
           inventories={context.tyreInventories}
           totalLaps={context.totalLaps}
           initialCarId={strategyModalCarId}
+          isConfirmed={isConfirmed}
+          isConfirming={isConfirmingStrategy}
+          onConfirmAndPrepare={handleConfirmAndPrepare}
           onClose={() => setShowStrategyModal(false)}
           onUpdateSnapshot={(next) => {
             setPrepSnapshot(next)
