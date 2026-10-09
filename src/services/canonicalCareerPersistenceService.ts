@@ -1275,7 +1275,46 @@ export class CanonicalCareerPersistenceService {
       }
     }
 
-    // 3. Executar o loop de aplicação em memória / local (acumulados, estatísticas, moral)
+    // 3. PERSISTÊNCIA CANÔNICA NO BACKEND ANTES DO LOOP DE EFEITOS (RACE-CAREER-SAVE-01C1)
+    // O resultado oficial canônico completo deve estar CONFIRMADO no backend ANTES de qualquer
+    // aplicação de efeitos em pilotos/carreira ou checkpoint local.
+    // - mesma identidade e mesmo hash -> reconhece registro existente e prossegue;
+    // - hash divergente -> conflito explícito, interrompe;
+    // - erro de gravação/consulta -> propaga ao chamador e interrompe ANTES do loop.
+    if (pb?.collection) {
+      try {
+        await canonicalRaceResultService.saveOfficialRaceResultToBackend(officialResult)
+      } catch (pbErr: any) {
+        // Erro ou conflito de hash no backend: interrompe estritamente antes do loop
+        if (options?.requireBackendSync) {
+          const errMsg = pbErr?.message || 'Falha na confirmação do backend (PocketBase).'
+          const failJournal: CareerApplicationJournal = {
+            key: journalKey,
+            careerId,
+            season,
+            round,
+            officialRaceResultId: officialResult.officialResultId,
+            checksum: officialResult.resultHash,
+            status: 'FAILED',
+            appliedDriverIds: [],
+            totalEntries: officialResult.entries?.length || 0,
+            version: 1,
+            startedAt: new Date().toISOString(),
+            lastError: errMsg,
+          }
+          return {
+            success: false,
+            alreadyRegistered: false,
+            persistedResult: null,
+            journal: failJournal,
+            error: errMsg,
+          }
+        }
+        throw pbErr
+      }
+    }
+
+    // 4. Executar o loop de aplicação em memória / local (acumulados, estatísticas, moral)
     const syncRes = this.registerOfficialRaceResultInCareerSync(officialResult, options)
     if (!syncRes.success || !syncRes.persistedResult) {
       // Se falhou localmente, registrar status FAILED no backend se PB disponível
@@ -1289,29 +1328,9 @@ export class CanonicalCareerPersistenceService {
       return syncRes
     }
 
-    // 4. Salvar resultado oficial no PocketBase (aguardado)
+    // 5. Salvar o Journal de forma autoritativa no PocketBase (aguardado)
     if (pb?.collection) {
-      try {
-        await canonicalRaceResultService.saveOfficialRaceResultToBackend(officialResult)
-      } catch (pbErr: any) {
-        syncRes.journal.status = 'FAILED'
-        syncRes.journal.lastError = pbErr?.message || 'Falha ao salvar resultado no PocketBase'
-        try {
-          await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
-        } catch {
-          /* intentionally ignored */
-        }
-        if (options?.requireBackendSync) {
-          return {
-            ...syncRes,
-            success: false,
-            error: pbErr?.message || 'Falha na confirmação do backend (PocketBase).',
-          }
-        }
-        throw pbErr
-      }
-
-      // Sincronizar race_results com metadados
+      // Sincronizar race_results com metadados de aplicação (application_status)
       const pbSync = await this.syncWithPocketBaseIfAvailable(
         syncRes.persistedResult,
         syncRes.journal,
@@ -1331,7 +1350,6 @@ export class CanonicalCareerPersistenceService {
         }
       }
 
-      // 5. Salvar o Journal de forma autoritativa no PocketBase (aguardado)
       try {
         await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
       } catch (journalSaveErr: any) {
