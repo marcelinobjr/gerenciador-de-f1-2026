@@ -888,6 +888,26 @@ export default function RacePage() {
               })
             }
           }}
+          onDownloadMemoryResult={() => {
+            try {
+              const ok = downloadDiagnosticJson(
+                officialRaceResult,
+                `apex-resultado-memoria-r${context.round}.json`,
+              )
+              if (ok) {
+                toast({
+                  title: 'Resultado em Memória Baixado',
+                  description: 'Arquivo JSON do resultado oficial carregado baixado com sucesso.',
+                })
+              }
+            } catch (e: any) {
+              toast({
+                variant: 'destructive',
+                title: 'Erro ao baixar resultado',
+                description: e?.message || 'Falha ao baixar resultado da memória.',
+              })
+            }
+          }}
           onRegisterInCareer={async () => {
             // Guard: se a aplicação está incerta (reconciliação pendente), impedir replay
             if (isReconciliationPending) {

@@ -5,18 +5,20 @@
  * Status Remoto e Controle de Avanço na /race (OfficialRaceResultPanel e fluxo de avanço).
  *
  * TESTES FOCAIS (DADOS ISOLADOS):
- * 1. Cache local COMPLETE + journal remoto incompleto -> avanço bloqueado.
- * 2. Consulta pendente, ausente ou com erro -> nenhum avanço nem replay.
- * 3. COMPLETE remoto da prova correta -> avanço permitido após revalidação.
- * 4. Identidade/hash divergente ou resposta atrasada -> não libera avanço.
- * 5. Aplicação incerta -> retry de efeitos bloqueado, consulta e exportação disponíveis.
+ * (a) Cache local COMPLETE + journal remoto incompleto -> avanço bloqueado.
+ * (b) Consulta pendente, ausente ou com erro -> nenhum avanço nem replay.
+ * (c) COMPLETE remoto da prova correta -> avanço permitido após revalidação.
+ * (d) Identidade/hash divergente ou resposta atrasada -> não libera avanço.
+ * (e) Aplicação incerta -> retry de efeitos bloqueado, consulta e exportação disponíveis.
  */
 
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPanel'
+import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
 import type { OfficialRaceResult } from '@/types/canonical-race-v2'
+import type { CareerApplicationJournal } from '@/services/canonicalCareerPersistenceService'
 
 describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race', () => {
   const mockResult: OfficialRaceResult = {
@@ -99,16 +101,21 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
 
   beforeEach(() => {
     vi.restoreAllMocks()
+    localStorage.clear()
   })
 
-  it('1. Cache local COMPLETE + journal remoto incompleto -> avanço bloqueado', () => {
+  // =========================================================================
+  // CENÁRIO (a): Cache local COMPLETE + journal remoto incompleto -> avanço bloqueado
+  // =========================================================================
+  it('(a) Cache local COMPLETE + journal remoto incompleto -> avanço bloqueado', () => {
     const handleContinue = vi.fn()
 
-    // O status no localStorage ou local pode estar 'COMPLETE', mas a autoridade remota não confirmou
+    // O status no localStorage ou cache local pode estar 'COMPLETE', mas a autoridade remota não confirmou
+    // (ex.: remoteQueryState é 'missing' ou careerPersistenceStatus remoto é 'PENDING'/'APPLYING')
     render(
       <OfficialRaceResultPanel
         result={mockResult}
-        careerPersistenceStatus="COMPLETE"
+        careerPersistenceStatus="PENDING"
         remoteQueryState="missing"
         canAdvance={false}
         onContinue={handleContinue}
@@ -121,18 +128,21 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
     fireEvent.click(continueBtn)
     expect(handleContinue).not.toHaveBeenCalled()
 
-    // Mensagem de bloqueio visível
+    // Mensagem de bloqueio visível identificando ausência do journal remoto
     const reason = screen.getByTestId('advance-blocked-reason')
     expect(reason).toBeInTheDocument()
     expect(reason.textContent).toContain('Registro remoto do journal ausente')
   })
 
-  it('2. Consulta pendente, ausente ou com erro -> nenhum avanço nem replay', () => {
+  // =========================================================================
+  // CENÁRIO (b): Consulta pendente, ausente ou com erro -> nenhum avanço nem replay
+  // =========================================================================
+  it('(b) Consulta pendente, ausente ou com erro -> nenhum avanço nem replay', () => {
     const handleContinue = vi.fn()
     const handleRegister = vi.fn()
     const handleVerify = vi.fn()
 
-    // Caso A: Consulta pendente (checking)
+    // Caso B1: Consulta pendente (checking)
     const { rerender } = render(
       <OfficialRaceResultPanel
         result={mockResult}
@@ -151,7 +161,7 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
     fireEvent.click(continueBtn)
     expect(handleContinue).not.toHaveBeenCalled()
 
-    // Caso B: Consulta com erro (error) -> não libera avanço, oferece "Verificar registro" (somente leitura)
+    // Caso B2: Consulta com erro (error) -> não libera avanço, oferece "Verificar registro" (somente leitura), nenhum replay
     rerender(
       <OfficialRaceResultPanel
         result={mockResult}
@@ -169,16 +179,39 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
     expect(continueBtn).toBeDisabled()
     expect(screen.getByTestId('remote-query-error-alert')).toBeInTheDocument()
 
-    // Botão de verificar registro exclusivo para consulta
+    // Botão de verificar registro exclusivo para consulta (somente-leitura)
     const verifyBtn = screen.getByTestId('verify-remote-journal-btn')
     expect(verifyBtn).toBeInTheDocument()
     expect(verifyBtn.textContent).toContain('VERIFICAR REGISTRO')
     fireEvent.click(verifyBtn)
     expect(handleVerify).toHaveBeenCalledTimes(1)
+    // Replay/efeitos não devem ser disparados pelo botão de verificação
     expect(handleRegister).not.toHaveBeenCalled()
+
+    // Caso B3: Consulta com registro ausente (missing)
+    rerender(
+      <OfficialRaceResultPanel
+        result={mockResult}
+        careerPersistenceStatus="PENDING"
+        remoteQueryState="missing"
+        canAdvance={false}
+        onContinue={handleContinue}
+        onRegisterInCareer={handleRegister}
+        onVerifyRemoteJournal={handleVerify}
+      />,
+    )
+
+    continueBtn = screen.getByTestId('continue-to-next-round-btn')
+    expect(continueBtn).toBeDisabled()
+    fireEvent.click(continueBtn)
+    expect(handleContinue).not.toHaveBeenCalled()
+    expect(screen.getByText('JOURNAL REMOTO AUSENTE')).toBeInTheDocument()
   })
 
-  it('3. COMPLETE remoto da prova correta -> avanço permitido após revalidação', async () => {
+  // =========================================================================
+  // CENÁRIO (c): COMPLETE remoto da prova correta -> avanço permitido após revalidação
+  // =========================================================================
+  it('(c) COMPLETE remoto da prova correta -> avanço permitido após revalidação', async () => {
     const handleContinue = vi.fn()
 
     render(
@@ -199,7 +232,10 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
     expect(handleContinue).toHaveBeenCalledTimes(1)
   })
 
-  it('4. Identidade/hash divergente ou resposta atrasada -> não libera avanço', () => {
+  // =========================================================================
+  // CENÁRIO (d): Identidade/hash divergente ou resposta atrasada -> não libera avanço
+  // =========================================================================
+  it('(d) Identidade/hash divergente ou resposta atrasada -> não libera avanço', () => {
     const handleContinue = vi.fn()
 
     // Simulação do estado resultante de um hash divergente ou round atrasado
@@ -222,11 +258,15 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
     expect(screen.getByText(/Divergência de identidade ou hash/i)).toBeInTheDocument()
   })
 
-  it('5. Aplicação incerta -> retry de efeitos bloqueado, consulta e exportação disponíveis', () => {
+  // =========================================================================
+  // CENÁRIO (e): Aplicação incerta -> retry de efeitos bloqueado, consulta e exportação disponíveis
+  // =========================================================================
+  it('(e) Aplicação incerta -> retry de efeitos bloqueado, consulta e exportação disponíveis', () => {
     const handleContinue = vi.fn()
     const handleRegister = vi.fn()
     const handleVerify = vi.fn()
     const handleExport = vi.fn()
+    const handleDownloadMemory = vi.fn()
 
     render(
       <OfficialRaceResultPanel
@@ -239,6 +279,7 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
         onRegisterInCareer={handleRegister}
         onVerifyRemoteJournal={handleVerify}
         onExportDiagnostics={handleExport}
+        onDownloadMemoryResult={handleDownloadMemory}
       />,
     )
 
@@ -261,10 +302,50 @@ describe('RACE-CAREER-SAVE-01C3 — Status Remoto e Controle de Avanço na /race
     fireEvent.click(verifyBtn)
     expect(handleVerify).toHaveBeenCalledTimes(1)
 
-    // 5. Exportação diagnóstica disponível
-    const exportBtn = screen.getByTestId('download-diagnostic-btn')
+    // 5. Exportação diagnóstica e download de memória disponíveis
+    const exportBtn = screen.getByTestId('export-race-diagnostics-btn')
     expect(exportBtn).toBeInTheDocument()
     fireEvent.click(exportBtn)
     expect(handleExport).toHaveBeenCalledTimes(1)
+
+    const memoryBtn = screen.getByTestId('download-memory-result-btn')
+    expect(memoryBtn).toBeInTheDocument()
+    fireEvent.click(memoryBtn)
+    expect(handleDownloadMemory).toHaveBeenCalledTimes(1)
+  })
+
+  // =========================================================================
+  // Teste de Contrato Lógico: getApplicationJournalFromBackend sem efeitos colaterais
+  // =========================================================================
+  it('Contrato getApplicationJournalFromBackend: somente leitura e retorno isolado', async () => {
+    const mockJournal: CareerApplicationJournal = {
+      key: 'journal_career_01c3_s2026_r1',
+      careerId: 'career_season_01c3',
+      season: 2026,
+      round: 1,
+      officialRaceResultId: 'orr_career_01c3_s2026_r1_123',
+      checksum: 'sha256-hash-01c3-correct',
+      status: 'COMPLETE',
+      appliedDriverIds: ['driver_piastri', 'driver_norris'],
+      totalEntries: 2,
+      version: 1,
+      startedAt: '2026-03-15T06:00:00.000Z',
+      completedAt: '2026-03-15T06:01:00.000Z',
+    }
+
+    const spy = vi
+      .spyOn(canonicalCareerPersistenceService, 'getApplicationJournalFromBackend')
+      .mockResolvedValueOnce(mockJournal)
+
+    const result = await canonicalCareerPersistenceService.getApplicationJournalFromBackend(
+      'career_season_01c3',
+      2026,
+      1,
+      'MAIN_RACE',
+    )
+
+    expect(spy).toHaveBeenCalledWith('career_season_01c3', 2026, 1, 'MAIN_RACE')
+    expect(result).toEqual(mockJournal)
+    expect(result?.status).toBe('COMPLETE')
   })
 })

@@ -383,7 +383,7 @@ export function collectRaceDiagnosticData(
  * Dispara o download de um arquivo JSON contendo o diagnóstico formatado.
  */
 export function downloadDiagnosticJson(
-  data: RaceDiagnosticData,
+  data: RaceDiagnosticData | any,
   fileName = 'apex-diagnostico-australia.json',
 ): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') {

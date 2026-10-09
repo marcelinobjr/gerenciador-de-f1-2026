@@ -32,7 +32,6 @@ import { getTeamReducedLogoUrl } from '@/lib/team-reduced-logo-resolver'
 import { PodiumVisualCard } from './PodiumVisualCard'
 import { DriverPhotoAvatar } from '@/components/DriverPhotoAvatar'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
-// probe 11
 
 export interface OfficialRaceResultPanelProps {
   result: OfficialRaceResult
