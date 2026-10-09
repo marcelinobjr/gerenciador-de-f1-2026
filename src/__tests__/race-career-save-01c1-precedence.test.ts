@@ -132,12 +132,11 @@ describe('RACE-CAREER-SAVE-01C1 — Precedência da Persistência Remota do Resu
       },
     )
 
-    // Monitorar a chamada do loop de efeitos local (registerOfficialRaceResultInCareerSync)
-    const syncSpy = vi
-      .spyOn(canonicalCareerPersistenceService, 'registerOfficialRaceResultInCareerSync')
-      .mockImplementation((res, opts) => {
-        executionOrder.push('registerOfficialRaceResultInCareerSync')
-        // Retornar resultado simulado bem-sucedido
+    // Monitorar a chamada do loop de aplicação assíncrono (executeCareerApplicationLoopAsync)
+    const loopSpy = vi
+      .spyOn(canonicalCareerPersistenceService, 'executeCareerApplicationLoopAsync')
+      .mockImplementation(async ({ officialResult: res }) => {
+        executionOrder.push('executeCareerApplicationLoopAsync')
         const journal: CareerApplicationJournal = {
           key: `career_apply_result_${res.careerId}_s${res.season}_${res.round}_main`,
           careerId: res.careerId,
@@ -203,10 +202,10 @@ describe('RACE-CAREER-SAVE-01C1 — Precedência da Persistência Remota do Resu
     )
 
     expect(res.success).toBe(true)
-    // Ordem estrita: Backend -> Loop local -> Journal no Backend
+    // Ordem estrita: Backend resultado -> Loop assíncrono
     expect(executionOrder[0]).toBe('saveOfficialRaceResultToBackend')
-    expect(executionOrder[1]).toBe('registerOfficialRaceResultInCareerSync')
-    expect(syncSpy).toHaveBeenCalled()
+    expect(executionOrder[1]).toBe('executeCareerApplicationLoopAsync')
+    expect(loopSpy).toHaveBeenCalled()
   })
 
   it('2. Backend rejeitado ou conflito de hash -> o loop de efeitos NÃO é chamado e o erro é propagado', async () => {
@@ -215,10 +214,7 @@ describe('RACE-CAREER-SAVE-01C1 — Precedência da Persistência Remota do Resu
       new Error('Conflito de resultado oficial detectado no backend: hash divergente.'),
     )
 
-    const syncSpy = vi.spyOn(
-      canonicalCareerPersistenceService,
-      'registerOfficialRaceResultInCareerSync',
-    )
+    const loopSpy = vi.spyOn(canonicalCareerPersistenceService, 'executeCareerApplicationLoopAsync')
 
     // Com requireBackendSync: true
     const res = await canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(
@@ -229,7 +225,7 @@ describe('RACE-CAREER-SAVE-01C1 — Precedência da Persistência Remota do Resu
     expect(res.success).toBe(false)
     expect(res.error).toContain('Conflito de resultado oficial detectado no backend')
     // O loop de efeitos NÃO foi chamado
-    expect(syncSpy).not.toHaveBeenCalled()
+    expect(loopSpy).not.toHaveBeenCalled()
   })
 
   it('2b. Backend rejeitado sem requireBackendSync propaga exceção e NÃO executa loop de efeitos', async () => {
@@ -237,17 +233,14 @@ describe('RACE-CAREER-SAVE-01C1 — Precedência da Persistência Remota do Resu
       new Error('Network error 503 Service Unavailable'),
     )
 
-    const syncSpy = vi.spyOn(
-      canonicalCareerPersistenceService,
-      'registerOfficialRaceResultInCareerSync',
-    )
+    const loopSpy = vi.spyOn(canonicalCareerPersistenceService, 'executeCareerApplicationLoopAsync')
 
     await expect(
       canonicalCareerPersistenceService.registerOfficialRaceResultInCareerAsync(mockOfficialResult),
     ).rejects.toThrow(/Network error 503 Service Unavailable/)
 
     // O loop de efeitos NÃO foi chamado
-    expect(syncSpy).not.toHaveBeenCalled()
+    expect(loopSpy).not.toHaveBeenCalled()
   })
 
   it('3. localStorage indisponível não impede a persistência remota; falha posterior (no loop) é distinguida', async () => {
@@ -294,8 +287,8 @@ describe('RACE-CAREER-SAVE-01C1 — Precedência da Persistência Remota do Resu
     // Simular que o loop falhou por erro de processamento
     vi.spyOn(
       canonicalCareerPersistenceService,
-      'registerOfficialRaceResultInCareerSync',
-    ).mockReturnValueOnce({
+      'executeCareerApplicationLoopAsync',
+    ).mockResolvedValueOnce({
       success: false,
       alreadyRegistered: false,
       persistedResult: null,

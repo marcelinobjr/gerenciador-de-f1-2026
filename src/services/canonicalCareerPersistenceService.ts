@@ -1332,63 +1332,342 @@ export class CanonicalCareerPersistenceService {
       }
     }
 
-    // 4. Executar o loop de aplicação em memória / local (acumulados, estatísticas, moral)
-    const syncRes = this.registerOfficialRaceResultInCareerSync(officialResult, options)
-    if (!syncRes.success || !syncRes.persistedResult) {
-      // Se falhou localmente, registrar status FAILED no backend se PB disponível
-      if (pb?.collection) {
-        try {
-          await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
-        } catch {
-          /* intentionally ignored */
-        }
-      }
-      return syncRes
+    // 4. Se PocketBase não estiver disponível, executar o loop síncrono local existente
+    if (!pb?.collection) {
+      return this.registerOfficialRaceResultInCareerSync(officialResult, options)
     }
 
-    // 5. Salvar o Journal de forma autoritativa no PocketBase (aguardado)
-    if (pb?.collection) {
-      // Sincronizar race_results com metadados de aplicação (application_status)
-      const pbSync = await this.syncWithPocketBaseIfAvailable(
-        syncRes.persistedResult,
-        syncRes.journal,
-      )
-      if (!pbSync.success && options?.requireBackendSync) {
-        syncRes.journal.status = 'FAILED'
-        syncRes.journal.lastError = pbSync.error || 'Falha ao sincronizar race_results no backend'
+    // 5. EXECUÇÃO ASSÍNCRONA DO LOOP COM CHECKPOINTS REMOTOS (RACE-CAREER-SAVE-01C2B)
+    return this.executeCareerApplicationLoopAsync({
+      officialResult,
+      existingRemoteJournal,
+      options,
+    })
+  }
+
+  /**
+   * Executa a aplicação do resultado oficial na carreira de forma assíncrona,
+   * aguardando a gravação de cada checkpoint no PocketBase sequencialmente (RACE-CAREER-SAVE-01C2B).
+   *
+   * Ordem dos checkpoints:
+   * 1. Checkpoint inicial (APPLYING) aguardado antes de iniciar qualquer efeito em piloto;
+   * 2. Aplicação sequencial piloto a piloto: estatísticas + moral (markMoraleProcessed);
+   * 3. Checkpoint por piloto persistido e aguardado no backend antes de iniciar o próximo piloto;
+   * 4. Checkpoint final (COMPLETE + snapshot do campeonato + sync race_results) aguardado antes de retornar sucesso.
+   *
+   * Falhas de checkpoint remotos:
+   * - Interrompem imediatamente o processamento antes do próximo piloto;
+   * - Não retornam COMPLETE;
+   * - Preservam o progresso confirmado no journal;
+   * - Tentam registrar FAILED no backend sem mascarar o erro original caso o registro de FAILED também falhe.
+   */
+  public async executeCareerApplicationLoopAsync(params: {
+    officialResult: OfficialRaceResult
+    existingRemoteJournal: CareerApplicationJournal | null
+    options?: {
+      simulateFailureAfterIndex?: number
+      requireBackendSync?: boolean
+    }
+  }): Promise<{
+    success: boolean
+    alreadyRegistered: boolean
+    persistedResult: CanonicalPersistedRaceResult | null
+    journal: CareerApplicationJournal
+    error?: string
+  }> {
+    const { officialResult, existingRemoteJournal, options } = params
+    const { careerId, season, round, raceVariant } = officialResult
+    const resultKey = this.buildRaceResultKey(careerId, season, round, raceVariant)
+    const journalKey = this.buildApplyJournalKey(careerId, season, round, raceVariant)
+
+    const existingResult = this.getPersistedRaceResult(careerId, season, round, raceVariant)
+
+    // 1. Base do progresso da execução: Journal remoto autoritativo ou novo
+    const journal: CareerApplicationJournal = existingRemoteJournal || {
+      key: journalKey,
+      careerId,
+      season,
+      round,
+      officialRaceResultId: officialResult.officialResultId,
+      checksum: officialResult.resultHash,
+      status: 'PENDING',
+      appliedDriverIds: [],
+      totalEntries: officialResult.entries.length,
+      startedAt: new Date().toISOString(),
+    }
+
+    journal.status = 'APPLYING'
+    journal.totalEntries = officialResult.entries.length
+
+    // 2. CHECKPOINT INICIAL REMOTO AGUARDADO (antes de qualquer efeito em piloto)
+    try {
+      await this.saveApplicationJournalToBackend(journal, raceVariant)
+    } catch (initialErr: any) {
+      const errMsg = `[Checkpoint Inicial Falhou] ${initialErr?.message || 'Falha ao gravar checkpoint inicial no backend'}`
+      journal.status = 'FAILED'
+      journal.lastError = errMsg
+      if (options?.requireBackendSync) {
+        return {
+          success: false,
+          alreadyRegistered: false,
+          persistedResult: null,
+          journal,
+          error: errMsg,
+        }
+      }
+      throw new Error(errMsg)
+    }
+
+    // 3. PERSISTIR REGISTRO CANÔNICO LOCAL/CACHE race_results
+    let persistedRecord = existingResult
+    if (!persistedRecord) {
+      const leanSnapshot: OfficialRaceResult = {
+        ...officialResult,
+      }
+      persistedRecord = {
+        id: resultKey,
+        careerId,
+        seasonId: `s${season}`,
+        season,
+        round,
+        eventId: `event_${careerId}_s${season}_r${round}${raceVariant === 'SPRINT_RACE' ? '_sprint' : ''}`,
+        circuitId: officialResult.circuitId,
+        officialRaceResultId: officialResult.officialResultId,
+        checksum: officialResult.resultHash,
+        winnerDriverId: officialResult.winnerDriverId,
+        poleDriverId: officialResult.poleDriverId,
+        fastestLapDriverId: officialResult.fastestLapDriverId,
+        officializedAt: officialResult.officializedAt,
+        createdAt: new Date().toISOString(),
+        entries: officialResult.entries,
+        playerEntries: officialResult.playerEntries,
+        snapshot: leanSnapshot,
+      }
+      this.savePersistedRaceResult(persistedRecord, raceVariant)
+    }
+
+    // 4. LOOP ASSÍNCRONO DE APLICAÇÃO DOS PILOTOS COM CHECKPOINTS REMOTOS AGUARDADOS
+    const appliedSet = new Set<string>(journal.appliedDriverIds || [])
+    const entries = officialResult.entries
+
+    for (let i = 0; i < entries.length; i++) {
+      // Simulação de falha parcial para testes
+      if (
+        options?.simulateFailureAfterIndex !== undefined &&
+        i === options.simulateFailureAfterIndex
+      ) {
+        const simErr = `[Simulação de Falha Parcial] Interrupção forçada após processar índice ${i}`
+        journal.status = 'FAILED'
+        journal.lastError = simErr
         try {
-          await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
+          await this.saveApplicationJournalToBackend(journal, raceVariant)
         } catch {
-          /* intentionally ignored */
+          /* preservar erro original */
         }
         return {
-          ...syncRes,
           success: false,
-          error: pbSync.error || 'Falha na confirmação do backend (PocketBase).',
+          alreadyRegistered: false,
+          persistedResult: persistedRecord,
+          journal,
+          error: simErr,
         }
       }
 
-      try {
-        await this.saveApplicationJournalToBackend(syncRes.journal, raceVariant)
-      } catch (journalSaveErr: any) {
-        console.error(
-          '[CareerPersistence] Falha ao persistir journal no PocketBase:',
-          journalSaveErr,
+      const entry = entries[i]
+      const driverId = entry.driverId
+
+      // Se este piloto já foi confirmado anteriormente, pular
+      if (appliedSet.has(driverId)) {
+        continue
+      }
+
+      // Semânticas canônicas de deltas
+      const isDns = (entry.status as any) === 'dns'
+      const deltaRaceStarts = isDns ? 0 : 1
+      const deltaWins = entry.finalPosition === 1 ? 1 : 0
+      const deltaPodiums = entry.finalPosition >= 1 && entry.finalPosition <= 3 ? 1 : 0
+      const deltaPoles = officialResult.poleDriverId === driverId ? 1 : 0
+      const deltaFastestLaps =
+        officialResult.fastestLapDriverId && officialResult.fastestLapDriverId === driverId ? 1 : 0
+      const deltaPoints = entry.pointsAwarded || 0
+      const isDnf = entry.dnf || entry.status === 'dnf'
+      const deltaDnfs = isDnf ? 1 : 0
+      const deltaLapsCompleted = entry.lapsCompleted || 0
+      const deltaPitStops = entry.pitStops || 0
+      const deltaPositionsGained = entry.positionsGainedLost || 0
+      const newFinishPosition = isDnf ? undefined : entry.finalPosition
+      const newGridPosition = entry.gridPosition > 0 ? entry.gridPosition : undefined
+
+      // Moral do piloto
+      let computedNewMorale: number | undefined
+      const currentCareerDriver = driverBase2026Service.getCareerDriver(careerId, driverId)
+      const currentMorale = currentCareerDriver?.morale ?? 80
+
+      const isMoraleAlreadyDone = driverMoraleService.isMoraleAlreadyProcessed({
+        careerId,
+        season,
+        round,
+        driverId,
+      })
+
+      if (!isMoraleAlreadyDone) {
+        const moraleCalc = driverMoraleService.calculateDriverMoraleDelta({
+          driverId,
+          teamId: entry.teamId,
+          driverName: entry.driverName,
+          teamName: entry.teamName,
+          currentMorale,
+          finishPosition: entry.finalPosition,
+          gridPosition: entry.gridPosition,
+          status: entry.status,
+          isDnf,
+          dnfReason: entry.dnfReason,
+          isWinner: entry.finalPosition === 1,
+          isPodium: entry.finalPosition >= 1 && entry.finalPosition <= 3,
+        })
+
+        computedNewMorale = moraleCalc.afterMorale
+
+        driverMoraleService.markMoraleProcessed(
+          {
+            careerId,
+            season,
+            round,
+            driverId,
+          },
+          {
+            before: moraleCalc.beforeMorale,
+            after: moraleCalc.afterMorale,
+            delta: moraleCalc.clampedRaceDelta,
+            officializedAt: officialResult.officializedAt,
+          },
         )
+      }
+
+      driverBase2026Service.updateCareerDriverStats({
+        careerId,
+        driverId,
+        deltaGps: deltaRaceStarts,
+        deltaRaceStarts,
+        deltaWins,
+        deltaPodiums,
+        deltaPoles,
+        deltaFastestLaps,
+        deltaPoints,
+        deltaDnfs,
+        deltaLapsCompleted,
+        deltaPitStops,
+        deltaPositionsGained,
+        newFinishPosition,
+        newGridPosition,
+        newMorale: computedNewMorale,
+      })
+
+      // Adicionar aos aplicados e persistir checkpoint remoto de forma estritamente aguardada
+      appliedSet.add(driverId)
+      journal.appliedDriverIds = Array.from(appliedSet)
+
+      try {
+        await this.saveApplicationJournalToBackend(journal, raceVariant)
+      } catch (driverCheckpointErr: any) {
+        // Falha no checkpoint do piloto: interromper antes do próximo piloto
+        const errMsg = `[Checkpoint Piloto Falhou: ${driverId}] ${driverCheckpointErr?.message || 'Falha ao persistir checkpoint remoto do piloto'}`
+        journal.status = 'FAILED'
+        journal.lastError = errMsg
+
+        // Tentar registrar FAILED no backend sem mascarar o erro original
+        try {
+          await this.saveApplicationJournalToBackend(journal, raceVariant)
+        } catch (failSaveErr) {
+          console.error(
+            '[CareerPersistence] Falha secundária ao registrar status FAILED no backend:',
+            failSaveErr,
+          )
+        }
+
         if (options?.requireBackendSync) {
           return {
-            ...syncRes,
             success: false,
-            error:
-              journalSaveErr?.message ||
-              'Falha ao confirmar journal autoritativo no backend (PocketBase).',
+            alreadyRegistered: false,
+            persistedResult: persistedRecord,
+            journal,
+            error: errMsg,
           }
         }
-        throw journalSaveErr
+        throw new Error(errMsg)
       }
     }
 
-    return syncRes
+    // 5. ATUALIZAR STATUS NO JOURNAL PARA COMPLETE
+    journal.status = 'COMPLETE'
+    journal.completedAt = new Date().toISOString()
+    journal.lastError = undefined
+
+    // 6. SNAPSHOT DO CAMPEONATO
+    try {
+      const sNum =
+        typeof season === 'number'
+          ? season
+          : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
+      canonicalChampionshipService.processAndPersistRoundChampionship(
+        careerId,
+        sNum,
+        round,
+        officialResult.playerTeamId,
+      )
+    } catch (snapErr) {
+      console.warn('[CareerPersistence] Aviso ao gerar snapshot do campeonato:', snapErr)
+    }
+
+    // 7. SINCRONIZAR race_results NO BACKEND
+    const pbSync = await this.syncWithPocketBaseIfAvailable(persistedRecord, journal)
+    if (!pbSync.success && options?.requireBackendSync) {
+      journal.status = 'FAILED'
+      journal.lastError = pbSync.error || 'Falha ao sincronizar race_results no backend'
+      try {
+        await this.saveApplicationJournalToBackend(journal, raceVariant)
+      } catch {
+        /* preservar erro original */
+      }
+      return {
+        success: false,
+        alreadyRegistered: false,
+        persistedResult: persistedRecord,
+        journal,
+        error: pbSync.error || 'Falha na confirmação do backend (PocketBase).',
+      }
+    }
+
+    // 8. CHECKPOINT FINAL REMOTO AGUARDADO (COMPLETE)
+    try {
+      await this.saveApplicationJournalToBackend(journal, raceVariant)
+    } catch (finalSaveErr: any) {
+      const errMsg = `[Checkpoint Final Falhou] ${finalSaveErr?.message || 'Falha ao confirmar conclusão no backend'}`
+      journal.status = 'FAILED'
+      journal.lastError = errMsg
+      try {
+        await this.saveApplicationJournalToBackend(journal, raceVariant)
+      } catch {
+        /* preservar erro original */
+      }
+      if (options?.requireBackendSync) {
+        return {
+          success: false,
+          alreadyRegistered: false,
+          persistedResult: persistedRecord,
+          journal,
+          error: errMsg,
+        }
+      }
+      throw new Error(errMsg)
+    }
+
+    return {
+      success: true,
+      alreadyRegistered: false,
+      persistedResult: persistedRecord,
+      journal,
+    }
   }
 
   /**
