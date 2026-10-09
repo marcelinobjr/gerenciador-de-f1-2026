@@ -982,7 +982,7 @@ export class CanonicalRaceResultService {
       },
       driverCurrentMoraleMap: moraleMap,
       onSaveDriverMorale: async (driverId, newMorale) => {
-        // Encontrar a entrada correspondente para ter acesso ao nome caso necessário
+        // Encontrar a entrada correspondente para resolução de identidade
         const entry = (officialResult.entries || []).find((e) => e.driverId === driverId)
         const realDbId = resolveDriverDbId(driverId, entry?.driverName)
 
