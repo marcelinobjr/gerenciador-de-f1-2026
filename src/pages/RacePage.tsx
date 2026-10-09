@@ -8,11 +8,26 @@ import {
   RaceSessionResolutionResult,
 } from '@/services/canonicalRaceSessionLoader'
 import { canonicalRacePreparationService } from '@/services/canonicalRacePreparationService'
+import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
+import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
+import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
+import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
+import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
+import { raceStrategyService } from '@/services/raceStrategyService'
+import type {
+  CanonicalRaceState,
+  OfficialRaceResult,
+  DriverPaceMode,
+  WeatherDecisionAction,
+} from '@/types/canonical-race-v2'
+import type { TireCompound } from '@/types/f1'
 import { RaceTopTenBoard } from '@/components/race/RaceTopTenBoard'
 import { RacePlayerDriverCard } from '@/components/race/RacePlayerDriverCard'
 import { RaceStrategyPanel } from '@/components/race/RaceStrategyPanel'
 import { RaceTeamMessagesFeed } from '@/components/race/RaceTeamMessagesFeed'
 import { PreRaceStrategyModalOverlay } from '@/components/race/PreRaceStrategyModalOverlay'
+import { CanonicalRaceInitializationPanel } from '@/components/race/CanonicalRaceInitializationPanel'
+import { OfficialRaceResultPanel } from '@/components/race/OfficialRaceResultPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -55,6 +70,18 @@ export default function RacePage() {
   const [showStrategyModal, setShowStrategyModal] = useState(false)
   const [strategyModalCarId, setStrategyModalCarId] = useState<'car1' | 'car2'>('car1')
 
+  // Estados canônicos para Março B e C
+  const [canonicalRaceState, setCanonicalRaceState] = useState<CanonicalRaceState | null>(null)
+  const [officialRaceResult, setOfficialRaceResult] = useState<OfficialRaceResult | null>(null)
+  const [isConfirmingStrategy, setIsConfirmingStrategy] = useState(false)
+  const [careerPersistenceStatus, setCareerPersistenceStatus] = useState<
+    'PENDING' | 'APPLYING' | 'COMPLETE' | 'FAILED'
+  >('PENDING')
+  const [isPersistingCareer, setIsPersistingCareer] = useState(false)
+  const [careerPersistenceError, setCareerPersistenceError] = useState<string | undefined>(
+    undefined,
+  )
+
   // Carrega a sessão canônica
   useEffect(() => {
     if (isAuthLoading) return
@@ -74,7 +101,33 @@ export default function RacePage() {
 
         if (res.status === 'ready') {
           const ctx = res.context
-          // Carregar ou inicializar snapshot da preparação pré-corrida
+
+          // (1) Prioridade 1: Resultado oficial gravado
+          const official = canonicalRaceResultService.getOfficialRaceResult(
+            ctx.careerId,
+            ctx.seasonYear,
+            ctx.round,
+            'MAIN_RACE',
+          )
+          if (official) {
+            setOfficialRaceResult(official)
+            setCareerPersistenceStatus('COMPLETE')
+            return
+          }
+
+          // (2) Prioridade 2: Corrida em andamento (último checkpoint pausado)
+          const inProgressRace = canonicalRaceInitializationService.readCanonicalRaceState(
+            ctx.careerId,
+            ctx.seasonYear,
+            ctx.round,
+            'MAIN_RACE',
+          )
+          if (inProgressRace) {
+            setCanonicalRaceState(inProgressRace)
+            return
+          }
+
+          // (3) Prioridade 3: Preparação confirmada previamente salva
           let snap = canonicalRacePreparationService.loadSnapshot(
             ctx.careerId,
             ctx.seasonYear,
