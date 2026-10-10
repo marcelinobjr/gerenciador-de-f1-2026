@@ -23,6 +23,7 @@ import {
   CanonicalRaceInitialWeather,
 } from '@/services/canonicalRaceWeatherService'
 import { F1_2026_CALENDAR } from '@/lib/f1-data'
+import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import type {
   CompleteQualifyingWeekendResult,
   FinalQualifyingGridEntry,

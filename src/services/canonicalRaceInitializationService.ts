@@ -504,6 +504,7 @@ export const canonicalRaceInitializationService = {
    * Calcula o número de voltas da Sprint:
    * Regra canônica FIA Apex: 1/3 (números inteiros) do número de voltas da corrida normal.
    * Implementação: Math.max(1, Math.floor(mainRaceLaps / 3)).
+   * Delega exclusivamente para getCanonicalSprintLaps.
    */
   calculateSprintLaps(
     circuitLengthKm: number,
