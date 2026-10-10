@@ -1672,14 +1672,13 @@ export class CanonicalRaceResultService {
           const pb = pbModule.default
           if (pb?.send) {
             // Coerção estrita numérica: delta, before_morale e final_morale sempre presentes e Number.isFinite (0 incluso)
-            const rawBeforeCandidate =
-              Number.isFinite(context?.beforeMorale)
-                ? (context?.beforeMorale as number)
-                : Number.isFinite((entry as any)?.beforeMorale)
-                  ? ((entry as any)?.beforeMorale as number)
-                  : Number.isFinite((entry as any)?.morale)
-                    ? ((entry as any)?.morale as number)
-                    : 80
+            const rawBeforeCandidate = Number.isFinite(context?.beforeMorale)
+              ? (context?.beforeMorale as number)
+              : Number.isFinite((entry as any)?.beforeMorale)
+                ? ((entry as any)?.beforeMorale as number)
+                : Number.isFinite((entry as any)?.morale)
+                  ? ((entry as any)?.morale as number)
+                  : 80
             const safeBeforeMorale: number = Number.isFinite(rawBeforeCandidate)
               ? Math.round(rawBeforeCandidate)
               : 80
@@ -1692,9 +1691,13 @@ export class CanonicalRaceResultService {
               ? Math.round(context?.delta as number)
               : Math.round(safeFinalMorale - safeBeforeMorale)
 
-            const payloadBeforeMorale: number = Number.isFinite(safeBeforeMorale) ? safeBeforeMorale : 0
+            const payloadBeforeMorale: number = Number.isFinite(safeBeforeMorale)
+              ? safeBeforeMorale
+              : 0
             const payloadDelta: number = Number.isFinite(safeDelta) ? safeDelta : 0
-            const payloadFinalMorale: number = Number.isFinite(safeFinalMorale) ? safeFinalMorale : payloadBeforeMorale
+            const payloadFinalMorale: number = Number.isFinite(safeFinalMorale)
+              ? safeFinalMorale
+              : payloadBeforeMorale
 
             const atomicRes = await pb.send<any>('/backend/v1/driver-morale/apply-atomic', {
               method: 'POST',
@@ -1713,7 +1716,8 @@ export class CanonicalRaceResultService {
                 final_morale: payloadFinalMorale,
                 officializedAt: officialResult.officializedAt,
               },
-            })            if (
+            })
+            if (
               atomicRes &&
               (atomicRes.status === 'applied' || atomicRes.status === 'already_applied')
             ) {
