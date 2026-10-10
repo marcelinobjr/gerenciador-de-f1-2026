@@ -31,6 +31,8 @@ import { LobbyPage } from './pages/LobbyPage'
 import DriversPage from './pages/DriversPage'
 import PaddockPage from './pages/PaddockPage'
 import TracksPage from './pages/TracksPage'
+import SetupPage from './pages/SetupPage'
+import AdminPage from './pages/AdminPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -42,6 +44,9 @@ const App = () => (
         <Routes>
           {/* 1. Rota Pública de Autenticação */}
           <Route path="/auth" element={<AuthPage />} />
+
+          {/* Rota de Setup / Instalador guiado (acessível autenticado ou direto) */}
+          <Route path="/setup" element={<SetupPage />} />
 
           {/* 2. Ambiente Lobby / Pré-Jogo (Guarded por LobbyRoute) */}
           <Route element={<LobbyRoute />}>
@@ -76,6 +81,7 @@ const App = () => (
               <Route path="/historico" element={<HistoryPage />} />
               <Route path="/regulamento" element={<RegulationPage />} />
               <Route path="/calendario" element={<CalendarPage />} />
+              <Route path="/admin" element={<AdminPage />} />
               <Route path="/development" element={<Navigate to="/car?tab=technical" replace />} />
               <Route
                 path="/car-development"
