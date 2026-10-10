@@ -250,18 +250,12 @@ export class DriverMoraleService {
     let rawRaceDelta = 0
 
     if (isDnf) {
-      // Regra de DNF (Parte F):
-      // (1) DNF mecânico/técnico -> impacto 0 ou máx -1 (adotamos 0)
-      // (2) DNF por erro do piloto -> -4 (-3 a -5)
-      // (3) DNF sem causa confiável -> -1 (conservador)
+      // Regra MORAL-DNF-01A:
+      // Todo piloto que não terminou a prova (DNF) recebe delta fixo -1,
+      // independentemente da causa (mecânica, erro do piloto ou desconhecida).
+      // dnfCategory é mantido calculado e registrado para diagnóstico.
       dnfCategory = this.categorizeDnf(input.dnfReason)
-      if (dnfCategory === 'mechanical') {
-        dnfDelta = 0
-      } else if (dnfCategory === 'driver_error') {
-        dnfDelta = -4
-      } else {
-        dnfDelta = -1
-      }
+      dnfDelta = -1
       rawRaceDelta = dnfDelta
       performanceDelta = 0
       baseDelta = 0

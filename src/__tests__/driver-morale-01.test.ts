@@ -128,8 +128,8 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
     expect(resP2.specialBonus).toBeLessThan(resP1.specialBonus)
   })
 
-  // DM06: DNF mecânico não provoca penalidade forte (delta 0 ou máx -1)
-  it('DM06: DNF mecânico (motor, câmbio, hidráulica) não provoca penalidade forte (delta 0 ou máx -1)', () => {
+  // DM06: MORAL-DNF-01A — DNF mecânico recebe delta fixo -1 mantendo categoria mechanical para diagnóstico
+  it('DM06: DNF mecânico (motor, câmbio, hidráulica) recebe delta fixo -1 (MORAL-DNF-01A)', () => {
     const resEngine = driverMoraleService.calculateDriverMoraleDelta({
       driverId: 'drv_dnf_eng',
       currentMorale: 80,
@@ -147,16 +147,18 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
     })
 
     expect(resEngine.dnfCategory).toBe('mechanical')
-    expect(resEngine.clampedRaceDelta).toBeGreaterThanOrEqual(-1)
-    expect(resEngine.clampedRaceDelta).toBeLessThanOrEqual(0)
-    expect(resEngine.afterMorale).toBeGreaterThanOrEqual(79)
+    expect(resEngine.dnfDelta).toBe(-1)
+    expect(resEngine.clampedRaceDelta).toBe(-1)
+    expect(resEngine.afterMorale).toBe(79)
 
     expect(resHydraulics.dnfCategory).toBe('mechanical')
-    expect(resHydraulics.clampedRaceDelta).toBeGreaterThanOrEqual(-1)
+    expect(resHydraulics.dnfDelta).toBe(-1)
+    expect(resHydraulics.clampedRaceDelta).toBe(-1)
+    expect(resHydraulics.afterMorale).toBe(79)
   })
 
-  // DM07: DNF por erro do piloto provoca penalidade maior (-3 a -5)
-  it('DM07: DNF por erro do piloto provoca penalidade maior (-3 a -5, no caso -4)', () => {
+  // DM07: MORAL-DNF-01A — DNF por erro do piloto recebe delta fixo -1 mantendo categoria driver_error para diagnóstico
+  it('DM07: DNF por erro do piloto recebe delta fixo -1 mantendo categoria driver_error (MORAL-DNF-01A)', () => {
     const resSpin = driverMoraleService.calculateDriverMoraleDelta({
       driverId: 'drv_dnf_spin',
       currentMorale: 80,
@@ -166,13 +168,13 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
     })
 
     expect(resSpin.dnfCategory).toBe('driver_error')
-    expect(resSpin.clampedRaceDelta).toBe(-4)
-    expect(resSpin.clampedRaceDelta).toBeLessThan(-1)
-    expect(resSpin.afterMorale).toBe(76)
+    expect(resSpin.dnfDelta).toBe(-1)
+    expect(resSpin.clampedRaceDelta).toBe(-1)
+    expect(resSpin.afterMorale).toBe(79)
   })
 
-  // DM08: DNF sem causa confiável usa penalidade conservadora (-1)
-  it('DM08: DNF sem causa confiável usa penalidade conservadora de -1 sem inferir culpa', () => {
+  // DM08: MORAL-DNF-01A — DNF sem causa confiável recebe delta fixo -1 mantendo categoria unknown
+  it('DM08: DNF sem causa confiável recebe delta fixo -1 mantendo categoria unknown (MORAL-DNF-01A)', () => {
     const resUnknown = driverMoraleService.calculateDriverMoraleDelta({
       driverId: 'drv_dnf_unk',
       currentMorale: 80,
@@ -182,6 +184,7 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
     })
 
     expect(resUnknown.dnfCategory).toBe('unknown')
+    expect(resUnknown.dnfDelta).toBe(-1)
     expect(resUnknown.clampedRaceDelta).toBe(-1)
     expect(resUnknown.afterMorale).toBe(79)
   })
@@ -203,10 +206,10 @@ describe('DRIVER-MORALE-01: Regras Canônicas de Moral de Piloto', () => {
   it('DM10: Clamp inferior — moral nunca fica abaixo de 0', () => {
     const res = driverMoraleService.calculateDriverMoraleDelta({
       driverId: 'drv_min',
-      currentMorale: 2,
+      currentMorale: 0,
       finishPosition: 999,
       isDnf: true,
-      dnfReason: 'Driver error', // delta -4 -> 2 - 4 = -2 -> clamp 0
+      dnfReason: 'Driver error', // delta -1 -> 0 - 1 = -1 -> clamp 0
     })
 
     expect(res.afterMorale).toBe(0)
