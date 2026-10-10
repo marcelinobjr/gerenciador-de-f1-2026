@@ -68,6 +68,12 @@ export default function RacePage() {
     return contextRound || 1
   }, [searchParams, contextRound])
 
+  const requestedVariant = useMemo<'MAIN_RACE' | 'SPRINT_RACE'>(() => {
+    const raw = (searchParams.get('variant') || '').trim().toLowerCase()
+    if (raw === 'sprint' || raw === 'sprint_race') return 'SPRINT_RACE'
+    return 'MAIN_RACE'
+  }, [searchParams])
+
   const [isLoadingSession, setIsLoadingSession] = useState(true)
   const [sessionResolution, setSessionResolution] = useState<RaceSessionResolutionResult | null>(
     null,
@@ -132,7 +138,7 @@ export default function RacePage() {
             targetContext.careerId,
             targetContext.seasonYear,
             targetContext.round,
-            'MAIN_RACE',
+            targetContext.variant,
           )
 
         // Se uma requisição mais recente foi disparada ou mudou de contexto, descartar
@@ -203,6 +209,7 @@ export default function RacePage() {
       season,
       team,
       round: requestedRound,
+      variant: requestedVariant,
       allPlayerDrivers: catalogDrivers,
     })
       .then((res) => {
@@ -218,7 +225,7 @@ export default function RacePage() {
             ctx.careerId,
             ctx.seasonYear,
             ctx.round,
-            'MAIN_RACE',
+            ctx.variant,
           )
 
           const processOfficialFound = (offResult: OfficialRaceResult) => {
@@ -233,7 +240,7 @@ export default function RacePage() {
               ctx.careerId,
               ctx.seasonYear,
               ctx.round,
-              'MAIN_RACE',
+              ctx.variant,
             )
             if (!localJournal || localJournal.status !== 'COMPLETE') {
               // Disparar sincronização em segundo plano para retomar aplicação
@@ -269,7 +276,7 @@ export default function RacePage() {
             ctx.careerId,
             ctx.seasonYear,
             ctx.round,
-            'MAIN_RACE',
+            ctx.variant,
           )
           if (inProgressRace) {
             setCanonicalRaceState(inProgressRace)
@@ -342,7 +349,7 @@ export default function RacePage() {
     return () => {
       isMounted = false
     }
-  }, [isAuthLoading, season?.id, team?.id, requestedRound, catalogDrivers])
+  }, [isAuthLoading, season?.id, team?.id, requestedRound, requestedVariant, catalogDrivers])
 
   // Recuperação do resultado oficial persistido no backend caso localStorage não o tenha (ex: cota excedida)
   useEffect(() => {
@@ -354,7 +361,7 @@ export default function RacePage() {
     let isMounted = true
 
     canonicalRaceResultService
-      .getOfficialRaceResultFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
+      .getOfficialRaceResultFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, ctx.variant)
       .then((remoteOfficial) => {
         if (!isMounted || !remoteOfficial) return
         setOfficialRaceResult(remoteOfficial)
@@ -368,7 +375,7 @@ export default function RacePage() {
 
         // Se o journal estiver incompleto, retomar reconciliação e aplicação automática
         canonicalCareerPersistenceService
-          .getApplicationJournalFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
+          .getApplicationJournalFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, ctx.variant)
           .then((j) => {
             if (isMounted && (!j || j.status !== 'COMPLETE')) {
               canonicalCareerPersistenceService
@@ -420,7 +427,7 @@ export default function RacePage() {
       ctx.careerId,
       ctx.seasonYear,
       ctx.round,
-      'MAIN_RACE',
+      ctx.variant,
     )
     if (existingRace) {
       setCanonicalRaceState(existingRace)
@@ -456,6 +463,7 @@ export default function RacePage() {
         careerId: ctx.careerId,
         season: ctx.seasonYear,
         round: ctx.round,
+        raceVariant: ctx.variant,
         circuitName: ctx.circuit.name,
         circuitCountry: ctx.circuit.country,
         circuitLengthKm: ctx.circuit.circuitLengthKm,
@@ -577,7 +585,7 @@ export default function RacePage() {
       ctx.careerId,
       ctx.seasonYear,
       ctx.round,
-      'MAIN_RACE',
+      ctx.variant,
     )
     if (alreadyOfficial) {
       setOfficialRaceResult(alreadyOfficial)
@@ -621,10 +629,11 @@ export default function RacePage() {
     setOfficializeError(null)
 
     try {
-      // 1. Snapshot da corrida com o careerId canônico
+      // 1. Snapshot da corrida com o careerId canônico e raceVariant consistente
       const stateToOfficialize: CanonicalRaceState = {
         ...currentState,
         careerId: ctx.careerId,
+        raceVariant: ctx.variant,
       }
 
       // 2. Chamar canonicalRaceResultService.officializeRace (idempotente e canônico)
@@ -876,6 +885,11 @@ export default function RacePage() {
                 <Badge className="bg-[#E10600] text-white text-[10px] font-black uppercase tracking-wider">
                   BOX DA EQUIPE
                 </Badge>
+                {context.variant === 'SPRINT_RACE' && (
+                  <Badge className="bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
+                    SPRINT
+                  </Badge>
+                )}
                 <Badge
                   variant="outline"
                   className="text-emerald-300 border-emerald-800/60 bg-emerald-950/40 text-[10px] font-mono"
@@ -1036,6 +1050,11 @@ export default function RacePage() {
               <Badge className="bg-[#E10600] text-white text-[10px] font-black uppercase tracking-wider">
                 BOX DA EQUIPE
               </Badge>
+              {context.variant === 'SPRINT_RACE' && (
+                <Badge className="bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider">
+                  SPRINT
+                </Badge>
+              )}
               <Badge
                 variant="outline"
                 className="text-cyan-300 border-cyan-800/60 bg-cyan-950/40 text-[10px] font-mono"

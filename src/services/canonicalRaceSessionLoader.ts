@@ -55,6 +55,7 @@ export interface CanonicalRaceSessionContext {
   seasonId: string
   seasonYear: number
   round: number
+  variant: RaceVariantOption
   circuit: CanonicalRaceCircuitInfo
   totalLaps: number
   completeQualifyingResult: CompleteQualifyingWeekendResult
@@ -66,6 +67,7 @@ export interface CanonicalRaceSessionContext {
   weather: CanonicalRaceInitialWeather
   gridSource: 'backend' | 'local' | 'none'
   tyreSource: 'backend' | 'local' | 'local_migrated' | 'local_migration_failed' | 'none'
+  raceVariant?: 'MAIN_RACE' | 'SPRINT_RACE'
 }
 
 export type RaceSessionResolutionResult =
@@ -85,13 +87,21 @@ export type RaceSessionResolutionResult =
       diagnostics?: Record<string, any>
     }
 
+// SPRINT-RACE-RESOLVE-01A
+export type RaceVariantOption = 'MAIN_RACE' | 'SPRINT_RACE'
+
 export async function loadCanonicalRaceSessionContext(params: {
   season: SeasonModel | null
   team: TeamModel | null
   round: number
+  variant?: RaceVariantOption | string
   allPlayerDrivers?: DriverModel[]
 }): Promise<RaceSessionResolutionResult> {
-  const { season, team, round, allPlayerDrivers = [] } = params
+  const { season, team, round, variant = 'MAIN_RACE', allPlayerDrivers = [] } = params
+  const raceVariant: RaceVariantOption =
+    String(variant).toUpperCase() === 'SPRINT_RACE' || String(variant).toLowerCase() === 'sprint'
+      ? 'SPRINT_RACE'
+      : 'MAIN_RACE'
 
   if (!season || !team) {
     return {
@@ -107,15 +117,22 @@ export async function loadCanonicalRaceSessionContext(params: {
 
   // 1. Resolver informações do circuito
   const calItem = F1_2026_CALENDAR.find((c) => c.round === round)
+  const baseLaps = calItem?.laps || 57
+  const circuitLengthKm = calItem?.circuitLengthKm || 5.412
+  const sprintLaps = Math.max(1, Math.round(100 / circuitLengthKm))
+  const totalLaps = raceVariant === 'SPRINT_RACE' ? sprintLaps : baseLaps
+
   const circuit: CanonicalRaceCircuitInfo = {
     round,
-    name: calItem?.name || `Grande Prêmio da Rodada ${round}`,
+    name:
+      raceVariant === 'SPRINT_RACE'
+        ? `Sprint - ${calItem?.name || `Grande Prêmio da Rodada ${round}`}`
+        : calItem?.name || `Grande Prêmio da Rodada ${round}`,
     circuit: calItem?.circuit || 'Circuito Internacional',
     country: calItem?.country || 'Internacional',
-    laps: calItem?.laps || 57,
-    circuitLengthKm: calItem?.circuitLengthKm || 5.412,
+    laps: totalLaps,
+    circuitLengthKm,
   }
-  const totalLaps = circuit.laps
 
   // 2. Leitura BACKEND-FIRST do Grid Final Oficial (P1–P24)
   // Backend vence local; não recalcula posições.
@@ -160,7 +177,10 @@ export async function loadCanonicalRaceSessionContext(params: {
   ) {
     return {
       status: 'no_race',
-      message: 'Nenhuma corrida preparada para esta rodada. O grid oficial ainda não foi formado.',
+      message:
+        raceVariant === 'SPRINT_RACE'
+          ? 'Nenhuma corrida sprint preparada para esta rodada. O grid da sprint ainda não foi formado.'
+          : 'Nenhuma corrida preparada para esta rodada. O grid oficial ainda não foi formado.',
       round,
     }
   }
@@ -340,6 +360,7 @@ export async function loadCanonicalRaceSessionContext(params: {
       seasonId: season.id,
       seasonYear,
       round,
+      variant: raceVariant,
       circuit,
       totalLaps,
       completeQualifyingResult: qualifyingResult,

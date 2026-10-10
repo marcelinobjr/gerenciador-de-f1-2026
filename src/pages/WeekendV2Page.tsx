@@ -5607,10 +5607,14 @@ export default function WeekendV2Page() {
           <CompleteQualifyingGridSummary
             result={completeQualifyingResult}
             onGoToRace={() => {
-              // RACE-PAGE-01A: Navega para a nova página canônica /race
+              // RACE-PAGE-01A / SPRINT-RACE-RESOLVE-01A: Navega para a nova página canônica /race com variante adequada
               // Mantém o estado pré-corrida antigo preservado no WeekendV2Page
               userChoseReturnToGridRef.current = false
-              navigate(`/race?round=${currentRound}`)
+              if (isSprintRaceSession) {
+                navigate(`/race?round=${currentRound}&variant=sprint`)
+              } else {
+                navigate(`/race?round=${currentRound}`)
+              }
             }}
           />
         )

@@ -286,14 +286,11 @@ export class CanonicalQualifyingFinalGridBackendService {
         round: context.round,
         completedAt: p3.completedAt || new Date().toISOString(),
         poleDriverId: poleEntry.driverId,
-        poleTime: poleEntry.bestLapTime || undefined,
-        poleSec: poleEntry.bestLapSec || undefined,
+        poleLapTime: poleEntry.bestLapTime || undefined,
         finalGrid: finalGrid as any,
-        stageResults: {
-          q1: p1,
-          q2: p2,
-          q3: p3,
-        } as any,
+        q1Result: p1,
+        q2Result: p2,
+        q3Result: p3,
       }
 
       // Persistir em canonical_qualifying_final_grids no PocketBase de forma assíncrona/segura
