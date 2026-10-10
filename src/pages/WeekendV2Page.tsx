@@ -562,15 +562,55 @@ export default function WeekendV2Page() {
           })
           setTyreInventories(invs)
 
-          // 3.3. Carregar sessões concluídas
+          // 3.2.1. SQ3-GUARD-PB-01A: Pré-hidratar cache em memória das etapas de quali (Q1-Q3, SQ1-SQ3) a partir do PocketBase
+          // Garante que após purge pós-confirmação backend ou reload, memória e completedSessions estejam sincronizados
+          const stagesToHydrate: QualifyingStageId[] = ['sq1', 'sq2', 'sq3', 'q1', 'q2', 'q3']
+          try {
+            await Promise.all(
+              stagesToHydrate.map(async (stg) => {
+                await Promise.all([
+                  canonicalQualifyingPersistenceService.readStageResultPreferred(
+                    season.id,
+                    currentRound,
+                    stg,
+                  ),
+                  canonicalQualifyingPersistenceService.readStageStatePreferred(
+                    season.id,
+                    currentRound,
+                    stg,
+                  ),
+                ])
+              }),
+            )
+          } catch (hydrErr) {
+            console.warn(
+              '[WeekendV2Page] Erro não-bloqueante na pré-hidratação de quali do backend:',
+              hydrErr,
+            )
+          }
+
+          // 3.3. Carregar sessões concluídas (agora com memória devidamente hidratada do backend)
           let stored = readStoredCompletedSessions(season.id, currentRound)
 
           // Se houver grid final oficial mas 'q3' não estiver em stored (ex: salvo antes da lista de sessões ou em outro dispositivo),
           // assegurar que a qualificação figure como concluída para permitir a transição imediata para a Corrida.
-          const hasQualiGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
+          let hasQualiGrid = canonicalQualifyingPersistenceService.readCompleteQualifyingResult(
             season.id,
             currentRound,
           )
+          if (!hasQualiGrid) {
+            try {
+              const outcome = await canonicalQualifyingPersistenceService.readFinalGridPreferred(
+                season.id,
+                currentRound,
+              )
+              if (outcome.data) {
+                hasQualiGrid = outcome.data
+              }
+            } catch {
+              // ignore
+            }
+          }
           if (
             hasQualiGrid &&
             Array.isArray(hasQualiGrid.finalGrid) &&
@@ -989,10 +1029,35 @@ export default function WeekendV2Page() {
       const sq1Result = season?.id
         ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'sq1')
         : null
+      let sq1ResultData = sq1Result
+      let sq1StateData = sq1State
+      if (season?.id && (!sq1ResultData || !sq1StateData)) {
+        try {
+          const [resOutcome, stateOutcome] = await Promise.all([
+            canonicalQualifyingPersistenceService.readStageResultPreferred(
+              season.id,
+              currentRound,
+              'sq1',
+            ),
+            canonicalQualifyingPersistenceService.readStageStatePreferred(
+              season.id,
+              currentRound,
+              'sq1',
+            ),
+          ])
+          if (resOutcome.data) sq1ResultData = resOutcome.data
+          if (stateOutcome.data) sq1StateData = stateOutcome.data
+        } catch (prefErr) {
+          console.warn('[WeekendV2Page] Erro ao carregar SQ1 preferencial nos guards:', prefErr)
+        }
+      }
+
       const isSq1Completed =
         Boolean(
-          sq1Result && sq1Result.advancingDriverIds && sq1Result.advancingDriverIds.length > 0,
-        ) || Boolean(sq1State && sq1State.status === 'completed')
+          sq1ResultData &&
+          sq1ResultData.advancingDriverIds &&
+          sq1ResultData.advancingDriverIds.length > 0,
+        ) || Boolean(sq1StateData && sq1StateData.status === 'completed')
 
       if (!isSq1Completed) {
         toast({
@@ -1005,16 +1070,34 @@ export default function WeekendV2Page() {
     }
 
     if (sess === 'sq3') {
-      // BUG-SQ3-TRANSITION-R2 / BUG-SQ3-TRANSITION-R3: Distinguir explicitamente:
-      // - SQ2 nunca iniciada: não permitir SQ3.
-      // - SQ2 paused ou running órfão: não considerar concluída, não abrir SQ3, redirecionar/retomar a SQ2.
-      // - SQ2 completed: permitir SQ3 (tanto com piloto participante quanto como espectador).
-      const sq2State = season?.id
+      // SQ3-GUARD-PB-01A: Reconciliar SQ2 preferencial com PocketBase
+      let sq2State = season?.id
         ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'sq2')
         : null
-      const sq2Result = season?.id
+      let sq2Result = season?.id
         ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'sq2')
         : null
+
+      if (season?.id && (!sq2Result || !sq2State)) {
+        try {
+          const [resOutcome, stateOutcome] = await Promise.all([
+            canonicalQualifyingPersistenceService.readStageResultPreferred(
+              season.id,
+              currentRound,
+              'sq2',
+            ),
+            canonicalQualifyingPersistenceService.readStageStatePreferred(
+              season.id,
+              currentRound,
+              'sq2',
+            ),
+          ])
+          if (resOutcome.data) sq2Result = resOutcome.data
+          if (stateOutcome.data) sq2State = stateOutcome.data
+        } catch (prefErr) {
+          console.warn('[WeekendV2Page] Erro ao carregar SQ2 preferencial nos guards:', prefErr)
+        }
+      }
 
       const isSq2CanonicalCompleted =
         (sq2Result && sq2Result.advancingDriverIds && sq2Result.advancingDriverIds.length > 0) ||
@@ -1077,12 +1160,34 @@ export default function WeekendV2Page() {
     }
 
     if (sess === 'q2' && !normalizedStored.includes('q1')) {
-      const q1State = season?.id
+      let q1State = season?.id
         ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'q1')
         : null
-      const q1Result = season?.id
+      let q1Result = season?.id
         ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'q1')
         : null
+
+      if (season?.id && (!q1Result || !q1State)) {
+        try {
+          const [resOutcome, stateOutcome] = await Promise.all([
+            canonicalQualifyingPersistenceService.readStageResultPreferred(
+              season.id,
+              currentRound,
+              'q1',
+            ),
+            canonicalQualifyingPersistenceService.readStageStatePreferred(
+              season.id,
+              currentRound,
+              'q1',
+            ),
+          ])
+          if (resOutcome.data) q1Result = resOutcome.data
+          if (stateOutcome.data) q1State = stateOutcome.data
+        } catch (prefErr) {
+          console.warn('[WeekendV2Page] Erro ao carregar Q1 preferencial nos guards:', prefErr)
+        }
+      }
+
       const isQ1Completed =
         Boolean(
           q1Result && q1Result.advancingDriverIds && q1Result.advancingDriverIds.length > 0,
@@ -1099,12 +1204,34 @@ export default function WeekendV2Page() {
     }
 
     if (sess === 'q3') {
-      const q2State = season?.id
+      let q2State = season?.id
         ? canonicalQualifyingPersistenceService.readStageState(season.id, currentRound, 'q2')
         : null
-      const q2Result = season?.id
+      let q2Result = season?.id
         ? canonicalQualifyingPersistenceService.readStageResult(season.id, currentRound, 'q2')
         : null
+
+      if (season?.id && (!q2Result || !q2State)) {
+        try {
+          const [resOutcome, stateOutcome] = await Promise.all([
+            canonicalQualifyingPersistenceService.readStageResultPreferred(
+              season.id,
+              currentRound,
+              'q2',
+            ),
+            canonicalQualifyingPersistenceService.readStageStatePreferred(
+              season.id,
+              currentRound,
+              'q2',
+            ),
+          ])
+          if (resOutcome.data) q2Result = resOutcome.data
+          if (stateOutcome.data) q2State = stateOutcome.data
+        } catch (prefErr) {
+          console.warn('[WeekendV2Page] Erro ao carregar Q2 preferencial nos guards:', prefErr)
+        }
+      }
+
       const isQ2Completed =
         Boolean(
           q2Result && q2Result.advancingDriverIds && q2Result.advancingDriverIds.length > 0,
@@ -1187,11 +1314,25 @@ export default function WeekendV2Page() {
       // Ler o estado persistido da fase selecionada usando o mecanismo já existente.
       // Se o estado persistido existir e status === 'completed', reutilizar esse estado na UI,
       // selecionar a fase normalmente, não chamar initializeQualifyingSession/initializeStage e retornar imediatamente.
-      const existingState = canonicalQualifyingPersistenceService.readStageState(
+      let existingState = canonicalQualifyingPersistenceService.readStageState(
         season.id,
         currentRound,
         sess as QualifyingStageId,
       )
+      if (!existingState) {
+        try {
+          const stateOutcome = await canonicalQualifyingPersistenceService.readStageStatePreferred(
+            season.id,
+            currentRound,
+            sess as QualifyingStageId,
+          )
+          if (stateOutcome.data) {
+            existingState = stateOutcome.data
+          }
+        } catch (stateErr) {
+          console.warn('[WeekendV2Page] Erro ao buscar stageState preferencial:', stateErr)
+        }
+      }
       if (existingState && existingState.status === 'completed') {
         setSelectedSessionId(sess)
         setSessionState(null)
@@ -1212,11 +1353,25 @@ export default function WeekendV2Page() {
     } else if (sess === 'sq1' || sess === 'sq2' || sess === 'sq3') {
       // SQ1, SQ2 ou SQ3: inicializa ou carrega a sessão de qualificação sprint canônica
       // Q1FIX-01: Guard antes de initializeQualifyingSession para sessões sprint também.
-      const existingState = canonicalQualifyingPersistenceService.readStageState(
+      let existingState = canonicalQualifyingPersistenceService.readStageState(
         season.id,
         currentRound,
         sess as QualifyingStageId,
       )
+      if (!existingState) {
+        try {
+          const stateOutcome = await canonicalQualifyingPersistenceService.readStageStatePreferred(
+            season.id,
+            currentRound,
+            sess as QualifyingStageId,
+          )
+          if (stateOutcome.data) {
+            existingState = stateOutcome.data
+          }
+        } catch (stateErr) {
+          console.warn('[WeekendV2Page] Erro ao buscar stageState sprint preferencial:', stateErr)
+        }
+      }
       if (existingState && existingState.status === 'completed') {
         setSelectedSessionId(sess)
         setSessionState(null)
@@ -1351,11 +1506,28 @@ export default function WeekendV2Page() {
 
     // BUG-Q1-Q2-TRANSITION-01A1: Se a fase já possui estado persistido com status === 'completed',
     // reutilizar o estado persistido e não chamar initializeStage para proteger os dados esportivos.
-    const persistedStage = canonicalQualifyingPersistenceService.readStageState(
+    let persistedStage = canonicalQualifyingPersistenceService.readStageState(
       season.id,
       currentRound,
       stageId,
     )
+    if (!persistedStage) {
+      try {
+        const stateOutcome = await canonicalQualifyingPersistenceService.readStageStatePreferred(
+          season.id,
+          currentRound,
+          stageId,
+        )
+        if (stateOutcome.data) {
+          persistedStage = stateOutcome.data
+        }
+      } catch (stErr) {
+        console.warn(
+          '[WeekendV2Page] Erro ao buscar stageState preferencial em initializeQualifyingSession:',
+          stErr,
+        )
+      }
+    }
     if (persistedStage && persistedStage.status === 'completed') {
       setQualifyingState(persistedStage)
       setQualifyingInitializationError(null)

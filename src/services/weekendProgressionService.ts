@@ -281,6 +281,8 @@ export function checkWeekendRaceAccess(
  * Helper de persistência/leitura de sessões concluídas no localStorage por temporada e rodada.
  * Garante sincronização entre RaceSlimWrapper, LiveRacePage e simuladores de fim de semana.
  */
+import { canonicalQualifyingPersistenceService } from './canonicalQualifyingPersistenceService'
+
 const STORAGE_PREFIX = 'apex_f1_weekend_completed_v1'
 
 export function getCompletedSessionsStorageKey(seasonId: string, round: number): string {
@@ -314,54 +316,91 @@ export function readStoredCompletedSessions(seasonId: string, round: number): st
           window.localStorage.getItem(canonicalKey) || window.localStorage.getItem(legacyKey)
         const rawResult = window.localStorage.getItem(resultKey)
 
+        // SQ3-GUARD-PB-01A: Reconciliar também com o cache em memória do canonicalQualifyingPersistenceService
+        // Se após purge local ou gravação backend-first os dados estiverem na memória do serviço, lê-los aqui
+        const memoryResult = canonicalQualifyingPersistenceService.readStageResult(
+          seasonId,
+          round,
+          stg,
+        )
+        const memoryState = canonicalQualifyingPersistenceService.readStageState(
+          seasonId,
+          round,
+          stg,
+        )
+
+        let parsedState: any = null
         if (rawState) {
-          const parsedState = JSON.parse(rawState)
-          if (parsedState && parsedState.status) {
+          try {
+            parsedState = JSON.parse(rawState)
+          } catch {
+            parsedState = null
+          }
+        }
+        if (!parsedState && memoryState) {
+          parsedState = memoryState
+        }
+
+        let hasValidResult = false
+        if (rawResult) {
+          try {
+            const parsedResult = JSON.parse(rawResult)
             if (
-              parsedState.status === 'paused' ||
-              parsedState.status === 'running' ||
-              parsedState.status === 'not_started'
+              parsedResult &&
+              Array.isArray(parsedResult.entries) &&
+              parsedResult.entries.length > 0
             ) {
-              // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): purgar etapa de quali da lista de concluídas
-              // se o estado canônico estiver not_started (ou paused/running)
+              hasValidResult = true
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (
+          !hasValidResult &&
+          memoryResult &&
+          Array.isArray(memoryResult.entries) &&
+          memoryResult.entries.length > 0
+        ) {
+          hasValidResult = true
+        }
+
+        if (parsedState && parsedState.status) {
+          if (
+            parsedState.status === 'paused' ||
+            parsedState.status === 'running' ||
+            parsedState.status === 'not_started'
+          ) {
+            // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): purgar etapa de quali da lista de concluídas
+            // se o estado canônico estiver not_started (ou paused/running)
+            if (validated.has(stg)) {
+              validated.delete(stg)
+              modified = true
+            }
+          } else if (parsedState.status === 'completed') {
+            // Só considerar concluída se houver resultado persistido com entries válidas
+            if (hasValidResult) {
+              if (!validated.has(stg)) {
+                validated.add(stg)
+                modified = true
+              }
+            } else {
+              // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): Sem resultado persistido válido, purgar da lista de concluídas
               if (validated.has(stg)) {
                 validated.delete(stg)
                 modified = true
               }
-            } else if (parsedState.status === 'completed') {
-              // Só considerar concluída se houver resultado persistido com entries válidas
-              let hasValidResult = false
-              if (rawResult) {
-                try {
-                  const parsedResult = JSON.parse(rawResult)
-                  if (
-                    parsedResult &&
-                    Array.isArray(parsedResult.entries) &&
-                    parsedResult.entries.length > 0
-                  ) {
-                    hasValidResult = true
-                  }
-                } catch {
-                  // ignore
-                }
-              }
-
-              if (hasValidResult) {
-                if (!validated.has(stg)) {
-                  validated.add(stg)
-                  modified = true
-                }
-              } else {
-                // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): Sem resultado persistido válido, purgar da lista de concluídas
-                if (validated.has(stg)) {
-                  validated.delete(stg)
-                  modified = true
-                }
-              }
             }
           }
+        } else if (hasValidResult) {
+          // SQ3-GUARD-PB-01A: Se o resultado canônico oficial está presente e válido (mesmo se o rawState foi expurgado),
+          // garantir que a fase conste como concluída
+          if (!validated.has(stg)) {
+            validated.add(stg)
+            modified = true
+          }
         } else {
-          // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): se estado canônico ausente, purgar da lista de concluídas
+          // BUG-SQ1-RESULT-INTEGRITY-01 (Correção 3): se estado canônico ausente e sem resultado, purgar da lista de concluídas
           if (validated.has(stg)) {
             validated.delete(stg)
             modified = true
