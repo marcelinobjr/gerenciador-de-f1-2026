@@ -1671,43 +1671,59 @@ export class CanonicalRaceResultService {
           const pbModule = await import('@/lib/pocketbase/client')
           const pb = pbModule.default
           if (pb?.send) {
-            // Assegura valores estritamente numéricos para beforeMorale, delta e finalMorale (0 incluso, nunca undefined ou omitido)
-            const safeBeforeMorale =
-              typeof context?.beforeMorale === 'number' && !isNaN(context.beforeMorale)
-                ? Math.round(context.beforeMorale)
-                : typeof (entry as any)?.beforeMorale === 'number' &&
-                    !isNaN((entry as any).beforeMorale)
-                  ? Math.round((entry as any).beforeMorale)
+            // Coerção estrita numérica: delta, before_morale e final_morale sempre presentes e Number.isFinite (0 incluso)
+            const rawBeforeCandidate =
+              Number.isFinite(context?.beforeMorale)
+                ? (context?.beforeMorale as number)
+                : Number.isFinite((entry as any)?.beforeMorale)
+                  ? ((entry as any)?.beforeMorale as number)
+                  : Number.isFinite((entry as any)?.morale)
+                    ? ((entry as any)?.morale as number)
+                    : 80
+            const safeBeforeMorale: number = Number.isFinite(rawBeforeCandidate)
+              ? Math.round(rawBeforeCandidate)
+              : 80
+                  ? Number((entry as any).beforeMorale)
                   : typeof (entry as any)?.morale === 'number' && !isNaN((entry as any).morale)
-                    ? Math.round((entry as any).morale)
+                    ? Number((entry as any).morale)
                     : 80
 
-            const safeFinalMorale =
+            const safeBeforeMorale = Number.isFinite(resolvedBefore)
+              ? Math.round(resolvedBefore)
+              : 80
+
+            const resolvedFinal =
               typeof newMorale === 'number' && !isNaN(newMorale)
-                ? Math.max(0, Math.min(100, Math.round(newMorale)))
+                ? Number(newMorale)
                 : safeBeforeMorale
 
-            const safeDelta =
+            const safeFinalMorale = Number.isFinite(resolvedFinal)
+              ? Math.max(0, Math.min(100, Math.round(resolvedFinal)))
+              : safeBeforeMorale
+
+            const resolvedDelta =
               typeof context?.delta === 'number' && !isNaN(context.delta)
-                ? Math.round(context.delta)
+                ? Number(context.delta)
                 : safeFinalMorale - safeBeforeMorale
+
+            const safeDelta = Number.isFinite(resolvedDelta) ? Math.round(resolvedDelta) : 0
 
             const atomicRes = await pb.send<any>('/backend/v1/driver-morale/apply-atomic', {
               method: 'POST',
               body: {
                 careerId: officialResult.careerId,
-                season: officialResult.season,
-                round: officialResult.round,
+                season: Number(officialResult.season) || 2026,
+                round: Number(officialResult.round) || 1,
                 sessionType,
                 driverId: targetDbId,
-                driverName: entry?.driverName,
+                driverName: entry?.driverName || '',
                 driverSlug: driverId,
                 beforeMorale: safeBeforeMorale,
                 before_morale: safeBeforeMorale,
                 delta: safeDelta,
                 finalMorale: safeFinalMorale,
                 final_morale: safeFinalMorale,
-                officializedAt: officialResult.officializedAt,
+                officializedAt: officialResult.officializedAt || new Date().toISOString(),
               },
             })
             if (
