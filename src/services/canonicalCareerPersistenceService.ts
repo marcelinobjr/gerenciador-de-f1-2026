@@ -211,9 +211,14 @@ export class CanonicalCareerPersistenceService {
     }
 
     try {
+      const sNum =
+        typeof season === 'number'
+          ? season
+          : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
+      const rNum = Number(round) || 1
       const filter = legacyKey
-        ? `journal_key = "${key}" || journal_key = "${legacyKey}" || (career_id = "${careerId}" && round = ${round})`
-        : `journal_key = "${key}" || (career_id = "${careerId}" && round = ${round})`
+        ? `journal_key = "${key}" || journal_key = "${legacyKey}" || (career_id = "${careerId}" && round = ${rNum} && season = ${sNum})`
+        : `journal_key = "${key}" || (career_id = "${careerId}" && round = ${rNum} && season = ${sNum})`
 
       const records = await pb.collection('canonical_career_apply_journals').getFullList({
         filter,
@@ -1519,7 +1524,15 @@ export class CanonicalCareerPersistenceService {
             filter: `career_id = "${careerId}" && season = ${sNum} && round = ${rNum}`,
             fields: 'driver_id,driver_slug,operation_key',
           })
-          .catch(() => [])
+          .catch((err) => {
+            console.error(
+              '[canonicalCareerPersistenceService] Erro ao carregar canonical_driver_morale_receipts:',
+              err,
+            )
+            throw new Error(
+              `Falha ao ler recibos de moral para reconciliação: ${err?.message || err}`,
+            )
+          })
 
         if (Array.isArray(existingReceipts) && existingReceipts.length > 0) {
           for (const rec of existingReceipts) {
