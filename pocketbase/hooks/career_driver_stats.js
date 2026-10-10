@@ -2,15 +2,17 @@
 
 /**
  * Hook Server-side: Operação Transacional Atômica de Estatísticas de Piloto na Carreira
- * Microbloco RACE-CAREER-SAVE-01D2B1A: Identidade do Piloto no Hook (Contrato Fechado)
+ * Microbloco RACE-CAREER-SAVE-01D2B1A-FIX: Identidade Estrita do Piloto no Hook (Sem Resolução por Nome)
  *
  * Contrato de rota:
  * POST /backend/v1/career-driver-stats/apply-atomic
  * GET  /backend/v1/career-driver-stats/receipt
  *
- * CONTRATO DE IDENTIDADE (01D2B1A):
+ * CONTRATO DE IDENTIDADE (01D2B1A-FIX):
  * 1. Resolução da identidade do piloto e careerDriverId:
- *    - O alvo é identificado pelo ID real da coleção 'drivers' (ou nome resolvido para 'drivers').
+ *    - O alvo é identificado estritamente pelo ID real da coleção 'drivers'.
+ *    - ID inexistente gera erro explícito 400 antes de qualquer cálculo ou escrita.
+ *    - Sem busca nem fallback por nome, grid ou ordem de array.
  *    - careerDriverId NÃO é obrigatório na entrada do endpoint.
  *    - No PocketBase não existe tabela 'career_drivers'; o identificador de recibo career_driver_id
  *      é preenchido com `${careerId}_${driverId}` (ou o valor explícito se enviado), garantindo
@@ -285,6 +287,52 @@ routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
             message: `Conflito de resultado oficial: checksum em race_results ('${canonicalChecksum}') diverge do result_hash fornecido ('${resultHash}').`,
           }
           return
+        }
+
+        // Vínculo com participantes do resultado canônico:
+        // Se o resultado canônico contiver snapshot/participantes ou driver_id vinculado,
+        // validar se este piloto pertence à prova.
+        const resultSnapshot = existingResult.get('result_snapshot')
+        if (resultSnapshot && typeof resultSnapshot === 'object') {
+          const participants =
+            resultSnapshot.participants ||
+            resultSnapshot.standings ||
+            resultSnapshot.results ||
+            resultSnapshot.classification ||
+            null
+          if (Array.isArray(participants) && participants.length > 0) {
+            const isParticipant = participants.some((p) => {
+              if (!p) return false
+              if (
+                p.driverId === realDriverId ||
+                p.driver_id === realDriverId ||
+                p.id === realDriverId
+              ) {
+                return true
+              }
+              // Se o participante registrar slug canônico, comparar via driverSlug do payload ou driverRecord
+              if (driverSlug && (p.driverSlug === driverSlug || p.slug === driverSlug)) {
+                return true
+              }
+              return false
+            })
+            if (!isParticipant) {
+              responseStatusCode = 400
+              responseData = {
+                status: 'unlinked_participant',
+                code: 'DRIVER_NOT_IN_CANONICAL_RACE',
+                operationKey,
+                careerId: c,
+                season: s,
+                round: r,
+                session: sess,
+                driverId: realDriverId,
+                careerDriverId: resolvedCareerDriverId,
+                message: `Piloto '${realDriverId}' não possui vínculo verificável com os participantes da prova oficial registrada.`,
+              }
+              return
+            }
+          }
         }
       }
     } catch (_) {
@@ -573,7 +621,6 @@ routerAdd('GET', '/backend/v1/career-driver-stats/receipt', (e) => {
   const round = Number(query.get('round')) || 1
   const session = query.get('session') || query.get('sessionType') || 'MAIN_RACE'
   const driverId = query.get('driverId') || ''
-  const driverName = query.get('driverName') || ''
 
   if (!careerId) {
     throw new BadRequestError('careerId é obrigatório')

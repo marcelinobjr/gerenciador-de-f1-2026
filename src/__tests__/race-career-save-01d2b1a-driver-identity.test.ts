@@ -95,11 +95,8 @@ describe('RACE-CAREER-SAVE-01D2B1A — Somente a Identidade do Piloto no Hook', 
       }
     }
 
-    // 3. Resolver piloto persistente em 'drivers'
-    let driverRecord = inMemoryDb.drivers[reqDriverId]
-    if (!driverRecord && reqDriverName) {
-      driverRecord = Object.values(inMemoryDb.drivers).find((d) => d.name === reqDriverName)
-    }
+    // 3. Resolver piloto persistente em 'drivers' estritamente por ID (sem busca por nome)
+    const driverRecord = inMemoryDb.drivers[reqDriverId]
     if (!driverRecord) {
       return {
         status: 400,
@@ -170,6 +167,38 @@ describe('RACE-CAREER-SAVE-01D2B1A — Somente a Identidade do Piloto no Hook', 
               incomingResultHash: reqHash,
               message: 'Conflito de resultado oficial: checksum diverge do result_hash fornecido.',
             },
+          }
+        }
+
+        // Validação de vínculo canônico com os participantes da prova
+        if (
+          existingResult.result_snapshot &&
+          Array.isArray(existingResult.result_snapshot.participants)
+        ) {
+          const participants = existingResult.result_snapshot.participants
+          const isParticipant = participants.some((p: any) => {
+            if (!p) return false
+            if (
+              p.driverId === realDriverId ||
+              p.driver_id === realDriverId ||
+              p.id === realDriverId
+            )
+              return true
+            if (reqDriverSlug && (p.driverSlug === reqDriverSlug || p.slug === reqDriverSlug))
+              return true
+            return false
+          })
+          if (!isParticipant) {
+            return {
+              status: 400,
+              body: {
+                status: 'unlinked_participant',
+                code: 'DRIVER_NOT_IN_CANONICAL_RACE',
+                operationKey,
+                driverId: realDriverId,
+                message: `Piloto '${realDriverId}' não possui vínculo verificável com os participantes da prova oficial registrada.`,
+              },
+            }
           }
         }
       }
@@ -421,6 +450,78 @@ describe('RACE-CAREER-SAVE-01D2B1A — Somente a Identidade do Piloto no Hook', 
     ).rejects.toThrow(/não encontrado na coleção 'drivers'/)
 
     // Nenhuma gravação efetuada
+    const receiptsAfter = Object.keys(inMemoryDb.canonical_career_driver_stats_receipts).length
+    expect(receiptsAfter).toBe(receiptsBefore)
+  })
+
+  // ---------------------------------------------------------------------------
+  // 4b. ID inexistente acompanhado de nome válido NÃO deve ser resolvido por nome (01D2B1A-FIX)
+  // ---------------------------------------------------------------------------
+  it('4b. ID inexistente acompanhado de nome válido é rejeitado sem resolução por nome e sem escritas', async () => {
+    const payload = {
+      careerId,
+      season,
+      round,
+      session,
+      driverId: unknownDriverId, // ID não existe
+      driverName: 'Gabriel Bortoleto', // Nome existe no banco, mas NUNCA deve ser usado como fallback
+      resultHash: validResultHash,
+      deltas: { deltaGps: 1, deltaPoints: 25 },
+    }
+
+    const receiptsBefore = Object.keys(inMemoryDb.canonical_career_driver_stats_receipts).length
+    const originalBortoletoPoints =
+      inMemoryDb.drivers[validDriverId].procedural_data.career_stats.points
+
+    await expect(
+      pb.send('/backend/v1/career-driver-stats/apply-atomic', {
+        method: 'POST',
+        body: payload,
+      }),
+    ).rejects.toThrow(/não encontrado na coleção 'drivers'/)
+
+    // Comprova que NÃO houve alteração nas estatísticas do piloto Gabriel Bortoleto
+    expect(inMemoryDb.drivers[validDriverId].procedural_data.career_stats.points).toBe(
+      originalBortoletoPoints,
+    )
+    // Comprova que NENHUM recibo foi criado
+    const receiptsAfter = Object.keys(inMemoryDb.canonical_career_driver_stats_receipts).length
+    expect(receiptsAfter).toBe(receiptsBefore)
+  })
+
+  // ---------------------------------------------------------------------------
+  // 4c. Piloto sem vínculo com a prova canônica é rejeitado mesmo com ID real válido
+  // ---------------------------------------------------------------------------
+  it('4c. Piloto sem vínculo com a prova canônica é rejeitado mesmo que nome coincida', async () => {
+    // Configura resultado com participantes explícitos
+    inMemoryDb.race_results[`race_result_${careerId}_s2026_1`].result_snapshot = {
+      participants: [
+        { driverId: validDriverId, driverSlug: 'bortoleto', name: 'Gabriel Bortoleto' },
+      ],
+    }
+
+    // Piloto Max Verstappen (aiDriverId) tem ID válido em drivers, mas NÃO está nos participantes desta prova
+    const payload = {
+      careerId,
+      season,
+      round,
+      session,
+      driverId: aiDriverId,
+      driverName: 'Max Verstappen',
+      resultHash: validResultHash,
+      deltas: { deltaGps: 1, deltaPoints: 18 },
+    }
+
+    const receiptsBefore = Object.keys(inMemoryDb.canonical_career_driver_stats_receipts).length
+
+    await expect(
+      pb.send('/backend/v1/career-driver-stats/apply-atomic', {
+        method: 'POST',
+        body: payload,
+      }),
+    ).rejects.toThrow(/não possui vínculo verificável com os participantes da prova/)
+
+    // Comprova isolamento: nenhuma estatística alterada e nenhum recibo criado
     const receiptsAfter = Object.keys(inMemoryDb.canonical_career_driver_stats_receipts).length
     expect(receiptsAfter).toBe(receiptsBefore)
   })
