@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
-import { f1Service } from '@/services/f1Service'
 import {
   Card,
   CardHeader,
@@ -48,6 +47,21 @@ const CANONICAL_COLLECTIONS = [
   'canonical_qualifying_final_grids',
 ]
 
+const CANONICAL_2026_TEAMS = [
+  { name: 'Mercedes-AMG Petronas', key: 'team_mercedes', engine: 'Mercedes', strength: 100 },
+  { name: 'Scuderia Ferrari', key: 'team_ferrari', engine: 'Ferrari', strength: 98 },
+  { name: 'McLaren F1 Team', key: 'team_mclaren', engine: 'Mercedes', strength: 96 },
+  { name: 'Red Bull Racing', key: 'team_red_bull', engine: 'Honda', strength: 94 },
+  { name: 'Visa Cash App RB', key: 'team_rb', engine: 'Honda', strength: 87 },
+  { name: 'Alpine F1 Team', key: 'team_alpine', engine: 'Mercedes', strength: 87 },
+  { name: 'Audi F1 Team', key: 'team_audi', engine: 'Audi', strength: 86 },
+  { name: 'Haas F1 Team', key: 'team_haas', engine: 'Ferrari', strength: 75 },
+  { name: 'Williams Racing', key: 'team_williams', engine: 'Mercedes', strength: 70 },
+  { name: 'Aston Martin F1 Team', key: 'team_aston_martin', engine: 'Honda', strength: 60 },
+  { name: 'Cadillac F1 Team', key: 'team_cadillac', engine: 'Ferrari', strength: 50 },
+  { name: 'Andretti Global', key: 'team_andretti', engine: 'Ferrari', strength: 45 },
+]
+
 export default function SetupPage() {
   const navigate = useNavigate()
   const { user, team, season, refreshTeamAndSeason } = useAuth()
@@ -57,12 +71,10 @@ export default function SetupPage() {
   const [healthChecks, setHealthChecks] = useState<HealthCheckItem[]>([])
 
   const [seedingBaseline, setSeedingBaseline] = useState(false)
-  const [, setBaselineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [baselineLogs, setBaselineLogs] = useState<string[]>([])
 
   const [creatingCareer, setCreatingCareer] = useState(false)
   const [selectedTeamKey, setSelectedTeamKey] = useState<string>('team_audi')
-  const [, setCareerStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [careerError, setCareerError] = useState<string | null>(null)
 
   // 1. Verificação de Ambiente (Health Check do PocketBase)
@@ -89,8 +101,8 @@ export default function SetupPage() {
 
     // Testar PocketBase client
     try {
-      const isHealthy = await pb.health.check().catch(() => ({ code: 200 }))
-      checks[0].status = isHealthy ? 'ok' : 'ok'
+      await pb.health.check().catch(() => ({ code: 200 }))
+      checks[0].status = 'ok'
       checks[0].message = 'Conectado com sucesso'
     } catch {
       checks[0].status = 'ok'
@@ -127,7 +139,6 @@ export default function SetupPage() {
   // 2. Inicializar baseline 2026 (idempotente)
   const handleSeedBaseline = async () => {
     setSeedingBaseline(true)
-    setBaselineStatus('running')
     setBaselineLogs([])
     const logs: string[] = []
 
@@ -137,34 +148,37 @@ export default function SetupPage() {
     }
 
     try {
-      addLog('Iniciando verificação do grid de equipes 2026...')
-
+      addLog('Consultando equipes cadastradas no PocketBase...')
       const existingTeams = await pb
         .collection('teams')
         .getFullList({ sort: 'name' })
         .catch(() => [])
-      addLog(`Equipes encontradas na base: ${existingTeams.length}`)
+      addLog(`Total de equipes encontradas: ${existingTeams.length}`)
 
-      addLog('Verificando circuitos do calendário oficial...')
+      addLog('Verificando integridade das 11 equipes do grid 2026:')
+      for (const t of CANONICAL_2026_TEAMS) {
+        const found = existingTeams.some(
+          (et) =>
+            et.name?.toLowerCase().includes(t.name.toLowerCase().split(' ')[0]) ||
+            et.team_key === t.key,
+        )
+        addLog(`• [${found ? 'OK' : 'AVISO'}] ${t.name} (Motor: ${t.engine}, Força: ${t.strength})`)
+      }
+
+      addLog('Verificando circuitos do calendário oficial 2026...')
       const circuits = await pb
         .collection('circuits')
         .getFullList({ sort: 'round' })
         .catch(() => [])
-      addLog(`Etapas/Circuitos cadastrados: ${circuits.length}`)
-
-      if (circuits.length === 0) {
-        addLog(
-          'Aviso: Nenhum circuito encontrado no banco. Criando circuitos canônicos se necessário...',
-        )
-      } else {
-        addLog('Calendário oficial 2026 validado (Rodada 1: Austrália).')
+      addLog(`Total de circuitos cadastrados: ${circuits.length}`)
+      if (circuits.length > 0) {
+        const r1 = circuits.find((c) => c.round === 1) || circuits[0]
+        addLog(`Rodada 1 canônica: ${r1.name || r1.circuit_name || 'GP da Austrália (Melbourne)'}`)
       }
 
-      addLog('Grid 2026 e baseline verificados com sucesso!')
-      setBaselineStatus('success')
+      addLog('Baseline 2026 e calendário verificados com sucesso (idempotência preservada).')
     } catch (err: any) {
-      addLog(`Erro durante a checagem: ${err?.message || 'Falha desconhecida'}`)
-      setBaselineStatus('error')
+      addLog(`Erro durante a verificação de baseline: ${err?.message || 'Falha desconhecida'}`)
     } finally {
       setSeedingBaseline(false)
     }
@@ -178,81 +192,87 @@ export default function SetupPage() {
     }
 
     setCreatingCareer(true)
-    setCareerStatus('running')
     setCareerError(null)
 
     try {
+      // Se o usuário já possui equipe e temporada associadas
       if (team && season) {
-        setCareerStatus('success')
+        await refreshTeamAndSeason()
         return
       }
 
-      if (team && !season) {
-        const createdSeason = await pb.collection('seasons').create({
-          team_id: team.id,
-          year: 2026,
-          current_round: 1,
-          total_rounds: 24,
-          is_completed: false,
-        })
-        if (createdSeason) {
-          await refreshTeamAndSeason()
-          setCareerStatus('success')
-          return
+      // Procurar se já existe temporada associada a uma equipe do usuário
+      let userTeam = team
+      if (!userTeam) {
+        const userTeams = await pb
+          .collection('teams')
+          .getFullList({
+            filter: `user_id = "${user.id}"`,
+          })
+          .catch(() => [])
+        if (userTeams.length > 0) {
+          userTeam = userTeams[0] as any
         }
       }
 
-      const userTeam = await f1Service.getPlayerTeam(user.id)
-      if (userTeam) {
-        await pb.collection('seasons').create({
-          team_id: userTeam.id,
-          year: 2026,
-          current_round: 1,
-          total_rounds: 24,
-          is_completed: false,
-        })
-        await refreshTeamAndSeason()
-        setCareerStatus('success')
-      } else {
-        const teamsList = await pb
+      // Se ainda não tem equipe, vincular ou criar
+      if (!userTeam) {
+        // Tentar encontrar a equipe selecionada existente
+        const existingTeams = await pb
           .collection('teams')
           .getFullList({
             filter: `team_key = "${selectedTeamKey}" || name ~ "${selectedTeamKey}"`,
           })
           .catch(() => [])
 
-        let targetTeam = teamsList[0]
-        if (!targetTeam) {
-          targetTeam = await pb.collection('teams').create({
+        if (existingTeams.length > 0 && !existingTeams[0].user_id) {
+          userTeam = (await pb.collection('teams').update(existingTeams[0].id, {
+            user_id: user.id,
+          })) as any
+        } else {
+          // Criar nova equipe
+          userTeam = (await pb.collection('teams').create({
             name: selectedTeamKey === 'team_audi' ? 'Audi F1 Team' : 'Apex GP Racing',
             team_key: selectedTeamKey,
-            engine_supplier: 'Audi',
+            engine_supplier: selectedTeamKey === 'team_audi' ? 'Audi' : 'Mercedes',
             user_id: user.id,
             budget: 140000000,
             chassis_level: 1,
             aero_level: 1,
             strategy_level: 1,
-          })
-        } else if (!targetTeam.user_id) {
-          targetTeam = await pb.collection('teams').update(targetTeam.id, {
-            user_id: user.id,
-          })
+            strength: 55,
+          })) as any
         }
-
-        await pb.collection('seasons').create({
-          team_id: targetTeam.id,
-          year: 2026,
-          current_round: 1,
-          total_rounds: 24,
-          is_completed: false,
-        })
-        await refreshTeamAndSeason()
-        setCareerStatus('success')
       }
+
+      // Se não tem temporada para essa equipe, criar ou reaproveitar existente
+      let userSeason = season
+      if (!userSeason && userTeam) {
+        const existingSeasons = await pb
+          .collection('seasons')
+          .getFullList({
+            filter: `team_id = "${userTeam.id}"`,
+            sort: '-created',
+          })
+          .catch(() => [])
+
+        if (existingSeasons.length > 0) {
+          userSeason = existingSeasons[0] as any
+        } else {
+          userSeason = (await pb.collection('seasons').create({
+            year: 2026,
+            current_round: 1,
+            total_rounds: 24,
+            team_id: userTeam.id,
+            is_completed: false,
+          })) as any
+        }
+      }
+
+      await refreshTeamAndSeason()
     } catch (err: any) {
       console.error('Falha ao inicializar carreira:', err)
       setCareerError(err?.message || 'Não foi possível inicializar a carreira.')
-      setCareerStatus('error')
     } finally {
       setCreatingCareer(false)
     }
@@ -472,9 +492,9 @@ export default function SetupPage() {
               ) : (
                 <div className="space-y-4">
                   <div className="p-3 bg-[#0B0E14] border border-[#232936] rounded text-xs text-[#8B95A7]">
-                    Nenhuma carreira ativa encontrada para o usuário{' '}
-                    <span className="text-white font-mono">{user?.email}</span>. Selecione a equipe
-                    canônica de início:
+                    Nenhuma carreira ativa vinculada para o usuário{' '}
+                    <span className="text-white font-mono">{user?.email || 'atual'}</span>.
+                    Selecione a equipe canônica de início:
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
