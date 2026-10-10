@@ -1449,7 +1449,6 @@ export class CanonicalRaceEngineService {
         }
       }
     }
-
     // 7. Checar Finalização da Prova (Regra 11 — Bandeira Quadriculada ou All-DNF)
     // Quando o líder completa as voltas regulamentares (totalLaps) OU todos os carros abandonaram:
     const leaderLaps = activeDrivers[0]?.lap || 0
