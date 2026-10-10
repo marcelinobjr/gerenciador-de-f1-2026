@@ -1684,21 +1684,17 @@ export class CanonicalRaceResultService {
               ? Math.round(rawBeforeCandidate)
               : 80
 
-            const resolvedFinal =
-              typeof newMorale === 'number' && !isNaN(newMorale)
-                ? Number(newMorale)
-                : safeBeforeMorale
-
-            const safeFinalMorale = Number.isFinite(resolvedFinal)
-              ? Math.max(0, Math.min(100, Math.round(resolvedFinal)))
+            const safeFinalMorale: number = Number.isFinite(newMorale)
+              ? Math.max(0, Math.min(100, Math.round(newMorale as number)))
               : safeBeforeMorale
 
-            const resolvedDelta =
-              typeof context?.delta === 'number' && !isNaN(context.delta)
-                ? Number(context.delta)
-                : safeFinalMorale - safeBeforeMorale
+            const safeDelta: number = Number.isFinite(context?.delta)
+              ? Math.round(context?.delta as number)
+              : Math.round(safeFinalMorale - safeBeforeMorale)
 
-            const safeDelta = Number.isFinite(resolvedDelta) ? Math.round(resolvedDelta) : 0
+            const payloadBeforeMorale: number = Number.isFinite(safeBeforeMorale) ? safeBeforeMorale : 0
+            const payloadDelta: number = Number.isFinite(safeDelta) ? safeDelta : 0
+            const payloadFinalMorale: number = Number.isFinite(safeFinalMorale) ? safeFinalMorale : payloadBeforeMorale
 
             const atomicRes = await pb.send<any>('/backend/v1/driver-morale/apply-atomic', {
               method: 'POST',
@@ -1710,15 +1706,14 @@ export class CanonicalRaceResultService {
                 driverId: targetDbId,
                 driverName: entry?.driverName || '',
                 driverSlug: driverId,
-                beforeMorale: safeBeforeMorale,
-                before_morale: safeBeforeMorale,
-                delta: safeDelta,
-                finalMorale: safeFinalMorale,
-                final_morale: safeFinalMorale,
-                officializedAt: officialResult.officializedAt || new Date().toISOString(),
+                beforeMorale: payloadBeforeMorale,
+                before_morale: payloadBeforeMorale,
+                delta: payloadDelta,
+                finalMorale: payloadFinalMorale,
+                final_morale: payloadFinalMorale,
+                officializedAt: officialResult.officializedAt,
               },
-            })
-            if (
+            })            if (
               atomicRes &&
               (atomicRes.status === 'applied' || atomicRes.status === 'already_applied')
             ) {

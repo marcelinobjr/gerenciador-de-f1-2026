@@ -1501,7 +1501,41 @@ export class CanonicalCareerPersistenceService {
     }
 
     // 4. LOOP ASSÍNCRONO DE APLICAÇÃO DOS PILOTOS COM CHECKPOINTS REMOTOS AGUARDADOS
+    // Reconciliação prévia: se estamos retomando ou iniciando, buscar recibos já emitidos no backend
+    // para que appliedDriverIds reflita recibos confirmados por operation_key e nenhum delta seja reaplicado.
     const appliedSet = new Set<string>(journal.appliedDriverIds || [])
+    try {
+      const pbModule = await import('@/lib/pocketbase/client')
+      const pb = pbModule.default
+      if (pb?.collection) {
+        const sNum =
+          typeof season === 'number'
+            ? season
+            : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
+        const rNum = Number(round) || 1
+        const existingReceipts = await pb
+          .collection('canonical_driver_morale_receipts')
+          .getFullList({
+            filter: `career_id = "${careerId}" && season = ${sNum} && round = ${rNum}`,
+            fields: 'driver_id,driver_slug,operation_key',
+          })
+          .catch(() => [])
+
+        if (Array.isArray(existingReceipts) && existingReceipts.length > 0) {
+          for (const rec of existingReceipts) {
+            if (rec.driver_id) appliedSet.add(rec.driver_id)
+            if (rec.driver_slug) appliedSet.add(rec.driver_slug)
+          }
+          journal.appliedDriverIds = Array.from(appliedSet)
+        }
+      }
+    } catch (reconcileErr) {
+      console.warn(
+        '[CareerPersistence] Aviso ao reconciliar recibos de moral prévios:',
+        reconcileErr,
+      )
+    }
+
     const entries = officialResult.entries
 
     for (let i = 0; i < entries.length; i++) {
