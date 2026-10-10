@@ -684,8 +684,8 @@ export default function WeekendV2Page() {
             const gridResult = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
             setCompleteQualifyingResult(gridResult)
 
-            // QGRID-PB-01B: Se for corrida principal e o grid não estiver na memória, buscar de forma assíncrona preferindo PocketBase
-            if (!isSprintTarget && !gridResult) {
+            // QGRID-PB-01B / GRID-R2-RECOVER-01A: Se o grid não estiver na memória, buscar de forma assíncrona preferindo PocketBase (race e sprint_race)
+            if (!gridResult) {
               canonicalQualifyingPersistenceService
                 .readFinalGridPreferred(season.id, currentRound)
                 .then((outcome) => {
@@ -1414,8 +1414,8 @@ export default function WeekendV2Page() {
         const fullGrid = resolveRaceOrSprintGrid(season.id, currentRound, isSprintTarget)
         setCompleteQualifyingResult(fullGrid)
 
-        // QGRID-PB-01B: Se for corrida principal e o grid não estiver na memória, buscar backend-first
-        if (!isSprintTarget && !fullGrid) {
+        // QGRID-PB-01B / GRID-R2-RECOVER-01A: Se o grid não estiver na memória, buscar backend-first (race e sprint_race)
+        if (!fullGrid) {
           canonicalQualifyingPersistenceService
             .readFinalGridPreferred(season.id, currentRound)
             .then((outcome) => {
