@@ -1683,14 +1683,6 @@ export class CanonicalRaceResultService {
             const safeBeforeMorale: number = Number.isFinite(rawBeforeCandidate)
               ? Math.round(rawBeforeCandidate)
               : 80
-                  ? Number((entry as any).beforeMorale)
-                  : typeof (entry as any)?.morale === 'number' && !isNaN((entry as any).morale)
-                    ? Number((entry as any).morale)
-                    : 80
-
-            const safeBeforeMorale = Number.isFinite(resolvedBefore)
-              ? Math.round(resolvedBefore)
-              : 80
 
             const resolvedFinal =
               typeof newMorale === 'number' && !isNaN(newMorale)
