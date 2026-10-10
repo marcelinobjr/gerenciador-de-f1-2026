@@ -134,7 +134,6 @@ describe('BUG-INTEGRIDADE-05B — Suíte Canônica de Bandeiras', () => {
       'src/components/race/SillySeasonModal.tsx',
       'src/pages/Team.tsx',
       'src/pages/Index.tsx',
-      'src/services/weekendSimulationService.ts',
     ]
 
     for (const relativePath of filesToCheck) {

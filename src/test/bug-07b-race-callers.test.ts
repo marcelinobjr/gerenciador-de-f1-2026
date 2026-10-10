@@ -1,13 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { weekendSimulationService } from '@/services/weekendSimulationService'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { canonicalCareerPersistenceService } from '@/services/canonicalCareerPersistenceService'
 import type { TeamModel, DriverModel, SeasonModel } from '@/types/f1'
 import type { SessionTimeResult } from '@/pages/race/types'
-import type { CanonicalRaceState } from '@/types/canonical-race-v2'
-import weekendSimServiceSource from '@/services/weekendSimulationService.ts?raw'
+import canonicalRaceEngineSource from '@/services/canonicalRaceEngineService.ts?raw'
 
 describe('BUG-07B: Race Callers Canonical Routing Contract', () => {
   const mockTeam: TeamModel = {
@@ -111,20 +109,47 @@ describe('BUG-07B: Race Callers Canonical Routing Contract', () => {
   }
 
   /**
-   * BUG7B-01: Caller canônico / simulação — ação "Simular restante" usa simulateRemainingWeekend ou adapter canônico equivalente;
-   * a cadeia chega ao caminho homologado do BUG-07A; PASS se não existir gerador esportivo alternativo no caller.
+   * BUG7B-01: Canonical race engine não contém gerador sintético de resultado esportivo alternativo.
    */
-  it('BUG7B-01: weekendSimulationService routes "Simular restante" through canonical adapter without alternative sports generator', () => {
-    // weekendSimulationService delega simulateRemainingWeekend para simulateRaceSessionCanonical
-    expect(weekendSimServiceSource).toMatch(/simulateRaceSessionCanonical\s*\(/)
+  it('BUG7B-01: canonicalRaceEngine routes race through canonical runner without alternative sports generator', () => {
+    expect(canonicalRaceEngineSource).not.toMatch(/function\s+generateFallbackRaceResults/i)
+    expect(canonicalRaceEngineSource).not.toMatch(/const\s+generateAlternativeRace/i)
   })
 
   /**
-   * BUG7B-05: resultado oficial é processado UMA VEZ — uma simulação →
-   * um OfficialRaceResult → um registerOfficialRaceResultInCareer → uma aplicação de championship.
+   * BUG7B-05: resultado oficial é processado UMA VEZ — uma corrida →
+   * um OfficialRaceResult → um registerOfficialRaceResultInCareer.
    */
-  it('BUG7B-05: official race result is processed exactly once without caller duplication', async () => {
-    // Teste dinâmico de invocação única: uma simulação dispara exatamente 1 officializeRace e 1 register
+  it('BUG7B-05: official race result is processed exactly once without caller duplication', () => {
+    const qualyGrid = createQualyGrid24().map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player_07b' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
+
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_07b_single',
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 20,
+      playerTeamId: 'team_player_07b',
+      canonicalQualifyingGrid: qualyGrid,
+    })
+
+    const finished = canonicalRaceEngineService.advanceMultipleLaps(race, 20, { seedOverride: 111 })
     const officializeSpy = vi.spyOn(canonicalRaceResultService, 'officializeRace')
     const registerSpy = vi.spyOn(
       canonicalCareerPersistenceService,
@@ -132,16 +157,8 @@ describe('BUG-07B: Race Callers Canonical Routing Contract', () => {
     )
 
     try {
-      const qualyGrid = createQualyGrid24()
-      await (weekendSimulationService as any).simulateRaceSessionCanonical({
-        team: mockTeam,
-        season: mockSeason,
-        drivers: mockDrivers,
-        parts: [],
-        gpMeta: { name: 'GP Brasil', round: 1, laps: 20 },
-        currentRound: 1,
-        qualyGrid,
-      })
+      const official = canonicalRaceResultService.officializeRace(finished)
+      canonicalCareerPersistenceService.registerOfficialRaceResultInCareer(official)
 
       expect(officializeSpy).toHaveBeenCalledTimes(1)
       expect(registerSpy).toHaveBeenCalledTimes(1)

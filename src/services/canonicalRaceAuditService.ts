@@ -6,7 +6,6 @@
  * garantindo ausência de geradores legados, bônus artificiais de grid, fallbacks locais e duplicações.
  */
 
-import weekendSimServiceSource from '@/services/weekendSimulationService.ts?raw'
 import canonicalRaceEngineSource from '@/services/canonicalRaceEngineService.ts?raw'
 import canonicalRaceResultSource from '@/services/canonicalRaceResultService.ts?raw'
 
@@ -42,13 +41,11 @@ export {
 export function auditCanonicalRaceSimulationPath(sources?: {
   raceSlim?: string
   raceSlimWrapper?: string
-  weekendSim?: string
   canonicalRaceEngine?: string
   canonicalRaceResult?: string
 }): CanonicalRaceSimulationAuditReport {
   const codeSlim = sources?.raceSlim ?? ''
   const codeWrapper = sources?.raceSlimWrapper ?? ''
-  const codeWeekend = sources?.weekendSim ?? weekendSimServiceSource
   const codeEngine = sources?.canonicalRaceEngine ?? canonicalRaceEngineSource
   const codeResult = sources?.canonicalRaceResult ?? canonicalRaceResultSource
 
@@ -75,9 +72,12 @@ export function auditCanonicalRaceSimulationPath(sources?: {
     if (pattern.test(codeWrapper)) legacyGeneratorsFound.push(`RaceSlimWrapper:${name}`)
   }
 
-  // 2. canonicalRaceResultPaths: deve existir exatamente 1 caminho oficial canônico ativo no adapter (simulateRaceSessionCanonical)
-  if (/simulateRaceSessionCanonical\s*\(/.test(codeWeekend)) {
-    canonicalPathsFound.push('weekendSimulationService.simulateRaceSessionCanonical')
+  // 2. canonicalRaceResultPaths: deve existir caminho canônico ativo no canonicalRaceEngineService ou canonicalRaceResultService
+  if (/simulateRace\s*\(/.test(codeEngine) || /simulateCanonicalRace\s*\(/.test(codeEngine)) {
+    canonicalPathsFound.push('canonicalRaceEngineService.simulateRace')
+  }
+  if (/officializeRace\s*\(/.test(codeResult)) {
+    canonicalPathsFound.push('canonicalRaceResultService.officializeRace')
   }
 
   // 3. gridScoreBonuses: fórmulas ativas de score/pace derivadas diretamente de qPos ou gridPosition (ex: (24 - qPos) * 1.5)
@@ -91,7 +91,6 @@ export function auditCanonicalRaceSimulationPath(sources?: {
   ]
 
   for (const { pattern, name } of gridScorePatterns) {
-    if (pattern.test(codeWeekend)) gridScoreBonusesFound.push(`weekendSimulationService:${name}`)
     if (pattern.test(codeEngine)) gridScoreBonusesFound.push(`canonicalRaceEngine:${name}`)
     if (pattern.test(codeSlim)) gridScoreBonusesFound.push(`RaceSlim:${name}`)
   }

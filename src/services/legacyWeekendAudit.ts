@@ -169,12 +169,6 @@ export function auditLegacyWeekendDependencies(): LegacyWeekendAuditReport {
       purpose: 'Controle de transição e avanço entre sessões',
       safeToTouch: false,
     },
-    {
-      name: 'weekendSimulationService',
-      file: 'src/services/weekendSimulationService.ts',
-      purpose: 'Simulação rápida do restante do fim de semana via engine canônica',
-      safeToTouch: false,
-    },
   ]
 
   const legacyOnlyDependencies: LegacyWeekendAuditReport['legacyOnlyDependencies'] = []

@@ -225,6 +225,10 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
   const [fastestLap, setFastestLap] = useState<SimulationFastestLap | null>(null)
   // Resultado final da corrida
   const [simulationResult, setSimulationResult] = useState<RaceSimulationResult | null>(null)
+  const [officialResultAdapter, setOfficialResultAdapter] = useState<OfficialRaceResult | null>(
+    null,
+  )
+  const [officializationError, setOfficializationError] = useState<string | null>(null)
 
   // Resetar simulação quando o circuito ou pilotos mudarem
   const handleResetSimulation = useCallback(() => {
@@ -233,6 +237,8 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
     setCurrentLap(0)
     setFastestLap(null)
     setSimulationResult(null)
+    setOfficialResultAdapter(null)
+    setOfficializationError(null)
     setCars(convertToRaceCars(initialDrivers, playerTeamId, playerTeamName, playerTeamColor))
   }, [initialDrivers, playerTeamId, playerTeamName, playerTeamColor])
 
@@ -394,8 +400,8 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
   ])
 
   // Oficialização do resultado via canonicalRaceResultService (idempotente com 24 pilotos únicos)
-  const officialResultAdapter = useMemo<OfficialRaceResult | null>(() => {
-    if (!simulationResult) return null
+  const handleOfficialize = useCallback(() => {
+    if (!simulationResult) return
 
     // Assegura 24 carros únicos no grid e classificação
     const canonicalCars = simulationResult.cars.slice(0, 24)
@@ -419,10 +425,6 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
         progressOnLap: 1,
       })
     }
-
-    const p1 = canonicalCars[0]
-    const p2 = canonicalCars[1] || canonicalCars[0]
-    const p3 = canonicalCars[2] || canonicalCars[0]
 
     // Localizar ou garantir os dois carros do jogador
     let playerCarsInList = canonicalCars.filter((c) => c.isPlayer)
@@ -515,70 +517,21 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
     })
 
     try {
-      // Oficialização canônica idempotente garantindo 24 pilotos e regras F1 2026
-      return canonicalRaceResultService.officializeRace(canonicalState)
-    } catch (err) {
-      // Fallback seguro se storage não estiver acessível
-      console.warn('[RaceSimulator] Oficialização via service com fallback:', err)
-      return {
-        officialResultId: `official_result_apex_${Date.now()}`,
-        schemaVersion: 'official-race-result-v1',
-        careerId: 'apex_canonical_career',
-        season: 2026,
-        round: 1,
-        raceId: `sim_race_${simulationResult.track.id}`,
-        circuitId: simulationResult.track.id,
-        circuitName: simulationResult.track.name,
-        circuitCountry: simulationResult.track.country,
-        playerTeamId: effectivePlayerTeamId,
-        officializedAt: simulationResult.finishedAt,
-        totalLaps: simulationResult.totalLaps,
-        winnerDriverId: p1.driverId,
-        winnerTeamId: p1.teamId,
-        poleDriverId: canonicalCars.find((c) => c.gridPosition === 1)?.driverId || p1.driverId,
-        podium: [p1.driverId, p2.driverId, p3.driverId],
-        fastestLapDriverId: simulationResult.fastestLap?.driverId,
-        fastestLapSec: simulationResult.fastestLap?.timeSec,
-        fastestLapFormatted: simulationResult.fastestLap
-          ? formatLapTime(simulationResult.fastestLap.timeSec)
-          : undefined,
-        entries: canonicalCars.map((c, index) => ({
-          driverId: c.driverId,
-          teamId: c.teamId,
-          driverName: c.driverName,
-          teamName: c.teamName,
-          teamColor: c.teamColor,
-          isPlayer: c.isPlayer,
-          gridPosition: c.gridPosition,
-          finalPosition: index + 1,
-          positionsGainedLost: c.gridPosition - (index + 1),
-          lapsCompleted: simulationResult.totalLaps,
-          raceTime: c.totalTimeSec,
-          gapToWinner: index === 0 ? 'LÍDER' : `+${c.gapToLeaderSec.toFixed(3)}s`,
-          status: 'finished' as const,
-          dnf: false,
-          pitStops: 1,
-          bestLapSec: c.bestLapTimeSec,
-          bestLapFormatted: c.bestLapTimeSec ? formatLapTime(c.bestLapTimeSec) : undefined,
-          fastestLap: c.driverId === simulationResult.fastestLap?.driverId,
-          pointsAwarded:
-            index === 0 ? 25 : index === 1 ? 18 : index === 2 ? 15 : index < 10 ? 10 - index : 0,
-        })),
-        playerEntries: [playerCarsInList[0] as any, playerCarsInList[1] as any],
-        eventsSummary: {
-          safetyCarPeriods: 0,
-          safetyCarLaps: 0,
-          vscPeriods: 0,
-          vscLaps: 0,
-          redFlagPeriods: 0,
-          dnfCount: 0,
-          totalPitStops: 24,
-          significantIncidents: [],
-        },
-        resultHash: `sha_apex_fallback_${Date.now()}`,
-      }
+      setOfficializationError(null)
+      const officialResult = canonicalRaceResultService.officializeRace(canonicalState)
+      setOfficialResultAdapter(officialResult)
+    } catch (err: any) {
+      const errMsg = err?.message || 'Falha ao oficializar resultado canônico da corrida.'
+      setOfficializationError(errMsg)
+      setOfficialResultAdapter(null)
     }
   }, [simulationResult, playerTeamId, speed])
+
+  useEffect(() => {
+    if (simulationResult) {
+      handleOfficialize()
+    }
+  }, [simulationResult, handleOfficialize])
 
   return (
     <div className={`space-y-4 font-sans select-none relative ${className}`}>
@@ -700,9 +653,36 @@ export const RaceSimulator: React.FC<RaceSimulatorProps> = ({
       </Card>
 
       {/* =========================================================================
+          ERRO DE OFICIALIZAÇÃO COM RETRY
+         ========================================================================= */}
+      {isFinished && officializationError && (
+        <Card className="bg-red-950/40 border border-red-800 text-white rounded-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <h4 className="text-sm font-black text-red-400 flex items-center gap-2">
+                Erro ao Oficializar Resultado
+              </h4>
+              <p className="text-xs text-red-200">{officializationError}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleOfficialize}
+                className="bg-red-600 hover:bg-red-500 text-white text-xs gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Tentar Novamente
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* =========================================================================
           PÓDIO FINAL E RESULTADO (QUANDO A CORRIDA TERMINAR)
          ========================================================================= */}
-      {isFinished && simulationResult && officialResultAdapter && (
+      {isFinished && simulationResult && officialResultAdapter && !officializationError && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Visual do Pódio FIA Oficial */}
           <PodiumVisualCard result={officialResultAdapter} />

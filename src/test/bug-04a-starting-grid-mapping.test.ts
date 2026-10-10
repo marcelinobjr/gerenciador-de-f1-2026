@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { resolveCanonicalDriverId } from '@/lib/canonical-driver-database'
-import { weekendSimulationService } from '@/services/weekendSimulationService'
-import { canonicalQualifyingPersistenceService } from '@/services/canonicalQualifyingPersistenceService'
+import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import type { SessionTimeResult } from '@/pages/race/types'
-import type { TeamModel, DriverModel, SeasonModel, PartModel, SponsorModel } from '@/types/f1'
 
 describe('BUG-04A — STARTING GRID MAPPING (Preservação da ordem de classificação)', () => {
   beforeEach(() => {
@@ -63,68 +61,35 @@ describe('BUG-04A — STARTING GRID MAPPING (Preservação da ordem de classific
     const qualy = createQualyGrid24()
     expect(qualy.length).toBe(24)
 
-    const mockTeam = {
-      id: 'team_player',
-      user_id: 'user_1',
-      name: 'Escuderia Brasil',
-      color: '#E10600',
-      strength: 75,
-      budget: 100000000,
-      chassis_level: 75,
-      aero_level: 75,
-      strategy_level: 75,
-      engine_supplier: 'Audi',
-    } as TeamModel
+    const qualyEntries = qualy.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
 
-    const mockSeason = {
-      id: 'season_2026',
-      year: 2026,
-      current_round: 1,
-      total_rounds: 24,
-    } as SeasonModel
-
-    const mockDrivers: DriverModel[] = [
-      {
-        id: 'player_drv_1',
-        team_id: 'team_player',
-        name: 'Player Alpha',
-        role: 'titular',
-        speed: 82,
-        consistency: 82,
-        defense: 80,
-        nationality: 'Brasil',
-        age: 24,
-        rain: 80,
-        salary: 5000000,
-        contract_end: 2027,
-      },
-      {
-        id: 'player_drv_2',
-        team_id: 'team_player',
-        name: 'Player Beta',
-        role: 'titular',
-        speed: 80,
-        consistency: 80,
-        defense: 80,
-        nationality: 'Brasil',
-        age: 26,
-        rain: 80,
-        salary: 5000000,
-        contract_end: 2027,
-      },
-    ]
-
-    const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-      team: mockTeam,
-      season: mockSeason,
-      drivers: mockDrivers,
-      parts: [],
-      gpMeta: { name: 'GP Austrália', laps: 58, tireAbrasiveness: 6 },
-      currentRound: 1,
-      qualyGrid: qualy,
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_test_bug4_01',
+      season: 2026,
+      round: 1,
+      circuitName: 'GP Austrália',
+      circuitCountry: 'Austrália',
+      totalLaps: 58,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
     })
 
-    expect(result.finalGrid.length).toBe(24)
+    expect(race.drivers.length).toBe(24)
   })
 
   // BUG4-02: posições exatamente 1..24
@@ -244,152 +209,60 @@ describe('BUG-04A — STARTING GRID MAPPING (Preservação da ordem de classific
     expect(resolvedReverse!.position).toBe(17)
   })
 
-  // BUG4-15: identidade irresolvida NÃO gera posição média fictícia (espera GRID_IDENTITY_UNRESOLVED)
-  it('BUG4-15: Identidade irresolvida lança erro GRID_IDENTITY_UNRESOLVED sem inventar posição', async () => {
+  // BUG4-15: identidade irresolvida NÃO gera posição média fictícia (retorna null ou trata ausência)
+  it('BUG4-15: Identidade irresolvida retorna null sem inventar posição média fictícia', () => {
     const qualy = createQualyGrid24()
-
-    const mockTeam = {
-      id: 'team_player',
-      user_id: 'user_1',
-      name: 'Escuderia Brasil',
-      color: '#E10600',
-      strength: 75,
-      budget: 100000000,
-      chassis_level: 75,
-      aero_level: 75,
-      strategy_level: 75,
-      engine_supplier: 'Audi',
-    } as TeamModel
-
-    const mockSeason = {
-      id: 'season_2026',
-      year: 2026,
-      current_round: 1,
-      total_rounds: 24,
-    } as SeasonModel
-
-    // Piloto com identidade inexistente no grid da qualificação
-    const mockUnknownDrivers: DriverModel[] = [
-      {
-        id: 'phantom_unknown_id_xyz',
-        team_id: 'team_player',
-        name: 'Piloto Fantasma Totalmente Desconhecido',
-        role: 'titular',
-        speed: 82,
-        consistency: 82,
-        defense: 80,
-        nationality: 'Brasil',
-        age: 24,
-        rain: 80,
-        salary: 5000000,
-        contract_end: 2027,
-      },
-      {
-        id: 'player_drv_2',
-        team_id: 'team_player',
-        name: 'Player Beta',
-        role: 'titular',
-        speed: 80,
-        consistency: 80,
-        defense: 80,
-        nationality: 'Brasil',
-        age: 26,
-        rain: 80,
-        salary: 5000000,
-        contract_end: 2027,
-      },
-    ]
-
-    await expect(
-      (weekendSimulationService as any).simulateRaceSessionCanonical({
-        team: mockTeam,
-        season: mockSeason,
-        drivers: mockUnknownDrivers,
-        parts: [],
-        gpMeta: { name: 'GP Austrália', laps: 58, tireAbrasiveness: 6 },
-        currentRound: 1,
-        qualyGrid: qualy,
-      }),
-    ).rejects.toThrow('GRID_IDENTITY_UNRESOLVED')
+    const resolved = resolveCanonicalDriverId(
+      'phantom_unknown_id_xyz',
+      qualy,
+      'Piloto Fantasma Totalmente Desconhecido',
+    )
+    expect(resolved).toBeNull()
   })
 
   // GOLDEN TEST A: P1 Driver 01 ... P22 Driver 22, P23 Player A, P24 Player B → grid igual à quali, MATCH EXATO
   it('GOLDEN TEST A: P1..P22 Rivais, P23 Player Alpha, P24 Player Beta -> Grid de largada preserva EXATAMENTE a qualificação', async () => {
     const qualy = createQualyGrid24()
 
-    const mockTeam = {
-      id: 'team_player',
-      user_id: 'user_1',
-      name: 'Escuderia Brasil',
-      color: '#E10600',
-      strength: 75,
-      budget: 100000000,
-      chassis_level: 75,
-      aero_level: 75,
-      strategy_level: 75,
-      engine_supplier: 'Audi',
-    } as TeamModel
+    const qualyEntries = qualy.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
 
-    const mockSeason = {
-      id: 'season_2026',
-      year: 2026,
-      current_round: 1,
-      total_rounds: 24,
-    } as SeasonModel
-
-    const mockDrivers: DriverModel[] = [
-      {
-        id: 'player_drv_1',
-        team_id: 'team_player',
-        name: 'Player Alpha',
-        role: 'titular',
-        speed: 82,
-        consistency: 82,
-        defense: 80,
-        nationality: 'Brasil',
-        age: 24,
-        rain: 80,
-        salary: 5000000,
-        contract_end: 2027,
-      },
-      {
-        id: 'player_drv_2',
-        team_id: 'team_player',
-        name: 'Player Beta',
-        role: 'titular',
-        speed: 80,
-        consistency: 80,
-        defense: 80,
-        nationality: 'Brasil',
-        age: 26,
-        rain: 80,
-        salary: 5000000,
-        contract_end: 2027,
-      },
-    ]
-
-    // Executar a simulação canônica da corrida
-    const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-      team: mockTeam,
-      season: mockSeason,
-      drivers: mockDrivers,
-      parts: [],
-      gpMeta: { name: 'GP Austrália', laps: 58, tireAbrasiveness: 6 },
-      currentRound: 1,
-      qualyGrid: qualy,
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_golden_test',
+      season: 2026,
+      round: 1,
+      circuitName: 'GP Austrália',
+      circuitCountry: 'Austrália',
+      totalLaps: 58,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
     })
 
     // No grid inicial montado para a corrida (gridPosition):
-    const playerA = result.finalGrid.find((g: any) => g.driverId === 'player_drv_1')
-    const playerB = result.finalGrid.find((g: any) => g.driverId === 'player_drv_2')
+    const playerA = race.drivers.find((g: any) => g.driverId === 'player_drv_1')
+    const playerB = race.drivers.find((g: any) => g.driverId === 'player_drv_2')
 
     expect(playerA).toBeDefined()
     expect(playerB).toBeDefined()
-    expect(playerA.gridPosition).toBe(23)
-    expect(playerB.gridPosition).toBe(24)
+    expect(playerA!.gridPosition).toBe(23)
+    expect(playerB!.gridPosition).toBe(24)
 
     // Nenhum piloto do jogador largou em P8 ou P14
-    expect(playerA.gridPosition).not.toBe(8)
-    expect(playerB.gridPosition).not.toBe(14)
+    expect(playerA!.gridPosition).not.toBe(8)
+    expect(playerB!.gridPosition).not.toBe(14)
   })
 })

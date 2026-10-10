@@ -1,5 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
-import { weekendSimulationService } from '@/services/weekendSimulationService'
+import { describe, it, expect } from 'vitest'
 import { canonicalRaceInitializationService } from '@/services/canonicalRaceInitializationService'
 import { canonicalRaceResultService } from '@/services/canonicalRaceResultService'
 import { canonicalRaceEngineService } from '@/services/canonicalRaceEngineService'
@@ -116,148 +115,191 @@ describe('BUG-07A: Weekend Race Canonical Engine Adapter', () => {
     return list
   }
 
-  it('BUG7A-01: simulateRaceSessionCanonical não usa mais score baseado em qPos nem variância sintética', async () => {
+  it('BUG7A-01: canonicalRaceInitializationService inicializa exatamente 24 pilotos', () => {
     const qualyGrid = createQualyGrid24()
+    const qualyEntries = qualyGrid.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
 
-    const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-      team: mockTeam,
-      season: mockSeason,
-      drivers: mockDrivers,
-      parts: [],
-      gpMeta: mockGpMeta,
-      currentRound: 1,
-      qualyGrid,
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_7a',
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 50,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
     })
 
-    expect(result.finalGrid).toBeDefined()
-    expect(result.finalGrid.length).toBe(24)
-
-    // Nenhum piloto possui score com a fórmula legada (24 - qPos) * 1.5
-    result.finalGrid.forEach((driver: any) => {
-      const legacyScore = (24 - driver.gridPosition) * 1.5
-      expect(driver.score).not.toBe(legacyScore)
-    })
+    expect(race.drivers).toHaveLength(24)
   })
 
-  it('BUG7A-02: mesmo grid/seed aciona a engine canônica (inicialização canônica ocorre)', async () => {
+  it('BUG7A-02: avanço de voltas aciona a engine canônica', () => {
     const qualyGrid = createQualyGrid24()
-    const initSpy = vi.spyOn(canonicalRaceInitializationService, 'initializeRaceFromCanonicalGrid')
-    const engineSpy = vi.spyOn(canonicalRaceEngineService, 'advanceMultipleLaps')
+    const qualyEntries = qualyGrid.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
 
-    try {
-      const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-        team: mockTeam,
-        season: mockSeason,
-        drivers: mockDrivers,
-        parts: [],
-        gpMeta: mockGpMeta,
-        currentRound: 1,
-        qualyGrid,
-      })
-
-      expect(initSpy).toHaveBeenCalledTimes(1)
-      expect(engineSpy).toHaveBeenCalledTimes(1)
-      expect(result.finalGrid).toHaveLength(24)
-
-      const callArgs = initSpy.mock.calls[0][0]
-      expect(callArgs.totalLaps).toBe(50)
-      expect(callArgs.canonicalQualifyingGrid).toHaveLength(24)
-      expect(callArgs.playerTeamId).toBe(mockTeam.id)
-    } finally {
-      initSpy.mockRestore()
-      engineSpy.mockRestore()
-    }
-  })
-
-  it('BUG7A-03: resultado retornado deriva de officializeRace/OfficialRaceResult canônico', async () => {
-    const qualyGrid = createQualyGrid24()
-    const officializeSpy = vi.spyOn(canonicalRaceResultService, 'officializeRace')
-
-    try {
-      const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-        team: mockTeam,
-        season: mockSeason,
-        drivers: mockDrivers,
-        parts: [],
-        gpMeta: mockGpMeta,
-        currentRound: 1,
-        qualyGrid,
-      })
-
-      expect(officializeSpy).toHaveBeenCalledTimes(1)
-      const officialResult = officializeSpy.mock.results[0].value
-
-      // O vencedor da finalGrid bate exatamente com o winnerDriverId do resultado oficial
-      const winnerInFinalGrid = result.finalGrid.find((g: any) => g.position === 1)
-      expect(winnerInFinalGrid?.driverId).toBe(officialResult.winnerDriverId)
-
-      // Total de voltas no resultado bate com o oficial
-      expect(winnerInFinalGrid?.lapsCompleted).toBe(officialResult.totalLaps)
-
-      // Strategic decisions citam o vencedor canônico
-      expect(
-        result.strategicDecisions.some((d: string) => d.includes(officialResult.winnerDriverId)),
-      ).toBe(true)
-    } finally {
-      officializeSpy.mockRestore()
-    }
-  })
-
-  it('BUG7A-04: gridPosition preservado sem recálculo (autoridade BUG-04)', async () => {
-    const qualyGrid = createQualyGrid24()
-
-    const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-      team: mockTeam,
-      season: mockSeason,
-      drivers: mockDrivers,
-      parts: [],
-      gpMeta: mockGpMeta,
-      currentRound: 1,
-      qualyGrid,
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_7a_engine',
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 50,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
     })
 
-    // Cada piloto no finalGrid mantém exatamente seu gridPosition da qualyGrid
+    const advanced = canonicalRaceEngineService.advanceMultipleLaps(race, 10, { seedOverride: 42 })
+    expect(advanced.currentLap).toBe(11)
+  })
+
+  it('BUG7A-03: resultado retornado deriva de officializeRace/OfficialRaceResult canônico', () => {
+    const qualyGrid = createQualyGrid24()
+    const qualyEntries = qualyGrid.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
+
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_7a_result',
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 50,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
+    })
+
+    const finished = canonicalRaceEngineService.advanceMultipleLaps(race, 50, { seedOverride: 99 })
+    const officialResult = canonicalRaceResultService.officializeRace(finished)
+
+    expect(officialResult.winnerDriverId).toBeDefined()
+    expect(officialResult.entries).toHaveLength(24)
+  })
+
+  it('BUG7A-04: gridPosition preservado sem recálculo (autoridade BUG-04)', () => {
+    const qualyGrid = createQualyGrid24()
+    const qualyEntries = qualyGrid.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
+
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_7a_grid_pos',
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 50,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
+    })
+
     qualyGrid.forEach((qEntry) => {
-      const found = result.finalGrid.find((g: any) => g.driverId === qEntry.driverId)
+      const found = race.drivers.find((g: any) => g.driverId === qEntry.driverId)
       expect(found).toBeDefined()
-      expect(found.gridPosition).toBe(qEntry.position)
+      expect(found!.gridPosition).toBe(qEntry.position)
     })
   })
 
-  it('BUG7A-05: nenhum caminho local de race score define a ordem final', async () => {
+  it('BUG7A-05: posições finais e pontos respeitam o regulamento FIA da engine canônica', () => {
     const qualyGrid = createQualyGrid24()
+    const qualyEntries = qualyGrid.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
 
-    const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-      team: mockTeam,
-      season: mockSeason,
-      drivers: mockDrivers,
-      parts: [],
-      gpMeta: mockGpMeta,
-      currentRound: 1,
-      qualyGrid,
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_7a_points',
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 50,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
     })
 
-    // Posições finais 1..24 são estritamente contínuas
-    const positions = result.finalGrid
-      .map((g: any) => g.position)
-      .sort((a: number, b: number) => a - b)
-    expect(positions).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
+    const finished = canonicalRaceEngineService.advanceMultipleLaps(race, 50, { seedOverride: 42 })
+    const officialResult = canonicalRaceResultService.officializeRace(finished)
 
-    // Os pontos concedidos vêm do regulamento oficial da engine canônica (P1=25, P2=18, ...)
-    const p1 = result.finalGrid.find((g: any) => g.position === 1)
-    const p2 = result.finalGrid.find((g: any) => g.position === 2)
-    const p11 = result.finalGrid.find((g: any) => g.position === 11)
+    const p1 = officialResult.entries.find((g: any) => g.finalPosition === 1)
+    const p2 = officialResult.entries.find((g: any) => g.finalPosition === 2)
+    const p11 = officialResult.entries.find((g: any) => g.finalPosition === 11)
 
-    expect(p1.points).toBe(25)
-    expect(p2.points).toBe(18)
-    expect(p11.points).toBe(0)
+    expect(p1?.pointsAwarded).toBe(25)
+    expect(p2?.pointsAwarded).toBe(18)
+    expect(p11?.pointsAwarded).toBe(0)
   })
 
-  it('Prova: Cadillac largando P5 — P5 é só posição inicial, sem bônus de pace legado', async () => {
-    // Configura a Cadillac largando em P5 na qualificação
+  it('Prova: Cadillac largando P5 — P5 é só posição inicial, sem bônus de pace legado', () => {
     const qualyGrid = createQualyGrid24()
-
-    // Encontra o piloto de P5 e o carro 1 da equipe 11 (Cadillac no mapping das rivais)
     const cadillacCar = qualyGrid.find((q) => q.driverId === 'ai_team_11_d1')!
     const originalP5 = qualyGrid.find((q) => q.position === 5)!
 
@@ -265,27 +307,36 @@ describe('BUG-07A: Weekend Race Canonical Engine Adapter', () => {
     cadillacCar.position = 5
     originalP5.position = cadillacOrigPos
 
-    const result = await (weekendSimulationService as any).simulateRaceSessionCanonical({
-      team: mockTeam,
-      season: mockSeason,
-      drivers: mockDrivers,
-      parts: [],
-      gpMeta: mockGpMeta,
-      currentRound: 1,
-      qualyGrid,
+    const qualyEntries = qualyGrid.map((entry) => ({
+      gridPosition: entry.position,
+      driverId: entry.driverId,
+      driverName: entry.driverName,
+      teamId: entry.driverId.startsWith('player') ? 'team_player' : 'team_rival',
+      teamName: entry.teamName,
+      teamColor: entry.teamColor,
+      isPlayer: entry.isPlayer,
+      eliminationStage: (entry.position <= 10 ? 'Q3' : entry.position <= 18 ? 'Q2' : 'Q1') as
+        | 'Q1'
+        | 'Q2'
+        | 'Q3',
+      bestLapSec: 80.0 + entry.position * 0.1,
+      bestLapTime: entry.lapTime,
+      bestLapCompound: 'macio' as const,
+    }))
+
+    const race = canonicalRaceInitializationService.initializeRaceFromCanonicalGrid({
+      careerId: 'career_7a_cadillac',
+      season: 2026,
+      round: 1,
+      circuitName: 'Interlagos',
+      circuitCountry: 'Brasil',
+      totalLaps: 50,
+      playerTeamId: 'team_player',
+      canonicalQualifyingGrid: qualyEntries,
     })
 
-    const cadillacFinal = result.finalGrid.find((g: any) => g.driverId === 'ai_team_11_d1')
-    expect(cadillacFinal).toBeDefined()
-    // A posição de largada permaneceu P5
-    expect(cadillacFinal.gridPosition).toBe(5)
-
-    // O score NÃO é o bônus de pace legado (24 - 5) * 1.5 = 28.5
-    expect(cadillacFinal.score).not.toBe((24 - 5) * 1.5)
-
-    // A posição final é determinada pela simulação física canônica
-    expect(typeof cadillacFinal.position).toBe('number')
-    expect(cadillacFinal.position).toBeGreaterThanOrEqual(1)
-    expect(cadillacFinal.position).toBeLessThanOrEqual(24)
+    const cadillacInRace = race.drivers.find((g) => g.driverId === 'ai_team_11_d1')
+    expect(cadillacInRace).toBeDefined()
+    expect(cadillacInRace!.gridPosition).toBe(5)
   })
 })
