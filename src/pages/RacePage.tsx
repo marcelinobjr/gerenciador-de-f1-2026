@@ -166,8 +166,14 @@ export default function RacePage() {
         setRemoteQueryState('found')
         setCareerPersistenceStatus(remoteJournal.status)
 
-        // Verificar se há pendência de reconciliação (status != COMPLETE com falha em etapas)
-        if (remoteJournal.status === 'FAILED') {
+        // Se o journal estiver em APPLYING ou FAILED, ou se ainda não tiver completado todos os pilotos,
+        // marcar reconciliação pendente para permitir retomar com segurança
+        if (
+          remoteJournal.status === 'FAILED' ||
+          (remoteJournal.status === 'APPLYING' &&
+            remoteJournal.totalEntries > 0 &&
+            remoteJournal.appliedDriverIds.length < remoteJournal.totalEntries)
+        ) {
           setIsReconciliationPending(true)
         }
 
@@ -222,6 +228,39 @@ export default function RacePage() {
 
           if (official) {
             processOfficialFound(official)
+            // Se o journal local não estiver COMPLETE, consultar o backend para retomar/reconciliar
+            const localJournal = canonicalCareerPersistenceService.getApplicationJournal(
+              ctx.careerId,
+              ctx.seasonYear,
+              ctx.round,
+              'MAIN_RACE',
+            )
+            if (!localJournal || localJournal.status !== 'COMPLETE') {
+              // Disparar sincronização em segundo plano para retomar aplicação
+              canonicalCareerPersistenceService
+                .registerOfficialRaceResultInCareerAsync(official, { requireBackendSync: true })
+                .then((res) => {
+                  if (isMounted) {
+                    setCareerPersistenceStatus(res.journal.status)
+                    setIsReconciliationPending(res.journal.status !== 'COMPLETE')
+                    if (res.success) {
+                      setRemoteQueryState('found')
+                      canonicalChampionshipService.processAndPersistRoundChampionship(
+                        ctx.careerId,
+                        ctx.seasonYear,
+                        ctx.round,
+                        official.playerTeamId,
+                      )
+                    }
+                  }
+                })
+                .catch((resumeErr) => {
+                  console.warn(
+                    '[RacePage] Erro ao retomar aplicação do journal da corrida:',
+                    resumeErr,
+                  )
+                })
+            }
             return
           }
 
@@ -326,6 +365,37 @@ export default function RacePage() {
           /* cache local opcional */
         }
         verifyRemoteJournalStatus(remoteOfficial, ctx)
+
+        // Se o journal estiver incompleto, retomar reconciliação e aplicação automática
+        canonicalCareerPersistenceService
+          .getApplicationJournalFromBackend(ctx.careerId, ctx.seasonYear, ctx.round, 'MAIN_RACE')
+          .then((j) => {
+            if (isMounted && (!j || j.status !== 'COMPLETE')) {
+              canonicalCareerPersistenceService
+                .registerOfficialRaceResultInCareerAsync(remoteOfficial, {
+                  requireBackendSync: true,
+                })
+                .then((res) => {
+                  if (isMounted) {
+                    setCareerPersistenceStatus(res.journal.status)
+                    setIsReconciliationPending(res.journal.status !== 'COMPLETE')
+                    if (res.success) {
+                      setRemoteQueryState('found')
+                      canonicalChampionshipService.processAndPersistRoundChampionship(
+                        ctx.careerId,
+                        ctx.seasonYear,
+                        ctx.round,
+                        remoteOfficial.playerTeamId,
+                      )
+                    }
+                  }
+                })
+                .catch((err) => {
+                  console.warn('[RacePage] Erro ao retomar journal a partir do backend:', err)
+                })
+            }
+          })
+          .catch(() => {})
       })
       .catch((remoteErr) => {
         // Diferenciar consulta com falha de registro ausente: falha de rede preserva o estado carregado e apenas loga aviso

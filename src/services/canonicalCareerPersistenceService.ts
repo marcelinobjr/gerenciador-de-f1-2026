@@ -254,8 +254,7 @@ export class CanonicalCareerPersistenceService {
             startedAt: matched.started_at,
             completedAt: matched.completed_at || undefined,
             lastError: matched.last_error || undefined,
-          }
-          // Atualizar cache local silenciosamente como cache passivo (falhas de localStorage são ignoradas)
+          } // Atualizar cache local silenciosamente como cache passivo (falhas de localStorage são ignoradas)
           try {
             this.saveApplicationJournal(backendJournal, raceVariant)
           } catch {
@@ -1524,15 +1523,6 @@ export class CanonicalCareerPersistenceService {
             filter: `career_id = "${careerId}" && season = ${sNum} && round = ${rNum}`,
             fields: 'driver_id,driver_slug,operation_key',
           })
-          .catch((err) => {
-            console.error(
-              '[canonicalCareerPersistenceService] Erro ao carregar canonical_driver_morale_receipts:',
-              err,
-            )
-            throw new Error(
-              `Falha ao ler recibos de moral para reconciliação: ${err?.message || err}`,
-            )
-          })
 
         if (Array.isArray(existingReceipts) && existingReceipts.length > 0) {
           for (const rec of existingReceipts) {
@@ -1540,12 +1530,19 @@ export class CanonicalCareerPersistenceService {
             if (rec.driver_slug) appliedSet.add(rec.driver_slug)
           }
           journal.appliedDriverIds = Array.from(appliedSet)
+          console.info(
+            `[canonicalCareerPersistenceService] Reconciliados ${existingReceipts.length} recibos de moral em canonical_driver_morale_receipts para Round ${rNum}.`,
+          )
         }
       }
-    } catch (reconcileErr) {
-      console.warn(
-        '[CareerPersistence] Aviso ao reconciliar recibos de moral prévios:',
+    } catch (reconcileErr: any) {
+      console.error(
+        '[canonicalCareerPersistenceService] Erro ao reconciliar recibos de moral de canonical_driver_morale_receipts:',
         reconcileErr,
+      )
+      // NUNCA silenciar como 0 recibos se for falha de consulta / rede; relança a falha para não corromper reconciliação
+      throw new Error(
+        `Falha ao reconciliar recibos de moral: ${reconcileErr?.message || reconcileErr}`,
       )
     }
 
