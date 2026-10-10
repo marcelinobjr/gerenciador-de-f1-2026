@@ -489,6 +489,7 @@ export const canonicalRaceInitializationService = {
       teamColor: '#999999',
       carIndex: e.carIndex,
       isPlayer: false,
+      // RACE-FASTEST-LAP-01A: Não semear melhor volta da quali na corrida
       bestLapTime: undefined,
       bestLapSec: undefined,
       eliminationPhase: e.eliminationPhase as any,

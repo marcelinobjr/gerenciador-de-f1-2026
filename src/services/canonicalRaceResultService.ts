@@ -673,19 +673,37 @@ export class CanonicalRaceResultService {
 
   private extractEventSummary(raceState: CanonicalRaceState): OfficialRaceEventSummary {
     const events = (raceState.events || []) as any[]
-    const safetyCarDeployments = events.filter(
-      (e) =>
-        e.type === 'safety_car' ||
-        (e.message && e.message.toLowerCase().includes('safety car')) ||
-        (e.description && e.description.toLowerCase().includes('safety car')),
-    ).length
 
-    const virtualSafetyCarDeployments = events.filter(
-      (e) =>
-        e.type === 'vsc' ||
-        (e.message && e.message.toLowerCase().includes('virtual safety car')) ||
-        (e.description && e.description.toLowerCase().includes('virtual safety car')),
-    ).length
+    // Separação estrita entre Safety Car e Virtual Safety Car
+    const isVscEvent = (e: any) => {
+      const type = (e.type || '').toLowerCase()
+      const msg = (e.message || '').toLowerCase()
+      const desc = (e.description || '').toLowerCase()
+      return (
+        type === 'vsc' ||
+        type === 'virtual_safety_car' ||
+        msg.includes('virtual safety car') ||
+        msg.includes('vsc') ||
+        desc.includes('virtual safety car') ||
+        desc.includes('vsc')
+      )
+    }
+
+    const isScEvent = (e: any) => {
+      if (isVscEvent(e)) return false
+      const type = (e.type || '').toLowerCase()
+      const msg = (e.message || '').toLowerCase()
+      const desc = (e.description || '').toLowerCase()
+      return (
+        type === 'safety_car' ||
+        type === 'sc' ||
+        msg.includes('safety car') ||
+        desc.includes('safety car')
+      )
+    }
+
+    const safetyCarDeployments = events.filter(isScEvent).length
+    const virtualSafetyCarDeployments = events.filter(isVscEvent).length
 
     const redFlags = events.filter(
       (e) =>
@@ -694,14 +712,29 @@ export class CanonicalRaceResultService {
         (e.description && e.description.toLowerCase().includes('red flag')),
     ).length
 
-    const dnfEvents = events.filter(
+    // DNF: conta todos os pilotos classificados como abandonados no resultado final
+    const drivers = raceState.drivers || (raceState as any).cars || []
+    const dnfDriversCount = drivers.filter((car: any) =>
+      Boolean(car.isDnf || car.raceStatus === 'dnf' || car.status === 'dnf' || car.dnf),
+    ).length
+
+    const dnfEventsFromFeed = events.filter(
       (e) =>
         e.type === 'dnf' ||
         (e.message && e.message.toLowerCase().includes('dnf')) ||
         (e.description && e.description.toLowerCase().includes('dnf')),
     ).length
 
-    const drivers = raceState.drivers || (raceState as any).cars || []
+    const dnfCount = Math.max(dnfDriversCount, dnfEventsFromFeed)
+
+    // Overtakes: conta eventos reais de ultrapassagem registrados no histórico da corrida
+    const overtakeEventsCount = events.filter(
+      (e) =>
+        e.type === 'overtake' ||
+        (e.message && e.message.toLowerCase().includes('ultrapassagem')) ||
+        (e.description && e.description.toLowerCase().includes('ultrapassagem')),
+    ).length
+
     const totalPitStops = drivers.reduce(
       (acc: number, car: any) => acc + (car.pitStopsCount || car.pitStops || 0),
       0,
@@ -727,15 +760,15 @@ export class CanonicalRaceResultService {
       vscPeriods: virtualSafetyCarDeployments,
       vscLaps: raceState.raceControl?.vscLaps ?? 0,
       redFlagPeriods: redFlags,
-      dnfCount: dnfEvents,
+      dnfCount,
       totalPitStops,
       significantIncidents,
       // Compatibilidade legada
       safetyCarDeployments,
       virtualSafetyCarDeployments,
       redFlags,
-      dnfEvents,
-      totalOvertakes: 0,
+      dnfEvents: dnfCount,
+      totalOvertakes: overtakeEventsCount,
     }
 
     return summary as OfficialRaceEventSummary
