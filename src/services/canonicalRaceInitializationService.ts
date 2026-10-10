@@ -394,8 +394,6 @@ export const canonicalRaceInitializationService = {
         tyreSetId: startingTyreSetId,
         initialTyreWear,
         initialTyreLapsUsed,
-        bestLapSec: entry.bestLapSec || undefined,
-        bestLapFormatted: entry.bestLapTime || undefined,
         gapToFrontSec: 0,
         gapToLeaderSec: 0,
 

@@ -806,6 +806,7 @@ export class CanonicalRaceResultService {
       const bestLapSec = car.bestLapSec
       const bestLapFormatted =
         car.bestLapFormatted || (bestLapSec ? formatLapTime(bestLapSec) : '--:--')
+      // A volta mais rápida da corrida é derivada EXCLUSIVAMENTE do rastreador canônico do motor (state.fastestLap)
       const isFastestLap = Boolean(
         state.fastestLap?.driverId && state.fastestLap.driverId === car.driverId,
       )
@@ -921,11 +922,13 @@ export class CanonicalRaceResultService {
       fastestLapSec: state.fastestLap?.lapTimeSec,
       fastestLapFormatted:
         state.fastestLap?.lapTimeFormatted ||
+        (state.fastestLap?.lapTimeSec ? formatLapTime(state.fastestLap.lapTimeSec) : undefined) ||
         ((state.fastestLap as any)?.time
           ? formatLapTime((state.fastestLap as any).time)
           : undefined),
       fastestLapTimeFormatted:
         state.fastestLap?.lapTimeFormatted ||
+        (state.fastestLap?.lapTimeSec ? formatLapTime(state.fastestLap.lapTimeSec) : undefined) ||
         ((state.fastestLap as any)?.time
           ? formatLapTime((state.fastestLap as any).time)
           : undefined),
