@@ -1671,6 +1671,27 @@ export class CanonicalRaceResultService {
           const pbModule = await import('@/lib/pocketbase/client')
           const pb = pbModule.default
           if (pb?.send) {
+            // Assegura valores estritamente numéricos para beforeMorale, delta e finalMorale (0 incluso, nunca undefined ou omitido)
+            const safeBeforeMorale =
+              typeof context?.beforeMorale === 'number' && !isNaN(context.beforeMorale)
+                ? Math.round(context.beforeMorale)
+                : typeof (entry as any)?.beforeMorale === 'number' &&
+                    !isNaN((entry as any).beforeMorale)
+                  ? Math.round((entry as any).beforeMorale)
+                  : typeof (entry as any)?.morale === 'number' && !isNaN((entry as any).morale)
+                    ? Math.round((entry as any).morale)
+                    : 80
+
+            const safeFinalMorale =
+              typeof newMorale === 'number' && !isNaN(newMorale)
+                ? Math.max(0, Math.min(100, Math.round(newMorale)))
+                : safeBeforeMorale
+
+            const safeDelta =
+              typeof context?.delta === 'number' && !isNaN(context.delta)
+                ? Math.round(context.delta)
+                : safeFinalMorale - safeBeforeMorale
+
             const atomicRes = await pb.send<any>('/backend/v1/driver-morale/apply-atomic', {
               method: 'POST',
               body: {
@@ -1681,9 +1702,11 @@ export class CanonicalRaceResultService {
                 driverId: targetDbId,
                 driverName: entry?.driverName,
                 driverSlug: driverId,
-                beforeMorale: context?.beforeMorale,
-                delta: context?.delta,
-                finalMorale: newMorale,
+                beforeMorale: safeBeforeMorale,
+                before_morale: safeBeforeMorale,
+                delta: safeDelta,
+                finalMorale: safeFinalMorale,
+                final_morale: safeFinalMorale,
                 officializedAt: officialResult.officializedAt,
               },
             })

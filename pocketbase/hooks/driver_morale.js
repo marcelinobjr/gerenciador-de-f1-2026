@@ -122,22 +122,25 @@ routerAdd('POST', '/backend/v1/driver-morale/apply-atomic', (e) => {
     }
 
     // 2. Se não existe, aplicar o PATCH na moral do piloto e salvar o recibo
-    const targetMorale =
-      typeof finalMorale === 'number'
-        ? Math.max(0, Math.min(100, Math.round(finalMorale)))
-        : Math.max(
-            0,
-            Math.min(100, Math.round((Number(beforeMorale) || 80) + (Number(delta) || 0))),
-          )
+    const rawBefore = beforeMorale !== undefined ? beforeMorale : reqData.before_morale
+    const rawFinal = finalMorale !== undefined ? finalMorale : reqData.final_morale
+    const rawDelta = delta !== undefined ? delta : reqData.delta
 
     const prevMorale =
-      typeof beforeMorale === 'number'
-        ? beforeMorale
+      typeof rawBefore === 'number'
+        ? rawBefore
         : typeof driverRecord.get('morale') === 'number'
           ? driverRecord.get('morale')
           : 80
 
-    const actualDelta = typeof delta === 'number' ? delta : targetMorale - prevMorale
+    const targetMorale =
+      typeof rawFinal === 'number'
+        ? Math.max(0, Math.min(100, Math.round(rawFinal)))
+        : typeof rawDelta === 'number'
+          ? Math.max(0, Math.min(100, Math.round(prevMorale + rawDelta)))
+          : prevMorale
+
+    const actualDelta = typeof rawDelta === 'number' ? rawDelta : targetMorale - prevMorale
 
     // Atualiza a moral no registro do piloto
     driverRecord.set('morale', targetMorale)
