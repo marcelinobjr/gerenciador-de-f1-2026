@@ -286,6 +286,7 @@ export class CanonicalQualifyingFinalGridBackendService {
         round: context.round,
         completedAt: p3.completedAt || new Date().toISOString(),
         poleDriverId: poleEntry.driverId,
+        poleDriverName: poleEntry.driverName || '',
         poleLapTime: poleEntry.bestLapTime || undefined,
         finalGrid: finalGrid as any,
         q1Result: p1,
