@@ -119,7 +119,8 @@ export async function loadCanonicalRaceSessionContext(params: {
   const calItem = F1_2026_CALENDAR.find((c) => c.round === round)
   const baseLaps = calItem?.laps || 57
   const circuitLengthKm = calItem?.circuitLengthKm || 5.412
-  const sprintLaps = Math.max(1, Math.round(100 / circuitLengthKm))
+  // SPRINT-LAPS-UNIFY-01A: 1/3 (números inteiros) das voltas da corrida normal (baseLaps)
+  const sprintLaps = Math.max(1, Math.floor(baseLaps / 3))
   const totalLaps = raceVariant === 'SPRINT_RACE' ? sprintLaps : baseLaps
 
   const circuit: CanonicalRaceCircuitInfo = {

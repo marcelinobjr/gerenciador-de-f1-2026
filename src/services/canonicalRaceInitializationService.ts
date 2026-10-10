@@ -500,10 +500,10 @@ export const canonicalRaceInitializationService = {
   },
 
   /**
-   * SILVERSTONE-RACE-REVIEW-01 / Bloco A:
+   * SPRINT-LAPS-UNIFY-01A:
    * Calcula o número de voltas da Sprint:
-   * REGRA PRIMÁRIA: SPRINT_LAPS = Math.round(mainRaceLaps * 0.30), determinístico (ex: GP 52 -> 16 voltas).
-   * FALLBACK: com base em circuitLengthKm mantido apenas quando mainRaceLaps não for informado.
+   * Regra canônica FIA Apex: 1/3 (números inteiros) do número de voltas da corrida normal.
+   * Implementação: Math.max(1, Math.floor(mainRaceLaps / 3)).
    */
   calculateSprintLaps(
     circuitLengthKm: number,
@@ -511,26 +511,25 @@ export const canonicalRaceInitializationService = {
     mainRaceLaps?: number,
   ): number {
     if (mainRaceLaps && mainRaceLaps > 0) {
-      return Math.round(mainRaceLaps * 0.3)
+      return this.getCanonicalSprintLaps(mainRaceLaps)
     }
     // Fallback se mainRaceLaps não for informado
     if (circuitLengthKm && circuitLengthKm > 0 && !isNaN(circuitLengthKm)) {
       const estimatedMainLaps = Math.ceil(305 / circuitLengthKm)
-      return Math.round(estimatedMainLaps * 0.3)
+      return this.getCanonicalSprintLaps(estimatedMainLaps)
     }
     if (!circuitLengthKm || circuitLengthKm <= 0 || isNaN(circuitLengthKm)) {
       throw new Error(`[SprintLaps] circuitLengthKm inválido: ${circuitLengthKm}`)
     }
-    return Math.round(Math.ceil(305 / circuitLengthKm) * 0.3)
+    return this.getCanonicalSprintLaps(Math.ceil(305 / circuitLengthKm))
   },
 
   /**
    * Helper canônico para cálculo de voltas de corrida Sprint.
-   * Regra canônica: Math.round(mainRaceLaps * 0.30)
-   * Se mainRaceLaps não for informado, estima a partir de circuitLengthKm (305 km).
+   * Regra: Math.max(1, Math.floor(mainRaceLaps / 3))
    */
   getCanonicalSprintLaps(mainRaceLaps: number): number {
-    return Math.round(mainRaceLaps * 0.3)
+    return Math.max(1, Math.floor(mainRaceLaps / 3))
   },
 
   initializeSprintRaceState(params: any): any {
