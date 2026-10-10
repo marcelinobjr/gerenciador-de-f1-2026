@@ -1,5 +1,36 @@
 import { GrandPrixInfo, EngineSupplierSpec, EngineSupplierName } from '@/types/f1'
 
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
+  },
+  {
+=======
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+=======
+    round: 1,
+    name: 'Grande Prêmio da Austrália',
+    circuit: 'Albert Park, Melbourne',
+    country: 'Austrália',
+    flag: '🇦🇺',
+    laps: 58,
+    circuitLengthKm: 5.278,
+    turns: 14,
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 5,
+    favors: 'Equilíbrio',
+    date: '6–8 mar',
+    avgLapTime: '~1:21',
+    hasSprint: false,
+  },
+  {=======
+  },
+  {
+=======
 export const F1_2026_CALENDAR: GrandPrixInfo[] = [
   {
     round: 1,
@@ -13,7 +44,59 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     characteristic: 'Mistura curvas rápidas e freadas fortes',
     tireAbrasiveness: 4,
     downforceIdeal: 5,
+    suspensionIdeal: 5,
+    favors: 'Equilíbrio',
+    date: '6–8 mar',
+    avgLapTime: '~1:21',
+    hasSprint: false,
+  },
+  {
+=======
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
     suspensionIdeal: 6,
+  },
+  {
+=======
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+=======
+    round: 1,
+    name: 'Grande Prêmio da Austrália',
+    circuit: 'Albert Park, Melbourne',
+    country: 'Austrália',
+    flag: '🇦🇺',
+    laps: 58,
+    circuitLengthKm: 5.278,
+    turns: 14,
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 5,
+    favors: 'Equilíbrio',
+    date: '6–8 mar',
+    avgLapTime: '~1:21',
+    hasSprint: false,
+  },
+  {=======
+  },
+  {
+=======
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
+  },
+  {
+=======
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
+  },
+  {
+    round: 2,
+=======
   },
   {
     round: 2,

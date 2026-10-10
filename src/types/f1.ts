@@ -374,6 +374,10 @@ export interface GrandPrixInfo {
   tireAbrasiveness?: number // 1 a 10 (ex: 8 = Bahrain/Barcelona, 3 = Mônaco)
   downforceIdeal?: number // 1 a 10 asa recomendada (ex: Monza = 2, Mônaco = 10)
   suspensionIdeal?: number // 1 a 10 rigidez ideal
+  favors?: string
+  date?: string
+  avgLapTime?: string
+  hasSprint?: boolean
 }
 
 export type TireCompound = 'duro' | 'medio' | 'macio' | 'intermediario' | 'chuva_extrema'
