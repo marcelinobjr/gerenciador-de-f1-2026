@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T19:28:04.520Z",
+  "generatedAt": "2026-10-10T19:38:33.032Z",
   "collections": [
     {
       "name": "users",
@@ -3179,8 +3179,8 @@
       "name": "canonical_driver_morale_receipts",
       "type": "base",
       "apiRules": {
-        "list": "",
-        "view": "",
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
         "create": "",
         "update": "",
         "delete": ""
