@@ -86,7 +86,7 @@ export default function StandingsPage() {
   }, [careerId, seasonYear, team?.id, team?.team_key, driverStandings])
 
   const championshipSnapshot = useMemo(() => {
-    // Se temos snapshot assíncrono do backend com rodadas processadas, tem precedência
+    // Se temos snapshot assíncrono do backend com rodadas processadas e pontos, tem precedência absoluta
     if (asyncSnapshot && asyncSnapshot.throughRound > 0) {
       return asyncSnapshot
     }
@@ -96,7 +96,7 @@ export default function StandingsPage() {
       undefined,
       team?.id || team?.team_key,
     )
-    if (syncSnap && syncSnap.throughRound > 0) {
+    if (syncSnap && syncSnap.throughRound > 0 && syncSnap.driverStandings?.some((d) => d.points > 0)) {
       return syncSnap
     }
     return asyncSnapshot || syncSnap
