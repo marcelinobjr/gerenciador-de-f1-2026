@@ -522,7 +522,7 @@ export const canonicalRaceInitializationService = {
     if (!circuitLengthKm || circuitLengthKm <= 0 || isNaN(circuitLengthKm)) {
       throw new Error(`[SprintLaps] circuitLengthKm inválido: ${circuitLengthKm}`)
     }
-    return this.getCanonicalSprintLaps(Math.ceil(305 / circuitLengthKm))
+    return this.getCanonicalSprintLaps(Math.floor(305 / circuitLengthKm))
   },
 
   /**
