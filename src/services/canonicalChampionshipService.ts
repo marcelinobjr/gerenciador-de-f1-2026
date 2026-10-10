@@ -332,6 +332,194 @@ export class CanonicalChampionshipService {
   }
 
   /**
+   * Versão autoritativa assíncrona que lê do PocketBase com fallback de cache local.
+   * Consulta canonical_career_apply_journals por journal_key e race_results da temporada,
+   * garantindo que a classificação reflita o backend mesmo após reload ou eviction de cota local.
+   */
+  public async getEligibleOfficialRaceResultsAsync(
+    careerId: string,
+    season: number,
+    throughRound?: number,
+  ): Promise<CanonicalPersistedRaceResult[]> {
+    const localResults = this.getEligibleOfficialRaceResults(careerId, season, throughRound)
+    const maxR = throughRound !== undefined && throughRound > 0 ? throughRound : 24
+
+    if (!pb?.collection) {
+      return localResults
+    }
+
+    try {
+      const sNum =
+        typeof season === 'number'
+          ? season
+          : parseInt(String(season).replace(/\D/g, ''), 10) || 2026
+
+      // Buscar journals COMPLETE do backend para esta carreira e temporada
+      const journalFilter = `career_id = "${careerId}" && season = ${sNum} && status = "COMPLETE"`
+      const journalRecords = await pb
+        .collection('canonical_career_apply_journals')
+        .getFullList({
+          filter: journalFilter,
+        })
+        .catch(() => [] as any[])
+
+      if (!journalRecords || journalRecords.length === 0) {
+        return localResults
+      }
+
+      // Buscar race_results com application_status = 'COMPLETE' ou status correspondente
+      // Nota: career_id ou season_id correspondem ao seasonId/careerId canônico
+      const raceResultsFilter = `(career_id = "${careerId}" || season_id = "${careerId}") && (application_status = "COMPLETE" || points > 0)`
+      const raceRows = await pb
+        .collection('race_results')
+        .getFullList({
+          filter: raceResultsFilter,
+          sort: 'round,position',
+        })
+        .catch(() => [] as any[])
+
+      const resultsMap = new Map<string, CanonicalPersistedRaceResult>()
+      // Inicializar com localResults se já existirem
+      for (const res of localResults) {
+        const key = `${res.round}_${res.snapshot?.raceVariant || 'MAIN_RACE'}`
+        resultsMap.set(key, res)
+      }
+
+      // Para cada journal COMPLETE encontrado no backend
+      for (const jRec of journalRecords) {
+        const roundNum = Number(jRec.round)
+        if (roundNum <= 0 || roundNum > maxR) continue
+
+        const variant: 'MAIN_RACE' | 'SPRINT_RACE' =
+          jRec.race_variant === 'SPRINT_RACE' || String(jRec.journal_key || '').endsWith('_sprint')
+            ? 'SPRINT_RACE'
+            : 'MAIN_RACE'
+
+        const mapKey = `${roundNum}_${variant}`
+        if (resultsMap.has(mapKey)) {
+          continue
+        }
+
+        // Tentar obter resultado da linha de race_results
+        const matchingRows = raceRows.filter((row: any) => {
+          const rowRound = Number(row.round)
+          if (rowRound !== roundNum) return false
+          const isSprintRow =
+            row.result_key?.endsWith('_sprint') || row.event_id?.endsWith('_sprint')
+          if (variant === 'SPRINT_RACE') return isSprintRow
+          return !isSprintRow
+        })
+
+        if (matchingRows.length > 0) {
+          // Extrair snapshot a partir do result_snapshot da primeira linha que tiver
+          let extractedSnapshot: any = null
+          for (const row of matchingRows) {
+            if (row.result_snapshot) {
+              try {
+                extractedSnapshot =
+                  typeof row.result_snapshot === 'string'
+                    ? JSON.parse(row.result_snapshot)
+                    : row.result_snapshot
+                if (extractedSnapshot && Array.isArray(extractedSnapshot.entries)) {
+                  break
+                }
+              } catch {
+                /* intentionally ignored */
+              }
+            }
+          }
+
+          let entries: any[] = []
+          if (extractedSnapshot && Array.isArray(extractedSnapshot.entries)) {
+            entries = extractedSnapshot.entries
+          } else {
+            // Reconstruir entries a partir das linhas de race_results
+            entries = matchingRows.map((row: any) => ({
+              driverId: row.driver_id,
+              driverName: row.expand?.driver_id?.name || row.driverName || row.driver_id,
+              teamId: row.team_id,
+              teamName: row.expand?.team_id?.name || row.teamName || row.team_id,
+              teamColor: row.expand?.team_id?.color || '#71717A',
+              gridPosition: Number(row.grid_position) || 0,
+              finalPosition: Number(row.position) || 1,
+              pointsAwarded: Number(row.points) || 0,
+              status: row.status || 'finished',
+              fastestLap: !!row.fastest_lap,
+              gapToLeader: row.gap_to_winner || '',
+            }))
+          }
+
+          const firstRow = matchingRows[0]
+          const persistedResult: CanonicalPersistedRaceResult = {
+            id:
+              firstRow.result_key ||
+              `race_result_${careerId}_s${sNum}_${roundNum}_${variant === 'SPRINT_RACE' ? 'sprint' : 'main'}`,
+            careerId,
+            seasonId: careerId,
+            season: sNum,
+            round: roundNum,
+            eventId: firstRow.event_id || `event_${careerId}_s${sNum}_r${roundNum}`,
+            circuitId: firstRow.circuit_id || extractedSnapshot?.circuitId || '',
+            officialRaceResultId:
+              jRec.official_race_result_id || firstRow.official_race_result_id || '',
+            checksum: jRec.result_hash || firstRow.checksum || '',
+            winnerDriverId: firstRow.winner_driver_id || '',
+            poleDriverId: firstRow.pole_driver_id || '',
+            fastestLapDriverId: firstRow.fastest_lap_driver_id || '',
+            officializedAt: firstRow.officialized_at || jRec.completed_at || jRec.created,
+            createdAt: jRec.created || new Date().toISOString(),
+            entries,
+            playerEntries: extractedSnapshot?.playerEntries || [],
+            snapshot: extractedSnapshot || {
+              officialResultId: jRec.official_race_result_id || '',
+              careerId,
+              season: sNum,
+              round: roundNum,
+              raceVariant: variant,
+              resultHash: jRec.result_hash || '',
+              circuitId: firstRow.circuit_id || '',
+              circuitName: extractedSnapshot?.circuitName || 'GP Oficial',
+              circuitCountry: extractedSnapshot?.circuitCountry || '',
+              totalLaps: extractedSnapshot?.totalLaps || 50,
+              winnerDriverId: firstRow.winner_driver_id || '',
+              poleDriverId: firstRow.pole_driver_id || '',
+              fastestLapDriverId: firstRow.fastest_lap_driver_id || '',
+              officializedAt: firstRow.officialized_at || jRec.completed_at || '',
+              entries,
+              playerEntries: [],
+            },
+          }
+
+          // Salvar em cache local como acelerador
+          try {
+            canonicalCareerPersistenceService.savePersistedRaceResult(persistedResult, variant)
+          } catch {
+            /* intentionally ignored */
+          }
+
+          resultsMap.set(mapKey, persistedResult)
+        }
+      }
+
+      const combinedResults = Array.from(resultsMap.values())
+      combinedResults.sort((a, b) => {
+        if (a.round !== b.round) return a.round - b.round
+        const aIsSprint = a.snapshot?.raceVariant === 'SPRINT_RACE' ? 0 : 1
+        const bIsSprint = b.snapshot?.raceVariant === 'SPRINT_RACE' ? 0 : 1
+        return aIsSprint - bIsSprint
+      })
+
+      return combinedResults
+    } catch (remoteErr) {
+      console.warn(
+        '[CanonicalChampionshipService] Falha ao consultar resultados remotos no PB:',
+        remoteErr,
+      )
+      return localResults
+    }
+  }
+
+  /**
    * Constrói grid canônico neutro inicial para antes do primeiro GP da temporada (ou quando não há resultados).
    * Construtores: somente as 12 equipes oficiais participantes da temporada.
    * Pilotos: pilotos das 12 equipes ou catálogo base 2026.
@@ -450,6 +638,310 @@ export class CanonicalChampionshipService {
    * - 12 equipes da temporada
    * - Isolamento de carreira e de temporada
    */
+  public rebuildChampionshipStandingsFromResults(
+    careerId: string,
+    season: number,
+    validRaces: CanonicalPersistedRaceResult[],
+    playerTeamId?: string,
+  ): ChampionshipSnapshot {
+    // Se nenhuma corrida oficial estiver registrada para a temporada
+    if (validRaces.length === 0) {
+      const neutral = this.buildNeutralSeasonGrid(playerTeamId)
+      return {
+        id: this.buildSnapshotKey(careerId, season, 0),
+        careerId,
+        season,
+        throughRound: 0,
+        sourceRaceResultIds: [],
+        sourceChecksums: [],
+        driverStandings: neutral.drivers,
+        constructorStandings: neutral.constructors,
+        createdAt: new Date().toISOString(),
+        schemaVersion: 'championship-snapshot-v1',
+      }
+    }
+
+    // 1. Dicionários de acumulação a partir estritamente dos fatos esportivos oficiais
+    interface DriverAccumulator {
+      driverId: string
+      driverName: string
+      nationality: string
+      points: number
+      wins: number
+      secondPlaces: number
+      thirdPlaces: number
+      fourthPlaces: number
+      podiums: number
+      raceStarts: number
+      racesCounted: number
+      finishCounts: Record<number, number>
+      lastTeamId?: string
+      lastTeamName?: string
+      lastTeamColor?: string
+      isPlayer?: boolean
+    }
+
+    interface ConstructorAccumulator {
+      teamId: string
+      teamName: string
+      teamColor: string
+      points: number
+      wins: number
+      podiums: number
+      racesCounted: number
+      finishCounts: Record<number, number>
+      isPlayer?: boolean
+    }
+
+    const driverMap = new Map<string, DriverAccumulator>()
+    const constructorMap = new Map<string, ConstructorAccumulator>()
+
+    // Inicializar as 12 equipes oficiais participantes da temporada para garantir presença das 12
+    for (const offTeam of OFFICIAL_GRID_TEAMS) {
+      constructorMap.set(offTeam.key, {
+        teamId: offTeam.key,
+        teamName: offTeam.name,
+        teamColor: offTeam.color,
+        points: 0,
+        wins: 0,
+        podiums: 0,
+        racesCounted: 0,
+        finishCounts: {},
+        isPlayer: playerTeamId ? offTeam.key === playerTeamId : false,
+      })
+    }
+
+    // Processar cada corrida oficial em ordem canônica
+    for (const race of validRaces) {
+      const entries = race.entries || []
+      const roundNumber = race.round
+      const isSprint = race.snapshot?.raceVariant === 'SPRINT_RACE'
+
+      // Conjunto para detectar e evitar anomalia de driver duplicado dentro do MESMO fato esportivo (desta prova)
+      const seenDriverInRace = new Set<string>()
+
+      for (const entry of entries) {
+        if (seenDriverInRace.has(entry.driverId)) {
+          console.warn(
+            `[CanonicalChampionshipService] Anomalia detectada: piloto duplicado ${entry.driverId} na prova ${roundNumber} (${race.id})`,
+          )
+          continue
+        }
+        seenDriverInRace.add(entry.driverId)
+
+        // 1. Piloto
+        let dAcc = driverMap.get(entry.driverId)
+        if (!dAcc) {
+          const base = driverBase2026Service.getBaseDriver2026(entry.driverId)
+          const canonical = findCanonicalDriverMaster(entry.driverId, entry.driverName)
+          const resolvedNat = base?.nationality || canonical?.nationality
+
+          if (!resolvedNat) {
+            console.error(
+              `[CanonicalChampionshipService] ERRO DE INTEGRIDADE: Piloto ${entry.driverId} (${entry.driverName}) sem nacionalidade canônica`,
+            )
+            if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+              throw new Error(
+                `ERRO DE INTEGRIDADE: Falha ao resolver nacionalidade canônica para piloto ${entry.driverId} (${entry.driverName})`,
+              )
+            }
+          }
+
+          dAcc = {
+            driverId: entry.driverId,
+            driverName: entry.driverName,
+            nationality: resolvedNat || 'Sem Nacionalidade',
+            points: 0,
+            wins: 0,
+            secondPlaces: 0,
+            thirdPlaces: 0,
+            fourthPlaces: 0,
+            podiums: 0,
+            raceStarts: 0,
+            racesCounted: 0,
+            finishCounts: {},
+            lastTeamId: entry.teamId,
+            lastTeamName: entry.teamName,
+            lastTeamColor: entry.teamColor,
+            isPlayer: entry.isPlayer || (playerTeamId ? entry.teamId === playerTeamId : false),
+          }
+          driverMap.set(entry.driverId, dAcc)
+        }
+
+        // Atualizar informações da corrida mais recente para apresentação
+        dAcc.lastTeamId = entry.teamId
+        dAcc.lastTeamName = entry.teamName
+        dAcc.lastTeamColor = entry.teamColor
+        if (entry.isPlayer || (playerTeamId && entry.teamId === playerTeamId)) {
+          dAcc.isPlayer = true
+        }
+
+        // Fato esportivo: pontuação estrita de pointsAwarded (sem bônus de fastest lap ou fórmula independente)
+        const pts = entry.pointsAwarded || 0
+        dAcc.points += pts
+        dAcc.racesCounted += 1
+
+        const isDns = (entry.status as any) === 'dns'
+        if (!isDns) {
+          dAcc.raceStarts += 1
+        }
+
+        const pos = entry.finalPosition
+        if (pos && pos > 0) {
+          dAcc.finishCounts[pos] = (dAcc.finishCounts[pos] || 0) + 1
+          if (!isSprint) {
+            if (pos === 1) dAcc.wins += 1
+            if (pos === 2) dAcc.secondPlaces += 1
+            if (pos === 3) dAcc.thirdPlaces += 1
+            if (pos === 4) dAcc.fourthPlaces += 1
+            if (pos >= 1 && pos <= 3) dAcc.podiums += 1
+          }
+        }
+
+        // 2. Construtores: somar estritamente pelo teamId registrado NAQUELA corrida
+        const teamKey = entry.teamId
+        let cAcc = constructorMap.get(teamKey)
+        if (!cAcc) {
+          const matchOff = OFFICIAL_GRID_TEAMS.find(
+            (t) =>
+              t.key === teamKey ||
+              t.name.toLowerCase() === entry.teamName.toLowerCase() ||
+              t.key.toLowerCase() === entry.teamName.toLowerCase(),
+          )
+          if (matchOff) {
+            cAcc = constructorMap.get(matchOff.key)
+          }
+        }
+
+        if (!cAcc) {
+          cAcc = {
+            teamId: teamKey,
+            teamName: entry.teamName,
+            teamColor: entry.teamColor || '#71717A',
+            points: 0,
+            wins: 0,
+            podiums: 0,
+            racesCounted: 0,
+            finishCounts: {},
+            isPlayer: playerTeamId ? teamKey === playerTeamId : false,
+          }
+          constructorMap.set(teamKey, cAcc)
+        }
+
+        cAcc.points += pts
+        cAcc.racesCounted += 1
+        if (pos && pos > 0) {
+          cAcc.finishCounts[pos] = (cAcc.finishCounts[pos] || 0) + 1
+          if (!isSprint) {
+            if (pos === 1) cAcc.wins += 1
+            if (pos >= 1 && pos <= 3) cAcc.podiums += 1
+          }
+        }
+      }
+    }
+
+    // 2. Ordenação e desempate (Countback)
+    const sortedDrivers = Array.from(driverMap.values()).sort((a, b) =>
+      compareCountback(a.points, a.finishCounts, b.points, b.finishCounts, () =>
+        a.driverName.localeCompare(b.driverName),
+      ),
+    )
+
+    const driverLeaderPts = sortedDrivers[0]?.points || 0
+
+    // Calcular positionDelta N vs N-1
+    let prevDriverStandingsMap = new Map<string, number>()
+    let prevConstructorStandingsMap = new Map<string, number>()
+
+    const latestRound = validRaces[validRaces.length - 1]?.round || 1
+    if (latestRound > 1) {
+      const prevSnapshot = this.getSnapshot(careerId, season, latestRound - 1)
+      if (prevSnapshot) {
+        prevSnapshot.driverStandings.forEach((d) => {
+          prevDriverStandingsMap.set(d.driverId, d.position)
+        })
+        prevSnapshot.constructorStandings.forEach((c) => {
+          prevConstructorStandingsMap.set(c.teamId, c.position)
+        })
+      }
+    }
+
+    const driverStandings: ChampionshipDriverStanding[] = sortedDrivers.map((d, idx) => {
+      const pos = idx + 1
+      const prevPos = prevDriverStandingsMap.get(d.driverId)
+      const deltaInfo = this.formatPositionDelta(prevPos, pos)
+
+      return {
+        position: pos,
+        driverId: d.driverId,
+        driverName: d.driverName,
+        nationality: d.nationality,
+        flag: resolveCountryFlag(d.nationality),
+        points: d.points,
+        wins: d.wins,
+        secondPlaces: d.secondPlaces,
+        thirdPlaces: d.thirdPlaces,
+        fourthPlaces: d.fourthPlaces,
+        podiums: d.podiums,
+        raceStarts: d.raceStarts,
+        racesCounted: d.racesCounted,
+        finishCounts: d.finishCounts,
+        gapToLeader: this.formatGap(driverLeaderPts, d.points, pos === 1),
+        currentTeamId: d.lastTeamId,
+        currentTeamName: d.lastTeamName,
+        currentTeamColor: d.lastTeamColor,
+        isPlayer: d.isPlayer,
+        positionDelta: deltaInfo.delta,
+        positionDeltaText: deltaInfo.text,
+      }
+    })
+
+    const sortedConstructors = Array.from(constructorMap.values()).sort((a, b) =>
+      compareCountback(a.points, a.finishCounts, b.points, b.finishCounts, () =>
+        a.teamName.localeCompare(b.teamName),
+      ),
+    )
+
+    const constructorLeaderPts = sortedConstructors[0]?.points || 0
+
+    const constructorStandings: ChampionshipConstructorStanding[] = sortedConstructors.map(
+      (c, idx) => {
+        const pos = idx + 1
+        const prevPos = prevConstructorStandingsMap.get(c.teamId)
+        const deltaInfo = this.formatPositionDelta(prevPos, pos)
+
+        return {
+          position: pos,
+          teamId: c.teamId,
+          teamName: c.teamName,
+          teamColor: c.teamColor,
+          points: c.points,
+          wins: c.wins,
+          podiums: c.podiums,
+          racesCounted: c.racesCounted,
+          finishCounts: c.finishCounts,
+          gapToLeader: this.formatGap(constructorLeaderPts, c.points, pos === 1),
+          isPlayer: c.isPlayer,
+          positionDelta: deltaInfo.delta,
+          positionDeltaText: deltaInfo.text,
+        }
+      },
+    )
+
+    return {
+      id: this.buildSnapshotKey(careerId, season, latestRound),
+      careerId,
+      season,
+      throughRound: latestRound,
+      sourceRaceResultIds: validRaces.map((r) => r.officialRaceResultId || r.id),
+      sourceChecksums: validRaces.map((r) => r.checksum || ''),
+      driverStandings,
+      constructorStandings,
+      createdAt: new Date().toISOString(),
+      schemaVersion: 'championship-snapshot-v1',
+    }
+  }
+
   public rebuildChampionshipStandings(
     careerId: string,
     season: number,
@@ -836,6 +1328,73 @@ export class CanonicalChampionshipService {
 
     // Rebuild direto sem escrever na leitura
     return this.rebuildChampionshipStandings(careerId, season, latestRound, playerTeamId)
+  }
+
+  /**
+   * Consulta autoritativa e assíncrona do snapshot da classificação.
+   * Se o localStorage não contiver resultados (ex: após reload ou eviction de cota),
+   * busca do PocketBase e reconstrói a pontuação oficial do campeonato.
+   */
+  public async getChampionshipStandingsAsync(
+    careerId: string,
+    season: number,
+    throughRound?: number,
+    playerTeamId?: string,
+  ): Promise<ChampionshipSnapshot> {
+    const maxR = throughRound !== undefined && throughRound > 0 ? throughRound : 24
+    const validRaces = await this.getEligibleOfficialRaceResultsAsync(careerId, season, maxR)
+    const latestRound = validRaces[validRaces.length - 1]?.round || 0
+
+    if (latestRound > 0) {
+      const existing = this.getSnapshot(careerId, season, latestRound)
+      if (existing && existing.throughRound === latestRound) {
+        return existing
+      }
+    }
+
+    // Também verificar se há snapshot persistido na coleção championship_snapshots do PB
+    if (pb?.collection && latestRound > 0) {
+      try {
+        const snapKey = this.buildSnapshotKey(careerId, season, latestRound)
+        const safeKey = snapKey.replace(/"/g, '\\"')
+        const remoteSnap = await pb
+          .collection('championship_snapshots')
+          .getFirstListItem(`snapshot_key = "${safeKey}"`)
+        if (
+          remoteSnap?.driver_standings &&
+          Array.isArray(remoteSnap.driver_standings) &&
+          remoteSnap.driver_standings.length > 0
+        ) {
+          const loadedSnapshot: ChampionshipSnapshot = {
+            id: remoteSnap.snapshot_key || snapKey,
+            careerId: remoteSnap.career_id || careerId,
+            season: remoteSnap.season || season,
+            throughRound: remoteSnap.through_round || latestRound,
+            sourceRaceResultIds: remoteSnap.source_race_ids || [],
+            sourceChecksums: remoteSnap.source_checksums || [],
+            driverStandings: remoteSnap.driver_standings,
+            constructorStandings: remoteSnap.constructor_standings || [],
+            createdAt: remoteSnap.created || new Date().toISOString(),
+            schemaVersion: 'championship-snapshot-v1',
+          }
+          this.saveSnapshot(loadedSnapshot)
+          return loadedSnapshot
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+
+    const rebuilt = this.rebuildChampionshipStandingsFromResults(
+      careerId,
+      season,
+      validRaces,
+      playerTeamId,
+    )
+    if (rebuilt.throughRound > 0) {
+      this.saveSnapshot(rebuilt)
+    }
+    return rebuilt
   }
 
   /**

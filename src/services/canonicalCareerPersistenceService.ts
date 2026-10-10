@@ -308,9 +308,10 @@ export class CanonicalCareerPersistenceService {
     // 1. Buscar registro existente pelo journal_key
     let existingRecord: any = null
     try {
+      const safeKey = key.replace(/"/g, '\\"')
       const found = await pb
         .collection('canonical_career_apply_journals')
-        .getFirstListItem(`journal_key = "${key}"`)
+        .getFirstListItem(`journal_key = "${safeKey}"`)
       if (found?.id) {
         existingRecord = found
       }

@@ -46,25 +46,61 @@ export default function StandingsPage() {
   // Obter snapshot mais recente para checar último GP oficializado via helper canônico
   const careerId = resolveCanonicalCareerId(season, team)
 
+  // Estado local para suportar carregamento assíncrono autoritativo do PocketBase
+  const [asyncSnapshot, setAsyncSnapshot] = useState<any | null>(null)
+
   // Reconciliação transparente de resultados legados caso existam rodadas salvas sob team.id
   React.useEffect(() => {
     if (team?.id && careerId && team.id !== careerId) {
-      canonicalChampionshipMigrationService.reconcileLegacyCareerResults({
-        canonicalCareerId: careerId,
-        legacyCareerIds: [team.id],
-        seasonYear,
-      })
+      try {
+        canonicalChampionshipMigrationService.reconcileLegacyCareerResults({
+          canonicalCareerId: careerId,
+          legacyCareerIds: [team.id],
+          seasonYear,
+        })
+      } catch {
+        /* intentionally ignored */
+      }
     }
   }, [careerId, team?.id, seasonYear])
+  // Consulta autoritativa remota do PocketBase para garantir que os pontos sejam exibidos
+  // mesmo após reload de página ou falta de snapshot no localStorage
+  React.useEffect(() => {
+    let isMounted = true
+    if (!careerId) return
+
+    canonicalChampionshipService
+      .getChampionshipStandingsAsync(careerId, seasonYear, undefined, team?.id || team?.team_key)
+      .then((remoteSnap) => {
+        if (isMounted && remoteSnap && remoteSnap.throughRound > 0) {
+          setAsyncSnapshot(remoteSnap)
+        }
+      })
+      .catch((err) => {
+        console.warn('[StandingsPage] Erro ao carregar standings autoritativos do backend:', err)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [careerId, seasonYear, team?.id, team?.team_key, driverStandings])
 
   const championshipSnapshot = useMemo(() => {
-    return canonicalChampionshipService.getChampionshipStandings(
+    // Se temos snapshot assíncrono do backend com rodadas processadas, tem precedência
+    if (asyncSnapshot && asyncSnapshot.throughRound > 0) {
+      return asyncSnapshot
+    }
+    const syncSnap = canonicalChampionshipService.getChampionshipStandings(
       careerId,
       seasonYear,
       undefined,
       team?.id || team?.team_key,
     )
-  }, [careerId, seasonYear, team?.id, team?.team_key, driverStandings])
+    if (syncSnap && syncSnap.throughRound > 0) {
+      return syncSnap
+    }
+    return asyncSnapshot || syncSnap
+  }, [careerId, seasonYear, team?.id, team?.team_key, driverStandings, asyncSnapshot])
 
   const throughRound = championshipSnapshot?.throughRound || 0
 

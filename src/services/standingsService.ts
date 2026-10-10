@@ -144,6 +144,13 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     seasonYear,
   )
 
+  // Se não encontrou no cache local síncrono, mas raceResults do PocketBase já contém linhas válidas
+  const pbResultsWithPoints = raceResults.filter(
+    (r: any) =>
+      (!r.season_id || r.season_id === careerId || r.season_id === season?.id) &&
+      (Number(r.points) > 0 || r.application_status === 'COMPLETE'),
+  )
+
   if (canonicalResults.length > 0) {
     const snap = canonicalChampionshipService.getChampionshipStandings(
       careerId,
@@ -235,6 +242,151 @@ export function calculateStandings(params: CalculateStandingsParams): FullStandi
     }
   })
   const hasRecordedResults = recordedRounds.size > 0
+
+  // Se raceResults do backend contém linhas oficiais com pontos (ex: Rodada 1 gravada no PocketBase),
+  // mas o snapshot canônico local ainda não foi construído (ex: após reload/quota eviction),
+  // construir snapshot diretamente das linhas de race_results do PocketBase
+  if (pbResultsWithPoints.length > 0) {
+    const roundsMap = new Map<number, any[]>()
+    pbResultsWithPoints.forEach((r) => {
+      const rNum = Number(r.round) || 1
+      if (!roundsMap.has(rNum)) roundsMap.set(rNum, [])
+      roundsMap.get(rNum)!.push(r)
+    })
+
+    const constructedRaces: any[] = []
+    roundsMap.forEach((rows, rNum) => {
+      // Extrair snapshot se presente
+      let snapEntries: any[] = []
+      let foundSnap: any = null
+      for (const row of rows) {
+        if (row.result_snapshot) {
+          try {
+            const parsed =
+              typeof row.result_snapshot === 'string'
+                ? JSON.parse(row.result_snapshot)
+                : row.result_snapshot
+            if (parsed && Array.isArray(parsed.entries)) {
+              snapEntries = parsed.entries
+              foundSnap = parsed
+              break
+            }
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      }
+
+      if (snapEntries.length === 0) {
+        snapEntries = rows.map((row: any) => ({
+          driverId: row.driver_id,
+          driverName: row.expand?.driver_id?.name || row.driverName || row.driver_id,
+          teamId: row.team_id,
+          teamName: row.expand?.team_id?.name || row.teamName || row.team_id,
+          teamColor: row.expand?.team_id?.color || '#71717A',
+          gridPosition: Number(row.grid_position) || 0,
+          finalPosition: Number(row.position) || 1,
+          pointsAwarded: Number(row.points) || 0,
+          status: row.status || 'finished',
+          fastestLap: !!row.fastest_lap,
+          gapToLeader: row.gap_to_winner || '',
+        }))
+      }
+
+      constructedRaces.push({
+        id: `race_result_${careerId}_s${seasonYear}_${rNum}_main`,
+        careerId,
+        seasonId: careerId,
+        season: seasonYear,
+        round: rNum,
+        officialRaceResultId: rows[0].official_race_result_id || '',
+        checksum: rows[0].checksum || '',
+        entries: snapEntries,
+        snapshot: foundSnap || {
+          round: rNum,
+          raceVariant: 'MAIN_RACE',
+          entries: snapEntries,
+        },
+      })
+    })
+
+    if (constructedRaces.length > 0) {
+      const snap = canonicalChampionshipService.rebuildChampionshipStandingsFromResults(
+        careerId,
+        seasonYear,
+        constructedRaces,
+        team?.id,
+      )
+
+      const driverStandings: DriverStanding[] = snap.driverStandings.map((d) => {
+        const binding = getActiveDriverTeamBinding(d.driverId)
+        const resolvedTeamName =
+          binding?.isContracted && binding?.teamName
+            ? binding.teamName
+            : d.currentTeamName || 'Sem Equipe'
+        const resolvedTeamColor = binding?.teamColor || d.currentTeamColor || '#71717A'
+
+        return {
+          id: d.driverId,
+          name: d.driverName,
+          nationality: d.nationality,
+          flag: d.flag,
+          teamName: resolvedTeamName,
+          teamColor: resolvedTeamColor,
+          points: d.points,
+          wins: d.wins,
+          secondPlaces: d.secondPlaces,
+          thirdPlaces: d.thirdPlaces,
+          fourthPlaces: d.fourthPlaces,
+          podiums: d.podiums,
+          bestPosition: d.position,
+          isPlayer: !!d.isPlayer,
+          raceStarts: d.raceStarts,
+          racesCounted: d.racesCounted,
+          finishCounts: d.finishCounts,
+          gapToLeader: d.gapToLeader,
+          positionDelta: d.positionDelta,
+          positionDeltaText: d.positionDeltaText,
+        }
+      })
+
+      const constructorStandings: TeamStanding[] = snap.constructorStandings.map((c) => ({
+        id: c.teamId,
+        name: c.teamName,
+        color: c.teamColor,
+        engine: 'F1 Power Unit',
+        points: c.points,
+        wins: c.wins,
+        podiums: c.podiums,
+        bestPosition: c.position,
+        isPlayer: !!c.isPlayer,
+        racesCounted: c.racesCounted,
+        finishCounts: c.finishCounts,
+        gapToLeader: c.gapToLeader,
+        positionDelta: c.positionDelta,
+        positionDeltaText: c.positionDeltaText,
+      }))
+
+      const playerTeamRank = constructorStandings.findIndex((c) => c.isPlayer) + 1
+      const playerStanding = constructorStandings.find((c) => c.isPlayer)
+
+      const driverPointsMap: Record<string, number> = {}
+      playerDrivers.forEach((d) => {
+        const match = driverStandings.find((sd) => sd.id === d.id || sd.name === d.name)
+        driverPointsMap[d.id] = match?.points || 0
+      })
+
+      return {
+        driverStandings,
+        constructorStandings,
+        driverPointsMap,
+        teamPoints: playerStanding?.points ?? 0,
+        playerConstructorRank: playerTeamRank > 0 ? playerTeamRank : null,
+        playerWins: playerStanding?.wins || 0,
+        playerPodiums: playerStanding?.podiums || 0,
+      }
+    }
+  }
 
   // Se não há corridas oficiais registradas em race_results nem no serviço canônico,
   // utilizar o grid canônico neutro (todas as 12 equipes oficiais participantes com 0 pontos)
