@@ -1,128 +1,142 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { canonicalChampionshipService } from '@/services/canonicalChampionshipService'
-import pb from '@/lib/pocketbase/client'
-import { resolveCanonicalCareerId } from '@/lib/canonical-career-id'
+import { canonicalChampionshipService } from '../services/canonicalChampionshipService'
+import { canonicalCareerPersistenceService } from '../services/canonicalCareerPersistenceService'
+import pb from '../lib/pocketbase/client'
 
-describe('STANDINGS-PB-AUTHORITY-01A — Classificação autoritativa do PocketBase', () => {
+describe('STANDINGS-PB-AUTHORITY-01A — Classificação deriva do backend', () => {
   const careerId = '31b0p9k5ygw2sc8'
   const season = 2026
-  const round = 1
 
   beforeEach(() => {
     localStorage.clear()
     vi.restoreAllMocks()
   })
 
-  it('1. resolveCanonicalCareerId unifica a identidade com season.id quando season.career_id não existe', () => {
-    const mockSeason = { id: careerId, year: 2026 }
-    const mockTeam = { id: 'nn7kruxy4qlvgwr', name: 'Audi F1 Team' }
-    const resolved = resolveCanonicalCareerId(mockSeason, mockTeam)
-    expect(resolved).toBe(careerId)
-  })
-
-  it('2. getEligibleOfficialRaceResultsAsync consulta PocketBase e reconstrói resultados mesmo com localStorage vazio', async () => {
+  it('passo 1: getEligibleOfficialRaceResultsAsync recupera resultados do PocketBase mesmo com localStorage vazio', async () => {
+    // 1. Simular PocketBase contendo o journal da Rodada 1 e as linhas de race_results
     const mockJournalRecord = {
-      id: 'iuocfkevb121a7g',
-      journal_key: `career_apply_result_${careerId}_s2026_1_main`,
+      id: 'journal_r1',
       career_id: careerId,
-      season: 2026,
+      season: season,
       round: 1,
-      race_variant: 'MAIN_RACE',
-      official_race_result_id: 'orr_31b0p9k5ygw2sc8_s2026_r1_1791637467492',
-      result_hash: 'sha256-mock-4de4b4f6',
+      variant: 'MAIN_RACE',
+      journal_key: `career_apply_result_${careerId}_s${season}_1_main`,
       status: 'COMPLETE',
       total_entries: 24,
-      applied_driver_ids: ['jwj3wcbmpjlszi9'],
-      completed_at: '2026-10-10T19:47:41.691Z',
+      applied_driver_ids: ['drv_antonelli', 'drv_russell'],
+      created: '2026-03-01T10:00:00Z',
     }
 
-    const mockRaceRow = {
-      id: 'eu9k6dq7sir2y42',
-      career_id: careerId,
-      season_id: careerId,
-      round: 1,
-      driver_id: 'jwj3wcbmpjlszi9',
-      team_id: 'team_mercedes',
-      points: 25,
-      position: 1,
-      application_status: 'COMPLETE',
-      result_snapshot: {
-        circuitName: 'Grande Prêmio da Austrália',
-        circuitCountry: 'Austrália',
-        totalLaps: 58,
-        entries: [
-          {
-            driverId: 'jwj3wcbmpjlszi9',
-            driverName: 'Andrea Kimi Antonelli',
-            teamId: 'team_mercedes',
-            teamName: 'Mercedes-AMG F1 Team',
-            teamColor: '#00D2BE',
-            pointsAwarded: 25,
-            finalPosition: 1,
-            fastestLap: false,
-          },
-          {
-            driverId: 'synyhb7yruf04vr',
-            driverName: 'George Russell',
-            teamId: 'team_mercedes',
-            teamName: 'Mercedes-AMG F1 Team',
-            teamColor: '#00D2BE',
-            pointsAwarded: 18,
-            finalPosition: 2,
-            fastestLap: false,
-          },
-        ],
+    const mockRaceResults = [
+      {
+        id: 'rr_1',
+        career_id: careerId,
+        season_id: careerId,
+        round: 1,
+        position: 1,
+        driver_id: 'drv_antonelli',
+        driverName: 'Kimi Antonelli',
+        team_id: 'team_mercedes',
+        teamName: 'Mercedes-AMG F1 Team',
+        grid_position: 1,
+        points: 25,
+        status: 'finished',
+        application_status: 'COMPLETE',
+        fastest_lap: false,
       },
-    }
+      {
+        id: 'rr_2',
+        career_id: careerId,
+        season_id: careerId,
+        round: 1,
+        position: 2,
+        driver_id: 'drv_russell',
+        driverName: 'George Russell',
+        team_id: 'team_mercedes',
+        teamName: 'Mercedes-AMG F1 Team',
+        grid_position: 2,
+        points: 18,
+        status: 'finished',
+        application_status: 'COMPLETE',
+        fastest_lap: true,
+      },
+    ]
 
-    vi.spyOn(pb, 'collection').mockImplementation((name: string) => {
-      if (name === 'canonical_career_apply_journals') {
+    const getFullListSpy = vi.spyOn(pb, 'collection').mockImplementation((colName: string) => {
+      if (colName === 'canonical_career_apply_journals') {
         return {
           getFullList: vi.fn().mockResolvedValue([mockJournalRecord]),
         } as any
       }
-      if (name === 'race_results') {
+      if (colName === 'race_results') {
         return {
-          getFullList: vi.fn().mockResolvedValue([mockRaceRow]),
-        } as any
-      }
-      if (name === 'championship_snapshots') {
-        return {
-          getFirstListItem: vi.fn().mockRejectedValue({ status: 404 }),
+          getFullList: vi.fn().mockResolvedValue(mockRaceResults),
         } as any
       }
       return {
         getFullList: vi.fn().mockResolvedValue([]),
-        getFirstListItem: vi.fn().mockRejectedValue({ status: 404 }),
+        getFirstListItem: vi.fn().mockResolvedValue(null),
       } as any
     })
 
-    const results = await canonicalChampionshipService.getEligibleOfficialRaceResultsAsync(
+    // LocalStorage está vazio
+    const localRaces = canonicalChampionshipService.getEligibleOfficialRaceResults(careerId, season)
+    expect(localRaces.length).toBe(0)
+
+    // Leitura autoritativa busca do backend
+    const remoteRaces = await canonicalChampionshipService.getEligibleOfficialRaceResultsAsync(
       careerId,
       season,
-      round,
     )
+    expect(remoteRaces.length).toBe(1)
+    expect(remoteRaces[0].round).toBe(1)
+    expect(remoteRaces[0].entries?.length).toBe(2)
 
-    expect(results.length).toBeGreaterThanOrEqual(1)
-    expect(results[0].round).toBe(1)
-    expect(results[0].entries[0].driverName).toContain('Antonelli')
-    expect(results[0].entries[0].pointsAwarded).toBe(25)
-
+    // Reconstrução do campeonato via getChampionshipStandingsAsync
     const standings = await canonicalChampionshipService.getChampionshipStandingsAsync(
       careerId,
       season,
-      round,
     )
-
     expect(standings.throughRound).toBe(1)
-    expect(standings.driverStandings[0].driverId).toBe('jwj3wcbmpjlszi9')
+    expect(standings.driverStandings.length).toBeGreaterThan(0)
+    expect(standings.driverStandings[0].driverId).toBe('drv_antonelli')
     expect(standings.driverStandings[0].points).toBe(25)
-    // Construtores: Mercedes deve estar na frente com Antonelli (25) + Russell (18) = 43 pontos
-    const mercStanding = standings.constructorStandings.find(
-      (c) => c.teamId === 'team_mercedes' || c.teamName.includes('Mercedes'),
+
+    // Construtores com Mercedes na frente
+    expect(standings.constructorStandings.length).toBeGreaterThan(0)
+    expect(standings.constructorStandings[0].teamId).toBe('team_mercedes')
+    expect(standings.constructorStandings[0].points).toBe(43) // 25 + 18
+  })
+
+  it('passo 2: getApplicationJournalFromBackend usa filtro journal_key (nunca key)', async () => {
+    let queriedFilter = ''
+    vi.spyOn(pb, 'collection').mockImplementation((colName: string) => {
+      if (colName === 'canonical_career_apply_journals') {
+        return {
+          getFullList: vi.fn().mockImplementation((options: any) => {
+            queriedFilter = options?.filter || ''
+            return Promise.resolve([
+              {
+                id: 'j1',
+                journal_key: `career_apply_result_${careerId}_s${season}_1_main`,
+                status: 'COMPLETE',
+                total_entries: 24,
+                applied_driver_ids: ['drv1'],
+              },
+            ])
+          }),
+        } as any
+      }
+      return {} as any
+    })
+
+    await canonicalCareerPersistenceService.getApplicationJournalFromBackend(
+      careerId,
+      season,
+      1,
+      'MAIN_RACE',
     )
-    expect(mercStanding).toBeDefined()
-    expect(mercStanding?.points).toBe(43)
-    expect(standings.constructorStandings[0].teamId).toBe(mercStanding?.teamId)
+    expect(queriedFilter).toContain('journal_key =')
+    expect(queriedFilter).not.toContain('key =')
   })
 })

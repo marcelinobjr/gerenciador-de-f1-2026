@@ -96,7 +96,11 @@ export default function StandingsPage() {
       undefined,
       team?.id || team?.team_key,
     )
-    if (syncSnap && syncSnap.throughRound > 0 && syncSnap.driverStandings?.some((d) => d.points > 0)) {
+    if (
+      syncSnap &&
+      syncSnap.throughRound > 0 &&
+      syncSnap.driverStandings?.some((d) => d.points > 0)
+    ) {
       return syncSnap
     }
     return asyncSnapshot || syncSnap

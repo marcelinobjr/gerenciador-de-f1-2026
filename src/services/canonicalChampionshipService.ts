@@ -367,22 +367,25 @@ export class CanonicalChampionshipService {
         return localResults
       }
 
-      // Buscar race_results com application_status = 'COMPLETE' ou status correspondente
-      // Nota: career_id ou season_id correspondem ao seasonId/careerId canônico
+      // 2. Resultado via linhas de race_results (filtrar career_id, season_id, round, application_status='COMPLETE'),
+      // usando result_snapshot como entries; manter o localStorage apenas como cache acelerador, nunca como única fonte.
       const raceResultsFilter = `(career_id = "${careerId}" || season_id = "${careerId}") && (application_status = "COMPLETE" || points > 0)`
       const raceRows = await pb
         .collection('race_results')
         .getFullList({
           filter: raceResultsFilter,
           sort: 'round,position',
+          expand: 'driver_id,team_id',
         })
         .catch(() => [] as any[])
 
       const resultsMap = new Map<string, CanonicalPersistedRaceResult>()
-      // Inicializar com localResults se já existirem
+      // Inicializar com localResults apenas se contiverem entradas válidas com pontos
       for (const res of localResults) {
-        const key = `${res.round}_${res.snapshot?.raceVariant || 'MAIN_RACE'}`
-        resultsMap.set(key, res)
+        if (res.entries && res.entries.some((e: any) => (e.pointsAwarded || 0) > 0)) {
+          const key = `${res.round}_${res.snapshot?.raceVariant || 'MAIN_RACE'}`
+          resultsMap.set(key, res)
+        }
       }
 
       // Para cada journal COMPLETE encontrado no backend
@@ -430,7 +433,11 @@ export class CanonicalChampionshipService {
           }
 
           let entries: any[] = []
-          if (extractedSnapshot && Array.isArray(extractedSnapshot.entries) && extractedSnapshot.entries.length > 0) {
+          if (
+            extractedSnapshot &&
+            Array.isArray(extractedSnapshot.entries) &&
+            extractedSnapshot.entries.length > 0
+          ) {
             entries = extractedSnapshot.entries
           } else {
             // Reconstruir entries a partir das linhas de race_results
@@ -1327,44 +1334,47 @@ export class CanonicalChampionshipService {
     }
 
     // Rebuild direto sem escrever na leitura
-return this.rebuildChampionshipStandings(careerId, season, latestRound, playerTeamId)
-}
-
-/**
-* Consulta autoritativa e assíncrona do snapshot da classificação.
-* Se o localStorage não contiver resultados (ex: após reload ou eviction de cota),
-* busca do PocketBase e reconstrói a pontuação oficial do campeonato.
-*/
-public async getChampionshipStandingsAsync(
-careerId: string,
-season: number,
-throughRound?: number,
-playerTeamId?: string,
-): Promise<ChampionshipSnapshot> {
-const maxR = throughRound !== undefined && throughRound > 0 ? throughRound : 24
-const validRaces = await this.getEligibleOfficialRaceResultsAsync(careerId, season, maxR)
-const latestRound = validRaces[validRaces.length - 1]?.round || 0
-
-if (latestRound > 0) {
-  const existing = this.getSnapshot(careerId, season, latestRound)
-  if (existing && existing.throughRound === latestRound && existing.driverStandings?.some(d => d.points > 0)) {
-    return existing
+    return this.rebuildChampionshipStandings(careerId, season, latestRound, playerTeamId)
   }
-}
 
-// Reconstruir determinística e autoritativamente a partir dos validRaces do PB
-const rebuilt = this.rebuildChampionshipStandingsFromResults(
-  careerId,
-  season,
-  validRaces,
-  playerTeamId,
-)
-if (rebuilt.throughRound > 0) {
-  this.saveSnapshot(rebuilt)
-}
-return rebuilt
-}
+  /**
+   * Consulta autoritativa e assíncrona do snapshot da classificação.
+   * Se o localStorage não contiver resultados (ex: após reload ou eviction de cota),
+   * busca do PocketBase e reconstrói a pontuação oficial do campeonato.
+   */
+  public async getChampionshipStandingsAsync(
+    careerId: string,
+    season: number,
+    throughRound?: number,
+    playerTeamId?: string,
+  ): Promise<ChampionshipSnapshot> {
+    const maxR = throughRound !== undefined && throughRound > 0 ? throughRound : 24
+    const validRaces = await this.getEligibleOfficialRaceResultsAsync(careerId, season, maxR)
+    const latestRound = validRaces[validRaces.length - 1]?.round || 0
 
+    if (latestRound > 0) {
+      const existing = this.getSnapshot(careerId, season, latestRound)
+      if (
+        existing &&
+        existing.throughRound === latestRound &&
+        existing.driverStandings?.some((d) => d.points > 0)
+      ) {
+        return existing
+      }
+    }
+
+    // Reconstruir determinística e autoritativamente a partir dos validRaces do PB
+    const rebuilt = this.rebuildChampionshipStandingsFromResults(
+      careerId,
+      season,
+      validRaces,
+      playerTeamId,
+    )
+    if (rebuilt.throughRound > 0) {
+      this.saveSnapshot(rebuilt)
+    }
+    return rebuilt
+  }
   /**
    * Auditoria Esportiva do Campeonato (Requisito 17).
    */
