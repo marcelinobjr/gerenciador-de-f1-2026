@@ -2,19 +2,19 @@
 
 /**
  * Hook Server-side: Operação Transacional Atômica de Estatísticas de Piloto na Carreira
- * Microbloco RACE-CAREER-SAVE-01D2B1: Ajustar o Contrato do Hook Existente
+ * Microbloco RACE-CAREER-SAVE-01D2B1A: Identidade do Piloto no Hook (Contrato Fechado)
  *
  * Contrato de rota:
  * POST /backend/v1/career-driver-stats/apply-atomic
  * GET  /backend/v1/career-driver-stats/receipt
  *
- * CONTRATO AJUSTADO (01D2B1):
- * 1. Resolução da exigência de careerDriverId:
- *    - O fluxo frontend dispõe de driverId (resolvido para o ID persistente de 'drivers').
- *    - No schema PocketBase não existe tabela 'career_drivers'; o identificador contextual do
- *      piloto dentro da carreira (career_driver_id) é por definição canônica o par (careerId:driverId)
- *      ou o careerDriverId explícito enviado pelo chamador (se presente), garantindo compatibilidade
- *      sem inventar tabela inexistente e sem descartar a coluna NOT NULL da coleção de recibos.
+ * CONTRATO DE IDENTIDADE (01D2B1A):
+ * 1. Resolução da identidade do piloto e careerDriverId:
+ *    - O alvo é identificado pelo ID real da coleção 'drivers' (ou nome resolvido para 'drivers').
+ *    - careerDriverId NÃO é obrigatório na entrada do endpoint.
+ *    - No PocketBase não existe tabela 'career_drivers'; o identificador de recibo career_driver_id
+ *      é preenchido com `${careerId}_${driverId}` (ou o valor explícito se enviado), garantindo
+ *      compatibilidade com recibos existentes e com o schema NOT NULL sem exigir entidade externa.
  *    - Validação de autorização do chamador sobre a carreira (seasons.team_id -> teams.user_id).
  *
  * 2. Garantir isolamento das estatísticas:
@@ -190,9 +190,10 @@ routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
 
   const realDriverId = driverRecord.id
 
-  // 4. Resolver career_driver_id canônico de forma compatível com o schema:
-  // Se enviado explicitamente pelo chamador, utiliza-o.
-  // Se ausente, deriva canonicamente como `${c}_${realDriverId}` (vínculo piloto-carreira determinístico).
+  // 4. Resolver career_driver_id para persistência no recibo:
+  // careerDriverId é opcional na entrada. A identidade persistente primária do piloto é o seu ID real em 'drivers'.
+  // No schema de canonical_career_driver_stats_receipts, a coluna career_driver_id é mantida para compatibilidade,
+  // preenchida canonicamente como `${c}_${realDriverId}` (ou o valor explícito se fornecido pelo chamador).
   const resolvedCareerDriverId =
     careerDriverId && typeof careerDriverId === 'string' && careerDriverId.trim()
       ? careerDriverId.trim()
