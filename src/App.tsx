@@ -53,6 +53,7 @@ const App = () => (
             <Route element={<LobbyLayout />}>
               <Route path="/lobby" element={<LobbyPage />} />
               <Route path="/selecionar-equipe" element={<LobbyPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Route>
           </Route>
 

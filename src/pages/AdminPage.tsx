@@ -46,7 +46,9 @@ export default function AdminPage() {
   const [usersList, setUsersList] = useState<UserItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
+    null,
+  )
 
   // Modais
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -73,16 +75,19 @@ export default function AdminPage() {
     try {
       // Como o PocketBase tem regra de list no users (id = @request.auth.id),
       // consultamos via API padrão do PocketBase client.
-      const records = await pb.collection('users').getFullList<UserItem>({
-        sort: '-created',
-      }).catch(async () => {
-        // Fallback: se a regra RLS só permitir ver a si próprio, inclui pelo menos o usuário atual
-        if (user) {
-          const selfRec = await pb.collection('users').getOne<UserItem>(user.id)
-          return [selfRec]
-        }
-        return []
-      })
+      const records = await pb
+        .collection('users')
+        .getFullList<UserItem>({
+          sort: '-created',
+        })
+        .catch(async () => {
+          // Fallback: se a regra RLS só permitir ver a si próprio, inclui pelo menos o usuário atual
+          if (user) {
+            const selfRec = await pb.collection('users').getOne<UserItem>(user.id)
+            return [selfRec]
+          }
+          return []
+        })
       setUsersList(records || [])
     } catch (err: any) {
       console.error('Erro ao carregar lista de usuários:', err)
@@ -109,7 +114,8 @@ export default function AdminPage() {
           Acesso Restrito
         </h1>
         <p className="text-sm text-[#8B95A7] max-w-md mb-6">
-          Este painel é de uso exclusivo do administrador do sistema (m.blasques@multi.br.com). Sua conta atual não possui privilégios de acesso.
+          Este painel é de uso exclusivo do administrador do sistema (m.blasques@multi.br.com). Sua
+          conta atual não possui privilégios de acesso.
         </p>
         <Link to="/">
           <Button variant="outline" className="border-[#232936] text-white">
@@ -172,7 +178,10 @@ export default function AdminPage() {
         password: newPassword,
         passwordConfirm: newPassword,
       })
-      setFeedback({ type: 'success', message: `Senha de ${selectedUser.email} alterada com sucesso!` })
+      setFeedback({
+        type: 'success',
+        message: `Senha de ${selectedUser.email} alterada com sucesso!`,
+      })
       setShowResetModal(false)
       setNewPassword('')
       setSelectedUser(null)
@@ -192,14 +201,20 @@ export default function AdminPage() {
 
     // Proteção de autoexclusão
     if (selectedUser.email.toLowerCase() === user?.email?.toLowerCase()) {
-      setFeedback({ type: 'error', message: 'Operação bloqueada: você não pode excluir a sua própria conta de administrador.' })
+      setFeedback({
+        type: 'error',
+        message: 'Operação bloqueada: você não pode excluir a sua própria conta de administrador.',
+      })
       setShowDeleteModal(false)
       return
     }
 
     // Confirmação por e-mail digitado
     if (deleteConfirmationEmail.trim().toLowerCase() !== selectedUser.email.toLowerCase()) {
-      setFeedback({ type: 'error', message: 'O e-mail digitado não coincide com o usuário a ser excluído.' })
+      setFeedback({
+        type: 'error',
+        message: 'O e-mail digitado não coincide com o usuário a ser excluído.',
+      })
       return
     }
 
@@ -207,7 +222,10 @@ export default function AdminPage() {
     setFeedback(null)
     try {
       await pb.collection('users').delete(selectedUser.id)
-      setFeedback({ type: 'success', message: `Usuário ${selectedUser.email} excluído permanentemente.` })
+      setFeedback({
+        type: 'success',
+        message: `Usuário ${selectedUser.email} excluído permanentemente.`,
+      })
       setShowDeleteModal(false)
       setDeleteConfirmationEmail('')
       setSelectedUser(null)
@@ -220,7 +238,7 @@ export default function AdminPage() {
     }
   }
 
-  const filteredUsers = usersList.filter(u => {
+  const filteredUsers = usersList.filter((u) => {
     const q = searchTerm.toLowerCase()
     return (
       u.email.toLowerCase().includes(q) ||
@@ -241,7 +259,10 @@ export default function AdminPage() {
             <h1 className="text-xl font-bold font-mono tracking-wider text-white uppercase">
               Módulo Admin — Gestão de Usuários
             </h1>
-            <Badge variant="outline" className="border-emerald-600/40 text-emerald-400 font-mono text-[10px]">
+            <Badge
+              variant="outline"
+              className="border-emerald-600/40 text-emerald-400 font-mono text-[10px]"
+            >
               Root / Superuser
             </Badge>
           </div>
@@ -365,16 +386,20 @@ export default function AdminPage() {
                           </div>
                           <div className="text-[10px] text-[#556070]">{u.id}</div>
                         </td>
-                        <td className="py-3 px-4 font-mono text-white">
-                          {u.email}
-                        </td>
+                        <td className="py-3 px-4 font-mono text-white">{u.email}</td>
                         <td className="py-3 px-4">
                           {isSuperAdmin ? (
-                            <Badge variant="outline" className="border-red-500/40 text-red-400 bg-red-950/20 text-[10px]">
+                            <Badge
+                              variant="outline"
+                              className="border-red-500/40 text-red-400 bg-red-950/20 text-[10px]"
+                            >
                               Admin Root
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="border-[#384252] text-[#8B95A7] text-[10px]">
+                            <Badge
+                              variant="outline"
+                              className="border-[#384252] text-[#8B95A7] text-[10px]"
+                            >
                               Jogador
                             </Badge>
                           )}
@@ -440,7 +465,9 @@ export default function AdminPage() {
 
           <form onSubmit={handleCreateUser} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs font-mono text-[#8B95A7]">Nome de Exibição (opcional)</Label>
+              <Label className="text-xs font-mono text-[#8B95A7]">
+                Nome de Exibição (opcional)
+              </Label>
               <Input
                 type="text"
                 placeholder="Ex: Ayrton Senna"
@@ -463,7 +490,9 @@ export default function AdminPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-mono text-[#8B95A7]">Senha Provisória (mín. 8 caracteres) *</Label>
+              <Label className="text-xs font-mono text-[#8B95A7]">
+                Senha Provisória (mín. 8 caracteres) *
+              </Label>
               <Input
                 type="password"
                 required
@@ -505,13 +534,16 @@ export default function AdminPage() {
               Redefinir Senha de Acesso
             </DialogTitle>
             <DialogDescription className="text-xs text-[#8B95A7]">
-              Definir uma nova senha para o usuário <span className="font-mono text-white">{selectedUser?.email}</span>.
+              Definir uma nova senha para o usuário{' '}
+              <span className="font-mono text-white">{selectedUser?.email}</span>.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleResetPassword} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs font-mono text-[#8B95A7]">Nova Senha (mín. 8 caracteres) *</Label>
+              <Label className="text-xs font-mono text-[#8B95A7]">
+                Nova Senha (mín. 8 caracteres) *
+              </Label>
               <Input
                 type="password"
                 required

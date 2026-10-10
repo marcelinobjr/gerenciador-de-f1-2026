@@ -3,11 +3,26 @@ import { useNavigate, Link } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { f1Service } from '@/services/f1Service'
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card'
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+  CardFooter,
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, RefreshCw, Database, Trophy, ShieldCheck, Flag } from 'lucide-react'
+import {
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  RefreshCw,
+  Database,
+  Trophy,
+  ShieldCheck,
+  Flag,
+} from 'lucide-react'
 
 interface HealthCheckItem {
   name: string
@@ -40,29 +55,33 @@ export default function SetupPage() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [checkingHealth, setCheckingHealth] = useState(false)
   const [healthChecks, setHealthChecks] = useState<HealthCheckItem[]>([])
-  
+
   const [seedingBaseline, setSeedingBaseline] = useState(false)
-  const [baselineStatus, setBaselineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
+  const [, setBaselineStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [baselineLogs, setBaselineLogs] = useState<string[]>([])
 
   const [creatingCareer, setCreatingCareer] = useState(false)
   const [selectedTeamKey, setSelectedTeamKey] = useState<string>('team_audi')
-  const [careerStatus, setCareerStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
+  const [, setCareerStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [careerError, setCareerError] = useState<string | null>(null)
 
   // 1. Verificação de Ambiente (Health Check do PocketBase)
   const runHealthCheck = async () => {
     setCheckingHealth(true)
     const checks: HealthCheckItem[] = [
-      { name: 'PocketBase Health Endpoint', status: 'pending', message: 'Testando conectividade...' }
+      {
+        name: 'PocketBase Health Endpoint',
+        status: 'pending',
+        message: 'Testando conectividade...',
+      },
     ]
 
-    CANONICAL_COLLECTIONS.forEach(col => {
+    CANONICAL_COLLECTIONS.forEach((col) => {
       checks.push({
         name: `Coleção: ${col}`,
         collection: col,
         status: 'pending',
-        message: 'Aguardando validação...'
+        message: 'Aguardando validação...',
       })
     })
 
@@ -87,7 +106,6 @@ export default function SetupPage() {
         checks[i].status = 'ok'
         checks[i].message = 'Disponível e acessível'
       } catch (err: any) {
-        // Se der erro 403 ou 404
         if (err?.status === 403 || err?.status === 0) {
           checks[i].status = 'ok'
           checks[i].message = 'Coleção protegida (RLS ativo)'
@@ -120,18 +138,24 @@ export default function SetupPage() {
 
     try {
       addLog('Iniciando verificação do grid de equipes 2026...')
-      
-      // Consultar equipes existentes
-      const existingTeams = await pb.collection('teams').getFullList({ sort: 'name' }).catch(() => [])
+
+      const existingTeams = await pb
+        .collection('teams')
+        .getFullList({ sort: 'name' })
+        .catch(() => [])
       addLog(`Equipes encontradas na base: ${existingTeams.length}`)
 
-      // Checar se as 11 equipes canônicas 2026 estão registradas
       addLog('Verificando circuitos do calendário oficial...')
-      const circuits = await pb.collection('circuits').getFullList({ sort: 'round' }).catch(() => [])
+      const circuits = await pb
+        .collection('circuits')
+        .getFullList({ sort: 'round' })
+        .catch(() => [])
       addLog(`Etapas/Circuitos cadastrados: ${circuits.length}`)
 
       if (circuits.length === 0) {
-        addLog('Aviso: Nenhum circuito encontrado no banco. Criando circuitos canônicos se necessário...')
+        addLog(
+          'Aviso: Nenhum circuito encontrado no banco. Criando circuitos canônicos se necessário...',
+        )
       } else {
         addLog('Calendário oficial 2026 validado (Rodada 1: Austrália).')
       }
@@ -158,15 +182,19 @@ export default function SetupPage() {
     setCareerError(null)
 
     try {
-      // Se o usuário já possui uma equipe e temporada ativas:
       if (team && season) {
         setCareerStatus('success')
         return
       }
 
-      // Se já tem equipe mas falta season
       if (team && !season) {
-        const createdSeason = await f1Service.createSeason(team.id)
+        const createdSeason = await pb.collection('seasons').create({
+          team_id: team.id,
+          year: 2026,
+          current_round: 1,
+          total_rounds: 24,
+          is_completed: false,
+        })
         if (createdSeason) {
           await refreshTeamAndSeason()
           setCareerStatus('success')
@@ -174,22 +202,27 @@ export default function SetupPage() {
         }
       }
 
-      // Se não tem equipe nem temporada:
-      // Tentar usar equipe existente do usuário ou vincular
       const userTeam = await f1Service.getPlayerTeam(user.id)
       if (userTeam) {
-        await f1Service.createSeason(userTeam.id)
+        await pb.collection('seasons').create({
+          team_id: userTeam.id,
+          year: 2026,
+          current_round: 1,
+          total_rounds: 24,
+          is_completed: false,
+        })
         await refreshTeamAndSeason()
         setCareerStatus('success')
       } else {
-        // Criar ou associar equipe selecionada
-        const teamsList = await pb.collection('teams').getFullList({
-          filter: `team_key = "${selectedTeamKey}" || name ~ "${selectedTeamKey}"`,
-        }).catch(() => [])
+        const teamsList = await pb
+          .collection('teams')
+          .getFullList({
+            filter: `team_key = "${selectedTeamKey}" || name ~ "${selectedTeamKey}"`,
+          })
+          .catch(() => [])
 
         let targetTeam = teamsList[0]
         if (!targetTeam) {
-          // Criar equipe canônica do jogador
           targetTeam = await pb.collection('teams').create({
             name: selectedTeamKey === 'team_audi' ? 'Audi F1 Team' : 'Apex GP Racing',
             team_key: selectedTeamKey,
@@ -202,11 +235,17 @@ export default function SetupPage() {
           })
         } else if (!targetTeam.user_id) {
           targetTeam = await pb.collection('teams').update(targetTeam.id, {
-            user_id: user.id
+            user_id: user.id,
           })
         }
 
-        await f1Service.createSeason(targetTeam.id)
+        await pb.collection('seasons').create({
+          team_id: targetTeam.id,
+          year: 2026,
+          current_round: 1,
+          total_rounds: 24,
+          is_completed: false,
+        })
         await refreshTeamAndSeason()
         setCareerStatus('success')
       }
@@ -219,12 +258,11 @@ export default function SetupPage() {
     }
   }
 
-  const allHealthOk = healthChecks.length > 0 && healthChecks.every(c => c.status === 'ok')
+  const allHealthOk = healthChecks.length > 0 && healthChecks.every((c) => c.status === 'ok')
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-[#F5F7FA] p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-[#232936] pb-6">
           <div>
@@ -252,16 +290,24 @@ export default function SetupPage() {
 
         {/* Stepper Progress */}
         <div className="grid grid-cols-4 gap-2 text-center text-xs font-mono">
-          <div className={`p-2 border rounded ${step === 1 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : step > 1 ? 'border-green-600/40 text-green-400' : 'border-[#232936] text-muted-foreground'}`}>
+          <div
+            className={`p-2 border rounded ${step === 1 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : step > 1 ? 'border-green-600/40 text-green-400' : 'border-[#232936] text-muted-foreground'}`}
+          >
             1. Ambiente & PB
           </div>
-          <div className={`p-2 border rounded ${step === 2 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : step > 2 ? 'border-green-600/40 text-green-400' : 'border-[#232936] text-muted-foreground'}`}>
+          <div
+            className={`p-2 border rounded ${step === 2 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : step > 2 ? 'border-green-600/40 text-green-400' : 'border-[#232936] text-muted-foreground'}`}
+          >
             2. Grid 2026
           </div>
-          <div className={`p-2 border rounded ${step === 3 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : step > 3 ? 'border-green-600/40 text-green-400' : 'border-[#232936] text-muted-foreground'}`}>
+          <div
+            className={`p-2 border rounded ${step === 3 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : step > 3 ? 'border-green-600/40 text-green-400' : 'border-[#232936] text-muted-foreground'}`}
+          >
             3. Carreira
           </div>
-          <div className={`p-2 border rounded ${step === 4 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : 'border-[#232936] text-muted-foreground'}`}>
+          <div
+            className={`p-2 border rounded ${step === 4 ? 'border-[#E10600] bg-[#E10600]/10 text-white font-bold' : 'border-[#232936] text-muted-foreground'}`}
+          >
             4. Resumo
           </div>
         </div>
@@ -300,29 +346,23 @@ export default function SetupPage() {
                     className="flex items-center justify-between p-3 rounded bg-[#0B0E14] border border-[#1A202C]"
                   >
                     <div className="space-y-0.5">
-                      <div className="text-xs font-mono font-medium text-white">
-                        {item.name}
-                      </div>
-                      <div className="text-[11px] text-[#8B95A7]">
-                        {item.message}
-                      </div>
+                      <div className="text-xs font-mono font-medium text-white">{item.name}</div>
+                      <div className="text-[11px] text-[#8B95A7]">{item.message}</div>
                     </div>
                     {item.status === 'pending' && (
                       <RefreshCw className="w-4 h-4 text-yellow-500 animate-spin" />
                     )}
-                    {item.status === 'ok' && (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    )}
-                    {item.status === 'error' && (
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    )}
+                    {item.status === 'ok' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                    {item.status === 'error' && <XCircle className="w-4 h-4 text-red-500" />}
                   </div>
                 ))}
               </div>
             </CardContent>
             <CardFooter className="flex justify-between border-t border-[#232936] pt-4">
               <span className="text-xs text-[#8B95A7]">
-                {allHealthOk ? 'Ambiente operacional e validado.' : 'Alguns serviços reportaram alertas.'}
+                {allHealthOk
+                  ? 'Ambiente operacional e validado.'
+                  : 'Alguns serviços reportaram alertas.'}
               </span>
               <Button
                 onClick={() => setStep(2)}
@@ -344,7 +384,8 @@ export default function SetupPage() {
                 Baseline 2026 & Calendário da Temporada
               </CardTitle>
               <CardDescription className="text-[#8B95A7]">
-                Checagem idempotente do grid oficial de 11 equipes (Mercedes, Ferrari, McLaren, Red Bull, Audi, Williams, etc.) e calendário oficial
+                Checagem idempotente do grid oficial de 11 equipes (Mercedes, Ferrari, McLaren, Red
+                Bull, Audi, Williams, etc.) e calendário oficial
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -356,7 +397,8 @@ export default function SetupPage() {
                   </Badge>
                 </div>
                 <p className="text-xs text-[#8B95A7]">
-                  A inicialização de baseline respeita o journal de geração e nunca sobrescreve ou duplica dados já homologados no banco.
+                  A inicialização de baseline respeita o journal de geração e nunca sobrescreve ou
+                  duplica dados já homologados no banco.
                 </p>
 
                 <Button
@@ -365,7 +407,9 @@ export default function SetupPage() {
                   className="w-full bg-[#1A202C] hover:bg-[#232936] text-white border border-[#2D3748] flex items-center justify-center gap-2"
                 >
                   <RefreshCw className={`w-4 h-4 ${seedingBaseline ? 'animate-spin' : ''}`} />
-                  {seedingBaseline ? 'Verificando baseline...' : 'Executar Checagem de Baseline 2026'}
+                  {seedingBaseline
+                    ? 'Verificando baseline...'
+                    : 'Executar Checagem de Baseline 2026'}
                 </Button>
               </div>
 
@@ -412,15 +456,25 @@ export default function SetupPage() {
                     Carreira Ativa Detectada!
                   </div>
                   <div className="text-xs text-[#CBD5E1] space-y-1 font-mono">
-                    <div>Equipe: <span className="font-bold text-white">{team.name}</span></div>
-                    <div>Temporada: <span className="text-white">{season.year}</span> (Rodada {season.current_round} de {season.total_rounds})</div>
-                    <div>Orçamento: <span className="text-emerald-400">${team.budget?.toLocaleString()}</span></div>
+                    <div>
+                      Equipe: <span className="font-bold text-white">{team.name}</span>
+                    </div>
+                    <div>
+                      Temporada: <span className="text-white">{season.year}</span> (Rodada{' '}
+                      {season.current_round} de {season.total_rounds})
+                    </div>
+                    <div>
+                      Orçamento:{' '}
+                      <span className="text-emerald-400">${team.budget?.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div className="p-3 bg-[#0B0E14] border border-[#232936] rounded text-xs text-[#8B95A7]">
-                    Nenhuma carreira ativa encontrada para o usuário <span className="text-white font-mono">{user?.email}</span>. Selecione a equipe canônica de início:
+                    Nenhuma carreira ativa encontrada para o usuário{' '}
+                    <span className="text-white font-mono">{user?.email}</span>. Selecione a equipe
+                    canônica de início:
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -429,14 +483,18 @@ export default function SetupPage() {
                       className={`p-3 border rounded cursor-pointer transition ${selectedTeamKey === 'team_audi' ? 'border-[#E10600] bg-[#E10600]/10' : 'border-[#232936] bg-[#0B0E14]'}`}
                     >
                       <div className="font-bold text-sm">Audi F1 Team</div>
-                      <div className="text-xs text-[#8B95A7]">Motor: Audi • Status Canônico 2026</div>
+                      <div className="text-xs text-[#8B95A7]">
+                        Motor: Audi • Status Canônico 2026
+                      </div>
                     </div>
                     <div
                       onClick={() => setSelectedTeamKey('team_apex')}
                       className={`p-3 border rounded cursor-pointer transition ${selectedTeamKey === 'team_apex' ? 'border-[#E10600] bg-[#E10600]/10' : 'border-[#232936] bg-[#0B0E14]'}`}
                     >
                       <div className="font-bold text-sm">Apex GP Racing</div>
-                      <div className="text-xs text-[#8B95A7]">Equipe Personalizada • Nova Entrada</div>
+                      <div className="text-xs text-[#8B95A7]">
+                        Equipe Personalizada • Nova Entrada
+                      </div>
                     </div>
                   </div>
 
@@ -488,11 +546,15 @@ export default function SetupPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-[#0B0E14] border border-[#232936] rounded">
                   <div className="text-xs text-[#8B95A7]">Usuário Ativo</div>
-                  <div className="font-mono font-bold text-sm text-white truncate">{user?.email || 'Visitante'}</div>
+                  <div className="font-mono font-bold text-sm text-white truncate">
+                    {user?.email || 'Visitante'}
+                  </div>
                 </div>
                 <div className="p-4 bg-[#0B0E14] border border-[#232936] rounded">
                   <div className="text-xs text-[#8B95A7]">Equipe Atual</div>
-                  <div className="font-mono font-bold text-sm text-white">{team?.name || 'Não associada'}</div>
+                  <div className="font-mono font-bold text-sm text-white">
+                    {team?.name || 'Não associada'}
+                  </div>
                 </div>
                 <div className="p-4 bg-[#0B0E14] border border-[#232936] rounded">
                   <div className="text-xs text-[#8B95A7]">Rodada Atual</div>
@@ -503,7 +565,8 @@ export default function SetupPage() {
               </div>
 
               <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded text-xs text-emerald-300">
-                Tudo pronto para gerenciar treinos livres, classificação (Q1, Q2, Q3) e corridas oficiais no painel de comando.
+                Tudo pronto para gerenciar treinos livres, classificação (Q1, Q2, Q3) e corridas
+                oficiais no painel de comando.
               </div>
             </CardContent>
             <CardFooter className="flex justify-between border-t border-[#232936] pt-4">
@@ -520,7 +583,6 @@ export default function SetupPage() {
             </CardFooter>
           </Card>
         )}
-
       </div>
     </div>
   )
