@@ -150,37 +150,15 @@ routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
     }
   }
 
-  // 3. Resolver e validar o registro do piloto persistente (tabela 'drivers')
+  // 3. Resolver e validar o registro do piloto persistente (tabela 'drivers') exclusivamente por ID
+  // CONTRATO ESTRITO (01D2B1A-FIX):
+  // - driverId deve identificar um registro real em 'drivers' pelo ID.
+  // - ID inexistente gera erro explícito 400 antes de qualquer processamento/escrita.
+  // - NUNCA resolver nem fazer fallback por nome, posição no grid ou ordem de array.
   let driverRecord = null
   try {
     driverRecord = e.app.findRecordById('drivers', driverId)
   } catch (_) {}
-
-  if (!driverRecord && driverName && driverName.trim()) {
-    try {
-      const records = e.app.findRecordsByFilter(
-        'drivers',
-        `name = '${driverName.trim().replace(/'/g, "\\'")}'`,
-        '',
-        1,
-        0,
-      )
-      if (records && records.length > 0) driverRecord = records[0]
-    } catch (_) {}
-  }
-
-  if (!driverRecord) {
-    try {
-      const records = e.app.findRecordsByFilter(
-        'drivers',
-        `name = '${driverId.trim().replace(/'/g, "\\'")}'`,
-        '',
-        1,
-        0,
-      )
-      if (records && records.length > 0) driverRecord = records[0]
-    } catch (_) {}
-  }
 
   if (!driverRecord) {
     throw new BadRequestError(
@@ -605,24 +583,11 @@ routerAdd('GET', '/backend/v1/career-driver-stats/receipt', (e) => {
     throw new BadRequestError('driverId é obrigatório')
   }
 
-  // Resolver ID real do piloto inline
+  // Resolver registro do piloto em 'drivers' estritamente por ID (sem busca por nome)
   let driverRecord = null
   try {
     driverRecord = e.app.findRecordById('drivers', driverId)
   } catch (_) {}
-
-  if (!driverRecord && driverName && driverName.trim()) {
-    try {
-      const records = e.app.findRecordsByFilter(
-        'drivers',
-        `name = '${driverName.trim().replace(/'/g, "\\'")}'`,
-        '',
-        1,
-        0,
-      )
-      if (records && records.length > 0) driverRecord = records[0]
-    } catch (_) {}
-  }
 
   const realDriverId = driverRecord ? driverRecord.id : driverId
   const operationKey = `stats_receipt_${careerId}_${season}_${round}_${session}_${realDriverId}`
