@@ -51,15 +51,24 @@
  */
 
 routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
-  // Helper inline para validação de campos obrigatórios de estatísticas
-  const isValidStats = (obj) => {
-    if (!obj || typeof obj !== 'object') return false
-    return (
-      typeof obj.careerGps === 'number' ||
-      typeof obj.raceStarts === 'number' ||
-      typeof obj.careerWins === 'number' ||
-      typeof obj.points === 'number'
-    )
+  // Helper inline para validação de campos obrigatórios de estatísticas conforme contrato do calculador puro
+  // Define os campos necessários pelo contrato existente do calculador (career_driver_stats_calculator.js).
+  // Preserva zeros legítimos (ex: piloto novato com 0 GPs, 0 pts) e campos opcionais legítimos
+  // (a ausência de bestFinish ou bestGridPosition não invalida uma base válida).
+  const isValidCareerStatsBase = (obj) => {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false
+    // Deve conter campos numéricos canônicos de base de carreira
+    const hasNumericGps =
+      (typeof obj.careerGps === 'number' && !Number.isNaN(obj.careerGps)) ||
+      (typeof obj.raceStarts === 'number' && !Number.isNaN(obj.raceStarts))
+    const hasNumericWins =
+      (typeof obj.careerWins === 'number' && !Number.isNaN(obj.careerWins)) ||
+      (typeof obj.wins === 'number' && !Number.isNaN(obj.wins))
+    const hasNumericPoints =
+      (typeof obj.careerPoints === 'number' && !Number.isNaN(obj.careerPoints)) ||
+      (typeof obj.points === 'number' && !Number.isNaN(obj.points))
+
+    return hasNumericGps && hasNumericWins && hasNumericPoints
   }
 
   // 1. Validar autenticação do chamador
@@ -227,6 +236,23 @@ routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
       }
 
       // Se existir com identidade e hash correspondentes -> ALREADY_APPLIED sem atualizar estatísticas
+      // REPETIÇÃO / RECIBO (RACE-CAREER-SAVE-01D2B1B):
+      // Preservar o reconhecimento de recibo existente com identidade/hash correspondentes:
+      // não reaplicar a operação nem restaurar seu after_stats histórico sobre o estado atual.
+      // Se houver recibo mas faltar o estado atual da carreira, distinguir "operação já aplicada"
+      // de "estado atual precisa de reconciliação" sem tentar reconstruí-lo silenciosamente.
+      let txExistingDriver = null
+      try {
+        txExistingDriver = txApp.findRecordById('drivers', realDriverId)
+      } catch (_) {
+        txExistingDriver = driverRecord
+      }
+      const existingProcData = txExistingDriver ? txExistingDriver.get('procedural_data') || {} : {}
+      const existingCareerStatsMap = existingProcData.career_stats_by_career || {}
+      const existingCurrentCareerStats = existingCareerStatsMap[c] || null
+      const currentCareerStateMissing =
+        !existingCurrentCareerStats || !isValidCareerStatsBase(existingCurrentCareerStats)
+
       responseData = {
         status: 'already_applied',
         operationKey,
@@ -245,9 +271,12 @@ routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
         beforeStats: existingReceipt.get('before_stats') || {},
         effectData: existingReceipt.get('effect_data') || {},
         afterStats: existingReceipt.get('after_stats') || {},
+        currentDriverStats: existingCurrentCareerStats || undefined,
         appliedAt: existingReceipt.getString('applied_at'),
-        message:
-          'Operação de estatísticas já aplicada anteriormente. Recibo recuperado sem reaplicação.',
+        needsReconciliation: currentCareerStateMissing,
+        message: currentCareerStateMissing
+          ? 'Operação já aplicada com recibo confirmado, mas o estado atual da carreira em drivers está ausente. Reconciliação requerida; reconstrução silenciosa proibida.'
+          : 'Operação de estatísticas já aplicada anteriormente. Recibo recuperado sem reaplicação.',
       }
       return
     }
@@ -351,23 +380,33 @@ routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
     const procData = txDriverRecord.get('procedural_data') || {}
     const statsByCareer = procData.career_stats_by_career || {}
 
-    // Obter estado atual confirmado do backend para a carreira-alvo
+    // BASE AUTORITATIVA (RACE-CAREER-SAVE-01D2B1B):
+    // Ler as estatísticas atuais estritamente de:
+    // drivers.procedural_data.career_stats_by_career[careerId]
+    // A leitura e a atualização usam o estado da mesma transação (txDriverRecord).
+    // Base ausente, vazia, inválida ou sem associação comprovada à carreira produz erro 422
+    // com código estável de reconciliação ('RECONCILIATION_REQUIRED' / 'HISTORICAL_BASE_AMBIGUOUS_OR_MISSING'),
+    // antes de qualquer alteração ou criação de recibo.
+    // NÃO USAR AUTOMATICAMENTE:
+    // - estatísticas globais legadas de career_stats;
+    // - valores de outra carreira;
+    // - dados enviados pelo cliente ou pelo localStorage;
+    // - zeros fabricados pelo normalizador.
     let confirmedStatsForCareer = statsByCareer[c] || null
 
-    // Se ausente em statsByCareer, verificar se existe em procData.career_stats
-    // e se possui valores numéricos válidos
-    if (!confirmedStatsForCareer && isValidStats(procData.career_stats)) {
-      confirmedStatsForCareer = procData.career_stats
-    }
-
-    // BASE DO CÁLCULO: Se base histórica ausente ou ambígua
-    if (!confirmedStatsForCareer || !isValidStats(confirmedStatsForCareer)) {
-      // Verificar se o chamador explicitamente forneceu uma semente histórica homologada
-      if (allowHistoricalSeed === true && initialStatsSeed && isValidStats(initialStatsSeed)) {
+    // Validar autoritativamente a base da carreira-alvo
+    if (!confirmedStatsForCareer || !isValidCareerStatsBase(confirmedStatsForCareer)) {
+      // Se allowHistoricalSeed for explicitamente solicitado com initialStatsSeed válido,
+      // permite apenas quando comprovadamente homologado pelo chamador administrativo
+      if (
+        allowHistoricalSeed === true &&
+        initialStatsSeed &&
+        isValidCareerStatsBase(initialStatsSeed)
+      ) {
         confirmedStatsForCareer = initialStatsSeed
       } else {
-        // Base histórica ausente ou ambígua: NÃO inicializa silenciosamente com zero nem aceita cache local
-        // Retorna status 422 com pendência explícita de reconciliação
+        // Base ausente, vazia, inválida ou sem histórico para a carreira c:
+        // Retorna HTTP 422 com código estável de reconciliação sem alterar piloto nem criar recibo.
         responseStatusCode = 422
         responseData = {
           status: 'reconciliation_required',
@@ -379,7 +418,7 @@ routerAdd('POST', '/backend/v1/career-driver-stats/apply-atomic', (e) => {
           session: sess,
           driverId: realDriverId,
           careerDriverId: resolvedCareerDriverId,
-          message: `Pendência explícita de reconciliação: o piloto '${realDriverId}' não possui base histórica confirmada no backend para a carreira '${c}'. Inicialização silenciosa com zero e aceite cego de cache local estão bloqueados. Forneça allowHistoricalSeed com initialStatsSeed homologado ou execute a reconciliação inicial.`,
+          message: `Pendência explícita de reconciliação: o piloto '${realDriverId}' não possui base histórica confirmada para a carreira '${c}' em procedural_data.career_stats_by_career[careerId]. Inicialização silenciosa com zeros, uso de career_stats global legado ou valores de outra carreira estão proibidos. Reconciliação prévia obrigatória.`,
         }
         return
       }
@@ -641,7 +680,8 @@ routerAdd('GET', '/backend/v1/career-driver-stats/receipt', (e) => {
 
   const procData = driverRecord ? driverRecord.get('procedural_data') || {} : {}
   const statsByCareer = procData.career_stats_by_career || {}
-  const currentDriverStats = statsByCareer[careerId] || procData.career_stats || undefined
+  const currentDriverStats = statsByCareer[careerId] || null
+  const hasCurrentStats = currentDriverStats && typeof currentDriverStats === 'object'
 
   try {
     const receipt = e.app.findFirstRecordByData(
@@ -649,6 +689,12 @@ routerAdd('GET', '/backend/v1/career-driver-stats/receipt', (e) => {
       'operation_key',
       operationKey,
     )
+
+    // REPETIÇÃO / RECIBO (RACE-CAREER-SAVE-01D2B1B):
+    // Se houver recibo mas faltar o estado atual da carreira no piloto, distinguir
+    // "operação já aplicada" (receiptExists: true) de "estado atual precisa de reconciliação"
+    // (needsReconciliation: true). NUNCA reconstruir o estado atual silenciosamente.
+    const needsReconciliation = !hasCurrentStats
 
     return e.json(200, {
       exists: true,
@@ -668,7 +714,11 @@ routerAdd('GET', '/backend/v1/career-driver-stats/receipt', (e) => {
       effectData: receipt.get('effect_data'),
       afterStats: receipt.get('after_stats'),
       appliedAt: receipt.getString('applied_at'),
-      currentDriverStats,
+      currentDriverStats: currentDriverStats || undefined,
+      needsReconciliation,
+      message: needsReconciliation
+        ? 'Operação já aplicada com recibo existente, porém o estado atual da carreira em drivers está ausente. Reconciliação requerida.'
+        : 'Recibo recuperado com sucesso.',
     })
   } catch (_) {
     return e.json(200, {
@@ -680,7 +730,8 @@ routerAdd('GET', '/backend/v1/career-driver-stats/receipt', (e) => {
       session,
       driverId: realDriverId,
       careerDriverId: `${careerId}_${realDriverId}`,
-      currentDriverStats,
+      currentDriverStats: currentDriverStats || undefined,
+      needsReconciliation: !hasCurrentStats,
     })
   }
 })
