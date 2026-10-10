@@ -1070,7 +1070,7 @@ export class CanonicalCareerPersistenceService {
         return { success: false, error: conflictErr }
       }
 
-      const pbPayload = {
+      const pbPayload: any = {
         result_key: resultKey,
         career_id: record.careerId,
         round: record.round,
@@ -1088,6 +1088,31 @@ export class CanonicalCareerPersistenceService {
 
       if (existingRecord?.id) {
         try {
+          // Se o registro existente ainda não possuía driver_id ou team_id, resolver para garantir integridade
+          if (!existingRecord.driver_id || !existingRecord.team_id) {
+            const winnerEntry =
+              record.entries?.find((e) => e.finalPosition === 1) || record.entries?.[0]
+            const rawWinnerDriverId = winnerEntry?.driverId || record.winnerDriverId
+            const rawWinnerDriverName = winnerEntry?.driverName
+            const rawWinnerTeamId = winnerEntry?.teamId || (record as any).winnerTeamId
+
+            const resolvedDriverId = await canonicalRaceResultService.resolveDriverDbId(
+              rawWinnerDriverId,
+              rawWinnerDriverName,
+            )
+            if (resolvedDriverId && /^[a-z0-9]{15}$/i.test(resolvedDriverId)) {
+              pbPayload.driver_id = resolvedDriverId
+            }
+            const resolvedTeamId = await canonicalRaceResultService.resolveTeamDbId(
+              rawWinnerTeamId,
+              winnerEntry?.teamName,
+              resolvedDriverId || undefined,
+            )
+            if (resolvedTeamId && /^[a-z0-9]{15}$/i.test(resolvedTeamId)) {
+              pbPayload.team_id = resolvedTeamId
+            }
+          }
+
           await pb.collection('race_results').update(existingRecord.id, pbPayload)
           return { success: true }
         } catch (updateErr: any) {
@@ -1137,10 +1162,39 @@ export class CanonicalCareerPersistenceService {
 
         if (seasonIdPB) {
           const winnerEntry = record.entries.find((e) => e.finalPosition === 1) || record.entries[0]
+
+          // Resolução canônica obrigatória de driver_id (15 chars) e team_id (15 chars)
+          const rawWinnerDriverId = winnerEntry?.driverId || record.winnerDriverId
+          const rawWinnerDriverName = winnerEntry?.driverName
+          const rawWinnerTeamId = winnerEntry?.teamId || (record as any).winnerTeamId
+
+          const resolvedDriverId = await canonicalRaceResultService.resolveDriverDbId(
+            rawWinnerDriverId,
+            rawWinnerDriverName,
+          )
+          if (!resolvedDriverId || !/^[a-z0-9]{15}$/i.test(resolvedDriverId)) {
+            const drvErr = `Falha ao resolver driver_id real do vencedor '${rawWinnerDriverId}' para sincronização em race_results.`
+            console.warn('[CareerPersistence]', drvErr)
+            return { success: false, error: drvErr }
+          }
+
+          const resolvedTeamId = await canonicalRaceResultService.resolveTeamDbId(
+            rawWinnerTeamId,
+            winnerEntry?.teamName,
+            resolvedDriverId,
+          )
+          if (!resolvedTeamId || !/^[a-z0-9]{15}$/i.test(resolvedTeamId)) {
+            const teamErr = `Falha ao resolver team_id real da equipe vencedora '${rawWinnerTeamId}' para sincronização em race_results.`
+            console.warn('[CareerPersistence]', teamErr)
+            return { success: false, error: teamErr }
+          }
+
           try {
             await pb.collection('race_results').create({
               ...pbPayload,
               season_id: seasonIdPB,
+              driver_id: resolvedDriverId,
+              team_id: resolvedTeamId,
               position: 1,
               points: winnerEntry?.pointsAwarded || 25,
               fastest_lap: winnerEntry?.fastestLap || false,

@@ -283,11 +283,38 @@ export class CanonicalRaceResultService {
 
     // 4. Preparar payload com o snapshot canônico COMPLETO
     const winnerEntry = result.entries.find((e) => e.finalPosition === 1) || result.entries[0]
+
+    // Resolução canônica de driver_id (ID real de 15 caracteres) e team_id (ID real de 15 caracteres)
+    // para atender os requisitos de validação obrigatória da coleção race_results do PocketBase.
+    const rawWinnerDriverId = winnerEntry?.driverId || result.winnerDriverId
+    const rawWinnerDriverName = winnerEntry?.driverName
+    const rawWinnerTeamId = winnerEntry?.teamId || result.winnerTeamId
+
+    const resolvedDriverId = await this.resolveDriverDbId(rawWinnerDriverId, rawWinnerDriverName)
+    if (!resolvedDriverId || !/^[a-z0-9]{15}$/i.test(resolvedDriverId)) {
+      throw new Error(
+        `[CanonicalRaceResultService] Falha ao resolver driver_id real do vencedor '${rawWinnerDriverId}' ('${rawWinnerDriverName || ''}') para a gravação oficial em race_results. Gravação abortada.`,
+      )
+    }
+
+    const resolvedTeamId = await this.resolveTeamDbId(
+      rawWinnerTeamId,
+      winnerEntry?.teamName,
+      resolvedDriverId,
+    )
+    if (!resolvedTeamId || !/^[a-z0-9]{15}$/i.test(resolvedTeamId)) {
+      throw new Error(
+        `[CanonicalRaceResultService] Falha ao resolver team_id real da equipe vencedora '${rawWinnerTeamId}' para a gravação oficial em race_results. Gravação abortada.`,
+      )
+    }
+
     const pbPayload = {
       result_key: resultKey,
       career_id: careerId,
       season_id: seasonIdPB,
       round,
+      driver_id: resolvedDriverId,
+      team_id: resolvedTeamId,
       position: 1,
       points: winnerEntry?.pointsAwarded || 25,
       fastest_lap: winnerEntry?.fastestLap || false,
@@ -940,6 +967,251 @@ export class CanonicalRaceResultService {
    * Processamento canônico de moral de pilotos após oficialização
    * Consome o driverMoraleService de forma idempotente e determinística
    */
+  /**
+   * Resolvedor canônico de driver_id para o ID real de 15 caracteres do PocketBase.
+   * Utiliza o catálogo e instâncias de drivers do PocketBase via f1Service.
+   */
+  public async resolveDriverDbId(identifier: string, driverName?: string): Promise<string | null> {
+    if (!identifier) return null
+    if (/^[a-z0-9]{15}$/i.test(identifier)) {
+      return identifier
+    }
+
+    const { f1Service } = await import('./f1Service')
+    const { findCanonicalDriverMaster } = await import('@/lib/canonical-driver-database')
+    const { OFFICIAL_GRID_TEAMS } = await import('@/lib/f1-data')
+
+    let allDrivers: any[] = []
+    let allTeams: any[] = []
+    try {
+      allDrivers = await f1Service.getAllDrivers()
+    } catch {
+      /* intentionally ignored */
+    }
+    try {
+      allTeams = await f1Service.getAllTeams()
+    } catch {
+      /* intentionally ignored */
+    }
+
+    const dbDriverById = new Map<string, any>()
+    for (const d of allDrivers) {
+      if (d?.id) dbDriverById.set(d.id, d)
+    }
+
+    if (dbDriverById.has(identifier)) {
+      return identifier
+    }
+
+    const normalizeName = (name: string): string => {
+      return (name || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .trim()
+    }
+
+    const findDriverByNameFuzzy = (nameToFind?: string): any | undefined => {
+      if (!nameToFind || !nameToFind.trim()) return undefined
+      const normTarget = normalizeName(nameToFind)
+      if (!normTarget) return undefined
+
+      let match = allDrivers.find((d) => normalizeName(d.name) === normTarget)
+      if (match) return match
+
+      const parts = nameToFind.trim().split(/\s+/)
+      const lastNameNorm = normalizeName(parts[parts.length - 1] || '')
+      if (lastNameNorm && lastNameNorm.length >= 4) {
+        match = allDrivers.find((d) => {
+          const dParts = (d.name || '').trim().split(/\s+/)
+          const dLast = normalizeName(dParts[dParts.length - 1] || '')
+          return dLast === lastNameNorm
+        })
+        if (match) return match
+      }
+      return undefined
+    }
+
+    const canonicalSlugToDbId = new Map<string, string>()
+
+    for (const teamDef of OFFICIAL_GRID_TEAMS) {
+      const tKey = teamDef.key.toLowerCase().trim()
+      if (teamDef.driver1?.name) {
+        const d1Match = findDriverByNameFuzzy(teamDef.driver1.name)
+        if (d1Match?.id) canonicalSlugToDbId.set(`${tKey}_d1`, d1Match.id)
+      }
+      if (teamDef.driver2?.name) {
+        const d2Match = findDriverByNameFuzzy(teamDef.driver2.name)
+        if (d2Match?.id) canonicalSlugToDbId.set(`${tKey}_d2`, d2Match.id)
+      }
+    }
+
+    const teamById = new Map<string, any>()
+    for (const t of allTeams) {
+      if (t?.id) teamById.set(t.id, t)
+    }
+
+    for (const d of allDrivers) {
+      if (!d || !d.id) continue
+      canonicalSlugToDbId.set(d.id, d.id)
+
+      const master = findCanonicalDriverMaster(d.id, d.name)
+      if (master) {
+        if (master.driverId) canonicalSlugToDbId.set(master.driverId.toLowerCase(), d.id)
+        if (master.assetId) canonicalSlugToDbId.set(master.assetId.toLowerCase(), d.id)
+      }
+
+      if (d.procedural_data?.driverId) {
+        canonicalSlugToDbId.set(String(d.procedural_data.driverId).toLowerCase(), d.id)
+      }
+
+      if (d.team_id) {
+        const teamRec = teamById.get(d.team_id)
+        const tKey = (teamRec?.team_key || '').toLowerCase().trim()
+        if (tKey) {
+          const offTeam = OFFICIAL_GRID_TEAMS.find((t) => t.key.toLowerCase() === tKey)
+          if (offTeam) {
+            const dNorm = normalizeName(d.name)
+            if (offTeam.driver1?.name && normalizeName(offTeam.driver1.name) === dNorm) {
+              canonicalSlugToDbId.set(`${tKey}_d1`, d.id)
+            } else if (offTeam.driver2?.name && normalizeName(offTeam.driver2.name) === dNorm) {
+              canonicalSlugToDbId.set(`${tKey}_d2`, d.id)
+            }
+          }
+        }
+      }
+    }
+
+    for (const teamRec of allTeams) {
+      const tKey = (teamRec?.team_key || '').toLowerCase().trim()
+      if (!tKey) continue
+      const offTeam = OFFICIAL_GRID_TEAMS.find((t) => t.key.toLowerCase() === tKey)
+      if (offTeam) {
+        if (offTeam.driver1?.name) {
+          const m1 = findDriverByNameFuzzy(offTeam.driver1.name)
+          if (m1?.id) canonicalSlugToDbId.set(`${tKey}_d1`, m1.id)
+        }
+        if (offTeam.driver2?.name) {
+          const m2 = findDriverByNameFuzzy(offTeam.driver2.name)
+          if (m2?.id) canonicalSlugToDbId.set(`${tKey}_d2`, m2.id)
+        }
+      }
+    }
+
+    const lower = identifier.toLowerCase().trim()
+    if (canonicalSlugToDbId.has(lower)) {
+      return canonicalSlugToDbId.get(lower)!
+    }
+
+    if (driverName && driverName.trim()) {
+      const foundByName = findDriverByNameFuzzy(driverName)
+      if (foundByName?.id) return foundByName.id
+    }
+
+    const master = findCanonicalDriverMaster(identifier, driverName)
+    if (master) {
+      const found = findDriverByNameFuzzy(master.fullName)
+      if (found?.id) return found.id
+    }
+
+    const slugMatch = lower.match(/^([a-z0-9_-]+)_(d[12])$/)
+    if (slugMatch) {
+      const teamKeyPrefix = slugMatch[1].replace(/^team_/, '')
+      const driverSlot = slugMatch[2]
+      const fallbackKey = `${teamKeyPrefix}_${driverSlot}`
+      if (canonicalSlugToDbId.has(fallbackKey)) {
+        return canonicalSlugToDbId.get(fallbackKey)!
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Resolvedor canônico de team_id para o ID real de 15 caracteres do PocketBase.
+   * Utiliza f1Service.getAllTeams(), verificação direta de ID, team_key, nome e fallback pelo piloto vinculado.
+   */
+  public async resolveTeamDbId(
+    teamIdentifier?: string,
+    teamName?: string,
+    driverDbId?: string,
+  ): Promise<string | null> {
+    if (teamIdentifier && /^[a-z0-9]{15}$/i.test(teamIdentifier)) {
+      return teamIdentifier
+    }
+
+    const { f1Service } = await import('./f1Service')
+    let allTeams: any[] = []
+    try {
+      allTeams = await f1Service.getAllTeams()
+    } catch {
+      /* intentionally ignored */
+    }
+
+    // 1. Busca direta por ID se já for id de time
+    if (teamIdentifier) {
+      const matchById = allTeams.find((t) => t.id === teamIdentifier)
+      if (matchById?.id) return matchById.id
+    }
+
+    // 2. Busca por team_key normalizada
+    if (teamIdentifier) {
+      const cleanKey = teamIdentifier
+        .toLowerCase()
+        .trim()
+        .replace(/^team_/, '')
+        .replace(/^ai_/, '')
+      const matchByKey = allTeams.find((t) => {
+        const tKey = (t.team_key || '')
+          .toLowerCase()
+          .trim()
+          .replace(/^team_/, '')
+          .replace(/^ai_/, '')
+        return (
+          tKey === cleanKey ||
+          (t.team_key && t.team_key.toLowerCase() === teamIdentifier.toLowerCase())
+        )
+      })
+      if (matchByKey?.id) return matchByKey.id
+    }
+
+    // 3. Busca por nome da equipe
+    if (teamName && teamName.trim()) {
+      const normName = teamName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .trim()
+      const matchByName = allTeams.find((t) => {
+        const tNorm = (t.name || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+          .trim()
+        return tNorm === normName
+      })
+      if (matchByName?.id) return matchByName.id
+    }
+
+    // 4. Se temos driverDbId (15 chars), obter o time do piloto diretamente
+    if (driverDbId && /^[a-z0-9]{15}$/i.test(driverDbId)) {
+      try {
+        const allDrivers = await f1Service.getAllDrivers()
+        const dRec = allDrivers.find((d) => d.id === driverDbId)
+        if (dRec?.team_id && /^[a-z0-9]{15}$/i.test(dRec.team_id)) {
+          return dRec.team_id
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+
+    return null
+  }
+
   public async processOfficialMoraleDirect(
     officialResult: OfficialRaceResult,
   ): Promise<import('./driverMoraleService').DriverMoraleBatchResult | undefined> {
@@ -1103,7 +1375,7 @@ export class CanonicalRaceResultService {
 
     // Função helper para resolver qualquer identificador de piloto (seja slug ou ID real)
     // Retorna o ID real do PocketBase ou null se não resolvido
-    const resolveDriverDbId = (identifier: string, driverName?: string): string | null => {
+    const resolveDriverDbIdLocal = (identifier: string, driverName?: string): string | null => {
       if (!identifier) return null
 
       // 1. Se já for um ID real existente no banco
@@ -1174,7 +1446,7 @@ export class CanonicalRaceResultService {
           if (rec && typeof rec.morale === 'number' && !isNaN(rec.morale)) {
             moraleMap[drvId] = rec.morale
             // Se drvId for mbj-XXX ou slug, resolver para ID real se possível
-            const resolvedDb = resolveDriverDbId(drvId, (rec as any)?.name)
+            const resolvedDb = resolveDriverDbIdLocal(drvId, (rec as any)?.name)
             if (resolvedDb && resolvedDb !== drvId) {
               moraleMap[resolvedDb] = rec.morale
             }
@@ -1197,7 +1469,7 @@ export class CanonicalRaceResultService {
     // tanto na chave de entry.driverId quanto no ID real resolvido
     // Apenas aplica fallback 80 se realmente ausente em ambas as chaves
     for (const entry of officialResult.entries || []) {
-      const resolvedId = resolveDriverDbId(entry.driverId, entry.driverName)
+      const resolvedId = resolveDriverDbIdLocal(entry.driverId, entry.driverName)
       const aliases = new Set<string>()
       aliases.add(entry.driverId)
       if (resolvedId) aliases.add(resolvedId)
@@ -1245,7 +1517,7 @@ export class CanonicalRaceResultService {
       onSaveDriverMorale: async (driverId, newMorale, context) => {
         // Encontrar a entrada correspondente para ter acesso ao nome caso necessário
         const entry = (officialResult.entries || []).find((e) => e.driverId === driverId)
-        const realDbId = resolveDriverDbId(driverId, entry?.driverName)
+        const realDbId = resolveDriverDbIdLocal(driverId, entry?.driverName)
 
         // Se conseguimos resolver para um ID do banco comprovadamente existente
         // ou ID PB válido (15 caracteres alfanuméricos)
