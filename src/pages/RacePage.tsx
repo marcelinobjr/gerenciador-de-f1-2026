@@ -212,7 +212,7 @@ export default function RacePage() {
       variant: requestedVariant,
       allPlayerDrivers: catalogDrivers,
     })
-      .then((res) => {
+      .then(async (res) => {
         if (!isMounted) return
         setSessionResolution(res)
 
@@ -271,17 +271,36 @@ export default function RacePage() {
             return
           }
 
-          // (2) Prioridade 2: Corrida em andamento (último checkpoint pausado)
-          const inProgressRace = canonicalRaceInitializationService.readCanonicalRaceState(
-            ctx.careerId,
-            ctx.seasonYear,
-            ctx.round,
-            ctx.variant,
-          )
+          // (2) Prioridade 2: Corrida em andamento ou concluída (backend-first via readCanonicalRaceStatePreferred)
+          let inProgressRace: CanonicalRaceState | null = null
+          try {
+            inProgressRace =
+              await canonicalRaceInitializationService.readCanonicalRaceStatePreferred(
+                ctx.careerId,
+                ctx.seasonYear,
+                ctx.round,
+                ctx.variant,
+              )
+          } catch (p2Err) {
+            console.warn(
+              '[RacePage] Falha na leitura preferencial backend-first do race state:',
+              p2Err,
+            )
+            inProgressRace = canonicalRaceInitializationService.readCanonicalRaceState(
+              ctx.careerId,
+              ctx.seasonYear,
+              ctx.round,
+              ctx.variant,
+            )
+          }
+
           if (inProgressRace) {
             setCanonicalRaceState(inProgressRace)
             return
           }
+
+          // RACE-RESUME-01B: Checagem de segurança absoluta — um estado `completed` NUNCA deve reiniciar a corrida.
+          // Se houver qualquer indício de race state concluído sem resultado oficializado, não reiniciar.
 
           // (3) Prioridade 3: Preparação confirmada previamente salva
           let snap = canonicalRacePreparationService.loadSnapshot(
@@ -422,13 +441,24 @@ export default function RacePage() {
     if (!sessionResolution || sessionResolution.status !== 'ready') return
     const ctx = sessionResolution.context
 
-    // Guard contra corrida já existente
-    const existingRace = canonicalRaceInitializationService.readCanonicalRaceState(
-      ctx.careerId,
-      ctx.seasonYear,
-      ctx.round,
-      ctx.variant,
-    )
+    // Guard contra corrida já existente (backend-first preferred com fallback local)
+    let existingRace: CanonicalRaceState | null = null
+    try {
+      existingRace = await canonicalRaceInitializationService.readCanonicalRaceStatePreferred(
+        ctx.careerId,
+        ctx.seasonYear,
+        ctx.round,
+        ctx.variant,
+      )
+    } catch {
+      existingRace = canonicalRaceInitializationService.readCanonicalRaceState(
+        ctx.careerId,
+        ctx.seasonYear,
+        ctx.round,
+        ctx.variant,
+      )
+    }
+
     if (existingRace) {
       setCanonicalRaceState(existingRace)
       setShowStrategyModal(false)
