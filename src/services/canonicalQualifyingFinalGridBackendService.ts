@@ -117,9 +117,200 @@ export class CanonicalQualifyingFinalGridBackendService {
       return rec?.payload || null
     } catch (err: any) {
       if (err?.status === 404 || err?.message?.includes('autocancelled')) {
+        // Tentar recuperação sob demanda a partir dos resultados canônicos se disponíveis no PB
+        const recovered = await this.recoverFinalGridFromStageResults(context)
+        if (recovered) {
+          return recovered
+        }
         return null
       }
       throw err
+    }
+  }
+
+  /**
+   * GRID-R2-RECOVER-01A:
+   * Reconstrói e auto-persiste o grid final oficial a partir dos resultados canônicos das sessões (SQ1/SQ2/SQ3 ou Q1/Q2/Q3).
+   * P1–P10: Top 10 da SQ3/Q3
+   * P11–P18: Eliminados da SQ2/Q2 (posições 11–18)
+   * P19–P24: Eliminados da SQ1/Q1 (posições 19–24)
+   * Lê do PocketBase os canonical_qualifying_stage_results sem alterar desempates ou tempos.
+   */
+  public async recoverFinalGridFromStageResults(
+    context: CanonicalQualifyingFinalGridBackendContext,
+  ): Promise<CompleteQualifyingWeekendResult | null> {
+    try {
+      if (!pb?.collection) return null
+      const stageCol = pb.collection('canonical_qualifying_stage_results')
+
+      const stagesSprint = ['sq1', 'sq2', 'sq3']
+      const stagesStandard = ['q1', 'q2', 'q3']
+
+      // Buscar SQ3 primeiro para verificar se é rodada sprint
+      let isSprint = true
+      let stage3Record: any = null
+
+      try {
+        stage3Record = await stageCol.getFirstListItem(
+          `career_id = "${context.careerId}" && round = ${context.round} && stage = "sq3"`,
+        )
+      } catch {
+        // Se SQ3 não existe, tentar Q3 padrão
+        try {
+          stage3Record = await stageCol.getFirstListItem(
+            `career_id = "${context.careerId}" && round = ${context.round} && stage = "q3"`,
+          )
+          isSprint = false
+        } catch {
+          return null
+        }
+      }
+
+      if (!stage3Record) return null
+
+      const stagesToFetch = isSprint ? stagesSprint : stagesStandard
+
+      const stage1Record = await stageCol
+        .getFirstListItem(
+          `career_id = "${context.careerId}" && round = ${context.round} && stage = "${stagesToFetch[0]}"`,
+        )
+        .catch(() => null)
+
+      const stage2Record = await stageCol
+        .getFirstListItem(
+          `career_id = "${context.careerId}" && round = ${context.round} && stage = "${stagesToFetch[1]}"`,
+        )
+        .catch(() => null)
+
+      if (!stage1Record || !stage2Record || !stage3Record) {
+        return null
+      }
+
+      const parsePayload = (rec: any): any => {
+        let p = rec.payload
+        if (typeof p === 'string') {
+          try {
+            p = JSON.parse(p)
+          } catch {
+            return null
+          }
+        }
+        return p
+      }
+
+      const p1 = parsePayload(stage1Record)
+      const p2 = parsePayload(stage2Record)
+      const p3 = parsePayload(stage3Record)
+
+      if (!p1 || !p2 || !p3) return null
+
+      // Obter listas de classificação de cada estágio
+      const getList = (payload: any): any[] => {
+        if (Array.isArray(payload.classification)) return payload.classification
+        if (Array.isArray(payload.results)) return payload.results
+        if (Array.isArray(payload.drivers)) return payload.drivers
+        return []
+      }
+
+      const list1 = getList(p1)
+      const list2 = getList(p2)
+      const list3 = getList(p3)
+
+      if (list1.length < 18 || list2.length < 10 || list3.length < 10) {
+        return null
+      }
+
+      // P1–P10: SQ3 / Q3
+      const top10 = list3.slice(0, 10).map((entry: any, idx: number) => ({
+        driverId: entry.driverId || entry.id,
+        driverName: entry.driverName || entry.name,
+        teamId: entry.teamId || entry.team,
+        teamName: entry.teamName || '',
+        gridPosition: idx + 1,
+        bestLapTime: entry.bestLapTime || entry.time || null,
+        bestLapSec: typeof entry.bestLapSec === 'number' ? entry.bestLapSec : null,
+        bestLapCompound: entry.bestLapCompound || entry.tyreCompound || 'macio',
+        tyreCompound: entry.tyreCompound || entry.bestLapCompound || 'macio',
+        gapToPoleSec:
+          typeof entry.gapToPoleSec === 'number' ? entry.gapToPoleSec : idx === 0 ? 0 : null,
+        eliminationStage: null,
+        isPlayer: Boolean(entry.isPlayer),
+        carId: entry.carId || undefined,
+      }))
+
+      // P11–P18: Eliminados SQ2 / Q2 (índices 10 a 17)
+      const p11to18 = list2.slice(10, 18).map((entry: any, idx: number) => ({
+        driverId: entry.driverId || entry.id,
+        driverName: entry.driverName || entry.name,
+        teamId: entry.teamId || entry.team,
+        teamName: entry.teamName || '',
+        gridPosition: 11 + idx,
+        bestLapTime: entry.bestLapTime || entry.time || null,
+        bestLapSec: typeof entry.bestLapSec === 'number' ? entry.bestLapSec : null,
+        bestLapCompound: entry.bestLapCompound || entry.tyreCompound || 'macio',
+        tyreCompound: entry.tyreCompound || entry.bestLapCompound || 'macio',
+        gapToPoleSec: typeof entry.gapToPoleSec === 'number' ? entry.gapToPoleSec : null,
+        eliminationStage: isSprint ? 'sq2' : 'q2',
+        isPlayer: Boolean(entry.isPlayer),
+        carId: entry.carId || undefined,
+      }))
+
+      // P19–P24: Eliminados SQ1 / Q1 (índices 18 a 23)
+      const p19to24 = list1.slice(18, 24).map((entry: any, idx: number) => ({
+        driverId: entry.driverId || entry.id,
+        driverName: entry.driverName || entry.name,
+        teamId: entry.teamId || entry.team,
+        teamName: entry.teamName || '',
+        gridPosition: 19 + idx,
+        bestLapTime: entry.bestLapTime || entry.time || null,
+        bestLapSec: typeof entry.bestLapSec === 'number' ? entry.bestLapSec : null,
+        bestLapCompound: entry.bestLapCompound || entry.tyreCompound || 'macio',
+        tyreCompound: entry.tyreCompound || entry.bestLapCompound || 'macio',
+        gapToPoleSec: typeof entry.gapToPoleSec === 'number' ? entry.gapToPoleSec : null,
+        eliminationStage: isSprint ? 'sq1' : 'q1',
+        isPlayer: Boolean(entry.isPlayer),
+        carId: entry.carId || undefined,
+      }))
+
+      const finalGrid = [...top10, ...p11to18, ...p19to24]
+
+      if (finalGrid.length !== 24) {
+        return null
+      }
+
+      const poleEntry = finalGrid[0]
+      const seasonNum = Number(stage3Record.season) || context.season || 3109528
+
+      const reconstructedResult: CompleteQualifyingWeekendResult = {
+        seasonId: context.careerId,
+        round: context.round,
+        completedAt: p3.completedAt || new Date().toISOString(),
+        poleDriverId: poleEntry.driverId,
+        poleTime: poleEntry.bestLapTime || undefined,
+        poleSec: poleEntry.bestLapSec || undefined,
+        finalGrid: finalGrid as any,
+        stageResults: {
+          q1: p1,
+          q2: p2,
+          q3: p3,
+        } as any,
+      }
+
+      // Persistir em canonical_qualifying_final_grids no PocketBase de forma assíncrona/segura
+      await this.saveFinalGrid(context, reconstructedResult).catch((err) => {
+        console.warn(
+          '[CanonicalQualifyingFinalGridBackendService] Falha ao persistir grid recuperado:',
+          err,
+        )
+      })
+
+      return reconstructedResult
+    } catch (recoverErr) {
+      console.warn(
+        '[CanonicalQualifyingFinalGridBackendService] Erro na recuperação do grid canônico:',
+        recoverErr,
+      )
+      return null
     }
   }
 
