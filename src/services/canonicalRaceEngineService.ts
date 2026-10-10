@@ -606,6 +606,12 @@ export class CanonicalRaceEngineService {
     const rng = this.createMulberry32(lapSeed)
 
     const nextEvents: EngineLapEvent[] = [...(currentState.events || [])]
+    const cumulativeAllEvents: EngineLapEvent[] = [
+      ...(currentState.allEvents && currentState.allEvents.length > 0
+        ? currentState.allEvents
+        : currentState.events || []),
+    ]
+    const initialEventsLength = nextEvents.length
     const timestampStr = new Date().toLocaleTimeString('pt-BR', {
       hour: '2-digit',
       minute: '2-digit',
@@ -1553,6 +1559,12 @@ export class CanonicalRaceEngineService {
               ? 'virtual_safety_car'
               : nextStatus
 
+    // Adicionar eventos recém-criados nesta volta ao acumulador cumulativo não-truncado
+    if (nextEvents.length > initialEventsLength) {
+      const addedEvents = nextEvents.slice(initialEventsLength)
+      cumulativeAllEvents.push(...addedEvents)
+    }
+
     const updatedState: CanonicalRaceState = {
       ...currentState,
       saveSchemaVersion: 'race-save-v1',
@@ -1566,7 +1578,8 @@ export class CanonicalRaceEngineService {
       completedAt,
       drivers: finalOrderedDrivers,
       driverLookup: updatedLookup,
-      events: nextEvents.slice(-60), // Guarda os 60 eventos mais recentes
+      events: nextEvents.slice(-60), // Guarda os 60 eventos mais recentes para HUD ao vivo
+      allEvents: cumulativeAllEvents, // Acumulador histórico cumulativo da prova (sem truncamento)
       fastestLap: currentFastest,
       raceSeed: lapSeed,
       raceControl: rcState,
@@ -1752,14 +1765,21 @@ export class CanonicalRaceEngineService {
     }
 
     const nextEvents: EngineLapEvent[] = [...(currentState.events || [])]
+    const cumulativeAllEvents: EngineLapEvent[] = [
+      ...(currentState.allEvents && currentState.allEvents.length > 0
+        ? currentState.allEvents
+        : currentState.events || []),
+    ]
     trans.newEvents.forEach((ev) => {
-      nextEvents.push({
+      const engineEv: EngineLapEvent = {
         id: ev.id,
         lap: ev.lap,
         type: 'incident',
         message: ev.message,
         timestamp: ev.timestamp,
-      })
+      }
+      nextEvents.push(engineEv)
+      cumulativeAllEvents.push(engineEv)
     })
 
     const updatedLookup: Record<string, CanonicalRaceDriverState> = {}
@@ -1778,6 +1798,7 @@ export class CanonicalRaceEngineService {
       raceControl: updatedRc,
       redFlagSnapshot: snapshot,
       events: nextEvents.slice(-60),
+      allEvents: cumulativeAllEvents,
       revision: currentState.revision + 1,
       updatedAt: new Date().toISOString(),
     }
@@ -1951,7 +1972,12 @@ export class CanonicalRaceEngineService {
     }
 
     const nextEvents: EngineLapEvent[] = [...(raceState.events || [])]
-    nextEvents.push({
+    const cumulativeAllEvents: EngineLapEvent[] = [
+      ...(raceState.allEvents && raceState.allEvents.length > 0
+        ? raceState.allEvents
+        : raceState.events || []),
+    ]
+    const rfTyreEv: EngineLapEvent = {
       id: `ev_rf_tyre_${raceState.currentLap}_${driverId}_${Date.now()}`,
       lap: raceState.currentLap,
       type: 'info',
@@ -1964,7 +1990,9 @@ export class CanonicalRaceEngineService {
         minute: '2-digit',
         second: '2-digit',
       }),
-    })
+    }
+    nextEvents.push(rfTyreEv)
+    cumulativeAllEvents.push(rfTyreEv)
 
     const updatedLookup: Record<string, CanonicalRaceDriverState> = {}
     updatedDrivers.forEach((d) => {
@@ -1978,6 +2006,7 @@ export class CanonicalRaceEngineService {
       driverStrategies: updatedStrategies,
       redFlagSnapshot: updatedSnapshot,
       events: nextEvents.slice(-60),
+      allEvents: cumulativeAllEvents,
       revision: raceState.revision + 1,
       updatedAt: new Date().toISOString(),
     }
@@ -2134,14 +2163,19 @@ export class CanonicalRaceEngineService {
     }
 
     const nextEvents: EngineLapEvent[] = [...(state.events || [])]
+    const cumulativeAllEvents: EngineLapEvent[] = [
+      ...(state.allEvents && state.allEvents.length > 0 ? state.allEvents : state.events || []),
+    ]
     trans.newEvents.forEach((ev) => {
-      nextEvents.push({
+      const engineEv: EngineLapEvent = {
         id: ev.id,
         lap: ev.lap,
         type: 'info',
         message: ev.message,
         timestamp: ev.timestamp,
-      })
+      }
+      nextEvents.push(engineEv)
+      cumulativeAllEvents.push(engineEv)
     })
 
     const restartPendingState: CanonicalRaceState = {
@@ -2153,6 +2187,7 @@ export class CanonicalRaceEngineService {
       raceControl: updatedRc,
       redFlagSnapshot: updatedSnapshot,
       events: nextEvents.slice(-60),
+      allEvents: cumulativeAllEvents,
       revision: state.revision + 1,
       updatedAt: new Date().toISOString(),
     }
@@ -2200,14 +2235,19 @@ export class CanonicalRaceEngineService {
     updatedRc.restartPending = false
 
     const nextEvents: EngineLapEvent[] = [...(state.events || [])]
+    const cumulativeAllEvents: EngineLapEvent[] = [
+      ...(state.allEvents && state.allEvents.length > 0 ? state.allEvents : state.events || []),
+    ]
     trans.newEvents.forEach((ev) => {
-      nextEvents.push({
+      const engineEv: EngineLapEvent = {
         id: ev.id,
         lap: ev.lap,
         type: 'info',
         message: ev.message,
         timestamp: ev.timestamp,
-      })
+      }
+      nextEvents.push(engineEv)
+      cumulativeAllEvents.push(engineEv)
     })
 
     const updatedSnapshot = state.redFlagSnapshot
@@ -2223,6 +2263,7 @@ export class CanonicalRaceEngineService {
       raceControl: updatedRc,
       redFlagSnapshot: updatedSnapshot,
       events: nextEvents.slice(-60),
+      allEvents: cumulativeAllEvents,
       revision: state.revision + 1,
       updatedAt: new Date().toISOString(),
     }

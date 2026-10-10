@@ -536,8 +536,12 @@ export class CanonicalRaceResultService {
     const neutralLaps = new Set<number>()
     const rc = raceState.raceControl
 
-    // 1. Inspecionar eventos de SC/VSC
-    const events = (raceState.events || []) as any[]
+    // 1. Inspecionar eventos de SC/VSC (usando allEvents se disponível)
+    const events = (
+      raceState.allEvents && raceState.allEvents.length > 0
+        ? raceState.allEvents
+        : raceState.events || []
+    ) as any[]
     for (const ev of events) {
       const type = (ev.type || '').toLowerCase()
       const msg = (ev.message || ev.description || '').toLowerCase()
@@ -546,7 +550,7 @@ export class CanonicalRaceResultService {
         type === 'vsc' ||
         type === 'safety_car_deployed' ||
         type === 'vsc_deployed' ||
-        msg.includes('safety car') ||
+        (msg.includes('safety car') && !msg.includes('recolhe') && !msg.includes('relargada')) ||
         msg.includes('vsc') ||
         msg.includes('virtual safety car')
 
@@ -671,71 +675,123 @@ export class CanonicalRaceResultService {
     }
   }
 
-  private extractEventSummary(raceState: CanonicalRaceState): OfficialRaceEventSummary {
-    const events = (raceState.events || []) as any[]
+  private extractEventSummary(
+    raceState: CanonicalRaceState,
+    officialEntries?: OfficialRaceResultEntry[],
+  ): OfficialRaceEventSummary {
+    // Usar allEvents (acumulador completo sem truncamento) se disponível; fallback para events
+    const rawEvents = (
+      raceState.allEvents && raceState.allEvents.length > 0
+        ? raceState.allEvents
+        : raceState.events || []
+    ) as any[]
 
-    // Separação estrita entre Safety Car e Virtual Safety Car
-    const isVscEvent = (e: any) => {
+    // Separação estrita entre Safety Car e Virtual Safety Car contando APENAS acionamentos
+    // Ignora mensagens de recolhimento ("SAFETY CAR IN THIS LAP", "Preparar para relargada", "VSC ENDING", retorno verde)
+    const isVscDeployment = (e: any) => {
       const type = (e.type || '').toLowerCase()
       const msg = (e.message || '').toLowerCase()
       const desc = (e.description || '').toLowerCase()
-      return (
+
+      // Ignora encerramento/recolhimento de VSC
+      if (
+        msg.includes('vsc ending') ||
+        msg.includes('ending') ||
+        desc.includes('vsc ending') ||
+        desc.includes('ending') ||
+        msg.includes('liberada') ||
+        desc.includes('liberada')
+      ) {
+        return false
+      }
+
+      if (type === 'vsc_deployed') return true
+      if (
         type === 'vsc' ||
         type === 'virtual_safety_car' ||
         msg.includes('virtual safety car') ||
         msg.includes('vsc') ||
         desc.includes('virtual safety car') ||
         desc.includes('vsc')
-      )
+      ) {
+        // Garantir que é acionamento (não recolhimento ou status neutro)
+        return (
+          msg.includes('delta') ||
+          msg.includes('virtual safety car (vsc)') ||
+          msg.includes('neutralização') ||
+          type === 'vsc_deployed' ||
+          type === 'vsc'
+        )
+      }
+      return false
     }
 
-    const isScEvent = (e: any) => {
-      if (isVscEvent(e)) return false
+    const isScDeployment = (e: any) => {
+      if (isVscDeployment(e)) return false
       const type = (e.type || '').toLowerCase()
       const msg = (e.message || '').toLowerCase()
       const desc = (e.description || '').toLowerCase()
-      return (
+
+      // Ignora recolhimento de Safety Car
+      if (
+        msg.includes('in this lap') ||
+        desc.includes('in this lap') ||
+        msg.includes('relargada') ||
+        desc.includes('relargada') ||
+        msg.includes('recolhe') ||
+        desc.includes('recolhe')
+      ) {
+        return false
+      }
+
+      if (type === 'safety_car_deployed') return true
+      if (
         type === 'safety_car' ||
         type === 'sc' ||
         msg.includes('safety car') ||
         desc.includes('safety car')
-      )
+      ) {
+        return (
+          msg.includes('deployed') ||
+          msg.includes('enployed') ||
+          msg.includes('na pista') ||
+          type === 'safety_car_deployed'
+        )
+      }
+      return false
     }
 
-    const safetyCarDeployments = events.filter(isScEvent).length
-    const virtualSafetyCarDeployments = events.filter(isVscEvent).length
+    const safetyCarDeployments = rawEvents.filter(isScDeployment).length
+    const virtualSafetyCarDeployments = rawEvents.filter(isVscDeployment).length
 
-    const redFlags = events.filter(
+    const redFlags = rawEvents.filter(
       (e) =>
         e.type === 'red_flag' ||
         (e.message && e.message.toLowerCase().includes('red flag')) ||
         (e.description && e.description.toLowerCase().includes('red flag')),
     ).length
 
-    // DNF: conta todos os pilotos classificados como abandonados no resultado final
-    const drivers = raceState.drivers || (raceState as any).cars || []
-    const dnfDriversCount = drivers.filter((car: any) =>
-      Boolean(car.isDnf || car.raceStatus === 'dnf' || car.status === 'dnf' || car.dnf),
-    ).length
+    // DNF: autoridade primária são as entries oficiais se fornecidas, senão os drivers do estado
+    let dnfCount = 0
+    if (officialEntries && officialEntries.length > 0) {
+      dnfCount = officialEntries.filter((e) => Boolean(e.dnf || e.status === 'dnf')).length
+    } else {
+      const drivers = raceState.drivers || (raceState as any).cars || []
+      dnfCount = drivers.filter((car: any) =>
+        Boolean(car.isDnf || car.raceStatus === 'dnf' || car.status === 'dnf' || car.dnf),
+      ).length
+    }
 
-    const dnfEventsFromFeed = events.filter(
-      (e) =>
-        e.type === 'dnf' ||
-        (e.message && e.message.toLowerCase().includes('dnf')) ||
-        (e.description && e.description.toLowerCase().includes('dnf')),
-    ).length
-
-    const dnfCount = Math.max(dnfDriversCount, dnfEventsFromFeed)
-
-    // Overtakes: conta eventos reais de ultrapassagem registrados no histórico da corrida
-    const overtakeEventsCount = events.filter(
+    // Overtakes: conta eventos reais de type === 'overtake' no acumulador completo
+    const overtakeEventsCount = rawEvents.filter(
       (e) =>
         e.type === 'overtake' ||
         (e.message && e.message.toLowerCase().includes('ultrapassagem')) ||
         (e.description && e.description.toLowerCase().includes('ultrapassagem')),
     ).length
 
-    const totalPitStops = drivers.reduce(
+    const driversForPits = raceState.drivers || (raceState as any).cars || []
+    const totalPitStops = driversForPits.reduce(
       (acc: number, car: any) => acc + (car.pitStopsCount || car.pitStops || 0),
       0,
     )
@@ -746,7 +802,7 @@ export class CanonicalRaceResultService {
       message: string
       driverId?: string
       timestamp: string
-    }> = events.map((e: any) => ({
+    }> = rawEvents.map((e: any) => ({
       lap: e.lap || 0,
       type: (e.type || 'info') as any,
       message: e.message || e.description || '',
@@ -839,10 +895,6 @@ export class CanonicalRaceResultService {
       const bestLapSec = car.bestLapSec
       const bestLapFormatted =
         car.bestLapFormatted || (bestLapSec ? formatLapTime(bestLapSec) : '--:--')
-      // A volta mais rápida da corrida é derivada EXCLUSIVAMENTE do rastreador canônico do motor (state.fastestLap)
-      const isFastestLap = Boolean(
-        state.fastestLap?.driverId && state.fastestLap.driverId === car.driverId,
-      )
 
       const entry: any = {
         driverId: car.driverId,
@@ -882,7 +934,7 @@ export class CanonicalRaceResultService {
         bestLapTimeFormatted: bestLapFormatted,
         bestLap: bestLapFormatted,
         bestLapNumber: car.bestLapNumber,
-        fastestLap: isFastestLap,
+        fastestLap: false, // Marcado exclusivamente após resolução da menor bestLapSec válida
         tyreCompound: car.tyreCompound || 'duro',
         points: pointsAwarded,
         pointsAwarded,
@@ -891,6 +943,52 @@ export class CanonicalRaceResultService {
 
       return entry as OfficialRaceResultEntry
     })
+
+    // 2.5. RACE-SUMMARY-DERIVE-01A: Determinar Fastest Lap a partir da menor bestLapSec numérica válida (>0, não-DNS)
+    // entre todas as entries oficiais. Marca fastestLap = true SOMENTE nessa entrada.
+    let fastestLapEntry: OfficialRaceResultEntry | undefined
+    let minBestLapSec = Infinity
+
+    for (const entry of entries) {
+      if (
+        (entry.status as string) !== 'dns' &&
+        (entry as any).finishStatus !== 'dns' &&
+        typeof entry.bestLapSec === 'number' &&
+        !isNaN(entry.bestLapSec) &&
+        entry.bestLapSec > 0 &&
+        entry.bestLapSec < minBestLapSec
+      ) {
+        minBestLapSec = entry.bestLapSec
+        fastestLapEntry = entry
+      }
+    }
+
+    // Se nenhuma entry tiver bestLapSec válida mas o rastreador state.fastestLap tiver lapTimeSec
+    if (
+      !fastestLapEntry &&
+      state.fastestLap?.driverId &&
+      (state.fastestLap?.lapTimeSec || (state.fastestLap as any)?.time)
+    ) {
+      const trackerDriverId = state.fastestLap.driverId
+      fastestLapEntry = entries.find((e) => e.driverId === trackerDriverId)
+    }
+
+    // Marcar fastestLap = true SOMENTE na entrada vencedora da melhor volta (todas as outras false)
+    entries.forEach((e) => {
+      e.fastestLap = Boolean(fastestLapEntry && e.driverId === fastestLapEntry.driverId)
+    })
+
+    const fastestLapDriverId = fastestLapEntry?.driverId || state.fastestLap?.driverId
+    const fastestLapSec =
+      fastestLapEntry &&
+      typeof fastestLapEntry.bestLapSec === 'number' &&
+      fastestLapEntry.bestLapSec > 0
+        ? fastestLapEntry.bestLapSec
+        : state.fastestLap?.lapTimeSec
+    const fastestLapFormatted = fastestLapSec
+      ? formatLapTime(fastestLapSec)
+      : fastestLapEntry?.bestLapFormatted || state.fastestLap?.lapTimeFormatted
+    const fastestLapNumber = (fastestLapEntry as any)?.bestLapNumber ?? state.fastestLap?.lap
 
     // 3. Determinar Pole Position (largou em P1)
     const poleCar =
@@ -933,6 +1031,9 @@ export class CanonicalRaceResultService {
       totalLaps: state.totalLaps,
     })
 
+    // Resumo de eventos derivado uma única vez
+    const computedEventsSummary = this.extractEventSummary(state, entries)
+
     const officialResult: any = {
       schemaVersion: OFFICIAL_RACE_RESULT_SCHEMA_VERSION,
       officialResultId,
@@ -951,27 +1052,17 @@ export class CanonicalRaceResultService {
       winnerTeamId: winnerEntry?.teamId || '',
       poleDriverId: poleCar?.driverId || entries[0]?.driverId || '',
       polePositionDriverId: poleCar?.driverId || entries[0]?.driverId || '',
-      fastestLapDriverId: state.fastestLap?.driverId,
-      fastestLapSec: state.fastestLap?.lapTimeSec,
-      fastestLapFormatted:
-        state.fastestLap?.lapTimeFormatted ||
-        (state.fastestLap?.lapTimeSec ? formatLapTime(state.fastestLap.lapTimeSec) : undefined) ||
-        ((state.fastestLap as any)?.time
-          ? formatLapTime((state.fastestLap as any).time)
-          : undefined),
-      fastestLapTimeFormatted:
-        state.fastestLap?.lapTimeFormatted ||
-        (state.fastestLap?.lapTimeSec ? formatLapTime(state.fastestLap.lapTimeSec) : undefined) ||
-        ((state.fastestLap as any)?.time
-          ? formatLapTime((state.fastestLap as any).time)
-          : undefined),
-      fastestLapNumber: state.fastestLap?.lap,
+      fastestLapDriverId,
+      fastestLapSec,
+      fastestLapFormatted,
+      fastestLapTimeFormatted: fastestLapFormatted,
+      fastestLapNumber,
       podium: podiumDriverIds.slice(0, 3) as [string, string, string],
       podiumDriverIds,
       entries,
       playerEntries: playerEntries.slice(0, 2),
-      eventsSummary: this.extractEventSummary(state),
-      eventSummary: this.extractEventSummary(state),
+      eventsSummary: computedEventsSummary,
+      eventSummary: computedEventsSummary, // Referência idêntica para compatibilidade sem duplicar processamento
       integrityHash,
       resultHash: integrityHash,
     }

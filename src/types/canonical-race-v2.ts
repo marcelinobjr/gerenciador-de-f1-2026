@@ -291,6 +291,16 @@ export interface CanonicalRaceState {
     teamColor?: string
     timestamp: string
   }>
+  allEvents?: Array<{
+    id: string
+    lap: number
+    type: 'overtake' | 'incident' | 'dnf' | 'fastest_lap' | 'info'
+    message: string
+    driverId?: string
+    driverName?: string
+    teamColor?: string
+    timestamp: string
+  }>
   fastestLap?: {
     driverId: string
     driverName: string
@@ -525,5 +535,6 @@ export interface OfficialRaceResult {
   entries: OfficialRaceResultEntry[]
   playerEntries: [OfficialRaceResultEntry, OfficialRaceResultEntry] // Os dois carros do jogador isolados
   eventsSummary: OfficialRaceEventSummary
+  eventSummary?: OfficialRaceEventSummary
   resultHash: string
 }
