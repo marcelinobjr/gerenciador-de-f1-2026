@@ -122,25 +122,63 @@ routerAdd('POST', '/backend/v1/driver-morale/apply-atomic', (e) => {
     }
 
     // 2. Se não existe, aplicar o PATCH na moral do piloto e salvar o recibo
-    const rawBefore = beforeMorale !== undefined ? beforeMorale : reqData.before_morale
-    const rawFinal = finalMorale !== undefined ? finalMorale : reqData.final_morale
-    const rawDelta = delta !== undefined ? delta : reqData.delta
+    // Tratar número 0 como valor válido legítimo (não falsy / em branco)
+    const hasValue = (v) => v !== undefined && v !== null && v !== ''
+
+    const candidateBefore = hasValue(beforeMorale)
+      ? beforeMorale
+      : hasValue(reqData.before_morale)
+        ? reqData.before_morale
+        : undefined
+
+    const candidateFinal = hasValue(finalMorale)
+      ? finalMorale
+      : hasValue(reqData.final_morale)
+        ? reqData.final_morale
+        : undefined
+
+    const candidateDelta = hasValue(delta)
+      ? delta
+      : hasValue(reqData.delta)
+        ? reqData.delta
+        : undefined
+
+    const numBefore =
+      typeof candidateBefore === 'number'
+        ? candidateBefore
+        : candidateBefore !== undefined && !isNaN(Number(candidateBefore))
+          ? Number(candidateBefore)
+          : undefined
+
+    const numFinal =
+      typeof candidateFinal === 'number'
+        ? candidateFinal
+        : candidateFinal !== undefined && !isNaN(Number(candidateFinal))
+          ? Number(candidateFinal)
+          : undefined
+
+    const numDelta =
+      typeof candidateDelta === 'number'
+        ? candidateDelta
+        : candidateDelta !== undefined && !isNaN(Number(candidateDelta))
+          ? Number(candidateDelta)
+          : undefined
 
     const prevMorale =
-      typeof rawBefore === 'number'
-        ? rawBefore
+      numBefore !== undefined
+        ? numBefore
         : typeof driverRecord.get('morale') === 'number'
           ? driverRecord.get('morale')
           : 80
 
     const targetMorale =
-      typeof rawFinal === 'number'
-        ? Math.max(0, Math.min(100, Math.round(rawFinal)))
-        : typeof rawDelta === 'number'
-          ? Math.max(0, Math.min(100, Math.round(prevMorale + rawDelta)))
+      numFinal !== undefined
+        ? Math.max(0, Math.min(100, Math.round(numFinal)))
+        : numDelta !== undefined
+          ? Math.max(0, Math.min(100, Math.round(prevMorale + numDelta)))
           : prevMorale
 
-    const actualDelta = typeof rawDelta === 'number' ? rawDelta : targetMorale - prevMorale
+    const actualDelta = numDelta !== undefined ? numDelta : targetMorale - prevMorale
 
     // Atualiza a moral no registro do piloto
     driverRecord.set('morale', targetMorale)
@@ -156,9 +194,10 @@ routerAdd('POST', '/backend/v1/driver-morale/apply-atomic', (e) => {
     receipt.set('session_type', sess)
     receipt.set('driver_id', realDriverId)
     receipt.set('driver_slug', driverSlug || driverId)
-    receipt.set('before_morale', prevMorale)
-    receipt.set('delta', actualDelta)
-    receipt.set('final_morale', targetMorale)
+    // Coerção numérica explícita para salvar: garante que 0 nunca é nulo/vazio
+    receipt.set('before_morale', Number(prevMorale))
+    receipt.set('delta', Number(actualDelta))
+    receipt.set('final_morale', Number(targetMorale))
     receipt.set('applied_at', nowIso)
     receipt.set('payload', {
       driverName: driverRecord.getString('name'),
