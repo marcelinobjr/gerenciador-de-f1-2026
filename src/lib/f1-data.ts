@@ -1,11 +1,120 @@
-import { GrandPrixInfo, EngineSupplierSpec, EngineSupplierName } from '@/types/f1'
-
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+=======
+    round: 1,
+    name: 'Grande Prêmio da Austrália',
+    circuit: 'Albert Park, Melbourne',
+    country: 'Austrália',
+    flag: '🇦🇺',
+    laps: 58,
+    circuitLengthKm: 5.278,
+    turns: 14,
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 5,
+    favors: 'Equilíbrio',
+    date: '6–8 mar',
+    avgLapTime: '~1:21',
+    hasSprint: false,
+  },
+  {=======
+  },
+  {
+=======
+export const F1_2026_CALENDAR: GrandPrixInfo[] = [
+  {
+    round: 1,
+    name: 'Grande Prêmio da Austrália',
+    circuit: 'Albert Park, Melbourne',
+    country: 'Austrália',
+    flag: '🇦🇺',
+    laps: 58,
+    circuitLengthKm: 5.278,
+    turns: 14,
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 5,
+    favors: 'Equilíbrio',
+    date: '6–8 mar',
+    avgLapTime: '~1:21',
+    hasSprint: false,
+  },
+  {
+=======
     characteristic: 'Mistura curvas rápidas e freadas fortes',
     tireAbrasiveness: 4,
     downforceIdeal: 5,
     suspensionIdeal: 6,
   },
   {
+=======
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+=======
+    round: 1,
+    name: 'Grande Prêmio da Austrália',
+    circuit: 'Albert Park, Melbourne',
+    country: 'Austrália',
+    flag: '🇦🇺',
+    laps: 58,
+    circuitLengthKm: 5.278,
+    turns: 14,
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 5,
+    favors: 'Equilíbrio',
+    date: '6–8 mar',
+    avgLapTime: '~1:21',
+    hasSprint: false,
+  },
+  {=======
+  },
+  {
+=======
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
+  },
+  {
+=======
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
+  },
+  {
+    round: 2,
+=======
+  },
+  {
+    round: 2,
+=======
+import { GrandPrixInfo, EngineSupplierSpec, EngineSupplierName } from '@/types/f1'
+
+export const F1_2026_CALENDAR: GrandPrixInfo[] = [
+  {
+    round: 1,
+    name: 'Grande Prêmio da Austrália',
+    circuit: 'Albert Park, Melbourne',
+    country: 'Austrália',
+    flag: '🇦🇺',
+    laps: 58,
+    circuitLengthKm: 5.278,
+    turns: 14,
+    characteristic: 'Mistura curvas rápidas e freadas fortes',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 5,
+    favors: 'Equilíbrio',
+    date: '6–8 mar',
+    avgLapTime: '~1:21',
+    hasSprint: false,
+  },
+  {
+    round: 2,
 =======
     tireAbrasiveness: 4,
     downforceIdeal: 5,
@@ -393,6 +502,27 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     suspensionIdeal: 8,
   },
   {
+    round: 24,
+    name: 'Grande Prêmio de Abu Dhabi',
+    circuit: 'Yas Marina',
+    country: 'Emirados Árabes Unidos',
+    flag: '🇦🇪',
+    laps: 58,
+    circuitLengthKm: 5.281,
+    turns: 16,
+    characteristic: 'Muita tração no setor final ao entardecer',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
+  },
+]
+
+export const ENGINE_SUPPLIERS: EngineSupplierSpec[] = [
+=======
+]
+
+export const ENGINE_SUPPLIERS: EngineSupplierSpec[] = [
+=======
     round: 23,
     name: 'Grande Prêmio do Catar',
     circuit: 'Lusail',
@@ -420,6 +550,26 @@ export const F1_2026_CALENDAR: GrandPrixInfo[] = [
     downforceIdeal: 5,
     suspensionIdeal: 6,
   },
+]
+
+export const ENGINE_SUPPLIERS: EngineSupplierSpec[] = [
+=======
+    round: 24,
+    name: 'Grande Prêmio de Abu Dhabi',
+    circuit: 'Yas Marina',
+    country: 'Emirados Árabes Unidos',
+    flag: '🇦🇪',
+    laps: 58,
+    circuitLengthKm: 5.281,
+    turns: 16,
+    characteristic: 'Muita tração no setor final ao entardecer',
+    tireAbrasiveness: 4,
+    downforceIdeal: 5,
+    suspensionIdeal: 6,
+  },
+]
+
+export const ENGINE_SUPPLIERS: EngineSupplierSpec[] = [
 =======
 ]
 
