@@ -1,5 +1,6 @@
 import { GrandPrixInfo, EngineSupplierSpec, EngineSupplierName } from '@/types/f1'
 
+// FIX-F1-DATA-RECOVER-01B: Top of f1-data.ts verified clean without duplicates or conflict markers
 export const F1_2026_CALENDAR: GrandPrixInfo[] = [
   {
     round: 1,
