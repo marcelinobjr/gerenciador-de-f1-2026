@@ -126,15 +126,23 @@ export const driverHiringService = {
       )
     }
 
-    const targetDriverId = driver.rawDbRecord?.id || driver.id
+    const rawProvidedId = driver.rawDbRecord?.id || driver.id
+    // PocketBase IDs canônicos têm exatamente 15 caracteres alfanuméricos minúsculos/dígitos
+    const isPbId = typeof rawProvidedId === 'string' && /^[a-z0-9]{15}$/.test(rawProvidedId)
 
     // Busca registro existente se existir ou prepara dados
     let existingDriverRecord: any = driver.rawDbRecord
-    if (!existingDriverRecord && targetDriverId) {
-      try {
-        existingDriverRecord = await pb.collection('drivers').getOne(targetDriverId)
-      } catch {
-        // Se targetDriverId não existir no banco, busca por nome antes de criar qualquer novo registro
+    if (!existingDriverRecord && rawProvidedId) {
+      if (isPbId) {
+        try {
+          existingDriverRecord = await pb.collection('drivers').getOne(rawProvidedId)
+        } catch {
+          existingDriverRecord = null
+        }
+      }
+
+      // Se não encontrou por ID direto (ou se não for PB ID), busca resiliente por nome ou procedural_data
+      if (!existingDriverRecord && driver.name) {
         try {
           existingDriverRecord = await pb
             .collection('drivers')
@@ -143,80 +151,20 @@ export const driverHiringService = {
           existingDriverRecord = null
         }
       }
-    }
 
-    let finalDriverId = targetDriverId
-    if (!finalDriverId && existingDriverRecord) {
-      finalDriverId = existingDriverRecord.id
-    }
-
-    // Se verdadeiramente não existe registro persistido no banco para este piloto, cria uma única vez
-    if (!finalDriverId) {
-      let initialProcData = driver.procedural_data || {}
-      if (
-        driver.origin_type === 'procedural' ||
-        (!driver.id?.startsWith('DRV_') && !driver.id?.startsWith('mbj-'))
-      ) {
-        const existingProfileId =
-          initialProcData.generatedPortraitProfileId ||
-          initialProcData.visualIdentity?.generatedPortraitProfileId ||
-          (initialProcData.visualIdentity?.portraitAssetId &&
-          !initialProcData.visualIdentity.portraitAssetId.startsWith('DRV_') &&
-          (initialProcData.visualIdentity.portraitAssetId.startsWith('Piloto') ||
-            initialProcData.visualIdentity.portraitAssetId.startsWith('GEN_'))
-            ? initialProcData.visualIdentity.portraitAssetId
-            : null)
-        if (!existingProfileId) {
-          const gender =
-            initialProcData.visualIdentity?.gender || (driver as any).gender || 'female'
-          const seed = initialProcData.driverId || driver.id || driver.name || Date.now()
-          const assigned = assignGeneratedPortraitProfile(gender, seed)
-          initialProcData = {
-            ...initialProcData,
-            generatedPortraitProfileId: assigned.profileId,
-            visualIdentity: {
-              ...(initialProcData.visualIdentity || {}),
-              portraitAssetId: assigned.portraitAssetId,
-              generatedPortraitProfileId: assigned.profileId,
-              gender: assigned.gender,
-            },
-          }
-        } else {
-          // Garante que visualIdentity.generatedPortraitProfileId esteja preenchido
-          initialProcData = {
-            ...initialProcData,
-            generatedPortraitProfileId: existingProfileId,
-            visualIdentity: {
-              ...(initialProcData.visualIdentity || {}),
-              portraitAssetId: initialProcData.visualIdentity?.portraitAssetId || existingProfileId,
-              generatedPortraitProfileId: existingProfileId,
-            },
-          }
+      // Se ainda não encontrou e possui driverId lógico, tenta buscar em procedural_data
+      if (!existingDriverRecord && rawProvidedId) {
+        try {
+          existingDriverRecord = await pb
+            .collection('drivers')
+            .getFirstListItem(`procedural_data ~ "${rawProvidedId}"`)
+        } catch {
+          existingDriverRecord = null
         }
       }
-
-      const created = await pb.collection('drivers').create({
-        name: driver.name,
-        nationality: driver.nationality,
-        age: driver.age,
-        speed: driver.speed,
-        consistency: driver.consistency,
-        rain: driver.rain,
-        defense: driver.defense,
-        salary: annualSalaryUsd,
-        contract_end: seasonYear + durationYears,
-        role: contractRole,
-        category: 'f1',
-        morale: driver.morale ?? 80,
-        physical_condition: driver.physical_condition ?? 100,
-        true_potential: driver.true_potential,
-        perceived_potential: driver.perceived_potential,
-        evaluation_confidence: driver.evaluation_confidence,
-        procedural_data: sanitizeDriverProceduralData(initialProcData, initialProcData),
-      })
-      finalDriverId = created.id
-      existingDriverRecord = created
     }
+
+    let finalDriverId = existingDriverRecord?.id || (isPbId ? rawProvidedId : null)
 
     const existingProcData =
       existingDriverRecord?.procedural_data || (driver as any)?.procedural_data || {}
@@ -233,71 +181,209 @@ export const driverHiringService = {
       existingProcData?.academyOriginTeamId ||
       (wasInAcademy ? team.id : null)
 
-    const updatedProceduralData = sanitizeDriverProceduralData(existingProcData, {
-      ...existingProcData,
+    let initialProcData = { ...existingProcData }
+    if (!initialProcData.driverId && rawProvidedId) {
+      initialProcData.driverId = rawProvidedId
+    }
+
+    if (
+      driver.origin_type === 'procedural' ||
+      (!rawProvidedId?.startsWith('DRV_') && !rawProvidedId?.startsWith('mbj-'))
+    ) {
+      const existingProfileId =
+        initialProcData.generatedPortraitProfileId ||
+        initialProcData.visualIdentity?.generatedPortraitProfileId ||
+        (initialProcData.visualIdentity?.portraitAssetId &&
+        !initialProcData.visualIdentity.portraitAssetId.startsWith('DRV_') &&
+        (initialProcData.visualIdentity.portraitAssetId.startsWith('Piloto') ||
+          initialProcData.visualIdentity.portraitAssetId.startsWith('GEN_'))
+          ? initialProcData.visualIdentity.portraitAssetId
+          : null)
+      if (!existingProfileId) {
+        const gender = initialProcData.visualIdentity?.gender || (driver as any).gender || 'female'
+        const seed = initialProcData.driverId || rawProvidedId || driver.name || Date.now()
+        const assigned = assignGeneratedPortraitProfile(gender, seed)
+        initialProcData = {
+          ...initialProcData,
+          generatedPortraitProfileId: assigned.profileId,
+          visualIdentity: {
+            ...(initialProcData.visualIdentity || {}),
+            portraitAssetId: assigned.portraitAssetId,
+            generatedPortraitProfileId: assigned.profileId,
+            gender: assigned.gender,
+          },
+        }
+      } else {
+        // Garante que visualIdentity.generatedPortraitProfileId esteja preenchido
+        initialProcData = {
+          ...initialProcData,
+          generatedPortraitProfileId: existingProfileId,
+          visualIdentity: {
+            ...(initialProcData.visualIdentity || {}),
+            portraitAssetId: initialProcData.visualIdentity?.portraitAssetId || existingProfileId,
+            generatedPortraitProfileId: existingProfileId,
+          },
+        }
+      }
+    }
+
+    const updatedProceduralData = sanitizeDriverProceduralData(initialProcData, {
+      ...initialProcData,
       academyOriginTeamId: academyOrigin,
       academyPromotedToProfessional: wasInAcademy
         ? true
-        : existingProcData?.academyPromotedToProfessional,
+        : initialProcData?.academyPromotedToProfessional,
       academyPromotionDate: wasInAcademy
-        ? existingProcData?.academyPromotionDate || new Date().toISOString()
-        : existingProcData?.academyPromotionDate,
+        ? initialProcData?.academyPromotionDate || new Date().toISOString()
+        : initialProcData?.academyPromotionDate,
       careerStatus: 'professional',
     })
 
-    const canonicalContractObj: CanonicalContractData = {
-      contractId: `contract_${finalDriverId}_${seasonYear}_${Date.now()}`,
-      driverId: finalDriverId,
-      driverName: driver.name,
-      teamId: team.id,
-      teamName: team.name,
-      role: contractRole === 'reserva' ? 'RESERVE' : 'LEAD_DRIVER',
-      startSeason: contractMode === 'precontract' ? seasonYear + 1 : seasonYear,
-      endSeason: seasonYear + durationYears,
-      annualSalary: annualSalaryUsd,
-      signingBonus: proratedSigningFeeUsd,
-      status: contractMode === 'precontract' ? 'future_pending' : 'active',
-      signedDate: new Date().toISOString(),
-    }
+    // career_status canônico no PocketBase aceita apenas:
+    // 'prospect' | 'academy' | 'test_driver' | 'reserve' | 'f1_driver' | 'free_agent' | 'retired'
+    const targetCareerStatus = contractRole === 'reserva' ? 'reserve' : 'f1_driver'
 
     let updatedDriverDb: DriverModel
+    let canonicalContractObj: CanonicalContractData
 
-    if (contractMode === 'precontract') {
-      updatedDriverDb = await pb.collection('drivers').update<DriverModel>(finalDriverId, {
-        next_team_id: team.id,
-        next_contract_role: contractRole,
-        future_contract: canonicalContractObj,
+    // Se NÃO existe registro persistido no banco para este piloto, cria via POST (create)
+    if (!finalDriverId) {
+      // Criação inicial com contrato canônico já embutido
+      const tempContractId = `contract_${rawProvidedId || 'new'}_${seasonYear}_${Date.now()}`
+      const initialContract: CanonicalContractData = {
+        contractId: tempContractId,
+        driverId: rawProvidedId || '',
+        driverName: driver.name,
+        teamId: team.id,
+        teamName: team.name,
+        role: contractRole === 'reserva' ? 'RESERVE' : 'LEAD_DRIVER',
+        startSeason: contractMode === 'precontract' ? seasonYear + 1 : seasonYear,
+        endSeason: seasonYear + durationYears,
+        annualSalary: annualSalaryUsd,
+        signingBonus: proratedSigningFeeUsd,
+        status: contractMode === 'precontract' ? 'future_pending' : 'active',
+        signedDate: new Date().toISOString(),
+      }
+
+      const createPayload: any = {
+        name: driver.name,
+        nationality: driver.nationality || 'Estados Unidos',
+        age: driver.age || 25,
+        speed: driver.speed || 75,
+        consistency: driver.consistency || 75,
+        rain: driver.rain || 75,
+        defense: driver.defense || 75,
+        salary: annualSalaryUsd,
+        contract_end: seasonYear + durationYears,
+        category: 'f1',
+        morale: driver.morale ?? 80,
+        physical_condition: driver.physical_condition ?? 100,
+        true_potential: driver.true_potential ?? driver.potential ?? 80,
+        perceived_potential: driver.perceived_potential ?? driver.potential ?? 80,
+        evaluation_confidence: driver.evaluation_confidence ?? 75,
+        career_status: targetCareerStatus,
         procedural_data: updatedProceduralData,
-      })
+      }
+
+      if (contractMode === 'precontract') {
+        createPayload.next_team_id = team.id
+        createPayload.next_contract_role = contractRole
+        createPayload.future_contract = initialContract
+      } else {
+        createPayload.role = contractRole
+        createPayload.contract_role = contractRole
+        if (contractRole === 'titular') {
+          createPayload.team_id = team.id
+          createPayload.reserve_team_id = null
+        } else {
+          createPayload.reserve_team_id = team.id
+          createPayload.team_id = null
+        }
+        createPayload.canonical_contract = initialContract
+        if (academyOrigin) {
+          createPayload.academy_origin_team_id = academyOrigin
+        }
+      }
+
+      const created = await pb.collection('drivers').create<DriverModel>(createPayload)
+      finalDriverId = created.id
+      existingDriverRecord = created
+
+      // Atualiza driverId no contrato canônico se agora temos o id do PB
+      canonicalContractObj = {
+        ...initialContract,
+        contractId: `contract_${finalDriverId}_${seasonYear}_${Date.now()}`,
+        driverId: finalDriverId,
+      }
+
+      // Se necessário sincronizar o driverId do contrato no registro recém-criado
+      if (canonicalContractObj.driverId !== initialContract.driverId) {
+        if (contractMode === 'precontract') {
+          updatedDriverDb = await pb.collection('drivers').update<DriverModel>(finalDriverId, {
+            future_contract: canonicalContractObj,
+          })
+        } else {
+          updatedDriverDb = await pb.collection('drivers').update<DriverModel>(finalDriverId, {
+            canonical_contract: canonicalContractObj,
+          })
+        }
+      } else {
+        updatedDriverDb = created
+      }
     } else {
-      if (contractRole === 'titular') {
+      // Registro existente no banco: atualiza via PATCH (update) com ID real
+      canonicalContractObj = {
+        contractId: `contract_${finalDriverId}_${seasonYear}_${Date.now()}`,
+        driverId: finalDriverId,
+        driverName: driver.name,
+        teamId: team.id,
+        teamName: team.name,
+        role: contractRole === 'reserva' ? 'RESERVE' : 'LEAD_DRIVER',
+        startSeason: contractMode === 'precontract' ? seasonYear + 1 : seasonYear,
+        endSeason: seasonYear + durationYears,
+        annualSalary: annualSalaryUsd,
+        signingBonus: proratedSigningFeeUsd,
+        status: contractMode === 'precontract' ? 'future_pending' : 'active',
+        signedDate: new Date().toISOString(),
+      }
+
+      if (contractMode === 'precontract') {
         updatedDriverDb = await pb.collection('drivers').update<DriverModel>(finalDriverId, {
-          team_id: team.id,
-          reserve_team_id: null,
-          role: 'titular',
-          contract_role: 'titular',
-          category: 'f1',
-          salary: annualSalaryUsd,
-          contract_end: seasonYear + durationYears,
-          career_status: 'active',
-          canonical_contract: canonicalContractObj,
-          academy_origin_team_id: academyOrigin,
+          next_team_id: team.id,
+          next_contract_role: contractRole,
+          future_contract: canonicalContractObj,
           procedural_data: updatedProceduralData,
         })
       } else {
-        updatedDriverDb = await pb.collection('drivers').update<DriverModel>(finalDriverId, {
-          reserve_team_id: team.id,
-          team_id: null,
-          role: 'reserva',
-          contract_role: 'reserva',
-          category: 'f1',
-          salary: annualSalaryUsd,
-          contract_end: seasonYear + durationYears,
-          career_status: 'active',
-          canonical_contract: canonicalContractObj,
-          academy_origin_team_id: academyOrigin,
-          procedural_data: updatedProceduralData,
-        })
+        if (contractRole === 'titular') {
+          updatedDriverDb = await pb.collection('drivers').update<DriverModel>(finalDriverId, {
+            team_id: team.id,
+            reserve_team_id: null,
+            role: 'titular',
+            contract_role: 'titular',
+            category: 'f1',
+            salary: annualSalaryUsd,
+            contract_end: seasonYear + durationYears,
+            career_status: targetCareerStatus,
+            canonical_contract: canonicalContractObj,
+            academy_origin_team_id: academyOrigin,
+            procedural_data: updatedProceduralData,
+          })
+        } else {
+          updatedDriverDb = await pb.collection('drivers').update<DriverModel>(finalDriverId, {
+            reserve_team_id: team.id,
+            team_id: null,
+            role: 'reserva',
+            contract_role: 'reserva',
+            category: 'f1',
+            salary: annualSalaryUsd,
+            contract_end: seasonYear + durationYears,
+            career_status: targetCareerStatus,
+            canonical_contract: canonicalContractObj,
+            academy_origin_team_id: academyOrigin,
+            procedural_data: updatedProceduralData,
+          })
+        }
       }
     }
 
