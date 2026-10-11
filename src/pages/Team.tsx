@@ -524,7 +524,7 @@ export default function TeamPage() {
           contract_end: 2027,
           team_id: team.id,
           role: null,
-          category: candidate.category || 'mercado',
+          category: (candidate.category as any) || 'mercado',
           superlicense_points: candidate.superlicense_points || 5,
           homologation_status: 'formacao',
           f1_adaptation: candidate.f1_adaptation || 50,

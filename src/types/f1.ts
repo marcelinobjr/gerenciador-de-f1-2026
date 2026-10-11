@@ -166,6 +166,10 @@ export interface DriverModel {
   category?:
     | 'f1'
     | 'f2'
+    | 'f3'
+    | 'f4'
+    | 'regional'
+    | 'karting'
     | 'indycar'
     | 'indynxt'
     | 'formula_e'
